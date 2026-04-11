@@ -499,7 +499,7 @@ impl RustTransformer {
 
     fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
         if let Some((kind, trait_name)) = trait_like_type_name(ty) {
-            if kind != "impl trait" {
+            if kind != "impl trait" && !trait_object_is_opaque_any_carrier(ty) {
                 let message = if kind == "dyn trait" {
                     format!(
                         "dyn trait object lowered to impl {} (dynamic dispatch / vtable semantics erased)",
@@ -2951,6 +2951,73 @@ fn trait_like_type_name(ty: &syn::Type) -> Option<(&'static str, String)> {
     }
 }
 
+fn trait_object_is_opaque_any_carrier(ty: &syn::Type) -> bool {
+    match ty {
+        syn::Type::TraitObject(obj) => {
+            let mut saw_any = false;
+            for bound in &obj.bounds {
+                match bound {
+                    syn::TypeParamBound::Trait(trait_bound) => {
+                        let trait_name = path_to_ident(&trait_bound.path);
+                        match trait_name.as_str() {
+                            "Any" | "std::any::Any" | "core::any::Any" | "Send" | "Sync" => {
+                                saw_any |= matches!(
+                                    trait_name.as_str(),
+                                    "Any" | "std::any::Any" | "core::any::Any"
+                                );
+                            }
+                            _ => return false,
+                        }
+                    }
+                    syn::TypeParamBound::Lifetime(_) => {}
+                    _ => return false,
+                }
+            }
+            saw_any
+        }
+        syn::Type::Reference(reference) => trait_object_is_opaque_any_carrier(&reference.elem),
+        syn::Type::Ptr(pointer) => trait_object_is_opaque_any_carrier(&pointer.elem),
+        syn::Type::Array(array) => trait_object_is_opaque_any_carrier(&array.elem),
+        syn::Type::Slice(slice) => trait_object_is_opaque_any_carrier(&slice.elem),
+        syn::Type::Group(group) => trait_object_is_opaque_any_carrier(&group.elem),
+        syn::Type::Paren(paren) => trait_object_is_opaque_any_carrier(&paren.elem),
+        syn::Type::Tuple(tuple) => tuple.elems.iter().any(trait_object_is_opaque_any_carrier),
+        syn::Type::BareFn(function) => {
+            function
+                .inputs
+                .iter()
+                .any(|input| trait_object_is_opaque_any_carrier(&input.ty))
+                || matches!(
+                    &function.output,
+                    syn::ReturnType::Type(_, output) if trait_object_is_opaque_any_carrier(output)
+                )
+        }
+        syn::Type::Path(path) => {
+            for segment in &path.path.segments {
+                if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                    for arg in &arguments.args {
+                        match arg {
+                            syn::GenericArgument::Type(inner) => {
+                                if trait_object_is_opaque_any_carrier(inner) {
+                                    return true;
+                                }
+                            }
+                            syn::GenericArgument::AssocType(binding) => {
+                                if trait_object_is_opaque_any_carrier(&binding.ty) {
+                                    return true;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
 fn binop(op: &syn::BinOp) -> BinaryOp {
     match op {
         syn::BinOp::Add(_) => BinaryOp::Add,
@@ -3608,6 +3675,27 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("class:trait_object_lowering")));
+    }
+
+    #[test]
+    fn does_not_flag_opaque_any_trait_object_carriers() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            use std::any::Any;
+            use std::sync::Arc;
+
+            struct HostBox {
+                payload: Arc<dyn Any + Send + Sync>,
+            }
+            "#,
+        );
+
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diag| diag.contains("class:trait_object_lowering")),
+            "opaque Any carrier should not trip strict dyn-trait diagnostics: {diagnostics:?}"
+        );
     }
 
     #[test]

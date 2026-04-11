@@ -97,6 +97,37 @@ Recommended next step:
 
 - If Linux is now the primary dev lane, continue normalizing the remaining live non-Ouroboros absolute-path assumptions in runtime tests and helper tooling, but keep that as a separate pass from the now-working selfhost control plane.
 
+## 2026-04-11 - phase1 selfhost is no longer blocked by the opaque `dyn Any + Send + Sync` host-object carrier in `kain-core`
+
+Phase1 strict selfhost had collapsed to a single remaining blocker in `kain-core`: the Rust importer treated the runtime's opaque host-object carrier (`Arc<dyn Any + Send + Sync>`) as a fatal trait-object erasure even though this seam is intentionally just an opaque payload boundary, not a dynamic-dispatch trait API that phase1 needs to preserve exactly.
+
+What changed:
+
+- Updated `crates/kain-import/src/rust/transformer.rs`
+  - Added `trait_object_is_opaque_any_carrier(...)` to detect the narrow `dyn Any` carrier family, including wrapped forms like `Arc<dyn Any + Send + Sync>`.
+  - Stopped emitting `trait_object_lowering` diagnostics for that narrow family while leaving the fatal diagnostic in place for real dynamic-dispatch trait-object lowering such as `dyn std::fmt::Write`.
+  - Added a regression proving the importer stays strict for normal dyn traits but does not flag the opaque Any carrier.
+
+Validation completed:
+
+- `cargo test -p kain-import records_dyn_trait_lowering_diagnostics -- --nocapture`
+- `cargo test -p kain-import does_not_flag_opaque_any_trait_object_carriers -- --nocapture`
+- `cargo run -q -p cli --bin kain -- selfhost phase1 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir /tmp/kain_phase1_probe`
+
+Design decisions:
+
+- Did not weaken the selfhost allowlist or globally permit trait-object lowering.
+- Treated only the `Any` carrier seam as acceptable because phase1 uses it as opaque host-state transport, not as trait-object behavior that must survive into Kain semantics.
+
+Current risks:
+
+- This makes phase1 honest for the current `kain-core` host-object seam, but it does not mean Kain now has general `dyn trait` semantics.
+- If more trait-object families appear in the selfhost slice later, they should be handled case-by-case instead of by broadening this exception.
+
+Recommended next step:
+
+- Push phase2 again after phase1 goes green; the next blockers should now be real downstream import/codegen/workspace issues rather than the last phase1 strict-import policy tripwire.
+
 ## 2026-04-11 - compiler-owned intent suite is now coherent across parser, typechecker, runtime, bundles, driver, and LSP
 
 The original quartet is no longer the right mental model. Kain now ships a five-part compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`.
