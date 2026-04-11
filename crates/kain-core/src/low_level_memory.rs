@@ -280,7 +280,7 @@ fn align_up(value: usize, align: usize) -> usize {
 
 #[derive(Debug, Clone)]
 struct FunctionMemoryCtx<'a> {
-    _target: CompileTarget,
+    target: CompileTarget,
     layouts: &'a LayoutRegistry,
     address_taken: HashSet<String>,
     local_types: HashMap<String, Type>,
@@ -576,7 +576,7 @@ fn lower_function_memory(
     }
 
     let mut ctx = FunctionMemoryCtx {
-        _target: target,
+        target,
         layouts,
         address_taken: collect_address_taken_roots(&function.body),
         local_types,
@@ -606,7 +606,7 @@ fn lower_function_memory(
 
 fn lower_free_expr_memory(expr: &Expr, target: CompileTarget, layouts: &LayoutRegistry) -> Expr {
     let mut ctx = FunctionMemoryCtx {
-        _target: target,
+        target,
         layouts,
         address_taken: HashSet::new(),
         local_types: HashMap::new(),
@@ -625,7 +625,7 @@ fn lower_actor_handler_memory(
     }
 
     let mut ctx = FunctionMemoryCtx {
-        _target: target,
+        target,
         layouts,
         address_taken: collect_address_taken_roots(&handler.body),
         local_types,
@@ -790,6 +790,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             &lower_expr_memory_with_ctx(size, ctx),
             ty.as_ref(),
             *zeroed,
+            ctx.target,
             ctx.layouts,
             span,
         ),
@@ -799,17 +800,13 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ty,
             zeroed_new,
             ..
-        } => helper_call(
-            "__kain_realloc",
-            vec![
-                lower_expr_memory_with_ctx(pointer, ctx),
-                lower_expr_memory_with_ctx(size, ctx),
-                Expr::Int(
-                    memory_stride_for_type(ty.as_ref(), ctx.layouts).unwrap_or(1),
-                    span,
-                ),
-                storage_seed_expr(ty.as_ref(), ctx.layouts, span, *zeroed_new),
-            ],
+        } => lower_heap_realloc_expr(
+            &lower_expr_memory_with_ctx(pointer, ctx),
+            &lower_expr_memory_with_ctx(size, ctx),
+            ty.as_ref(),
+            *zeroed_new,
+            ctx.target,
+            ctx.layouts,
             span,
         ),
         Expr::AggregateInit {
@@ -1965,18 +1962,46 @@ fn lower_heap_alloc_expr(
     size: &Expr,
     ty: Option<&Type>,
     zeroed: bool,
+    target: CompileTarget,
     layouts: &LayoutRegistry,
     span: Span,
 ) -> Expr {
-    helper_call(
-        "__kain_alloc",
-        vec![
-            size.clone(),
-            Expr::Int(memory_stride_for_type(ty, layouts).unwrap_or(1), span),
-            Expr::Bool(zeroed, span),
-            storage_seed_expr(ty, layouts, span, zeroed),
-        ],
-        span,
+    let mut args = vec![
+        size.clone(),
+        Expr::Int(memory_stride_for_type(ty, layouts).unwrap_or(1), span),
+        Expr::Bool(zeroed, span),
+    ];
+    if uses_seeded_heap_helper_abi(target) {
+        args.push(storage_seed_expr(ty, layouts, span, zeroed));
+    }
+    helper_call("__kain_alloc", args, span)
+}
+
+fn lower_heap_realloc_expr(
+    pointer: &Expr,
+    size: &Expr,
+    ty: Option<&Type>,
+    zeroed_new: bool,
+    target: CompileTarget,
+    layouts: &LayoutRegistry,
+    span: Span,
+) -> Expr {
+    let mut args = vec![
+        pointer.clone(),
+        size.clone(),
+        Expr::Int(memory_stride_for_type(ty, layouts).unwrap_or(1), span),
+        Expr::Bool(zeroed_new, span),
+    ];
+    if uses_seeded_heap_helper_abi(target) {
+        args[3] = storage_seed_expr(ty, layouts, span, zeroed_new);
+    }
+    helper_call("__kain_realloc", args, span)
+}
+
+fn uses_seeded_heap_helper_abi(target: CompileTarget) -> bool {
+    matches!(
+        target,
+        CompileTarget::Ts | CompileTarget::Js | CompileTarget::Wasm | CompileTarget::Hybrid
     )
 }
 

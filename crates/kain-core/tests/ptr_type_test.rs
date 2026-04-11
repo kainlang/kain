@@ -264,7 +264,7 @@ fn parser_normalizes_alignof_alloca_and_uninit_calls() {
 
 #[test]
 fn parser_normalizes_alloc_realloc_and_aggregate_init_calls() {
-    let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn heap(n: Int, p: ptr<Int>) -> ptr<Pair>:\n    let mut q: ptr<Pair> = alloc(sizeof_type(\"Pair\"), \"Pair\")\n    let mut r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\")\n    let mut s: Pair = aggregate_init(\"Pair\", true, left = 1)\n    return q\n";
+    let source = "struct Pair:\n    left: Int\n    right: Int\n\nfn heap(n: Int, p: ptr<Int>) -> ptr<Pair>:\n    let mut q: ptr<Pair> = alloc(sizeof_type(\"Pair\"), \"Pair\")\n    let mut r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\", true)\n    let mut s: Pair = aggregate_init(\"Pair\", true, left = 1)\n    return q\n";
     let tokens = Lexer::new(source).tokenize().expect("lex");
     let mapper = SpanMapper::new(source);
     let program = Parser::new(&tokens, &mapper, "heap_intrinsics.kn")
@@ -287,13 +287,14 @@ fn parser_normalizes_alloc_realloc_and_aggregate_init_calls() {
     assert!(matches!(ty, Some(Type::Named { name, .. }) if name == "Pair"));
 
     let kain_core::ast::Stmt::Let {
-        value: Some(kain_core::ast::Expr::Realloc { ty, .. }),
+        value: Some(kain_core::ast::Expr::Realloc { ty, zeroed_new, .. }),
         ..
     } = &function.body.stmts[1]
     else {
         panic!("expected realloc initializer");
     };
     assert!(matches!(ty, Some(Type::Named { name, .. }) if name == "Int"));
+    assert!(*zeroed_new);
 
     let kain_core::ast::Stmt::Let {
         value: Some(kain_core::ast::Expr::AggregateInit { zero_fill_rest, .. }),
@@ -303,6 +304,18 @@ fn parser_normalizes_alloc_realloc_and_aggregate_init_calls() {
         panic!("expected aggregate init initializer");
     };
     assert!(*zero_fill_rest);
+}
+
+#[test]
+fn alloc_and_realloc_typecheck_with_immutable_ptr_bindings() {
+    let source = "fn heap(n: Int, p: ptr<Int>) -> Int:\n    let q: ptr<Int> = alloc((n * sizeof_type(\"Int\")), \"Int\")\n    let r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\")\n    return 0\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "heap_typecheck.kn")
+        .parse()
+        .expect("parse");
+    kain_core::types::check(&program, &mapper, "heap_typecheck.kn")
+        .expect("alloc and realloc should typecheck for ptr<T> bindings");
 }
 
 #[test]
@@ -527,6 +540,51 @@ fn ts_memory_lowering_rewrites_heap_nodes_and_zero_fills_struct_aggregates() {
     };
     assert!(matches!(&fields[0].1, kain_core::ast::Expr::Int(1, _)));
     assert!(matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _)));
+}
+
+#[test]
+fn llvm_memory_lowering_uses_canonical_heap_helper_abi() {
+    let source = "fn heap(n: Int, p: ptr<Int>) -> Int:\n    let mut q: ptr<Int> = alloc_zeroed((n * sizeof_type(\"Int\")), \"Int\")\n    let mut r: ptr<Int> = realloc_mem(p, (n * sizeof_type(\"Int\")), \"Int\", true)\n    return 0\n";
+    let tokens = Lexer::new(source).tokenize().expect("lex");
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "heap_lowering_llvm.kn")
+        .parse()
+        .expect("parse");
+    let typed =
+        kain_core::types::check(&program, &mapper, "heap_lowering_llvm.kn").expect("typecheck");
+    let lowered =
+        lower_typed_program_memory_for_target(&typed, CompileTarget::Llvm).expect("lower");
+
+    let function = match &lowered.items[0] {
+        kain_core::types::TypedItem::Function(function) => function,
+        other => panic!("expected function, got {other:?}"),
+    };
+
+    let kain_core::ast::Stmt::Let {
+        value: Some(expr), ..
+    } = &function.ast.body.stmts[0]
+    else {
+        panic!("expected lowered alloc helper");
+    };
+    let alloc_args = expect_call(expr, "__kain_alloc");
+    assert_eq!(alloc_args.len(), 3);
+    assert!(matches!(
+        &alloc_args[2].value,
+        kain_core::ast::Expr::Bool(true, _)
+    ));
+
+    let kain_core::ast::Stmt::Let {
+        value: Some(expr), ..
+    } = &function.ast.body.stmts[1]
+    else {
+        panic!("expected lowered realloc helper");
+    };
+    let realloc_args = expect_call(expr, "__kain_realloc");
+    assert_eq!(realloc_args.len(), 4);
+    assert!(matches!(
+        &realloc_args[3].value,
+        kain_core::ast::Expr::Bool(true, _)
+    ));
 }
 
 #[test]

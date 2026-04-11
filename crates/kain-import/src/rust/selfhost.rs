@@ -418,6 +418,8 @@ fn is_always_fatal_diagnostic_class(diag_class: Option<&'static str>) -> bool {
     matches!(
         diag_class,
         Some("dyn_trait_lowering")
+            | Some("trait_object_lowering")
+            | Some("array_repeat_lowering")
             | Some("macro_direct_lowering_miss")
             | Some("macro_policy_rejected")
             | Some("unsupported_expr_lowering")
@@ -453,7 +455,13 @@ fn marker_class(marker: &str) -> Option<&'static str> {
         return Some("external_mod_decl");
     }
     if normalized.contains("trait object") || normalized.contains("dyn") {
-        return Some("dyn_trait_lowering");
+        return Some("trait_object_lowering");
+    }
+    if normalized.contains("impl trait") {
+        return Some("impl_trait_lowering");
+    }
+    if normalized.contains("array repeat") {
+        return Some("array_repeat_lowering");
     }
     if normalized.contains("direct-lowering macro")
         || normalized.contains("lowered directly")
@@ -506,7 +514,13 @@ fn classify_diagnostic(diag: &str) -> Option<&'static str> {
         return Some("external_mod_decl");
     }
     if normalized.contains("dyn trait") {
-        return Some("dyn_trait_lowering");
+        return Some("trait_object_lowering");
+    }
+    if normalized.contains("impl trait") {
+        return Some("impl_trait_lowering");
+    }
+    if normalized.contains("array repeat") {
+        return Some("array_repeat_lowering");
     }
     if normalized.contains("could not be lowered directly")
         || normalized.contains("survive into imported self-host output")
@@ -563,7 +577,9 @@ fn extract_inline_class_marker(diag: &str) -> Option<&'static str> {
 fn known_diagnostic_class(value: &str) -> Option<&'static str> {
     match value {
         "external_mod_decl" => Some("external_mod_decl"),
-        "dyn_trait_lowering" => Some("dyn_trait_lowering"),
+        "dyn_trait_lowering" | "trait_object_lowering" => Some("trait_object_lowering"),
+        "impl_trait_lowering" => Some("impl_trait_lowering"),
+        "array_repeat_lowering" => Some("array_repeat_lowering"),
         "macro_direct_lowering_miss" => Some("macro_direct_lowering_miss"),
         "macro_policy_rejected" => Some("macro_policy_rejected"),
         "trait_surface_lowering" => Some("trait_surface_lowering"),

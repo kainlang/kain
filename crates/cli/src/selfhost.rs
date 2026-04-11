@@ -5412,6 +5412,15 @@ fn find_repo_root(start: &Path) -> KainResult<PathBuf> {
 }
 
 fn default_inventory_dir(repo_root: &Path) -> PathBuf {
+    let repo_local = repo_root
+        .join("ouroboros")
+        .join("docs")
+        .join("selfhost")
+        .join("inventories");
+    if repo_local.exists() {
+        return repo_local;
+    }
+
     repo_root
         .parent()
         .map(|parent| {
@@ -5430,6 +5439,11 @@ fn default_inventory_dir(repo_root: &Path) -> PathBuf {
 }
 
 fn default_output_dir(repo_root: &Path) -> PathBuf {
+    let repo_local = repo_root.join("ouroboros").join("out").join("selfhost");
+    if repo_root.join("ouroboros").exists() {
+        return repo_local;
+    }
+
     repo_root
         .parent()
         .map(|parent| parent.join("OuroborosV2").join("out").join("selfhost"))

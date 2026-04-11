@@ -2,17 +2,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from front_errors import extract_front_errors, render_front_errors_markdown
+from ouroboros_pathing import (
+    discover_workspace_context,
+    executable_candidates,
+    resolve_template_defaults,
+    seed_runtime_defaults,
+)
 
-
-DEFAULT_MANIFEST = Path(r"M:\Code\OuroborosV2\docs\selfhost\pipeline_manifest.json")
-DEFAULT_OUT_DIR = Path(r"M:\Code\OuroborosV2\out\selfhost\pipeline")
+CONTEXT = discover_workspace_context(__file__)
+DEFAULT_MANIFEST = CONTEXT.ouroboros_root / "docs" / "selfhost" / "pipeline_manifest.json"
+DEFAULT_OUT_DIR = CONTEXT.ouroboros_root / "out" / "selfhost" / "pipeline"
 
 
 @dataclass
@@ -36,6 +44,10 @@ def load_manifest(path: Path) -> dict[str, Any]:
 
 def format_template(template: str, defaults: dict[str, str]) -> str:
     return template.format(**defaults)
+
+
+def format_template_list(values: list[str], defaults: dict[str, str]) -> list[str]:
+    return [format_template(value, defaults) for value in values]
 
 
 def ensure_out_dir(path: Path) -> None:
@@ -111,12 +123,12 @@ def front_error_status(defaults: dict[str, str]) -> dict[str, Any]:
 
 
 def stage2_binary_status(defaults: dict[str, str]) -> dict[str, Any]:
-    candidates = [
-        Path(defaults["repaired_root"]) / "stage2_workspace" / "target" / "debug" / "kain.exe",
-        Path(defaults["repaired_root"]) / "stage2_workspace" / "target" / "release" / "kain.exe",
-        Path(defaults["phase2_root"]) / "stage2_workspace" / "target" / "debug" / "kain.exe",
-        Path(defaults["phase2_root"]) / "stage2_workspace" / "target" / "release" / "kain.exe",
-    ]
+    candidates: list[Path] = []
+    for root_key in ("repaired_root", "phase2_root"):
+        workspace_root = Path(defaults[root_key]) / "stage2_workspace" / "target"
+        for profile in ("debug", "release"):
+            for binary_name in executable_candidates("kain"):
+                candidates.append(workspace_root / profile / binary_name)
     for candidate in candidates:
         if candidate.exists():
             return {"exists": True, "path": candidate.as_posix()}
@@ -126,14 +138,20 @@ def stage2_binary_status(defaults: dict[str, str]) -> dict[str, Any]:
 def run_step(step: dict[str, Any], defaults: dict[str, str], out_dir: Path) -> StepResult:
     step_id = step["id"]
     kind = step["kind"]
-    command = format_template(step["command"], defaults)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = out_dir / f"{timestamp}_{step_id}.log"
+    cwd = None
+    artifact_log_path = None
 
-    if kind == "python":
-        args = ["cmd", "/c", f"python {command}"]
-    elif kind == "powershell_file":
-        args = ["cmd", "/c", f"powershell -NoProfile -ExecutionPolicy Bypass -File {command}"]
+    if kind == "argv":
+        args = format_template_list(step["argv"], defaults)
+        if step.get("cwd"):
+            cwd = Path(format_template(step["cwd"], defaults))
+        if step.get("artifact_log"):
+            artifact_log_path = Path(format_template(step["artifact_log"], defaults))
+    elif kind == "python":
+        command = format_template(step["command"], defaults)
+        args = [sys.executable, *shlex.split(command)]
     else:
         raise ValueError(f"Unsupported step kind: {kind}")
 
@@ -144,8 +162,13 @@ def run_step(step: dict[str, Any], defaults: dict[str, str], out_dir: Path) -> S
         text=True,
         errors="ignore",
         timeout=timeout,
+        cwd=str(cwd) if cwd else None,
     )
-    log_path.write_text((result.stdout or "") + (result.stderr or ""), encoding="utf-8")
+    combined_output = (result.stdout or "") + (result.stderr or "")
+    log_path.write_text(combined_output, encoding="utf-8")
+    if artifact_log_path is not None:
+        artifact_log_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_log_path.write_text(combined_output, encoding="utf-8")
     if step_id in {"core_check", "full_check"}:
         repaired_root = Path(defaults["repaired_root"])
         taxonomy_path = Path(defaults["repair_docs"]) / "error_taxonomy.json"
@@ -159,7 +182,7 @@ def run_step(step: dict[str, Any], defaults: dict[str, str], out_dir: Path) -> S
     expected = expected_artifact_status(step.get("expected_logs", []), defaults)
     return StepResult(
         id=step_id,
-        command=" ".join(args),
+        command=" ".join(shlex.quote(part) for part in args),
         returncode=result.returncode,
         success=result.returncode == 0,
         log_path=log_path.as_posix(),
@@ -198,7 +221,10 @@ def run_lane(
     visited = visited or set()
     executed = executed or []
     lane = lane_by_id(manifest, lane_id)
-    defaults = {key: str(value) for key, value in manifest.get("defaults", {}).items()}
+    defaults = resolve_template_defaults(
+        manifest.get("defaults", {}),
+        seed_runtime_defaults(CONTEXT),
+    )
     ensure_out_dir(out_dir)
 
     if lane_id in visited:

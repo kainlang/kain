@@ -4639,7 +4639,7 @@ impl<'a> Parser<'a> {
                             span,
                         };
                     }
-                    ("realloc_mem", 2 | 3) => {
+                    ("realloc_mem", 2 | 3 | 4) => {
                         let mut values = args.into_iter();
                         let pointer = values
                             .next()
@@ -4649,11 +4649,15 @@ impl<'a> Parser<'a> {
                         let ty = values
                             .next()
                             .and_then(|arg| self.parse_type_hint_arg(&arg.value, span));
+                        let zeroed_new = values
+                            .next()
+                            .map(|arg| matches!(arg.value, Expr::Bool(true, _)))
+                            .unwrap_or(false);
                         return Expr::Realloc {
                             pointer: Box::new(pointer),
                             size: Box::new(size),
                             ty,
-                            zeroed_new: false,
+                            zeroed_new,
                             span,
                         };
                     }

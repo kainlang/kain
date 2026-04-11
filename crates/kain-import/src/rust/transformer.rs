@@ -499,24 +499,17 @@ impl RustTransformer {
 
     fn map_type_checked(&mut self, ty: &syn::Type) -> Type {
         if let Some((kind, trait_name)) = trait_like_type_name(ty) {
-            let (class, message) = match kind {
-                "dyn trait" => (
-                    "trait_object_lowering",
+            if kind != "impl trait" {
+                let message = if kind == "dyn trait" {
                     format!(
                         "dyn trait object lowered to impl {} (dynamic dispatch / vtable semantics erased)",
                         trait_name
-                    ),
-                ),
-                "impl trait" => (
-                    "impl_trait_lowering",
-                    format!("impl Trait lowered to impl {}", trait_name),
-                ),
-                _ => (
-                    "trait_object_lowering",
-                    format!("{} lowered to impl {}", kind, trait_name),
-                ),
-            };
-            self.note_lossy_class(class, message);
+                    )
+                } else {
+                    format!("{kind} lowered to impl {trait_name}")
+                };
+                self.note_lossy_class("trait_object_lowering", message);
+            }
         }
         self.type_mapper.map_type(ty)
     }
@@ -1562,12 +1555,14 @@ impl RustTransformer {
                 // array because KAIN has no dedicated repeat-expression node yet.
                 let elem = self.transform_expr(&r.expr)?;
                 let len = extract_const_usize(&r.len).unwrap_or(1);
-                self.note_lossy_class(
-                    "array_repeat_lowering",
-                    format!(
-                        "array repeat lowered to repeated array elements (count {len}; repeat/cloning semantics not preserved)"
-                    ),
-                );
+                if !repeat_expr_is_literal_dup_safe(&r.expr) {
+                    self.note_lossy_class(
+                        "array_repeat_lowering",
+                        format!(
+                            "array repeat lowered to repeated array elements (count {len}; repeat/cloning semantics not preserved)"
+                        ),
+                    );
+                }
                 Ok(Expr::Array(vec![elem; len], S))
             }
 
@@ -2862,6 +2857,25 @@ fn extract_const_usize(expr: &syn::Expr) -> Option<usize> {
     }
 }
 
+fn repeat_expr_is_literal_dup_safe(expr: &syn::Expr) -> bool {
+    match expr {
+        syn::Expr::Lit(lit) => matches!(
+            lit.lit,
+            syn::Lit::Bool(_)
+                | syn::Lit::Byte(_)
+                | syn::Lit::Char(_)
+                | syn::Lit::Float(_)
+                | syn::Lit::Int(_)
+        ),
+        syn::Expr::Unary(unary) => {
+            matches!(unary.op, syn::UnOp::Neg(_) | syn::UnOp::Not(_))
+                && repeat_expr_is_literal_dup_safe(&unary.expr)
+        }
+        syn::Expr::Paren(paren) => repeat_expr_is_literal_dup_safe(&paren.expr),
+        _ => false,
+    }
+}
+
 #[allow(dead_code)]
 fn variant_name(path: &syn::Path) -> String {
     path.segments
@@ -3597,8 +3611,8 @@ mod tests {
     }
 
     #[test]
-    fn records_impl_trait_lowering_diagnostics_separately() {
-        let (_program, diagnostics) = transform_with_diagnostics(
+    fn preserves_impl_trait_without_lossy_diagnostics() {
+        let (program, diagnostics) = transform_with_diagnostics(
             r#"
             fn build() -> impl std::fmt::Debug {
                 1
@@ -3606,12 +3620,32 @@ mod tests {
             "#,
         );
 
-        assert!(diagnostics
-            .iter()
-            .any(|diag| diag.contains("impl Trait lowered to impl std::fmt::Debug")));
-        assert!(diagnostics
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        assert!(matches!(
+            function.return_type.as_ref(),
+            Some(Type::Impl { trait_name, .. }) if trait_name == "std::fmt::Debug"
+        ));
+        assert!(!diagnostics
             .iter()
             .any(|diag| diag.contains("class:impl_trait_lowering")));
+    }
+
+    #[test]
+    fn literal_array_repeat_does_not_emit_lossy_diagnostic() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            fn demo() {
+                let dims = [0u32; 3];
+            }
+            "#,
+        );
+
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:array_repeat_lowering")));
     }
 
     #[test]

@@ -1528,7 +1528,7 @@ impl LlvmGenerator {
             "__kain_alloc" => {
                 // Canonical ABI: i8* __kain_alloc(i64 size, i64 stride, i32 zeroed)
                 // Requirements: 1.4, 3.6
-                if args.len() < 3 {
+                if args.len() != 3 {
                     return Some(Err(KainError::codegen(
                         "__kain_alloc expects 3 arguments (size, stride, zeroed)",
                         span,
@@ -1562,7 +1562,7 @@ impl LlvmGenerator {
             "__kain_realloc" => {
                 // Canonical ABI: i8* __kain_realloc(i8* ptr, i64 size, i64 stride, i32 zeroed_new)
                 // Requirements: 1.4, 3.6
-                if args.len() < 4 {
+                if args.len() != 4 {
                     return Some(Err(KainError::codegen(
                         "__kain_realloc expects 4 arguments (ptr, size, stride, zeroed_new)",
                         span,

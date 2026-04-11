@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-REPO_ROOT = Path(r"m:\Code\Kain")
-OUT_ROOT = Path(r"m:\Code\OuroborosV2\docs\selfhost")
+TOOLS_ROOT = Path(__file__).resolve().parents[1] / "tools"
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
+from ouroboros_pathing import discover_workspace_context
+
+CONTEXT = discover_workspace_context(__file__)
+REPO_ROOT = CONTEXT.repo_root
+OUT_ROOT = CONTEXT.ouroboros_root / "docs" / "selfhost"
 INVENTORY_DIR = OUT_ROOT / "inventories"
 METADATA_DIR = OUT_ROOT / "metadata"
 

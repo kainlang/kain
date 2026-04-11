@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -22,9 +23,11 @@ from repair_rules import (
 )
 from reporting import render_markdown, write_json, write_markdown
 from probes import generate_probe_corpus
+from ouroboros_pathing import discover_workspace_context
 
 
-OUROBOROS_ROOT = Path(r"M:\Code\OuroborosV2")
+CONTEXT = discover_workspace_context(__file__)
+OUROBOROS_ROOT = CONTEXT.ouroboros_root
 DEFAULT_PHASE2_ROOT = OUROBOROS_ROOT / "out" / "selfhost" / "phase2"
 DEFAULT_REPAIRED_ROOT = OUROBOROS_ROOT / "out" / "selfhost" / "phase2_repaired"
 DEFAULT_REPAIR_DOCS = OUROBOROS_ROOT / "docs" / "selfhost" / "repairs"
@@ -556,6 +559,7 @@ def run_validation(repaired_root: Path, mode: str) -> ValidationSummary:
         capture_output=True,
         text=True,
         errors="ignore",
+        env=dict(os.environ, PYTHON_EXECUTABLE=str(Path(sys.executable).resolve())),
     )
     log_path.write_text((result.stdout or "") + (result.stderr or ""), encoding="utf-8")
     return ValidationSummary(

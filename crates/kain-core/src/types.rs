@@ -3518,24 +3518,28 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         (ResolvedType::Future(left), ResolvedType::Future(right)) => types_compatible(left, right),
         (
             ResolvedType::Ref {
-                mutable: left_mut,
-                inner: left,
+                mutable: expected_mutable,
+                inner: expected_inner,
             },
             ResolvedType::Ref {
-                mutable: right_mut,
-                inner: right,
+                mutable: actual_mutable,
+                inner: actual_inner,
             },
-        ) => left_mut == right_mut && types_compatible(left, right),
+        ) => {
+            (!expected_mutable || *actual_mutable) && types_compatible(expected_inner, actual_inner)
+        }
         (
             ResolvedType::Ptr {
-                mutable: left_mut,
-                inner: left,
+                mutable: expected_mutable,
+                inner: expected_inner,
             },
             ResolvedType::Ptr {
-                mutable: right_mut,
-                inner: right,
+                mutable: actual_mutable,
+                inner: actual_inner,
             },
-        ) => left_mut == right_mut && types_compatible(left, right),
+        ) => {
+            (!expected_mutable || *actual_mutable) && types_compatible(expected_inner, actual_inner)
+        }
         (
             ResolvedType::Function {
                 params: left_params,
@@ -3619,8 +3623,20 @@ fn describe_type(ty: &ResolvedType) -> String {
             format!("Result<{}, {}>", describe_type(ok), describe_type(err))
         }
         ResolvedType::Future(inner) => format!("Future<{}>", describe_type(inner)),
-        ResolvedType::Ref { inner, .. } => format!("&{}", describe_type(inner)),
-        ResolvedType::Ptr { inner, .. } => format!("ptr<{}>", describe_type(inner)),
+        ResolvedType::Ref { mutable, inner } => {
+            if *mutable {
+                format!("&mut {}", describe_type(inner))
+            } else {
+                format!("&{}", describe_type(inner))
+            }
+        }
+        ResolvedType::Ptr { mutable, inner } => {
+            if *mutable {
+                format!("ptr_mut<{}>", describe_type(inner))
+            } else {
+                format!("ptr<{}>", describe_type(inner))
+            }
+        }
         ResolvedType::Function { params, ret, .. } => format!(
             "fn({}) -> {}",
             params
