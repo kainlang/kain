@@ -520,12 +520,20 @@ where
         predeclare_item_types(&mut env, item);
     }
 
-    // Second pass: Register types, globals, and methods.
+    // Second pass: Register types, globals, and methods against the
+    // predeclared graph.
     for item in &program.items {
         register_item_types(&mut env, item)?;
     }
 
-    // Third pass: Type check all items.
+    // Third pass: Refresh registrations now that every type shape is present.
+    // This resolves recursive payloads like enums that reference structs
+    // declared later in the same program.
+    for item in &program.items {
+        register_item_types(&mut env, item)?;
+    }
+
+    // Fourth pass: Type check all items.
     let mut typed_items = Vec::new();
     for item in &program.items {
         check_item_into(&mut env, item, &mut typed_items)?;
@@ -2097,6 +2105,90 @@ fn resolve_param_type(
     }
 }
 
+fn infer_expr_type_with_expected(
+    env: &mut TypeEnv,
+    expr: &Expr,
+    ctx: Option<&SemanticContext>,
+    expected: Option<&ResolvedType>,
+) -> KainResult<ResolvedType> {
+    if let Expr::Paren(inner, _) = expr {
+        return infer_expr_type_with_expected(env, inner, ctx, expected);
+    }
+
+    if let (
+        Expr::Lambda {
+            params,
+            return_type,
+            body,
+            span: _,
+        },
+        Some(ResolvedType::Function {
+            params: expected_params,
+            ret: expected_ret,
+            ..
+        }),
+    ) = (expr, expected)
+    {
+        let annotated_ret = return_type
+            .as_ref()
+            .map(|ty| resolve_type_in_env(env, ty))
+            .transpose()?
+            .unwrap_or(ResolvedType::Unknown);
+        env.push_scope();
+        let mut param_types = Vec::with_capacity(params.len());
+        for (index, param) in params.iter().enumerate() {
+            let param_ty = resolve_param_type(env, param, None)?;
+            let inferred_ty = match (expected_params.get(index), param_ty) {
+                (Some(expected_param_ty), ResolvedType::Unknown) => expected_param_ty.clone(),
+                (Some(expected_param_ty), actual_ty) => {
+                    ensure_type_compatible(
+                        env,
+                        expected_param_ty,
+                        &actual_ty,
+                        param.span,
+                        "lambda parameter",
+                    )?;
+                    actual_ty
+                }
+                (None, actual_ty) => actual_ty,
+            };
+            env.define(param.name.clone(), inferred_ty.clone());
+            param_types.push(inferred_ty);
+        }
+        let body_expected = if matches!(annotated_ret, ResolvedType::Unknown) {
+            Some(expected_ret.as_ref())
+        } else {
+            Some(&annotated_ret)
+        };
+        let body_ty = infer_expr_type_with_expected(env, body, ctx, body_expected)?;
+        env.pop_scope();
+
+        if !matches!(annotated_ret, ResolvedType::Unknown) {
+            ensure_type_compatible(env, &annotated_ret, &body_ty, body.span(), "lambda body")?;
+        } else {
+            ensure_type_compatible(
+                env,
+                expected_ret.as_ref(),
+                &body_ty,
+                body.span(),
+                "lambda body",
+            )?;
+        }
+
+        return Ok(ResolvedType::Function {
+            params: param_types,
+            ret: Box::new(if matches!(annotated_ret, ResolvedType::Unknown) {
+                expected_ret.as_ref().clone()
+            } else {
+                annotated_ret
+            }),
+            effects: EffectSet::new(),
+        });
+    }
+
+    infer_expr_type(env, expr, ctx)
+}
+
 fn check_block_semantics(
     env: &mut TypeEnv,
     block: &Block,
@@ -2165,6 +2257,25 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             let iter_ty = infer_expr_type(env, iter, Some(ctx))?;
             let item_ty = match iter_ty {
                 ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => *inner,
+                ResolvedType::Ref { mutable, inner } => match *inner {
+                    ResolvedType::Array(item, _) | ResolvedType::Slice(item) => ResolvedType::Ref {
+                        mutable,
+                        inner: item,
+                    },
+                    ResolvedType::String => ResolvedType::Ref {
+                        mutable,
+                        inner: Box::new(ResolvedType::String),
+                    },
+                    other => {
+                        return Err(env.type_error(
+                            format!(
+                                "for loop expects an iterable reference, found &{}",
+                                describe_type(&other)
+                            ),
+                            *span,
+                        ))
+                    }
+                },
                 ResolvedType::String => ResolvedType::String,
                 ResolvedType::Unknown => ResolvedType::Unknown,
                 other => {
@@ -2304,24 +2415,22 @@ fn infer_expr_type(
                     *span,
                 )
             })?;
-            let arg_types = args
-                .iter()
-                .map(|arg| infer_expr_type(env, &arg.value, ctx))
-                .collect::<Result<Vec<_>, _>>()?;
             match callee_ty {
                 ResolvedType::Function { params, ret, .. } => {
-                    if params.len() != arg_types.len() {
+                    if params.len() != args.len() {
                         return Err(env.type_error(
                             format!(
                                 "Expected {} argument(s), found {}",
                                 params.len(),
-                                arg_types.len()
+                                args.len()
                             ),
                             *span,
                         ));
                     }
-                    for (param_ty, arg_ty) in params.iter().zip(arg_types.iter()) {
-                        ensure_type_compatible(env, param_ty, arg_ty, *span, "stage argument")?;
+                    for (param_ty, arg) in params.iter().zip(args.iter()) {
+                        let arg_ty =
+                            infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
+                        ensure_type_compatible(env, param_ty, &arg_ty, *span, "stage argument")?;
                     }
                     Ok(*ret)
                 }
@@ -2338,10 +2447,6 @@ fn infer_expr_type(
         }
         Expr::Call { callee, args, span } => {
             let callee_ty = infer_expr_type(env, callee, ctx)?;
-            let arg_types = args
-                .iter()
-                .map(|arg| infer_expr_type(env, &arg.value, ctx))
-                .collect::<Result<Vec<_>, _>>()?;
 
             match callee_ty {
                 ResolvedType::Function {
@@ -2349,18 +2454,20 @@ fn infer_expr_type(
                     ret,
                     effects,
                 } => {
-                    if params.len() != arg_types.len() {
+                    if params.len() != args.len() {
                         return Err(env.type_error(
                             format!(
                                 "Expected {} argument(s), found {}",
                                 params.len(),
-                                arg_types.len()
+                                args.len()
                             ),
                             *span,
                         ));
                     }
-                    for (param_ty, arg_ty) in params.iter().zip(arg_types.iter()) {
-                        ensure_type_compatible(env, param_ty, arg_ty, *span, "function argument")?;
+                    for (param_ty, arg) in params.iter().zip(args.iter()) {
+                        let arg_ty =
+                            infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
+                        ensure_type_compatible(env, param_ty, &arg_ty, *span, "function argument")?;
                     }
                     if let (Some(ctx), Expr::Ident(callee_name, _)) = (ctx, callee.as_ref()) {
                         check_effect_call(
@@ -2390,11 +2497,7 @@ fn infer_expr_type(
             span,
         } => {
             let receiver_ty = infer_expr_type(env, receiver, ctx)?;
-            let arg_types = args
-                .iter()
-                .map(|arg| infer_expr_type(env, &arg.value, ctx))
-                .collect::<Result<Vec<_>, _>>()?;
-            infer_method_call_type(env, ctx, &receiver_ty, method, &arg_types, *span)
+            infer_method_call_type(env, ctx, &receiver_ty, method, args, *span)
         }
         Expr::Field {
             object,
@@ -2516,6 +2619,11 @@ fn infer_expr_type(
             fields,
             span,
         } => {
+            if let Some(builtin_ty) =
+                builtin_variant_expr_type(env, ctx, enum_name, variant, fields, *span)?
+            {
+                return Ok(builtin_ty);
+            }
             let enum_ty = env
                 .lookup_type(enum_name)
                 .cloned()
@@ -3024,7 +3132,7 @@ fn infer_method_call_type(
     ctx: Option<&SemanticContext>,
     receiver_ty: &ResolvedType,
     method: &str,
-    arg_types: &[ResolvedType],
+    args: &[CallArg],
     span: Span,
 ) -> KainResult<ResolvedType> {
     match receiver_ty {
@@ -3043,19 +3151,21 @@ fn infer_method_call_type(
                             .unwrap_or(false),
                     );
                     let params = &params[start_index..];
-                    if params.len() != arg_types.len() {
+                    if params.len() != args.len() {
                         return Err(env.type_error(
                             format!(
                                 "Method '{}' expects {} argument(s), found {}",
                                 method,
                                 params.len(),
-                                arg_types.len()
+                                args.len()
                             ),
                             span,
                         ));
                     }
-                    for (param_ty, arg_ty) in params.iter().zip(arg_types.iter()) {
-                        ensure_type_compatible(env, param_ty, arg_ty, span, "method argument")?;
+                    for (param_ty, arg) in params.iter().zip(args.iter()) {
+                        let arg_ty =
+                            infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
+                        ensure_type_compatible(env, param_ty, &arg_ty, span, "method argument")?;
                     }
                     if let Some(ctx) = ctx {
                         check_effect_call(
@@ -3077,8 +3187,14 @@ fn infer_method_call_type(
         ResolvedType::Array(inner, _) => match method {
             "len" => Ok(ResolvedType::Int(IntSize::I64)),
             "push" => {
-                if arg_types.len() == 1 {
-                    ensure_type_compatible(env, inner.as_ref(), &arg_types[0], span, "array push")?;
+                if args.len() == 1 {
+                    let arg_ty = infer_expr_type_with_expected(
+                        env,
+                        &args[0].value,
+                        ctx,
+                        Some(inner.as_ref()),
+                    )?;
+                    ensure_type_compatible(env, inner.as_ref(), &arg_ty, span, "array push")?;
                     Ok(ResolvedType::Unit)
                 } else {
                     Err(env.type_error("Array.push expects exactly one argument", span))
@@ -3192,33 +3308,37 @@ fn check_pattern_compatibility(
                     _ => None,
                 })
                 .unwrap_or_default();
-            if !expected_enum.is_empty() {
-                if let Some(field_types) = env
-                    .lookup_enum_variant_fields(expected_enum, variant)
+            let field_types = if !expected_enum.is_empty() {
+                env.lookup_enum_variant_fields(expected_enum, variant)
                     .cloned()
-                {
-                    match (fields, field_types.as_slice()) {
-                        (VariantPatternFields::Unit, []) => {}
-                        (VariantPatternFields::Tuple(patterns), types)
-                            if patterns.len() == types.len() =>
-                        {
-                            for (pattern, field_ty) in patterns.iter().zip(types.iter()) {
-                                check_pattern_compatibility(env, pattern, field_ty)?;
-                            }
+            } else {
+                builtin_variant_field_types(scrutinee_ty, variant)
+            };
+            if let Some(field_types) = field_types {
+                match (fields, field_types.as_slice()) {
+                    (VariantPatternFields::Unit, []) => {}
+                    (VariantPatternFields::Tuple(patterns), types)
+                        if patterns.len() == types.len() =>
+                    {
+                        for (pattern, field_ty) in patterns.iter().zip(types.iter()) {
+                            check_pattern_compatibility(env, pattern, field_ty)?;
                         }
-                        (VariantPatternFields::Struct(patterns), types)
-                            if patterns.len() == types.len() =>
-                        {
-                            for ((_, pattern), field_ty) in patterns.iter().zip(types.iter()) {
-                                check_pattern_compatibility(env, pattern, field_ty)?;
-                            }
-                        }
-                        _ => {}
                     }
+                    (VariantPatternFields::Struct(patterns), types)
+                        if patterns.len() == types.len() =>
+                    {
+                        for ((_, pattern), field_ty) in patterns.iter().zip(types.iter()) {
+                            check_pattern_compatibility(env, pattern, field_ty)?;
+                        }
+                    }
+                    _ => {}
                 }
             }
             match scrutinee_ty {
-                ResolvedType::Enum(_, _) | ResolvedType::Unknown => Ok(()),
+                ResolvedType::Enum(_, _)
+                | ResolvedType::Option(_)
+                | ResolvedType::Result(_, _)
+                | ResolvedType::Unknown => Ok(()),
                 other => Err(env.type_error(
                     format!("Variant pattern does not match {}", describe_type(other)),
                     *span,
@@ -3295,24 +3415,24 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
                 ResolvedType::Enum(name, _) => Some(name.as_str()),
                 _ => None,
             });
-            if let Some(enum_name) = enum_name {
-                if let Some(field_types) =
-                    env.lookup_enum_variant_fields(enum_name, variant).cloned()
-                {
-                    match fields {
-                        VariantPatternFields::Tuple(patterns) => {
-                            for (pattern, field_ty) in patterns.iter().zip(field_types.iter()) {
-                                bind_pattern_types(env, pattern, field_ty)?;
-                            }
+            let field_types = if let Some(enum_name) = enum_name {
+                env.lookup_enum_variant_fields(enum_name, variant).cloned()
+            } else {
+                builtin_variant_field_types(ty, variant)
+            };
+            if let Some(field_types) = field_types {
+                match fields {
+                    VariantPatternFields::Tuple(patterns) => {
+                        for (pattern, field_ty) in patterns.iter().zip(field_types.iter()) {
+                            bind_pattern_types(env, pattern, field_ty)?;
                         }
-                        VariantPatternFields::Struct(patterns) => {
-                            for ((_, pattern), field_ty) in patterns.iter().zip(field_types.iter())
-                            {
-                                bind_pattern_types(env, pattern, field_ty)?;
-                            }
-                        }
-                        VariantPatternFields::Unit => {}
                     }
+                    VariantPatternFields::Struct(patterns) => {
+                        for ((_, pattern), field_ty) in patterns.iter().zip(field_types.iter()) {
+                            bind_pattern_types(env, pattern, field_ty)?;
+                        }
+                    }
+                    VariantPatternFields::Unit => {}
                 }
             }
             Ok(())
@@ -3729,6 +3849,63 @@ fn tuple_field_type(
     })
 }
 
+fn builtin_variant_field_types(ty: &ResolvedType, variant: &str) -> Option<Vec<ResolvedType>> {
+    match (ty, variant) {
+        (ResolvedType::Option(_), "None") => Some(Vec::new()),
+        (ResolvedType::Option(inner), "Some") => Some(vec![inner.as_ref().clone()]),
+        (ResolvedType::Result(ok, _), "Ok") => Some(vec![ok.as_ref().clone()]),
+        (ResolvedType::Result(_, err), "Err") => Some(vec![err.as_ref().clone()]),
+        _ => None,
+    }
+}
+
+fn builtin_variant_expr_type(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    enum_name: &str,
+    variant: &str,
+    fields: &EnumVariantFields,
+    span: Span,
+) -> KainResult<Option<ResolvedType>> {
+    match (enum_name, variant, fields) {
+        ("Option", "None", EnumVariantFields::Unit) => {
+            Ok(Some(ResolvedType::Option(Box::new(ResolvedType::Unknown))))
+        }
+        ("Option", "Some", EnumVariantFields::Tuple(values)) if values.len() == 1 => Ok(Some(
+            ResolvedType::Option(Box::new(infer_expr_type(env, &values[0], ctx)?)),
+        )),
+        ("Result", "Ok", EnumVariantFields::Tuple(values)) if values.len() == 1 => {
+            Ok(Some(ResolvedType::Result(
+                Box::new(infer_expr_type(env, &values[0], ctx)?),
+                Box::new(ResolvedType::Unknown),
+            )))
+        }
+        ("Result", "Err", EnumVariantFields::Tuple(values)) if values.len() == 1 => {
+            Ok(Some(ResolvedType::Result(
+                Box::new(ResolvedType::Unknown),
+                Box::new(infer_expr_type(env, &values[0], ctx)?),
+            )))
+        }
+        ("Option", "None", _) => Err(env.type_error(
+            "Variant 'Option::None' does not accept fields".to_string(),
+            span,
+        )),
+        ("Option", "Some", _) => Err(env.type_error(
+            "Variant 'Option::Some' expects exactly one tuple field".to_string(),
+            span,
+        )),
+        ("Result", "Ok", _) => Err(env.type_error(
+            "Variant 'Result::Ok' expects exactly one tuple field".to_string(),
+            span,
+        )),
+        ("Result", "Err", _) => Err(env.type_error(
+            "Variant 'Result::Err' expects exactly one tuple field".to_string(),
+            span,
+        )),
+        _ => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3906,5 +4083,430 @@ mod tests {
 
         let span_mapper = SpanMapper::new("");
         check(&program, &span_mapper, "<test>").expect("Box wrapper should be transparent");
+    }
+
+    #[test]
+    fn typecheck_refreshes_enum_payload_struct_fields_after_registration() {
+        let span = Span::default();
+        let block_type = Type::Named {
+            name: "Block".to_string(),
+            generics: vec![],
+            span,
+        };
+        let comptime_block_type = Type::Named {
+            name: "ComptimeBlock".to_string(),
+            generics: vec![],
+            span,
+        };
+
+        let program = Program {
+            items: vec![
+                Item::Enum(Enum {
+                    name: "Item".to_string(),
+                    generics: vec![],
+                    variants: vec![Variant {
+                        name: "Comptime".to_string(),
+                        fields: VariantFields::Tuple(vec![comptime_block_type.clone()]),
+                        span,
+                    }],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Struct(Struct {
+                    name: "ComptimeBlock".to_string(),
+                    generics: vec![],
+                    fields: vec![Field {
+                        name: "body".to_string(),
+                        ty: block_type,
+                        attributes: vec![],
+                        visibility: Visibility::Private,
+                        default: None,
+                        weak: false,
+                        span,
+                    }],
+                    methods: vec![],
+                    attributes: vec![],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Struct(Struct {
+                    name: "Block".to_string(),
+                    generics: vec![],
+                    fields: vec![],
+                    methods: vec![],
+                    attributes: vec![],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Function(Function {
+                    name: "inspect".to_string(),
+                    generics: vec![],
+                    params: vec![Param {
+                        name: "item".to_string(),
+                        ty: Type::Named {
+                            name: "Item".to_string(),
+                            generics: vec![],
+                            span,
+                        },
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    effects: vec![],
+                    body: Block {
+                        stmts: vec![Stmt::Expr(Expr::Match {
+                            scrutinee: Box::new(Expr::Ident("item".to_string(), span)),
+                            arms: vec![MatchArm {
+                                pattern: Pattern::Variant {
+                                    enum_name: Some("Item".to_string()),
+                                    variant: "Comptime".to_string(),
+                                    fields: VariantPatternFields::Tuple(vec![Pattern::Binding {
+                                        name: "comptime".to_string(),
+                                        mutable: false,
+                                        span,
+                                    }]),
+                                    span,
+                                },
+                                guard: None,
+                                body: Expr::Field {
+                                    object: Box::new(Expr::Ident("comptime".to_string(), span)),
+                                    field: "body".to_string(),
+                                    span,
+                                },
+                                span,
+                            }],
+                            span,
+                        })],
+                        span,
+                    },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span,
+                }),
+            ],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check(&program, &span_mapper, "<test>")
+            .expect("enum payload structs should refresh to concrete field sets");
+    }
+
+    #[test]
+    fn typecheck_accepts_option_variant_patterns() {
+        let span = Span::default();
+        let option_value_type = Type::Option(
+            Box::new(Type::Named {
+                name: "ComputeMetadata".to_string(),
+                generics: vec![],
+                span,
+            }),
+            span,
+        );
+        let program = Program {
+            items: vec![
+                Item::Struct(Struct {
+                    name: "ComputeMetadata".to_string(),
+                    generics: vec![],
+                    fields: vec![],
+                    methods: vec![],
+                    attributes: vec![],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Function(Function {
+                    name: "inspect".to_string(),
+                    generics: vec![],
+                    params: vec![Param {
+                        name: "value".to_string(),
+                        ty: option_value_type,
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    effects: vec![],
+                    body: Block {
+                        stmts: vec![Stmt::Expr(Expr::Match {
+                            scrutinee: Box::new(Expr::Ident("value".to_string(), span)),
+                            arms: vec![
+                                MatchArm {
+                                    pattern: Pattern::Variant {
+                                        enum_name: None,
+                                        variant: "Some".to_string(),
+                                        fields: VariantPatternFields::Tuple(vec![
+                                            Pattern::Binding {
+                                                name: "metadata".to_string(),
+                                                mutable: false,
+                                                span,
+                                            },
+                                        ]),
+                                        span,
+                                    },
+                                    guard: None,
+                                    body: Expr::None(span),
+                                    span,
+                                },
+                                MatchArm {
+                                    pattern: Pattern::Wildcard(span),
+                                    guard: None,
+                                    body: Expr::None(span),
+                                    span,
+                                },
+                            ],
+                            span,
+                        })],
+                        span,
+                    },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span,
+                }),
+            ],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check(&program, &span_mapper, "<test>")
+            .expect("Option variants should pattern-match like built-in enums");
+    }
+
+    #[test]
+    fn typecheck_infers_builtin_result_variant_expression_generics() {
+        let span = Span::default();
+        let program = Program {
+            items: vec![Item::Function(Function {
+                name: "load".to_string(),
+                generics: vec![],
+                params: vec![],
+                return_type: Some(Type::Result(
+                    Box::new(Type::Option(
+                        Box::new(Type::Named {
+                            name: "Int".to_string(),
+                            generics: vec![],
+                            span,
+                        }),
+                        span,
+                    )),
+                    Box::new(Type::Named {
+                        name: "String".to_string(),
+                        generics: vec![],
+                        span,
+                    }),
+                    span,
+                )),
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::Return(
+                        Some(Expr::EnumVariant {
+                            enum_name: "Result".to_string(),
+                            variant: "Ok".to_string(),
+                            fields: EnumVariantFields::Tuple(vec![Expr::EnumVariant {
+                                enum_name: "Option".to_string(),
+                                variant: "Some".to_string(),
+                                fields: EnumVariantFields::Tuple(vec![Expr::Int(7, span)]),
+                                span,
+                            }]),
+                            span,
+                        }),
+                        span,
+                    )],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            })],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check(&program, &span_mapper, "<test>")
+            .expect("Result/Option variants should infer built-in generic payloads");
+    }
+
+    #[test]
+    fn typecheck_for_loops_over_borrowed_arrays_as_borrowed_items() {
+        let span = Span::default();
+        let program = Program {
+            items: vec![Item::Function(Function {
+                name: "visit".to_string(),
+                generics: vec![],
+                params: vec![Param {
+                    name: "values".to_string(),
+                    ty: Type::Ref {
+                        mutable: false,
+                        inner: Box::new(Type::Array(
+                            Box::new(Type::Named {
+                                name: "String".to_string(),
+                                generics: vec![],
+                                span,
+                            }),
+                            0,
+                            span,
+                        )),
+                        lifetime: None,
+                        span,
+                    },
+                    mutable: false,
+                    default: None,
+                    span,
+                }],
+                return_type: None,
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::For {
+                        binding: Pattern::Binding {
+                            name: "value".to_string(),
+                            mutable: false,
+                            span,
+                        },
+                        iter: Expr::Ident("values".to_string(), span),
+                        body: Block {
+                            stmts: vec![Stmt::Expr(Expr::Call {
+                                callee: Box::new(Expr::Ident(
+                                    "is_compute_plan_binding".to_string(),
+                                    span,
+                                )),
+                                args: vec![CallArg {
+                                    name: None,
+                                    value: Expr::Ident("value".to_string(), span),
+                                    span,
+                                }],
+                                span,
+                            })],
+                            span,
+                        },
+                        span,
+                    }],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            })],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check_with_extra_globals(
+            &program,
+            &span_mapper,
+            "<test>",
+            vec![(
+                "is_compute_plan_binding".to_string(),
+                ResolvedType::Function {
+                    params: vec![ResolvedType::Ref {
+                        mutable: false,
+                        inner: Box::new(ResolvedType::String),
+                    }],
+                    ret: Box::new(ResolvedType::Bool),
+                    effects: EffectSet::new(),
+                },
+            )],
+        )
+        .expect("for loop items from borrowed arrays should stay borrowed");
+    }
+
+    #[test]
+    fn typecheck_infers_lambda_parameters_from_expected_function_type() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let string_ref = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(ResolvedType::String),
+        };
+        let expected = ResolvedType::Function {
+            params: vec![string_ref.clone()],
+            ret: Box::new(ResolvedType::Option(Box::new(string_ref.clone()))),
+            effects: EffectSet::new(),
+        };
+        let lambda = Expr::Lambda {
+            params: vec![Param {
+                name: "value".to_string(),
+                ty: Type::Infer(span),
+                mutable: false,
+                default: None,
+                span,
+            }],
+            return_type: None,
+            body: Box::new(Expr::EnumVariant {
+                enum_name: "Option".to_string(),
+                variant: "Some".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::Ident("value".to_string(), span)]),
+                span,
+            }),
+            span,
+        };
+
+        let inferred =
+            infer_expr_type_with_expected(&mut env, &lambda, None, Some(&expected)).unwrap();
+
+        assert_eq!(inferred, expected);
+    }
+
+    #[test]
+    fn typecheck_infers_lambda_arguments_for_higher_order_methods() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let wrapper_ty = ResolvedType::Struct("Wrapper".to_string(), HashMap::new());
+        env.types.insert("Wrapper".to_string(), wrapper_ty.clone());
+        let string_ref = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(ResolvedType::String),
+        };
+        env.define_method(
+            "Wrapper".to_string(),
+            "apply".to_string(),
+            ResolvedType::Function {
+                params: vec![
+                    wrapper_ty.clone(),
+                    ResolvedType::Function {
+                        params: vec![string_ref.clone()],
+                        ret: Box::new(ResolvedType::Option(Box::new(string_ref.clone()))),
+                        effects: EffectSet::new(),
+                    },
+                ],
+                ret: Box::new(ResolvedType::Unit),
+                effects: EffectSet::new(),
+            },
+        );
+
+        let callback = Expr::Lambda {
+            params: vec![Param {
+                name: "value".to_string(),
+                ty: Type::Infer(span),
+                mutable: false,
+                default: None,
+                span,
+            }],
+            return_type: None,
+            body: Box::new(Expr::EnumVariant {
+                enum_name: "Option".to_string(),
+                variant: "Some".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::Ident("value".to_string(), span)]),
+                span,
+            }),
+            span,
+        };
+
+        let result = infer_method_call_type(
+            &mut env,
+            None,
+            &wrapper_ty,
+            "apply",
+            &[CallArg {
+                name: None,
+                value: callback,
+                span,
+            }],
+            span,
+        )
+        .expect("higher-order method should typecheck");
+
+        assert_eq!(result, ResolvedType::Unit);
     }
 }
