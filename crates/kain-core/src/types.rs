@@ -356,6 +356,62 @@ impl<'a> TypeEnv<'a> {
                 ]),
             ),
         );
+        env.define_global(
+            "println".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Unit),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "read_file".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::String],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "len".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Int(IntSize::I64)),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "push".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown, ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Unit),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "char_at".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "ord".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::String],
+                ret: Box::new(ResolvedType::Int(IntSize::I64)),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_global(
+            "chr".into(),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Int(IntSize::I64)],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        );
         env
     }
 

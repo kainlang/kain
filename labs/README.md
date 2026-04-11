@@ -4,6 +4,7 @@
 
 Current lanes:
 
+- `brainfuck/` for the Kain-native Brainfuck interpreter and Turing-completeness proof
 - `raw_native_world_lab/` for raw-native world and UI bundle validation
 - `raw_native_magma_forge_lab/` for magma forge runtime proofing
 - `native_ui_viewport_smoke/` for native UI + viewport smoke validation

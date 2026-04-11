@@ -1,0 +1,11 @@
+fn mutate_in_loop() -> Int:
+    let mut tape: Array<Int> = [0]
+    let mut i = 0
+    while i < 1:
+        tape[0] = tape[0] + 1
+        i = i + 1
+    return tape[0]
+
+fn main() -> Int:
+    println(mutate_in_loop())
+    return 0

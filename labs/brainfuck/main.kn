@@ -1,0 +1,158 @@
+struct BrainfuckLabConfig:
+    hello_world_program_path: String
+    echo_program_path: String
+    alphabet_program_path: String
+
+fn repo_local_brainfuck_lab_config() -> BrainfuckLabConfig:
+    return BrainfuckLabConfig {
+        hello_world_program_path: "labs/brainfuck/hello_world.bf",
+        echo_program_path: "labs/brainfuck/echo_input.bf",
+        alphabet_program_path: "labs/brainfuck/alphabet_pair.bf"
+    }
+
+fn wrap_brainfuck_cell_value(value: Int) -> Int:
+    if value > 255:
+        return 0
+    if value < 0:
+        return 255
+    return value
+
+fn ensure_brainfuck_tape_cell(tape: Array<Int>, pointer: Int):
+    while pointer >= len(tape):
+        push(tape, 0)
+
+fn find_matching_brainfuck_close(program: String, open_index: Int) -> Int:
+    let mut scan_index = open_index + 1
+    let mut loop_depth = 1
+    while scan_index < len(program):
+        let opcode = char_at(program, scan_index)
+        if opcode == "[":
+            loop_depth = loop_depth + 1
+        else if opcode == "]":
+            loop_depth = loop_depth - 1
+            if loop_depth == 0:
+                return scan_index
+        scan_index = scan_index + 1
+    return -1
+
+fn find_matching_brainfuck_open(program: String, close_index: Int) -> Int:
+    let mut scan_index = close_index - 1
+    let mut loop_depth = 1
+    while scan_index >= 0:
+        let opcode = char_at(program, scan_index)
+        if opcode == "]":
+            loop_depth = loop_depth + 1
+        else if opcode == "[":
+            loop_depth = loop_depth - 1
+            if loop_depth == 0:
+                return scan_index
+        scan_index = scan_index - 1
+    return -1
+
+fn read_brainfuck_input_byte(input_stream: String, input_index: Int) -> Int:
+    if input_index >= len(input_stream):
+        return 0
+    return ord(char_at(input_stream, input_index))
+
+pub fn brainfuck_run(program: String, input_stream: String) -> String:
+    let mut tape: Array<Int> = [0]
+    let mut tape_pointer = 0
+    let mut program_counter = 0
+    let mut input_index = 0
+    let mut output_stream = ""
+
+    while program_counter < len(program):
+        let opcode = char_at(program, program_counter)
+        if len(program) <= 2:
+            println("TRACE opcode")
+            println(opcode)
+            println("TRACE cell before")
+            println(tape[tape_pointer])
+
+        if opcode == ">":
+            tape_pointer = tape_pointer + 1
+            ensure_brainfuck_tape_cell(tape, tape_pointer)
+        else if opcode == "<":
+            if tape_pointer == 0:
+                return "ERROR Brainfuck tape moved left of cell zero"
+            tape_pointer = tape_pointer - 1
+        else if opcode == "+":
+            tape[tape_pointer] = wrap_brainfuck_cell_value(tape[tape_pointer] + 1)
+        else if opcode == "-":
+            tape[tape_pointer] = wrap_brainfuck_cell_value(tape[tape_pointer] - 1)
+        else if opcode == ".":
+            output_stream = output_stream + chr(tape[tape_pointer])
+        else if opcode == ",":
+            tape[tape_pointer] = read_brainfuck_input_byte(input_stream, input_index)
+            if input_index < len(input_stream):
+                input_index = input_index + 1
+        else if opcode == "[":
+            if tape[tape_pointer] == 0:
+                let matching_close = find_matching_brainfuck_close(program, program_counter)
+                if matching_close < 0:
+                    return "ERROR Unmatched '[' loop start"
+                program_counter = matching_close
+        else if opcode == "]":
+            if tape[tape_pointer] != 0:
+                let matching_open = find_matching_brainfuck_open(program, program_counter)
+                if matching_open < 0:
+                    return "ERROR Unmatched ']' loop end"
+                program_counter = matching_open
+
+        if len(program) <= 2:
+            println("TRACE cell after")
+            println(tape[tape_pointer])
+            println("TRACE output after")
+            println(output_stream)
+
+        program_counter = program_counter + 1
+
+    return output_stream
+
+fn read_brainfuck_fixture(program_path: String) -> String:
+    return read_file(program_path)
+
+fn validate_brainfuck_fixture_output(label: String, program: String, input_stream: String, expected_output: String) -> Int:
+    let actual_output = brainfuck_run(program, input_stream)
+    if actual_output != expected_output:
+        println("FAIL " + label)
+        println("expected [" + expected_output + "]")
+        println("actual   [" + actual_output + "]")
+        return 1
+    println("PASS " + label)
+    return 0
+
+fn main() -> Int:
+    let config = repo_local_brainfuck_lab_config()
+
+    let hello_world_program = read_brainfuck_fixture(config.hello_world_program_path)
+    let echo_program = read_brainfuck_fixture(config.echo_program_path)
+    let alphabet_program = read_brainfuck_fixture(config.alphabet_program_path)
+
+    println("DEBUG first opcode [" + char_at(alphabet_program, 0) + "]")
+    println(char_at(alphabet_program, 0) == "+")
+    println("DEBUG inline [" + brainfuck_run("++++++++[>++++++++<-]>+.+.", "") + "]")
+    println("DEBUG plus-dot length")
+    println(len(brainfuck_run("+.", "")))
+
+    if len(hello_world_program) == 0:
+        println("FAIL missing fixture hello_world")
+        return 1
+    if len(echo_program) == 0:
+        println("FAIL missing fixture echo_input")
+        return 1
+    if len(alphabet_program) == 0:
+        println("FAIL missing fixture alphabet_pair")
+        return 1
+
+    let mut failed_fixture_count = 0
+    failed_fixture_count = failed_fixture_count + validate_brainfuck_fixture_output("hello_world", hello_world_program, "", "Hello World!\n")
+    failed_fixture_count = failed_fixture_count + validate_brainfuck_fixture_output("echo_input", echo_program, "K", "K")
+    failed_fixture_count = failed_fixture_count + validate_brainfuck_fixture_output("alphabet_pair", alphabet_program, "", "AB")
+
+    if failed_fixture_count > 0:
+        println("Brainfuck lab failed under Kain")
+        return failed_fixture_count
+
+    println("Brainfuck lab passed under Kain")
+    return 0

@@ -1,0 +1,9 @@
+fn main() -> Int:
+    let text = "+."
+    println(char_at(text, 0))
+    println(char_at(text, 1))
+    println(char_at(text, 0) == "+")
+    println(len(text))
+    println(ord("A"))
+    println(chr(65))
+    return 0

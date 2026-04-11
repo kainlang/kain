@@ -1,0 +1,10 @@
+fn wrap_brainfuck_cell_value(value: Int) -> Int:
+    if value > 255:
+        return 0
+    if value < 0:
+        return 255
+    return value
+
+fn main() -> Int:
+    println(wrap_brainfuck_cell_value(1))
+    return 0
