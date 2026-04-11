@@ -8,15 +8,15 @@ This workflow describes how to use the Ouroboros V2 selfhost repair subsystem to
 
 Default phase2 input root:
 
-- `M:\Code\OuroborosV2\out\selfhost\phase2`
+- `ouroboros/out/selfhost/phase2`
 
 Default repair docs/control root:
 
-- `M:\Code\OuroborosV2\docs\selfhost\repairs`
+- `ouroboros/docs/selfhost/repairs`
 
 Default repaired output root:
 
-- `M:\Code\OuroborosV2\out\selfhost\phase2_repaired`
+- `ouroboros/out/selfhost/phase2_repaired`
 
 ## Control files
 
@@ -122,9 +122,9 @@ For active phase2 work:
 - use the repair engine to accelerate classification and temporary repaired-output iteration
 - treat repaired-output success as signal, not as a substitute for upstream correctness
 - run the manifest lanes instead of ad hoc command chains:
-  - `python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane analyze`
-  - `python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane phase2-core`
-  - `python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane phase2-full`
+  - `python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane analyze`
+  - `python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane phase2-core`
+  - `python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane phase2-full`
 
 ## Extension points
 

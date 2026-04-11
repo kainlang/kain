@@ -1,10 +1,13 @@
 param(
-    [string]$Phase2Root = "M:\Code\OuroborosV2\out\selfhost\phase2",
-    [string]$ToolRoot = "M:\Code\OuroborosV2\tools\selfhost_repair",
+    [string]$Phase2Root = "",
+    [string]$ToolRoot = "",
     [switch]$FullWorkspace
 )
 
 $ErrorActionPreference = "Stop"
+$OuroborosRoot = Split-Path -Parent $PSScriptRoot
+if (-not $Phase2Root) { $Phase2Root = Join-Path $OuroborosRoot "out\selfhost\phase2" }
+if (-not $ToolRoot) { $ToolRoot = Join-Path $OuroborosRoot "tools\selfhost_repair" }
 
 Push-Location $ToolRoot
 try {
@@ -28,6 +31,6 @@ if ($FullWorkspace) {
     }
 }
 else {
-    & powershell -NoProfile -ExecutionPolicy Bypass -File "M:\Code\OuroborosV2\scripts\selfhost_stage2_core_check.ps1"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "selfhost_stage2_core_check.ps1")
     exit $LASTEXITCODE
 }

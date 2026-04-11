@@ -1,10 +1,14 @@
 param(
-    [string]$PipelineRoot = "M:\Code\OuroborosV2\out\selfhost\pipeline",
-    [string]$Phase2Root = "M:\Code\OuroborosV2\out\selfhost\phase2",
-    [string]$RepairedRoot = "M:\Code\OuroborosV2\out\selfhost\phase2_repaired"
+    [string]$PipelineRoot = "",
+    [string]$Phase2Root = "",
+    [string]$RepairedRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
+$OuroborosRoot = Split-Path -Parent $PSScriptRoot
+if (-not $PipelineRoot) { $PipelineRoot = Join-Path $OuroborosRoot "out\selfhost\pipeline" }
+if (-not $Phase2Root) { $Phase2Root = Join-Path $OuroborosRoot "out\selfhost\phase2" }
+if (-not $RepairedRoot) { $RepairedRoot = Join-Path $OuroborosRoot "out\selfhost\phase2_repaired" }
 
 function Read-JsonFile {
     param([string]$Path)
@@ -83,16 +87,20 @@ $coreSummary = Read-JsonFile (Join-Path $PipelineRoot "phase2-core_summary.json"
 $fullSummary = Read-JsonFile (Join-Path $PipelineRoot "phase2-full_summary.json")
 $repairReport = Read-JsonFile (Join-Path $RepairedRoot "phase2_repair_report.json")
 $frontErrors = Read-JsonFile (Join-Path $RepairedRoot "front_errors.json")
-$phase1Report = Read-JsonFile "M:\Code\OuroborosV2\out\selfhost\phase1_report.json"
+$phase1Report = Read-JsonFile (Join-Path $OuroborosRoot "out\selfhost\phase1_report.json")
 $phase2Report = Read-JsonFile (Join-Path $Phase2Root "phase2_report.json")
 $phase2RepairedReport = Read-JsonFile (Join-Path $RepairedRoot "phase2_report.json")
 
 $stage2Binary = $null
 foreach ($candidate in @(
     (Join-Path $RepairedRoot "stage2_workspace\\target\\debug\\kain.exe"),
+    (Join-Path $RepairedRoot "stage2_workspace\\target\\debug\\kain"),
     (Join-Path $RepairedRoot "stage2_workspace\\target\\release\\kain.exe"),
+    (Join-Path $RepairedRoot "stage2_workspace\\target\\release\\kain"),
     (Join-Path $Phase2Root "stage2_workspace\\target\\debug\\kain.exe"),
-    (Join-Path $Phase2Root "stage2_workspace\\target\\release\\kain.exe")
+    (Join-Path $Phase2Root "stage2_workspace\\target\\debug\\kain"),
+    (Join-Path $Phase2Root "stage2_workspace\\target\\release\\kain.exe"),
+    (Join-Path $Phase2Root "stage2_workspace\\target\\release\\kain")
 )) {
     if (Test-Path $candidate) {
         $stage2Binary = $candidate
@@ -178,7 +186,7 @@ $payload = [ordered]@{
         stage2_build_exit_code = if ($phase2BuildSource) { $phase2BuildSource.stage2_build_exit_code } else { $null }
     }
     phase1_inventory_evidence = [ordered]@{
-        report_path = "M:\\Code\\OuroborosV2\\out\\selfhost\\phase1_report.json"
+        report_path = (Join-Path $OuroborosRoot "out\selfhost\phase1_report.json")
         inventory_dir = if ($phase1Report) { $phase1Report.inventory_dir } else { $null }
         inventory_inputs = $inventoryInputs
     }

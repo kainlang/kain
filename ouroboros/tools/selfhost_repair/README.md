@@ -28,25 +28,25 @@ It focuses on:
 
 ## External control files
 
-- `M:\Code\OuroborosV2\docs\selfhost\repairs\error_taxonomy.json`
-- `M:\Code\OuroborosV2\docs\selfhost\repairs\repair_rules.json`
-- `M:\Code\OuroborosV2\docs\selfhost\repairs\probe_targets.json`
-- `M:\Code\OuroborosV2\docs\selfhost\repairs\repair_workflow.md`
+- `ouroboros/docs/selfhost/repairs/error_taxonomy.json`
+- `ouroboros/docs/selfhost/repairs/repair_rules.json`
+- `ouroboros/docs/selfhost/repairs/probe_targets.json`
+- `ouroboros/docs/selfhost/repairs/repair_workflow.md`
 
 ## Default input/output roots
 
 - Input phase2 root:
-  - `M:\Code\OuroborosV2\out\selfhost\phase2`
+  - `ouroboros/out/selfhost/phase2`
 - Repaired root:
-  - `M:\Code\OuroborosV2\out\selfhost\phase2_repaired`
+  - `ouroboros/out/selfhost/phase2_repaired`
 - Probe root:
-  - `M:\Code\OuroborosV2\probes`
+  - `ouroboros/probes`
 
 ## Commands
 
 From this directory:
 
-```powershell
+```bash
 python repair_runner.py analyze
 python repair_runner.py repair --validation check
 python repair_runner.py generate-probes
@@ -57,20 +57,20 @@ python repair_runner.py run-all --validation check
 
 Primary report outputs:
 
-- `M:\Code\OuroborosV2\out\selfhost\phase2_repaired\phase2_repair_report.json`
-- `M:\Code\OuroborosV2\out\selfhost\phase2_repaired\phase2_repair_report.md`
+- `ouroboros/out/selfhost/phase2_repaired/phase2_repair_report.json`
+- `ouroboros/out/selfhost/phase2_repaired/phase2_repair_report.md`
 
 Repaired copied artifacts:
 
-- `M:\Code\OuroborosV2\out\selfhost\phase2_repaired\...`
+- `ouroboros/out/selfhost/phase2_repaired/...`
 
 Probe corpus:
 
-- `M:\Code\OuroborosV2\probes\selfhost_core\...`
-- `M:\Code\OuroborosV2\probes\selfhost_ui\...`
-- `M:\Code\OuroborosV2\probes\selfhost_memory\...`
-- `M:\Code\OuroborosV2\probes\selfhost_traits\...`
-- `M:\Code\OuroborosV2\probes\selfhost_paths\...`
+- `ouroboros/probes/selfhost_core/...`
+- `ouroboros/probes/selfhost_ui/...`
+- `ouroboros/probes/selfhost_memory/...`
+- `ouroboros/probes/selfhost_traits/...`
+- `ouroboros/probes/selfhost_paths/...`
 
 ## Design notes
 
@@ -78,6 +78,7 @@ Probe corpus:
 - Repairs are applied only to copied outputs.
 - Rules stay in JSON so they can be reviewed and evolved without changing engine code.
 - Validation is optional because repaired-output success is an iteration signal, not the final source of truth.
+- Repo roots are resolved from the current checkout or explicit environment overrides instead of fixed drive letters.
 
 ## Recommended usage
 

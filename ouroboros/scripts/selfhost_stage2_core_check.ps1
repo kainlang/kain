@@ -1,11 +1,13 @@
 param(
-    [string]$Workspace = "M:\Code\OuroborosV2\out\selfhost\phase2\stage2_workspace",
+    [string]$Workspace = "",
     [string]$Crate = "kain-core",
     [switch]$Build,
     [switch]$Quiet
 )
 
 $ErrorActionPreference = "Stop"
+$OuroborosRoot = Split-Path -Parent $PSScriptRoot
+if (-not $Workspace) { $Workspace = Join-Path $OuroborosRoot "out\selfhost\phase2\stage2_workspace" }
 
 if (-not (Test-Path $Workspace)) {
     throw "Stage2 workspace not found: $Workspace"

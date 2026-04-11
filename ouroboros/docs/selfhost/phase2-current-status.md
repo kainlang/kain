@@ -39,15 +39,15 @@ Short version:
 
 ### Working Systems
 
-- Inventory-driven self-host policy under [inventories](M:\Code\OuroborosV2\docs\selfhost\inventories)
-- Repair-rule system under [repairs](M:\Code\OuroborosV2\docs\selfhost\repairs)
-- Manifest-driven orchestration in [pipeline_manifest.json](M:\Code\OuroborosV2\docs\selfhost\pipeline_manifest.json)
-- Pipeline runner in [run_pipeline.py](M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py)
-- Repair engine in [repair_runner.py](M:\Code\OuroborosV2\tools\selfhost_repair\repair_runner.py)
-- Fast core-check script in [selfhost_stage2_core_check.ps1](M:\Code\OuroborosV2\scripts\selfhost_stage2_core_check.ps1)
-- Workspace status script in [selfhost_workspace_status.ps1](M:\Code\OuroborosV2\scripts\selfhost_workspace_status.ps1)
+- Inventory-driven self-host policy under `ouroboros/docs/selfhost/inventories`
+- Repair-rule system under `ouroboros/docs/selfhost/repairs`
+- Manifest-driven orchestration in `ouroboros/docs/selfhost/pipeline_manifest.json`
+- Pipeline runner in `ouroboros/tools/selfhost_pipeline/run_pipeline.py`
+- Repair engine in `ouroboros/tools/selfhost_repair/repair_runner.py`
+- Legacy PowerShell core-check helper in `ouroboros/scripts/selfhost_stage2_core_check.ps1`
+- Machine-readable workspace status in `ouroboros/scripts/selfhost_workspace_status.py`
 - Repaired stage2 workspace root:
-  - `M:\Code\OuroborosV2\out\selfhost\phase2_repaired\stage2_workspace`
+  - `ouroboros/out/selfhost/phase2_repaired/stage2_workspace`
 
 ### Proven Milestones
 
@@ -108,7 +108,7 @@ Short version:
 ### Pipeline Summary
 
 Latest `phase2-core` summary:
-- [phase2-core_summary.json](M:\Code\OuroborosV2\out\selfhost\pipeline\phase2-core_summary.json)
+- `ouroboros/out/selfhost/pipeline/phase2-core_summary.json`
 
 Current state from that summary:
 - lane: `phase2-core`
@@ -138,7 +138,7 @@ These counts are useful for trend direction, but the most trustworthy current fr
 Most recent authoritative compiler check:
 
 - direct `cargo check -p kain-core` in:
-  - `M:\Code\OuroborosV2\out\selfhost\phase2_repaired\stage2_workspace`
+  - `ouroboros/out/selfhost/phase2_repaired/stage2_workspace`
 
 The current front is concentrated in these families:
 

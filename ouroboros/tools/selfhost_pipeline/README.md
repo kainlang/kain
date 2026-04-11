@@ -4,28 +4,28 @@ This runner executes manifest-driven selfhost lanes for Ouroboros V2.
 
 Default manifest:
 
-- `M:\Code\OuroborosV2\docs\selfhost\pipeline_manifest.json`
+- `ouroboros/docs/selfhost/pipeline_manifest.json`
 
 Typical usage:
 
-```powershell
-python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py list
-python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane analyze
-python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane phase2-core
-python M:\Code\OuroborosV2\tools\selfhost_pipeline\run_pipeline.py run --lane phase2-full
+```bash
+python ouroboros/tools/selfhost_pipeline/run_pipeline.py list
+python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane analyze
+python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane phase2-core
+python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane phase2-full
 ```
 
 Outputs:
 
-- lane summary json under `out\selfhost\pipeline`
+- lane summary json under `ouroboros/out/selfhost/pipeline`
 - per-run stdout/stderr logs for each step
 - blocker bucket counts from the latest repaired-report/core log
-- stage2 binary existence status
+- stage2 CLI binary existence status across Linux and Windows naming
 
 Companion commands:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File M:\Code\OuroborosV2\scripts\selfhost_workspace_status.ps1
+```bash
+python ouroboros/scripts/selfhost_workspace_status.py
 ```
 
-This tool is intended to reduce ad hoc command sequences and make phase2 iteration repeatable.
+This runner resolves the repo roots from the current checkout by default, so the same manifest can drive Windows and Linux workspaces without rewriting absolute paths.

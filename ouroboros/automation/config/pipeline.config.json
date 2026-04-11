@@ -6,7 +6,7 @@
     "northStar": "Get KAIN to a trustworthy self-hosted compiler path without destabilizing the currently used bootstrap corridor, then harden the importer and stage-2 flow until the language is strong enough to carry large systems like a 3D engine.",
     "retirementCriteria": [
       "Produce a real self-hosted kain.exe from the bootstrapped/self-host pipeline.",
-      "Reach a practical 1:1 Rust -> KAIN -> compile path for the intended crates surface under M:/Code/Kain/crates.",
+      "Reach a practical 1:1 Rust -> KAIN -> compile path for the intended crates surface under crates/.",
       "Include the hard self-host slices and codegen-heavy surfaces, including cli, kain-import, kain-sys-codegen, and UE5-facing/codegen-facing crate paths where applicable.",
       "Keep the bootstrap corridor intact until the self-hosted path is trustworthy enough to replace it.",
       "If phase 2 is materially complete, generate a concrete phase-3 plan instead of stopping at celebration."
@@ -16,8 +16,8 @@
       "cycleLengthTurns": 6
     },
     "sourceOfTruth": {
-      "controlPlaneRepo": "M:/Code/OuroborosV2",
-      "liveCompilerRepo": "M:/Code/Kain"
+      "controlPlaneRepo": "ouroboros",
+      "liveCompilerRepo": "."
     }
   },
   "rotation": [
@@ -47,17 +47,18 @@
     "Treat the Rust importer as the highest leverage frontier until strict self-host import is much cleaner.",
     "Keep lane definitions, artifact expectations, and repair rules data-driven instead of scattering ad hoc command sequences.",
     "Use OuroborosV2 for manifests, repair rules, probes, and artifact analysis; use Kain for real implementation changes.",
+    "Resolve roots from the current checkout or explicit environment overrides instead of hardcoded absolute paths.",
     "Record exact evidence for every promotion claim so the next agent can continue instead of re-auditing."
   ],
   "referencePaths": {
     "liveCompiler": [
-      "M:/Code/Kain/crates/cli/src/selfhost.rs",
-      "M:/Code/Kain/crates/cli/src/selfhost_report.rs",
-      "M:/Code/Kain/crates/kain-import/src/rust/selfhost.rs",
-      "M:/Code/Kain/crates/kain-import/src/rust/transformer.rs",
-      "M:/Code/Kain/crates/kain-selfhost/src",
-      "M:/Code/Kain/crates/kain-sys-codegen/src",
-      "M:/Code/Kain/bootstrap"
+      "crates/cli/src/selfhost.rs",
+      "crates/cli/src/selfhost_report.rs",
+      "crates/kain-import/src/rust/selfhost.rs",
+      "crates/kain-import/src/rust/transformer.rs",
+      "crates/kain-selfhost/src",
+      "crates/kain-sys-codegen/src",
+      "bootstrap"
     ],
     "ouroborosControlPlane": [
       "docs/selfhost",
@@ -91,25 +92,25 @@
   },
   "protectedAreas": {
     "bootstrap": [
-      "M:/Code/Kain/bootstrap",
-      "M:/Code/Kain/kn_library/utilities/bootstrap.kn",
-      "M:/Code/Kain/kn_library/utilities/compile_bootstrap.kn",
-      "M:/Code/Kain/kn_library/utilities/full_bootstrap.kn"
+      "bootstrap",
+      "kn_library/utilities/bootstrap.kn",
+      "kn_library/utilities/compile_bootstrap.kn",
+      "kn_library/utilities/full_bootstrap.kn"
     ],
     "referenceOnly": [
-      "legacy"
+      "ouroboros/legacy"
     ],
     "hotOutputs": [
-      "out/selfhost",
-      "M:/Code/Kain/target_selfhost_probe",
-      "M:/Code/Kain/target_selfhost_probe2",
-      "M:/Code/Kain/target_selfhost_probe3"
+      "ouroboros/out/selfhost",
+      "target_selfhost_probe",
+      "target_selfhost_probe2",
+      "target_selfhost_probe3"
     ]
   },
   "validation": {
     "globalCommands": [
       "python tools/selfhost_pipeline/run_pipeline.py list",
-      "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/selfhost_workspace_status.ps1"
+      "python scripts/selfhost_workspace_status.py"
     ],
     "laneCommands": {
       "importer": [
@@ -122,15 +123,15 @@
       ],
       "repair": [
         "python tools/selfhost_pipeline/run_pipeline.py run --lane phase2-core",
-        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/selfhost_repair_loop.ps1"
+        "python tools/selfhost_pipeline/run_pipeline.py run --lane phase2-full"
       ],
       "validation": [
         "cargo run -p cli --bin kain -- selfhost phase2",
-        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/selfhost_workspace_status.ps1"
+        "python scripts/selfhost_workspace_status.py"
       ],
       "docs": [
         "python tools/selfhost_pipeline/run_pipeline.py list",
-        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/selfhost_workspace_status.ps1"
+        "python scripts/selfhost_workspace_status.py"
       ]
     },
     "fallbackCommands": [
@@ -254,7 +255,7 @@
       "Determine the next turn by counting markdown files in automation/reports and adding one, or just run node automation/scripts/next-turn.mjs with no --turn argument.",
       "Generate the brief with node automation/scripts/next-turn.mjs.",
       "Execute exactly one lane-appropriate improvement for the active turn.",
-      "Treat M:/Code/OuroborosV2 as the control plane and M:/Code/Kain as the live implementation repo.",
+      "Treat ouroboros/ as the control plane and the repo root as the live implementation workspace.",
       "Protect the bootstrap corridor unless the current turn has strong evidence for a safe targeted fix.",
       "Prefer data-driven manifests, inventories, typed contracts, and repair rules over scattered hardcoded logic.",
       "Validate with the lane commands from the config. If they are too expensive or unstable, use fallback commands and record why.",

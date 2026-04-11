@@ -42,6 +42,61 @@ Recommended next step:
 
 - Decide the canonical Kain contract for file/string builtins, especially `read_file`, then align runtime, typechecker, stdlib declarations, and any existing Kain wrappers together in one deliberate pass. After that, either fix the Brainfuck harness expectations or replace the fixtures with canonical programs before using it as a Turing-completeness proof artifact.
 
+## 2026-04-11 - Ouroboros selfhost tooling now resolves repo roots from the current checkout and can run its main control-plane paths on Linux without `M:\Code\...` defaults
+
+The Ouroboros/selfhost control plane had drifted into a Windows-only operator loop: absolute `M:\Code\...` roots were baked into the manifest runner, repair tooling, inventory extraction, status scripts, and operator docs, and the phase runner still launched steps through `cmd /c` and PowerShell-specific lanes.
+
+What changed:
+
+- Added `ouroboros/tools/ouroboros_pathing.py`
+  - Introduced shared workspace discovery for `repo_root` and `ouroboros_root`.
+  - Supports explicit `OUROBOROS_ROOT` / `KAIN_REPO_ROOT` overrides but otherwise resolves from the current checkout layout.
+  - Added platform-aware executable-name handling for `kain` vs `kain.exe`.
+- Updated `ouroboros/tools/selfhost_pipeline/run_pipeline.py`
+  - Replaced hardcoded default manifest/output roots with checkout-relative resolution.
+  - Added manifest-default template expansion seeded from discovered roots plus `sys.executable`.
+  - Reworked step execution around structured `argv` lists, optional working directories, and artifact-log emission instead of `cmd /c` / PowerShell launch assumptions.
+  - Made stage2 binary detection check both Linux and Windows binary names.
+- Updated `ouroboros/docs/selfhost/pipeline_manifest.json`
+  - Replaced absolute drive-letter defaults with `{ouroboros_root}` templates.
+  - Converted `analyze`, `phase2-core`, and `phase2-full` steps to data-driven `argv` execution with explicit `cwd` and `artifact_log` fields.
+  - Removed the PowerShell-script dependency from the core/full lane definitions by letting the runner execute Cargo checks directly.
+- Updated `ouroboros/tools/selfhost_repair/repair_runner.py` and `ouroboros/scripts/extract_selfhost_inventory.py`
+  - Switched default roots to the shared resolver so repair and inventory extraction follow the active checkout instead of a fixed Windows path.
+- Added `ouroboros/scripts/selfhost_workspace_status.py`
+  - Ported the machine-readable workspace status surface to Python so Linux operators no longer depend on `selfhost_workspace_status.ps1`.
+- Updated `ouroboros/automation/config/pipeline.config.json`, `ouroboros/tools/selfhost_pipeline/README.md`, `ouroboros/tools/selfhost_repair/README.md`, `ouroboros/docs/selfhost/phase2-current-status.md`, and `ouroboros/docs/selfhost/repairs/repair_workflow.md`
+  - Repointed operator commands and path references to repo-relative, Linux-safe entrypoints.
+- Updated the legacy PowerShell helpers under `ouroboros/scripts/*.ps1`
+  - They still exist for Windows users, but now derive their defaults from `PSScriptRoot` instead of fixed `M:\Code\OuroborosV2\...` paths and recognize both `kain` and `kain.exe`.
+
+Validation completed:
+
+- `python -m py_compile ouroboros/tools/ouroboros_pathing.py ouroboros/tools/selfhost_pipeline/run_pipeline.py ouroboros/tools/selfhost_repair/repair_runner.py ouroboros/scripts/extract_selfhost_inventory.py ouroboros/scripts/selfhost_workspace_status.py`
+- `python ouroboros/tools/selfhost_pipeline/run_pipeline.py list`
+- `python ouroboros/scripts/selfhost_workspace_status.py`
+- `python ouroboros/tools/selfhost_repair/repair_runner.py analyze --validation skip --input-root ouroboros/out/selfhost/phase2 --repaired-root /tmp/kain_phase2_repaired_test --repair-docs ouroboros/docs/selfhost/repairs --report-json /tmp/kain_phase2_repair_report.json --report-md /tmp/kain_phase2_repair_report.md`
+- `python -m json.tool ouroboros/docs/selfhost/pipeline_manifest.json`
+- `python -m json.tool ouroboros/automation/config/pipeline.config.json`
+- `python ouroboros/tools/selfhost_pipeline/run_pipeline.py run --lane analyze --out-dir /tmp/kain_pipeline_out`
+  - this now resolves roots correctly on Linux and fails honestly on missing `phase2` artifacts instead of on bad Windows path assumptions
+
+Design decisions:
+
+- Treated the manifest as the long-term source of truth for lane execution and moved more behavior into structured `argv` / `cwd` / `artifact_log` fields instead of scattering platform-specific wrapper scripts.
+- Kept the PowerShell helpers for Windows continuity, but removed them from the main manifest-driven Linux operator path.
+- Used checkout-relative discovery first and env overrides second so local development works with no extra setup while CI or split-repo operators can still pin roots explicitly.
+
+Current risks:
+
+- Some older Ouroboros reports and secondary docs still mention `M:/Code/...`; the live tooling path is fixed, but not every archival note has been normalized.
+- The manifest runner now owns more of the Cargo check flow directly, so future step kinds should stay structured instead of slipping back toward shell-string wrappers.
+- There are still unrelated absolute-path references elsewhere in the broader repo outside the main Ouroboros selfhost control plane.
+
+Recommended next step:
+
+- If Linux is now the primary dev lane, continue normalizing the remaining live non-Ouroboros absolute-path assumptions in runtime tests and helper tooling, but keep that as a separate pass from the now-working selfhost control plane.
+
 ## 2026-04-11 - compiler-owned intent suite is now coherent across parser, typechecker, runtime, bundles, driver, and LSP
 
 The original quartet is no longer the right mental model. Kain now ships a five-part compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`.
