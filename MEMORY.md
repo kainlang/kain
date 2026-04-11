@@ -1,5 +1,38 @@
 # MEMORY
 
+## 2026-04-11 - omega lab now compiles and runs in both interpret and LLVM lanes, with a runtime-safe entrypoint around current compiler-owned-intent LLVM gaps
+
+The modernized `labs/omega/omega.kn` now works as an actual runnable lab file instead of only an interpreter-only proof.
+
+What changed:
+
+- Updated `labs/omega/omega.kn`
+  - Kept the modern Omega thesis in current Kain syntax: `world`, `component`, `patch`, `converge`, `orchestrate`, actor syntax, and regular structs/functions.
+  - Added a plain `omega_pipeline_runtime(...)` path used by `main()` so the file can compile all the way through the current LLVM/native executable lane.
+  - Kept the compiler-owned declarations in the file for runtime-contract / realtime-bundle emission and authored-surface proof, while avoiding the exact call paths that the LLVM backend does not lower yet.
+
+Validation completed:
+
+- `./target/debug/kain run /home/ephemara/Dev/Kain/labs/omega/omega.kn` -> `145`
+- `./runtime/compile_native_runtime.sh`
+- `./target/debug/kain build /home/ephemara/Dev/Kain/labs/omega/omega.kn --target rust --output /home/ephemara/Dev/Kain/labs/omega/generated/omega.rs`
+- `./target/debug/kain build /home/ephemara/Dev/Kain/labs/omega/omega.kn --target llvm --output /home/ephemara/Dev/Kain/labs/omega/generated/omega.ll`
+- `/home/ephemara/Dev/Kain/labs/omega/generated/omega` exits with code `145`
+
+Design decisions:
+
+- Treated the old file as a thesis to port, not as syntax to transliterate.
+- Chose to preserve `world` / `patch` / `converge` / `orchestrate` in the authored file, but routed `main()` through plain functions for the compiled lane because the LLVM backend currently fails on direct `world` handle materialization and direct `orchestrate` call lowering.
+
+Current risks:
+
+- This is a real current backend gap, not an Omega-specific bug: the existing compiler-owned-intent smoke also fails LLVM codegen when `main()` does `let studio = Studio`, and direct `orchestrate` calls in the compiled lane can lower to undefined symbols during link.
+- Omega therefore proves the mixed semantic surface and the native executable lane together, but not yet direct end-to-end execution of compiler-owned intent through LLVM.
+
+Recommended next step:
+
+- Fix LLVM/codegen support for world handle materialization and orchestrate entrypoint emission so authored `world` / `patch` / `converge` / `orchestrate` can execute directly in native compiled binaries without the runtime-safe wrapper path.
+
 ## 2026-04-11 - architecture doc now states plainly that Kain is an executable language, not only a manifest/orchestration layer
 
 The durable repo overview had drifted toward the packaging/materialization story and was underselling what `crates/kain-core` already does directly.

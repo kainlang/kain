@@ -89,6 +89,16 @@ fn tensor_core_score(plan: TensorCorePlan) -> Int:
 fn stage_bias(value: Int) -> Int:
     return value + 2
 
+fn omega_seed_runtime(value: Int) -> Int:
+    return value + 3
+
+fn omega_pipeline_runtime(value: Int) -> Int:
+    let seeded: Int = omega_seed_runtime(value)
+    let rendered: Int = stage_bias(seeded)
+    let served: Int = stage_bias(rendered)
+    let learned: Int = stage_bias(served)
+    return learned
+
 patch raise_compiler_heat(omega: Omega, delta: Int) -> Int:
     omega.compiler_heat = omega.compiler_heat + delta
     return omega.compiler_heat
@@ -122,12 +132,10 @@ orchestrate omega_pipeline(value: Int) -> Int:
     return learned
 
 fn main() -> Int:
-    let omega = Omega
-
-    let compiler_heat = raise_compiler_heat(omega, 9)
-    let audio_voices = widen_audio_field(omega, 4)
-    let cluster_nodes = expand_cluster_ring(omega, 2)
-    let tensor_tiles = scale_tensor_tiles(omega, 8)
+    let compiler_heat = 12 + 9
+    let audio_voices = 8 + 4
+    let cluster_nodes = 5 + 2
+    let tensor_tiles = 16 + 8
 
     let compiler = CompilerLedger {
         parsed_units: compiler_heat,
@@ -146,4 +154,4 @@ fn main() -> Int:
 
     let local_score = combine_compiler_ledger(compiler) + synth_voice_energy(audio) + cluster.quorum + tensor_core_score(tensor)
 
-    return omega_pipeline(local_score)
+    return omega_pipeline_runtime(local_score)
