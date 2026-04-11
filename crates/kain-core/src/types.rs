@@ -514,18 +514,63 @@ where
         env.define_global(name, ty);
     }
 
-    // First pass: Register types, globals, and methods.
+    // First pass: Predeclare item-owned types so forward references resolve
+    // against real type names instead of placeholder struct fallbacks.
+    for item in &program.items {
+        predeclare_item_types(&mut env, item);
+    }
+
+    // Second pass: Register types, globals, and methods.
     for item in &program.items {
         register_item_types(&mut env, item)?;
     }
 
-    // Second pass: Type check all items.
+    // Third pass: Type check all items.
     let mut typed_items = Vec::new();
     for item in &program.items {
         check_item_into(&mut env, item, &mut typed_items)?;
     }
 
     Ok(TypedProgram { items: typed_items })
+}
+
+fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
+    match item {
+        Item::Struct(s) => {
+            env.types
+                .entry(s.name.clone())
+                .or_insert_with(|| ResolvedType::Struct(s.name.clone(), HashMap::new()));
+        }
+        Item::Enum(e) => {
+            env.types
+                .entry(e.name.clone())
+                .or_insert_with(|| ResolvedType::Enum(e.name.clone(), Vec::new()));
+            env.enum_variants.entry(e.name.clone()).or_default();
+        }
+        Item::World(world) => {
+            env.types
+                .entry(world.name.clone())
+                .or_insert_with(|| ResolvedType::Struct(world.name.clone(), HashMap::new()));
+        }
+        Item::Component(component) => {
+            env.types
+                .entry(component.name.clone())
+                .or_insert_with(|| ResolvedType::Struct(component.name.clone(), HashMap::new()));
+        }
+        Item::Actor(actor) => {
+            env.types
+                .entry(actor.name.clone())
+                .or_insert_with(|| ResolvedType::Struct(actor.name.clone(), HashMap::new()));
+        }
+        Item::Mod(module) => {
+            if let Some(children) = &module.inline {
+                for child in children {
+                    predeclare_item_types(env, child);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
@@ -1880,6 +1925,9 @@ fn resolve_type_impl(env: Option<&TypeEnv>, ty: &Type) -> KainResult<ResolvedTyp
             "Bool" => Ok(ResolvedType::Bool),
             "Char" => Ok(ResolvedType::Char),
             "String" => Ok(ResolvedType::String),
+            "Box" | "Arc" | "Rc" | "Cell" | "RefCell" if generics.len() == 1 => {
+                resolve_type_impl(env, &generics[0])
+            }
             "Array" if generics.len() == 1 => Ok(ResolvedType::Array(
                 Box::new(resolve_type_impl(env, &generics[0])?),
                 0,
@@ -3679,4 +3727,184 @@ fn tuple_field_type(
             span,
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typecheck_resolves_forward_enum_references_in_struct_fields() {
+        let span = Span::default();
+        let stmt_type = Type::Named {
+            name: "Stmt".to_string(),
+            generics: vec![],
+            span,
+        };
+        let array_of_stmt = Type::Named {
+            name: "Array".to_string(),
+            generics: vec![stmt_type.clone()],
+            span,
+        };
+        let block_type = Type::Named {
+            name: "Block".to_string(),
+            generics: vec![],
+            span,
+        };
+
+        let program = Program {
+            items: vec![
+                Item::Struct(Struct {
+                    name: "Block".to_string(),
+                    generics: vec![],
+                    fields: vec![Field {
+                        name: "stmts".to_string(),
+                        ty: array_of_stmt,
+                        attributes: vec![],
+                        visibility: Visibility::Private,
+                        default: None,
+                        weak: false,
+                        span,
+                    }],
+                    methods: vec![],
+                    attributes: vec![],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Enum(Enum {
+                    name: "Stmt".to_string(),
+                    generics: vec![],
+                    variants: vec![Variant {
+                        name: "Item".to_string(),
+                        fields: VariantFields::Unit,
+                        span,
+                    }],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Function(Function {
+                    name: "walk".to_string(),
+                    generics: vec![],
+                    params: vec![Param {
+                        name: "block".to_string(),
+                        ty: block_type,
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    effects: vec![],
+                    body: Block {
+                        stmts: vec![Stmt::For {
+                            binding: Pattern::Binding {
+                                name: "stmt".to_string(),
+                                mutable: false,
+                                span,
+                            },
+                            iter: Expr::Field {
+                                object: Box::new(Expr::Ident("block".to_string(), span)),
+                                field: "stmts".to_string(),
+                                span,
+                            },
+                            body: Block {
+                                stmts: vec![Stmt::Expr(Expr::Match {
+                                    scrutinee: Box::new(Expr::Ident("stmt".to_string(), span)),
+                                    arms: vec![MatchArm {
+                                        pattern: Pattern::Variant {
+                                            enum_name: Some("Stmt".to_string()),
+                                            variant: "Item".to_string(),
+                                            fields: VariantPatternFields::Unit,
+                                            span,
+                                        },
+                                        guard: None,
+                                        body: Expr::None(span),
+                                        span,
+                                    }],
+                                    span,
+                                })],
+                                span,
+                            },
+                            span,
+                        }],
+                        span,
+                    },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span,
+                }),
+            ],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check(&program, &span_mapper, "<test>").expect("forward enum reference should typecheck");
+    }
+
+    #[test]
+    fn typecheck_treats_box_as_transparent_wrapper() {
+        let span = Span::default();
+        let item_type = Type::Named {
+            name: "Item".to_string(),
+            generics: vec![],
+            span,
+        };
+        let boxed_item_type = Type::Named {
+            name: "Box".to_string(),
+            generics: vec![item_type.clone()],
+            span,
+        };
+        let program = Program {
+            items: vec![
+                Item::Enum(Enum {
+                    name: "Item".to_string(),
+                    generics: vec![],
+                    variants: vec![Variant {
+                        name: "Value".to_string(),
+                        fields: VariantFields::Unit,
+                        span,
+                    }],
+                    visibility: Visibility::Private,
+                    span,
+                }),
+                Item::Function(Function {
+                    name: "inspect".to_string(),
+                    generics: vec![],
+                    params: vec![Param {
+                        name: "item".to_string(),
+                        ty: boxed_item_type,
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    effects: vec![],
+                    body: Block {
+                        stmts: vec![Stmt::Expr(Expr::Match {
+                            scrutinee: Box::new(Expr::Ident("item".to_string(), span)),
+                            arms: vec![MatchArm {
+                                pattern: Pattern::Variant {
+                                    enum_name: Some("Item".to_string()),
+                                    variant: "Value".to_string(),
+                                    fields: VariantPatternFields::Unit,
+                                    span,
+                                },
+                                guard: None,
+                                body: Expr::None(span),
+                                span,
+                            }],
+                            span,
+                        })],
+                        span,
+                    },
+                    visibility: Visibility::Private,
+                    attributes: vec![],
+                    span,
+                }),
+            ],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check(&program, &span_mapper, "<test>").expect("Box wrapper should be transparent");
+    }
 }

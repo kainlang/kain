@@ -4619,7 +4619,7 @@ fn inline_expr_to_string(expr: &Expr) -> String {
         ),
         Expr::Call { callee, args, .. } => format!(
             "{}({})",
-            inline_expr_to_string(callee),
+            inline_expr_postfix_base(callee),
             args.iter()
                 .map(call_arg_to_string)
                 .collect::<Vec<_>>()
@@ -4632,7 +4632,7 @@ fn inline_expr_to_string(expr: &Expr) -> String {
             ..
         } => format!(
             "{}.{}({})",
-            inline_expr_to_string(receiver),
+            inline_expr_postfix_base(receiver),
             sanitize_identifier(method),
             args.iter()
                 .map(call_arg_to_string)
@@ -4641,7 +4641,7 @@ fn inline_expr_to_string(expr: &Expr) -> String {
         ),
         Expr::Field { object, field, .. } => format!(
             "{}.{}",
-            inline_expr_to_string(object),
+            inline_expr_postfix_base(object),
             sanitize_identifier(field)
         ),
         Expr::Index { object, index, .. } => {
@@ -4661,11 +4661,11 @@ fn inline_expr_to_string(expr: &Expr) -> String {
                     .map(|value| inline_expr_to_string(value))
                     .unwrap_or_default();
                 let sep = if *inclusive { "..=" } else { ".." };
-                format!("{}[{}{}{}]", inline_expr_to_string(object), start, sep, end)
+                format!("{}[{}{}{}]", inline_expr_postfix_base(object), start, sep, end)
             } else {
                 format!(
                     "{}[{}]",
-                    inline_expr_to_string(object),
+                    inline_expr_postfix_base(object),
                     inline_expr_to_string(index)
                 )
             }
@@ -4851,6 +4851,25 @@ fn inline_expr_to_string(expr: &Expr) -> String {
         },
         Expr::Continue(_) => "continue".to_string(),
         _ => "none".to_string(),
+    }
+}
+
+fn inline_expr_postfix_base(expr: &Expr) -> String {
+    let rendered = inline_expr_to_string(expr);
+    if matches!(
+        expr,
+        Expr::Ident(_, _)
+            | Expr::Field { .. }
+            | Expr::Index { .. }
+            | Expr::Call { .. }
+            | Expr::MethodCall { .. }
+            | Expr::MacroCall { .. }
+            | Expr::EnumVariant { .. }
+            | Expr::Paren(_, _)
+    ) {
+        rendered
+    } else {
+        format!("({rendered})")
     }
 }
 
@@ -5546,5 +5565,24 @@ fn untouched_afterwards():
             "std__collections__HashMap"
         );
         assert_eq!(sanitize_expr_path("foo::bar::baz"), "foo__bar__baz");
+    }
+
+    #[test]
+    fn inline_expr_parenthesizes_deref_field_bases() {
+        let span = kain_core::span::Span::default();
+        let expr = Expr::Ref {
+            mutable: false,
+            value: Box::new(Expr::Field {
+                object: Box::new(Expr::Deref(
+                    Box::new(Expr::Ident("_self".to_string(), span)),
+                    span,
+                )),
+                field: "body".to_string(),
+                span,
+            }),
+            span,
+        };
+
+        assert_eq!(inline_expr_to_string(&expr), "&(*_self).body");
     }
 }

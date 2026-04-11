@@ -82,6 +82,9 @@ pub struct RustTransformer {
     /// Current function name (for diagnostics).
     current_function: Option<String>,
 
+    /// Concrete impl target currently in scope when lowering methods.
+    current_impl_target: Option<Type>,
+
     /// Local variable type map (for type-directed lowering when needed).
     local_types: Vec<HashMap<String, Type>>,
 
@@ -124,6 +127,7 @@ impl RustTransformer {
             identifier_renamer: StableIdentifierRenamer::default(),
             generics_in_scope: Vec::new(),
             current_function: None,
+            current_impl_target: None,
             local_types: vec![HashMap::new()],
             value_substitutions: vec![HashMap::new()],
             closure_param_counter: 0,
@@ -337,6 +341,13 @@ impl RustTransformer {
         }
     }
 
+    fn lookup_local_type(&self, name: &str) -> Option<&Type> {
+        self.local_types
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name))
+    }
+
     fn push_value_substitution_scope(&mut self) {
         self.value_substitutions.push(HashMap::new());
     }
@@ -511,11 +522,161 @@ impl RustTransformer {
                 self.note_lossy_class("trait_object_lowering", message);
             }
         }
-        self.type_mapper.map_type(ty)
+        self.resolve_impl_self_type(self.type_mapper.map_type(ty))
+    }
+
+    fn resolve_impl_self_type(&self, ty: Type) -> Type {
+        match ty {
+            Type::Named {
+                name,
+                generics,
+                span,
+            } if name == "Self" => self
+                .current_impl_target
+                .clone()
+                .unwrap_or(Type::Named {
+                    name,
+                    generics,
+                    span,
+                }),
+            Type::Named {
+                name,
+                generics,
+                span,
+            } => Type::Named {
+                name,
+                generics: generics
+                    .into_iter()
+                    .map(|generic| self.resolve_impl_self_type(generic))
+                    .collect(),
+                span,
+            },
+            Type::Tuple(types, span) => Type::Tuple(
+                types
+                    .into_iter()
+                    .map(|item| self.resolve_impl_self_type(item))
+                    .collect(),
+                span,
+            ),
+            Type::Array(inner, size, span) => Type::Array(
+                Box::new(self.resolve_impl_self_type(*inner)),
+                size,
+                span,
+            ),
+            Type::Slice(inner, span) => {
+                Type::Slice(Box::new(self.resolve_impl_self_type(*inner)), span)
+            }
+            Type::Ref {
+                mutable,
+                inner,
+                lifetime,
+                span,
+            } => Type::Ref {
+                mutable,
+                inner: Box::new(self.resolve_impl_self_type(*inner)),
+                lifetime,
+                span,
+            },
+            Type::Ptr {
+                mutable,
+                inner,
+                provenance,
+                span,
+            } => Type::Ptr {
+                mutable,
+                inner: Box::new(self.resolve_impl_self_type(*inner)),
+                provenance,
+                span,
+            },
+            Type::Function {
+                params,
+                return_type,
+                effects,
+                span,
+            } => Type::Function {
+                params: params
+                    .into_iter()
+                    .map(|param| self.resolve_impl_self_type(param))
+                    .collect(),
+                return_type: Box::new(self.resolve_impl_self_type(*return_type)),
+                effects,
+                span,
+            },
+            Type::Option(inner, span) => {
+                Type::Option(Box::new(self.resolve_impl_self_type(*inner)), span)
+            }
+            Type::Result(ok, err, span) => Type::Result(
+                Box::new(self.resolve_impl_self_type(*ok)),
+                Box::new(self.resolve_impl_self_type(*err)),
+                span,
+            ),
+            Type::Impl {
+                trait_name,
+                generics,
+                span,
+            } => Type::Impl {
+                trait_name,
+                generics: generics
+                    .into_iter()
+                    .map(|generic| self.resolve_impl_self_type(generic))
+                    .collect(),
+                span,
+            },
+            other => other,
+        }
+    }
+
+    fn current_impl_type_path(&self) -> Option<String> {
+        match self.current_impl_target.as_ref() {
+            Some(Type::Named { name, .. }) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    fn resolve_impl_self_path_segments(&self, mut segments: Vec<String>) -> Vec<String> {
+        if segments.first().is_some_and(|segment| segment == "Self") {
+            if let Some(type_path) = self.current_impl_type_path() {
+                segments[0] = type_path;
+            }
+        }
+        segments
+    }
+
+    fn path_expr_may_need_explicit_deref(&mut self, path: &syn::Path) -> bool {
+        if path.segments.is_empty() {
+            return false;
+        }
+        let name = self.resolve_value_path(path);
+        matches!(
+            self.lookup_local_type(&name),
+            Some(Type::Ref { .. } | Type::Ptr { .. })
+        )
+    }
+
+    fn inferred_receiver_type_hint(&mut self, expr: &syn::Expr) -> Option<Type> {
+        match expr {
+            syn::Expr::Path(path) => {
+                if path.path.segments.is_empty() {
+                    return None;
+                }
+                let name = self.resolve_value_path(&path.path);
+                self.lookup_local_type(&name).cloned()
+            }
+            syn::Expr::Paren(paren) => self.inferred_receiver_type_hint(&paren.expr),
+            _ => None,
+        }
+    }
+
+    fn lower_borrow_adapter_call(&mut self, receiver: Expr, receiver_ty: Option<Type>) -> Expr {
+        match receiver_ty {
+            Some(Type::Ref { .. } | Type::Ptr { .. }) => Expr::Deref(Box::new(receiver), S),
+            Some(Type::Named { name, .. }) if name == "Box" => Expr::Deref(Box::new(receiver), S),
+            _ => receiver,
+        }
     }
 
     fn pattern_variant_head(&self, path: &syn::Path) -> (Option<String>, String) {
-        let resolved = self.type_mapper.resolve_path_segments(path);
+        let resolved = self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         let variant = resolved
             .last()
             .cloned()
@@ -754,23 +915,20 @@ impl RustTransformer {
             match input {
                 syn::FnArg::Receiver(r) => {
                     // `self` / `&self` / `&mut self`
+                    let self_type = self.current_impl_target.clone().unwrap_or(Type::Named {
+                        name: "Self".to_string(),
+                        generics: vec![],
+                        span: S,
+                    });
                     let ty = if r.reference.is_some() {
                         Type::Ref {
                             mutable: r.mutability.is_some(),
-                            inner: Box::new(Type::Named {
-                                name: "Self".to_string(),
-                                generics: vec![],
-                                span: S,
-                            }),
+                            inner: Box::new(self_type),
                             lifetime: None,
                             span: S,
                         }
                     } else {
-                        Type::Named {
-                            name: "Self".to_string(),
-                            generics: vec![],
-                            span: S,
-                        }
+                        self_type
                     };
                     params.push(Param {
                         name: "_self".to_string(),
@@ -1097,6 +1255,7 @@ impl RustTransformer {
             .map(|segment| self.type_mapper.generic_args(&segment.arguments))
             .unwrap_or_default();
 
+        self.current_impl_target = Some(target_type.clone());
         let mut methods = Vec::new();
         for item in &i.items {
             match item {
@@ -1183,6 +1342,7 @@ impl RustTransformer {
                 }
             }
         }
+        self.current_impl_target = None;
 
         Ok(Impl {
             generics,
@@ -1366,6 +1526,14 @@ impl RustTransformer {
         }
     }
 
+    fn normalize_for_iter_expr(expr: Expr) -> Expr {
+        match expr {
+            Expr::Ref { value, .. } => Self::normalize_for_iter_expr(*value),
+            Expr::Paren(inner, _) => Self::normalize_for_iter_expr(*inner),
+            other => other,
+        }
+    }
+
     // ── Type alias ─────────────────────────────────────────────────────
 
     fn transform_type_alias(&mut self, t: &syn::ItemType) -> Result<TypeAlias> {
@@ -1540,6 +1708,18 @@ impl RustTransformer {
                 if let Some(expr) = self.lookup_value_substitution(&p.path) {
                     return Ok(expr);
                 }
+                if p.path.segments.len() == 1
+                    && p.path
+                        .segments
+                        .first()
+                        .is_some_and(|segment| segment.ident == "self")
+                {
+                    let receiver = Expr::Ident("_self".to_string(), S);
+                    return Ok(match self.lookup_local_type("_self") {
+                        Some(Type::Ref { .. }) => Expr::Deref(Box::new(receiver), S),
+                        _ => receiver,
+                    });
+                }
                 let name = self.resolve_value_path(&p.path);
                 Ok(Expr::Ident(name, S))
             }
@@ -1607,7 +1787,14 @@ impl RustTransformer {
 
             // ── Field access ──────────────────────────────────────────────
             syn::Expr::Field(f) => {
-                let object = self.transform_expr(&f.base)?;
+                let mut object = self.transform_expr(&f.base)?;
+                if let syn::Expr::Path(path) = f.base.as_ref() {
+                    if self.path_expr_may_need_explicit_deref(&path.path)
+                        && !matches!(object, Expr::Deref(_, _))
+                    {
+                        object = Expr::Deref(Box::new(object), S);
+                    }
+                }
                 let field = match &f.member {
                     syn::Member::Named(ident) => self.rename_field(&ident.to_string()),
                     syn::Member::Unnamed(idx) => format!("field_{}", idx.index),
@@ -1644,8 +1831,18 @@ impl RustTransformer {
 
             // ── Method call ───────────────────────────────────────────────
             syn::Expr::MethodCall(m) => {
+                let receiver_ty = self.inferred_receiver_type_hint(&m.receiver);
                 let receiver = self.transform_expr(&m.receiver)?;
                 let receiver = self.peel_expr_wrapper(receiver);
+                let method_name = m.method.to_string();
+                if m.args.is_empty()
+                    && matches!(
+                        method_name.as_str(),
+                        "as_ref" | "as_mut" | "as_deref" | "as_deref_mut"
+                    )
+                {
+                    return Ok(self.lower_borrow_adapter_call(receiver, receiver_ty));
+                }
                 let method = self.rename_value(&m.method.to_string());
                 let args = self.transform_call_args(&m.args)?;
                 Ok(Expr::MethodCall {
@@ -1787,7 +1984,7 @@ impl RustTransformer {
 
             syn::Expr::ForLoop(f) => {
                 let binding = self.transform_pattern(&f.pat);
-                let iter = self.transform_expr(&f.expr)?;
+                let iter = Self::normalize_for_iter_expr(self.transform_expr(&f.expr)?);
                 let body = self.transform_block(&f.body)?;
                 Ok(Expr::Block(
                     Block {
@@ -2920,11 +3117,9 @@ impl RustTransformer {
         {
             return "_self".to_string();
         }
-        let resolved = self.type_mapper.resolve_path_segments(path);
+        let resolved =
+            self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
-            if resolved[0] == "Self" {
-                return "Self".to_string();
-            }
             self.rename_value(&resolved[0])
         } else {
             resolved.join("::")
@@ -2932,11 +3127,9 @@ impl RustTransformer {
     }
 
     fn resolve_type_path(&mut self, path: &syn::Path) -> String {
-        let resolved = self.type_mapper.resolve_path_segments(path);
+        let resolved =
+            self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
-            if resolved[0] == "Self" {
-                return "Self".to_string();
-            }
             self.rename_type(&resolved[0])
         } else {
             resolved.join("::")
@@ -4146,12 +4339,161 @@ mod tests {
             panic!("expected impl block");
         };
         let method = &impl_block.methods[0];
-        let Stmt::Expr(Expr::Match { scrutinee, .. }) = &method.body.stmts[0] else {
+        assert!(matches!(
+            method.params.as_slice(),
+            [Param {
+                name,
+                ty: Type::Ref { inner, .. },
+                ..
+            }] if name == "_self"
+                && matches!(inner.as_ref(), Type::Named { name, .. } if name == "WorldSurfaceKind")
+        ));
+        let Stmt::Expr(Expr::Match { scrutinee, arms, .. }) = &method.body.stmts[0] else {
             panic!("expected match expression");
         };
         assert!(matches!(
             scrutinee.as_ref(),
-            Expr::Ident(name, _) if name == "_self"
+            Expr::Deref(inner, _)
+                if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "_self")
+        ));
+        assert!(matches!(
+            &arms[0].pattern,
+            Pattern::Variant { enum_name: Some(enum_name), variant, .. }
+                if enum_name == "WorldSurfaceKind" && variant == "NativeUi"
+        ));
+        assert!(matches!(
+            &arms[1].pattern,
+            Pattern::Variant { enum_name: Some(enum_name), variant, .. }
+                if enum_name == "WorldSurfaceKind" && variant == "Web"
+        ));
+    }
+
+    #[test]
+    fn resolves_impl_self_return_types_to_concrete_target_types() {
+        let program = transform_source(
+            r#"
+            struct Demo {
+                value: usize,
+            }
+
+            impl Demo {
+                fn clone_like(&self) -> Self {
+                    Self { value: self.value }
+                }
+            }
+            "#,
+        );
+
+        let Item::Impl(impl_block) = &program.items[1] else {
+            panic!("expected impl block");
+        };
+        let method = &impl_block.methods[0];
+        assert!(matches!(
+            method.return_type.as_ref(),
+            Some(Type::Named { name, .. }) if name == "Demo"
+        ));
+        let Stmt::Expr(Expr::Struct { name, .. }) = &method.body.stmts[0] else {
+            panic!("expected struct literal");
+        };
+        assert_eq!(name, "Demo");
+    }
+
+    #[test]
+    fn inserts_explicit_deref_for_borrowed_field_bases() {
+        let program = transform_source(
+            r#"
+            struct Demo {
+                values: Vec<usize>,
+            }
+
+            fn count_values(demo: &Demo) -> usize {
+                demo.values.len()
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::MethodCall { receiver, method, .. }) = &function.body.stmts[0] else {
+            panic!("expected method call");
+        };
+        assert_eq!(method, "len");
+        assert!(matches!(
+            receiver.as_ref(),
+            Expr::Field { object, field, .. }
+                if field == "values"
+                    && matches!(
+                        object.as_ref(),
+                        Expr::Deref(inner, _)
+                            if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "demo")
+                    )
+        ));
+    }
+
+    #[test]
+    fn strips_borrow_wrappers_from_for_loop_iterables() {
+        let program = transform_source(
+            r#"
+            struct Demo {
+                values: Vec<usize>,
+            }
+
+            fn visit(demo: &Demo) {
+                for value in &demo.values {
+                    let _x = value;
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::Block(block, _)) = &function.body.stmts[0] else {
+            panic!("expected lowered block expression");
+        };
+        let Stmt::For { iter, .. } = &block.stmts[0] else {
+            panic!("expected lowered for loop");
+        };
+        assert!(matches!(
+            iter,
+            Expr::Field { object, field, .. }
+                if field == "values"
+                    && matches!(
+                        object.as_ref(),
+                        Expr::Deref(inner, _)
+                            if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "demo")
+                    )
+        ));
+    }
+
+    #[test]
+    fn lowers_box_as_ref_calls_to_explicit_deref() {
+        let program = transform_source(
+            r#"
+            enum Item {
+                Value,
+            }
+
+            fn inspect(item: Box<Item>) {
+                match item.as_ref() {
+                    Item::Value => {}
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::Match { scrutinee, .. }) = &function.body.stmts[0] else {
+            panic!("expected match expression");
+        };
+        assert!(matches!(
+            scrutinee.as_ref(),
+            Expr::Deref(inner, _)
+                if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "item")
         ));
     }
 
