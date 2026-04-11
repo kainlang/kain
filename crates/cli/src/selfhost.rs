@@ -1518,13 +1518,37 @@ fn repair_selfhost_bundle(source: String) -> String {
             "        Type::Array(inner, size, span) => Type__Array(Box__new_(lower_type_memory(inner)), (*size), span.clone())",
             "        Type::Slice(inner, span) => Type__Slice(Box__new_(lower_type_memory(inner)), span.clone())",
             "        Type::Tuple(types, span) => Type__Tuple(types.iter().map(lower_type_memory).collect(), span.clone())",
-            "        Type::Ref { mutable: mutable, inner: inner, lifetime: lifetime, span: span } => Type::Ref { mutable: (*mutable), inner: Box__new_(lower_type_memory(inner)), lifetime: lifetime.clone(), span: span.clone() }",
+            "        Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime, span: span } => Type::Ref { mutable_: (*mutable_), inner: Box__new_(lower_type_memory(inner)), lifetime: lifetime.clone(), span: span.clone() }",
             "        Type::Function { params: params, return_type: return_type, effects: effects, span: span } => Type::Function { params: params.iter().map(lower_type_memory).collect(), return_type: Box__new_(lower_type_memory(return_type)), effects: effects.clone(), span: span.clone() }",
             "        Type::Option(inner, span) => Type__Option(Box__new_(lower_type_memory(inner)), span.clone())",
             "        Type::Result(ok, err, span) => Type__Result(Box__new_(lower_type_memory(ok)), Box__new_(lower_type_memory(err)), span.clone())",
             "        Type::Named { name: name, generics: generics, span: span } => Type::Named { name: name.clone(), generics: generics.iter().map(lower_type_memory).collect(), span: span.clone() }",
             "        Type::Impl { trait_name: trait_name, generics: generics, span: span } => Type::Impl { trait_name: trait_name.clone(), generics: generics.iter().map(lower_type_memory).collect(), span: span.clone() }",
             "        _ => ty.clone()",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn select_converge_lane<", |_| {
+        [
+            "fn select_converge_lane(env: &Env, converge: &ConvergeDef) -> &ConvergeLane:",
+            "    for lane in &converge.fast_lanes:",
+            "        match lane.selector.as_ref():",
+            "            Some(selector) =>",
+            "                if converge_selector_matches(env, selector):",
+            "                    return lane",
+            "            None => return lane",
+            "    &converge.spec_lane",
+        ]
+        .join("\n")
+    });
+    let source = repair_named_function_block(&source, "fn synthesize_converge_sample_args(", |_| {
+        [
+            "fn synthesize_converge_sample_args(converge: &ConvergeDef, sample_index: u32) -> Result<Array<Value>, Error>:",
+            "    let mut synthesizer = DeterministicValueSynthesizer__new_(stable_converge_sample_seed(&converge.name, sample_index))",
+            "    let mut args = Vec__new_()",
+            "    for param in &converge.params:",
+            "        args.push(synthesize_value_for_type(&param.ty, &mut synthesizer)?)",
+            "    Ok(args)",
         ]
         .join("\n")
     });
@@ -2434,9 +2458,9 @@ fn write_function(
         write_line(
             output,
             indent + 2,
-            "Expr::Spawn { actor: actor, init: init } =>",
+            "Expr::Spawn { actor_: actor_, init: init } =>",
         )?;
-        write_line(output, indent + 3, "out_.insert(actor.clone())")?;
+        write_line(output, indent + 3, "out_.insert(actor_.clone())")?;
         write_line(output, indent + 3, "for init_entry in init:")?;
         write_line(output, indent + 4, "let (_, init_expr) = init_entry")?;
         write_line(
@@ -3060,8 +3084,8 @@ fn write_function(
             indent + 2,
             "Type::Tuple(types, _) => Type__Tuple(types.into_iter().collect(), span.clone())",
         )?;
-        write_line(output, indent + 2, "Type::Ref { mutable: mutable, inner: inner, lifetime: lifetime } => Type::Ref { mutable: mutable, inner: Box__new_(Self___re_span_type((*inner), span.clone())), lifetime: lifetime, span: span.clone() }")?;
-        write_line(output, indent + 2, "Type::Ptr { mutable: mutable, inner: inner, provenance: provenance } => Type::Ptr { mutable: mutable, inner: Box__new_(Self___re_span_type((*inner), span.clone())), provenance: provenance, span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime } => Type::Ref { mutable_: mutable_, inner: Box__new_(Self___re_span_type((*inner), span.clone())), lifetime: lifetime, span: span.clone() }")?;
+        write_line(output, indent + 2, "Type::Ptr { mutable_: mutable_, inner: inner, provenance: provenance } => Type::Ptr { mutable_: mutable_, inner: Box__new_(Self___re_span_type((*inner), span.clone())), provenance: provenance, span: span.clone() }")?;
         write_line(output, indent + 2, "Type::Function { params: params, return_type: return_type, effects: effects } => Type::Function { params: params.into_iter().collect(), return_type: Box__new_(Self___re_span_type((*return_type), span.clone())), effects: effects, span: span.clone() }")?;
         write_line(output, indent + 2, "Type::Option(inner, _) => Type__Option(Box__new_(Self___re_span_type((*inner), span.clone())), span.clone())")?;
         write_line(output, indent + 2, "Type::Result(ok, err, _) => Type__Result(Box__new_(Self___re_span_type((*ok), span.clone())), Box__new_(Self___re_span_type((*err), span.clone())), span.clone())")?;
@@ -3415,14 +3439,14 @@ fn write_function(
         )?;
         write_line(output, indent + 2, "let poll_call = Expr::MethodCall { receiver: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: poll_field, span: span.clone() }), method: \"poll\".to_string(), args: [], span: span.clone() }")?;
         write_line(output, indent + 2, "let pending_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Pending\".to_string(), fields: VariantPatternFields__Unit, span: span.clone() }, guard = None, body = Expr__Return(Some(Box__new_(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Pending\".to_string(), fields: EnumVariantFields__Unit, span: span.clone() })), span.clone()), span = span.clone())")?;
-        write_line(output, indent + 2, "let ready_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Ready\".to_string(), fields: VariantPatternFields__Tuple([Pattern::Binding { name: \"val\".to_string(), mutable: false, span: span.clone() }]), span: span.clone() }, guard = None, body = Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), value: Box__new_(Expr__Ident(\"val\".to_string(), span.clone())), span: span.clone() }, span = span.clone())")?;
+        write_line(output, indent + 2, "let ready_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Ready\".to_string(), fields: VariantPatternFields__Tuple([Pattern::Binding { name: \"val\".to_string(), mutable_: false, span: span.clone() }]), span: span.clone() }, guard = None, body = Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), value: Box__new_(Expr__Ident(\"val\".to_string(), span.clone())), span: span.clone() }, span = span.clone())")?;
         write_line(output, indent + 2, "body_stmts.push(Stmt__Expr(Expr::Match { scrutinee: Box__new_(poll_call), arms: [pending_arm, ready_arm], span: span.clone() }))")?;
         write_line(output, indent + 2, "match &prev_await.result_binding:")?;
         write_line(output, indent + 3, "Some(binding) =>")?;
         write_line(output, indent + 4, "if fields.contains_key(binding):")?;
         write_line(output, indent + 5, "body_stmts.push(Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: binding.clone(), span: span.clone() }), value: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() }))")?;
         write_line(output, indent + 4, "else:")?;
-        write_line(output, indent + 5, "body_stmts.push(Stmt::Let { pattern: Pattern::Binding { name: binding.clone(), mutable: false, span: span.clone() }, ty: None, value: Some(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() })")?;
+        write_line(output, indent + 5, "body_stmts.push(Stmt::Let { pattern: Pattern::Binding { name: binding.clone(), mutable_: false, span: span.clone() }, ty: None, value: Some(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() })")?;
         write_line(output, indent + 3, "_ =>")?;
         write_line(output, indent + 4, "let __selfhost_empty = none")?;
         write_line(output, indent + 1, "for stmt in &segment.stmts_before:")?;

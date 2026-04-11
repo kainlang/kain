@@ -1200,8 +1200,8 @@ impl RustTransformer {
 
     fn transform_const(&mut self, c: &syn::ItemConst) -> Result<Const> {
         let name = self.rename_value(&c.ident.to_string());
-        let ty = self.map_type_checked(&c.ty);
-        let value = self.transform_expr(&c.expr)?;
+        let ty = Self::normalize_const_type(self.map_type_checked(&c.ty));
+        let value = Self::normalize_const_expr(self.transform_expr(&c.expr)?);
         Ok(Const {
             name,
             ty,
@@ -1213,8 +1213,8 @@ impl RustTransformer {
 
     fn transform_static(&mut self, s: &syn::ItemStatic) -> Result<Const> {
         let name = self.rename_value(&s.ident.to_string());
-        let ty = self.map_type_checked(&s.ty);
-        let value = self.transform_expr(&s.expr)?;
+        let ty = Self::normalize_const_type(self.map_type_checked(&s.ty));
+        let value = Self::normalize_const_expr(self.transform_expr(&s.expr)?);
         Ok(Const {
             name,
             ty,
@@ -1222,6 +1222,148 @@ impl RustTransformer {
             visibility: visibility(&s.vis),
             span: S,
         })
+    }
+
+    fn normalize_const_type(ty: Type) -> Type {
+        match ty {
+            // Borrowed const/static values lower into owned Kain values.
+            Type::Ref { inner, .. } => Self::normalize_const_type(*inner),
+            Type::Slice(inner, span) => Type::Named {
+                name: "Array".to_string(),
+                generics: vec![Self::normalize_const_type(*inner)],
+                span,
+            },
+            Type::Array(inner, size, span) => {
+                Type::Array(Box::new(Self::normalize_const_type(*inner)), size, span)
+            }
+            Type::Tuple(types, span) => Type::Tuple(
+                types.into_iter().map(Self::normalize_const_type).collect(),
+                span,
+            ),
+            Type::Option(inner, span) => {
+                Type::Option(Box::new(Self::normalize_const_type(*inner)), span)
+            }
+            Type::Result(ok, err, span) => Type::Result(
+                Box::new(Self::normalize_const_type(*ok)),
+                Box::new(Self::normalize_const_type(*err)),
+                span,
+            ),
+            Type::Named {
+                name,
+                generics,
+                span,
+            } => Type::Named {
+                name,
+                generics: generics
+                    .into_iter()
+                    .map(Self::normalize_const_type)
+                    .collect(),
+                span,
+            },
+            Type::Ptr {
+                mutable,
+                inner,
+                provenance,
+                span,
+            } => Type::Ptr {
+                mutable,
+                inner: Box::new(Self::normalize_const_type(*inner)),
+                provenance,
+                span,
+            },
+            Type::Function {
+                params,
+                return_type,
+                effects,
+                span,
+            } => Type::Function {
+                params: params.into_iter().map(Self::normalize_const_type).collect(),
+                return_type: Box::new(Self::normalize_const_type(*return_type)),
+                effects,
+                span,
+            },
+            Type::Impl {
+                trait_name,
+                generics,
+                span,
+            } => Type::Impl {
+                trait_name,
+                generics: generics
+                    .into_iter()
+                    .map(Self::normalize_const_type)
+                    .collect(),
+                span,
+            },
+            Type::Never(span) => Type::Never(span),
+            Type::Infer(span) => Type::Infer(span),
+            Type::Unit(span) => Type::Unit(span),
+        }
+    }
+
+    fn normalize_const_expr(expr: Expr) -> Expr {
+        match expr {
+            Expr::Ref { value, .. } => Self::normalize_const_expr(*value),
+            Expr::Paren(inner, _) => Self::normalize_const_expr(*inner),
+            Expr::Array(values, span) => Expr::Array(
+                values.into_iter().map(Self::normalize_const_expr).collect(),
+                span,
+            ),
+            Expr::Tuple(values, span) => Expr::Tuple(
+                values.into_iter().map(Self::normalize_const_expr).collect(),
+                span,
+            ),
+            Expr::Struct {
+                name,
+                fields,
+                rest,
+                span,
+            } => Expr::Struct {
+                name,
+                fields: fields
+                    .into_iter()
+                    .map(|(field, value)| (field, Self::normalize_const_expr(value)))
+                    .collect(),
+                rest: rest.map(|value| Box::new(Self::normalize_const_expr(*value))),
+                span,
+            },
+            Expr::AggregateInit {
+                ty,
+                fields,
+                zero_fill_rest,
+                span,
+            } => Expr::AggregateInit {
+                ty,
+                fields: fields
+                    .into_iter()
+                    .map(|(field, value)| (field, Self::normalize_const_expr(value)))
+                    .collect(),
+                zero_fill_rest,
+                span,
+            },
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+                span,
+            } => Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: match fields {
+                    EnumVariantFields::Unit => EnumVariantFields::Unit,
+                    EnumVariantFields::Tuple(values) => EnumVariantFields::Tuple(
+                        values.into_iter().map(Self::normalize_const_expr).collect(),
+                    ),
+                    EnumVariantFields::Struct(values) => EnumVariantFields::Struct(
+                        values
+                            .into_iter()
+                            .map(|(field, value)| (field, Self::normalize_const_expr(value)))
+                            .collect(),
+                    ),
+                },
+                span,
+            },
+            other => other,
+        }
     }
 
     // ── Type alias ─────────────────────────────────────────────────────
@@ -2770,6 +2912,14 @@ impl RustTransformer {
     }
 
     fn resolve_value_path(&mut self, path: &syn::Path) -> String {
+        if path.segments.len() == 1
+            && path
+                .segments
+                .first()
+                .is_some_and(|segment| segment.ident == "self")
+        {
+            return "_self".to_string();
+        }
         let resolved = self.type_mapper.resolve_path_segments(path);
         if resolved.len() == 1 {
             if resolved[0] == "Self" {
@@ -3904,6 +4054,104 @@ mod tests {
                         [Type::Named { name, generics, .. }]
                             if name == "a" && generics.is_empty()
                     )
+        ));
+    }
+
+    #[test]
+    fn lowers_const_borrowed_slices_to_owned_array_shapes() {
+        let program = transform_source(
+            r#"
+            pub const NAMES: &[&str] = &["compute", "compute_plan"];
+            pub const TARGETS: &[(&str, &[&str])] = &[("ue5", &["editor", "runtime"])];
+            "#,
+        );
+
+        let Item::Const(names) = &program.items[0] else {
+            panic!("expected first const");
+        };
+        assert!(matches!(
+            &names.ty,
+            Type::Named { name, generics, .. }
+                if name == "Array"
+                    && matches!(
+                        generics.as_slice(),
+                        [Type::Named { name, generics, .. }]
+                            if name == "String" && generics.is_empty()
+                    )
+        ));
+        assert!(matches!(&names.value, Expr::Array(values, _) if values.len() == 2));
+
+        let Item::Const(targets) = &program.items[1] else {
+            panic!("expected second const");
+        };
+        assert!(matches!(
+            &targets.ty,
+            Type::Named { name, generics, .. }
+                if name == "Array"
+                    && matches!(
+                        generics.as_slice(),
+                        [Type::Tuple(items, _)]
+                            if matches!(
+                                items.as_slice(),
+                                [
+                                    Type::Named { name: left, generics: left_generics, .. },
+                                    Type::Named { name: right, generics: right_generics, .. }
+                                ]
+                                    if left == "String"
+                                        && left_generics.is_empty()
+                                        && right == "Array"
+                                        && matches!(
+                                            right_generics.as_slice(),
+                                            [Type::Named { name, generics, .. }]
+                                                if name == "String" && generics.is_empty()
+                                        )
+                            )
+                    )
+        ));
+        assert!(matches!(
+            &targets.value,
+            Expr::Array(values, _)
+                if matches!(
+                    values.as_slice(),
+                    [Expr::Tuple(tuple_values, _)]
+                        if matches!(
+                            tuple_values.as_slice(),
+                            [Expr::String(_, _), Expr::Array(_, _)]
+                        )
+                )
+        ));
+    }
+
+    #[test]
+    fn preserves_self_receiver_value_paths_inside_methods() {
+        let program = transform_source(
+            r#"
+            enum WorldSurfaceKind {
+                NativeUi,
+                Web,
+            }
+
+            impl WorldSurfaceKind {
+                fn as_str(&self) -> &'static str {
+                    match self {
+                        Self::NativeUi => "native_ui",
+                        Self::Web => "web",
+                    }
+                }
+            }
+            "#,
+        );
+
+        let Item::Impl(impl_block) = &program.items[1] else {
+            panic!("expected impl block");
+        };
+        let method = &impl_block.methods[0];
+        let Stmt::Expr(Expr::Match { scrutinee, .. }) = &method.body.stmts[0] else {
+            panic!("expected match expression");
+        };
+        assert!(matches!(
+            scrutinee.as_ref(),
+            Expr::Ident(name, _) if name == "_self"
         ));
     }
 
