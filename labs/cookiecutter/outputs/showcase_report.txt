@@ -1,0 +1,26 @@
+COOKIE CUTTER KAIN LAB
+======================
+QUINE
+source_bytes=3985
+contains_main=true
+contains_marker=true
+
+GAME OF LIFE
+grid=24x16
+frames=8
+alive_generation_0=16
+alive_generation_7=31
+
+MANDELBROT
+grid=78x36
+max_iterations=32
+contains_core=true
+
+LISP
+define_make_adder=<closure#0>
+ define_add_seven=<closure#1>
+ (add-seven 35)=42
+ (list 1 2 3 4)=[1 2 3 4]
+ (hash ...)={language: "kain", score: 42}
+ (concat ...)="cookie cutter"
+

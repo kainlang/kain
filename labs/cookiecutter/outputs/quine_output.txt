@@ -1,0 +1,62 @@
+fn quote_string(text: String) -> String:
+    return "\"" + text + "\""
+
+fn string_slice(text: String, start: Int, finish: Int) -> String:
+    let mut result = ""
+    let mut index = start
+    while index < finish:
+        result = result + char_at(text, index)
+        index = index + 1
+    return result
+
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index + len(needle) > len(text):
+        return false
+    let mut offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    if len(needle) == 0:
+        return start
+    let mut index = start
+    while index + len(needle) <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return -1
+
+fn replace_first(text: String, needle: String, replacement: String) -> String:
+    let start = find_substring(text, needle, 0)
+    if start < 0:
+        return text
+    let prefix = string_slice(text, 0, start)
+    let suffix = string_slice(text, start + len(needle), len(text))
+    return prefix + replacement + suffix
+
+fn escape_string_literal(text: String) -> String:
+    let mut escaped = ""
+    let mut index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        elif ch == "\"":
+            escaped = escaped + "\\\""
+        elif ch == "\n":
+            escaped = escaped + "\\n"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn build_quine_source() -> String:
+    let template = "fn quote_string(text: String) -> String:\n    return \"\\\"\" + text + \"\\\"\"\n\nfn string_slice(text: String, start: Int, finish: Int) -> String:\n    let mut result = \"\"\n    let mut index = start\n    while index < finish:\n        result = result + char_at(text, index)\n        index = index + 1\n    return result\n\nfn starts_with_at(text: String, index: Int, needle: String) -> Bool:\n    if index + len(needle) > len(text):\n        return false\n    let mut offset = 0\n    while offset < len(needle):\n        if char_at(text, index + offset) != char_at(needle, offset):\n            return false\n        offset = offset + 1\n    return true\n\nfn find_substring(text: String, needle: String, start: Int) -> Int:\n    if len(needle) == 0:\n        return start\n    let mut index = start\n    while index + len(needle) <= len(text):\n        if starts_with_at(text, index, needle):\n            return index\n        index = index + 1\n    return -1\n\nfn replace_first(text: String, needle: String, replacement: String) -> String:\n    let start = find_substring(text, needle, 0)\n    if start < 0:\n        return text\n    let prefix = string_slice(text, 0, start)\n    let suffix = string_slice(text, start + len(needle), len(text))\n    return prefix + replacement + suffix\n\nfn escape_string_literal(text: String) -> String:\n    let mut escaped = \"\"\n    let mut index = 0\n    while index < len(text):\n        let ch = char_at(text, index)\n        if ch == \"\\\\\":\n            escaped = escaped + \"\\\\\\\\\"\n        elif ch == \"\\\"\":\n            escaped = escaped + \"\\\\\\\"\"\n        elif ch == \"\\n\":\n            escaped = escaped + \"\\\\n\"\n        else:\n            escaped = escaped + ch\n        index = index + 1\n    return escaped\n\nfn build_quine_source() -> String:\n    let template = __COOKIECUTTER_TEMPLATE__\n    return replace_first(template, \"__COOKIECUTTER_TEMPLATE__\", quote_string(escape_string_literal(template)))\n\nfn main() -> Int:\n    println(build_quine_source())\n    return 0"
+    return replace_first(template, "__COOKIECUTTER_TEMPLATE__", quote_string(escape_string_literal(template)))
+
+fn main() -> Int:
+    println(build_quine_source())
+    return 0
