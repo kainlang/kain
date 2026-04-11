@@ -30,6 +30,13 @@ struct LlvmTargetDescriptor {
     datalayout: &'static str,
 }
 
+#[derive(Clone, Debug)]
+struct WorldGlobalInfo {
+    global_symbol: String,
+    init_flag_symbol: String,
+    init_fn_name: String,
+}
+
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
     id: LlvmTargetId::WindowsX64Msvc,
     triple: "x86_64-pc-windows-msvc",
@@ -110,6 +117,7 @@ struct LlvmGenerator {
     current_block: String,
     current_return_type: Option<String>,
     target: &'static LlvmTargetDescriptor,
+    world_globals: HashMap<String, WorldGlobalInfo>,
 }
 
 impl LlvmGenerator {
@@ -129,6 +137,7 @@ impl LlvmGenerator {
             current_block: "entry".to_string(),
             current_return_type: None,
             target: resolve_host_llvm_target_descriptor(),
+            world_globals: HashMap::new(),
         }
     }
 
@@ -250,6 +259,38 @@ impl LlvmGenerator {
                         self.collect_tuple_types_from_ast(&param.ty);
                     }
                     if let Some(ret) = &func.ast.return_type {
+                        self.collect_tuple_types_from_ast(ret);
+                    }
+                }
+                TypedItem::Patch(patch) => {
+                    self.collect_tuple_types_from_resolved(&patch.resolved_type);
+                    for param in &patch.ast.params {
+                        self.collect_tuple_types_from_ast(&param.ty);
+                    }
+                    if let Some(ret) = &patch.ast.return_type {
+                        self.collect_tuple_types_from_ast(ret);
+                    }
+                }
+                TypedItem::Converge(converge) => {
+                    self.collect_tuple_types_from_resolved(&converge.resolved_type);
+                    for param in &converge.ast.params {
+                        self.collect_tuple_types_from_ast(&param.ty);
+                    }
+                    if let Some(ret) = &converge.ast.return_type {
+                        self.collect_tuple_types_from_ast(ret);
+                    }
+                }
+                TypedItem::World(world) => {
+                    for state in &world.ast.states {
+                        self.collect_tuple_types_from_ast(&state.ty);
+                    }
+                }
+                TypedItem::Orchestrate(orchestrate) => {
+                    self.collect_tuple_types_from_resolved(&orchestrate.resolved_type);
+                    for param in &orchestrate.ast.params {
+                        self.collect_tuple_types_from_ast(&param.ty);
+                    }
+                    if let Some(ret) = &orchestrate.ast.return_type {
                         self.collect_tuple_types_from_ast(ret);
                     }
                 }
@@ -1731,6 +1772,69 @@ impl LlvmGenerator {
         hash
     }
 
+    fn callable_signature(
+        &self,
+        resolved_type: &ResolvedType,
+        callable_name: &str,
+        span: Span,
+    ) -> KainResult<(Vec<ResolvedType>, String)> {
+        let ResolvedType::Function { params, ret, .. } = resolved_type else {
+            return Err(KainError::codegen(
+                format!("{} has non-function type", callable_name),
+                span,
+            ));
+        };
+
+        let mut ret_type = self.map_type(ret);
+        if ret_type == "void" && callable_name != "main" {
+            ret_type = "i64".to_string();
+        }
+
+        Ok((params.clone(), ret_type))
+    }
+
+    fn register_world_type_and_global(
+        &mut self,
+        world: &kain_core::types::TypedWorld,
+    ) -> KainResult<()> {
+        let mut fields = Vec::new();
+        for state in &world.ast.states {
+            fields.push((state.name.clone(), self.map_type_from_ast(&state.ty)));
+        }
+
+        self.struct_defs
+            .insert(world.ast.name.clone(), fields.clone());
+
+        let field_types: Vec<String> = fields.iter().map(|(_, ty)| ty.clone()).collect();
+        self.emit(&format!(
+            "%{} = type {{ {} }}",
+            world.ast.name,
+            field_types.join(", ")
+        ));
+
+        let global_symbol = format!("@__kain_world_{}", world.ast.name);
+        let init_flag_symbol = format!("@__kain_world_init_flag_{}", world.ast.name);
+        let init_fn_name = format!("__kain_init_world_{}", world.ast.name);
+
+        self.world_globals.insert(
+            world.ast.name.clone(),
+            WorldGlobalInfo {
+                global_symbol: global_symbol.clone(),
+                init_flag_symbol: init_flag_symbol.clone(),
+                init_fn_name,
+            },
+        );
+
+        self.emit(&format!(
+            "{} = internal global %{} zeroinitializer",
+            global_symbol, world.ast.name
+        ));
+        self.emit(&format!("{} = internal global i1 0", init_flag_symbol));
+        self.emit("");
+
+        Ok(())
+    }
+
     fn compile_module(&mut self, program: &TypedProgram) -> KainResult<()> {
         // 1. Emit Header
         self.emit("; ModuleID = 'KAIN'");
@@ -1766,6 +1870,8 @@ impl LlvmGenerator {
                     s.ast.name,
                     field_types.join(", ")
                 ));
+            } else if let TypedItem::World(world) = item {
+                self.register_world_type_and_global(world)?;
             } else if let TypedItem::Component(component) = item {
                 let mut props = Vec::new();
                 for prop in &component.ast.props {
@@ -1848,14 +1954,30 @@ impl LlvmGenerator {
         // 2b. Pre-scan functions to register return types
         for item in &program.items {
             if let TypedItem::Function(func) = item {
-                if let ResolvedType::Function { ret, .. } = &func.resolved_type {
-                    let mut ret_ty = self.map_type(ret);
-                    // Heuristic: If void and not main, assume i64 (missing inference)
-                    if ret_ty == "void" && func.ast.name != "main" {
-                        ret_ty = "i64".into();
-                    }
-                    self.functions.insert(func.ast.name.clone(), ret_ty);
-                }
+                let (_, ret_ty) =
+                    self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?;
+                self.functions.insert(func.ast.name.clone(), ret_ty);
+            } else if let TypedItem::Patch(patch) = item {
+                let (_, ret_ty) = self.callable_signature(
+                    &patch.resolved_type,
+                    &patch.ast.name,
+                    patch.ast.span,
+                )?;
+                self.functions.insert(patch.ast.name.clone(), ret_ty);
+            } else if let TypedItem::Converge(converge) = item {
+                let (_, ret_ty) = self.callable_signature(
+                    &converge.resolved_type,
+                    &converge.ast.name,
+                    converge.ast.span,
+                )?;
+                self.functions.insert(converge.ast.name.clone(), ret_ty);
+            } else if let TypedItem::Orchestrate(orchestrate) = item {
+                let (_, ret_ty) = self.callable_signature(
+                    &orchestrate.resolved_type,
+                    &orchestrate.ast.name,
+                    orchestrate.ast.span,
+                )?;
+                self.functions.insert(orchestrate.ast.name.clone(), ret_ty);
             } else if let TypedItem::Impl(imp) = item {
                 if let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type {
                     for method in &imp.ast.methods {
@@ -1889,6 +2011,10 @@ impl LlvmGenerator {
         for item in &program.items {
             match item {
                 TypedItem::Function(func) => self.compile_function(func)?,
+                TypedItem::Patch(patch) => self.compile_patch(patch)?,
+                TypedItem::Converge(converge) => self.compile_converge(converge)?,
+                TypedItem::World(world) => self.compile_world_initializer(world)?,
+                TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
                 TypedItem::Component(component) => self.compile_component(component)?,
                 TypedItem::Impl(imp) => self.compile_impl(imp)?,
                 TypedItem::Actor(actor) => self.compile_actor(actor)?,
@@ -2356,50 +2482,39 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn compile_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+    fn compile_named_callable(
+        &mut self,
+        callable_name: &str,
+        params: &[kain_core::ast::Param],
+        body: &Block,
+        resolved_type: &ResolvedType,
+        span: Span,
+    ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
         self.scopes.clear();
-        self.scopes.push(Vec::new()); // Top level scope for params
+        self.scopes.push(Vec::new());
 
-        let name = &func.ast.name;
-
-        // Get param types and return type from resolved_type
-        let (param_types, ret_type_resolved) =
-            if let ResolvedType::Function { params, ret, .. } = &func.resolved_type {
-                (params, ret)
-            } else {
-                return Err(KainError::codegen(
-                    "Function has non-function type",
-                    func.ast.span,
-                ));
-            };
-
-        let mut ret_type = self.map_type(ret_type_resolved);
-        // Heuristic: If void and not main, assume i64
-        if ret_type == "void" && func.ast.name != "main" {
-            ret_type = "i64".into();
-        }
+        let (param_types, mut ret_type) =
+            self.callable_signature(resolved_type, callable_name, span)?;
         self.current_return_type = Some(ret_type.clone());
 
-        // Special case for main
-        let (llvm_name, is_main) = if name == "main" {
+        let (llvm_name, is_main) = if callable_name == "main" {
             if ret_type == "void" {
-                ret_type = "i64".into();
+                ret_type = "i64".to_string();
             }
             ("main", true)
         } else {
-            (name.as_str(), false)
+            (callable_name, false)
         };
 
-        // Params
         let mut param_str = String::new();
-        for (i, _) in func.ast.params.iter().enumerate() {
-            if i > 0 {
+        for (index, _) in params.iter().enumerate() {
+            if index > 0 {
                 param_str.push_str(", ");
             }
-            let p_ty = self.map_type(&param_types[i]);
-            param_str.push_str(&format!("{} %arg{}", p_ty, i));
+            let param_ty = self.map_type(&param_types[index]);
+            param_str.push_str(&format!("{} %arg{}", param_ty, index));
         }
 
         self.emit(&format!(
@@ -2408,42 +2523,145 @@ impl LlvmGenerator {
         ));
         self.emit_label("entry");
 
-        // Alloc parameters to stack (standard "alloca" pattern for debuggable IR)
-        for (i, param) in func.ast.params.iter().enumerate() {
-            let p_ty = self.map_type(&param_types[i]);
-            // %param.addr = alloca type
+        for (index, param) in params.iter().enumerate() {
+            let param_ty = self.map_type(&param_types[index]);
             let addr_reg = format!("%{}.addr", param.name);
-            self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
+            self.emit(&format!("  {} = alloca {}", addr_reg, param_ty));
             self.emit(&format!(
                 "  store {} %arg{}, {}* {}",
-                p_ty, i, p_ty, addr_reg
+                param_ty, index, param_ty, addr_reg
             ));
-            self.locals.insert(param.name.clone(), (addr_reg, p_ty));
+            self.locals
+                .insert(param.name.clone(), (addr_reg, param_ty));
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
         }
 
-        // Compile Body
-        self.compile_block(&func.ast.body)?;
+        self.compile_block(body)?;
+        self.emit_scope_exit();
 
-        // Implicit return cleanup
-        self.emit_scope_exit(); // Clean up params
-
-        // Implicit return for void/Unit functions
         if ret_type == "void" {
             self.emit("  ret void");
         } else if is_main {
-            // Main always returns 0 if not specified
             self.emit("  ret i64 0");
         } else {
-            // Add a dummy return to ensure validity if flow analysis failed
             self.emit("  unreachable");
         }
 
         self.emit("}");
         self.emit("");
+        self.current_return_type = None;
         Ok(())
+    }
+
+    fn compile_patch(&mut self, patch: &kain_core::types::TypedPatch) -> KainResult<()> {
+        self.compile_named_callable(
+            &patch.ast.name,
+            &patch.ast.params,
+            &patch.ast.body,
+            &patch.resolved_type,
+            patch.ast.span,
+        )
+    }
+
+    fn compile_converge(
+        &mut self,
+        converge: &kain_core::types::TypedConverge,
+    ) -> KainResult<()> {
+        self.compile_named_callable(
+            &converge.ast.name,
+            &converge.ast.params,
+            &converge.ast.spec_lane.body,
+            &converge.resolved_type,
+            converge.ast.span,
+        )
+    }
+
+    fn compile_world_initializer(
+        &mut self,
+        world: &kain_core::types::TypedWorld,
+    ) -> KainResult<()> {
+        self.reg_count = 0;
+        self.locals.clear();
+        self.scopes.clear();
+        self.current_return_type = Some("void".to_string());
+
+        let Some(world_info) = self.world_globals.get(&world.ast.name).cloned() else {
+            return Err(KainError::codegen(
+                format!("Missing LLVM world registration for {}", world.ast.name),
+                world.ast.span,
+            ));
+        };
+
+        self.emit(&format!("define void @{}() {{", world_info.init_fn_name));
+        self.emit_label("entry");
+
+        let init_loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i1, i1* {}",
+            init_loaded, world_info.init_flag_symbol
+        ));
+
+        let init_block = self.next_label();
+        let already_init_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            init_loaded, already_init_block, init_block
+        ));
+
+        self.emit_label(&init_block);
+        let world_ptr_type = format!("%{}*", world.ast.name);
+        for (index, state) in world.ast.states.iter().enumerate() {
+            let field_ty = self.map_type_from_ast(&state.ty);
+            let field_ptr = self.next_reg();
+            self.emit(&format!(
+                "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                field_ptr,
+                world.ast.name,
+                world_ptr_type,
+                world_info.global_symbol,
+                index
+            ));
+            let (initial_value, initial_ty) =
+                self.compile_expr_for_target_type(&state.initial, &field_ty)?;
+            self.emit(&format!(
+                "  store {} {}, {}* {}",
+                initial_ty, initial_value, field_ty, field_ptr
+            ));
+        }
+        self.emit(&format!("  store i1 1, i1* {}", world_info.init_flag_symbol));
+        self.emit(&format!("  br label %{}", already_init_block));
+
+        self.emit_label(&already_init_block);
+        self.emit("  ret void");
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+        Ok(())
+    }
+
+    fn compile_orchestrate(
+        &mut self,
+        orchestrate: &kain_core::types::TypedOrchestrate,
+    ) -> KainResult<()> {
+        self.compile_named_callable(
+            &orchestrate.ast.name,
+            &orchestrate.ast.params,
+            &orchestrate.ast.body,
+            &orchestrate.resolved_type,
+            orchestrate.ast.span,
+        )
+    }
+
+    fn compile_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+        self.compile_named_callable(
+            &func.ast.name,
+            &func.ast.params,
+            &func.ast.body,
+            &func.resolved_type,
+            func.ast.span,
+        )
     }
 
     fn compile_block(&mut self, block: &Block) -> KainResult<()> {
@@ -2801,6 +3019,61 @@ impl LlvmGenerator {
             _ => {}
         }
         Ok(())
+    }
+
+    fn compile_direct_call(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+    ) -> KainResult<(String, String)> {
+        let mut compiled_args = Vec::new();
+        let mut arg_types = Vec::new();
+
+        for (index, arg) in args.iter().enumerate() {
+            let (val, ty) = self.compile_expr(&arg.value)?;
+
+            let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with('%'))
+                && ((func_name == "push" && index == 1)
+                    || (func_name == "array_push" && index == 1)
+                    || (func_name == "array_set" && index == 2)
+                    || (func_name == "map_set" && index == 2));
+
+            if needs_cast_to_i64 {
+                let int_val = self.next_reg();
+                self.emit(&format!("  {} = ptrtoint {} {} to i64", int_val, ty, val));
+                compiled_args.push(int_val);
+                arg_types.push("i64".to_string());
+                continue;
+            }
+
+            compiled_args.push(val);
+            arg_types.push(ty);
+        }
+
+        let ret_ty = self
+            .functions
+            .get(func_name)
+            .cloned()
+            .unwrap_or_else(|| "i64".to_string());
+        let arg_str = compiled_args
+            .iter()
+            .zip(arg_types.iter())
+            .map(|(val, ty)| format!("{} {}", ty, val))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let callee_symbol = runtime_symbol_for_stdlib_function(func_name);
+
+        if ret_ty == "void" {
+            self.emit(&format!("  call void @{}({})", callee_symbol, arg_str));
+            Ok(("0".into(), "i64".into()))
+        } else {
+            let res = self.next_reg();
+            self.emit(&format!(
+                "  {} = call {} @{}({})",
+                res, ret_ty, callee_symbol, arg_str
+            ));
+            Ok((res, ret_ty))
+        }
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
@@ -3607,6 +3880,9 @@ impl LlvmGenerator {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
                     Ok((reg, ty))
+                } else if let Some(world_info) = self.world_globals.get(name).cloned() {
+                    self.emit(&format!("  call void @{}()", world_info.init_fn_name));
+                    Ok((world_info.global_symbol.clone(), format!("%{}*", name)))
                 } else {
                     Err(KainError::codegen(
                         format!("Undefined variable: {}", name),
@@ -3911,65 +4187,11 @@ impl LlvmGenerator {
                         ))
                     }
                 };
-
-                let mut compiled_args = Vec::new();
-                let mut arg_types = Vec::new();
-
-                for (i, arg) in args.iter().enumerate() {
-                    let (val, ty) = self.compile_expr(&arg.value)?;
-
-                    // --- HOTFIX: Intrinsic Pointer Casting ---
-                    // Check if we are passing a pointer (i8* or %Struct*) to a function
-                    // that expects a generic i64 storage value (Array/Map storage).
-                    let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with("%"))
-                        && (
-                            (func_name == "push" && i == 1) ||        // push(arr, VAL)
-                        (func_name == "array_push" && i == 1) ||  // array_push(arr, VAL)
-                        (func_name == "array_set" && i == 2) ||   // array_set(arr, idx, VAL)
-                        (func_name == "map_set" && i == 2)
-                            // map_set(map, key, VAL)
-                        );
-
-                    if needs_cast_to_i64 {
-                        let int_val = self.next_reg();
-                        // Explicitly cast pointer to integer for the runtime
-                        self.emit(&format!("  {} = ptrtoint {} {} to i64", int_val, ty, val));
-                        compiled_args.push(int_val);
-                        arg_types.push("i64".to_string());
-                        continue;
-                    }
-                    // --- END HOTFIX ---
-
-                    compiled_args.push(val);
-                    arg_types.push(ty);
-                }
-
-                let ret_ty = if let Some(ty) = self.functions.get(&func_name) {
-                    ty.clone()
-                } else {
-                    "i64".into() // Default
-                };
-
-                let res = self.next_reg();
-                let arg_str = compiled_args
-                    .iter()
-                    .zip(arg_types.iter())
-                    .map(|(val, ty)| format!("{} {}", ty, val))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let runtime_symbol = runtime_symbol_for_stdlib_function(&func_name);
-
-                if ret_ty == "void" {
-                    self.emit(&format!("  call void @{}({})", runtime_symbol, arg_str));
-                    Ok(("0".into(), "i64".into()))
-                } else {
-                    self.emit(&format!(
-                        "  {} = call {} @{}({})",
-                        res, ret_ty, runtime_symbol, arg_str
-                    ));
-                    Ok((res, ret_ty))
-                }
+                self.compile_direct_call(&func_name, args)
             }
+            Expr::StageCall {
+                function, args, ..
+            } => self.compile_direct_call(function, args),
             Expr::EnumVariant {
                 enum_name,
                 variant,

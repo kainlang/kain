@@ -7133,6 +7133,7 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
     match item {
         TypedItem::Function(f) => block_uses_kain_runtime(&f.ast.body),
         TypedItem::Patch(patch) => block_uses_kain_runtime(&patch.ast.body),
+        TypedItem::Law(law) => block_uses_kain_runtime(&law.ast.body),
         TypedItem::Converge(converge) => {
             block_uses_kain_runtime(&converge.ast.spec_lane.body)
                 || converge

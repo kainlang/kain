@@ -1,5 +1,49 @@
 # MEMORY
 
+## 2026-04-11 - LLVM now lowers world, patch, converge, and orchestrate directly enough for Omega to run without the wrapper path
+
+The previous Omega note is no longer current. The LLVM backend in `crates/kain-sys-codegen` now materializes compiler-owned intent items directly instead of requiring `main()` to route around them.
+
+What changed:
+
+- Updated `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Registered `world` items as real LLVM struct types plus singleton globals with once-only init functions.
+  - Added function registration and body emission for `patch`, `converge`, and `orchestrate` items so they lower as callable symbols.
+  - Added identifier lowering for world handles so `let omega = Omega` and `let studio = Studio` materialize the singleton pointer instead of failing as undefined locals.
+  - Added `Expr::StageCall` lowering and direct-call reuse so `kain/rust/python/node fn(...)` stage syntax compiles through the LLVM lane when the function resolves locally.
+- Updated `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - Added a focused regression covering `world` singleton init, `patch` mutation, `converge` lowering, `orchestrate` lowering, and direct `main()` execution through that path.
+- Updated `labs/omega/omega.kn`
+  - Removed the fallback `omega_pipeline_runtime(...)` route from `main()`.
+  - `main()` now directly touches `Omega`, runs patch calls, and returns `omega_pipeline(...)`.
+- Updated `crates/ue5/src/codegen_ue5.rs` and `crates/kain-host/src/lib.rs`
+  - Fixed adjacent exhaustiveness fallout from the newer `Law` surface so local validation builds could proceed farther instead of failing on unrelated missing match arms.
+
+Validation completed:
+
+- `cargo test -p kain-sys-codegen llvm_generates_world_patch_converge_and_orchestrate_paths -- --nocapture`
+- `./runtime/compile_native_runtime.sh`
+- generated current LLVM for `/home/ephemara/Dev/Kain/labs/omega/omega.kn` through a local Rust harness using `kain-core` + `kain-sys-codegen`
+- linked `/home/ephemara/Dev/Kain/labs/omega/generated/omega.ll` against `generated/native_runtime/debug/*.o`
+- `/home/ephemara/Dev/Kain/labs/omega/generated/omega` exits with code `145`
+- generated current LLVM for `/home/ephemara/Dev/Kain/smoketest/compiler_owned_intent/compiler_owned_intent.kn` and confirmed direct `Studio` world init lowering is present in `generated/compiler_owned_intent.ll`
+
+Design decisions:
+
+- Kept LLVM stage-call lowering simple for now: local `StageCall` lowers as a direct function call in the native lane. That is enough to unblock authored `orchestrate` flows like Omega while preserving the existing typed stage syntax in source.
+- Treated `converge` as a direct callable lowering of its spec lane in LLVM. This keeps compiled behavior deterministic and aligned with the semantic contract until the backend grows capability-aware lane selection or verification instrumentation.
+- Validated the backend through current-library harnesses and direct LLVM/native linking because the repo's `cli` package currently has separate feature-gating issues unrelated to this LLVM change.
+
+Current risks:
+
+- LLVM `StageCall` is now useful for local lowering, but it is not yet a true native bridge implementation of Python/Node/Rust host execution semantics.
+- `converge` lowering still takes the spec lane directly; it does not yet encode runtime lane selection or verification sampling in native codegen.
+- The `cli` crate still has unrelated package/feature issues around optional UE5 surfaces, so `cargo build -p cli` is not the clean validation path for this work today.
+
+Recommended next step:
+
+- Decide whether native LLVM should keep `StageCall` as a direct local-call lowering or grow explicit bridge shims for Python/Node/Rust runtime dispatch, then implement the same decision for `converge` lane selection so the compiled lane matches interpreter semantics more closely.
+
 ## 2026-04-11 - omega lab now compiles and runs in both interpret and LLVM lanes, with a runtime-safe entrypoint around current compiler-owned-intent LLVM gaps
 
 The modernized `labs/omega/omega.kn` now works as an actual runnable lab file instead of only an interpreter-only proof.

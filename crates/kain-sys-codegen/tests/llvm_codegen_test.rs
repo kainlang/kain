@@ -54,6 +54,57 @@ fn typed_program_from_source(source: &str) -> TypedProgram {
 }
 
 #[test]
+fn llvm_generates_world_patch_converge_and_orchestrate_paths() {
+    let source = r#"
+world Studio:
+    state counter: Int = 1
+    surface native_ui => App
+
+component App():
+    render <text>{"studio"}</text>
+
+patch set_counter(studio: Studio, value: Int) -> Int:
+    studio.counter = value
+    return studio.counter
+
+converge choose_value(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    fast interpret_lane when target("interpret"):
+        return value + 1
+
+fn stage_bias(value: Int) -> Int:
+    return value + 2
+
+orchestrate pipeline(value: Int) -> Int:
+    let staged: Int = kain choose_value(value)
+    let echoed: Int = rust stage_bias(staged)
+    return echoed
+
+fn main() -> Int:
+    let studio = Studio
+    let updated = set_counter(studio, 7)
+    return pipeline(updated)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%Studio = type { i64 }"));
+    assert!(llvm.contains("@__kain_world_Studio = internal global %Studio zeroinitializer"));
+    assert!(llvm.contains("@__kain_world_init_flag_Studio = internal global i1 0"));
+    assert!(llvm.contains("define void @__kain_init_world_Studio()"));
+    assert!(llvm.contains("define i64 @set_counter(%Studio* %arg0, i64 %arg1)"));
+    assert!(llvm.contains("define i64 @choose_value(i64 %arg0)"));
+    assert!(llvm.contains("define i64 @pipeline(i64 %arg0)"));
+    assert!(llvm.contains("call void @__kain_init_world_Studio()"));
+    assert!(llvm.contains("call i64 @choose_value(i64"));
+    assert!(llvm.contains("call i64 @stage_bias(i64"));
+    assert!(llvm.contains("call i64 @pipeline(i64"));
+}
+
+#[test]
 fn llvm_generates_component_and_jsx_calls() {
     let hud_panel = TypedItem::Component(TypedComponent {
         ast: Component {

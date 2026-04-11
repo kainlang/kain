@@ -854,6 +854,7 @@ fn value_kind(value: &Value) -> &'static str {
         Value::HostObject(_, _) => "HostObject",
         Value::Function(_) => "Function",
         Value::Patch(_) => "Patch",
+        Value::Law(_) => "Law",
         Value::Converge(_) => "Converge",
         Value::Orchestrate(_) => "Orchestrate",
         Value::NativeFn(_, _) => "NativeFn",

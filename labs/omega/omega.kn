@@ -132,10 +132,11 @@ orchestrate omega_pipeline(value: Int) -> Int:
     return learned
 
 fn main() -> Int:
-    let compiler_heat = 12 + 9
-    let audio_voices = 8 + 4
-    let cluster_nodes = 5 + 2
-    let tensor_tiles = 16 + 8
+    let omega = Omega
+    let compiler_heat = raise_compiler_heat(omega, 9)
+    let audio_voices = widen_audio_field(omega, 4)
+    let cluster_nodes = expand_cluster_ring(omega, 2)
+    let tensor_tiles = scale_tensor_tiles(omega, 8)
 
     let compiler = CompilerLedger {
         parsed_units: compiler_heat,
@@ -154,4 +155,4 @@ fn main() -> Int:
 
     let local_score = combine_compiler_ledger(compiler) + synth_voice_energy(audio) + cluster.quorum + tensor_core_score(tensor)
 
-    return omega_pipeline_runtime(local_score)
+    return omega_pipeline(local_score)
