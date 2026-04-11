@@ -162,6 +162,8 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - `kain-ui-native` and `runtime/native` consume those bundle defaults first and only fall back to local scene/profile defaults when the bundle leaves a field unspecified
 - scene ids, shader refs, camera presets, and presentation presets should travel together through the realtime bundle instead of being re-guessed independently by each host
 - `kain-3D` now owns the reusable manipulator drag contract as well: screen drag, axis/plane constraints, snap application, and local-vs-world transform math live in `crates/kain-3D/src/interaction.rs`, while `kain-ui-native` should stay a host/input forwarder instead of carrying a second copy of viewport-edit math
+- `kain-3D` now also owns the authored primitive mesh pipeline in `crates/kain-3D/src/primitive.rs`: stable primitive ids and `mesh://primitives/authored/*` resource URIs, high-fidelity box / plane / uv-sphere / quad-sphere / cylinder / cone / capsule / torus builders, and a `PrimitiveLibrary` that can register those shapes into authoring scenes without inventing a second primitive catalog in the host
+- authored `.kn` code reaches that same primitive seam through the `zen3d` prelude and runtime-native `__zen3d_*` bindings, so primitive authoring stays consistent across Rust scene setup, Kain host sessions, and viewport/runtime consumption
 
 ## Important Folders By Intent
 

@@ -1,5 +1,47 @@
 # MEMORY
 
+## 2026-04-11 - kain-3d now has a first-class authored primitive pipeline with stable resource ids
+
+The 3D runtime no longer treats primitives as a few isolated helper meshes spread across scene setup and host wrappers.
+
+What changed:
+
+- Added `crates/kain-3D/src/primitive.rs`
+  - Introduced `PrimitiveShape`, `PrimitiveDefinition`, and `PrimitiveLibrary` as the crate-owned authored primitive seam.
+  - Added high-fidelity procedural builders for plane, box, UV sphere, quad sphere, cylinder, cone, capsule, and torus.
+  - Aligned the library with the existing DCC mesh contract using stable `mesh://primitives/authored/*` resource URIs and `mesh://primitives/authored/definitions` as the document root.
+- Updated `crates/kain-3D/src/authoring.rs`
+  - Routed `Geometry::plane`, `Geometry::box_mesh`, and `Geometry::uv_sphere` through the shared primitive builder path instead of keeping duplicate local mesh logic.
+  - Added `Geometry::cylinder`, `Geometry::cone`, `Geometry::capsule`, `Geometry::torus`, and `Geometry::quad_sphere`.
+  - Added `Scene::add_primitive_definition(...)` and `Scene::add_primitive_library(...)` so authoring scenes can register primitive libraries with durable metadata.
+- Updated `crates/kain-3D/src/host.rs` and `crates/kain-3D/src/prelude.rs`
+  - Exposed the richer primitive set to authored Kain source through new `zen3d` runtime bindings for `quad_sphere`, `cylinder`, `cone`, `capsule`, and `torus`.
+- Updated `crates/kain-3D/src/scene.rs`
+  - Switched builtin cube, plane, and UV sphere scene meshes to consume the shared primitive pipeline instead of hand-maintained duplicate mesh builders.
+- Updated `ARCHITECTURE.md`
+  - Recorded that the authored primitive seam now belongs to `kain-3D` under the viewport/runtime contract lane.
+
+Validation completed:
+
+- `cargo test -p kain-3d --lib -- --nocapture`
+- `cargo test -p kain-ui-native viewport_ -- --nocapture`
+
+Design decisions:
+
+- Chose a crate-owned primitive definition layer instead of only adding more `Geometry::*` helpers so future DCC authoring, scene contracts, and app-level mesh documents can point at stable primitive ids and URIs.
+- Kept the runtime-facing host API function-based for now because it gives authored `.kn` code immediate access to the new shapes without first widening Kain reflection with a variant-heavy primitive descriptor schema.
+- Reused the shared primitive builders inside `scene.rs` so cube/plane/sphere quality and winding rules only live in one place.
+
+Current risks:
+
+- The primitive pipeline is still CPU-authored geometry; there is not yet a GPU tessellation / displacement / remesh lane behind these definitions.
+- The Kain-side prelude exposes constructors, but it does not yet expose the full `PrimitiveDefinition` / `PrimitiveLibrary` metadata model directly to `.kn` code.
+- Subdivision-ready means topology intent and support-loop density today, not Catmull-Clark or ZBrush-class remeshing guarantees by itself.
+
+Recommended next step:
+
+- Make primitive definitions first-class bundle/runtime resources so Zen and app-level DCC lanes can select, instantiate, and edit authored primitive ids directly instead of flattening them immediately into anonymous meshes.
+
 ## 2026-04-10 - manipulator math moved into kain-3d and the host prelude now uses real extern 3D bindings
 
 The 3D lane no longer leaves core viewport edit math stranded inside `kain-ui-native`.

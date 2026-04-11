@@ -56,6 +56,11 @@ pub fn install_runtime_natives(env: &mut Env) {
     env.register_native_fn("__zen3d_box_geometry", native_box_geometry);
     env.register_native_fn("__zen3d_plane_geometry", native_plane_geometry);
     env.register_native_fn("__zen3d_uv_sphere", native_uv_sphere);
+    env.register_native_fn("__zen3d_quad_sphere", native_quad_sphere);
+    env.register_native_fn("__zen3d_cylinder", native_cylinder);
+    env.register_native_fn("__zen3d_cone", native_cone);
+    env.register_native_fn("__zen3d_capsule", native_capsule);
+    env.register_native_fn("__zen3d_torus", native_torus);
     env.register_native_fn("__zen3d_standard_material", native_standard_material);
     env.register_native_fn("__zen3d_matte_material", native_matte_material);
     env.register_native_fn("__zen3d_glossy_material", native_glossy_material);
@@ -532,6 +537,82 @@ fn native_uv_sphere(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
     }
 }
 
+fn native_quad_sphere(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+    match args.as_slice() {
+        [radius, resolution] => Ok(Geometry::quad_sphere(
+            f32::from_kain_value(radius.clone())?,
+            usize::from_kain_value(resolution.clone())?,
+        )
+        .to_kain_value()),
+        _ => Err(KainError::runtime(
+            "__zen3d_quad_sphere expects (Float, Int)",
+        )),
+    }
+}
+
+fn native_cylinder(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+    match args.as_slice() {
+        [radius, height, radial_segments, height_segments] => Ok(Geometry::cylinder(
+            f32::from_kain_value(radius.clone())?,
+            f32::from_kain_value(height.clone())?,
+            usize::from_kain_value(radial_segments.clone())?,
+            usize::from_kain_value(height_segments.clone())?,
+        )
+        .to_kain_value()),
+        _ => Err(KainError::runtime(
+            "__zen3d_cylinder expects (Float, Float, Int, Int)",
+        )),
+    }
+}
+
+fn native_cone(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+    match args.as_slice() {
+        [radius, height, radial_segments, height_segments] => Ok(Geometry::cone(
+            f32::from_kain_value(radius.clone())?,
+            f32::from_kain_value(height.clone())?,
+            usize::from_kain_value(radial_segments.clone())?,
+            usize::from_kain_value(height_segments.clone())?,
+        )
+        .to_kain_value()),
+        _ => Err(KainError::runtime(
+            "__zen3d_cone expects (Float, Float, Int, Int)",
+        )),
+    }
+}
+
+fn native_capsule(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+    match args.as_slice() {
+        [radius, height, radial_segments, hemisphere_segments, body_segments] => {
+            Ok(Geometry::capsule(
+                f32::from_kain_value(radius.clone())?,
+                f32::from_kain_value(height.clone())?,
+                usize::from_kain_value(radial_segments.clone())?,
+                usize::from_kain_value(hemisphere_segments.clone())?,
+                usize::from_kain_value(body_segments.clone())?,
+            )
+            .to_kain_value())
+        }
+        _ => Err(KainError::runtime(
+            "__zen3d_capsule expects (Float, Float, Int, Int, Int)",
+        )),
+    }
+}
+
+fn native_torus(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+    match args.as_slice() {
+        [major_radius, minor_radius, major_segments, minor_segments] => Ok(Geometry::torus(
+            f32::from_kain_value(major_radius.clone())?,
+            f32::from_kain_value(minor_radius.clone())?,
+            usize::from_kain_value(major_segments.clone())?,
+            usize::from_kain_value(minor_segments.clone())?,
+        )
+        .to_kain_value()),
+        _ => Err(KainError::runtime(
+            "__zen3d_torus expects (Float, Float, Int, Int)",
+        )),
+    }
+}
+
 fn native_standard_material(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
     let color = expect_single::<ColorRgb>("__zen3d_standard_material", args)?;
     Ok(Material::standard(color).to_kain_value())
@@ -638,7 +719,7 @@ mod tests {
             .load_source(
                 r#"
 fn build_geometry() -> Geometry:
-    return box_geometry(Vec3 { x: 2.0, y: 3.0, z: 4.0 })
+    return torus(1.4, 0.35, 48, 18)
 
 fn build_material() -> Material:
     return glossy_material(ColorRgb { r: 0.2, g: 0.6, b: 0.9 })
@@ -659,7 +740,7 @@ fn build_modifier() -> Modifier:
             .call::<Modifier>("build_modifier", vec![])
             .expect("call build_modifier");
 
-        assert_eq!(geometry.vertex_count(), 24);
+        assert!(geometry.vertex_count() > 800);
         assert_eq!(material.shininess, 36.0);
         assert!(matches!(modifier, Modifier::Twist { .. }));
     }

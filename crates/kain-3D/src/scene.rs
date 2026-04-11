@@ -1,5 +1,6 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
+use crate::primitive::PrimitiveShape;
 use crate::{ColorRgb, Transform, Vec3};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -462,8 +463,7 @@ fn build_dcc_suite_scene() -> SceneDescription {
     SceneDescription {
         name: "dcc_suite_scene".to_string(),
         viewport_summary:
-            "dcc startup scene | default blender cube | studio clay authoring light rig"
-                .to_string(),
+            "dcc startup scene | default blender cube | studio clay authoring light rig".to_string(),
         background: BackgroundGradient {
             top: ColorRgb::new(0.16, 0.18, 0.23),
             bottom: ColorRgb::new(0.05, 0.06, 0.08),
@@ -1053,11 +1053,7 @@ fn build_magma_terraces_scene() -> SceneDescription {
                     "slag".to_string()
                 },
                 transform: Transform::identity()
-                    .with_translation(Vec3::new(
-                        x,
-                        -0.55 + ((row + column) % 3) as f32 * 0.22,
-                        z,
-                    ))
+                    .with_translation(Vec3::new(x, -0.55 + ((row + column) % 3) as f32 * 0.22, z))
                     .with_rotation(Vec3::new(0.0, (row as f32 - column as f32) * 0.08, 0.0))
                     .with_scale(Vec3::new(
                         1.8 + (column % 2) as f32 * 0.4,
@@ -2011,65 +2007,20 @@ fn smoothstep(edge0: f32, edge1: f32, value: f32) -> f32 {
 }
 
 fn mesh_cube() -> Mesh {
-    let positions = [
-        Vec3::new(-1.0, -1.0, 1.0),
-        Vec3::new(1.0, -1.0, 1.0),
-        Vec3::new(1.0, 1.0, 1.0),
-        Vec3::new(-1.0, 1.0, 1.0),
-        Vec3::new(-1.0, -1.0, -1.0),
-        Vec3::new(1.0, -1.0, -1.0),
-        Vec3::new(1.0, 1.0, -1.0),
-        Vec3::new(-1.0, 1.0, -1.0),
-    ];
-    let faces = [
-        ([0, 1, 2, 3], Vec3::new(0.0, 0.0, 1.0)),
-        ([5, 4, 7, 6], Vec3::new(0.0, 0.0, -1.0)),
-        ([4, 0, 3, 7], Vec3::new(-1.0, 0.0, 0.0)),
-        ([1, 5, 6, 2], Vec3::new(1.0, 0.0, 0.0)),
-        ([3, 2, 6, 7], Vec3::new(0.0, 1.0, 0.0)),
-        ([4, 5, 1, 0], Vec3::new(0.0, -1.0, 0.0)),
-    ];
-
-    let mut vertices = Vec::new();
-    let mut triangles = Vec::new();
-    for (indices, normal) in faces {
-        let base = vertices.len();
-        vertices.extend(indices.map(|index| Vertex {
-            position: positions[index],
-            normal,
-        }));
-        triangles.push([base, base + 1, base + 2]);
-        triangles.push([base, base + 2, base + 3]);
-    }
-
-    Mesh {
-        vertices,
-        triangles,
-    }
+    primitive_mesh(PrimitiveShape::Box {
+        size: Vec3::new(2.0, 2.0, 2.0),
+        width_segments: 1,
+        height_segments: 1,
+        depth_segments: 1,
+    })
 }
 
 fn mesh_plane() -> Mesh {
-    Mesh {
-        vertices: vec![
-            Vertex {
-                position: Vec3::new(-1.0, 0.0, -1.0),
-                normal: Vec3::UP,
-            },
-            Vertex {
-                position: Vec3::new(1.0, 0.0, -1.0),
-                normal: Vec3::UP,
-            },
-            Vertex {
-                position: Vec3::new(1.0, 0.0, 1.0),
-                normal: Vec3::UP,
-            },
-            Vertex {
-                position: Vec3::new(-1.0, 0.0, 1.0),
-                normal: Vec3::UP,
-            },
-        ],
-        triangles: vec![[0, 1, 2], [0, 2, 3]],
-    }
+    primitive_mesh(PrimitiveShape::Plane {
+        size: crate::Vec2::new(2.0, 2.0),
+        width_segments: 1,
+        depth_segments: 1,
+    })
 }
 
 fn mesh_pyramid() -> Mesh {
@@ -2120,41 +2071,17 @@ fn mesh_pyramid() -> Mesh {
 }
 
 fn mesh_uv_sphere(latitude_segments: usize, longitude_segments: usize) -> Mesh {
-    let latitude_segments = latitude_segments.max(3);
-    let longitude_segments = longitude_segments.max(4);
-    let mut vertices = Vec::new();
-    let mut triangles = Vec::new();
+    primitive_mesh(PrimitiveShape::UvSphere {
+        radius: 1.0,
+        latitude_segments,
+        longitude_segments,
+    })
+}
 
-    for latitude in 0..=latitude_segments {
-        let v = latitude as f32 / latitude_segments as f32;
-        let phi = v * std::f32::consts::PI;
-        let y = phi.cos();
-        let ring_radius = phi.sin();
-        for longitude in 0..=longitude_segments {
-            let u = longitude as f32 / longitude_segments as f32;
-            let theta = u * std::f32::consts::TAU;
-            let normal = Vec3::new(theta.cos() * ring_radius, y, theta.sin() * ring_radius);
-            vertices.push(Vertex {
-                position: normal,
-                normal: normal.normalize(),
-            });
-        }
-    }
-
-    let stride = longitude_segments + 1;
-    for latitude in 0..latitude_segments {
-        for longitude in 0..longitude_segments {
-            let current = latitude * stride + longitude;
-            let next = current + stride;
-            triangles.push([current, next, current + 1]);
-            triangles.push([current + 1, next, next + 1]);
-        }
-    }
-
-    Mesh {
-        vertices,
-        triangles,
-    }
+fn primitive_mesh(shape: PrimitiveShape) -> Mesh {
+    shape
+        .build_mesh()
+        .expect("scene primitive should always convert into a render mesh")
 }
 
 #[cfg(test)]

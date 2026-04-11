@@ -304,7 +304,7 @@ impl PrimitiveLibrary {
             .collect()
     }
 
-    pub fn register_into_scene(&self, scene: &mut Scene) -> &mut Scene {
+    pub fn register_into_scene<'a>(&self, scene: &'a mut Scene) -> &'a mut Scene {
         scene.add_primitive_library(self)
     }
 }
@@ -361,7 +361,7 @@ fn build_box_geometry(
         Vec3::new(0.0, size.y, 0.0),
         width_segments,
         height_segments,
-        |_| (Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0)),
+        |point| (point, Vec3::new(0.0, 0.0, 1.0)),
     );
     append_grid_patch(
         &mut positions,
@@ -373,7 +373,7 @@ fn build_box_geometry(
         Vec3::new(0.0, size.y, 0.0),
         width_segments,
         height_segments,
-        |_| (Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0)),
+        |point| (point, Vec3::new(0.0, 0.0, -1.0)),
     );
     append_grid_patch(
         &mut positions,
@@ -385,7 +385,7 @@ fn build_box_geometry(
         Vec3::new(0.0, size.y, 0.0),
         depth_segments,
         height_segments,
-        |_| (Vec3::ZERO, Vec3::new(-1.0, 0.0, 0.0)),
+        |point| (point, Vec3::new(-1.0, 0.0, 0.0)),
     );
     append_grid_patch(
         &mut positions,
@@ -397,7 +397,7 @@ fn build_box_geometry(
         Vec3::new(0.0, size.y, 0.0),
         depth_segments,
         height_segments,
-        |_| (Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0)),
+        |point| (point, Vec3::new(1.0, 0.0, 0.0)),
     );
     append_grid_patch(
         &mut positions,
@@ -409,7 +409,7 @@ fn build_box_geometry(
         Vec3::new(0.0, 0.0, -size.z),
         width_segments,
         depth_segments,
-        |_| (Vec3::ZERO, Vec3::new(0.0, 1.0, 0.0)),
+        |point| (point, Vec3::new(0.0, 1.0, 0.0)),
     );
     append_grid_patch(
         &mut positions,
@@ -421,7 +421,7 @@ fn build_box_geometry(
         Vec3::new(0.0, 0.0, size.z),
         width_segments,
         depth_segments,
-        |_| (Vec3::ZERO, Vec3::new(0.0, -1.0, 0.0)),
+        |point| (point, Vec3::new(0.0, -1.0, 0.0)),
     );
     Geometry::triangle_mesh()
         .with_positions(positions)
@@ -574,8 +574,8 @@ fn build_cone_geometry(
     let mut indices = Vec::new();
     let ring_count = height_segments;
     for ring_index in 0..ring_count {
-        let t = ring_index as f32 / ring_count as f32;
-        let current_radius = radius * (1.0 - t);
+        let t = (ring_index + 1) as f32 / ring_count as f32;
+        let current_radius = radius * t;
         let y = half_height - t * height;
         for radial in 0..=radial_segments {
             let u = radial as f32 / radial_segments as f32;
@@ -600,7 +600,7 @@ fn build_cone_geometry(
             indices.extend([a, b, c, b, d, c]);
         }
     }
-    let apex_y = -half_height;
+    let apex_y = half_height;
     let apex_base = positions.len() as u32;
     for radial in 0..radial_segments {
         let u = radial as f32 / radial_segments as f32;
@@ -614,14 +614,14 @@ fn build_cone_geometry(
         )
         .normalize();
         normals.push(averaged);
-        uvs.push(Vec2::new(u + 0.5 / radial_segments as f32, 1.0));
+        uvs.push(Vec2::new(u + 0.5 / radial_segments as f32, 0.0));
     }
-    let last_ring_base = ((ring_count - 1) * ring_stride) as u32;
+    let first_ring_base = 0u32;
     for radial in 0..radial_segments {
-        let ring_vertex = last_ring_base + radial as u32;
+        let ring_vertex = first_ring_base + radial as u32;
         let next_ring_vertex = ring_vertex + 1;
         let apex = apex_base + radial as u32;
-        indices.extend([ring_vertex, next_ring_vertex, apex]);
+        indices.extend([apex, next_ring_vertex, ring_vertex]);
     }
     append_disk_geometry(
         &mut positions,
@@ -629,10 +629,10 @@ fn build_cone_geometry(
         &mut uvs,
         &mut indices,
         radius,
-        half_height,
+        -half_height,
         radial_segments,
         cap_segments,
-        false,
+        true,
     );
     Geometry::triangle_mesh()
         .with_positions(positions)
@@ -680,11 +680,15 @@ fn build_capsule_geometry(
                 (y, std::f32::consts::FRAC_PI_2)
             } else {
                 let t = (row - body_end) / hemisphere_segments as f32;
-                (-half_straight, std::f32::consts::FRAC_PI_2 + t * std::f32::consts::FRAC_PI_2)
+                (
+                    -half_straight,
+                    std::f32::consts::FRAC_PI_2 + t * std::f32::consts::FRAC_PI_2,
+                )
             };
             let radial = phi.sin();
             let normal_y = phi.cos();
-            let normal = Vec3::new(theta.cos() * radial, normal_y, theta.sin() * radial).normalize();
+            let normal =
+                Vec3::new(theta.cos() * radial, normal_y, theta.sin() * radial).normalize();
             let local_y = if row <= top_hemi_end {
                 phi.cos() * radius
             } else if row <= body_end {
@@ -694,7 +698,11 @@ fn build_capsule_geometry(
             };
             let y = center_y + local_y;
             (
-                Vec3::new(theta.cos() * radial * radius, y, theta.sin() * radial * radius),
+                Vec3::new(
+                    theta.cos() * radial * radius,
+                    y,
+                    theta.sin() * radial * radius,
+                ),
                 normal,
                 Vec2::new(u, v),
             )
@@ -737,8 +745,7 @@ fn build_torus_geometry(
             );
             let outward = Vec3::new(major_angle.cos(), 0.0, major_angle.sin());
             let up = Vec3::UP;
-            let normal =
-                (outward * minor_angle.cos() + up * minor_angle.sin()).normalize();
+            let normal = (outward * minor_angle.cos() + up * minor_angle.sin()).normalize();
             (ring_center + normal * minor_radius, normal, Vec2::new(u, v))
         },
     );
@@ -863,10 +870,7 @@ fn append_disk_geometry(
             } else {
                 Vec3::new(0.0, 1.0, 0.0)
             };
-            let uv = Vec2::new(
-                theta.cos() * v * 0.5 + 0.5,
-                theta.sin() * v * 0.5 + 0.5,
-            );
+            let uv = Vec2::new(theta.cos() * v * 0.5 + 0.5, theta.sin() * v * 0.5 + 0.5);
             (position, normal, uv)
         },
     );
@@ -963,7 +967,9 @@ mod tests {
             },
         ];
         for shape in shapes {
-            let mesh = shape.build_mesh().expect("primitive should convert into a mesh");
+            let mesh = shape
+                .build_mesh()
+                .expect("primitive should convert into a mesh");
             assert!(!mesh.vertices.is_empty());
             assert!(!mesh.triangles.is_empty());
             assert!(mesh
@@ -982,7 +988,9 @@ mod tests {
             .add_primitive_library(&library)
             .spawn_mesh("hero", "startup-cube", "hero");
         assert_eq!(
-            scene.metadata.get("primitive_library.resource_document_uri"),
+            scene
+                .metadata
+                .get("primitive_library.resource_document_uri"),
             Some(&"mesh://primitives/authored/definitions".to_string())
         );
         assert!(scene.geometries.contains_key("hero-torus"));
