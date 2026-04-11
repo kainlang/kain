@@ -28,7 +28,7 @@ fn find_matching_brainfuck_close(program: String, open_index: Int) -> Int:
         let opcode = char_at(program, scan_index)
         if opcode == "[":
             loop_depth = loop_depth + 1
-        else if opcode == "]":
+        elif opcode == "]":
             loop_depth = loop_depth - 1
             if loop_depth == 0:
                 return scan_index
@@ -42,7 +42,7 @@ fn find_matching_brainfuck_open(program: String, close_index: Int) -> Int:
         let opcode = char_at(program, scan_index)
         if opcode == "]":
             loop_depth = loop_depth + 1
-        else if opcode == "[":
+        elif opcode == "[":
             loop_depth = loop_depth - 1
             if loop_depth == 0:
                 return scan_index
@@ -63,47 +63,35 @@ pub fn brainfuck_run(program: String, input_stream: String) -> String:
 
     while program_counter < len(program):
         let opcode = char_at(program, program_counter)
-        if len(program) <= 2:
-            println("TRACE opcode")
-            println(opcode)
-            println("TRACE cell before")
-            println(tape[tape_pointer])
-
         if opcode == ">":
             tape_pointer = tape_pointer + 1
             ensure_brainfuck_tape_cell(tape, tape_pointer)
-        else if opcode == "<":
+        elif opcode == "<":
             if tape_pointer == 0:
                 return "ERROR Brainfuck tape moved left of cell zero"
             tape_pointer = tape_pointer - 1
-        else if opcode == "+":
+        elif opcode == "+":
             tape[tape_pointer] = wrap_brainfuck_cell_value(tape[tape_pointer] + 1)
-        else if opcode == "-":
+        elif opcode == "-":
             tape[tape_pointer] = wrap_brainfuck_cell_value(tape[tape_pointer] - 1)
-        else if opcode == ".":
+        elif opcode == ".":
             output_stream = output_stream + chr(tape[tape_pointer])
-        else if opcode == ",":
+        elif opcode == ",":
             tape[tape_pointer] = read_brainfuck_input_byte(input_stream, input_index)
             if input_index < len(input_stream):
                 input_index = input_index + 1
-        else if opcode == "[":
+        elif opcode == "[":
             if tape[tape_pointer] == 0:
                 let matching_close = find_matching_brainfuck_close(program, program_counter)
                 if matching_close < 0:
                     return "ERROR Unmatched '[' loop start"
                 program_counter = matching_close
-        else if opcode == "]":
+        elif opcode == "]":
             if tape[tape_pointer] != 0:
                 let matching_open = find_matching_brainfuck_open(program, program_counter)
                 if matching_open < 0:
                     return "ERROR Unmatched ']' loop end"
                 program_counter = matching_open
-
-        if len(program) <= 2:
-            println("TRACE cell after")
-            println(tape[tape_pointer])
-            println("TRACE output after")
-            println(output_stream)
 
         program_counter = program_counter + 1
 
@@ -128,12 +116,6 @@ fn main() -> Int:
     let hello_world_program = read_brainfuck_fixture(config.hello_world_program_path)
     let echo_program = read_brainfuck_fixture(config.echo_program_path)
     let alphabet_program = read_brainfuck_fixture(config.alphabet_program_path)
-
-    println("DEBUG first opcode [" + char_at(alphabet_program, 0) + "]")
-    println(char_at(alphabet_program, 0) == "+")
-    println("DEBUG inline [" + brainfuck_run("++++++++[>++++++++<-]>+.+.", "") + "]")
-    println("DEBUG plus-dot length")
-    println(len(brainfuck_run("+.", "")))
 
     if len(hello_world_program) == 0:
         println("FAIL missing fixture hello_world")

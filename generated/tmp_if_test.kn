@@ -1,0 +1,16 @@
+fn main() -> Int:
+    let opcode = "+"
+    let condition = opcode == "+"
+    println(condition)
+    let mut value = 0
+    if condition:
+        value = 5
+    println(value)
+    if opcode == ">":
+        value = 10
+    elif opcode == "<":
+        value = 20
+    elif opcode == "+":
+        value = 30
+    println(value)
+    return 0
