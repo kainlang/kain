@@ -8,7 +8,7 @@
 
 ## Purpose
 
-This directory contains runtime-specific harnesses and ABI parity tests for the KAIN native runtime. Unlike the smoke fixtures in `runtime/fixtures/` which validate startup paths, conformance tests validate that runtime behavior matches the canonical ABI contract across different backends and execution modes.
+This directory contains runtime-specific harnesses and ABI parity tests for the KAIN native runtime. Unlike the smoke fixtures in `runtime/fixtures/`, which now include true LLVM-native executable checks, conformance tests focus on runtime-native behavior and ABI contracts exercised by dedicated harnesses.
 
 **Critical Rule:** Future phases MUST extend this harness family instead of scattering ad hoc checks across the codebase. All runtime behavior validation should be centralized here.
 
@@ -18,6 +18,15 @@ This directory contains runtime-specific harnesses and ABI parity tests for the 
 - All 10 registered categories now run through executable harnesses with timeout-guarded compilation and execution, including `reflection/` and `diagnostics/`
 - `actor_runtime/` now emits its binaries into `runtime/conformance/actor_runtime/bin/` so aggregate and targeted Windows runs are less likely to trip over executable file locks
 - Treat the green aggregate run as strong proof of lane-level runtime coverage on Windows, not as proof that every broader Phase 13 end-to-end parity claim is finished
+
+## Reality Check (April 11, 2026)
+
+- `runtime/conformance/run_all.sh --backend llvm` does not execute generated LLVM programs end to end; the backend flag is still primarily a reporting/filtering label for the harness family
+- End-to-end LLVM/native proof now lives in `runtime/fixtures/validate_all.sh`, which compiles, links, and executes the dedicated `llvm_heap_memory`, `llvm_actor_message`, and `llvm_world_pipeline` fixtures
+- The correct validation split is:
+  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` for backend IR-shape proof
+  - `runtime/conformance/` for native runtime harness behavior
+  - `runtime/fixtures/` for generated LLVM executable proof
 
 ---
 
@@ -347,8 +356,8 @@ Conformance tests are designed to be run in CI/CD pipelines:
 
 ### vs. Smoke Fixtures (`runtime/fixtures/`)
 
-- **Fixtures:** Validate startup paths and basic initialization
-- **Conformance:** Validate runtime behavior and ABI parity
+- **Fixtures:** Validate startup paths plus dedicated generated LLVM/native executable lanes
+- **Conformance:** Validate runtime-native behavior and ABI parity harnesses
 
 ### vs. Crate Tests (`crates/*/tests/`)
 

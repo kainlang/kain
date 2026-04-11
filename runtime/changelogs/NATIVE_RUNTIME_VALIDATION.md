@@ -12,6 +12,12 @@ This document defines the canonical commands used to validate the native runtime
 
 **Critical Rule:** All runtime-facing changes MUST pass these validation commands before being considered complete.
 
+Validation is split into three distinct proof layers:
+
+- Backend IR-generation tests prove LLVM lowering shape and strict codegen behavior.
+- Runtime-native conformance harnesses prove the C runtime surface and subsystem behavior.
+- Executable LLVM fixtures prove generated Kain programs compile, link, and run successfully against the native runtime.
+
 ---
 
 ## Quick Reference
@@ -20,10 +26,16 @@ This document defines the canonical commands used to validate the native runtime
 # Full validation suite (run all commands in order)
 ./runtime/validate_native_runtime.sh
 
-# Individual validation steps
-cargo test --package kain-core
-cargo test --package kain-driver  
-cargo test --package kain-sys-codegen
+# Backend/codegen proof
+cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture
+
+# LLVM/native executable proof
+./runtime/fixtures/validate_all.sh
+
+# Runtime-native harness proof
+./runtime/conformance/run_all.sh
+
+# Native runtime compilation
 ./runtime/compile_native_runtime.sh
 ```
 
@@ -406,12 +418,15 @@ As the native runtime completion work progresses, this document will be extended
 
 ## Smoke Fixtures
 
-The native runtime smoke fixtures are located in `runtime/fixtures/` and provide minimal test programs for validating startup paths:
+The native runtime smoke fixtures are located in `runtime/fixtures/` and now cover both startup validation and executable LLVM proof:
 
 - **Contract Startup** (`runtime/fixtures/contract_startup/`) - Validates runtime contract loading
 - **Realtime Startup** (`runtime/fixtures/realtime_startup/`) - Validates realtime bundle ingestion
 - **UI Startup** (`runtime/fixtures/ui_startup/`) - Validates compiled UI bundle loading
 - **Viewport Startup** (`runtime/fixtures/viewport_startup/`) - Validates native viewport host startup (Win32)
+- **LLVM Heap Memory** (`runtime/fixtures/llvm_heap_memory/`) - Validates alloc/realloc/mem_store/mem_load execution in a linked LLVM/native binary
+- **LLVM Actor Message** (`runtime/fixtures/llvm_actor_message/`) - Validates actor spawn and mailbox send execution in a linked LLVM/native binary
+- **LLVM World Pipeline** (`runtime/fixtures/llvm_world_pipeline/`) - Validates world/patch/converge/orchestrate execution in a linked LLVM/native binary
 
 **Validate all fixtures:**
 ```bash
@@ -423,6 +438,11 @@ The native runtime smoke fixtures are located in `runtime/fixtures/` and provide
 ```
 
 See `runtime/fixtures/README.md` for detailed fixture documentation.
+
+Important distinction:
+
+- The startup fixtures validate bundle/bootstrap behavior.
+- The three LLVM fixtures are executed, not just compiled, and are the canonical end-to-end LLVM/native proof lane.
 
 ---
 
@@ -448,7 +468,7 @@ The native runtime conformance tests are located in `runtime/conformance/` and p
 # Run specific category
 ./runtime/conformance/run_all.sh --category abi_parity
 
-# Run on specific backend
+# Run with a backend label in the harness report
 ./runtime/conformance/run_all.sh --backend llvm
 
 # Run quick validation
@@ -456,6 +476,11 @@ The native runtime conformance tests are located in `runtime/conformance/` and p
 ```
 
 See `runtime/conformance/README.md` for detailed conformance test documentation.
+
+Important distinction:
+
+- `runtime/conformance/` validates the native runtime harness family.
+- `--backend llvm` in that runner does not replace the executable LLVM fixture proof.
 
 ---
 

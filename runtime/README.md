@@ -148,7 +148,7 @@ Status legend used here:
 | --- | --- | --- | --- |
 | Core substrate | Strong | Allocation helpers, RC primitives, strings, arrays, maps, file I/O, sockets, queues, threads, diagnostics plumbing | Still not a full managed runtime or unified value model |
 | ABI/version/runtime contract | Partial | ABI versioning, runtime versioning, startup validation, strict-mode contract checks, shared runtime service catalog, service masks | Legacy bundle service masks still cover a smaller subset than the full registry catalog |
-| Low-level memory ABI | Partial | `__kain_bind_local`, `__kain_addr_of`, pointer helpers, field/index helpers, load/store, alloc/realloc | `__kain_realloc(..., zeroed_new)` is not fully correct because allocation sizes are not tracked |
+| Low-level memory ABI | Partial | `__kain_bind_local`, `__kain_addr_of`, pointer helpers, field/index helpers, load/store, alloc/realloc, helper-owned allocation tracking | `__kain_realloc(..., zeroed_new)` is now correct for helper-owned allocations returned by the canonical helpers; arbitrary foreign pointers are still out of scope |
 | Reflection | Partial | JSON payload loading from string/path/env, schema version checks, type and item lookup, summary formatting | Minimal custom parser, fixed-size internals, not a rich runtime-wide type system |
 | Actor runtime | Partial | Spawn, mailbox send/receive, bounded mailbox behavior, registry, monitors, links, supervision, pooled scheduler, snapshots | No typed mailboxes, no selective receive, no distributed actors, deeper policy semantics still partial |
 | Async runtime | Partial | Task spawn/poll/await/cancel, wake handles, timers, async sleep, task ids, diagnostics | Fixed capacities, timers are thread-backed, not a larger effect-aware executor |
@@ -157,7 +157,7 @@ Status legend used here:
 | Compatibility and hot reload | Partial | Compatibility validation, install/activate/deactivate/update/uninstall flow, migration hooks, snapshot/restore state | Lifecycle primitives exist, but full live subsystem reload policy is still shallow |
 | Host bridge | Partial | Module install/activate/unregister, service registration, ABI checks, required service validation, foreign lane contracts | Still an in-process registry model with thin marshalling and no full dynamic plugin loader story |
 | Platform support | Partial | Win32 real lane, Linux/macOS capability stubs, platform diagnostics, service masks | Only Windows is truly implemented |
-| Conformance coverage | Strong | Ten registered categories with executable harnesses on the active Windows lane | Green lane-level conformance is not the same as full end-to-end parity proof |
+| Conformance coverage | Strong | Ten registered categories with executable harnesses on the active Windows lane, plus dedicated LLVM/native executable fixtures for heap, actor, and world flows | Green harness coverage is not the same as broad language/runtime parity across every backend |
 
 ## What Native Kain Executables Can Actually Rely On Today
 
@@ -260,8 +260,9 @@ If the goal is "native Kain executables are production-grade and aligned with th
    - Align manifest, metadata JSON, service registry population, and docs.
    - Remove drift between what is compiled and what is advertised.
 
-2. Finish low-level memory ABI hardening.
-   - Add allocation tracking so `__kain_realloc(..., zeroed_new)` can be correct.
+2. Deepen low-level memory ABI hardening.
+   - Keep helper-owned allocation tracking stable and well-tested.
+   - Decide whether any broader foreign-pointer realloc contract is needed, and if not, keep the current fail-fast boundary explicit.
    - Keep parity coverage strong across LLVM, native, and other lanes.
 
 3. Deepen actor semantics.

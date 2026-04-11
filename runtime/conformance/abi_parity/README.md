@@ -73,9 +73,11 @@
 # Run all ABI parity tests
 ./run_tests.sh
 
-# Run on specific backend (future support)
+# Run with a backend label in the report output
 ./run_tests.sh --backend llvm
 ```
+
+`--backend` is currently a reporting label for this harness family, not proof that generated LLVM programs were compiled and executed end to end. Use `runtime/fixtures/validate_all.sh` for the LLVM executable proof lane.
 
 ---
 

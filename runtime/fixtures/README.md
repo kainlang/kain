@@ -8,7 +8,12 @@
 
 ## Purpose
 
-This directory contains minimal smoke programs and artifacts for validating native runtime startup paths. These fixtures are designed to be reused across all phases of the native runtime completion work instead of creating new test programs for each phase.
+This directory contains minimal smoke programs and artifacts for validating the LLVM/native runtime lane.
+
+There are two fixture classes:
+
+- Startup fixtures validate bundle loading, startup diagnostics, and native host initialization.
+- Executable LLVM fixtures compile Kain source to LLVM IR, link against the native runtime, execute the produced binary, and assert deterministic exit behavior.
 
 **Critical Rule:** Later phases MUST reuse these fixtures instead of inventing new ones. If a fixture is insufficient, extend it rather than creating a duplicate.
 
@@ -122,6 +127,47 @@ kain build main.kn --target rust
 
 ---
 
+### 5. LLVM Heap Memory (`llvm_heap_memory/`)
+
+**Purpose:** Validates canonical heap helper lowering and helper-owned realloc correctness
+
+**What it tests:**
+- Canonical `__kain_alloc(size, stride, zeroed)` lowering
+- Canonical `__kain_realloc(ptr, size, stride, zeroed_new)` lowering
+- End-to-end execution of `mem_store`, `realloc_mem`, and `mem_load`
+- Helper-owned realloc growth zero-filling of newly exposed bytes
+
+**Usage:**
+```bash
+cd runtime/fixtures/llvm_heap_memory
+../../fixtures/validate_all.sh
+```
+
+---
+
+### 6. LLVM Actor Message (`llvm_actor_message/`)
+
+**Purpose:** Validates actor spawn and mailbox send paths in a linked LLVM/native executable
+
+**What it tests:**
+- Actor-specific bootstrap entrypoint emission
+- Mailbox allocation during actor spawn
+- Message send lowering through `mq_push`
+- Successful execution of the produced actor binary
+
+---
+
+### 7. LLVM World Pipeline (`llvm_world_pipeline/`)
+
+**Purpose:** Validates world initialization plus patch/converge/orchestrate execution in the LLVM/native lane
+
+**What it tests:**
+- Generated world bootstrap emission and execution
+- Patch and converge lowering
+- Deterministic orchestrate execution in the linked binary
+
+---
+
 ## Design Principles
 
 ### Minimal by Design
@@ -167,7 +213,7 @@ When later phases need to extend these fixtures:
 ### Quick Validation (All Fixtures)
 
 ```bash
-# Validate all fixtures compile successfully
+# Compile all fixtures and execute the LLVM-target fixtures
 ./runtime/fixtures/validate_all.sh
 ```
 
@@ -175,23 +221,23 @@ When later phases need to extend these fixtures:
 
 ```bash
 # Contract startup
-cd runtime/fixtures/contract_startup && kain build main.kn --target rust
+cd runtime/fixtures/contract_startup && ../../../target/debug/kain build main.kn --target llvm --output generated/contract_startup.ll
 
 # Realtime startup
-cd runtime/fixtures/realtime_startup && kain build main.kn --target rust
+cd runtime/fixtures/realtime_startup && ../../../target/debug/kain build main.kn --target llvm --output generated/realtime_startup.ll
 
 # UI startup
-cd runtime/fixtures/ui_startup && kain build main.kn --target rust
+cd runtime/fixtures/ui_startup && ../../../target/debug/kain build main.kn --target rust --output generated/ui_startup.rs
 
 # Viewport startup (Windows only)
-cd runtime/fixtures/viewport_startup && kain build main.kn --target rust
+cd runtime/fixtures/viewport_startup && ../../../target/debug/kain build main.kn --target rust --output generated/viewport_startup.rs
 ```
 
 ---
 
 ## Integration with Validation Suite
 
-These fixtures are referenced by `runtime/NATIVE_RUNTIME_VALIDATION.md` and integrated into the full validation suite at `runtime/validate_native_runtime.sh`.
+These fixtures are referenced by `runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md` and integrated into the full validation suite at `runtime/validate_native_runtime.sh`.
 
 As the native runtime completion work progresses, these fixtures will be used in:
 - Phase 1: ABI and service table validation
@@ -200,6 +246,12 @@ As the native runtime completion work progresses, these fixtures will be used in
 - Phase 4: Low-level helper parity validation
 - Phase 5+: Actor, async, UI, graphics, hot reload validation
 
+The important distinction is:
+
+- `runtime/fixtures/` now carries the true end-to-end LLVM executable proof lane.
+- `runtime/conformance/` carries runtime-native harnesses and ABI-focused behavior checks.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` carries backend IR-shape coverage.
+
 ---
 
 ## Related Documentation
@@ -207,7 +259,7 @@ As the native runtime completion work progresses, these fixtures will be used in
 - **Spec Requirements:** `.kiro/specs/kain-native-runtime-completion/requirements.md`
 - **Spec Design:** `.kiro/specs/kain-native-runtime-completion/design.md`
 - **Spec Tasks:** `.kiro/specs/kain-native-runtime-completion/tasks.md`
-- **Validation Commands:** `runtime/NATIVE_RUNTIME_VALIDATION.md`
+- **Validation Commands:** `runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md`
 - **Progress Tracker:** `runtime/NATIVE_RUNTIME_COMPLETION_TRACKER.md`
 
 ---
@@ -217,5 +269,5 @@ As the native runtime completion work progresses, these fixtures will be used in
 - These fixtures are intentionally minimal - resist the urge to make them "realistic"
 - Platform-specific fixtures (viewport) should fail gracefully on unsupported platforms
 - All fixtures should compile and validate successfully on their target platform
-- Fixtures are not meant to be run as full applications (except viewport)
-- Focus on startup validation, not runtime behavior
+- LLVM fixtures are meant to be executed as linked native binaries
+- Startup fixtures still focus on bundle/startup validation rather than deep runtime behavior

@@ -153,12 +153,12 @@ if [[ $FAILED_STEPS -eq 0 ]]; then
     echo "🎉 All validation steps passed!"
     echo ""
     echo "The Linux native runtime, LLVM lane, and raw-native conformance surface are validated."
-    echo "See runtime/NATIVE_RUNTIME_VALIDATION.md for details."
+    echo "See runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md for details."
     exit 0
 else
     echo "⚠️  $FAILED_STEPS validation step(s) failed."
     echo ""
     echo "Please fix the failures before proceeding with runtime work."
-    echo "See runtime/NATIVE_RUNTIME_VALIDATION.md for troubleshooting."
+    echo "See runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md for troubleshooting."
     exit 1
 fi
