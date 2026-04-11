@@ -286,6 +286,18 @@ impl StdLib {
             "String",
             "Read a single character at an index as a string",
         );
+        lib.add_fn(
+            "ord",
+            &[("s", "String")],
+            "Int",
+            "Read the Unicode scalar value of the first character",
+        );
+        lib.add_fn(
+            "chr",
+            &[("codepoint", "Int")],
+            "String",
+            "Create a single-character string from a Unicode scalar value",
+        );
 
         // Conversion
         lib.add_fn(

@@ -1559,12 +1559,15 @@ impl Env {
                 _ => return Err(KainError::runtime("expected string")),
             };
             let idx = match &args[1] {
-                Value::Int(n) => *n as usize,
+                Value::Int(n) => *n,
                 _ => return Err(KainError::runtime("expected int")),
             };
-            match s.chars().nth(idx) {
+            if idx < 0 {
+                return Ok(Value::String(String::new()));
+            }
+            match s.chars().nth(idx as usize) {
                 Some(c) => Ok(Value::String(c.to_string())),
-                None => Ok(Value::None),
+                None => Ok(Value::String(String::new())),
             }
         });
 
@@ -2943,6 +2946,28 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
     }
 }
 
+fn eval_else_branch(env: &mut Env, else_branch: &ElseBranch) -> KainResult<Value> {
+    match else_branch {
+        ElseBranch::Else(block) => eval_block(env, block),
+        ElseBranch::ElseIf(condition, then_branch, nested_else_branch) => {
+            let condition_value = eval_expr(env, condition)?;
+            if let Value::Return(_) = condition_value {
+                return Ok(condition_value);
+            }
+            match condition_value {
+                Value::Bool(true) => eval_block(env, then_branch),
+                Value::Bool(false) => match nested_else_branch {
+                    Some(next_branch) => eval_else_branch(env, next_branch),
+                    None => Ok(Value::Unit),
+                },
+                _ => Err(KainError::runtime(
+                    "Type error: if condition must evaluate to Bool",
+                )),
+            }
+        }
+    }
+}
+
 pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
     match expr {
         Expr::MethodCall {
@@ -3043,6 +3068,13 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         ))),
                     }
                 }
+                Value::String(text) => match method.as_str() {
+                    "len" => Ok(Value::Int(text.len() as i64)),
+                    _ => Err(KainError::runtime(format!(
+                        "Method {} not found on String",
+                        method
+                    ))),
+                },
 
                 _ => Err(KainError::runtime(format!(
                     "Method calls not supported on this type: {:?}",
@@ -3215,10 +3247,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             if let Value::Bool(true) = cond {
                 eval_block(env, then_branch)
             } else if let Some(eb) = else_branch {
-                match eb.as_ref() {
-                    ElseBranch::Else(block) => eval_block(env, block),
-                    _ => Ok(Value::Unit),
-                }
+                eval_else_branch(env, eb)
             } else {
                 Ok(Value::Unit)
             }
@@ -4130,8 +4159,12 @@ fn execute_converge_call(env: &mut Env, name: &str, args: Vec<Value>) -> KainRes
         )?;
         for sample_index in 0..sample_count {
             let sample_args = synthesize_converge_sample_args(&converge, sample_index)?;
-            let sample_result =
-                execute_function_body(env, &converge.params, &selected_lane.body, sample_args.clone())?;
+            let sample_result = execute_function_body(
+                env,
+                &converge.params,
+                &selected_lane.body,
+                sample_args.clone(),
+            )?;
             verify_converge_selected_against_spec(
                 env,
                 &converge,
@@ -4294,10 +4327,7 @@ fn verify_converge_selected_against_spec(
     }
     Err(KainError::runtime(format!(
         "Converge verification failed for {} during {}: selected lane '{}' diverged from spec '{}'",
-        converge.name,
-        verification_label,
-        selected_lane.lane_name,
-        converge.spec_lane.lane_name
+        converge.name, verification_label, selected_lane.lane_name, converge.spec_lane.lane_name
     )))
 }
 
@@ -4305,8 +4335,10 @@ fn synthesize_converge_sample_args(
     converge: &ConvergeDef,
     sample_index: u32,
 ) -> KainResult<Vec<Value>> {
-    let mut synthesizer =
-        DeterministicValueSynthesizer::new(stable_converge_sample_seed(&converge.name, sample_index));
+    let mut synthesizer = DeterministicValueSynthesizer::new(stable_converge_sample_seed(
+        &converge.name,
+        sample_index,
+    ));
     converge
         .params
         .iter()
@@ -4351,9 +4383,9 @@ fn synthesize_value_for_type(
     match ty {
         Type::Named { name, generics, .. } => match name.as_str() {
             "Bool" => Ok(Value::Bool(synthesizer.next_bool())),
-            "Int" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => Ok(Value::Int(
-                ((synthesizer.next_u64() % 2001) as i64) - 1000,
-            )),
+            "Int" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize" => {
+                Ok(Value::Int(((synthesizer.next_u64() % 2001) as i64) - 1000))
+            }
             "UInt" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" => {
                 Ok(Value::Int((synthesizer.next_u64() % 2001) as i64))
             }
@@ -4362,7 +4394,9 @@ fn synthesize_value_for_type(
             )),
             "Char" => {
                 let offset = (synthesizer.next_u64() % 95) as u32;
-                Ok(Value::String(char::from_u32(32 + offset).unwrap().to_string()))
+                Ok(Value::String(
+                    char::from_u32(32 + offset).unwrap().to_string(),
+                ))
             }
             "Array" if generics.len() == 1 => {
                 let len = ((synthesizer.next_u64() % 3) + 1) as usize;

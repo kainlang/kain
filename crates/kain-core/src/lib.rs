@@ -28,6 +28,8 @@ pub mod types;
 pub mod ui;
 
 #[cfg(test)]
+mod runtime_tests;
+#[cfg(test)]
 mod stdlib_tests;
 
 // Re-exports for convenience

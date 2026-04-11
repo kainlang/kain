@@ -1,5 +1,47 @@
 # MEMORY
 
+## 2026-04-11 - native interpreter control-flow and builtin surface are more consistent, and the current Brainfuck lab is now failing on bad expectations rather than the original language bug
+
+The Brainfuck investigation produced one real interpreter bug, one real builtin-surface mismatch, and one misleading test-harness problem.
+
+What changed:
+
+- Updated `crates/kain-core/src/runtime.rs`
+  - Fixed native interpreter `elif` execution by teaching `Expr::If` to evaluate `ElseBranch::ElseIf` chains instead of silently dropping them.
+  - Added native method dispatch for `String.len()` so the runtime matches the existing typechecker surface for string length.
+  - Aligned interpreter `char_at` with the existing native runtime/string contract by returning an empty string for negative or out-of-range access instead of interpreter-only `none`.
+- Updated `crates/kain-core/src/stdlib.rs`
+  - Added missing stdlib registry entries for `ord` and `chr` so the registry/documented builtin surface matches the runtime/type globals more closely.
+- Added `crates/kain-core/src/runtime_tests.rs` and wired it from `crates/kain-core/src/lib.rs`
+  - Added focused regressions covering `elif` execution, `String.len()` runtime support, `char_at` out-of-range behavior, and stdlib exposure of `ord`/`chr`.
+
+Validation completed:
+
+- `cargo test -p kain-core runtime_tests -- --nocapture`
+- inline interpreter repro now returns `2` for a direct `if/elif` chain on `opcode == "+"`
+- inline interpreter repro now returns `3` for `"abc".len()`
+- inline interpreter repro now returns an empty string for `char_at("abc", 99)`
+- `cargo run -q -p cli -- run labs/brainfuck/main.kn`
+- independent local reference Brainfuck execution confirmed that the current fixture programs themselves produce:
+  - `hello_world.bf` -> `A[bbe\x1dPehbZ\x1e\t`
+  - `echo_input.bf` -> `K`
+  - `alphabet_pair.bf` -> `9:`
+
+Design decisions:
+
+- Did not force a repo-wide type-surface migration for `read_file` or `char_at` yet. Existing Kain sources use both direct-string and result-style assumptions, so the safe first step was to fix the interpreter/runtime mismatches that were clearly on the critical path without breaking broad call-site surface area.
+- Treated the Brainfuck lab as a semantics probe, not as infallible truth. After the interpreter fixes, the remaining failures came from incorrect expected outputs in the harness, not from disagreement with an independent Brainfuck interpreter.
+
+Current risks:
+
+- `read_file` is still a deeper contract split across the repo: some surfaces assume `String`, others declare `Result<String, String>`, and the runtime behavior is not consistently modeled end-to-end yet.
+- The LLVM lane remains a separate blocker for any clean “Brainfuck proves Kain” claim; this pass only addressed the native interpreter/runtime semantics.
+- The current Brainfuck fixture names/expected outputs are misleading for proof purposes until they are corrected or the fixture programs are replaced with canonical ones.
+
+Recommended next step:
+
+- Decide the canonical Kain contract for file/string builtins, especially `read_file`, then align runtime, typechecker, stdlib declarations, and any existing Kain wrappers together in one deliberate pass. After that, either fix the Brainfuck harness expectations or replace the fixtures with canonical programs before using it as a Turing-completeness proof artifact.
+
 ## 2026-04-11 - compiler-owned intent suite is now coherent across parser, typechecker, runtime, bundles, driver, and LSP
 
 The original quartet is no longer the right mental model. Kain now ships a five-part compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`.
