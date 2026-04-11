@@ -224,6 +224,13 @@ Typical commands:
 - `./runtime/validate_native_runtime.sh`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
 
+Runtime validation meaning:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` is the backend IR/codegen proof lane.
+- `./runtime/fixtures/validate_all.sh` is the generated LLVM/native executable proof lane. It now compiles, links, and executes dedicated heap, actor, and world fixtures.
+- `./runtime/conformance/run_all.sh` is the runtime-native harness lane. Its `--backend llvm` flag is not a substitute for executable LLVM proof.
+- `./runtime/validate_native_runtime.sh` is the aggregate command that runs the CLI build, native runtime build, fixture suite, and conformance suite together.
+
 If the debug CLI is missing:
 
 - `cargo build -p cli`
@@ -259,6 +266,7 @@ If the debug CLI is missing:
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
+- LLVM/native actor proof depends on mailbox initialization happening in LLVM `spawn` lowering. Actor structs reserve field 0 for `__mailbox`, and the backend must allocate it with `mq_new()` before `KAIN_spawn` or the produced executable will crash when `send` lowers to `mq_push`.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.

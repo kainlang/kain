@@ -1,5 +1,69 @@
 # MEMORY
 
+## 2026-04-11 - LLVM/native validation is now stricter, helper-owned realloc is truthful, and the fixture lane proves real generated executables
+
+The LLVM/native lane was hardened from a mostly compile-and-link story into a stricter, test-backed path with real executable proof.
+
+What changed:
+
+- Updated `crates/kain-core/src/parser.rs`
+  - Fixed `send ...` parsing to accept the real `MethodCall` AST shape produced by postfix parsing instead of only the older `Call(Field(...))` shape.
+  - This matters because executable LLVM actor fixtures now rely on authored `send actor.Message()` syntax instead of synthetic AST-only coverage.
+- Updated `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - Kept alloc/realloc lowering strict: raw `alloc` / `realloc_mem` must already be lowered into canonical helper calls, and helper call arity is exact instead of permissive.
+  - Kept `print` / `println` fail-fast in LLVM until runtime semantics are exact.
+  - Fixed LLVM actor spawn lowering so actor field 0 (`__mailbox`) is initialized with `mq_new()` before `KAIN_spawn`. Without that, generated actor binaries crash when `send` lowers to `mq_push`.
+- Updated `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - The alloc/realloc regression is green.
+  - Added stronger IR assertions for canonical helper signatures and pointer coercions.
+  - Added explicit failure coverage for unsupported `println`.
+  - Added actor spawn coverage proving mailbox allocation is emitted.
+- Updated `runtime/native/src/core/kain_runtime_memory.c` and `runtime/native/include/kain_runtime_memory.h`
+  - Added helper-owned allocation metadata adjacent to payloads.
+  - `__kain_alloc` now records total payload size.
+  - `__kain_realloc` now preserves bytes, zero-fills only newly exposed bytes when requested, guards size overflow, treats `NULL` as alloc, and fails in a controlled way for invalid/non-helper pointers instead of pretending correctness.
+- Updated `runtime/fixtures/validate_all.sh`
+  - The fixture lane now distinguishes startup fixtures from executable LLVM fixtures.
+  - LLVM fixtures are compiled, linked, checked for required IR evidence, executed, and validated by deterministic exit code.
+- Added executable LLVM fixtures under `runtime/fixtures/`
+  - `llvm_heap_memory/` proves heap alloc/realloc zero-growth semantics.
+  - `llvm_actor_message/` proves actor bootstrap plus mailbox send execution.
+  - `llvm_world_pipeline/` proves world/patch/converge/orchestrate execution in a linked LLVM/native binary.
+- Updated runtime docs, validation docs, `ARCHITECTURE.md`, and this memory file
+  - The repo now explicitly distinguishes:
+    - backend IR/codegen proof,
+    - runtime-native conformance harness proof,
+    - end-to-end generated LLVM executable proof.
+  - Docs also now state that `runtime/conformance/run_all.sh --backend llvm` is not the executable LLVM proof lane.
+
+Validation completed:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture`
+- `./runtime/fixtures/validate_all.sh`
+- `./runtime/validate_native_runtime.sh`
+
+Validation notes:
+
+- `cargo test -p kain-core --test ptr_type_test -- --nocapture` still reports unrelated pre-existing failures in the TS-memory lane (`ts_backend_validation_rejects_raw_memory_ops`, `ts_memory_lowering_resolves_alignof_and_storage_nodes`, `ts_memory_lowering_uses_union_layout_metadata`). Those failures are outside this LLVM/native hardening slice.
+- Full-repo `cargo fmt` is still blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`, so this pass used targeted `rustfmt` on the files touched by the LLVM/runtime work.
+
+Design decisions:
+
+- Kept the public helper ABI names/signatures unchanged; hardened semantics behind the existing ABI instead of widening the surface.
+- Scoped truthful realloc semantics to helper-owned allocations only. Foreign pointers still fail fast instead of getting a false correctness guarantee.
+- Used fixtures for real LLVM proof instead of trying to make the native runtime conformance harness pretend it was executing generated LLVM programs end to end.
+- Kept the actor executable fixture minimal and focused on spawn/send execution instead of pulling in broader actor-state semantics that are not required for this proof lane.
+
+Current risks:
+
+- The executable LLVM proof lane now exists, but it is still targeted. It proves heap helpers, actor bootstrap/send, and compiler-owned intent execution, not broad full-language parity.
+- The `send` parser path is now aligned with the real AST shape, but older docs/examples elsewhere in the repo may still show stale actor syntax assumptions.
+- `__kain_realloc` correctness is now real for helper-owned allocations, but broader foreign allocator interop remains intentionally unsupported.
+
+Recommended next step:
+
+- If LLVM hardening continues, extend the executable fixture lane before widening conformance claims: add one negative executable or CLI-level proof for strict LLVM failure cases, then decide whether more actor semantics or additional helper ABI surfaces deserve end-to-end fixtures.
+
 ## 2026-04-11 - native interpreter control-flow and builtin surface are more consistent, and the current Brainfuck lab is now failing on bad expectations rather than the original language bug
 
 The Brainfuck investigation produced one real interpreter bug, one real builtin-surface mismatch, and one misleading test-harness problem.
