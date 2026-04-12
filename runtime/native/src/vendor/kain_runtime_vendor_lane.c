@@ -1,4 +1,5 @@
 #include "../../include/kain_runtime_vendor_lane.h"
+#include "../../include/kain_runtime_vendor_graphics_bridge.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -570,6 +571,76 @@ const KainVendorServiceFunctionTable g_kain_vendor_allocator_rpmalloc_service = 
     kain_vendor_rpmalloc_deallocate
 };
 
+const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_bgfx_service = {
+    "gfx.backend.bgfx",
+    "bgfx",
+    "bgfx-renderer",
+    kain_vendor_bgfx_version_string,
+    kain_vendor_bgfx_probe,
+    kain_vendor_bgfx_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service = {
+    "gfx.backend.filament",
+    "filament-core",
+    "filament-renderer-staged",
+    kain_vendor_filament_version_string,
+    kain_vendor_filament_probe,
+    kain_vendor_filament_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service = {
+    "gfx.backend.diligent",
+    "diligentcore",
+    "diligent-renderer-staged",
+    kain_vendor_diligent_version_string,
+    kain_vendor_diligent_probe,
+    kain_vendor_diligent_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service = {
+    "asset.image.bimg",
+    "bimg",
+    "bimg-image-staged",
+    kain_vendor_bimg_version_string,
+    kain_vendor_bimg_probe,
+    kain_vendor_bimg_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service = {
+    "asset.texture.bimg",
+    "bimg",
+    "bimg-texture-staged",
+    kain_vendor_bimg_version_string,
+    kain_vendor_bimg_probe,
+    kain_vendor_bimg_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
 static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"io.loop", "io", "libuv", KAIN_VENDOR_HAS_LIBUV, &g_kain_vendor_io_loop_service},
     {"io.fs", "io", "libuv", KAIN_VENDOR_HAS_LIBUV, &g_kain_vendor_io_fs_service},
@@ -586,7 +657,12 @@ static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"wasm.module", "wasm", "wasm3", KAIN_VENDOR_HAS_WASM3, &g_kain_vendor_wasm_module_service},
     {"wasm.wasi", "wasm", "wamr", KAIN_VENDOR_HAS_WAMR, &g_kain_vendor_wasm_wasi_service},
     {"allocator.mimalloc", "allocator", "mimalloc", KAIN_VENDOR_HAS_MIMALLOC, &g_kain_vendor_allocator_mimalloc_service},
-    {"allocator.rpmalloc", "allocator", "rpmalloc", KAIN_VENDOR_HAS_RPMALLOC, &g_kain_vendor_allocator_rpmalloc_service}
+    {"allocator.rpmalloc", "allocator", "rpmalloc", KAIN_VENDOR_HAS_RPMALLOC, &g_kain_vendor_allocator_rpmalloc_service},
+    {"gfx.backend.bgfx", "gfx", "bgfx", KAIN_VENDOR_HAS_BGFX, &g_kain_vendor_gfx_backend_bgfx_service},
+    {"gfx.backend.filament", "gfx", "filament-core", KAIN_VENDOR_HAS_FILAMENT, &g_kain_vendor_gfx_backend_filament_service},
+    {"gfx.backend.diligent", "gfx", "diligentcore", KAIN_VENDOR_HAS_DILIGENT, &g_kain_vendor_gfx_backend_diligent_service},
+    {"asset.image.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_image_bimg_service},
+    {"asset.texture.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_texture_bimg_service}
 };
 
 const KainVendorServiceDescriptor* kain_vendor_service_catalog(void) {

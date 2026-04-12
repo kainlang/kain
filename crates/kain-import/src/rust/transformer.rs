@@ -555,7 +555,7 @@ impl RustTransformer {
                 generics,
                 span,
             } => Type::Named {
-                name,
+                name: normalize_local_type_name(&name).unwrap_or(name),
                 generics: generics
                     .into_iter()
                     .map(|generic| self.resolve_impl_self_type(generic))
@@ -811,7 +811,7 @@ impl RustTransformer {
     }
 
     fn known_variant_shape(
-        &self,
+        &mut self,
         resolved: &[String],
     ) -> Option<(String, String, EnumVariantCtorShape)> {
         if let Some(shape) = self.builtin_variant_shape(resolved) {
@@ -821,7 +821,7 @@ impl RustTransformer {
             return None;
         }
         let variant = resolved.last()?.clone();
-        let enum_name = resolved[..resolved.len() - 1].join("::");
+        let enum_name = self.normalize_variant_enum_name(&resolved[..resolved.len() - 1]);
         self
             .enum_variant_shapes
             .get(&enum_name)
@@ -830,13 +830,13 @@ impl RustTransformer {
             .map(|shape| (enum_name, variant, shape))
     }
 
-    fn fallback_explicit_variant_head(&self, resolved: &[String]) -> Option<(String, String)> {
+    fn fallback_explicit_variant_head(&mut self, resolved: &[String]) -> Option<(String, String)> {
         if resolved.len() < 2 {
             return None;
         }
         let variant = resolved.last()?.clone();
         starts_with_uppercase(&variant)
-            .then(|| (resolved[..resolved.len() - 1].join("::"), variant))
+            .then(|| (self.normalize_variant_enum_name(&resolved[..resolved.len() - 1]), variant))
     }
 
     fn make_variant_constructor_lambda(
@@ -993,7 +993,7 @@ impl RustTransformer {
         )
     }
 
-    fn pattern_variant_head(&self, path: &syn::Path) -> (Option<String>, String) {
+    fn pattern_variant_head(&mut self, path: &syn::Path) -> (Option<String>, String) {
         let resolved = self.resolved_path_segments(path);
         let variant = resolved
             .last()
@@ -1005,7 +1005,7 @@ impl RustTransformer {
             })
             .unwrap_or_default();
         let enum_name = if resolved.len() > 1 {
-            Some(resolved[..resolved.len() - 1].join("::"))
+            Some(self.normalize_variant_enum_name(&resolved[..resolved.len() - 1]))
         } else {
             None
         };
@@ -1877,14 +1877,15 @@ impl RustTransformer {
     fn transform_block(&mut self, block: &syn::Block) -> Result<Block> {
         self.push_scope();
         let mut stmts = Vec::new();
-        for stmt in &block.stmts {
-            stmts.extend(self.transform_stmt(stmt)?);
+        for (index, stmt) in block.stmts.iter().enumerate() {
+            let is_tail_stmt = index + 1 == block.stmts.len();
+            stmts.extend(self.transform_stmt(stmt, is_tail_stmt)?);
         }
         self.pop_scope();
         Ok(Block { stmts, span: S })
     }
 
-    fn transform_stmt(&mut self, stmt: &syn::Stmt) -> Result<Vec<Stmt>> {
+    fn transform_stmt(&mut self, stmt: &syn::Stmt, is_tail_stmt: bool) -> Result<Vec<Stmt>> {
         match stmt {
             // `let x = expr;`  /  `let x: T = expr;`
             syn::Stmt::Local(local) => {
@@ -1912,7 +1913,7 @@ impl RustTransformer {
             // Expression statement (with or without trailing semicolon)
             syn::Stmt::Expr(expr, semi) => {
                 let kain_expr = self.transform_expr(expr)?;
-                if semi.is_some() {
+                if semi.is_some() || !is_tail_stmt {
                     Ok(vec![Stmt::Expr(self.coerce_statement_expr(kain_expr))])
                 } else {
                     // Block-final expression without `;` → implicit return value
@@ -3561,6 +3562,8 @@ impl RustTransformer {
             self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
             self.rename_type(&resolved[0])
+        } else if let Some(normalized) = self.normalize_local_type_path(&resolved) {
+            normalized
         } else {
             resolved.join("::")
         }
@@ -3584,6 +3587,31 @@ impl RustTransformer {
             self.rename_type(associated_type),
             self.rename_value(value),
         ))
+    }
+
+    fn normalize_local_type_path(&mut self, resolved: &[String]) -> Option<String> {
+        if resolved.len() < 2 {
+            return None;
+        }
+        let root = resolved.first().map(String::as_str)?;
+        if !matches!(root, "crate" | "self" | "super") {
+            return None;
+        }
+        let type_name = resolved.last()?;
+        if !looks_like_type_name(type_name) {
+            return None;
+        }
+        Some(self.rename_type(type_name))
+    }
+
+    fn normalize_variant_enum_name(&mut self, resolved: &[String]) -> String {
+        if resolved.len() == 1 {
+            self.rename_type(&resolved[0])
+        } else if let Some(normalized) = self.normalize_local_type_path(resolved) {
+            normalized
+        } else {
+            resolved.join("::")
+        }
     }
 }
 
@@ -3697,6 +3725,19 @@ fn looks_like_type_name(segment: &str) -> bool {
         .chars()
         .next()
         .is_some_and(|ch| ch.is_ascii_uppercase())
+}
+
+fn normalize_local_type_name(name: &str) -> Option<String> {
+    let mut segments = name.split("::");
+    let root = segments.next()?;
+    if !matches!(root, "crate" | "self" | "super") {
+        return None;
+    }
+    let final_segment = name.rsplit("::").next()?;
+    if !looks_like_type_name(final_segment) {
+        return None;
+    }
+    Some(final_segment.to_string())
 }
 
 fn collect_enum_variant_shapes(
@@ -4470,6 +4511,53 @@ mod tests {
     }
 
     #[test]
+    fn coerces_non_tail_block_expression_statements_to_unit() {
+        let program = transform_source(
+            r#"
+            fn demo(flag: bool) {
+                match flag {
+                    true => helper(),
+                    false => {
+                        cleanup();
+                    }
+                }
+                finish()
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected leading match statement");
+        };
+
+        assert_eq!(arms.len(), 2);
+        let Expr::Block(first_arm, _) = &arms[0].body else {
+            panic!("expected inline non-tail match arm to be coerced into a block");
+        };
+        assert!(matches!(
+            first_arm.stmts.last(),
+            Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
+        ));
+
+        let Expr::Block(second_arm, _) = &arms[1].body else {
+            panic!("expected block match arm to stay block-shaped");
+        };
+        assert!(matches!(
+            second_arm.stmts.last(),
+            Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
+        ));
+
+        assert!(matches!(
+            func.body.stmts.last(),
+            Some(Stmt::Expr(Expr::Call { .. }))
+        ));
+    }
+
+    #[test]
     fn lowers_while_let_to_loop_and_match_without_strict_diagnostic() {
         let (program, diagnostics) = transform_with_diagnostics(
             r#"
@@ -4603,7 +4691,7 @@ mod tests {
 
         assert!(matches!(
             callee.as_ref(),
-            Expr::Ident(path, _) if path == "SpanMapper::new"
+            Expr::Ident(path, _) if path == "SpanMapper::new_"
         ));
     }
 
@@ -4695,11 +4783,57 @@ mod tests {
             else {
                 panic!("expected associated call");
             };
-            assert!(matches!(
-                callee.as_ref(),
-                Expr::Ident(path, _) if path == "Env::new"
-            ));
+            let Expr::Ident(path, _) = callee.as_ref() else {
+                panic!("expected identifier callee");
+            };
+            assert!(
+                path.ends_with("Env::new") || path.ends_with("Env::new_"),
+                "expected Env::new-style callee, found {path}"
+            );
         }
+    }
+
+    #[test]
+    fn normalizes_explicit_local_enum_paths_to_module_relative_enum_names() {
+        let program = transform_source(
+            r#"
+            fn demo(value: crate::runtime::Value) -> crate::runtime::Value {
+                match value {
+                    crate::runtime::Value::Float(n) => crate::runtime::Value::Float(n),
+                    _ => crate::runtime::Value::Unit,
+                }
+            }
+            "#,
+        );
+
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected match expression");
+        };
+
+        assert!(matches!(
+            &arms[0].pattern,
+            Pattern::Variant { enum_name: Some(enum_name), variant, .. }
+                if enum_name == "runtime::Value" && variant == "Float"
+        ));
+        assert!(matches!(
+            &arms[0].body,
+            Expr::EnumVariant { enum_name, variant, .. }
+                if enum_name == "runtime::Value" && variant == "Float"
+        ));
+        assert!(matches!(
+            &arms[1].body,
+            Expr::EnumVariant { enum_name, variant, fields: EnumVariantFields::Unit, .. }
+                if enum_name == "runtime::Value" && variant == "Unit"
+        ));
     }
 
     #[test]

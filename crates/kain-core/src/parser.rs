@@ -3807,7 +3807,7 @@ impl<'a> Parser<'a> {
         let mut expr = self.parse_primary()?;
         loop {
             match self.peek_kind() {
-                TokenKind::LParen => {
+                TokenKind::LParen if self.previous_token_allows_postfix_call() => {
                     self.advance();
                     let args = self.parse_call_args()?;
                     self.expect(TokenKind::RParen)?;
@@ -4002,6 +4002,16 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(expr)
+    }
+
+    fn previous_token_allows_postfix_call(&self) -> bool {
+        if self.pos == 0 {
+            return true;
+        }
+        !matches!(
+            self.tokens.get(self.pos - 1).map(|token| &token.kind),
+            Some(TokenKind::Newline(_)) | Some(TokenKind::Dedent)
+        )
     }
 
     fn parse_primary(&mut self) -> KainResult<Expr> {
@@ -4904,7 +4914,6 @@ impl<'a> Parser<'a> {
                 body,
                 span: self.current_span(),
             });
-            self.skip_newlines();
         }
         if self.check(TokenKind::Dedent) {
             self.advance();
@@ -8988,5 +8997,44 @@ mod tests {
         assert_eq!(arms.len(), 2);
         assert!(arms[0].guard.is_some());
         assert!(arms[1].guard.is_none());
+    }
+
+    #[test]
+    fn parses_multiline_match_arm_trailing_unit_as_separate_statement() {
+        let program = parse_program(
+            "enum Item:\n    Function(Function)\n\nstruct Function:\n    name: String\n\nstruct Filter:\n    custom_filter_method: Option<Function>\n\nfn collect_type_names_from_item(item: &Item, out_: &mut Set<String>):\n    ()\n\nfn demo(filter: Option<Filter>, out_: &mut Set<String>):\n    match &filter:\n        Some(filter) =>\n            match &filter.custom_filter_method:\n                Some(custom_filter) =>\n                    collect_type_names_from_item(&Item::Function(custom_filter.clone()), out_)\n                    ()\n                _ => ()\n            ()\n        _ => ()\n",
+        )
+        .expect("program should parse nested multiline match arms");
+
+        let Item::Function(function) = &program.items[4] else {
+            panic!("expected demo function");
+        };
+        let Stmt::Expr(Expr::Match { arms, .. }) = &function.body.stmts[0] else {
+            panic!("expected outer match");
+        };
+        let Expr::Block(outer_some_body, _) = &arms[0].body else {
+            panic!("expected outer Some arm to stay block-shaped");
+        };
+        let Stmt::Expr(Expr::Match {
+            arms: inner_arms, ..
+        }) = &outer_some_body.stmts[0]
+        else {
+            panic!("expected nested match statement");
+        };
+        let Expr::Block(inner_some_body, _) = &inner_arms[0].body else {
+            panic!("expected inner Some arm to stay block-shaped");
+        };
+        assert!(matches!(
+            inner_some_body.stmts.get(0),
+            Some(Stmt::Expr(Expr::Call { .. }))
+        ));
+        assert!(matches!(
+            inner_some_body.stmts.get(1),
+            Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
+        ));
+        assert!(matches!(
+            outer_some_body.stmts.get(1),
+            Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
+        ));
     }
 }

@@ -188,6 +188,14 @@ build_compile_command() {
     local source_path="$1"
     local output_path="$2"
     local -n out_cmd_ref=$3
+    local source_ext="${source_path##*.}"
+    local is_cpp=false
+
+    case "$source_ext" in
+        cc|cpp|cxx|mm)
+            is_cpp=true
+            ;;
+    esac
 
     if [[ "$COMPILER_TYPE" == "msvc" ]]; then
         out_cmd_ref=("$COMPILER" "/nologo" "/W3")
@@ -205,6 +213,9 @@ build_compile_command() {
         if [[ "$PLATFORM" == "windows" ]]; then
             out_cmd_ref+=("/D" "WIN32" "/D" "_WINDOWS")
         fi
+        if [[ "$is_cpp" == true ]]; then
+            out_cmd_ref+=("/std:c++20")
+        fi
         out_cmd_ref+=("/c" "$source_path" "/Fo:$output_path")
     else
         out_cmd_ref=("$COMPILER" "-Wall" "-Wextra")
@@ -221,6 +232,9 @@ build_compile_command() {
         done
         if [[ "$PLATFORM" == "windows" ]]; then
             out_cmd_ref+=("-D" "WIN32" "-D" "_WINDOWS")
+        fi
+        if [[ "$is_cpp" == true ]]; then
+            out_cmd_ref+=("-std=c++20")
         fi
         out_cmd_ref+=("-c" "$source_path" "-o" "$output_path")
     fi

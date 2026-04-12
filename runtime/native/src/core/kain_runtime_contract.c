@@ -36,6 +36,11 @@ static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
     {KAIN_SERVICE_KEY_WASM_WASI, KAIN_RUNTIME_SERVICE_WASM_WASI, 0},
     {KAIN_SERVICE_KEY_ALLOCATOR_MIMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC, 0},
     {KAIN_SERVICE_KEY_ALLOCATOR_RPMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC, 0},
+    {KAIN_SERVICE_KEY_GFX_BACKEND_BGFX, KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX, 0},
+    {KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT, KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT, 0},
+    {KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT, KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT, 0},
+    {KAIN_SERVICE_KEY_ASSET_IMAGE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
+    {KAIN_SERVICE_KEY_ASSET_TEXTURE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
 };
 
 static const size_t g_kain_runtime_service_spec_count =
@@ -444,6 +449,14 @@ static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC) != 0u;
     bundle->has_allocator_rpmalloc =
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC) != 0u;
+    bundle->has_gfx_backend_bgfx =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX) != 0u;
+    bundle->has_gfx_backend_filament =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT) != 0u;
+    bundle->has_gfx_backend_diligent =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT) != 0u;
+    bundle->has_asset_texture_bimg =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG) != 0u;
     bundle->core_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
     );

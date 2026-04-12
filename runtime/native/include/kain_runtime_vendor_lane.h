@@ -11,6 +11,10 @@
 #define KAIN_VENDOR_HAS_WAMR 0
 #define KAIN_VENDOR_HAS_MIMALLOC 0
 #define KAIN_VENDOR_HAS_RPMALLOC 0
+#define KAIN_VENDOR_HAS_BGFX 0
+#define KAIN_VENDOR_HAS_FILAMENT 0
+#define KAIN_VENDOR_HAS_DILIGENT 0
+#define KAIN_VENDOR_HAS_BIMG 0
 #else
 #if defined(__linux__) || defined(_WIN32)
 #define KAIN_VENDOR_HAS_LIBUV 1
@@ -23,6 +27,10 @@
 #define KAIN_VENDOR_HAS_WAMR 0
 #define KAIN_VENDOR_HAS_MIMALLOC 1
 #define KAIN_VENDOR_HAS_RPMALLOC 1
+#define KAIN_VENDOR_HAS_BGFX 1
+#define KAIN_VENDOR_HAS_FILAMENT 0
+#define KAIN_VENDOR_HAS_DILIGENT 0
+#define KAIN_VENDOR_HAS_BIMG 0
 #endif
 
 typedef struct {
@@ -68,5 +76,10 @@ extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_module_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_wasi_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_allocator_mimalloc_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_allocator_rpmalloc_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_bgfx_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service;
 
 #endif /* KAIN_RUNTIME_VENDOR_LANE_H */

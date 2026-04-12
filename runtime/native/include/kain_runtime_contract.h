@@ -42,6 +42,10 @@
 #define KAIN_RUNTIME_SERVICE_WASM_WASI              (1u << 25)
 #define KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC     (1u << 26)
 #define KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC     (1u << 27)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX       (1u << 28)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT   (1u << 29)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT   (1u << 30)
+#define KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG     (1u << 31)
 
 #define KAIN_RUNTIME_SERVICE_CORE_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST | \
@@ -74,7 +78,11 @@
     KAIN_RUNTIME_SERVICE_WASM_MODULE | \
     KAIN_RUNTIME_SERVICE_WASM_WASI | \
     KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC | \
-    KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC \
+    KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC | \
+    KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX | \
+    KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT | \
+    KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT | \
+    KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG \
 )
 
 typedef struct {
@@ -115,6 +123,10 @@ typedef struct {
     int has_wasm_wasi;
     int has_allocator_mimalloc;
     int has_allocator_rpmalloc;
+    int has_gfx_backend_bgfx;
+    int has_gfx_backend_filament;
+    int has_gfx_backend_diligent;
+    int has_asset_texture_bimg;
     unsigned int service_mask;
     unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];

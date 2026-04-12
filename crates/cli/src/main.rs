@@ -75,6 +75,7 @@ struct ResolvedNativeRuntimeBundle {
     include_dirs: Vec<PathBuf>,
     defines: Vec<String>,
     link_libs: Vec<String>,
+    uses_cpp_runtime: bool,
 }
 
 #[derive(ClapParser, Debug)]
@@ -952,6 +953,12 @@ fn run_source(
                             cmd.arg(object);
                         }
                         runtime_link_libs = runtime_bundle.link_libs;
+                        if runtime_bundle.uses_cpp_runtime {
+                            runtime_link_libs = unique_link_libs(
+                                [runtime_link_libs, default_native_runtime_cpp_link_libs()]
+                                    .concat(),
+                            );
+                        }
                     }
 
                     cmd.arg(&output_path)
@@ -2317,6 +2324,7 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
             include_dirs: Vec::new(),
             defines: Vec::new(),
             link_libs: default_native_runtime_link_libs(),
+            uses_cpp_runtime: false,
         }));
     }
 
@@ -2388,6 +2396,7 @@ fn load_native_runtime_manifest(
     Ok(ResolvedNativeRuntimeBundle {
         name: manifest
             .name
+            .clone()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "kain-native-runtime".to_string()),
         sources,
@@ -2398,6 +2407,11 @@ fn load_native_runtime_manifest(
             libs.extend(platform_link_libs(&manifest.link));
             libs
         }),
+        uses_cpp_runtime: manifest
+            .sources
+            .iter()
+            .chain(selected_sources.iter())
+            .any(|path| runtime_source_uses_cpp(path)),
     })
 }
 
@@ -2463,6 +2477,10 @@ fn compile_native_runtime_bundle(
             .arg(&object_path)
             .arg("-g");
 
+        if runtime_source_uses_cpp(source) {
+            compile_cmd.arg("-std=c++20");
+        }
+
         for include_dir in &bundle.include_dirs {
             compile_cmd.arg("-I").arg(include_dir);
         }
@@ -2512,6 +2530,13 @@ fn resolve_runtime_path(root: &Path, value: &Path) -> PathBuf {
     }
 }
 
+fn runtime_source_uses_cpp(value: &Path) -> bool {
+    matches!(
+        value.extension().and_then(|extension| extension.to_str()),
+        Some("cc" | "cpp" | "cxx" | "mm")
+    )
+}
+
 fn unique_link_libs(values: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut ordered = Vec::new();
@@ -2546,6 +2571,16 @@ fn default_native_runtime_link_libs() -> Vec<String> {
         vec!["m".to_string()]
     } else {
         Vec::new()
+    }
+}
+
+fn default_native_runtime_cpp_link_libs() -> Vec<String> {
+    if cfg!(windows) {
+        Vec::new()
+    } else if cfg!(target_os = "macos") {
+        vec!["c++".to_string()]
+    } else {
+        vec!["stdc++".to_string()]
     }
 }
 
@@ -2595,10 +2630,11 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_native_runtime_link_libs, load_native_runtime_manifest, platform_link_libs,
-        sanitize_runtime_name, unique_link_libs, NativeRuntimeLinkManifest,
+        default_native_runtime_link_libs, load_native_runtime_manifest,
+        platform_link_libs, runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
+        NativeRuntimeLinkManifest,
     };
-    use std::fs;
+    use std::{fs, path::Path};
 
     #[test]
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
@@ -2645,6 +2681,7 @@ macos = ["Cocoa"]
         assert_eq!(resolved.sources.len(), 1);
         assert!(resolved.sources[0].is_absolute());
         assert!(resolved.include_dirs[0].is_absolute());
+        assert!(!resolved.uses_cpp_runtime);
         if cfg!(windows) {
             assert_eq!(
                 resolved.defines,
@@ -2673,6 +2710,13 @@ macos = ["Cocoa"]
                 libs
             })
         );
+    }
+
+    #[test]
+    fn runtime_source_cpp_detection_matches_known_extensions() {
+        assert!(runtime_source_uses_cpp(Path::new("renderer.cpp")));
+        assert!(runtime_source_uses_cpp(Path::new("renderer.cxx")));
+        assert!(!runtime_source_uses_cpp(Path::new("renderer.c")));
     }
 }
 

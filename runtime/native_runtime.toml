@@ -10,6 +10,7 @@ sources = [
     "native/src/core/kain_runtime_diagnostics.c",
     "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
+    "native/src/core/kain_runtime_renderer_backend.c",
     "native/src/core/kain_runtime_scene.c",
     "native/src/core/kain_runtime_reflection.c",
     "native/src/core/kain_runtime_realtime.c",
@@ -21,6 +22,7 @@ sources = [
     "native/src/core/kain_runtime_union.c",
     "native/src/core/kain_runtime_actor.c",
     "native/src/vendor/kain_runtime_vendor_lane.c",
+    "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
     "native/src/asset/kain_asset_gltf.c",
     "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
@@ -33,6 +35,8 @@ sources = [
     "thirdparty/quickjs/libunicode.c",
     "thirdparty/quickjs/quickjs.c",
     "thirdparty/miniaudio/miniaudio.c",
+    "thirdparty/bx/src/amalgamated.cpp",
+    "thirdparty/bgfx/src/amalgamated.cpp",
     "thirdparty/wasm3/source/m3_bind.c",
     "thirdparty/wasm3/source/m3_code.c",
     "thirdparty/wasm3/source/m3_compile.c",
@@ -142,6 +146,13 @@ include_dirs = [
     "native/include",
     "thirdparty/libuv/include",
     "thirdparty/libuv/src",
+    "thirdparty/bgfx/include",
+    "thirdparty/bgfx/src",
+    "thirdparty/bgfx/3rdparty",
+    "thirdparty/bgfx/3rdparty/khronos",
+    "thirdparty/bx/include",
+    "thirdparty/bx/3rdparty",
+    "thirdparty/bimg/include",
     "thirdparty/quickjs",
     "thirdparty/miniaudio",
     "thirdparty/wasm3/source",
@@ -151,6 +162,18 @@ include_dirs = [
 ]
 
 defines = [
+    "BX_CONFIG_DEBUG=0",
+    "BGFX_CONFIG_MULTITHREADED=0",
+    "BGFX_CONFIG_RENDERER_OPENGL=21",
+    "BGFX_CONFIG_RENDERER_OPENGLES=0",
+    "BGFX_CONFIG_RENDERER_VULKAN=0",
+    "BGFX_CONFIG_RENDERER_WEBGPU=0",
+    "BGFX_CONFIG_RENDERER_DIRECT3D11=0",
+    "BGFX_CONFIG_RENDERER_DIRECT3D12=0",
+    "BGFX_CONFIG_RENDERER_METAL=0",
+    "BGFX_CONFIG_RENDERER_AGC=0",
+    "BGFX_CONFIG_RENDERER_GNM=0",
+    "BGFX_CONFIG_RENDERER_NVN=0",
 ]
 
 windows_defines = [
@@ -238,6 +261,33 @@ platforms = ["windows"]
 description = "Win32 viewport host and OpenGL rendering"
 
 [[services]]
+key = "gfx.backend.bgfx"
+name = "bgfx Renderer Backend"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Cross-platform baseline renderer backend for viewport, swapchain, and debug draw"
+
+[[services]]
+key = "gfx.backend.filament"
+name = "Filament Renderer Backend"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+platforms = ["windows", "linux"]
+description = "Premium scene, material, and lighting presentation lane staged behind Kain contracts"
+
+[[services]]
+key = "gfx.backend.diligent"
+name = "Diligent Renderer Backend"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+platforms = ["windows", "linux"]
+description = "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control"
+
+[[services]]
 key = "scene.runtime"
 name = "Scene Runtime"
 provider = "native-core"
@@ -268,6 +318,24 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "glTF 2.0 asset loading and parsing"
+
+[[services]]
+key = "asset.image.bimg"
+name = "bimg Image Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+platforms = ["windows", "linux"]
+description = "Image decoding and staging lane reserved for renderer-facing asset ingestion"
+
+[[services]]
+key = "asset.texture.bimg"
+name = "bimg Texture Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+platforms = ["windows", "linux"]
+description = "Texture container and mip/format staging lane reserved for renderer asset flow"
 
 [[services]]
 key = "asset.ingestion"
@@ -545,5 +613,5 @@ description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
 # Platform-Specific Link Dependencies
 [link]
 windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
-linux = ["pthread", "dl", "rt", "m"]
+linux = ["pthread", "dl", "rt", "m", "GL", "EGL", "X11", "Xext"]
 macos = []

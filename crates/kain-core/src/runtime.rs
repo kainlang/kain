@@ -19,6 +19,23 @@ pub type EnvExtensionRegistrar = fn(&mut Env);
 static ENV_EXTENSION_REGISTRARS: Lazy<RwLock<BTreeMap<String, EnvExtensionRegistrar>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
 
+fn lowered_impl_function_names(type_name: &str, method_name: &str) -> [String; 2] {
+    [
+        format!("{type_name}_{method_name}"),
+        format!("{type_name}__{method_name}"),
+    ]
+}
+
+fn module_scoped_name(module_path: &[String], item_name: &str) -> String {
+    let mut parts = module_path.to_vec();
+    parts.push(item_name.to_string());
+    parts.join("__")
+}
+
+fn selfhost_enum_variant_alias_name(enum_name: &str, variant_name: &str) -> String {
+    format!("{enum_name}__{variant_name}")
+}
+
 pub fn register_env_extension(name: impl Into<String>, registrar: EnvExtensionRegistrar) {
     ENV_EXTENSION_REGISTRARS
         .write()
@@ -318,6 +335,7 @@ pub struct PatchRuntimeRecord {
 pub struct Env {
     scopes: Vec<HashMap<String, Value>>,
     functions: HashMap<String, Function>,
+    function_inline_scopes: HashMap<String, HashMap<String, Value>>,
     patches: HashMap<String, PatchDef>,
     laws: HashMap<String, LawDef>,
     patch_undo_modes: HashMap<String, String>,
@@ -351,6 +369,7 @@ impl Env {
         let mut env = Self {
             scopes: vec![HashMap::new()],
             functions: HashMap::new(),
+            function_inline_scopes: HashMap::new(),
             patches: HashMap::new(),
             laws: HashMap::new(),
             patch_undo_modes: HashMap::new(),
@@ -2291,9 +2310,19 @@ impl Env {
                 for variant in &e.variants {
                     let variant_name = format!("{}::{}", e.name, variant.name);
                     self.define(
-                        variant_name,
-                        Value::Function(format!("{}::{}", e.name, variant.name)),
+                        variant_name.clone(),
+                        Value::Function(variant_name.clone()),
                     );
+                    let alias = selfhost_enum_variant_alias_name(&e.name, &variant.name);
+                    let alias_value = match &variant.fields {
+                        VariantFields::Unit => {
+                            Value::EnumVariant(e.name.clone(), variant.name.clone(), Vec::new())
+                        }
+                        VariantFields::Tuple(_) | VariantFields::Struct(_) => {
+                            Value::Function(variant_name)
+                        }
+                    };
+                    self.define(alias, alias_value);
                 }
             }
             Item::Actor(a) => {
@@ -2308,7 +2337,11 @@ impl Env {
                     let lowered_fns: Vec<(String, Function)> = i
                         .methods
                         .iter()
-                        .map(|method| (format!("{}_{}", name, method.name), method.clone()))
+                        .flat_map(|method| {
+                            lowered_impl_function_names(name, &method.name)
+                                .into_iter()
+                                .map(|lowered_name| (lowered_name, method.clone()))
+                        })
                         .collect();
 
                     for (lowered_name, method) in lowered_fns {
@@ -2396,9 +2429,21 @@ impl Env {
                 for variant in &e.ast.variants {
                     let variant_name = format!("{}::{}", e.ast.name, variant.name);
                     self.define(
-                        variant_name,
-                        Value::Function(format!("{}::{}", e.ast.name, variant.name)),
+                        variant_name.clone(),
+                        Value::Function(variant_name.clone()),
                     );
+                    let alias = selfhost_enum_variant_alias_name(&e.ast.name, &variant.name);
+                    let alias_value = match &variant.fields {
+                        VariantFields::Unit => Value::EnumVariant(
+                            e.ast.name.clone(),
+                            variant.name.clone(),
+                            Vec::new(),
+                        ),
+                        VariantFields::Tuple(_) | VariantFields::Struct(_) => {
+                            Value::Function(variant_name)
+                        }
+                    };
+                    self.define(alias, alias_value);
                 }
             }
             TypedItem::Actor(a) => {
@@ -2414,7 +2459,11 @@ impl Env {
                         .ast
                         .methods
                         .iter()
-                        .map(|method| (format!("{}_{}", name, method.name), method.clone()))
+                        .flat_map(|method| {
+                            lowered_impl_function_names(name, &method.name)
+                                .into_iter()
+                                .map(|lowered_name| (lowered_name, method.clone()))
+                        })
                         .collect();
 
                     for (lowered_name, method) in lowered_fns {
@@ -2461,6 +2510,7 @@ impl Env {
 
         if let Some(children) = &module.inline {
             self.inline_modules.insert(module_key, children.clone());
+            self.register_inline_module_aliases(children, &full_path)?;
 
             for child in children {
                 if let Item::Mod(nested) = child {
@@ -2470,6 +2520,69 @@ impl Env {
         }
 
         Ok(())
+    }
+
+    fn register_inline_module_aliases(
+        &mut self,
+        items: &[Item],
+        module_path: &[String],
+    ) -> KainResult<()> {
+        for item in items {
+            match item {
+                Item::Function(f) => {
+                    let alias = module_scoped_name(module_path, &f.name);
+                    self.functions.insert(alias.clone(), f.clone());
+                    self.define(alias.clone(), Value::Function(alias));
+                }
+                Item::Const(c) => {
+                    let alias = module_scoped_name(module_path, &c.name);
+                    let value = eval_expr(self, &c.value)?;
+                    self.define(alias, value);
+                }
+                Item::Mod(module) => {
+                    if let Some(children) = &module.inline {
+                        let mut nested_path = module_path.to_vec();
+                        nested_path.push(module.name.clone());
+                        self.register_inline_module_aliases(children, &nested_path)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let scope_bindings = self.inline_module_scope_bindings(items, module_path);
+        for item in items {
+            if let Item::Function(f) = item {
+                let alias = module_scoped_name(module_path, &f.name);
+                self.function_inline_scopes
+                    .insert(alias, scope_bindings.clone());
+            }
+        }
+        Ok(())
+    }
+
+    fn inline_module_scope_bindings(
+        &self,
+        items: &[Item],
+        module_path: &[String],
+    ) -> HashMap<String, Value> {
+        let mut bindings = HashMap::new();
+        for item in items {
+            match item {
+                Item::Function(f) => {
+                    let alias = module_scoped_name(module_path, &f.name);
+                    bindings.insert(f.name.clone(), Value::Function(alias));
+                }
+                Item::Const(c) => {
+                    let alias = module_scoped_name(module_path, &c.name);
+                    if let Some(value) = self.lookup_value(&alias) {
+                        bindings.insert(c.name.clone(), value);
+                    }
+                }
+                _ => {}
+            }
+        }
+        bindings
     }
 
     pub fn define_global(&mut self, name: impl Into<String>, value: Value) {
@@ -3041,6 +3154,47 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 }
 
                 // Native Type Methods (e.g. Array.push, String.len)
+                Value::Int(value) => match method.as_str() {
+                    "min" => eval_i64_binary_method(value, &arg_vals, method, i64::min),
+                    "max" => eval_i64_binary_method(value, &arg_vals, method, i64::max),
+                    "div_ceil" => eval_i64_div_ceil_method(value, &arg_vals, method),
+                    "saturating_add" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::saturating_add)
+                    }
+                    "saturating_sub" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::saturating_sub)
+                    }
+                    "saturating_mul" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::saturating_mul)
+                    }
+                    "wrapping_add" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::wrapping_add)
+                    }
+                    "wrapping_sub" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::wrapping_sub)
+                    }
+                    "wrapping_mul" => {
+                        eval_i64_binary_method(value, &arg_vals, method, i64::wrapping_mul)
+                    }
+                    "wrapping_shl" => {
+                        eval_i64_shift_method(value, &arg_vals, method, i64::wrapping_shl)
+                    }
+                    "wrapping_shr" => {
+                        eval_i64_shift_method(value, &arg_vals, method, i64::wrapping_shr)
+                    }
+                    _ => Err(KainError::runtime(format!(
+                        "Method {} not found on Int",
+                        method
+                    ))),
+                },
+                Value::Float(value) => match method.as_str() {
+                    "min" => eval_f64_binary_method(value, &arg_vals, method, f64::min),
+                    "max" => eval_f64_binary_method(value, &arg_vals, method, f64::max),
+                    _ => Err(KainError::runtime(format!(
+                        "Method {} not found on Float",
+                        method
+                    ))),
+                },
                 Value::Array(_) => {
                     // Map common array methods to native functions
                     match method.as_str() {
@@ -3062,6 +3216,18 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                 unreachable!()
                             }
                         }
+                        "binary_search" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime(
+                                    "binary_search expects 1 argument",
+                                ));
+                            }
+                            if let Value::Array(arr) = obj_val {
+                                eval_array_binary_search(&arr.read().unwrap(), &arg_vals[0])
+                            } else {
+                                unreachable!()
+                            }
+                        }
                         _ => Err(KainError::runtime(format!(
                             "Method {} not found on Array",
                             method
@@ -3070,6 +3236,22 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 }
                 Value::String(text) => match method.as_str() {
                     "len" => Ok(Value::Int(text.len() as i64)),
+                    "push_str" => {
+                        let suffix = expect_single_string_arg(&arg_vals, method)?;
+                        let mut updated = text.clone();
+                        updated.push_str(suffix);
+                        eval_assignment(env, receiver, Value::String(updated))?;
+                        Ok(Value::Unit)
+                    }
+                    "repeat" => {
+                        let count = *expect_single_int_arg(&arg_vals, method)?;
+                        if count < 0 {
+                            return Err(KainError::runtime(
+                                "String.repeat expects a non-negative count",
+                            ));
+                        }
+                        Ok(Value::String(text.repeat(count as usize)))
+                    }
                     _ => Err(KainError::runtime(format!(
                         "Method {} not found on String",
                         method
@@ -3437,6 +3619,62 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             if let Value::Return(_) = obj {
                 return Ok(obj);
             }
+
+            if let Expr::Range { start, end, .. } = index.as_ref() {
+                let start_idx = match start {
+                    Some(expr) => match eval_expr(env, expr)? {
+                        Value::Int(i) => i.max(0) as usize,
+                        value @ Value::Return(_) => return Ok(value),
+                        _ => {
+                            return Err(KainError::runtime(
+                                "Range index start must evaluate to an Int",
+                            ))
+                        }
+                    },
+                    None => 0,
+                };
+                let end_idx = match end {
+                    Some(expr) => match eval_expr(env, expr)? {
+                        Value::Int(i) => Some(i.max(0) as usize),
+                        value @ Value::Return(_) => return Ok(value),
+                        _ => {
+                            return Err(KainError::runtime(
+                                "Range index end must evaluate to an Int",
+                            ))
+                        }
+                    },
+                    None => None,
+                };
+
+                return match obj {
+                    Value::Array(arr) => {
+                        let arr = arr.read().unwrap();
+                        let end_idx = end_idx.unwrap_or(arr.len()).min(arr.len());
+                        if start_idx > end_idx {
+                            return Err(KainError::runtime("Invalid array range slice"));
+                        }
+                        Ok(Value::Array(Arc::new(RwLock::new(
+                            arr[start_idx..end_idx].to_vec(),
+                        ))))
+                    }
+                    Value::String(text) => {
+                        let end_idx = end_idx.unwrap_or(text.len()).min(text.len());
+                        if start_idx > end_idx {
+                            return Err(KainError::runtime("Invalid string range slice"));
+                        }
+                        match text.get(start_idx..end_idx) {
+                            Some(slice) => Ok(Value::String(slice.to_string())),
+                            None => Err(KainError::runtime(
+                                "String range slice must align with UTF-8 boundaries",
+                            )),
+                        }
+                    }
+                    _ => Err(KainError::runtime(
+                        "Range indexing requires an array or string receiver",
+                    )),
+                };
+            }
+
             let idx = eval_expr(env, index)?;
             if let Value::Return(_) = idx {
                 return Ok(idx);
@@ -3592,6 +3830,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
             // Spawn thread
             let functions = env.functions.clone();
+            let function_inline_scopes = env.function_inline_scopes.clone();
             let components = env.components.clone();
             let actor_defs = env.actor_defs.clone();
             let inline_modules = env.inline_modules.clone();
@@ -3612,6 +3851,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 let mut actor_env = Env {
                     scopes: vec![global_scope],
                     functions,
+                    function_inline_scopes,
                     patches,
                     patch_undo_modes,
                     laws,
@@ -3994,19 +4234,31 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Value> {
     match func {
         Value::Function(name) => {
-            let f = env
-                .functions
-                .get(&name)
-                .cloned()
-                .ok_or_else(|| KainError::runtime(format!("Function not found: {}", name)))?;
+            let Some(f) = env.functions.get(&name).cloned() else {
+                if let Some((enum_name, variant)) = name.rsplit_once("::") {
+                    return Ok(Value::EnumVariant(
+                        enum_name.to_string(),
+                        variant.to_string(),
+                        args,
+                    ));
+                }
+                return Err(KainError::runtime(format!("Function not found: {}", name)));
+            };
             if f.params.len() != args.len() {
                 return Err(KainError::runtime(format!(
                     "Argument mismatch: expected {}, got {}",
                     f.params.len(),
                     args.len()
-                )));
+                ))); 
             }
 
+            let inline_scope = env.function_inline_scopes.get(&name).cloned();
+            if let Some(bindings) = &inline_scope {
+                env.push_scope();
+                for (binding_name, binding_value) in bindings {
+                    env.define(binding_name.clone(), binding_value.clone());
+                }
+            }
             env.push_scope();
             for (param, arg) in f.params.iter().zip(args.into_iter()) {
                 env.define(param.name.clone(), arg);
@@ -4014,6 +4266,9 @@ fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Val
 
             let result = eval_block(env, &f.body)?;
             env.pop_scope();
+            if inline_scope.is_some() {
+                env.pop_scope();
+            }
 
             match result {
                 Value::Return(v) => Ok(*v),
@@ -4475,6 +4730,138 @@ fn runtime_value_kind(value: &Value) -> &'static str {
         Value::EnumVariant(_, _, _) => "enum_variant",
         Value::Poll(_, _) => "poll",
         Value::Future(_, _) => "future",
+    }
+}
+
+fn expect_single_int_arg<'a>(args: &'a [Value], method: &str) -> KainResult<&'a i64> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(format!(
+            "{} expects exactly one argument",
+            method
+        )));
+    }
+    match &args[0] {
+        Value::Int(value) => Ok(value),
+        other => Err(KainError::runtime(format!(
+            "{} expects an Int argument, found {}",
+            method,
+            runtime_value_kind(other)
+        ))),
+    }
+}
+
+fn expect_single_float_arg<'a>(args: &'a [Value], method: &str) -> KainResult<&'a f64> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(format!(
+            "{} expects exactly one argument",
+            method
+        )));
+    }
+    match &args[0] {
+        Value::Float(value) => Ok(value),
+        other => Err(KainError::runtime(format!(
+            "{} expects a Float argument, found {}",
+            method,
+            runtime_value_kind(other)
+        ))),
+    }
+}
+
+fn expect_single_string_arg<'a>(args: &'a [Value], method: &str) -> KainResult<&'a str> {
+    if args.len() != 1 {
+        return Err(KainError::runtime(format!(
+            "{} expects exactly one argument",
+            method
+        )));
+    }
+    match &args[0] {
+        Value::String(value) => Ok(value),
+        other => Err(KainError::runtime(format!(
+            "{} expects a String argument, found {}",
+            method,
+            runtime_value_kind(other)
+        ))),
+    }
+}
+
+fn eval_i64_binary_method(
+    receiver: i64,
+    args: &[Value],
+    method: &str,
+    op: fn(i64, i64) -> i64,
+) -> KainResult<Value> {
+    let rhs = *expect_single_int_arg(args, method)?;
+    Ok(Value::Int(op(receiver, rhs)))
+}
+
+fn eval_i64_div_ceil_method(receiver: i64, args: &[Value], method: &str) -> KainResult<Value> {
+    let rhs = *expect_single_int_arg(args, method)?;
+    if rhs == 0 {
+        return Err(KainError::runtime(format!(
+            "{} does not allow division by zero",
+            method
+        )));
+    }
+    let quotient = receiver / rhs;
+    let remainder = receiver % rhs;
+    let needs_round_up = remainder != 0 && ((remainder > 0) == (rhs > 0));
+    Ok(Value::Int(if needs_round_up {
+        quotient + 1
+    } else {
+        quotient
+    }))
+}
+
+fn eval_i64_shift_method(
+    receiver: i64,
+    args: &[Value],
+    method: &str,
+    op: fn(i64, u32) -> i64,
+) -> KainResult<Value> {
+    let rhs = *expect_single_int_arg(args, method)?;
+    let shift = u32::try_from(rhs).map_err(|_| {
+        KainError::runtime(format!(
+            "{} expects a non-negative Int shift count, found {}",
+            method, rhs
+        ))
+    })?;
+    Ok(Value::Int(op(receiver, shift)))
+}
+
+fn eval_f64_binary_method(
+    receiver: f64,
+    args: &[Value],
+    method: &str,
+    op: fn(f64, f64) -> f64,
+) -> KainResult<Value> {
+    let rhs = *expect_single_float_arg(args, method)?;
+    Ok(Value::Float(op(receiver, rhs)))
+}
+
+fn eval_array_binary_search(values: &[Value], needle: &Value) -> KainResult<Value> {
+    let result = match needle {
+        Value::Int(target) => values.binary_search_by(|value| match value {
+            Value::Int(candidate) => candidate.cmp(target),
+            _ => std::cmp::Ordering::Less,
+        }),
+        Value::String(target) => values.binary_search_by(|value| match value {
+            Value::String(candidate) => candidate.cmp(target),
+            _ => std::cmp::Ordering::Less,
+        }),
+        Value::Bool(target) => values.binary_search_by(|value| match value {
+            Value::Bool(candidate) => candidate.cmp(target),
+            _ => std::cmp::Ordering::Less,
+        }),
+        other => {
+            return Err(KainError::runtime(format!(
+                "binary_search does not support {} needles",
+                runtime_value_kind(other)
+            )))
+        }
+    };
+    match result {
+        Ok(index) => Ok(Value::Result(true, Box::new(Value::Int(index as i64)))),
+        Err(index) => Ok(Value::Result(false, Box::new(Value::Int(index as i64)))),
     }
 }
 

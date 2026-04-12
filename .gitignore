@@ -92,6 +92,7 @@ generated/kain-env.ps1
 target_selfhost_probe/
 target_selfhost_probe/**
 *target_selfhost_probe*
+/node_modules/*
 # Third-party vendored deps
 third_party/
 third_party/modular_mojo/

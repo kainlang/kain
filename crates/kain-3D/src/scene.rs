@@ -369,6 +369,7 @@ impl Default for SceneCatalog {
         let tensor_stream_probe = build_tensor_stream_probe_scene();
         let luminous_port = build_luminous_port_scene();
         let magma_terraces = build_magma_terraces_scene();
+        let material_atrium = build_material_atrium_scene();
         let retirement_demo = build_retirement_demo_scene();
         let kerr_black_hole = build_kerr_black_hole_scene();
         let mut scenes = BTreeMap::new();
@@ -376,6 +377,7 @@ impl Default for SceneCatalog {
         scenes.insert(tensor_stream_probe.name.clone(), tensor_stream_probe);
         scenes.insert(luminous_port.name.clone(), luminous_port);
         scenes.insert(magma_terraces.name.clone(), magma_terraces);
+        scenes.insert(material_atrium.name.clone(), material_atrium);
         scenes.insert(retirement_demo.name.clone(), retirement_demo);
         scenes.insert(kerr_black_hole.name.clone(), kerr_black_hole);
         let scene_aliases = BTreeMap::from([
@@ -389,6 +391,14 @@ impl Default for SceneCatalog {
             ),
             ("starforge".to_string(), "luminous_port".to_string()),
             ("emberfall".to_string(), "magma_terraces".to_string()),
+            (
+                "renderer_atrium".to_string(),
+                "material_atrium".to_string(),
+            ),
+            (
+                "material_gallery".to_string(),
+                "material_atrium".to_string(),
+            ),
             (
                 "dcc_authoring_startup".to_string(),
                 "dcc_suite_scene".to_string(),
@@ -1650,6 +1660,231 @@ fn build_luminous_port_scene() -> SceneDescription {
     }
 }
 
+fn build_material_atrium_scene() -> SceneDescription {
+    let mut meshes = BTreeMap::new();
+    meshes.insert("cube".to_string(), mesh_cube());
+    meshes.insert("floor".to_string(), mesh_plane());
+    meshes.insert("pyramid".to_string(), mesh_pyramid());
+    meshes.insert("orb".to_string(), mesh_uv_sphere(10, 18));
+
+    let mut materials = BTreeMap::new();
+    materials.insert(
+        "travertine".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.75, 0.72, 0.66),
+            specular_color: ColorRgb::new(0.94, 0.92, 0.88),
+            ambient_strength: 0.24,
+            diffuse_strength: 0.88,
+            specular_strength: 0.14,
+            shininess: 8.0,
+        },
+    );
+    materials.insert(
+        "obsidian".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.12, 0.13, 0.17),
+            specular_color: ColorRgb::new(0.76, 0.84, 0.96),
+            ambient_strength: 0.20,
+            diffuse_strength: 0.72,
+            specular_strength: 0.58,
+            shininess: 44.0,
+        },
+    );
+    materials.insert(
+        "brass".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.86, 0.67, 0.29),
+            specular_color: ColorRgb::new(1.0, 0.94, 0.70),
+            ambient_strength: 0.18,
+            diffuse_strength: 0.92,
+            specular_strength: 0.44,
+            shininess: 26.0,
+        },
+    );
+    materials.insert(
+        "porcelain".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.86, 0.90, 0.98),
+            specular_color: ColorRgb::new(1.0, 1.0, 1.0),
+            ambient_strength: 0.24,
+            diffuse_strength: 0.94,
+            specular_strength: 0.36,
+            shininess: 28.0,
+        },
+    );
+    materials.insert(
+        "glass".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.22, 0.70, 0.82),
+            specular_color: ColorRgb::new(0.94, 0.99, 1.0),
+            ambient_strength: 0.18,
+            diffuse_strength: 0.90,
+            specular_strength: 0.72,
+            shininess: 42.0,
+        },
+    );
+    materials.insert(
+        "apricot".to_string(),
+        Material {
+            base_color: ColorRgb::new(0.95, 0.53, 0.34),
+            specular_color: ColorRgb::new(1.0, 0.88, 0.76),
+            ambient_strength: 0.20,
+            diffuse_strength: 0.92,
+            specular_strength: 0.30,
+            shininess: 18.0,
+        },
+    );
+
+    SceneDescription {
+        name: "material_atrium".to_string(),
+        viewport_summary:
+            "material atrium | renderer showcase | premium material and lighting study"
+                .to_string(),
+        background: BackgroundGradient {
+            top: ColorRgb::new(0.05, 0.09, 0.14),
+            bottom: ColorRgb::new(0.10, 0.08, 0.10),
+        },
+        camera: Camera {
+            target: Vec3::new(0.0, 0.9, 0.4),
+            up: Vec3::UP,
+            orbit_radius: 10.8,
+            orbit_height: 3.2,
+            orbit_speed_radians_per_second: 0.16,
+            fov_y_degrees: 46.0,
+            near_plane: 0.1,
+            far_plane: 140.0,
+        },
+        lighting: LightingRig {
+            ambient_color: ColorRgb::new(0.82, 0.84, 0.92),
+            ambient_intensity: 0.26,
+            directional_lights: vec![
+                DirectionalLight {
+                    direction: Vec3::new(-0.34, -1.0, -0.22).normalize(),
+                    color: ColorRgb::new(1.0, 0.97, 0.92),
+                    intensity: 1.22,
+                },
+                DirectionalLight {
+                    direction: Vec3::new(0.58, -0.48, 0.36).normalize(),
+                    color: ColorRgb::new(0.44, 0.66, 0.98),
+                    intensity: 0.36,
+                },
+            ],
+            point_lights: vec![
+                PointLight {
+                    position: Vec3::new(0.0, 4.2, 0.4),
+                    color: ColorRgb::new(0.96, 0.92, 0.82),
+                    intensity: 1.35,
+                    range: 16.0,
+                },
+                PointLight {
+                    position: Vec3::new(-3.2, 1.6, 2.4),
+                    color: ColorRgb::new(1.0, 0.66, 0.36),
+                    intensity: 1.08,
+                    range: 12.0,
+                },
+                PointLight {
+                    position: Vec3::new(3.6, 1.8, -2.2),
+                    color: ColorRgb::new(0.40, 0.86, 1.0),
+                    intensity: 1.02,
+                    range: 12.0,
+                },
+            ],
+        },
+        meshes,
+        materials,
+        instances: vec![
+            SceneInstance {
+                id: "atrium_floor".to_string(),
+                mesh: "floor".to_string(),
+                material: "travertine".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, -1.0, 0.0))
+                    .with_scale(Vec3::new(8.8, 1.0, 8.8)),
+            },
+            SceneInstance {
+                id: "atrium_back_wall".to_string(),
+                mesh: "floor".to_string(),
+                material: "obsidian".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 2.2, -7.2))
+                    .with_rotation(Vec3::new(-1.5707964, 0.0, 0.0))
+                    .with_scale(Vec3::new(8.4, 1.0, 4.6)),
+            },
+            SceneInstance {
+                id: "atrium_ceiling".to_string(),
+                mesh: "floor".to_string(),
+                material: "travertine".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 5.4, -0.2))
+                    .with_rotation(Vec3::new(1.5707964, 0.0, 0.0))
+                    .with_scale(Vec3::new(8.4, 1.0, 8.4)),
+            },
+            SceneInstance {
+                id: "central_orb".to_string(),
+                mesh: "orb".to_string(),
+                material: "glass".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, 1.1, 0.2))
+                    .with_scale(Vec3::new(1.35, 1.35, 1.35)),
+            },
+            SceneInstance {
+                id: "brass_monolith".to_string(),
+                mesh: "cube".to_string(),
+                material: "brass".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(-2.4, 0.7, -1.6))
+                    .with_scale(Vec3::new(0.9, 2.4, 0.9)),
+            },
+            SceneInstance {
+                id: "porcelain_spire".to_string(),
+                mesh: "pyramid".to_string(),
+                material: "porcelain".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(2.6, 0.9, 1.8))
+                    .with_scale(Vec3::new(1.2, 2.2, 1.2)),
+            },
+            SceneInstance {
+                id: "obsidian_plinth".to_string(),
+                mesh: "cube".to_string(),
+                material: "obsidian".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(0.0, -0.1, 3.0))
+                    .with_scale(Vec3::new(2.1, 0.8, 0.9)),
+            },
+            SceneInstance {
+                id: "apricot_block_left".to_string(),
+                mesh: "cube".to_string(),
+                material: "apricot".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(-3.4, 0.2, 2.7))
+                    .with_scale(Vec3::new(0.8, 1.3, 0.8)),
+            },
+            SceneInstance {
+                id: "porcelain_block_right".to_string(),
+                mesh: "cube".to_string(),
+                material: "porcelain".to_string(),
+                transform: Transform::identity()
+                    .with_translation(Vec3::new(3.5, 0.1, -2.9))
+                    .with_scale(Vec3::new(1.0, 1.0, 1.0)),
+            },
+        ],
+        animations: vec![
+            SceneAnimation::Spin {
+                instance_id: "central_orb".to_string(),
+                axis_radians_per_second: Vec3::new(0.0, 0.36, 0.0),
+            },
+            SceneAnimation::Bob {
+                instance_id: "central_orb".to_string(),
+                amplitude: 0.12,
+                speed_radians_per_second: 1.1,
+            },
+        ],
+        particle_emitters: Vec::new(),
+        black_hole: None,
+        terrain_surfaces: Vec::new(),
+    }
+}
+
 fn build_retirement_demo_scene() -> SceneDescription {
     let mut meshes = BTreeMap::new();
     meshes.insert("cube".to_string(), mesh_cube());
@@ -2103,6 +2338,9 @@ mod tests {
         let magma_scene = catalog
             .scene("magma_terraces")
             .expect("magma terraces scene should be registered");
+        let material_atrium_scene = catalog
+            .scene("material_atrium")
+            .expect("material atrium scene should be registered");
         let scene = catalog
             .scene("kerr_black_hole")
             .expect("black hole scene should be registered");
@@ -2113,6 +2351,9 @@ mod tests {
         let starforge_alias_scene = catalog
             .scene("starforge")
             .expect("starforge alias should resolve");
+        let atrium_alias_scene = catalog
+            .scene("renderer_atrium")
+            .expect("renderer atrium alias should resolve");
         let dcc_alias_scene = catalog
             .scene("dcc_authoring_startup")
             .expect("dcc startup alias should resolve");
@@ -2130,8 +2371,12 @@ mod tests {
         assert!(default_scene.black_hole.is_none());
         assert_eq!(compute_alias_scene.name, "tensor_stream_probe");
         assert_eq!(starforge_alias_scene.name, "luminous_port");
+        assert_eq!(atrium_alias_scene.name, "material_atrium");
         assert_eq!(dcc_alias_scene.name, "dcc_suite_scene");
         assert_eq!(magma_scene.name, "magma_terraces");
+        assert_eq!(material_atrium_scene.name, "material_atrium");
+        assert!(material_atrium_scene.instances.len() >= 8);
+        assert!(material_atrium_scene.lighting.point_lights.len() >= 3);
         assert!(magma_scene.instances.len() >= 150);
         assert!(magma_scene.particle_emitters.len() >= 8);
         assert!(magma_scene.lighting.point_lights.len() >= 8);

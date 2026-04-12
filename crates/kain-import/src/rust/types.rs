@@ -11,6 +11,7 @@
 //! - `HashMap<K,V>` / `BTreeMap<K,V>` → `Map<K,V>`
 //! - `HashSet<T>` / `BTreeSet<T>` → `Set<T>`
 //! - `&T` / `&mut T` → `Type::Ref` (lifetime erased)
+//! - `&str` / `&String` → `String` (KAIN has a single string value type today)
 //! - `*const T` / `*mut T` → `Type::Ptr` (low-level memory layer)
 //! - `impl Trait` → `Type::Impl`
 //! - Lifetimes → erased (KAIN uses effect system for safety)
@@ -205,6 +206,9 @@ impl RustTypeMapper {
     // ── References ────────────────────────────────────────────────────────
 
     fn map_ref(&self, r: &syn::TypeReference) -> Type {
+        if self.reference_maps_to_canonical_string(r) {
+            return named("String");
+        }
         Type::Ref {
             mutable: r.mutability.is_some(),
             inner: Box::new(self.map_type(&r.elem)),
@@ -374,6 +378,21 @@ impl RustTypeMapper {
                 | "Cow"
         )
     }
+
+    fn reference_maps_to_canonical_string(&self, reference: &syn::TypeReference) -> bool {
+        match reference.elem.as_ref() {
+            syn::Type::Path(tp) => self.type_path_is_string_like(tp),
+            _ => false,
+        }
+    }
+
+    fn type_path_is_string_like(&self, tp: &syn::TypePath) -> bool {
+        let resolved_segments = self.resolve_path_segments(&tp.path);
+        matches!(
+            resolved_segments.last().map(String::as_str),
+            Some("str" | "String")
+        )
+    }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -399,5 +418,43 @@ fn extract_const_usize(expr: &syn::Expr) -> Option<usize> {
             }
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn maps_static_str_reference_to_canonical_string_value() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(&'static str);
+
+        assert_eq!(mapper.map_type(&ty), named("String"));
+    }
+
+    #[test]
+    fn maps_string_reference_to_canonical_string_value() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(&String);
+
+        assert_eq!(mapper.map_type(&ty), named("String"));
+    }
+
+    #[test]
+    fn preserves_non_string_reference_shapes() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(&usize);
+
+        assert_eq!(
+            mapper.map_type(&ty),
+            Type::Ref {
+                mutable: false,
+                inner: Box::new(named("usize")),
+                lifetime: None,
+                span: S,
+            }
+        );
     }
 }

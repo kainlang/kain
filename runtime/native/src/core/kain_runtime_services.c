@@ -185,6 +185,26 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         NULL
     },
     {
+        KAIN_SERVICE_KEY_ASSET_IMAGE_BIMG,
+        "bimg Image Runtime",
+        "Image decoding and staging lane reserved for renderer-facing asset ingestion",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_BIMG ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_asset_image_bimg_service
+    },
+    {
+        KAIN_SERVICE_KEY_ASSET_TEXTURE_BIMG,
+        "bimg Texture Runtime",
+        "Texture container and mip/format staging lane reserved for renderer asset flow",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_BIMG ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_asset_texture_bimg_service
+    },
+    {
         KAIN_SERVICE_KEY_ASSET_INGESTION,
         "Asset Ingestion",
         "Canonical descriptor-driven entry path for assets and emitted bundles",
@@ -343,6 +363,36 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_BGFX,
+        "bgfx Renderer Backend",
+        "Cross-platform baseline renderer backend for viewport, swapchain, and debug draw",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_BGFX ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_gfx_backend_bgfx_service
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT,
+        "Filament Renderer Backend",
+        "Premium scene, material, and lighting presentation lane staged behind Kain contracts",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_FILAMENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_gfx_backend_filament_service
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT,
+        "Diligent Renderer Backend",
+        "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_DILIGENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_gfx_backend_diligent_service
     },
     {
         KAIN_SERVICE_KEY_UI_COMPONENT,
