@@ -50,6 +50,23 @@ Most item kinds share the same metadata model:
 - generics where applicable
 - spans for diagnostics
 
+## Functions, Traits, And Impls
+
+The three most important behavior-bearing item families are:
+
+- `Function`, which owns parameters, return type, effects, attributes, and a
+  block body
+- `Trait`, which owns a set of required methods plus optional default
+  implementations
+- `Impl`, which binds methods to a concrete target type and may optionally name
+  a trait
+
+These item families are typed separately in `crates/kain-core/src/types.rs` and
+share lowering rules with method-bearing domain items such as components,
+shaders, actors, and UE5 integration items. If you need the exact function,
+trait, or impl shape, read
+[guides/syntax-and-semantics/functions-traits-and-impls.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/functions-traits-and-impls.md).
+
 ## Module And Import Rules
 
 - `mod` creates a nested module boundary and gives the compiler a structured
@@ -62,6 +79,9 @@ Most item kinds share the same metadata model:
   project layout.
 - imports are not just syntax sugar. They are part of the language model that
   later runtime and target lanes rely on when they resolve names.
+- function, trait, and impl semantics live on top of the module graph. A method
+  is still a function, but it is checked with an explicit self type and then
+  consumed by struct, component, actor, and domain-item lowering passes.
 
 ## Compiler-Owned Intent Quartet
 
@@ -95,4 +115,5 @@ the loader and runtime use to resolve names.
 
 If a reader asks where a name comes from, start with this page. If they ask how
 that name behaves at runtime or after lowering, send them to the runtime,
-effects, or domain-item chapters instead of repeating the import story here.
+effects, function/trait, or domain-item chapters instead of repeating the import
+story here.

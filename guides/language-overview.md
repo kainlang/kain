@@ -31,6 +31,8 @@ That order matters.
 - compiler-owned declarations such as `patch`, `law`, `converge`, `world`, and
   `orchestrate` lower into runtime and bundle contracts that downstream lanes
   consume directly.
+- low-level memory forms carry pointer provenance and layout-sensitive
+  lowering rules instead of flattening into generic pointer math.
 
 ## Reading Order
 
@@ -39,15 +41,21 @@ That order matters.
 3. `syntax-and-semantics/types.md` and
    `syntax-and-semantics/effects-and-capabilities.md` for type forms, effect
    gating, and target support
-4. `syntax-and-semantics/expressions.md` and `statements.md` for executable
+4. `syntax-and-semantics/low-level-memory.md` for pointer provenance, ABI
+   lowering, and memory operations
+5. `syntax-and-semantics/functions-traits-and-impls.md` for function
+   signatures, trait contracts, and impl blocks
+6. `syntax-and-semantics/expressions.md` and `statements.md` for executable
    syntax
-5. `syntax-and-semantics/macros-and-comptime.md` for compile-time behavior
-6. `runtime/runtime-model.md` for execution semantics
-7. `runtime/stdlib-and-builtins.md` for source stdlib and native helpers
-8. `runtime/effects-io-async-and-patching.md` for effects and runtime-owned
-   contracts
-9. `native-c-runtime/abi-contract.md` and `service-table.md` for the native ABI
-10. `cli/targets-and-codegen.md` and `reference/target-matrix.md` for target
+7. `syntax-and-semantics/macros-and-comptime.md` for compile-time behavior
+8. `runtime/runtime-model.md` for execution semantics
+9. `runtime/stdlib-and-builtins.md` for source stdlib and native helpers
+10. `runtime/compiler-owned-intents.md` for `patch`, `law`, `converge`,
+   `world`, and `orchestrate`
+11. `runtime/effects-io-async-and-patching.md` for effects and runtime-owned
+    contracts
+12. `native-c-runtime/abi-contract.md` and `service-table.md` for the native ABI
+13. `cli/targets-and-codegen.md` and `reference/target-matrix.md` for target
     aliases, codegen lanes, and output families
 
 ## What Kain Can Express
@@ -70,7 +78,7 @@ Kain source is organized around several first-class domains:
 ## Execution Paths
 
 - `kain run` executes Kain in the interpreter/runtime lane.
-- `kain test` uses the same core runtime semantics for validation.
+- the `test` runtime lane uses the same core runtime semantics for validation.
 - `kain build` lowers toward a selected target and may also stage runtime
   artifacts.
 - `kain import-*` converts foreign source into Kain forms before compiling or
@@ -79,6 +87,8 @@ Kain source is organized around several first-class domains:
 - `kain omni`, `kain fabric`, and `kain build native-ui` are orchestration and
   materialization lanes that consume the same compiler truth from different
   angles.
+- `kain omni` and `kain fabric` each have their own conceptual pipeline pages,
+  separate from the command pages.
 
 ## Target Model
 

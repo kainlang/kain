@@ -43,7 +43,7 @@ runtime contracts for downstream hosts.
 The interpreter currently supports:
 
 - direct interpretation
-- test execution
+- the `test` runtime lane
 - actor/message semantics
 - async/future semantics
 - JSX/UI evaluation

@@ -25,8 +25,12 @@ ecosystems without collapsing authored logic back into host code.
 - `kain-sys-codegen` lowers to native/system targets
 - `kain-gpu-runtime` is the Vulkan-side GPU runtime executor
 - `kain-fast3d-runtime` supports the fast 3D runtime lane
+- `runtime/native` is the C ABI floor documented in the native-runtime guide
 
 ## Rule
 
 Use the host crates when you need to embed or bridge Kain. Use `kain-core`
-when you need to know what the language itself means.
+when you need to know what the language itself means. Use
+`guides/runtime/compiler-owned-intents.md` and
+`guides/syntax-and-semantics/low-level-memory.md` when the boundary is the
+semantic lowering contract rather than host embedding.

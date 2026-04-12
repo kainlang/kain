@@ -3,6 +3,10 @@
 Snapshot: April 12, 2026.
 
 This page covers the packaging-oriented command families.
+For the conceptual target split, start with
+[guides/cli/targets-and-codegen.md](/home/ephemara/Dev/Kain/guides/cli/targets-and-codegen.md).
+For the UE5 conceptual model, see
+[guides/ue5/overview.md](/home/ephemara/Dev/Kain/guides/ue5/overview.md).
 
 ## `gpu-artifacts`
 
@@ -38,11 +42,14 @@ existing plugin layout without rewriting the whole package unless you ask it to.
 
 This packages a UE5 plugin from `KAIN.toml` and the UE5 config surface. It is
 the plugin-orchestration lane, not the same thing as single-file UE5 codegen.
+Use this when you want a full plugin package with `.uplugin`, `Build.cs`,
+module inference, and validation.
 
 `kain build <file.kn> -t ue5`
 
 This is the single-file UE5 codegen path. It emits code and shader artifacts,
 not a complete plugin package.
+It is the lane that feeds the UE5 code generator directly.
 
 `kain build --rust`
 
@@ -66,6 +73,8 @@ It resolves:
 
 It can stop at bundle materialization or continue into the generated executable
 build, depending on the selected flags.
+The project layout and runtime dependency shape are described in the CLI help
+and in the native UI packaging lane, not in the language core.
 
 ## Artifact Sidecars
 

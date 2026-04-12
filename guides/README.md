@@ -15,9 +15,11 @@ standalone marketing layer.
 5. `runtime/` for execution, stdlib, and runtime behavior.
 6. `native-c-runtime/` for the C ABI floor.
 7. `cli/` for commands, flags, packaging lanes, and target/codegen rules.
-8. `crates/` for workspace structure and crate roles.
-9. `examples/` for proof surfaces and repo-local workflows.
-10. `reference/` for matrices, glossary terms, troubleshooting, and legacy
+8. `pipelines/omni.md` and `pipelines/fabric.md` for Omni and Fabric orchestration concepts.
+9. `ue5/overview.md` for the Unreal-facing conceptual guide.
+10. `crates/` for workspace structure and crate roles.
+11. `examples/` for proof surfaces and repo-local workflows.
+12. `reference/` for matrices, glossary terms, troubleshooting, and legacy
    crosswalks.
 
 ## Canonical Sources
@@ -52,11 +54,14 @@ These files define the truth that the guides are derived from:
 | `syntax-and-semantics/expressions.md` | Expressions, operators, and control flow |
 | `syntax-and-semantics/statements.md` | Statements, blocks, and statement-level flow |
 | `syntax-and-semantics/modules-and-items.md` | Modules, visibility, and top-level item kinds |
+| `syntax-and-semantics/functions-traits-and-impls.md` | Function signatures, traits, and impl blocks |
 | `syntax-and-semantics/macros-and-comptime.md` | Macros, comptime, and code generation seams |
 | `syntax-and-semantics/async-actors-and-concurrency.md` | Async, tasks, actors, and message passing |
+| `syntax-and-semantics/low-level-memory.md` | Pointer provenance, raw memory forms, and ABI-aware lowering |
 | `syntax-and-semantics/domain-items.md` | Components, shaders, materials, graphs, GAS, and editor items |
 | `runtime/runtime-model.md` | Interpreter model, runtime state, and environment wiring |
 | `runtime/stdlib-and-builtins.md` | Source stdlib loader, runtime natives, and helper functions |
+| `runtime/compiler-owned-intents.md` | `patch`, `law`, `converge`, `world`, and `orchestrate` runtime contracts |
 | `runtime/effects-io-async-and-patching.md` | Effects, I/O, async, and patch semantics |
 | `runtime/native-runtime-overview.md` | Native runtime role in the LLVM/native lane |
 | `native-c-runtime/abi-contract.md` | ABI contract, versions, startup validation, and compatibility |
@@ -71,6 +76,9 @@ These files define the truth that the guides are derived from:
 | `cli/doctor-and-repair.md` | `doctor` diagnostics plus repair modes |
 | `cli/selfhost-omni-fabric-lsp.md` | `selfhost`, `omni`, `fabric`, and `lsp` |
 | `cli/native-ui-and-packaging.md` | Native UI, inject, UE5 packaging, and artifact staging |
+| `pipelines/omni.md` | Omni manifest shape, staged imports, and target fan-out |
+| `pipelines/fabric.md` | Fabric runtime manifests, adapters, and execution reports |
+| `ue5/overview.md` | UE5 project layout, validation, plugin generation, and engine knowledge |
 | `crates/index.md` | Workspace crate inventory and grouping |
 | `crates/compiler-core.md` | Core compiler, importers, repair, and orchestration crates |
 | `crates/runtime-and-host.md` | Host stack, FFI, embedding, and bridge crates |

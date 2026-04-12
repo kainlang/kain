@@ -4,7 +4,15 @@
 
 ## How To Read It
 
-Start with the official docs folder, then move into the concrete plugin families that match the surface you are trying to understand. The plugin-local docs and source are usually more specific than the umbrella README, so prefer those when they exist.
+Start with [guides/ue5/overview.md](/home/ephemara/Dev/Kain/guides/ue5/overview.md)
+and `unreal_plugins/OfficialDocs/`, then move into the concrete plugin families
+that match the surface you are trying to understand. The plugin-local docs and
+source are usually more specific than the umbrella README, so prefer those when
+they exist.
+
+If you want the conceptual UE5 model first, read
+[guides/ue5/overview.md](/home/ephemara/Dev/Kain/guides/ue5/overview.md)
+before you drill into a plugin family.
 
 ## Notable Plugin Families
 

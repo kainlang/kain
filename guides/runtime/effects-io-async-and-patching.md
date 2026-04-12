@@ -2,6 +2,9 @@
 
 This page covers the runtime rules that shape call safety and mutation
 behavior.
+For the compiler-owned item quartet (`patch`, `law`, `converge`, `world`, and
+`orchestrate`), also read
+[guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md).
 
 ## Effect System
 
@@ -53,6 +56,18 @@ task helpers that let authored code:
 - wait for completion
 - handle cancellation or pending states
 
+The concrete runtime helpers include:
+
+- `spawn_task`
+- `block_on`
+- `poll_once`
+- `is_ready`
+- `is_pending`
+- `unwrap_ready`
+
+The AST side includes `AsyncBlock`, `Await`, `Spawn`, and `SendMsg`, so docs
+should always distinguish syntax from runtime helper behavior.
+
 ## Patching
 
 Patches are a first-class runtime concept in Kain.
@@ -61,6 +76,14 @@ Patches are a first-class runtime concept in Kain.
 - collaboration events are tracked
 - undo and replay are part of the runtime state
 - `PatchUndoMode` distinguishes reversible and best-effort behavior
+
+The runtime helpers for that surface include:
+
+- `patch_history`
+- `patch_collaboration_events`
+- `patch_undo_last`
+- `patch_replay_last`
+- `patch_replay`
 
 That means a patch is not just a syntax form; it is a runtime transaction
 record with history.

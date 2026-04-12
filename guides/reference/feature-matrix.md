@@ -17,6 +17,11 @@ explains it.
 - `crates/kain-core/src/runtime_contract.rs`
 - `crates/kain-core/src/realtime_app_bundle.rs`
 - `runtime/native/include/*.h`
+- `src/rust-import/kain-omni/lib.kn`
+- `src/rust-import/kain-omni/fabric.kn`
+- `src/rust-import/kain-host/fabric.kn`
+- `src/rust-import/cli/packager/ue5_pipeline.kn`
+- `src/rust-import/ue5/*`
 - `crates/cli/src/main.rs`
 
 ## Capability Flags
@@ -45,7 +50,7 @@ here.
 
 | Family | Variants | Primary guide |
 | --- | --- | --- |
-| Core declarations | `Function`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`, `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test` | `syntax-and-semantics/modules-and-items.md`, `syntax-and-semantics/macros-and-comptime.md` |
+| Core declarations | `Function`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`, `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test` | `syntax-and-semantics/modules-and-items.md`, `syntax-and-semantics/functions-traits-and-impls.md`, `syntax-and-semantics/macros-and-comptime.md` |
 | Compiler-owned program contracts | `Patch`, `Law`, `Converge`, `World`, `Orchestrate` | `syntax-and-semantics/domain-items.md`, `runtime/effects-io-async-and-patching.md` |
 | Runtime and domain items | `Component`, `Shader`, `Actor`, `MaterialGraph`, `MaterialFunction`, `GraphEditor`, `GraphRuntime`, `StateMachine`, `AsyncTask`, `EditorModule`, `GameplayTags`, `GameplayAbility`, `GameplayEffect`, `GameplayCue`, `AbilityTask`, `TargetActor` | `syntax-and-semantics/domain-items.md`, `syntax-and-semantics/async-actors-and-concurrency.md` |
 
@@ -151,8 +156,13 @@ Statement forms are:
 | Interpreter and runtime semantics | `crates/kain-core/src/runtime.rs` | `runtime/runtime-model.md` |
 | Builtins and stdlib loading | `crates/kain-core/src/runtime.rs`, `crates/kain-core/src/stdlib.rs` | `runtime/stdlib-and-builtins.md` |
 | Effects | `crates/kain-core/src/effects.rs` | `runtime/effects-io-async-and-patching.md` |
+| Low-level memory and provenance | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/low_level_memory.rs`, `crates/kain-core/src/low_level_abi.rs` | `syntax-and-semantics/low-level-memory.md`, `native-c-runtime/helper-abi.md` |
+| Compiler-owned intents | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/compiler-owned-intents.md` |
 | Runtime contracts and realtime bundles | `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/runtime-model.md`, `native-c-runtime/abi-contract.md` |
 | Native C ABI | `runtime/native/include/*.h` | `native-c-runtime/*.md` |
+| Omni orchestration | `src/rust-import/kain-omni/lib.kn` | `pipelines/omni.md`, `cli/selfhost-omni-fabric-lsp.md` |
+| Fabric orchestration | `src/rust-import/kain-omni/fabric.kn`, `src/rust-import/kain-host/fabric.kn` | `pipelines/fabric.md`, `cli/selfhost-omni-fabric-lsp.md` |
+| UE5 plugin pipeline | `src/rust-import/cli/packager/ue5_pipeline.kn`, `src/rust-import/ue5/*` | `ue5/overview.md`, `cli/native-ui-and-packaging.md` |
 | Compile targets and output families | `crates/kain-core/src/lib.rs`, `crates/kain-driver/src/lib.rs` | `reference/target-matrix.md` |
 | CLI command surface | `crates/cli/src/main.rs` | `reference/command-matrix.md` |
 
@@ -161,6 +171,7 @@ Statement forms are:
 The following variant families are intentionally accounted for in the guide set:
 
 - `Function`, `Patch`, `Law`, `Converge`, `World`, `Orchestrate`
+- `PointerProvenance` and low-level memory expressions
 - `Component`, `Shader`, `Actor`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`
 - `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test`
 - `MaterialGraph`, `MaterialFunction`, `GraphEditor`, `GraphRuntime`
@@ -171,6 +182,7 @@ The following variant families are intentionally accounted for in the guide set:
 The guide coverage for those families is split across:
 
 - `syntax-and-semantics/modules-and-items.md`
+- `syntax-and-semantics/functions-traits-and-impls.md`
 - `syntax-and-semantics/domain-items.md`
 - `syntax-and-semantics/async-actors-and-concurrency.md`
 - `syntax-and-semantics/macros-and-comptime.md`

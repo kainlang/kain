@@ -1,5 +1,41 @@
 # MEMORY
 
+# 2026-04-12 - deep docs pass added pipeline, UE5, and low-level memory chapters
+
+The canonical guide tree now includes dedicated conceptual pages for the
+remaining gaps in the language and tooling story:
+
+- `guides/syntax-and-semantics/functions-traits-and-impls.md` for function
+  signatures, traits, and impl blocks
+- `guides/syntax-and-semantics/low-level-memory.md` for pointer provenance,
+  raw/imported pointers, layout-aware lowering, and the helper ABI seam
+- `guides/runtime/compiler-owned-intents.md` for `patch`, `law`, `converge`,
+  `world`, and `orchestrate`
+- `guides/pipelines/omni.md` and `guides/pipelines/fabric.md` for the
+  orchestration models behind the corresponding CLI commands
+- `guides/ue5/overview.md` for UE5 project layout, module inference, Oracle
+  validation, and generated plugin outputs
+
+What changed:
+
+- Added dedicated conceptual chapters instead of leaving these topics buried in
+  the broader CLI or runtime pages.
+- Cross-linked the new pages from the reader map, glossary, and legacy
+  crosswalk.
+- Updated the durable architecture notes so future agents know the guides now
+  have explicit pipeline and UE5 conceptual homes.
+
+Current risk:
+
+- The new pages are source-driven, but the repo still contains older docs that
+  use legacy terminology. Future docs work should keep using the live code and
+  the new guide tree as truth.
+
+Recommended next step:
+
+- Keep the command pages, conceptual pages, and crosswalk aligned when the CLI
+  or UE5 pipeline changes again.
+
 # 2026-04-12 - top-level docs received a deeper reader-path pass
 
 The guide tree now has a clearer entrypoint story: `guides/README.md` names the reading order, `guides/reference/legacy-crosswalk.md` bridges old prose to current canonical pages, `guides/quickstart.md` reads like a first-run path, and the example pages are framed as workflow or proof surfaces instead of directory summaries.

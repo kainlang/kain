@@ -1,6 +1,8 @@
 # Doctor And Repair
 
 `kain doctor` is the canonical diagnostics entrypoint for the toolchain.
+If launcher behavior, PATH wiring, or backend feature availability looks wrong,
+this is the first command to run.
 
 ## What `doctor` Prints
 
@@ -17,6 +19,7 @@ It reports:
 - resolved clang when the sys lane is enabled
 - supported targets
 - enabled features
+- live launcher kind and executable path as seen by the binary
 
 ## Repair Flags
 
@@ -39,6 +42,8 @@ The mode is selected in this order:
 - safe profile
 
 Tree repair applies the same logic over every `.kn` file in the directory tree.
+`--repair-tree` and `--repair` are mutually exclusive, so choose the scope
+first.
 
 ## Safe Vs Aggressive
 

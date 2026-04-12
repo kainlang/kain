@@ -24,16 +24,18 @@ These flags live at the top level of `kain` / `kn`:
 | `-c`, `--code` | inline Kain source |
 | `-o`, `--output` | output file path |
 | `-t`, `--target` | compilation target, default `wasm` |
-| `--run` | run after compilation when the lane supports it |
-| `--watch` | recompile on file changes |
+| `-r`, `--run` | run after compilation when the lane supports it |
+| `-w`, `--watch` | recompile on file changes |
 | `--emit-ast` | print the AST |
 | `--emit-typed` | print the typed AST |
-| `--verbose` | verbose CLI output |
+| `-v`, `--verbose` | verbose CLI output |
 | `--plugin` | UE5 plugin name for shader copy and packaging lanes |
 | `--plugins-dir` | base UE5 plugin directory |
 | `--dry-run` | print planned actions only |
 | `--strict` | treat supported warnings as errors |
 | `--analyze` | shader complexity analysis for USF-related paths |
+| `-h`, `--help` | show command help |
+| `-V`, `--version` | show binary version |
 
 ## Top-Level Commands
 
@@ -54,6 +56,7 @@ These flags live at the top level of `kain` / `kn`:
 | `import-rust` | import Rust source | `cli/importers.md` |
 | `import-crate` | import a Rust crate through the crate FFI layer | `cli/importers.md` |
 | `import-ts` | import TypeScript source | `cli/importers.md` |
+| `help` | print help for the root command or a subcommand | `cli/cli-overview.md` |
 
 ## Build Command
 
@@ -189,6 +192,9 @@ and assemble a stage2 workspace from them.
 | `omni init [path]` | creates `KAIN.omni.toml` |
 | `omni build` | `--manifest <path>` |
 
+See [guides/pipelines/omni.md](/home/ephemara/Dev/Kain/guides/pipelines/omni.md)
+for the staged-import and target fan-out model.
+
 ### Fabric
 
 | Command | Flags |
@@ -196,6 +202,9 @@ and assemble a stage2 workspace from them.
 | `fabric init [path]` | `--template local|polyglot` |
 | `fabric validate` | `--manifest <path>` |
 | `fabric run` | `--manifest <path>` |
+
+See [guides/pipelines/fabric.md](/home/ephemara/Dev/Kain/guides/pipelines/fabric.md)
+for the manifest, runtime kind, and report model.
 
 ## Native UI And Packaging
 

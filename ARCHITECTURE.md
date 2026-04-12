@@ -9,6 +9,8 @@ The repo's documentation is deliberately split by trust level and reader intent:
 
 - `guides/` is the canonical long-form guide tree for the live checkout.
 - `guides/reference/legacy-crosswalk.md` translates stale prose and old folder names into the current guide tree.
+- `guides/pipelines/` holds the conceptual Omni and Fabric orchestration pages.
+- `guides/ue5/` holds the conceptual Unreal-facing authoring and packaging pages.
 - `docs/` is legacy support material and may lag behind the code; do not promote it back to the source of truth.
 - `smoketest/`, `apps/`, `unreal_plugins/`, and `kn_library/` are workflow, proof, and corpus surfaces that support the guide tree rather than replace it.
 
@@ -80,6 +82,9 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `guides/README.md` is the top-level reader map for the canonical guide tree.
 - `guides/quickstart.md` should stay short and point outward to the deeper pages, not become a second manual.
 - `guides/examples/*` are workflow pages: they explain what each repo lane proves and where to look next.
+- `guides/pipelines/*` and `guides/ue5/*` are conceptual deep-dive pages for orchestration and Unreal-facing authoring. Keep the CLI pages focused on command syntax and keep the conceptual pages focused on data models, validation, and outputs.
+- `guides/syntax-and-semantics/functions-traits-and-impls.md` is the canonical chapter for function signatures, traits, and impl blocks.
+- `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, and `orchestrate`.
 - `guides/reference/troubleshooting.md` is for recurring operator failures and should point readers to the live code, the current CLI, and the legacy crosswalk when old terminology shows up.
 - `guides/reference/legacy-crosswalk.md` is the bridge from stale prose to current docs; update it whenever old terminology or historical topics surface again.
 

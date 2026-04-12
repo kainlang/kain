@@ -6,7 +6,8 @@ lanes, and repair/bootstrap tooling.
 ## Core Truth
 
 - `kain-core` owns the AST, type system, runtime execution, low-level memory
-  lowering, runtime contracts, and realtime bundles.
+  lowering, compiler-owned intent contracts, runtime contracts, and realtime
+  bundles.
 - `kain-driver` turns compiler-owned truth into emitted artifacts and
   cross-target materialization.
 
@@ -28,3 +29,6 @@ lanes, and repair/bootstrap tooling.
 - use `kain-driver` when the question is “what artifact do we emit?”
 - use the importer crates when the question is “how does this foreign source
   become Kain?”
+- read `guides/syntax-and-semantics/low-level-memory.md` and
+  `guides/runtime/compiler-owned-intents.md` when the question is about the
+  language-to-runtime lowering boundary.

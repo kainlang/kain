@@ -19,7 +19,9 @@ Start from the lane README that matches the subsystem you are changing, then com
 | `python/` | Python bridge lanes and helper modules |
 | `py_node/` and `py_cargo_node/` | Hybrid Python/Node/Cargo workflows |
 | `fabric/` | Fabric manifest orchestration |
-| `allinone/` | Broad regression harness that replays the full mixed runtime stack |
+| `omni/` | Omni staged-import and fan-out workflows |
+| `ue5/` | UE5 plugin, shader, material, and graph packaging workflows |
+| `allinone/` | Broad regression harness that replays importers, Omni, GPU, UE5, and the mixed runtime stack |
 | `compiler_owned_intent/` | `law`, `patch`, `converge`, `world`, `orchestrate` smoke coverage |
 
 ## Why It Matters
