@@ -36,6 +36,8 @@ compile-time meaning, or backend-specific lowering rules. Use the sibling
 pages to understand those layers:
 
 - `types.md`
+- `effects-and-capabilities.md`
+- `low-level-memory.md`
 - `functions-traits-and-impls.md`
 - `patterns.md`
 - `expressions.md`

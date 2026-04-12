@@ -22,6 +22,14 @@ explains it.
 - `src/rust-import/kain-host/fabric.kn`
 - `src/rust-import/cli/packager/ue5_pipeline.kn`
 - `src/rust-import/ue5/*`
+- `src/rust-import/ue5-shaders/*`
+- `src/rust-import/ue5-config/*`
+- `src/rust-import/ue5-asset-utils/*`
+- `src/rust-import/ue5-materials/*`
+- `src/rust-import/ue5-blueprints/*`
+- `src/rust-import/ue5-graphs/*`
+- `src/rust-import/ue5-gas/*`
+- `src/rust-import/ue5-editor/*`
 - `crates/cli/src/main.rs`
 
 ## Capability Flags

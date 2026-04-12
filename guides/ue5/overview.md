@@ -85,6 +85,24 @@ The module list can be a single runtime module or a split runtime/editor pair.
 When the packager needs both, it emits `<PluginName>` and `<PluginName>Editor`
 module entries with `Runtime` and `Editor` module types respectively.
 
+## Plugin Layout Rules
+
+The packager lays out the Unreal plugin on disk instead of leaving the structure
+implicit.
+
+- the plugin root defaults under the configured `plugin_dir`
+- the runtime module lives under `Source/<PluginName>/`
+- the editor module, when present, lives under `Source/<PluginName>Editor/`
+- each module gets `Public/` and `Private/` subdirectories
+- the corresponding `Build.cs` files are emitted as `Source/<PluginName>/<PluginName>.Build.cs`
+  and, when needed, `Source/<PluginName>Editor/<PluginName>Editor.Build.cs`
+- `Shaders/` is emitted when shader content is present
+- split mode removes stale single-module layout files instead of leaving both
+  layouts behind
+
+That layout is what makes the generated tree feel like a normal Unreal plugin to
+the engine, not a Kain-specific artifact bundle.
+
 ## Build.cs And Module Inference
 
 `Build.cs` generation is data-driven.
