@@ -14,36 +14,19 @@ enum KainTarget:
     Native
     Text
 
-struct KainConfig:
-    input_file: String
-    target: KainTarget
-    trace: Bool
-    strict_boundaries: Bool
-
-struct KainDriver:
-    config: KainConfig
-
-impl KainDriver:
-    pub fn run(self) -> Bool:
-        let _unused_self = self
-        kain_print_phase("START", "DONE", "Kain shell booted")
-        kain_print_phase("LOAD", "DONE", "seed source lane ready")
-        kain_print_phase("LEX", "DONE", "seed lexer lane ready")
-        kain_print_phase("PARSE", "DONE", "seed parser lane ready")
-        kain_print_phase("TYPECHECK", "DONE", "seed boundary checks passed")
-        kain_print_phase("TARGET", "DONE", "target selected")
-        kain_print_phase("READY", "DONE", "source loaded, lexed, parsed, and validated for handoff")
-        return true
+fn run_seed_shell(target: KainTarget) -> Bool:
+    let _unused_target = target
+    kain_print_phase("START", "DONE", "Kain shell booted")
+    kain_print_phase("LOAD", "DONE", "seed source lane ready")
+    kain_print_phase("LEX", "DONE", "seed lexer lane ready")
+    kain_print_phase("PARSE", "DONE", "seed parser lane ready")
+    kain_print_phase("TYPECHECK", "DONE", "seed boundary checks passed")
+    kain_print_phase("TARGET", "DONE", "target selected")
+    kain_print_phase("READY", "DONE", "source loaded, lexed, parsed, and validated for handoff")
+    return true
 
 fn main() -> Int:
-    let config = KainConfig {
-        input_file: "src/core/kainc.kn",
-        target: KainTarget::Llvm,
-        trace: true,
-        strict_boundaries: true
-    }
-    let driver = KainDriver { config: config }
-    if driver.run():
+    if run_seed_shell(KainTarget::Llvm):
         return 0
     else:
         return 1

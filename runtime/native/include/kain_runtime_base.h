@@ -229,5 +229,9 @@ long long kain_ceil_i64(double value);
 long long kain_round_i64(double value);
 char* string_new(char* src);
 int deep_eq(void* a, void* b);
+void rc_retain(void* ptr);
+void rc_weak_retain(void* ptr);
+void rc_release(void* ptr);
+void rc_weak_release(void* ptr);
 
 #endif
