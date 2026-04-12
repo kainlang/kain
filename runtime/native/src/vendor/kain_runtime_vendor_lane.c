@@ -3,12 +3,105 @@
 #include "../../include/kain_runtime_vendor_ui_bridge.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#include <io.h>
+#define KAIN_VENDOR_ACCESS _access
+#define KAIN_VENDOR_PATH_SEPARATOR ';'
+#else
+#include <unistd.h>
+#define KAIN_VENDOR_ACCESS access
+#define KAIN_VENDOR_PATH_SEPARATOR ':'
+#endif
 
 #ifndef CONFIG_VERSION
 #define CONFIG_VERSION "kain-vendor"
 #endif
+
+static int kain_vendor_path_has_binary(const char* binary_name) {
+    const char* path_value;
+    const char* segment_start;
+
+    if (!binary_name || !binary_name[0]) {
+        return 0;
+    }
+
+    path_value = getenv("PATH");
+    if (!path_value || !path_value[0]) {
+        return 0;
+    }
+
+    segment_start = path_value;
+    while (segment_start && segment_start[0]) {
+        const char* segment_end = strchr(segment_start, KAIN_VENDOR_PATH_SEPARATOR);
+        size_t segment_length = segment_end ? (size_t)(segment_end - segment_start) : strlen(segment_start);
+        size_t binary_length = strlen(binary_name);
+        char* candidate;
+        size_t candidate_length;
+
+        if (segment_length > 0) {
+#if defined(_WIN32)
+            candidate_length = segment_length + 1 + binary_length + 4 + 1;
+#else
+            candidate_length = segment_length + 1 + binary_length + 1;
+#endif
+            candidate = (char*)malloc(candidate_length);
+            if (candidate) {
+#if defined(_WIN32)
+                snprintf(
+                    candidate,
+                    candidate_length,
+                    "%.*s\\%s",
+                    (int)segment_length,
+                    segment_start,
+                    binary_name
+                );
+                if (KAIN_VENDOR_ACCESS(candidate, 0) == 0) {
+                    free(candidate);
+                    return 1;
+                }
+                snprintf(
+                    candidate,
+                    candidate_length,
+                    "%.*s\\%s.exe",
+                    (int)segment_length,
+                    segment_start,
+                    binary_name
+                );
+                if (KAIN_VENDOR_ACCESS(candidate, 0) == 0) {
+                    free(candidate);
+                    return 1;
+                }
+#else
+                snprintf(
+                    candidate,
+                    candidate_length,
+                    "%.*s/%s",
+                    (int)segment_length,
+                    segment_start,
+                    binary_name
+                );
+                if (KAIN_VENDOR_ACCESS(candidate, X_OK) == 0) {
+                    free(candidate);
+                    return 1;
+                }
+#endif
+                free(candidate);
+            }
+        }
+
+        if (!segment_end) {
+            break;
+        }
+
+        segment_start = segment_end + 1;
+    }
+
+    return 0;
+}
 
 #if defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
 #define kain_vendor_bgfx_version_string kain_vendor_bgfx_stub_version_string
@@ -276,11 +369,28 @@ static const char* kain_vendor_wasm3_version(void) {
 #endif
 
 static int kain_vendor_wamr_probe(void) {
+    const char* candidate_paths[] = {"KAIN_WAMR_RUNTIME", "WAMR_RUNTIME"};
+    const char* candidate_binaries[] = {"iwasm", "wamr"};
+    size_t i;
+
+    for (i = 0; i < sizeof(candidate_paths) / sizeof(candidate_paths[0]); ++i) {
+        const char* candidate = getenv(candidate_paths[i]);
+        if (candidate != NULL && candidate[0] != '\0' && KAIN_VENDOR_ACCESS(candidate, 0) == 0) {
+            return 1;
+        }
+    }
+
+    for (i = 0; i < sizeof(candidate_binaries) / sizeof(candidate_binaries[0]); ++i) {
+        if (kain_vendor_path_has_binary(candidate_binaries[i])) {
+            return 1;
+        }
+    }
+
     return 0;
 }
 
 static const char* kain_vendor_wamr_version(void) {
-    return "wamr-staged";
+    return kain_vendor_wamr_probe() ? "wamr-bridge" : "wamr-bridge-unavailable";
 }
 
 #if !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
@@ -557,7 +667,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_wasm_runtime_light_service = 
 const KainVendorServiceFunctionTable g_kain_vendor_wasm_runtime_full_service = {
     "wasm.runtime.full",
     "wamr",
-    "wamr-staged",
+    "wamr-bridge",
     kain_vendor_wamr_version,
     kain_vendor_wamr_probe,
     kain_vendor_wamr_probe,
@@ -585,7 +695,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_wasm_module_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_wasm_wasi_service = {
     "wasm.wasi",
     "wamr",
-    "wamr-wasi-staged",
+    "wamr-wasi-bridge",
     kain_vendor_wamr_version,
     kain_vendor_wamr_probe,
     kain_vendor_wamr_probe,
@@ -640,8 +750,8 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_bgfx_service = {
 
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service = {
     "gfx.backend.filament",
-    "filament-core",
-    "filament-renderer",
+    "filament",
+    "filament-bridge",
     kain_vendor_filament_version_string,
     kain_vendor_filament_probe,
     kain_vendor_filament_probe,
@@ -654,8 +764,8 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service 
 
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service = {
     "gfx.backend.diligent",
-    "diligentcore",
-    "diligent-renderer",
+    "diligent",
+    "diligent-bridge",
     kain_vendor_diligent_version_string,
     kain_vendor_diligent_probe,
     kain_vendor_diligent_probe,
@@ -669,7 +779,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service 
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service = {
     "gfx.backend.forge",
     "the-forge",
-    "the-forge-renderer",
+    "forge-bridge",
     kain_vendor_forge_version_string,
     kain_vendor_forge_probe,
     kain_vendor_forge_probe,
@@ -724,8 +834,8 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_layout_yoga_service = {
 
 const KainVendorServiceFunctionTable g_kain_vendor_ui_render_skia_service = {
     "ui.render.skia",
-    "skia-core",
-    "skia-renderer",
+    "skia",
+    "skia-bridge",
     kain_vendor_skia_version_string,
     kain_vendor_skia_probe,
     kain_vendor_skia_probe,
@@ -753,7 +863,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_imgui_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service = {
     "ui.backend.rmlui",
     "rmlui",
-    "rmlui-backend",
+    "rmlui-bridge",
     kain_vendor_rmlui_version_string,
     kain_vendor_rmlui_probe,
     kain_vendor_rmlui_probe,
@@ -766,8 +876,8 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service = {
 
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service = {
     "ui.backend.slint",
-    "slint-ui",
-    "slint-backend",
+    "slint",
+    "slint-bridge",
     kain_vendor_slint_version_string,
     kain_vendor_slint_probe,
     kain_vendor_slint_probe,
@@ -781,7 +891,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service = {
     "ui.backend.qt",
     "qt",
-    "qt-shell",
+    "qt-external-runtime",
     kain_vendor_qt_version_string,
     kain_vendor_qt_probe,
     kain_vendor_qt_probe,
@@ -795,7 +905,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_surface_browser_cef_service = {
     "ui.surface.browser.cef",
     "cef",
-    "cef-browser",
+    "cef-bridge",
     kain_vendor_cef_version_string,
     kain_vendor_cef_probe,
     kain_vendor_cef_probe,
@@ -838,16 +948,16 @@ static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"allocator.mimalloc", "allocator", "mimalloc", KAIN_VENDOR_HAS_MIMALLOC, &g_kain_vendor_allocator_mimalloc_service},
     {"allocator.rpmalloc", "allocator", "rpmalloc", KAIN_VENDOR_HAS_RPMALLOC, &g_kain_vendor_allocator_rpmalloc_service},
     {"gfx.backend.bgfx", "gfx", "bgfx", KAIN_VENDOR_HAS_BGFX, &g_kain_vendor_gfx_backend_bgfx_service},
-    {"gfx.backend.filament", "gfx", "filament-core", KAIN_VENDOR_HAS_FILAMENT, &g_kain_vendor_gfx_backend_filament_service},
-    {"gfx.backend.diligent", "gfx", "diligentcore", KAIN_VENDOR_HAS_DILIGENT, &g_kain_vendor_gfx_backend_diligent_service},
+    {"gfx.backend.filament", "gfx", "filament", KAIN_VENDOR_HAS_FILAMENT, &g_kain_vendor_gfx_backend_filament_service},
+    {"gfx.backend.diligent", "gfx", "diligent", KAIN_VENDOR_HAS_DILIGENT, &g_kain_vendor_gfx_backend_diligent_service},
     {"gfx.backend.forge", "gfx", "the-forge", KAIN_VENDOR_HAS_FORGE, &g_kain_vendor_gfx_backend_forge_service},
     {"asset.image.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_image_bimg_service},
     {"asset.texture.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_texture_bimg_service},
     {"ui.layout.yoga", "ui", "yoga", KAIN_VENDOR_HAS_YOGA, &g_kain_vendor_ui_layout_yoga_service},
-    {"ui.render.skia", "ui", "skia-core", KAIN_VENDOR_HAS_SKIA, &g_kain_vendor_ui_render_skia_service},
+    {"ui.render.skia", "ui", "skia", KAIN_VENDOR_HAS_SKIA, &g_kain_vendor_ui_render_skia_service},
     {"ui.backend.imgui", "ui", "imgui", KAIN_VENDOR_HAS_IMGUI, &g_kain_vendor_ui_backend_imgui_service},
     {"ui.backend.rmlui", "ui", "rmlui", KAIN_VENDOR_HAS_RMLUI, &g_kain_vendor_ui_backend_rmlui_service},
-    {"ui.backend.slint", "ui", "slint-ui", KAIN_VENDOR_HAS_SLINT, &g_kain_vendor_ui_backend_slint_service},
+    {"ui.backend.slint", "ui", "slint", KAIN_VENDOR_HAS_SLINT, &g_kain_vendor_ui_backend_slint_service},
     {"ui.backend.qt", "ui", "qt", KAIN_VENDOR_HAS_QT, &g_kain_vendor_ui_backend_qt_service},
     {"ui.surface.browser.cef", "ui", "cef", KAIN_VENDOR_HAS_CEF, &g_kain_vendor_ui_surface_browser_cef_service},
     {"ui.devtools", "ui", "imgui", KAIN_VENDOR_HAS_IMGUI, &g_kain_vendor_ui_devtools_service}

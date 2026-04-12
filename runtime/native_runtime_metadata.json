@@ -38,7 +38,7 @@
         "OpenGL/EGL/X11/Xext development libraries for Linux bgfx builds",
         "Curated bx/bgfx/bimg source bundle for the graphics vendor lane",
         "Curated imgui and yoga source bundles for the first UI vendor lane",
-        "Skia, RmlUi, Slint, Qt, CEF, Filament, Diligent, and The Forge activate through bridge-backed runtime probes when their vendor roots or binaries are present",
+        "WAMR, Skia, RmlUi, Slint, Qt, CEF, Filament, Diligent, and The Forge activate through bridge-backed runtime probes when their vendor roots or binaries are present",
         "imgui and yoga are compiled directly into the native vendor lane, while Qt remains probe-backed through the external shell path"
       ]
     }
@@ -780,8 +780,8 @@
       "name": "Compute Runtime",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Compute pipeline creation and dispatch"
+      "status": "available",
+      "description": "Compute bundle validation, dispatch planning, and native runtime handoff"
     },
     {
       "key": "ui.component",
@@ -884,8 +884,8 @@
       "name": "WASM Runtime Full",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Full WebAssembly runtime lane staged for richer module hosting",
+      "status": "available",
+      "description": "Full WebAssembly runtime lane activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -908,8 +908,8 @@
       "name": "WASM WASI",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "WASI-flavored runtime lane staged behind the WebAssembly service family",
+      "status": "available",
+      "description": "WASI-flavored runtime lane activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"

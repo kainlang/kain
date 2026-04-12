@@ -668,8 +668,8 @@ key = "gfx.compute"
 name = "Compute Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
-description = "Compute pipeline creation and dispatch"
+status = "available"
+description = "Compute bundle validation, dispatch planning, and native runtime handoff"
 
 [[services]]
 key = "ui.component"
@@ -754,9 +754,9 @@ key = "wasm.runtime.full"
 name = "WASM Runtime Full"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 platforms = ["windows", "linux"]
-description = "Full WebAssembly runtime lane staged for richer module hosting"
+description = "Full WebAssembly runtime lane activated through the vendor bridge"
 
 [[services]]
 key = "wasm.module"
@@ -772,9 +772,9 @@ key = "wasm.wasi"
 name = "WASM WASI"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 platforms = ["windows", "linux"]
-description = "WASI-flavored runtime lane staged behind the WebAssembly service family"
+description = "WASI-flavored runtime lane activated through the vendor bridge"
 
 [[services]]
 key = "allocator.mimalloc"

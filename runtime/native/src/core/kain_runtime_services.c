@@ -247,7 +247,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_UI_RENDER_SKIA,
         "Skia Render Engine",
-        "2D, vector, and text render substrate staged behind Kain UI paint contracts",
+        "Bridge-backed 2D, vector, and text render substrate for Kain UI paint contracts",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_SKIA ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -267,7 +267,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_UI_BACKEND_RMLUI,
         "RmlUi Host Backend",
-        "Document-style retained UI backend staged for markup-driven Kain surfaces",
+        "Bridge-backed document-style retained UI backend for markup-driven Kain surfaces",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_RMLUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -277,7 +277,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_UI_BACKEND_SLINT,
         "Slint Host Backend",
-        "Declarative native UI backend staged behind Kain semantic surface routing",
+        "Bridge-backed declarative native UI backend for Kain semantic surface routing",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_SLINT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -287,7 +287,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_UI_BACKEND_QT,
         "Qt Shell Backend",
-        "Desktop shell and docking backend staged for Kain-owned semantic app sessions",
+        "External Qt shell and docking backend driven through qml/qmlscene runtime probes",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_QT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -297,7 +297,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_UI_SURFACE_BROWSER_CEF,
         "CEF Browser Surface",
-        "Browser-backed panel and document surface lane staged behind Kain UI contracts",
+        "Bridge-backed browser panel and document surface lane for Kain UI contracts",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_CEF ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -457,7 +457,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT,
         "Filament Renderer Backend",
-        "Premium scene, material, and lighting presentation lane staged behind Kain contracts",
+        "Bridge-backed premium scene, material, and lighting presentation lane",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_FILAMENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -467,7 +467,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT,
         "Diligent Renderer Backend",
-        "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control",
+        "Bridge-backed explicit render-graph and compute-oriented renderer lane",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_DILIGENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -477,7 +477,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_BACKEND_FORGE,
         "The Forge Renderer Backend",
-        "Low-level cross-platform renderer substrate staged behind the Kain renderer backend seam",
+        "Bridge-backed low-level cross-platform renderer substrate",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_FORGE ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -577,7 +577,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_WASM_RUNTIME_FULL,
         "WASM Runtime Full",
-        "Full WebAssembly runtime lane staged for richer module hosting",
+        "Full WebAssembly runtime lane activated through the WAMR bridge",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
@@ -597,7 +597,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_WASM_WASI,
         "WASM WASI",
-        "WASI-flavored runtime lane staged behind the WebAssembly service family",
+        "WASI-flavored runtime lane activated through the WAMR bridge",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
