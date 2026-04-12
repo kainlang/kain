@@ -1,0 +1,10 @@
+[package]
+name = "ui-smoke-qt-plasma-runtime-lounge"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+kain-ui = { path = "../../../../crates/kain-ui" }
+kain-ui-native = { path = "../../../../crates/kain-ui-native" }

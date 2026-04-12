@@ -152,6 +152,8 @@ The native runtime now has a first real UI vendor slice instead of only a future
 - `crates/kain-ui` now emits explicit backend-role truth in runtime metadata and per-surface preferences through `UiHostBackendKind`, `UiLayoutEngineKind`, and `UiRenderEngineKind`
 - `crates/kain-ui-native` now defaults to a no-`egui` Qt Quick host. The old 9k-line host survives in `src/legacy_egui.rs`, but only behind the explicit Cargo feature `legacy-egui`; default builds keep the bundle/build API, materialize a Qt session manifest plus generated `Main.qml`, and launch the external `qml` / `qmlscene` runtime when it is available on the host
 - The current non-`egui` host is intentionally metadata-first: document, viewport, and devtools lanes are routed into a generated Qt Quick shell immediately, while in-process bgfx and ImGui embeddings still degrade to explicit placeholder panes until those adapters land
+- The Qt host now supports deterministic smoke artifacts through `KAIN_UI_NATIVE_QT_ARTIFACT_DIR` and `KAIN_UI_NATIVE_QT_SCREENSHOT_PATH`; this lets repo-local smokes render the real generated shell offscreen, save `Main.qml` plus `session.json`, capture a PNG, and exit without operator interaction
+- `smoketest/UI/qt_plasma_runtime_lounge` is the current proof surface for that contract: a curated runtime bundle with document, viewport, devtools, and staged-browser panes that exercises the live Qt host and produces `outputs/qt_plasma_runtime_lounge.png`
 
 ### Semantic Tab Workspace Lane
 

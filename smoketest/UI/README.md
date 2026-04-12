@@ -7,6 +7,7 @@ Each smoke lives in its own folder so we can keep authoring patterns, runner scr
 ## Proof Surfaces
 
 - `theme_authoring_shell`: compiler-owned theme blocks, widget variant maps, and text roles
+- `qt_plasma_runtime_lounge`: Qt Quick host proof with deterministic screenshot capture and a Plasma-style control-deck shell
 - `dock_layout_workbench`: dock composition, width and height constraints, split ratios, and resizable rails
 - `surface_modes_gallery`: widget-specific surface-mode mapping across panel, inspector, tree, graph, timeline, and viewport widgets
 - `spv_ui_surface_probe`: shader-canvas and SPIR-V proof lane for opt-in inspection and packaging verification

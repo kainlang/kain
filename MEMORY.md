@@ -1,5 +1,47 @@
 # MEMORY
 
+## 2026-04-12 - Qt host gained deterministic screenshot capture and a Plasma-style smoke lane
+
+The default Qt-backed `kain-ui-native` host is no longer just a launcher plus temp artifacts. It now has a deterministic smoke path that can render the real generated shell, save its generated host files, and capture a proof PNG without a manual desktop session.
+
+What changed:
+
+- Extended `crates/kain-ui-native/src/no_egui_qt_host.rs`
+  - Added `KAIN_UI_NATIVE_QT_ARTIFACT_DIR` so callers can force the generated `Main.qml` and `session.json` into a durable output folder instead of an anonymous temp dir.
+  - Added `KAIN_UI_NATIVE_QT_SCREENSHOT_PATH` so the generated Qt Quick host auto-captures itself with `grabToImage(...)` and exits once the PNG is written.
+  - Restyled the generated host shell into a stronger Plasma-inspired control deck instead of the earlier flat diagnostic scaffold.
+- Added a dedicated Qt host smoke at `smoketest/UI/qt_plasma_runtime_lounge`
+  - `native-app/src/main.rs` builds a curated runtime bundle directly in Rust using `kain-ui` types.
+  - The bundle exercises all current routing lanes the shell can represent honestly: Qt-backed documents, a viewport slot, ImGui devtools slots, and a staged CEF fallback surface.
+  - `run_smoke.sh` forces a deterministic offscreen Qt run with `qml`, software rendering, a fixed artifact directory, and a screenshot output path.
+  - The smoke produces:
+    - `outputs/qt_plasma_runtime_lounge.png`
+    - `outputs/generated/Main.qml`
+    - `outputs/generated/session.json`
+- Updated `smoketest/UI/README.md` so the smoke suite advertises the new Qt proof lane explicitly.
+
+Validation completed:
+
+- `cargo check -p kain-ui-native`
+- `cargo check --manifest-path smoketest/UI/qt_plasma_runtime_lounge/native-app/Cargo.toml`
+- `./smoketest/UI/qt_plasma_runtime_lounge/run_smoke.sh`
+
+Design decisions:
+
+- Chose host-driven screenshot capture instead of desktop screenshot tooling so the proof works in headless/offscreen sessions and uses the actual generated Qt shell.
+- Kept the smoke metadata-first because that matches the current product truth: the Qt shell is live, while viewport and ImGui embeddings are still deliberate placeholders.
+- Put the proof under `smoketest/UI/` rather than inside `crates/kain-ui-native/examples` so it stays aligned with the repo’s durable smoke matrix and operator flow.
+
+Current risks:
+
+- The screenshot path proves the shell and routing contract, not fully live in-process rendering for bgfx, ImGui, RmlUi, or CEF.
+- The generated `Main.qml` embeds the session JSON inline for simplicity; if the session payload grows much larger, the shell should probably switch to reading `session.json` at runtime instead of inlining it.
+- Offscreen capture currently depends on the external `qml` runtime supporting `grabToImage(...)`; if host packaging moves to a compiled-in Qt bridge later, this contract should be preserved but revalidated.
+
+Recommended next step:
+
+- Replace one placeholder with a real adapter inside this same smoke lane, starting with the viewport slot so the proof PNG shows an actual live Kain-rendered surface instead of only metadata cards.
+
 ## 2026-04-11 - default kain-ui-native host now launches a real Qt Quick session
 
 The no-`egui` cut is no longer just a facade. `kain-ui-native` now has a live default host path that materializes a Qt-backed session when the machine has an external Qt Quick runtime available.
