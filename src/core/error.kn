@@ -79,6 +79,8 @@ impl KainError:
     pub fn to_string(self) -> String:
         return self.kind_str() + ": " + self.message
 
+pub type KainResult<T> = Result<T, KainError>
+
 pub struct ErrorCollector:
     errors: Array<KainError>
 

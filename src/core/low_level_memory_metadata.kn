@@ -1,5 +1,3 @@
-use ast::TypeExpr
-
 # Kain Low-Level Memory Metadata Seed
 
 enum MemoryOwnership:
@@ -14,7 +12,7 @@ enum MemoryMutability:
 
 struct MemoryTypeLayout:
     name: String
-    source_type: TypeExpr
+    source_type_name: String
     ownership: MemoryOwnership
     mutability: MemoryMutability
     size_bytes: Int
@@ -23,7 +21,7 @@ struct MemoryTypeLayout:
 pub fn layout_for_unit() -> MemoryTypeLayout:
     return MemoryTypeLayout {
         name: "unit",
-        source_type: TypeExpr::Unit,
+        source_type_name: "Unit",
         ownership: MemoryOwnership::Copy,
         mutability: MemoryMutability::Immutable,
         size_bytes: 0,

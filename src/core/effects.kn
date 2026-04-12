@@ -126,9 +126,22 @@ pub fn check_effect_call(caller: EffectSet, callee: EffectSet, location: Span) -
     return true
 
 pub fn parse_effects(annotations: Array<String>) -> EffectSet:
-    let set = EffectSet::new_()
+    let set = EffectSet { effect_items: [] }
     for annotation in annotations:
-        match Effect::from_str(annotation):
-            Some(effect) => set = set.add_effect(effect)
-            None => ()
+        if annotation == "Pure":
+            set = set.add_effect(Effect::PureEffect)
+        else if annotation == "IO":
+            set = set.add_effect(Effect::IoEffect)
+        else if annotation == "Async":
+            set = set.add_effect(Effect::AsyncEffect)
+        else if annotation == "GPU":
+            set = set.add_effect(Effect::GpuEffect)
+        else if annotation == "Reactive":
+            set = set.add_effect(Effect::ReactiveEffect)
+        else if annotation == "Unsafe":
+            set = set.add_effect(Effect::UnsafeEffect)
+        else if annotation == "Alloc":
+            set = set.add_effect(Effect::AllocEffect)
+        else if annotation == "Panic":
+            set = set.add_effect(Effect::PanicEffect)
     return set

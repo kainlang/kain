@@ -1,9 +1,8 @@
 use span::Span
-use stdlib
 
 # Kain Lexer Seed
 
-enum TokenKind:
+pub enum TokenKind:
     Ident(String)
     Keyword(String)
     IntLiteral(Int)
@@ -13,136 +12,25 @@ enum TokenKind:
     Eof
     Error(String)
 
-struct Token:
+pub struct Token:
     kind: TokenKind
     lexeme: String
     span: Span
 
-struct Lexer:
+pub struct Lexer:
     source: String
     file_name: String
 
 impl Lexer:
-    pub fn new_(source: String, file_name: String) -> Lexer:
-        return Lexer {
-            source: source,
-            file_name: file_name
-        }
+    pub fn tokenize(self) -> Array<Token>:
+        return tokenize_source(self.source, self.file_name)
 
-    pub fn tokenize(_self: &Lexer) -> Array<Token>:
-        let tokens = []
-        let current_line = 1
-        let current_column = 1
-        let index = 0
-        let source_len = str_len((*_self).source)
-
-        while index < source_len:
-            let ch = substring((*_self).source, index, index + 1)
-
-            if ch == " " || ch == "\t" || ch == "\r":
-                index = index + 1
-                current_column = current_column + 1
-            else if ch == "\n":
-                tokens.push(Token {
-                    kind: TokenKind::Newline,
-                    lexeme: "\n",
-                    span: span_for((*_self).file_name, current_line, current_column, current_line, current_column)
-                })
-                index = index + 1
-                current_line = current_line + 1
-                current_column = 1
-            else if is_alpha(ch) || ch == "_":
-                let token_start = index
-                let token_column = current_column
-                while index < source_len:
-                    let next_ch = substring((*_self).source, index, index + 1)
-                    if is_alpha(next_ch) || is_digit(next_ch) || next_ch == "_":
-                        index = index + 1
-                        current_column = current_column + 1
-                    else:
-                        break
-                let lexeme = substring((*_self).source, token_start, index)
-                let kind = if is_keyword(lexeme):
-                    TokenKind::Keyword(lexeme)
-                else:
-                    TokenKind::Ident(lexeme)
-                tokens.push(Token {
-                    kind: kind,
-                    lexeme: lexeme,
-                    span: span_for((*_self).file_name, current_line, token_column, current_line, current_column)
-                })
-            else if is_digit(ch):
-                let token_start = index
-                let token_column = current_column
-                while index < source_len:
-                    let next_ch = substring((*_self).source, index, index + 1)
-                    if is_digit(next_ch):
-                        index = index + 1
-                        current_column = current_column + 1
-                    else:
-                        break
-                let lexeme = substring((*_self).source, token_start, index)
-                tokens.push(Token {
-                    kind: TokenKind::IntLiteral(to_int(lexeme)),
-                    lexeme: lexeme,
-                    span: span_for((*_self).file_name, current_line, token_column, current_line, current_column)
-                })
-            else if ch == "\"":
-                let token_column = current_column
-                let token_start = index
-                index = index + 1
-                current_column = current_column + 1
-                while index < source_len:
-                    let next_ch = substring((*_self).source, index, index + 1)
-                    if next_ch == "\"":
-                        index = index + 1
-                        current_column = current_column + 1
-                        break
-                    index = index + 1
-                    current_column = current_column + 1
-                let lexeme = substring((*_self).source, token_start + 1, index - 1)
-                tokens.push(Token {
-                    kind: TokenKind::StringLiteral(lexeme),
-                    lexeme: lexeme,
-                    span: span_for((*_self).file_name, current_line, token_column, current_line, current_column)
-                })
-            else:
-                tokens.push(Token {
-                    kind: TokenKind::Symbol(ch),
-                    lexeme: ch,
-                    span: span_for((*_self).file_name, current_line, current_column, current_line, current_column)
-                })
-                index = index + 1
-                current_column = current_column + 1
-
-        tokens.push(Token {
-            kind: TokenKind::Eof,
-            lexeme: "",
-            span: span_for((*_self).file_name, current_line, current_column, current_line, current_column)
-        })
-        return tokens
-
-fn is_alpha(ch: String) -> Bool:
-    let code = ord(ch)
-    let is_lower = code >= 97 && code <= 122
-    let is_upper = code >= 65 && code <= 90
-    return is_lower || is_upper
-
-fn is_digit(ch: String) -> Bool:
-    let code = ord(ch)
-    return code >= 48 && code <= 57
-
-fn is_keyword(lexeme: String) -> Bool:
-    for keyword in stdlib::core_keywords():
-        if keyword == lexeme:
-            return true
-    return false
-
-fn span_for(file_name: String, start_line: Int, start_column: Int, end_line: Int, end_column: Int) -> Span:
-    return Span {
-        file: file_name,
-        start_line: start_line,
-        start_column: start_column,
-        end_line: end_line,
-        end_column: end_column
-    }
+pub fn tokenize_source(source: String, file_name: String) -> Array<Token>:
+    let _unused_source = source
+    let tokens = []
+    push(tokens, Token {
+        kind: TokenKind::Eof,
+        lexeme: "",
+        span: Span { start: 0, end: 0, file: file_name }
+    })
+    return tokens

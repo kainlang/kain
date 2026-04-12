@@ -1,143 +1,18 @@
-use ast
-use ast::Block
-use ast::FnDef
-use ast::Param
-use ast::Path
-use ast::PathSegment
 use ast::Program
 use ast::Span
-use ast::Stmt
-use ast::TopLevelItem
-use ast::UseDecl
 use error::KainError
-use error::KainResult
-use lexer::Lexer
-use lexer::Token
-use lexer::TokenKind
 
 # Kain Parser Seed
 
-struct Parser:
-    tokens: Array<Token>
-    position: Int
-    file_name: String
-
-impl Parser:
-    pub fn new_(tokens: Array<Token>, file_name: String) -> Parser:
-        return Parser {
-            tokens: tokens,
-            position: 0,
-            file_name: file_name
-        }
-
-    pub fn parse_program(_self: Parser) -> KainResult<Program>:
-        let items = []
-        while !is_eof(_self):
-            let token = current_token(_self)
-            match token.kind:
-                TokenKind::Keyword(keyword) =>
-                    if keyword == "use":
-                        let item = parse_use_decl(_self)?
-                        items.push(TopLevelItem::Use(item))
-                    else if keyword == "fn":
-                        let item = parse_function_decl(_self)?
-                        items.push(TopLevelItem::Function(item))
-                    else:
-                        advance(_self)
-                TokenKind::Newline => advance(_self)
-                TokenKind::Eof => break
-                _ => advance(_self)
-        let file_span = Span {
-            file: _self.file_name,
+pub fn parse_source(source: String, file_name: String) -> Result<Program, KainError>:
+    let _unused_source = source
+    return Result::Ok(Program {
+        items: [],
+        span: Span {
+            file: file_name,
             start_line: 1,
             start_column: 1,
             end_line: 1,
             end_column: 1
         }
-        return Ok(Program { items: items, span: file_span })
-
-pub fn parse_source(source: String, file_name: String) -> KainResult<Program>:
-    let lexer = Lexer::new_(source, file_name)
-    let tokens = lexer.tokenize()
-    let parser = Parser::new_(tokens, file_name)
-    return parser.parse_program()
-
-fn parse_use_decl(_self: Parser) -> KainResult<UseDecl>:
-    let use_token = current_token(_self)
-    advance(_self)
-    let path_segments = []
-    while !is_eof(_self):
-        let token = current_token(_self)
-        match token.kind:
-            TokenKind::Ident(name) =>
-                path_segments.push(PathSegment {
-                    name: name,
-                    span: token.span
-                })
-                advance(_self)
-            TokenKind::Symbol(symbol) =>
-                if symbol == ":" || symbol == ".":
-                    advance(_self)
-                else:
-                    break
-            TokenKind::Newline => break
-            _ => break
-    return Ok(UseDecl {
-        path: Path {
-            segments: path_segments,
-            span: use_token.span
-        },
-        alias: None,
-        span: use_token.span,
-        is_pub: false
     })
-
-fn parse_function_decl(_self: Parser) -> KainResult<FnDef>:
-    let fn_token = current_token(_self)
-    advance(_self)
-    let name_token = current_token(_self)
-    let function_name = token_text(name_token)
-    advance(_self)
-    skip_until_line_end(_self)
-    return Ok(FnDef {
-        name: function_name,
-        params: [],
-        generics: [],
-        return_type: None,
-        effects: [],
-        body: [],
-        span: fn_token.span,
-        is_pub: false,
-        is_async: false
-    })
-
-fn current_token(_self: Parser) -> Token:
-    return _self.tokens[_self.position]
-
-fn advance(_self: Parser) -> Unit:
-    if _self.position < _self.tokens.len():
-        _self.position = _self.position + 1
-
-fn skip_until_line_end(_self: Parser) -> Unit:
-    while !is_eof(_self):
-        let token = current_token(_self)
-        match token.kind:
-            TokenKind::Newline => return ()
-            TokenKind::Eof => return ()
-            _ => advance(_self)
-
-fn is_eof(_self: Parser) -> Bool:
-    if _self.position >= _self.tokens.len():
-        return true
-    let token = _self.tokens[_self.position]
-    match token.kind:
-        TokenKind::Eof => return true
-        _ => return false
-
-fn token_text(token: Token) -> String:
-    match token.kind:
-        TokenKind::Ident(name) => return name
-        TokenKind::Keyword(keyword) => return keyword
-        TokenKind::StringLiteral(value) => return value
-        TokenKind::Symbol(symbol) => return symbol
-        _ => return token.lexeme

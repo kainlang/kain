@@ -1,10 +1,10 @@
-use ast::BinaryOp
 use ast::Expr
 use ast::Literal
 use ast::Path
 use ast::Program
+use error::ErrorKind
 use error::KainError
-use error::KainResult
+use span::Span
 
 # Kain Runtime Seed
 
@@ -22,96 +22,51 @@ struct Binding:
 struct Env:
     bindings: Array<Binding>
 
-impl Env:
-    pub fn new_() -> Env:
-        return Env { bindings: [] }
+pub fn new_env() -> Env:
+    return Env { bindings: [] }
 
-    pub fn insert(_self: Env, name: String, value: Value) -> Env:
-        _self.bindings.push(Binding { name: name, value: value })
-        return _self
+pub fn env_insert(env: Env, name: String, value: Value) -> Env:
+    push(env.bindings, Binding { name: name, value: value })
+    return env
 
-    pub fn lookup(_self: &Env, name: String) -> Option<Value>:
-        for binding in (*_self).bindings:
-            if binding.name == name:
-                return Some(binding.value)
-        return None
+fn env_lookup(env: Env, name: String) -> Option<Value>:
+    for binding in env.bindings:
+        if binding.name == name:
+            return Option::Some(binding.value)
+    return none
 
-pub fn interpret_program(program: Program) -> KainResult<Value>:
-    let _unused_program = program
-    return Ok(Value::Unit)
+fn runtime_error(message: String) -> KainError:
+    return KainError {
+        kind: ErrorKind::Runtime,
+        message: message,
+        span: Span { start: 0, end: 0, file: "" },
+        filename: "",
+        hint: none
+    }
 
-pub fn interpret_expr(expr: Expr, env: &Env) -> KainResult<Value>:
-    match expr:
-        Expr::Literal(literal) => return interpret_literal(literal)
-        Expr::Path(path) => return interpret_path(path, env)
-        Expr::Binary(binary_expr) =>
-            let left_value = interpret_expr((*binary_expr.left), env)?
-            let right_value = interpret_expr((*binary_expr.right), env)?
-            return eval_binary(binary_expr.op, left_value, right_value)
-        _ =>
-            return Err(KainError::runtime(
-                "kain runtime seed cannot interpret this expression form yet"
-            ))
-
-fn interpret_literal(literal: Literal) -> KainResult<Value>:
+fn interpret_literal(literal: Literal) -> Result<Value, KainError>:
     match literal:
-        Literal::Unit => return Ok(Value::Unit)
-        Literal::Bool(value) => return Ok(Value::Bool(value))
-        Literal::Int(value) => return Ok(Value::Int(value))
-        Literal::Float(value) => return Ok(Value::Float(value))
-        Literal::String(value) => return Ok(Value::String(value))
-        Literal::Char(value) =>
-            return Ok(Value::String(value.to_string()))
+        Literal::Unit => return Result::Ok(Value::Unit)
+        Literal::Bool(_) => return Result::Ok(Value::Bool(false))
+        Literal::Int(_) => return Result::Ok(Value::Int(0))
+        Literal::Float(_) => return Result::Ok(Value::Float(0.0))
+        Literal::String(_) => return Result::Ok(Value::String(""))
+        Literal::Char(_) => return Result::Ok(Value::String(""))
 
-fn interpret_path(path: Path, env: &Env) -> KainResult<Value>:
-    if path.segments.is_empty():
-        return Err(KainError::runtime("empty path in runtime lookup"))
-    let first_segment = path.segments[0]
-    match env.lookup(first_segment.name):
-        Some(value) => return Ok(value)
-        None =>
-            return Err(KainError::runtime(
-                "unknown runtime binding: " + first_segment.name
-            ))
+fn interpret_path(path: Path, env: Env) -> Result<Value, KainError>:
+    let _unused_path = path
+    let _unused_env = env
+    return Result::Err(runtime_error(
+        "path lookup is not implemented in the runtime seed yet"
+    ))
 
-fn eval_binary(op: BinaryOp, left_value: Value, right_value: Value) -> KainResult<Value>:
-    match op:
-        BinaryOp::Add =>
-            match left_value:
-                Value::Int(left_int) =>
-                    match right_value:
-                        Value::Int(right_int) => return Ok(Value::Int(left_int + right_int))
-                        _ => ()
-                Value::String(left_text) =>
-                    match right_value:
-                        Value::String(right_text) =>
-                            return Ok(Value::String(left_text + right_text))
-                        _ => ()
-                _ => ()
-        BinaryOp::Sub =>
-            match left_value:
-                Value::Int(left_int) =>
-                    match right_value:
-                        Value::Int(right_int) => return Ok(Value::Int(left_int - right_int))
-                        _ => ()
-                _ => ()
-        BinaryOp::Mul =>
-            match left_value:
-                Value::Int(left_int) =>
-                    match right_value:
-                        Value::Int(right_int) => return Ok(Value::Int(left_int * right_int))
-                        _ => ()
-                _ => ()
-        BinaryOp::Div =>
-            match left_value:
-                Value::Int(left_int) =>
-                    match right_value:
-                        Value::Int(right_int) => return Ok(Value::Int(left_int / right_int))
-                        _ => ()
-                _ => ()
-        BinaryOp::Eq => return Ok(Value::Bool(left_value == right_value))
-        BinaryOp::Ne => return Ok(Value::Bool(left_value != right_value))
-        _ => ()
-    return Err(KainError::runtime(
-        "unsupported binary evaluation in kain runtime seed"
+pub fn interpret_program(program: Program) -> Result<Value, KainError>:
+    let _unused_program = program
+    return Result::Ok(Value::Unit)
+
+pub fn interpret_expr(expr: Expr, env: Env) -> Result<Value, KainError>:
+    let _unused_expr = expr
+    let _unused_env = env
+    return Result::Err(runtime_error(
+        "kain runtime seed cannot interpret this expression form yet"
     ))

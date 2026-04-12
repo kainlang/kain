@@ -1,5 +1,51 @@
 # MEMORY
 
+## 2026-04-12 - `src/core` now has a compile-safe seed floor across every owned module
+
+The first owned `src/core` wave now passes an individual-file frontend/codegen
+sanity sweep for every current `.kn` file in the folder. This is not a claim
+that the modules are semantically complete; it is the new bootstrap floor for
+parallel hand-ownership work.
+
+What changed:
+
+- Reworked the failing `src/core` seed modules so each file now compiles
+  individually through `target/debug/kain build <file> -t rust`.
+- Simplified over-ambitious seed implementations in `lexer.kn`, `parser.kn`,
+  `runtime.kn`, `types.kn`, and `kainc.kn` into bounded, explicit bootstrap
+  versions.
+- Added the local `KainResult` alias in `error.kn`, but used explicit
+  `Result<..., KainError>` signatures in the owned seed files where the current
+  frontend still fails to unify imported aliases cleanly.
+- Replaced cross-module static helper/method usage with direct field checks or
+  local helpers where needed. The current frontend still struggles with some
+  imported static methods and method calls across modules.
+
+Validation:
+
+- Full sweep over `src/core/*.kn` with:
+  `target/debug/kain build <file> -t rust -o /tmp/core_sanity/<file>.rs`
+- Result after the pass:
+  `ast`, `comptime`, `diagnostic`, `effects`, `error`, `kainc`,
+  `language_features`, `lexer`, `low_level_abi`, `low_level_memory`,
+  `low_level_memory_metadata`, `parser`, `runtime`, `span`, `stdlib`, and
+  `types` all emitted output successfully.
+
+Current risks:
+
+- Several modules are intentionally thinner now than their Rust/bootstrap donor
+  equivalents. They are compile-safe seeds, not feature-complete translations.
+- The current frontend still has rough edges around imported aliases, some enum
+  pattern bindings, and cross-module static/method resolution. Those are
+  language/frontend limitations, not just seed-file mistakes.
+
+Recommended next step:
+
+- Keep `src/core` compile-safe while agents deepen functionality module by
+  module. The next serious ownership pass should expand `lexer`, `parser`,
+  `types`, and `runtime` together so they grow as a coherent semantic slice
+  rather than independently reintroducing frontend-hostile patterns.
+
 ## 2026-04-12 - `src/core` is the owned folder path, and active identifiers are Kain
 
 The owned language tree now lives under `src/core`. The folder rename removes

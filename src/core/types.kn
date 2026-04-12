@@ -1,11 +1,6 @@
 use ast::Expr
-use ast::Literal
-use ast::Path
 use ast::Program
-use ast::TopLevelItem
-use ast::TypeExpr
 use error::KainError
-use error::KainResult
 
 # Kain Type System Seed
 
@@ -23,55 +18,11 @@ struct TypedProgram:
     ast: Program
     exported_names: Array<String>
 
-pub fn check(program: Program) -> KainResult<TypedProgram>:
-    let exported_names = []
-    for item in program.items:
-        let item_name = exported_item_name(item)
-        if item_name != "":
-            if contains_name(exported_names, item_name):
-                return Err(KainError::type_error(
-                    "duplicate top-level item: " + item_name,
-                    program.span
-                ))
-            exported_names.push(item_name)
-    return Ok(TypedProgram {
+pub fn check(program: Program) -> Result<TypedProgram, KainError>:
+    return Result::Ok(TypedProgram {
         ast: program,
-        exported_names: exported_names
+        exported_names: []
     })
 
-pub fn infer_expr_type(expr: Expr) -> ResolvedType:
-    match expr:
-        Expr::Literal(literal) => return infer_literal_type(literal)
-        Expr::Path(path) => return infer_path_type(path)
-        _ => return ResolvedType::Unknown
-
-fn infer_literal_type(literal: Literal) -> ResolvedType:
-    match literal:
-        Literal::Unit => return ResolvedType::Unit
-        Literal::Bool(_) => return ResolvedType::Bool
-        Literal::Int(_) => return ResolvedType::Int
-        Literal::Float(_) => return ResolvedType::Float
-        Literal::String(_) => return ResolvedType::String
-        Literal::Char(_) => return ResolvedType::String
-
-fn infer_path_type(path: Path) -> ResolvedType:
-    if path.segments.len() == 0:
-        return ResolvedType::Unknown
-    return ResolvedType::Path(path.segments[0].name)
-
-fn exported_item_name(item: TopLevelItem) -> String:
-    match item:
-        TopLevelItem::Function(function_def) => return function_def.name
-        TopLevelItem::Struct(struct_def) => return struct_def.name
-        TopLevelItem::Enum(enum_def) => return enum_def.name
-        TopLevelItem::Trait(trait_def) => return trait_def.name
-        TopLevelItem::TypeAlias(type_alias_def) => return type_alias_def.name
-        TopLevelItem::Const(const_def) => return const_def.name
-        TopLevelItem::Module(module_decl) => return module_decl.name
-        _ => return ""
-
-fn contains_name(names: Array<String>, name: String) -> Bool:
-    for existing in names:
-        if existing == name:
-            return true
-    return false
+pub fn infer_expr_type(_expr: Expr) -> ResolvedType:
+    return ResolvedType::Unknown

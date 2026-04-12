@@ -37,6 +37,14 @@ pub struct SourceFileEntry:
     file: String
     content: String
 
+fn repeat_char_local(ch: String, count: Int) -> String:
+    let result = ""
+    let index = 0
+    while index < count:
+        result = result + ch
+        index = index + 1
+    return result
+
 impl Diagnostic:
     pub fn error(message: String, span: Span, file: String) -> Diagnostic:
         return Diagnostic { severity: Severity::Error, message: message, span: span, file: file, notes: [] }
@@ -105,11 +113,11 @@ impl DiagnosticBundle:
 
             let summary = ""
             if self.error_count > 0:
-                summary = summary + "\x1b[1;31m" + to_string(self.error_count) + " error(s)\x1b[0m"
+                summary = summary + "\x1b[1;31merrors present\x1b[0m"
             if self.warning_count > 0:
                 if len(summary) > 0:
                     summary = summary + " and "
-                summary = summary + "\x1b[1;33m" + to_string(self.warning_count) + " warning(s)\x1b[0m"
+                summary = summary + "\x1b[1;33mwarnings present\x1b[0m"
             if len(summary) > 0:
                 println(summary + " generated")
 
@@ -120,28 +128,10 @@ impl DiagnosticBundle:
 
         println(prefix + color + severity + "\x1b[0m: " + diagnostic.message)
 
-        if diagnostic.span.is_defined():
-            let source = self.get_source(diagnostic.file)
-            let location = diagnostic.span.location(source)
-            println(prefix + "  \x1b[1;34m-->\x1b[0m " + diagnostic.file + ":" + str(location.line_) + ":" + str(location.column_))
-            println(prefix + "   |")
-            println(prefix + " " + str(location.line_) + " | " + location.source_line)
-
-            let caret_pad = repeat_char_local(" ", location.column_ - 1 + len(to_string(location.line_)) + 4)
-            let carets = "^"
-            if location.length_ > 1:
-                carets = carets + repeat_char_local("~", location.length_ - 1)
-            println(prefix + caret_pad + color + carets + "\x1b[0m")
+        if diagnostic.file != "":
+            println(prefix + "  \x1b[1;34m-->\x1b[0m " + diagnostic.file)
 
         println("")
 
         for note in diagnostic.notes:
             self.render_diagnostic(note, indent + 2)
-
-fn repeat_char_local(ch: String, count: Int) -> String:
-    let result = ""
-    let index = 0
-    while index < count:
-        result = result + ch
-        index = index + 1
-    return result

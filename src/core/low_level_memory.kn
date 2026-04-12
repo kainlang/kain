@@ -1,5 +1,5 @@
 use ast::Program
-use error::KainResult
+use error::KainError
 use low_level_memory_metadata::MemoryTypeLayout
 
 # Kain Low-Level Memory Lowering Seed
@@ -8,8 +8,8 @@ struct MemoryLoweringOutput:
     program: Program
     layouts: Array<MemoryTypeLayout>
 
-pub fn lower_program_memory(program: Program) -> KainResult<MemoryLoweringOutput>:
-    return Ok(MemoryLoweringOutput {
+pub fn lower_program_memory(program: Program) -> Result<MemoryLoweringOutput, KainError>:
+    return Result::Ok(MemoryLoweringOutput {
         program: program,
         layouts: []
     })
