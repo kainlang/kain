@@ -1,0 +1,2 @@
+# Treat .kn files as Rust for syntax highlighting and stats
+*.kn linguist-language=Rust

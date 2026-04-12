@@ -1,0 +1,60 @@
+# Kain Language Features
+
+// This file is the feature contract for the owned Kain core. It names the
+// language surfaces we want, the ones we are still borrowing from donors, and
+// the ones intentionally excluded from wave 1.
+
+enum FeatureDomain:
+    Syntax
+    Semantics
+    Runtime
+    NativeLlvm
+    Memory
+    Tooling
+    Excluded
+
+enum FeatureStatus:
+    Owned
+    DonorOnly
+    Planned
+    Excluded
+
+enum FeatureScope:
+    Core
+    Bootstrap
+    Pipeline
+    UE5
+    Experimental
+
+struct FeatureRule:
+    name: String
+    domain: FeatureDomain
+    status: FeatureStatus
+    scope: FeatureScope
+    owner: String
+    donor: Option<String>
+    rationale: String
+
+struct KainOwnershipContract:
+    canonical_root: String
+    owned_tree: String
+    donor_trees: Array<String>
+    excluded_trees: Array<String>
+    current_wave: String
+    notes: String
+
+struct KainLanguageProfile:
+    contract: KainOwnershipContract
+    features: Array<FeatureRule>
+
+const KAIN_CANONICAL_ROOT: String = "src/core"
+const KAIN_DONOR_ROOT: String = "src/.rustimport"
+const KAIN_LEGACY_DONOR_ROOT: String = "src/.legacy"
+const KAIN_EXCLUDED_SURFACES: Array<String> = [
+    "ue5",
+    "shader codegen",
+    "pipeline orchestration",
+    "repair orchestration",
+    "report generation",
+    "bundle-era adapters"
+]

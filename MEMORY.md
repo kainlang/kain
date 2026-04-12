@@ -1,11 +1,10 @@
 # MEMORY
 
-## 2026-04-12 - `src/kore` stays the folder nod, but active owned identifiers are now Kain
+## 2026-04-12 - `src/core` is the owned folder path, and active identifiers are Kain
 
-The owned language tree under `src/kore` was accidentally carrying the old `Kore`
-naming into the active pipeline shell and contract surface. The folder name stays
-`src/kore` as the deliberate nod, but the code now uses `Kain` for the current
-language/core identity.
+The owned language tree now lives under `src/core`. The folder rename removes
+the old spelling from the active owned tree, while the code still uses `Kain`
+for the current language/core identity.
 
 What changed:
 
@@ -13,13 +12,13 @@ What changed:
 - Renamed the driver shell types, helpers, and log prefixes to `Kain*` and
   `KAIN*`.
 - Renamed the feature contract types and constants in
-  `src/kore/language_features.kn` to `Kain*` / `KAIN_*`.
-- Updated the owned-core README to describe Kain, while keeping the folder path
-  `src/kore` intact.
+  `src/core/language_features.kn` to `Kain*` / `KAIN_*`.
+- Renamed the owned-core folder from the previous nod path to `src/core`.
+- Updated the owned-core README to describe Kain and to point at `src/core`.
 
 Current note:
 
-- The only remaining `kore` mention in the owned tree is the historic donor
+- The only remaining legacy donor naming reference in the owned tree is the historic donor
   filename `src/.legacy/src/korec.kn` in the README matrix.
 - The driver shell is still a seed shell; it is named correctly now, but the
   implementation remains intentionally synthetic.
