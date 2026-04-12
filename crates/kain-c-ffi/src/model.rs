@@ -190,7 +190,7 @@ pub enum BridgeType {
 impl BridgeType {
     pub fn render_kain(&self) -> String {
         match self {
-            Self::Unit => "Unit".to_string(),
+            Self::Unit => "Void".to_string(),
             Self::Bool => "Bool".to_string(),
             Self::SignedInt(_) | Self::UnsignedInt(_) => "Int".to_string(),
             Self::Float32 | Self::Float64 => "Float".to_string(),

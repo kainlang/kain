@@ -553,8 +553,8 @@ fn render_param_conversion(
 ) -> String {
     match &param.ty {
         BridgeType::Unit => format!(
-            "    let _{} = iter.next().expect(\"checked arg count\");\n",
-            param.name
+            "    let __{}_value = iter.next().expect(\"checked arg count\");\n    if !matches!(__{}_value, Value::Unit) {{ return Err(KainError::runtime(\"Expected Unit for C ABI argument\".to_string())); }}\n    let {} = ();\n",
+            param.name, param.name, param.name
         ),
         BridgeType::Bool => format!(
             "    let {} = bool_from_value(iter.next().expect(\"checked arg count\"))?;\n",

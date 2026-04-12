@@ -16,6 +16,8 @@ Run:
 ./run.sh
 ```
 
+`run.sh` auto-detects the current Wayland/X11 desktop session when the shell does not inherit GUI env, so it can launch the app from a plain terminal on Linux.
+
 Controls:
 
 - `Record Loop` starts a fresh capture

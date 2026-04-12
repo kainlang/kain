@@ -1,5 +1,31 @@
 # MEMORY
 
+## 2026-04-12 - Linux piano lab now boots as a real native UI/audio loop demo
+
+The `labs/playground/piano` lab now builds a Linux-native 2D piano app through Kain semantics, the native UI host, and a small C audio runtime. It opens a keyboard surface, plays generated notes, records loop events, and replays them from the C bridge instead of treating audio as a mock.
+
+What changed:
+
+- Added `labs/playground/piano` with Kain `world`/`patch`-driven UI state, transport controls, octave key rows, and an action tape.
+- Added a C audio bridge under `labs/playground/piano/native` that boots `miniaudio`, caches note WAVs, records loop events, and replays them on a background thread.
+- Fixed the C-FFI generator in `crates/kain-c-ffi` so `Void` parameters consume `Value::Unit` correctly instead of emitting broken `_arg1`/`arg1` wrappers for zero-arg C APIs.
+- Taught `labs/playground/piano/run.sh` to auto-detect the current Wayland/X11 desktop session and export the minimum env needed to attach on Linux even when the shell did not inherit GUI variables.
+
+Validation:
+
+- `./build.sh`
+- `nohup ./run.sh >/tmp/kain_piano_launch.log 2>&1 &`
+- Verified the launched process stayed resident as `native-app/kain-piano`; the startup log only showed repeated Qt font bearing warnings and no fatal display error.
+
+Risks:
+
+- The native Qt host still prints repeated `Apple Color Emoji` font bearing warnings on startup. They were non-fatal in this run but are noisy enough to revisit later.
+- The current loop recorder is intentionally simple: it captures note events and timing, not a richer performance timeline or edit stack.
+
+Recommended next step:
+
+- Add keyboard shortcuts or MIDI-style input so the piano can be played without relying only on mouse clicks.
+
 ## 2026-04-12 - Qt smoke styling is demo-only; Kain UI remains theme/data driven
 
 The Plasma-ish Qt smoke shell is a presentation skin for the host proof, not the authored UI contract. The actual Kain UI model still needs to stay theme-driven and backend-neutral through `UiStyleSpec`, `UiThemeRegistry`, surface roles, and bundle metadata.

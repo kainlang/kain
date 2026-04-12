@@ -211,6 +211,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [docs/kainplan](/M:/Code/Kain/docs/kainplan): active design and execution docs
 - [docs/pipeline](/M:/Code/Kain/docs/pipeline): pipeline notes and operational docs
 - [labs](/M:/Code/Kain/labs): focused validation labs
+- [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
 
 ## Common Commands
@@ -291,6 +292,7 @@ If the debug CLI is missing:
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.
+- Native desktop launchers that do not inherit a GUI session can still boot if the wrapper resolves the live compositor socket. `labs/playground/piano/run.sh` now auto-detects the current Wayland/X11 runtime and exports the minimum env needed to attach on Linux; if a native app starts but no window appears, check `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_RUNTIME_DIR`, and `XAUTHORITY` before blaming Kain UI.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
 - Fabric step inputs now flow through raw `fabric_inputs` for every runtime adapter. Kain/C/Rust glue consumes canonical host objects directly, while the Python and Node bridge crates project shared buffer/image payloads into language-native contract objects with `bytearray` and `Uint8Array` bytes views.
