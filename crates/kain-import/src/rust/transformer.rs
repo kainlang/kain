@@ -1765,6 +1765,11 @@ impl RustTransformer {
                 args: Vec::new(),
                 span: S,
             },
+            Type::Named { name, .. } if name == "Array" => Expr::Call {
+                callee: Box::new(Expr::Ident("Vec__new_".to_string(), S)),
+                args: Vec::new(),
+                span: S,
+            },
             Type::Named { name, .. } if name == "Map" => Expr::Call {
                 callee: Box::new(Expr::Ident("HashMap__new_".to_string(), S)),
                 args: Vec::new(),
@@ -5118,6 +5123,8 @@ mod tests {
             #[derive(Default)]
             struct LanguageCapabilities {
                 flags: HashMap<String, bool>,
+                plans: Vec<String>,
+                tags: HashSet<String>,
             }
             "#,
         );
@@ -5142,12 +5149,27 @@ mod tests {
             panic!("expected struct literal default body");
         };
         assert_eq!(name, "LanguageCapabilities");
+        assert_eq!(fields.len(), 3);
         assert!(matches!(
-            fields.as_slice(),
-            [(field_name, Expr::Call { callee, args, .. })]
+            &fields[0],
+            (field_name, Expr::Call { callee, args, .. })
                 if field_name == "flags"
                     && args.is_empty()
                     && matches!(callee.as_ref(), Expr::Ident(path, _) if path == "HashMap__new_")
+        ));
+        assert!(matches!(
+            &fields[1],
+            (field_name, Expr::Call { callee, args, .. })
+                if field_name == "plans"
+                    && args.is_empty()
+                    && matches!(callee.as_ref(), Expr::Ident(path, _) if path == "Vec__new_")
+        ));
+        assert!(matches!(
+            &fields[2],
+            (field_name, Expr::Call { callee, args, .. })
+                if field_name == "tags"
+                    && args.is_empty()
+                    && matches!(callee.as_ref(), Expr::Ident(path, _) if path == "HashSet__new_")
         ));
     }
 

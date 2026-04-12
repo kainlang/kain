@@ -5,9 +5,12 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { workspace = true }
+font8x8 = "0.3"
 kain-core = { path = "../kain-core" }
 kain-host = { path = "../kain-host", default-features = false }
 kain-reflect = { path = "../kain-reflect" }
 naga = { version = "24.0.0", features = ["spv-in", "wgsl-out"] }
 pollster = { workspace = true }
+png = "0.17"
+serde_json = { workspace = true }
 wgpu = { workspace = true }

@@ -4205,10 +4205,6 @@ fn write_enum(output: &mut String, value: &kain_core::ast::Enum, indent: usize) 
 fn write_impl(output: &mut String, value: &kain_core::ast::Impl, indent: usize) -> KainResult<()> {
     use std::fmt::Write;
 
-    if matches!(value.trait_name.as_deref(), Some("Default")) {
-        return Ok(());
-    }
-
     let impl_generics = generics_to_string(&value.generics);
     let header = match &value.trait_name {
         Some(trait_name) => format!(
@@ -5652,5 +5648,43 @@ fn untouched_afterwards():
         };
 
         assert_eq!(inline_expr_to_string(&expr), "&(*_self).body");
+    }
+
+    #[test]
+    fn render_program_keeps_default_impl_blocks() {
+        let span = kain_core::span::Span::default();
+        let target_type = Type::Named {
+            name: "LanguageCapabilities".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        let program = Program {
+            items: vec![Item::Impl(kain_core::ast::Impl {
+                generics: Vec::new(),
+                trait_name: Some("Default".to_string()),
+                trait_generics: Vec::new(),
+                target_type: target_type.clone(),
+                methods: vec![kain_core::ast::Function {
+                    name: "default_".to_string(),
+                    generics: Vec::new(),
+                    params: Vec::new(),
+                    return_type: Some(target_type),
+                    effects: Vec::new(),
+                    body: Block {
+                        stmts: vec![Stmt::Expr(Expr::None(span))],
+                        span,
+                    },
+                    visibility: Visibility::Public,
+                    attributes: Vec::new(),
+                    span,
+                }],
+                span,
+            })],
+            span,
+        };
+
+        let rendered = render_program(&program).expect("default impl should render");
+        assert!(rendered.contains("impl Default for LanguageCapabilities:"));
+        assert!(rendered.contains("pub fn default_() -> LanguageCapabilities:"));
     }
 }

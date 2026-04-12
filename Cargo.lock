@@ -2785,11 +2785,14 @@ name = "kain-3d"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "font8x8",
  "kain-core",
  "kain-host",
  "kain-reflect",
  "naga",
+ "png 0.17.16",
  "pollster",
+ "serde_json",
  "wgpu",
 ]
 
