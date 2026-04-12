@@ -1,5 +1,36 @@
 # MEMORY
 
+## 2026-04-11 - dated runtime expansion roadmap added for self-hosting, MCP, web, graphics, audio, and foreign runtime growth
+
+A new dated runtime planning document now captures the desired long-range direction for the native/runtime stack under the repo's current private, AI-developed assumptions.
+
+What changed:
+
+- Added `runtime/KAIN_RUNTIME_EXPANSION_ROADMAP_2026-04-11.md`
+  - Reframed the runtime target away from a narrow native substrate and toward a capability-driven runtime kernel intended to support self-hosting, web/runtime services, MCP, large 3D/graphics systems, audio/DAW execution, comptime growth, and a foreign-runtime mesh.
+  - Defined a phased roadmap covering runtime constitution, kernel/scheduler work, unified runtime values and memory, platform and web services, MCP runtime families, graphics/scene/compute, audio/media, UI/workspace hosting, foreign language integration, self-hosting/comptime, and hardening.
+  - Added a foreign-language viability study anchored to official Go, Rust, and Zig documentation.
+  - Recorded the strategic language split:
+    - Rust and Zig are the strongest Tier 1 in-process runtime-extension candidates.
+    - Go is useful but should primarily be treated as a sidecar/service/WASI language rather than the default deep in-process kernel language.
+    - WASM should become a first-class sandboxed extension lane once the runtime value ABI is mature.
+
+Design decisions:
+
+- Treated the repo's private/unreleased status as explicit permission for aggressive runtime and ABI refactors before any deliberate v1 freeze.
+- Positioned the next big architectural jump as a kernel/value/module-system problem, not just a feature backlog problem.
+- Kept the foreign-runtime recommendations contract-first: generated schemas and canonical service families should own the language boundaries rather than bespoke bridge logic.
+
+Current risks:
+
+- The roadmap is intentionally aggressive and assumes the project will tolerate large refactors across compiler, runtime, driver, and bridge layers.
+- The current runtime still has real architectural gaps relative to the new target, especially around a unified value model, a stronger scheduler/kernel, cross-platform host services, deep graphics execution, and an audio/DAW subsystem.
+- Zig references currently point at the official `master` language reference; production adoption should pin to stable Zig releases when concrete implementation work starts.
+
+Recommended next step:
+
+- Turn the roadmap's first two phases into concrete implementation specs for the runtime constitution, the unified runtime value ABI, and the scheduler/kernel refactor, because those three decisions will constrain every later web/MCP/graphics/audio/foreign-runtime lane.
+
 ## 2026-04-11 - native interpreter control-flow and builtin surface are more consistent, and the current Brainfuck lab is now failing on bad expectations rather than the original language bug
 
 The Brainfuck investigation produced one real interpreter bug, one real builtin-surface mismatch, and one misleading test-harness problem.
