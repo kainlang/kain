@@ -4,7 +4,7 @@
   "render": {
     "scenes": [
       {
-        "viewport_node": "surface.30",
+        "viewport_node": "surface.35",
         "viewport_kind": "viewport3d",
         "scene": "material_atrium",
         "title": "Material Atrium",
@@ -12,7 +12,7 @@
         "shader_bundle_ref_keys": []
       },
       {
-        "viewport_node": "surface.node.30",
+        "viewport_node": "surface.node.35",
         "viewport_kind": "viewport3d",
         "scene": "material_atrium",
         "title": "Material Atrium",
@@ -22,24 +22,107 @@
     ],
     "materials": []
   },
+  "patches": [
+    {
+      "name": "choose_backend",
+      "mutation_paths": [
+        "showcase.active_backend",
+        "showcase.active_focus",
+        "showcase.active_mood",
+        "showcase.status_line"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.choose_backend"
+    }
+  ],
+  "worlds": [
+    {
+      "name": "MaterialAtriumShowcase",
+      "state_slots": [
+        {
+          "name": "active_backend",
+          "type_name": "String",
+          "initial_expr": "\"bgfx\""
+        },
+        {
+          "name": "active_mood",
+          "type_name": "String",
+          "initial_expr": "backend_mood(\"bgfx\")"
+        },
+        {
+          "name": "active_focus",
+          "type_name": "String",
+          "initial_expr": "backend_focus(\"bgfx\")"
+        },
+        {
+          "name": "status_line",
+          "type_name": "String",
+          "initial_expr": "\"Kain owns the runtime contract. Qt is the presentation fallback.\""
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "App",
+          "surface_key": "world.MaterialAtriumShowcase.native_ui"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "MaterialAtriumShowcase",
+    "state_slots": [
+      {
+        "name": "active_backend",
+        "type_name": "String",
+        "initial_expr": "\"bgfx\""
+      },
+      {
+        "name": "active_mood",
+        "type_name": "String",
+        "initial_expr": "backend_mood(\"bgfx\")"
+      },
+      {
+        "name": "active_focus",
+        "type_name": "String",
+        "initial_expr": "backend_focus(\"bgfx\")"
+      },
+      {
+        "name": "status_line",
+        "type_name": "String",
+        "initial_expr": "\"Kain owns the runtime contract. Qt is the presentation fallback.\""
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "App",
+        "surface_key": "world.MaterialAtriumShowcase.native_ui"
+      }
+    ]
+  },
   "shader_bundle_refs": [],
   "assets": [],
   "tool_caps": [
-    "viewport.3d"
+    "patch.transactions",
+    "viewport.3d",
+    "world.native-ui"
   ],
   "requirements": [
     "host.native-ui",
+    "patch.transactions",
     "runtime.contract.bundle",
     "scene.runtime-bundle",
     "shader.bundle.metadata",
-    "viewport.presented-or-fallback"
+    "viewport.presented-or-fallback",
+    "world.native-ui"
   ],
   "ui_contracts": {
     "contract_version": "ui_slate_x100.authoring_contract.v1",
     "widget_registry_json": null,
     "command_registry_json": null,
     "computed_registry_json": null,
-    "event_routes_json": null,
+    "event_routes_json": "[\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_bgfx\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-5::click::bubble\",\n    \"target\": \"ui.node::node-5\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_filament\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-7::click::bubble\",\n    \"target\": \"ui.node::node-7\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_diligent\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-9::click::bubble\",\n    \"target\": \"ui.node::node-9\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_forge\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-11::click::bubble\",\n    \"target\": \"ui.node::node-11\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  }\n]",
     "hot_reload_json": null,
     "focus_graph_json": null,
     "selection_model_json": null,
@@ -74,51 +157,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 4,
-        "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 5,
-        "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 6,
-        "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 7,
-        "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 10,
+        "id": 14,
         "kind": "text",
         "role": "eyebrow",
         "tab_default_active": false,
@@ -129,7 +168,7 @@
         "region_hint": "role.eyebrow"
       },
       {
-        "id": 11,
+        "id": 15,
         "kind": "text",
         "role": "hero",
         "tab_default_active": false,
@@ -140,7 +179,7 @@
         "region_hint": "role.hero"
       },
       {
-        "id": 12,
+        "id": 16,
         "kind": "text",
         "role": "muted",
         "tab_default_active": false,
@@ -151,52 +190,8 @@
         "region_hint": "role.muted"
       },
       {
-        "id": 13,
-        "kind": "text",
-        "role": "metric",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.metric"
-      },
-      {
-        "id": 14,
-        "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 16,
-        "kind": "text",
-        "role": "metric",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.metric"
-      },
-      {
         "id": 17,
         "kind": "text",
-        "role": "caption",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.caption"
-      },
-      {
-        "id": 19,
-        "kind": "text",
         "role": "metric",
         "tab_default_active": false,
         "min_width": null,
@@ -204,10 +199,32 @@
         "max_width": null,
         "max_height": null,
         "region_hint": "role.metric"
+      },
+      {
+        "id": 18,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
       },
       {
         "id": 20,
         "kind": "text",
+        "role": "metric",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.metric"
+      },
+      {
+        "id": 21,
+        "kind": "text",
         "role": "caption",
         "tab_default_active": false,
         "min_width": null,
@@ -217,7 +234,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 22,
+        "id": 23,
         "kind": "text",
         "role": "metric",
         "tab_default_active": false,
@@ -228,7 +245,7 @@
         "region_hint": "role.metric"
       },
       {
-        "id": 23,
+        "id": 24,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -241,13 +258,13 @@
       {
         "id": 26,
         "kind": "text",
-        "role": "title",
+        "role": "metric",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.title"
+        "region_hint": "role.metric"
       },
       {
         "id": 27,
@@ -261,18 +278,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 32,
-        "kind": "text",
-        "role": "eyebrow",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.eyebrow"
-      },
-      {
-        "id": 33,
+        "id": 30,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -283,7 +289,7 @@
         "region_hint": "role.title"
       },
       {
-        "id": 34,
+        "id": 31,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -294,7 +300,18 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 36,
+        "id": 32,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 37,
         "kind": "text",
         "role": "eyebrow",
         "tab_default_active": false,
@@ -305,7 +322,7 @@
         "region_hint": "role.eyebrow"
       },
       {
-        "id": 37,
+        "id": 38,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -316,7 +333,7 @@
         "region_hint": "role.title"
       },
       {
-        "id": 38,
+        "id": 39,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -329,61 +346,50 @@
       {
         "id": 40,
         "kind": "text",
-        "role": "eyebrow",
+        "role": "caption",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.eyebrow"
-      },
-      {
-        "id": 41,
-        "kind": "text",
-        "role": "title",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.title"
+        "region_hint": "role.caption"
       },
       {
         "id": 42,
         "kind": "text",
-        "role": "caption",
+        "role": "eyebrow",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.caption"
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 43,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
       },
       {
         "id": 44,
         "kind": "text",
-        "role": "eyebrow",
+        "role": "caption",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.eyebrow"
+        "region_hint": "role.caption"
       },
       {
         "id": 45,
         "kind": "text",
-        "role": "title",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.title"
-      },
-      {
-        "id": 46,
-        "kind": "text",
         "role": "caption",
         "tab_default_active": false,
         "min_width": null,
@@ -391,31 +397,42 @@
         "max_width": null,
         "max_height": null,
         "region_hint": "role.caption"
+      },
+      {
+        "id": 47,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 48,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
       },
       {
         "id": 49,
         "kind": "text",
-        "role": "eyebrow",
+        "role": "caption",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.eyebrow"
+        "region_hint": "role.caption"
       },
       {
         "id": 50,
-        "kind": "text",
-        "role": "title",
-        "tab_default_active": false,
-        "min_width": null,
-        "min_height": null,
-        "max_width": null,
-        "max_height": null,
-        "region_hint": "role.title"
-      },
-      {
-        "id": 51,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -426,7 +443,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 53,
+        "id": 52,
         "kind": "text",
         "role": "eyebrow",
         "tab_default_active": false,
@@ -437,7 +454,7 @@
         "region_hint": "role.eyebrow"
       },
       {
-        "id": 54,
+        "id": 53,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -446,6 +463,17 @@
         "max_width": null,
         "max_height": null,
         "region_hint": "role.title"
+      },
+      {
+        "id": 54,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
       },
       {
         "id": 55,
@@ -459,7 +487,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 57,
+        "id": 58,
         "kind": "text",
         "role": "eyebrow",
         "tab_default_active": false,
@@ -470,7 +498,7 @@
         "region_hint": "role.eyebrow"
       },
       {
-        "id": 58,
+        "id": 59,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -481,7 +509,7 @@
         "region_hint": "role.title"
       },
       {
-        "id": 59,
+        "id": 60,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -492,7 +520,7 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 61,
+        "id": 62,
         "kind": "text",
         "role": "eyebrow",
         "tab_default_active": false,
@@ -503,7 +531,7 @@
         "region_hint": "role.eyebrow"
       },
       {
-        "id": 62,
+        "id": 63,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -514,7 +542,7 @@
         "region_hint": "role.title"
       },
       {
-        "id": 63,
+        "id": 64,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -527,17 +555,28 @@
       {
         "id": 66,
         "kind": "text",
-        "role": "title",
+        "role": "eyebrow",
         "tab_default_active": false,
         "min_width": null,
         "min_height": null,
         "max_width": null,
         "max_height": null,
-        "region_hint": "role.title"
+        "region_hint": "role.eyebrow"
       },
       {
         "id": 67,
         "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 68,
+        "kind": "text",
         "role": "caption",
         "tab_default_active": false,
         "min_width": null,
@@ -547,7 +586,18 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 69,
+        "id": 70,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 71,
         "kind": "text",
         "role": "title",
         "tab_default_active": false,
@@ -558,7 +608,7 @@
         "region_hint": "role.title"
       },
       {
-        "id": 70,
+        "id": 72,
         "kind": "text",
         "role": "caption",
         "tab_default_active": false,
@@ -569,8 +619,96 @@
         "region_hint": "role.caption"
       },
       {
-        "id": 74,
-        "identity_key": "74",
+        "id": 75,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 76,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 78,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 79,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 82,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 83,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 84,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 85,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 88,
+        "identity_key": "88",
         "kind": "component:App",
         "tab_default_active": false,
         "min_width": null,

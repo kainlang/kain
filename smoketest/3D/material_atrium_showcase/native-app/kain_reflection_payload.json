@@ -1,9 +1,101 @@
 {
   "schema_version": 1,
-  "types": [],
+  "types": [
+    {
+      "type_id": 1,
+      "name": "MaterialAtriumShowcase",
+      "kind": "world",
+      "size_hint": null,
+      "fields": [
+        {
+          "name": "active_backend",
+          "type_name": "String",
+          "offset_hint": null
+        },
+        {
+          "name": "active_mood",
+          "type_name": "String",
+          "offset_hint": null
+        },
+        {
+          "name": "active_focus",
+          "type_name": "String",
+          "offset_hint": null
+        },
+        {
+          "name": "status_line",
+          "type_name": "String",
+          "offset_hint": null
+        }
+      ]
+    }
+  ],
   "items": [
     {
       "item_id": 1,
+      "name": "backend_mood",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 2,
+      "name": "backend_focus",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 3,
+      "name": "backend_state_label",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 4,
+      "name": "MaterialAtriumShowcase",
+      "kind": "world",
+      "module_path": "",
+      "type_id": 1
+    },
+    {
+      "item_id": 5,
+      "name": "choose_backend",
+      "kind": "patch",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 6,
+      "name": "handle_bgfx",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 7,
+      "name": "handle_filament",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 8,
+      "name": "handle_diligent",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 9,
+      "name": "handle_forge",
+      "kind": "function",
+      "module_path": "",
+      "type_id": null
+    },
+    {
+      "item_id": 10,
       "name": "App",
       "kind": "component",
       "module_path": "",
@@ -13,7 +105,7 @@
   "actors": [],
   "components": [
     {
-      "item_id": 1,
+      "item_id": 10,
       "name": "App",
       "props": [],
       "state_type": null
