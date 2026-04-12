@@ -641,7 +641,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_bgfx_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service = {
     "gfx.backend.filament",
     "filament-core",
-    "filament-renderer-staged",
+    "filament-renderer",
     kain_vendor_filament_version_string,
     kain_vendor_filament_probe,
     kain_vendor_filament_probe,
@@ -655,7 +655,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service 
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service = {
     "gfx.backend.diligent",
     "diligentcore",
-    "diligent-renderer-staged",
+    "diligent-renderer",
     kain_vendor_diligent_version_string,
     kain_vendor_diligent_probe,
     kain_vendor_diligent_probe,
@@ -669,7 +669,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service 
 const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service = {
     "gfx.backend.forge",
     "the-forge",
-    "the-forge-renderer-staged",
+    "the-forge-renderer",
     kain_vendor_forge_version_string,
     kain_vendor_forge_probe,
     kain_vendor_forge_probe,
@@ -683,7 +683,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service = {
     "asset.image.bimg",
     "bimg",
-    "bimg-image-staged",
+    "bimg-image",
     kain_vendor_bimg_version_string,
     kain_vendor_bimg_probe,
     kain_vendor_bimg_probe,
@@ -697,7 +697,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service = {
     "asset.texture.bimg",
     "bimg",
-    "bimg-texture-staged",
+    "bimg-texture",
     kain_vendor_bimg_version_string,
     kain_vendor_bimg_probe,
     kain_vendor_bimg_probe,
@@ -725,7 +725,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_layout_yoga_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_render_skia_service = {
     "ui.render.skia",
     "skia-core",
-    "skia-renderer-staged",
+    "skia-renderer",
     kain_vendor_skia_version_string,
     kain_vendor_skia_probe,
     kain_vendor_skia_probe,
@@ -753,7 +753,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_imgui_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service = {
     "ui.backend.rmlui",
     "rmlui",
-    "rmlui-backend-staged",
+    "rmlui-backend",
     kain_vendor_rmlui_version_string,
     kain_vendor_rmlui_probe,
     kain_vendor_rmlui_probe,
@@ -767,7 +767,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service = {
     "ui.backend.slint",
     "slint-ui",
-    "slint-backend-staged",
+    "slint-backend",
     kain_vendor_slint_version_string,
     kain_vendor_slint_probe,
     kain_vendor_slint_probe,
@@ -781,7 +781,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service = {
     "ui.backend.qt",
     "qt",
-    "qt-shell-staged",
+    "qt-shell",
     kain_vendor_qt_version_string,
     kain_vendor_qt_probe,
     kain_vendor_qt_probe,
@@ -795,7 +795,7 @@ const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service = {
 const KainVendorServiceFunctionTable g_kain_vendor_ui_surface_browser_cef_service = {
     "ui.surface.browser.cef",
     "cef",
-    "cef-browser-staged",
+    "cef-browser",
     kain_vendor_cef_version_string,
     kain_vendor_cef_probe,
     kain_vendor_cef_probe,

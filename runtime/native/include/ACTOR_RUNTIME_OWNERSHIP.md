@@ -28,7 +28,7 @@ This document defines the ownership, lifetime, and thread-safety rules for the K
 - Free mailbox and all queued messages
 - Remove all monitor relationships
 - Remove all link relationships
-- Free user_data if destructor provided
+- Release the runtime's retained `user_data` reference
 - Close thread handle/join thread
 - Remove from actor registry if registered
 - Free the state structure itself
@@ -52,6 +52,7 @@ This document defines the ownership, lifetime, and thread-safety rules for the K
 - Message data (`KainActorMessage.data`) ownership transfers to receiver on `kain_actor_receive()`
 - Sender must not access message data after successful send
 - Receiver must free message data when done
+- Actor `user_data` is retained by the runtime on spawn and released during actor cleanup
 
 **Backpressure**:
 - Bounded mailboxes (capacity > 0): senders block when full
@@ -288,7 +289,7 @@ All actor runtime operations that can fail accept a `KainDiagnostic*` parameter:
 10. Free all link nodes
 11. Free all mailbox messages
 12. Destroy mailbox synchronization primitives
-13. Free user_data if destructor provided
+13. Release the retained `user_data` reference during actor cleanup
 14. Close/join thread
 15. Set state to TERMINATED or FAILED
 16. Free actor state structure

@@ -38,8 +38,8 @@
         "OpenGL/EGL/X11/Xext development libraries for Linux bgfx builds",
         "Curated bx/bgfx/bimg source bundle for the graphics vendor lane",
         "Curated imgui and yoga source bundles for the first UI vendor lane",
-        "Skia, RmlUi, Slint, Qt, and CEF are staged behind the UI vendor bridge and not compiled into the runtime yet",
-        "The Forge is staged behind the vendor bridge and not compiled into the runtime yet"
+        "Skia, RmlUi, Slint, Qt, CEF, Filament, Diligent, and The Forge activate through bridge-backed runtime probes when their vendor roots or binaries are present",
+        "imgui and yoga are compiled directly into the native vendor lane, while Qt remains probe-backed through the external shell path"
       ]
     }
   },
@@ -436,8 +436,8 @@
       "name": "Filament Renderer Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Premium scene, material, and lighting presentation lane staged behind Kain contracts",
+      "status": "available",
+      "description": "Premium scene, material, and lighting presentation lane activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -448,8 +448,8 @@
       "name": "Diligent Renderer Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control",
+      "status": "available",
+      "description": "Explicit render-graph and compute-oriented renderer lane activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -460,8 +460,8 @@
       "name": "The Forge Renderer Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Low-level cross-platform renderer substrate staged behind the Kain renderer backend seam",
+      "status": "available",
+      "description": "Low-level cross-platform renderer substrate activated through the vendor bridge seam",
       "platforms": [
         "windows",
         "linux"
@@ -564,8 +564,8 @@
       "name": "Skia Render Engine",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "2D, vector, and text render substrate staged behind Kain UI paint contracts",
+      "status": "available",
+      "description": "2D, vector, and text render substrate activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -588,8 +588,8 @@
       "name": "RmlUi Host Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Document-style retained UI backend staged for markup-driven Kain surfaces",
+      "status": "available",
+      "description": "Document-style retained UI backend activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -600,8 +600,8 @@
       "name": "Slint Host Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Declarative native UI backend staged behind Kain semantic surface routing",
+      "status": "available",
+      "description": "Declarative native UI backend activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"
@@ -612,8 +612,8 @@
       "name": "Qt Shell Backend",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Desktop shell and docking backend staged for Kain-owned semantic app sessions",
+      "status": "available",
+      "description": "Desktop shell and docking backend activated through the external Qt runtime probe",
       "platforms": [
         "windows",
         "linux"
@@ -624,8 +624,8 @@
       "name": "CEF Browser Surface",
       "provider": "native-core",
       "requirement": "optional",
-      "status": "planned",
-      "description": "Browser-backed panel and document surface lane staged behind Kain UI contracts",
+      "status": "available",
+      "description": "Browser-backed panel and document surface lane activated through the vendor bridge",
       "platforms": [
         "windows",
         "linux"

@@ -105,7 +105,7 @@ const KainRendererBackendDescriptor* kain_renderer_backend_active(void) {
     const KainRendererBackendDescriptor* descriptor =
         kain_renderer_backend_lookup(requested_backend);
 
-    if (descriptor && descriptor->available) {
+    if (descriptor) {
         return descriptor;
     }
 

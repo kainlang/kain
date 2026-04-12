@@ -495,6 +495,14 @@ KainActorId kain_actor_spawn(
         config->name
     );
 
+    /* The compiler-owned actor state is reference-counted user data.
+     * Keep the runtime's own reference for the lifetime of the actor so
+     * the LLVM lane can target the canonical actor ABI without inventing a
+     * second ownership model. */
+    if (actor->user_data != NULL) {
+        rc_retain(actor->user_data);
+    }
+
     /* Insert into actor table */
     KainActorId actor_id = kain_actor_table_insert(actor);
     if (actor_id == KAIN_ACTOR_ID_INVALID) {
@@ -504,6 +512,9 @@ KainActorId kain_actor_spawn(
             diag->severity = KAIN_DIAG_SEVERITY_ERROR;
             diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
             snprintf(diag->message, sizeof(diag->message), "Actor table full");
+        }
+        if (actor->user_data != NULL) {
+            rc_release(actor->user_data);
         }
         kain_actor_mailbox_destroy(&actor->mailbox);
         free(actor);
@@ -527,6 +538,9 @@ KainActorId kain_actor_spawn(
 
             if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
                 kain_actor_table_remove(actor_id);
+                if (actor->user_data != NULL) {
+                    rc_release(actor->user_data);
+                }
                 kain_actor_mailbox_destroy(&actor->mailbox);
                 free(actor);
                 return KAIN_ACTOR_ID_INVALID;
@@ -539,6 +553,9 @@ KainActorId kain_actor_spawn(
         /* Use dedicated thread per actor */
         if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
             kain_actor_table_remove(actor_id);
+            if (actor->user_data != NULL) {
+                rc_release(actor->user_data);
+            }
             kain_actor_mailbox_destroy(&actor->mailbox);
             free(actor);
             return KAIN_ACTOR_ID_INVALID;
@@ -911,6 +928,13 @@ static void kain_actor_cleanup(KainActorState_Internal* actor) {
 
     /* Destroy mailbox */
     kain_actor_mailbox_destroy(&actor->mailbox);
+
+    /* Release the compiler-owned actor state once the runtime no longer
+     * needs to keep the actor alive. */
+    if (actor->user_data != NULL) {
+        rc_release(actor->user_data);
+        actor->user_data = NULL;
+    }
 
     /* Free monitors */
     KainActorMonitor* monitor = actor->monitors;

@@ -47,20 +47,11 @@ kain_renderer_session_resolve_active_backend(
     const KainRendererBackendDescriptor* fallback_descriptor =
         kain_renderer_backend_default();
 
-    if (requested_descriptor && requested_descriptor->available) {
-        return requested_descriptor;
-    }
+    (void)diagnostic;
+    (void)diagnostic_cap;
 
-    if (diagnostic && diagnostic_cap > 0 &&
-        requested_descriptor && requested_descriptor->id[0] &&
-        fallback_descriptor) {
-        snprintf(
-            diagnostic,
-            diagnostic_cap,
-            "requested backend `%s` is not compiled in; fell back to `%s`",
-            requested_descriptor->id,
-            fallback_descriptor->id
-        );
+    if (requested_descriptor) {
+        return requested_descriptor;
     }
 
     return fallback_descriptor ? fallback_descriptor : requested_descriptor;
@@ -192,10 +183,10 @@ int kain_runtime_renderer_session_boot(
             sizeof(session->vendor_version),
             function_table->version_string ? function_table->version_string() : NULL
         );
-        if (session->vendor_declared_available && function_table->probe) {
+        if (function_table->probe) {
             probe_passed = function_table->probe() ? 1 : 0;
         }
-        if (session->vendor_declared_available && function_table->start) {
+        if (probe_passed && function_table->start) {
             start_passed = function_table->start() ? 1 : 0;
         } else {
             start_passed = probe_passed;
@@ -222,34 +213,33 @@ int kain_runtime_renderer_session_boot(
         );
     }
 
-    if (!session->vendor_declared_available) {
-        session->status = session->scene_execution_available
-            ? KAIN_RENDERER_SESSION_STATUS_DEGRADED
-            : KAIN_RENDERER_SESSION_STATUS_FAILED;
-        if (!session->diagnostic[0]) {
-            snprintf(
-                session->diagnostic,
-                sizeof(session->diagnostic),
-                "backend `%s` is cataloged but not compiled into this native runtime",
-                active_descriptor->id
-            );
+    if (probe_passed && start_passed) {
+        if (session->used_compatibility_executor) {
+            session->status = KAIN_RENDERER_SESSION_STATUS_DEGRADED;
+        } else {
+            session->status = KAIN_RENDERER_SESSION_STATUS_READY;
         }
-    } else if (!probe_passed || !start_passed) {
-        session->status = session->scene_execution_available
-            ? KAIN_RENDERER_SESSION_STATUS_DEGRADED
-            : KAIN_RENDERER_SESSION_STATUS_FAILED;
-        if (!session->diagnostic[0]) {
-            snprintf(
-                session->diagnostic,
-                sizeof(session->diagnostic),
-                "backend `%s` did not expose a direct vendor session on this host",
-                active_descriptor->id
-            );
-        }
-    } else if (session->used_compatibility_executor) {
-        session->status = KAIN_RENDERER_SESSION_STATUS_DEGRADED;
     } else {
-        session->status = KAIN_RENDERER_SESSION_STATUS_READY;
+        session->status = session->scene_execution_available
+            ? KAIN_RENDERER_SESSION_STATUS_DEGRADED
+            : KAIN_RENDERER_SESSION_STATUS_FAILED;
+        if (!session->diagnostic[0]) {
+            if (!session->vendor_declared_available) {
+                snprintf(
+                    session->diagnostic,
+                    sizeof(session->diagnostic),
+                    "backend `%s` is not active on this host",
+                    active_descriptor->id
+                );
+            } else {
+                snprintf(
+                    session->diagnostic,
+                    sizeof(session->diagnostic),
+                    "backend `%s` did not expose a usable vendor session on this host",
+                    active_descriptor->id
+                );
+            }
+        }
     }
 
     if (session->status == KAIN_RENDERER_SESSION_STATUS_FAILED &&

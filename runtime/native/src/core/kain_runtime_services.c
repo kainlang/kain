@@ -789,6 +789,36 @@ static int kain_service_registry_register_or_refresh_descriptor(
     return kain_service_registry_register_descriptor(registry, descriptor);
 }
 
+static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* registry) {
+    int i;
+
+    if (!registry) {
+        return;
+    }
+
+    for (i = 0; i < registry->service_count; ++i) {
+        KainServiceDescriptor* service = &registry->services[i];
+        const KainVendorServiceFunctionTable* function_table;
+        int probe_passed;
+
+        if (!service->function_table) {
+            continue;
+        }
+
+        function_table = (const KainVendorServiceFunctionTable*)service->function_table;
+        if (!function_table || !function_table->probe) {
+            continue;
+        }
+
+        probe_passed = function_table->probe() ? 1 : 0;
+        if (probe_passed) {
+            service->status = KAIN_SERVICE_STATUS_AVAILABLE;
+        } else if (service->status == KAIN_SERVICE_STATUS_AVAILABLE) {
+            service->status = KAIN_SERVICE_STATUS_DEGRADED;
+        }
+    }
+}
+
 int kain_service_registry_register_native_runtime_services(
     KainServiceRegistry* registry
 ) {
@@ -810,6 +840,8 @@ int kain_service_registry_register_native_runtime_services(
             return -1;
         }
     }
+
+    kain_service_registry_refresh_vendor_statuses(registry);
 
     return (int)(sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]));
 }
