@@ -37,6 +37,8 @@
         "POSIX threads plus dl/rt/m for Linux/libuv builds",
         "OpenGL/EGL/X11/Xext development libraries for Linux bgfx builds",
         "Curated bx/bgfx/bimg source bundle for the graphics vendor lane",
+        "Curated imgui and yoga source bundles for the first UI vendor lane",
+        "Skia, RmlUi, Slint, Qt, and CEF are staged behind the UI vendor bridge and not compiled into the runtime yet",
         "The Forge is staged behind the vendor bridge and not compiled into the runtime yet"
       ]
     }
@@ -147,12 +149,36 @@
     "vendor_runtime": [
       "native/src/vendor/kain_runtime_vendor_lane.c",
       "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
+      "native/src/vendor/kain_runtime_vendor_ui_bridge.cpp",
       "thirdparty/quickjs/cutils.c",
       "thirdparty/quickjs/dtoa.c",
       "thirdparty/quickjs/libregexp.c",
       "thirdparty/quickjs/libunicode.c",
       "thirdparty/quickjs/quickjs.c",
       "thirdparty/miniaudio/miniaudio.c",
+      "thirdparty/imgui/imgui.cpp",
+      "thirdparty/imgui/imgui_draw.cpp",
+      "thirdparty/imgui/imgui_tables.cpp",
+      "thirdparty/imgui/imgui_widgets.cpp",
+      "thirdparty/yoga/yoga/YGConfig.cpp",
+      "thirdparty/yoga/yoga/YGEnums.cpp",
+      "thirdparty/yoga/yoga/YGNode.cpp",
+      "thirdparty/yoga/yoga/YGNodeLayout.cpp",
+      "thirdparty/yoga/yoga/YGNodeStyle.cpp",
+      "thirdparty/yoga/yoga/YGPixelGrid.cpp",
+      "thirdparty/yoga/yoga/YGValue.cpp",
+      "thirdparty/yoga/yoga/algorithm/AbsoluteLayout.cpp",
+      "thirdparty/yoga/yoga/algorithm/Baseline.cpp",
+      "thirdparty/yoga/yoga/algorithm/Cache.cpp",
+      "thirdparty/yoga/yoga/algorithm/CalculateLayout.cpp",
+      "thirdparty/yoga/yoga/algorithm/FlexLine.cpp",
+      "thirdparty/yoga/yoga/algorithm/PixelGrid.cpp",
+      "thirdparty/yoga/yoga/config/Config.cpp",
+      "thirdparty/yoga/yoga/debug/AssertFatal.cpp",
+      "thirdparty/yoga/yoga/debug/Log.cpp",
+      "thirdparty/yoga/yoga/event/event.cpp",
+      "thirdparty/yoga/yoga/node/LayoutResults.cpp",
+      "thirdparty/yoga/yoga/node/Node.cpp",
       "thirdparty/wasm3/source/m3_bind.c",
       "thirdparty/wasm3/source/m3_code.c",
       "thirdparty/wasm3/source/m3_compile.c",
@@ -214,7 +240,6 @@
       "thirdparty/bimg/3rdparty/iqa/source/mse.c",
       "thirdparty/bimg/3rdparty/iqa/source/psnr.c",
       "thirdparty/bimg/3rdparty/iqa/source/ssim.c",
-      "thirdparty/bimg/3rdparty/lodepng/lodepng.cpp",
       "thirdparty/bimg/3rdparty/nvtt/nvtt.cpp",
       "thirdparty/bimg/3rdparty/nvtt/bc6h/zoh.cpp",
       "thirdparty/bimg/3rdparty/nvtt/bc6h/zoh_utils.cpp",
@@ -280,43 +305,6 @@
       "thirdparty/libuv/src/win/util.c",
       "thirdparty/libuv/src/win/winapi.c",
       "thirdparty/libuv/src/win/winsock.c"
-    ],
-    "vendor_linux": [
-      "thirdparty/libuv/src/fs-poll.c",
-      "thirdparty/libuv/src/idna.c",
-      "thirdparty/libuv/src/inet.c",
-      "thirdparty/libuv/src/random.c",
-      "thirdparty/libuv/src/strscpy.c",
-      "thirdparty/libuv/src/strtok.c",
-      "thirdparty/libuv/src/thread-common.c",
-      "thirdparty/libuv/src/threadpool.c",
-      "thirdparty/libuv/src/timer.c",
-      "thirdparty/libuv/src/uv-common.c",
-      "thirdparty/libuv/src/uv-data-getter-setters.c",
-      "thirdparty/libuv/src/version.c",
-      "thirdparty/libuv/src/unix/async.c",
-      "thirdparty/libuv/src/unix/core.c",
-      "thirdparty/libuv/src/unix/dl.c",
-      "thirdparty/libuv/src/unix/fs.c",
-      "thirdparty/libuv/src/unix/getaddrinfo.c",
-      "thirdparty/libuv/src/unix/getnameinfo.c",
-      "thirdparty/libuv/src/unix/linux.c",
-      "thirdparty/libuv/src/unix/loop-watcher.c",
-      "thirdparty/libuv/src/unix/loop.c",
-      "thirdparty/libuv/src/unix/pipe.c",
-      "thirdparty/libuv/src/unix/poll.c",
-      "thirdparty/libuv/src/unix/process.c",
-      "thirdparty/libuv/src/unix/procfs-exepath.c",
-      "thirdparty/libuv/src/unix/proctitle.c",
-      "thirdparty/libuv/src/unix/random-devurandom.c",
-      "thirdparty/libuv/src/unix/random-getrandom.c",
-      "thirdparty/libuv/src/unix/random-sysctl-linux.c",
-      "thirdparty/libuv/src/unix/signal.c",
-      "thirdparty/libuv/src/unix/stream.c",
-      "thirdparty/libuv/src/unix/tcp.c",
-      "thirdparty/libuv/src/unix/thread.c",
-      "thirdparty/libuv/src/unix/tty.c",
-      "thirdparty/libuv/src/unix/udp.c"
     ]
   },
   "include_dirs": [
@@ -340,6 +328,8 @@
     "thirdparty/bimg/3rdparty/tinyexr/deps",
     "thirdparty/quickjs",
     "thirdparty/miniaudio",
+    "thirdparty/imgui",
+    "thirdparty/yoga",
     "thirdparty/wasm3/source",
     "thirdparty/mimalloc/include",
     "thirdparty/mimalloc/src",
@@ -377,14 +367,7 @@
       "provider": "native-core",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Core allocation, retain/release, and memory management",
-      "implementation_files": [
-        "native/src/core/kain_runtime_memory.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_memory.h"
-      ]
+      "description": "Core allocation, retain/release, and memory management"
     },
     {
       "key": "base.diagnostics",
@@ -392,14 +375,7 @@
       "provider": "native-core",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Structured diagnostics and error reporting",
-      "implementation_files": [
-        "native/src/core/kain_runtime_diagnostics.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_diagnostics.h"
-      ]
+      "description": "Structured diagnostics and error reporting"
     },
     {
       "key": "contract",
@@ -407,14 +383,7 @@
       "provider": "native-core",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Runtime contract bundle loading and validation",
-      "implementation_files": [
-        "native/src/core/kain_runtime_contract.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_contract.h"
-      ]
+      "description": "Runtime contract bundle loading and validation"
     },
     {
       "key": "platform.app-host",
@@ -422,14 +391,7 @@
       "provider": "platform-win32",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Win32 application host and window management",
-      "implementation_files": [
-        "native/src/platform/win32/kain_win32_app_host.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_app_host.h"
-      ],
       "platforms": [
         "windows"
       ]
@@ -440,14 +402,7 @@
       "provider": "platform-win32",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Win32 input capture and event handling",
-      "implementation_files": [
-        "native/src/platform/win32/kain_win32_input_host.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_input.h"
-      ],
       "platforms": [
         "windows"
       ]
@@ -458,15 +413,7 @@
       "provider": "platform-win32",
       "requirement": "required",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Win32 viewport host and OpenGL rendering",
-      "implementation_files": [
-        "native/src/platform/win32/kain_runtime_viewport_win32.c",
-        "native/src/gfx/opengl/kain_gl_win32_host.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_viewport.h"
-      ],
       "platforms": [
         "windows"
       ]
@@ -477,20 +424,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Cross-platform baseline renderer backend for viewport, swapchain, and debug draw",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "native/src/core/kain_runtime_renderer_backend.c",
-        "thirdparty/bx/src/amalgamated.cpp",
-        "thirdparty/bgfx/src/amalgamated.cpp"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_renderer_backend.h",
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -502,18 +436,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
       "description": "Premium scene, material, and lighting presentation lane staged behind Kain contracts",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "native/src/core/kain_runtime_renderer_backend.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_renderer_backend.h",
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -525,18 +448,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
       "description": "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "native/src/core/kain_runtime_renderer_backend.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_renderer_backend.h",
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -548,18 +460,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
       "description": "Low-level cross-platform renderer substrate staged behind the Kain renderer backend seam",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "native/src/core/kain_runtime_renderer_backend.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_renderer_backend.h",
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -571,14 +472,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Stable native scene handles and runtime-owned scene state access",
-      "implementation_files": [
-        "native/src/core/kain_runtime_scene.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_scene.h"
-      ]
+      "description": "Stable native scene handles and runtime-owned scene state access"
     },
     {
       "key": "scene.query",
@@ -586,14 +480,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Picking, raycast, bounds, visibility, and selection query contracts",
-      "implementation_files": [
-        "native/src/core/kain_runtime_scene.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_scene.h"
-      ]
+      "description": "Picking, raycast, bounds, visibility, and selection query contracts"
     },
     {
       "key": "scene.mutation",
@@ -601,14 +488,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Transactional scene mutation requests and receipts",
-      "implementation_files": [
-        "native/src/core/kain_runtime_scene.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_scene.h"
-      ]
+      "description": "Transactional scene mutation requests and receipts"
     },
     {
       "key": "asset.gltf",
@@ -616,14 +496,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "glTF 2.0 asset loading and parsing",
-      "implementation_files": [
-        "native/src/asset/kain_asset_gltf.c"
-      ],
-      "header_files": [
-        "native/include/kain_asset_gltf.h"
-      ]
+      "description": "glTF 2.0 asset loading and parsing"
     },
     {
       "key": "asset.image.bimg",
@@ -631,19 +504,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Image decoding and staging lane reserved for renderer-facing asset ingestion",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "thirdparty/bimg/src/image.cpp",
-        "thirdparty/bimg/src/image_decode.cpp",
-        "thirdparty/bimg/src/image_encode.cpp"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -655,19 +516,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Texture container and mip/format staging lane reserved for renderer asset flow",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-        "thirdparty/bimg/src/image.cpp",
-        "thirdparty/bimg/src/image_decode.cpp",
-        "thirdparty/bimg/src/image_encode.cpp"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h",
-        "native/include/kain_runtime_vendor_graphics_bridge.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -679,14 +528,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Canonical descriptor-driven entry path for assets and emitted bundles",
-      "implementation_files": [
-        "native/src/core/kain_runtime_contract.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_contract.h"
-      ]
+      "description": "Canonical descriptor-driven entry path for assets and emitted bundles"
     },
     {
       "key": "asset.realtime",
@@ -694,14 +536,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Realtime bundle loading and scene management",
-      "implementation_files": [
-        "native/src/core/kain_runtime_realtime.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_realtime.h"
-      ]
+      "description": "Realtime bundle loading and scene management"
     },
     {
       "key": "ui.bundle",
@@ -709,16 +544,102 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Compiled UI bundle loading and overlay rendering",
-      "implementation_files": [
-        "native/src/ui/kain_ui_compiled_bundle.c",
-        "native/src/ui/kain_ui_compiled_overlay.c",
-        "native/src/ui/kain_ui_overlay.c"
-      ],
-      "header_files": [
-        "native/include/kain_ui_compiled_bundle.h",
-        "native/include/kain_ui_overlay.h"
+      "description": "Compiled UI bundle loading and overlay rendering"
+    },
+    {
+      "key": "ui.layout.yoga",
+      "name": "Yoga Layout Engine",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "description": "Canonical layout execution lane for retained UI tree sizing and placement",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.render.skia",
+      "name": "Skia Render Engine",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "description": "2D, vector, and text render substrate staged behind Kain UI paint contracts",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.backend.imgui",
+      "name": "ImGui Host Backend",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "description": "Tooling and devtools backend for inspectors, overlays, and runtime diagnostics",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.backend.rmlui",
+      "name": "RmlUi Host Backend",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "description": "Document-style retained UI backend staged for markup-driven Kain surfaces",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.backend.slint",
+      "name": "Slint Host Backend",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "description": "Declarative native UI backend staged behind Kain semantic surface routing",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.backend.qt",
+      "name": "Qt Shell Backend",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "description": "Desktop shell and docking backend staged for Kain-owned semantic app sessions",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.surface.browser.cef",
+      "name": "CEF Browser Surface",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "planned",
+      "description": "Browser-backed panel and document surface lane staged behind Kain UI contracts",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "ui.devtools",
+      "name": "UI Devtools",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "description": "Runtime inspection, patch tracing, and tooling overlay service family",
+      "platforms": [
+        "windows",
+        "linux"
       ]
     },
     {
@@ -727,14 +648,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Reflection payload loading and runtime type lookup",
-      "implementation_files": [
-        "native/src/core/kain_runtime_reflection.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_reflection.h"
-      ]
+      "description": "Reflection payload loading and runtime type lookup"
     },
     {
       "key": "runtime.inspection",
@@ -742,14 +656,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Runtime-owned scene, resource, and binding inspection queries",
-      "implementation_files": [
-        "native/src/core/kain_runtime_realtime.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_realtime.h"
-      ]
+      "description": "Runtime-owned scene, resource, and binding inspection queries"
     },
     {
       "key": "device.reflection",
@@ -757,14 +664,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Backend, GPU, display, and hotplug capability descriptors",
-      "implementation_files": [
-        "native/src/platform/kain_runtime_platform.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_platform.h"
-      ]
+      "description": "Backend, GPU, display, and hotplug capability descriptors"
     },
     {
       "key": "actor.runtime",
@@ -772,14 +672,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Actor spawn, mailbox, lifecycle, and scheduling",
-      "implementation_files": [
-        "native/src/core/kain_runtime_actor.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_actor.h"
-      ]
+      "description": "Actor spawn, mailbox, lifecycle, and scheduling"
     },
     {
       "key": "actor.registry",
@@ -787,14 +680,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Named actor registration and lookup",
-      "implementation_files": [
-        "native/src/core/kain_runtime_actor.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_actor.h"
-      ]
+      "description": "Named actor registration and lookup"
     },
     {
       "key": "async.runtime",
@@ -802,14 +688,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Task/future execution, wake/poll, and cancellation",
-      "implementation_files": [
-        "native/src/core/kain_runtime_async.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_async.h"
-      ]
+      "description": "Task/future execution, wake/poll, and cancellation"
     },
     {
       "key": "async.timers",
@@ -817,14 +696,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Timer registration and wake delivery",
-      "implementation_files": [
-        "native/src/core/kain_runtime_async.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_async.h"
-      ]
+      "description": "Timer registration and wake delivery"
     },
     {
       "key": "io.loop",
@@ -832,15 +704,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed event loop and wake delivery substrate",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/libuv"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -852,15 +716,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed filesystem operations and async file dispatch",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/libuv"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -872,15 +728,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed TCP, UDP, and name-resolution primitives",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/libuv"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -892,15 +740,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed process spawning, pipes, and child lifecycle management",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/libuv"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -912,15 +752,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed timer wheel and deadline wake integration",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/libuv"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -932,10 +764,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
-      "description": "Shader artifact loading and validation",
-      "implementation_files": [],
-      "header_files": []
+      "description": "Shader artifact loading and validation"
     },
     {
       "key": "gfx.material",
@@ -943,10 +772,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
-      "description": "Material instance management and resource binding",
-      "implementation_files": [],
-      "header_files": []
+      "description": "Material instance management and resource binding"
     },
     {
       "key": "gfx.compute",
@@ -954,10 +780,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
-      "description": "Compute pipeline creation and dispatch",
-      "implementation_files": [],
-      "header_files": []
+      "description": "Compute pipeline creation and dispatch"
     },
     {
       "key": "ui.component",
@@ -965,14 +788,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Component state, invalidation, and event routing",
-      "implementation_files": [
-        "native/src/ui/kain_ui_runtime.c"
-      ],
-      "header_files": [
-        "native/include/kain_ui_runtime.h"
-      ]
+      "description": "Component state, invalidation, and event routing"
     },
     {
       "key": "compatibility",
@@ -980,14 +796,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Version validation, migration, and hot reload support",
-      "implementation_files": [
-        "native/src/core/kain_runtime_compatibility.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_compatibility.h"
-      ]
+      "description": "Version validation, migration, and hot reload support"
     },
     {
       "key": "host.bridge",
@@ -995,14 +804,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
-      "description": "Plugin and foreign service integration",
-      "implementation_files": [
-        "native/src/core/kain_runtime_host_bridge.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_host_bridge.h"
-      ]
+      "description": "Plugin and foreign service integration"
     },
     {
       "key": "script.quickjs",
@@ -1010,15 +812,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Embedded JavaScript runtime for host automation and dynamic scripting",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/quickjs/quickjs.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1030,15 +824,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed device and backend abstraction for realtime audio",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/miniaudio/miniaudio.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1050,15 +836,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed audio graph and node processing substrate",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/miniaudio/miniaudio.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1070,15 +848,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed playback and capture device lifecycle",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/miniaudio/miniaudio.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1090,15 +860,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Vendor-backed audio asset decoding and resource loading",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/miniaudio/miniaudio.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1110,15 +872,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Lightweight WebAssembly runtime for small sandboxed modules",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/wasm3/source"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1130,15 +884,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
       "description": "Full WebAssembly runtime lane staged for richer module hosting",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/wamr/core"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1150,15 +896,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Kain-owned WebAssembly module loading and execution seam",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/wasm3/source"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1170,15 +908,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "planned",
-      "abi_version": "0.1.0",
       "description": "WASI-flavored runtime lane staged behind the WebAssembly service family",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/wamr/core"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1190,15 +920,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Mimalloc-backed allocation lane for Kain runtime experiments",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/mimalloc/src"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"
@@ -1210,15 +932,7 @@
       "provider": "native-core",
       "requirement": "optional",
       "status": "available",
-      "abi_version": "0.1.0",
       "description": "Rpmalloc-backed allocation lane for Kain runtime experiments",
-      "implementation_files": [
-        "native/src/vendor/kain_runtime_vendor_lane.c",
-        "thirdparty/rpmalloc/rpmalloc/rpmalloc.c"
-      ],
-      "header_files": [
-        "native/include/kain_runtime_vendor_lane.h"
-      ],
       "platforms": [
         "windows",
         "linux"

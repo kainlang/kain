@@ -26,12 +26,12 @@ static void copy_text(char* out, size_t out_cap, const char* text) {
     out[out_cap - 1] = '\0';
 }
 
-static int count_service_bits(unsigned int mask) {
+static int count_service_bits(KainRuntimeServiceMask mask) {
     int count = 0;
 
-    while (mask != 0u) {
-        count += (mask & 1u) != 0u ? 1 : 0;
-        mask >>= 1u;
+    while (mask != 0) {
+        count += (mask & UINT64_C(1)) != 0 ? 1 : 0;
+        mask >>= 1;
     }
     return count;
 }

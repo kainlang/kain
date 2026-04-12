@@ -3,7 +3,7 @@
 
 typedef struct {
     const char* key;
-    unsigned int mask;
+    KainRuntimeServiceMask mask;
     int is_core;
 } KainRuntimeServiceSpec;
 
@@ -41,6 +41,14 @@ static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
     {KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT, KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT, 0},
     {KAIN_SERVICE_KEY_ASSET_IMAGE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
     {KAIN_SERVICE_KEY_ASSET_TEXTURE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
+    {KAIN_SERVICE_KEY_UI_LAYOUT_YOGA, KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA, 0},
+    {KAIN_SERVICE_KEY_UI_RENDER_SKIA, KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA, 0},
+    {KAIN_SERVICE_KEY_UI_BACKEND_IMGUI, KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI, 0},
+    {KAIN_SERVICE_KEY_UI_BACKEND_RMLUI, KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI, 0},
+    {KAIN_SERVICE_KEY_UI_BACKEND_SLINT, KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT, 0},
+    {KAIN_SERVICE_KEY_UI_BACKEND_QT, KAIN_RUNTIME_SERVICE_UI_BACKEND_QT, 0},
+    {KAIN_SERVICE_KEY_UI_SURFACE_BROWSER_CEF, KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF, 0},
+    {KAIN_SERVICE_KEY_UI_DEVTOOLS, KAIN_RUNTIME_SERVICE_UI_DEVTOOLS, 0},
 };
 
 static const size_t g_kain_runtime_service_spec_count =
@@ -207,10 +215,10 @@ static void kain_runtime_contract_copy_cstr(char* out, size_t out_cap, const cha
     out[length] = '\0';
 }
 
-static int kain_runtime_contract_count_bits(unsigned int value) {
+static int kain_runtime_contract_count_bits(KainRuntimeServiceMask value) {
     int count = 0;
     while (value) {
-        count += (value & 1u) != 0u ? 1 : 0;
+        count += (value & UINT64_C(1)) != 0 ? 1 : 0;
         value >>= 1;
     }
     return count;
@@ -394,69 +402,85 @@ static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
 
     bundle->target_is_llvm = bundle->target[0] && _stricmp(bundle->target, "llvm") == 0;
     bundle->has_native_app_host =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST) != 0;
     bundle->has_native_input =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_INPUT) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_INPUT) != 0;
     bundle->has_native_viewport =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT) != 0;
     bundle->has_native_asset_gltf =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF) != 0;
     bundle->has_native_ui_compiled_bundle =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0;
     bundle->has_gfx_compute =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_COMPUTE) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_COMPUTE) != 0;
     bundle->has_scene_runtime =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_RUNTIME) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_RUNTIME) != 0;
     bundle->has_scene_queries =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_QUERY) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_QUERY) != 0;
     bundle->has_scene_mutation =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_MUTATION) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_MUTATION) != 0;
     bundle->has_runtime_inspection =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION) != 0;
     bundle->has_device_reflection =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION) != 0;
     bundle->has_asset_ingestion =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_INGESTION) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_INGESTION) != 0;
     bundle->has_io_loop =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_LOOP) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_LOOP) != 0;
     bundle->has_io_fs =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_FS) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_FS) != 0;
     bundle->has_io_net =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_NET) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_NET) != 0;
     bundle->has_io_process =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_PROCESS) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_PROCESS) != 0;
     bundle->has_io_timers =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_TIMERS) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_TIMERS) != 0;
     bundle->has_script_quickjs =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS) != 0;
     bundle->has_audio_backend =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_BACKEND) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_BACKEND) != 0;
     bundle->has_audio_graph =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_GRAPH) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_GRAPH) != 0;
     bundle->has_audio_device =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_DEVICE) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_DEVICE) != 0;
     bundle->has_audio_assets =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_ASSETS) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_ASSETS) != 0;
     bundle->has_wasm_runtime_light =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT) != 0;
     bundle->has_wasm_runtime_full =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL) != 0;
     bundle->has_wasm_module =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_MODULE) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_MODULE) != 0;
     bundle->has_wasm_wasi =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_WASI) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_WASI) != 0;
     bundle->has_allocator_mimalloc =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC) != 0;
     bundle->has_allocator_rpmalloc =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC) != 0;
     bundle->has_gfx_backend_bgfx =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX) != 0;
     bundle->has_gfx_backend_filament =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT) != 0;
     bundle->has_gfx_backend_diligent =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT) != 0;
     bundle->has_asset_texture_bimg =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG) != 0u;
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG) != 0;
+    bundle->has_ui_layout_yoga =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA) != 0;
+    bundle->has_ui_render_skia =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA) != 0;
+    bundle->has_ui_backend_imgui =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI) != 0;
+    bundle->has_ui_backend_rmlui =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI) != 0;
+    bundle->has_ui_backend_slint =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT) != 0;
+    bundle->has_ui_backend_qt =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_QT) != 0;
+    bundle->has_ui_surface_browser_cef =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF) != 0;
+    bundle->has_ui_devtools =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_DEVTOOLS) != 0;
     bundle->core_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
     );
@@ -683,9 +707,9 @@ int kain_runtime_contract_load_for_current_process(
     return 0;
 }
 
-unsigned int kain_runtime_contract_service_mask(const KainRuntimeContractBundle* bundle) {
+KainRuntimeServiceMask kain_runtime_contract_service_mask(const KainRuntimeContractBundle* bundle) {
     if (!bundle) {
-        return 0u;
+        return 0;
     }
     return bundle->service_mask;
 }
@@ -698,7 +722,7 @@ void kain_runtime_contract_validation_init(KainRuntimeContractValidation* valida
 }
 
 void kain_runtime_contract_format_service_mask(
-    unsigned int service_mask,
+    KainRuntimeServiceMask service_mask,
     char* out,
     size_t out_cap
 ) {
@@ -710,7 +734,7 @@ void kain_runtime_contract_format_service_mask(
     out[0] = '\0';
     for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {
         const KainRuntimeServiceSpec* spec = &g_kain_runtime_service_specs[i];
-        if ((service_mask & spec->mask) == 0u) {
+        if ((service_mask & spec->mask) == 0) {
             continue;
         }
         if (wrote_any) {
@@ -726,8 +750,8 @@ void kain_runtime_contract_format_service_mask(
 
 int kain_runtime_contract_validate_startup(
     const KainRuntimeContractBundle* bundle,
-    unsigned int required_service_mask,
-    unsigned int optional_service_mask,
+    KainRuntimeServiceMask required_service_mask,
+    KainRuntimeServiceMask optional_service_mask,
     KainRuntimeContractValidation* validation
 ) {
     char services_buffer[192];
@@ -753,7 +777,7 @@ int kain_runtime_contract_validate_startup(
     validation->required_service_mask = required_service_mask;
     validation->optional_service_mask = optional_service_mask;
     validation->contract_present = bundle && bundle->loaded;
-    validation->available_service_mask = bundle ? bundle->service_mask : 0u;
+    validation->available_service_mask = bundle ? bundle->service_mask : 0;
     validation->missing_required_mask =
         required_service_mask & ~validation->available_service_mask;
     validation->downgraded_optional_mask =
@@ -828,7 +852,7 @@ int kain_runtime_contract_validate_startup(
         kain_runtime_contract_add_warning(validation, services_buffer);
     }
 
-    if (validation->missing_required_mask != 0u) {
+    if (validation->missing_required_mask != 0) {
         kain_runtime_contract_format_service_mask(
             validation->missing_required_mask,
             services_buffer,
@@ -855,7 +879,7 @@ int kain_runtime_contract_validate_startup(
         validation->fatal_message[0] = '\0';
     }
 
-    if (validation->downgraded_optional_mask != 0u) {
+    if (validation->downgraded_optional_mask != 0) {
         kain_runtime_contract_format_service_mask(
             validation->downgraded_optional_mask,
             services_buffer,
@@ -937,8 +961,8 @@ int kain_runtime_contract_is_service_available(const char* service_key) {
  */
 int kain_runtime_contract_validate_startup_enhanced(
     const KainRuntimeContractBundle* bundle,
-    unsigned int required_service_mask,
-    unsigned int optional_service_mask,
+    KainRuntimeServiceMask required_service_mask,
+    KainRuntimeServiceMask optional_service_mask,
     KainStartupValidationResult* result
 ) {
     KainRuntimeContractValidation legacy_validation;
@@ -1022,11 +1046,11 @@ int kain_runtime_contract_validate_startup_enhanced(
     /* Count available services */
     if (bundle && bundle->loaded) {
         result->required_services_available = 
-            __builtin_popcount(bundle->service_mask & required_service_mask);
+            kain_runtime_contract_count_bits(bundle->service_mask & required_service_mask);
         result->optional_services_available = 
-            __builtin_popcount(bundle->service_mask & optional_service_mask);
+            kain_runtime_contract_count_bits(bundle->service_mask & optional_service_mask);
         result->optional_services_degraded = 
-            __builtin_popcount(optional_service_mask & ~bundle->service_mask);
+            kain_runtime_contract_count_bits(optional_service_mask & ~bundle->service_mask);
     }
     
     /* Set validation status */

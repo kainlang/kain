@@ -235,6 +235,86 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         NULL
     },
     {
+        KAIN_SERVICE_KEY_UI_LAYOUT_YOGA,
+        "Yoga Layout Engine",
+        "Canonical layout execution lane for retained UI tree sizing and placement",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_YOGA ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_layout_yoga_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_RENDER_SKIA,
+        "Skia Render Engine",
+        "2D, vector, and text render substrate staged behind Kain UI paint contracts",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_SKIA ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_render_skia_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_BACKEND_IMGUI,
+        "ImGui Host Backend",
+        "Tooling and devtools backend for inspectors, overlays, and runtime diagnostics",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_IMGUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_backend_imgui_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_BACKEND_RMLUI,
+        "RmlUi Host Backend",
+        "Document-style retained UI backend staged for markup-driven Kain surfaces",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_RMLUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_backend_rmlui_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_BACKEND_SLINT,
+        "Slint Host Backend",
+        "Declarative native UI backend staged behind Kain semantic surface routing",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_SLINT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_backend_slint_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_BACKEND_QT,
+        "Qt Shell Backend",
+        "Desktop shell and docking backend staged for Kain-owned semantic app sessions",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_QT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_backend_qt_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_SURFACE_BROWSER_CEF,
+        "CEF Browser Surface",
+        "Browser-backed panel and document surface lane staged behind Kain UI contracts",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_CEF ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_surface_browser_cef_service
+    },
+    {
+        KAIN_SERVICE_KEY_UI_DEVTOOLS,
+        "UI Devtools",
+        "Runtime inspection, patch tracing, and tooling overlay service family",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_IMGUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_ui_devtools_service
+    },
+    {
         KAIN_SERVICE_KEY_REFLECTION,
         "Reflection Runtime",
         "Reflection payload loading and runtime type lookup",

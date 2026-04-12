@@ -1,5 +1,40 @@
 # MEMORY
 
+## 2026-04-11 - mixed-language graphics vendor slice landed with bgfx/bimg live and The Forge staged
+
+The runtime now has a real renderer-backend seam in native code instead of only a graphics-vendor plan doc. The first implementation pass added a mixed C/C++ native build path, a Kain-owned renderer backend catalog, real `bgfx` + `bx` + `bimg` vendor incorporation, a staged `the-forge` backend identity, and a source-first 3D smoke shell under `smoketest/3D/material_atrium_showcase`.
+
+What changed:
+
+- Extended the manifest-driven native build path so `runtime/native_runtime.toml` can compile mixed C and C++ source graphs.
+- Added a Kain-owned renderer backend catalog and graphics vendor bridge under `runtime/native/include/` and `runtime/native/src/`.
+- Promoted these service families into the runtime registry and metadata:
+  - `gfx.backend.bgfx`
+  - `gfx.backend.filament`
+  - `gfx.backend.diligent`
+  - `gfx.backend.forge`
+  - `asset.image.bimg`
+  - `asset.texture.bimg`
+- Wired `bgfx`, `bx`, and `bimg` into the native runtime bundle as the first live graphics vendor lane.
+- Staged `the-forge` in the same backend seam as a non-compiled future lane so the service catalog, metadata, and smoke shell already understand it.
+- Added the `material_atrium` scene and the new `smoketest/3D/material_atrium_showcase` native-ui smoke shell to prove the renderer-backend direction in a product-style presentation instead of a bare viewport.
+
+Design decisions:
+
+- Kept Kain as the owner of renderer identity, service keys, and backend selection while letting vendor code sit behind a graphics bridge.
+- Chose to stage `the-forge` now rather than compile it directly because the current bridge seam is ready for identity/catalog work, but not for a large Common_3 compile blast.
+- Treated the smoke shell as a durable proof artifact for the graphics-runtime lane, not a one-off demo.
+
+Current risks:
+
+- `bgfx` and `bimg` are compiled and link-proven, but the runtime still does not have a full host-facing viewport/backend split yet.
+- `filament`, `diligent`, and `the-forge` are still staged identities behind the seam rather than fully compiled backends.
+- `bimg` has embedded third-party implementation files like `lodepng.cpp`; if the manifest adds those same implementation units separately, fixture linking will fail with duplicate symbols.
+
+Recommended next step:
+
+- Build the real viewport/backend handoff on top of the new backend catalog, then wire the first host-facing `bgfx` presentation path before attempting a full bridge for Filament, Diligent, or The Forge.
+
 ## 2026-04-11 - graphics vendor incorporation plan added for bgfx, bx, bimg, filament-core, and diligentcore
 
 The runtime now has a concrete graphics-vendor doctrine instead of a generic “maybe wire all the renderers in” impulse. The new vendors are useful, but they need different roles.

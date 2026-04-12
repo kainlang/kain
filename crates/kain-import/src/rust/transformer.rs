@@ -3551,7 +3551,7 @@ impl RustTransformer {
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
         } else {
-            resolved.join("__")
+            self.flatten_value_path_segments(&resolved)
         }
     }
 
@@ -3590,6 +3590,36 @@ impl RustTransformer {
         } else {
             resolved.join("::")
         }
+    }
+
+    fn flatten_value_path_segments(&mut self, resolved: &[String]) -> String {
+        let effective = if resolved
+            .first()
+            .is_some_and(|segment| matches!(segment.as_str(), "crate" | "self" | "super"))
+        {
+            &resolved[1..]
+        } else {
+            resolved
+        };
+        if effective.len() >= 2 && looks_like_type_name(&effective[effective.len() - 2]) {
+            let type_name = self.rename_type(&effective[effective.len() - 2]);
+            let value_name = self.rename_value(&effective[effective.len() - 1]);
+            return format!("{type_name}__{value_name}");
+        }
+        effective
+            .iter()
+            .enumerate()
+            .map(|(index, segment)| {
+                if index + 1 == effective.len() {
+                    self.rename_value(segment)
+                } else if looks_like_type_name(segment) {
+                    self.rename_type(segment)
+                } else {
+                    segment.clone()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("__")
     }
 }
 

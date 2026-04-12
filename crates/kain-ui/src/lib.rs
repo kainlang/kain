@@ -34,6 +34,46 @@ pub enum UiRendererKind {
     Debug,
 }
 
+/// Canonical layout engines that can execute KAIN semantic layout intent.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiLayoutEngineKind {
+    #[default]
+    Auto,
+    Native,
+    Yoga,
+    LegacyEgui,
+}
+
+/// Canonical render engines that can paint KAIN semantic surfaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiRenderEngineKind {
+    #[default]
+    Auto,
+    Native,
+    Skia,
+    Wgpu,
+    Shader,
+    Browser,
+    LegacyEgui,
+}
+
+/// Host backends that can present KAIN semantic sessions.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UiHostBackendKind {
+    #[default]
+    Auto,
+    Native,
+    LegacyEgui,
+    Imgui,
+    RmlUi,
+    Slint,
+    Qt,
+    Cef,
+}
+
 /// Declarative backend capability profile.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiBackendCapabilities {
@@ -96,6 +136,105 @@ pub fn backend_capabilities(renderer: UiRendererKind) -> &'static UiBackendCapab
         .iter()
         .find(|entry| entry.renderer == renderer)
         .unwrap_or(&UI_BACKEND_CAPABILITIES[0])
+}
+
+/// Role-specific host backend capability profile.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiHostBackendCapabilities {
+    pub host_backend: UiHostBackendKind,
+    pub layout_engine: UiLayoutEngineKind,
+    pub render_engine: UiRenderEngineKind,
+    pub supports_real_windowing: bool,
+    pub supports_dom_embedding: bool,
+    pub supports_gpu_viewports: bool,
+    pub supports_docking: bool,
+    pub supports_rich_text: bool,
+    pub supports_pointer_capture: bool,
+    pub supports_accessibility_tree: bool,
+}
+
+pub const UI_HOST_BACKEND_CAPABILITIES: &[UiHostBackendCapabilities] = &[
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::LegacyEgui,
+        layout_engine: UiLayoutEngineKind::LegacyEgui,
+        render_engine: UiRenderEngineKind::LegacyEgui,
+        supports_real_windowing: true,
+        supports_dom_embedding: false,
+        supports_gpu_viewports: true,
+        supports_docking: true,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: false,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::Imgui,
+        layout_engine: UiLayoutEngineKind::Yoga,
+        render_engine: UiRenderEngineKind::Skia,
+        supports_real_windowing: true,
+        supports_dom_embedding: false,
+        supports_gpu_viewports: true,
+        supports_docking: true,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: false,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::RmlUi,
+        layout_engine: UiLayoutEngineKind::Yoga,
+        render_engine: UiRenderEngineKind::Skia,
+        supports_real_windowing: true,
+        supports_dom_embedding: false,
+        supports_gpu_viewports: true,
+        supports_docking: false,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: false,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::Slint,
+        layout_engine: UiLayoutEngineKind::Yoga,
+        render_engine: UiRenderEngineKind::Native,
+        supports_real_windowing: true,
+        supports_dom_embedding: false,
+        supports_gpu_viewports: true,
+        supports_docking: false,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: true,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::Qt,
+        layout_engine: UiLayoutEngineKind::Yoga,
+        render_engine: UiRenderEngineKind::Skia,
+        supports_real_windowing: true,
+        supports_dom_embedding: false,
+        supports_gpu_viewports: true,
+        supports_docking: true,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: true,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::Cef,
+        layout_engine: UiLayoutEngineKind::Auto,
+        render_engine: UiRenderEngineKind::Browser,
+        supports_real_windowing: false,
+        supports_dom_embedding: true,
+        supports_gpu_viewports: true,
+        supports_docking: true,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: true,
+    },
+];
+
+pub fn host_backend_capabilities(
+    host_backend: UiHostBackendKind,
+) -> &'static UiHostBackendCapabilities {
+    UI_HOST_BACKEND_CAPABILITIES
+        .iter()
+        .find(|entry| entry.host_backend == host_backend)
+        .unwrap_or(&UI_HOST_BACKEND_CAPABILITIES[0])
 }
 
 /// Scalar runtime value used by UI props and patch payloads.
@@ -773,6 +912,12 @@ pub struct UiSurface {
     #[serde(default)]
     pub composition_mode: UiSurfaceCompositionMode,
     #[serde(default)]
+    pub preferred_host_backend: UiHostBackendKind,
+    #[serde(default)]
+    pub preferred_layout_engine: UiLayoutEngineKind,
+    #[serde(default)]
+    pub preferred_render_engine: UiRenderEngineKind,
+    #[serde(default)]
     pub gpu_backing_required: bool,
     #[serde(default)]
     pub shader: Option<UiSurfaceShaderBinding>,
@@ -1364,6 +1509,39 @@ pub struct UiRuntimeMetadata {
     pub root_component: String,
     pub source_file_name: Option<String>,
     pub initial_window_size: [f32; 2],
+    #[serde(default)]
+    pub preferred_shell_host_backend: UiHostBackendKind,
+    #[serde(default)]
+    pub preferred_document_host_backend: UiHostBackendKind,
+    #[serde(default)]
+    pub preferred_devtools_host_backend: UiHostBackendKind,
+    #[serde(default)]
+    pub preferred_layout_engine: UiLayoutEngineKind,
+    #[serde(default)]
+    pub preferred_render_engine: UiRenderEngineKind,
+    #[serde(default)]
+    pub compatibility_host_backend: UiHostBackendKind,
+    #[serde(default)]
+    pub mixed_backend_session: bool,
+}
+
+impl Default for UiRuntimeMetadata {
+    fn default() -> Self {
+        Self {
+            app_name: None,
+            window_title: String::new(),
+            root_component: String::new(),
+            source_file_name: None,
+            initial_window_size: [1440.0, 920.0],
+            preferred_shell_host_backend: UiHostBackendKind::Qt,
+            preferred_document_host_backend: UiHostBackendKind::RmlUi,
+            preferred_devtools_host_backend: UiHostBackendKind::Imgui,
+            preferred_layout_engine: UiLayoutEngineKind::Yoga,
+            preferred_render_engine: UiRenderEngineKind::Wgpu,
+            compatibility_host_backend: UiHostBackendKind::LegacyEgui,
+            mixed_backend_session: true,
+        }
+    }
 }
 
 /// Serialized ABI boundary between the KAIN compiler and host runtimes.
@@ -2914,6 +3092,10 @@ fn ui_surface_for_node(node: &UiNode) -> Option<UiSurface> {
     let shader = surface_shader_binding_for_node(node);
     let renderer_preference = surface_renderer_preference_for_node(node, shader.as_ref(), &kind);
     let composition_mode = surface_composition_mode_for_node(node, shader.as_ref(), &kind);
+    let preferred_host_backend = surface_host_backend_for_node(node, &kind);
+    let preferred_layout_engine = surface_layout_engine_for_node(node);
+    let preferred_render_engine =
+        surface_render_engine_for_node(node, shader.as_ref(), &kind, renderer_preference);
     let gpu_backing_required = surface_gpu_backing_required(
         node,
         shader.as_ref(),
@@ -2929,6 +3111,9 @@ fn ui_surface_for_node(node: &UiNode) -> Option<UiSurface> {
         title: node_prop_string(node, "title"),
         renderer_preference,
         composition_mode,
+        preferred_host_backend,
+        preferred_layout_engine,
+        preferred_render_engine,
         gpu_backing_required,
         shader,
     })
@@ -3047,6 +3232,76 @@ fn surface_composition_mode_for_node(
     }
 }
 
+fn surface_host_backend_for_node(node: &UiNode, kind: &UiSurfaceKind) -> UiHostBackendKind {
+    if let Some(explicit) = first_string_prop(
+        node,
+        &[
+            "host_backend",
+            "surface_backend",
+            "ui_backend",
+            "panel_backend",
+        ],
+    )
+    .and_then(parse_surface_host_backend)
+    {
+        return explicit;
+    }
+
+    match kind {
+        UiSurfaceKind::Graph | UiSurfaceKind::Timeline | UiSurfaceKind::Overlay => {
+            UiHostBackendKind::Imgui
+        }
+        UiSurfaceKind::Canvas | UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D => {
+            UiHostBackendKind::Qt
+        }
+        _ => UiHostBackendKind::Auto,
+    }
+}
+
+fn surface_layout_engine_for_node(node: &UiNode) -> UiLayoutEngineKind {
+    first_string_prop(node, &["layout_engine", "surface_layout_engine", "ui_layout_engine"])
+        .and_then(parse_surface_layout_engine)
+        .unwrap_or(UiLayoutEngineKind::Yoga)
+}
+
+fn surface_render_engine_for_node(
+    node: &UiNode,
+    shader: Option<&UiSurfaceShaderBinding>,
+    kind: &UiSurfaceKind,
+    renderer_preference: UiSurfaceRendererPreference,
+) -> UiRenderEngineKind {
+    if let Some(explicit) = first_string_prop(
+        node,
+        &[
+            "render_engine",
+            "surface_render_engine",
+            "paint_engine",
+            "ui_render_engine",
+        ],
+    )
+    .and_then(parse_surface_render_engine)
+    {
+        return explicit;
+    }
+
+    if shader.is_some() {
+        return UiRenderEngineKind::Shader;
+    }
+
+    match renderer_preference {
+        UiSurfaceRendererPreference::Wgpu => UiRenderEngineKind::Wgpu,
+        UiSurfaceRendererPreference::Shader => UiRenderEngineKind::Shader,
+        UiSurfaceRendererPreference::Dom => UiRenderEngineKind::Browser,
+        UiSurfaceRendererPreference::Native => UiRenderEngineKind::Native,
+        UiSurfaceRendererPreference::Auto => match kind {
+            UiSurfaceKind::Graph | UiSurfaceKind::Timeline | UiSurfaceKind::Overlay => {
+                UiRenderEngineKind::Skia
+            }
+            _ => UiRenderEngineKind::Auto,
+        },
+    }
+}
+
 fn surface_gpu_backing_required(
     node: &UiNode,
     shader: Option<&UiSurfaceShaderBinding>,
@@ -3077,6 +3332,43 @@ fn parse_surface_renderer_preference(value: String) -> Option<UiSurfaceRendererP
         "dom" | "web" => Some(UiSurfaceRendererPreference::Dom),
         "wgpu" | "gpu" => Some(UiSurfaceRendererPreference::Wgpu),
         "shader" | "shader_canvas" => Some(UiSurfaceRendererPreference::Shader),
+        _ => None,
+    }
+}
+
+fn parse_surface_host_backend(value: String) -> Option<UiHostBackendKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiHostBackendKind::Auto),
+        "native" | "host" => Some(UiHostBackendKind::Native),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiHostBackendKind::LegacyEgui),
+        "imgui" => Some(UiHostBackendKind::Imgui),
+        "rml" | "rmlui" => Some(UiHostBackendKind::RmlUi),
+        "slint" => Some(UiHostBackendKind::Slint),
+        "qt" => Some(UiHostBackendKind::Qt),
+        "cef" | "browser" => Some(UiHostBackendKind::Cef),
+        _ => None,
+    }
+}
+
+fn parse_surface_layout_engine(value: String) -> Option<UiLayoutEngineKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiLayoutEngineKind::Auto),
+        "native" => Some(UiLayoutEngineKind::Native),
+        "yoga" => Some(UiLayoutEngineKind::Yoga),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiLayoutEngineKind::LegacyEgui),
+        _ => None,
+    }
+}
+
+fn parse_surface_render_engine(value: String) -> Option<UiRenderEngineKind> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiRenderEngineKind::Auto),
+        "native" => Some(UiRenderEngineKind::Native),
+        "skia" => Some(UiRenderEngineKind::Skia),
+        "wgpu" | "gpu" => Some(UiRenderEngineKind::Wgpu),
+        "shader" | "shader_canvas" => Some(UiRenderEngineKind::Shader),
+        "browser" | "dom" | "web" => Some(UiRenderEngineKind::Browser),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiRenderEngineKind::LegacyEgui),
         _ => None,
     }
 }
@@ -3457,6 +3749,7 @@ mod tests {
             root_component: "App".to_string(),
             source_file_name: Some("studio.kn".to_string()),
             initial_window_size: [1600.0, 900.0],
+            ..UiRuntimeMetadata::default()
         };
 
         let bundle = ui_runtime_bundle_from_output(metadata.clone(), output.clone());
@@ -3502,6 +3795,7 @@ mod tests {
                 root_component: "App".to_string(),
                 source_file_name: None,
                 initial_window_size: [1440.0, 920.0],
+                ..UiRuntimeMetadata::default()
             },
             UiBuildOutput::default(),
         );
@@ -3779,6 +4073,7 @@ mod tests {
                 root_component: "App".to_string(),
                 source_file_name: None,
                 initial_window_size: [1280.0, 720.0],
+                ..UiRuntimeMetadata::default()
             },
             UiBuildOutput {
                 tree,

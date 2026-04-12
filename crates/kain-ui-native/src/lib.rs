@@ -39,9 +39,10 @@ use kain_core::{
 use kain_ui::{
     ui_resolve_theme_for_node, ui_runtime_bundle_from_json, ui_runtime_bundle_from_output,
     ui_runtime_bundle_to_json, validate_ui_runtime_bundle, UiBuildOutput, UiLayoutAlignment,
-    UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId, UiOverflowBehavior, UiPatch,
-    UiResolvedTheme, UiRuntime, UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput,
-    UiStyleState, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiLayoutEngineKind, UiLayoutKind, UiLength, UiLengthUnit, UiNode, UiNodeId,
+    UiOverflowBehavior, UiPatch, UiHostBackendKind, UiRenderEngineKind, UiResolvedTheme,
+    UiRuntime, UiRuntimeBundle, UiRuntimeMetadata, UiRuntimeStepInput, UiStyleState, UiSurface,
+    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
     UiThemeRegistry, UiTree, UiValue, UiWidgetKind, UI_RUNTIME_BUNDLE_SCHEMA_VERSION,
 };
 use nalgebra::{Affine2, Similarity2, Vector2};
@@ -528,11 +529,59 @@ component App():
 "#;
 
 #[derive(Clone, Debug)]
+pub struct KainUiNativeBackendPlan {
+    pub shell_host_backend: UiHostBackendKind,
+    pub document_host_backend: UiHostBackendKind,
+    pub devtools_host_backend: UiHostBackendKind,
+    pub layout_engine: UiLayoutEngineKind,
+    pub render_engine: UiRenderEngineKind,
+    pub compatibility_host_backend: UiHostBackendKind,
+    pub mixed_backend_session: bool,
+}
+
+impl Default for KainUiNativeBackendPlan {
+    fn default() -> Self {
+        Self {
+            shell_host_backend: UiHostBackendKind::Qt,
+            document_host_backend: UiHostBackendKind::RmlUi,
+            devtools_host_backend: UiHostBackendKind::Imgui,
+            layout_engine: UiLayoutEngineKind::Yoga,
+            render_engine: UiRenderEngineKind::Wgpu,
+            compatibility_host_backend: UiHostBackendKind::LegacyEgui,
+            mixed_backend_session: true,
+        }
+    }
+}
+
+impl KainUiNativeBackendPlan {
+    fn from_runtime_metadata(metadata: &UiRuntimeMetadata) -> Self {
+        Self {
+            shell_host_backend: metadata.preferred_shell_host_backend,
+            document_host_backend: metadata.preferred_document_host_backend,
+            devtools_host_backend: metadata.preferred_devtools_host_backend,
+            layout_engine: metadata.preferred_layout_engine,
+            render_engine: metadata.preferred_render_engine,
+            compatibility_host_backend: metadata.compatibility_host_backend,
+            mixed_backend_session: metadata.mixed_backend_session,
+        }
+    }
+
+    fn shell_label(&self) -> &'static str {
+        host_backend_label(self.shell_host_backend)
+    }
+
+    fn devtools_label(&self) -> &'static str {
+        host_backend_label(self.devtools_host_backend)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct KainUiNativeAppConfig {
     pub window_title: String,
     pub root_component: String,
     pub source: String,
     pub initial_window_size: [f32; 2],
+    pub backend_plan: KainUiNativeBackendPlan,
 }
 
 pub type KainUiNativeDemoConfig = KainUiNativeAppConfig;
@@ -654,6 +703,19 @@ fn parse_renderer_preference(value: &str) -> NativeRendererPreference {
     match value.to_ascii_lowercase().as_str() {
         "wgpu" | "wgpu-readback" | "wgpu-surface" => NativeRendererPreference::Wgpu,
         _ => NativeRendererPreference::Glow,
+    }
+}
+
+fn host_backend_label(backend: UiHostBackendKind) -> &'static str {
+    match backend {
+        UiHostBackendKind::Auto => "auto",
+        UiHostBackendKind::Native => "native",
+        UiHostBackendKind::LegacyEgui => "legacy-egui",
+        UiHostBackendKind::Imgui => "imgui",
+        UiHostBackendKind::RmlUi => "rmlui",
+        UiHostBackendKind::Slint => "slint",
+        UiHostBackendKind::Qt => "qt",
+        UiHostBackendKind::Cef => "cef",
     }
 }
 
@@ -2519,6 +2581,7 @@ impl Default for KainUiNativeAppConfig {
             root_component: "App".to_string(),
             source: KAIN_UI_NATIVE_DEMO_SOURCE.to_string(),
             initial_window_size: [1440.0, 920.0],
+            backend_plan: KainUiNativeBackendPlan::default(),
         }
     }
 }
@@ -2545,6 +2608,13 @@ pub fn runtime_bundle_from_output(
             root_component: config.root_component.clone(),
             source_file_name: None,
             initial_window_size: config.initial_window_size,
+            preferred_shell_host_backend: config.backend_plan.shell_host_backend,
+            preferred_document_host_backend: config.backend_plan.document_host_backend,
+            preferred_devtools_host_backend: config.backend_plan.devtools_host_backend,
+            preferred_layout_engine: config.backend_plan.layout_engine,
+            preferred_render_engine: config.backend_plan.render_engine,
+            compatibility_host_backend: config.backend_plan.compatibility_host_backend,
+            mixed_backend_session: config.backend_plan.mixed_backend_session,
         },
         output,
     )
@@ -2582,6 +2652,7 @@ pub fn run_bundled_app(
         root_component: bundle.metadata.root_component.clone(),
         source: String::new(),
         initial_window_size: bundle.metadata.initial_window_size,
+        backend_plan: KainUiNativeBackendPlan::from_runtime_metadata(&bundle.metadata),
     };
     run_output(config, bundle.output, AppBootMode::CompiledBundle)
 }
@@ -3120,6 +3191,7 @@ fn viewport_gizmo_snap_settings(binding: &RealtimeViewportGizmoBinding) -> Manip
 
 struct KainUiNativeApp {
     config: KainUiNativeAppConfig,
+    backend_plan: KainUiNativeBackendPlan,
     runtime_settings: KainUiNativeRuntimeSettings,
     runtime: UiRuntime,
     output: UiBuildOutput,
@@ -3167,6 +3239,7 @@ impl KainUiNativeApp {
         boot_mode: AppBootMode,
         runtime_settings: KainUiNativeRuntimeSettings,
     ) -> Self {
+        let backend_plan = config.backend_plan.clone();
         let runtime_bundle_origin = env_var_trimmed(KAIN_UI_NATIVE_RUNTIME_BUNDLE_ENV);
         let realtime_bundle = load_realtime_bundle_from_env();
         let shader_bundle = load_shader_bundle_from_env();
@@ -3191,12 +3264,16 @@ impl KainUiNativeApp {
             shader_bundle.as_ref().map(|(bundle, _)| bundle),
         );
         trace_runtime(format!(
-            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} inspector={} viewports={} runtime_bundle={} realtime_bundle={} shader_bundle={} app_manifest={} command_bridge={} runtime_snapshot={}",
+            "app_new: title={} root={} boot_mode={} renderer={} effective_renderer={} shell_backend={} devtools_backend={} layout_engine={:?} render_engine={:?} inspector={} viewports={} runtime_bundle={} realtime_bundle={} shader_bundle={} app_manifest={} command_bridge={} runtime_snapshot={}",
             config.window_title,
             config.root_component,
             boot_mode.label(),
             runtime_settings.renderer_label(),
             active_renderer_label,
+            backend_plan.shell_label(),
+            backend_plan.devtools_label(),
+            backend_plan.layout_engine,
+            backend_plan.render_engine,
             runtime_settings.show_runtime_inspector,
             runtime_settings.enable_viewports,
             runtime_bundle_origin.as_deref().unwrap_or("<none>"),
@@ -3214,6 +3291,7 @@ impl KainUiNativeApp {
         let debug_tree = render_ui_output_debug(&output);
         Self {
             config,
+            backend_plan,
             runtime_settings,
             runtime,
             output,
@@ -3587,15 +3665,19 @@ impl KainUiNativeApp {
         self.config.window_title = bundle.metadata.window_title.clone();
         self.config.root_component = bundle.metadata.root_component.clone();
         self.config.initial_window_size = bundle.metadata.initial_window_size;
+        self.backend_plan = KainUiNativeBackendPlan::from_runtime_metadata(&bundle.metadata);
+        self.config.backend_plan = self.backend_plan.clone();
 
         trace_runtime(format!(
-            "runtime_reload: applied runtime bundle {} focus={} selection={} docking={} animations={} session={}",
+            "runtime_reload: applied runtime bundle {} focus={} selection={} docking={} animations={} session={} shell_backend={} devtools_backend={}",
             path,
             reload_output.report.focus_transferred,
             reload_output.report.selection_transferred,
             reload_output.report.docking_transferred,
             reload_output.report.animation_tracks_transferred,
             reload_output.report.session_values_transferred,
+            self.backend_plan.shell_label(),
+            self.backend_plan.devtools_label(),
         ));
     }
 
@@ -8520,6 +8602,9 @@ mod tests {
             title: Some("Hero Surface".to_string()),
             renderer_preference: UiSurfaceRendererPreference::Shader,
             composition_mode: UiSurfaceCompositionMode::ShaderCanvas,
+            preferred_host_backend: UiHostBackendKind::Qt,
+            preferred_layout_engine: UiLayoutEngineKind::Yoga,
+            preferred_render_engine: UiRenderEngineKind::Shader,
             gpu_backing_required: true,
             shader: Some(UiSurfaceShaderBinding {
                 shader_ref: "ui.hero_surface".to_string(),

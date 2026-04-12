@@ -103,6 +103,7 @@ fn canonical_runtime_bundle_omits_native_projection_until_requested() {
         root_component: "App".to_string(),
         source_file_name: Some("ui_runtime_parity.kn".to_string()),
         initial_window_size: [1440.0, 920.0],
+        ..UiRuntimeMetadata::default()
     };
 
     let canonical_bundle = ui_runtime_bundle_from_output(metadata.clone(), output.clone());

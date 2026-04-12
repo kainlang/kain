@@ -509,16 +509,13 @@ impl DriverSession {
             source_root,
             initial_window_size: config.initial_window_size,
         };
-        let ui_runtime_bundle = ui_runtime_bundle_from_output(
-            UiRuntimeMetadata {
-                app_name: Some(metadata.app_name.clone()),
-                window_title: metadata.window_title.clone(),
-                root_component: metadata.root_component.clone(),
-                source_file_name: Some(metadata.source_file_name.clone()),
-                initial_window_size: metadata.initial_window_size,
-            },
-            ui.clone(),
-        );
+        let mut ui_runtime_metadata = UiRuntimeMetadata::default();
+        ui_runtime_metadata.app_name = Some(metadata.app_name.clone());
+        ui_runtime_metadata.window_title = metadata.window_title.clone();
+        ui_runtime_metadata.root_component = metadata.root_component.clone();
+        ui_runtime_metadata.source_file_name = Some(metadata.source_file_name.clone());
+        ui_runtime_metadata.initial_window_size = metadata.initial_window_size;
+        let ui_runtime_bundle = ui_runtime_bundle_from_output(ui_runtime_metadata, ui.clone());
         let rust = self.compile_rust_artifact_bundle(source, config.include_spirv)?;
 
         // Load runtime version metadata

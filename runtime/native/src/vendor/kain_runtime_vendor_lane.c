@@ -1,5 +1,6 @@
 #include "../../include/kain_runtime_vendor_lane.h"
 #include "../../include/kain_runtime_vendor_graphics_bridge.h"
+#include "../../include/kain_runtime_vendor_ui_bridge.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -655,6 +656,118 @@ const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service = 
     kain_vendor_stub_deallocate
 };
 
+const KainVendorServiceFunctionTable g_kain_vendor_ui_layout_yoga_service = {
+    "ui.layout.yoga",
+    "yoga",
+    "yoga-layout",
+    kain_vendor_yoga_version_string,
+    kain_vendor_yoga_probe,
+    kain_vendor_yoga_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_render_skia_service = {
+    "ui.render.skia",
+    "skia-core",
+    "skia-renderer-staged",
+    kain_vendor_skia_version_string,
+    kain_vendor_skia_probe,
+    kain_vendor_skia_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_imgui_service = {
+    "ui.backend.imgui",
+    "imgui",
+    "imgui-backend",
+    kain_vendor_imgui_version_string,
+    kain_vendor_imgui_probe,
+    kain_vendor_imgui_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service = {
+    "ui.backend.rmlui",
+    "rmlui",
+    "rmlui-backend-staged",
+    kain_vendor_rmlui_version_string,
+    kain_vendor_rmlui_probe,
+    kain_vendor_rmlui_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service = {
+    "ui.backend.slint",
+    "slint-ui",
+    "slint-backend-staged",
+    kain_vendor_slint_version_string,
+    kain_vendor_slint_probe,
+    kain_vendor_slint_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service = {
+    "ui.backend.qt",
+    "qt",
+    "qt-shell-staged",
+    kain_vendor_qt_version_string,
+    kain_vendor_qt_probe,
+    kain_vendor_qt_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_surface_browser_cef_service = {
+    "ui.surface.browser.cef",
+    "cef",
+    "cef-browser-staged",
+    kain_vendor_cef_version_string,
+    kain_vendor_cef_probe,
+    kain_vendor_cef_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
+const KainVendorServiceFunctionTable g_kain_vendor_ui_devtools_service = {
+    "ui.devtools",
+    "imgui",
+    "imgui-devtools",
+    kain_vendor_imgui_version_string,
+    kain_vendor_imgui_probe,
+    kain_vendor_imgui_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
 static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"io.loop", "io", "libuv", KAIN_VENDOR_HAS_LIBUV, &g_kain_vendor_io_loop_service},
     {"io.fs", "io", "libuv", KAIN_VENDOR_HAS_LIBUV, &g_kain_vendor_io_fs_service},
@@ -677,7 +790,15 @@ static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"gfx.backend.diligent", "gfx", "diligentcore", KAIN_VENDOR_HAS_DILIGENT, &g_kain_vendor_gfx_backend_diligent_service},
     {"gfx.backend.forge", "gfx", "the-forge", KAIN_VENDOR_HAS_FORGE, &g_kain_vendor_gfx_backend_forge_service},
     {"asset.image.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_image_bimg_service},
-    {"asset.texture.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_texture_bimg_service}
+    {"asset.texture.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_texture_bimg_service},
+    {"ui.layout.yoga", "ui", "yoga", KAIN_VENDOR_HAS_YOGA, &g_kain_vendor_ui_layout_yoga_service},
+    {"ui.render.skia", "ui", "skia-core", KAIN_VENDOR_HAS_SKIA, &g_kain_vendor_ui_render_skia_service},
+    {"ui.backend.imgui", "ui", "imgui", KAIN_VENDOR_HAS_IMGUI, &g_kain_vendor_ui_backend_imgui_service},
+    {"ui.backend.rmlui", "ui", "rmlui", KAIN_VENDOR_HAS_RMLUI, &g_kain_vendor_ui_backend_rmlui_service},
+    {"ui.backend.slint", "ui", "slint-ui", KAIN_VENDOR_HAS_SLINT, &g_kain_vendor_ui_backend_slint_service},
+    {"ui.backend.qt", "ui", "qt", KAIN_VENDOR_HAS_QT, &g_kain_vendor_ui_backend_qt_service},
+    {"ui.surface.browser.cef", "ui", "cef", KAIN_VENDOR_HAS_CEF, &g_kain_vendor_ui_surface_browser_cef_service},
+    {"ui.devtools", "ui", "imgui", KAIN_VENDOR_HAS_IMGUI, &g_kain_vendor_ui_devtools_service}
 };
 
 const KainVendorServiceDescriptor* kain_vendor_service_catalog(void) {

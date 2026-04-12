@@ -165,8 +165,8 @@ static void kain_native_sculpt_try_load_realtime_bundle(KainNativeSculptApp* app
     }
 }
 
-static unsigned int kain_native_sculpt_optional_service_mask(void) {
-    unsigned int mask = 0u;
+static KainRuntimeServiceMask kain_native_sculpt_optional_service_mask(void) {
+    KainRuntimeServiceMask mask = 0;
     char* compiled_ui_path = kain_env_dup(KAIN_UI_COMPILED_BUNDLE_ENV);
     if (compiled_ui_path && compiled_ui_path[0]) {
         mask |= KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED;
@@ -194,7 +194,7 @@ static void kain_native_sculpt_emit_contract_diagnostics(
 }
 
 static int kain_native_sculpt_validate_runtime_contract(KainNativeSculptApp* app) {
-    unsigned int optional_service_mask;
+    KainRuntimeServiceMask optional_service_mask;
     if (!app) {
         return 0;
     }

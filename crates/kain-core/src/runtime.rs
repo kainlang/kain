@@ -3216,6 +3216,38 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         method
                     ))),
                 },
+                Value::None => match method.as_str() {
+                    "or" | "or_" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Option.or expects 1 argument"));
+                        }
+                        Ok(arg_vals[0].clone())
+                    }
+                    _ => Err(KainError::runtime(format!(
+                        "Method {} not found on Option",
+                        method
+                    ))),
+                },
+                Value::EnumVariant(ref enum_name, ref variant, ref fields)
+                    if enum_name == "Option" =>
+                {
+                    match method.as_str() {
+                        "or" | "or_" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.or expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                Ok(obj_val)
+                            } else {
+                                Ok(arg_vals[0].clone())
+                            }
+                        }
+                        _ => Err(KainError::runtime(format!(
+                            "Method {} not found on Option",
+                            method
+                        ))),
+                    }
+                }
                 Value::Array(_) => {
                     // Map common array methods to native functions
                     match method.as_str() {

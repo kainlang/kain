@@ -16,6 +16,13 @@
 #define KAIN_VENDOR_HAS_DILIGENT 0
 #define KAIN_VENDOR_HAS_FORGE 0
 #define KAIN_VENDOR_HAS_BIMG 0
+#define KAIN_VENDOR_HAS_IMGUI 0
+#define KAIN_VENDOR_HAS_YOGA 0
+#define KAIN_VENDOR_HAS_RMLUI 0
+#define KAIN_VENDOR_HAS_SKIA 0
+#define KAIN_VENDOR_HAS_SLINT 0
+#define KAIN_VENDOR_HAS_QT 0
+#define KAIN_VENDOR_HAS_CEF 0
 #else
 #if defined(__linux__) || defined(_WIN32)
 #define KAIN_VENDOR_HAS_LIBUV 1
@@ -33,6 +40,13 @@
 #define KAIN_VENDOR_HAS_DILIGENT 0
 #define KAIN_VENDOR_HAS_FORGE 0
 #define KAIN_VENDOR_HAS_BIMG 1
+#define KAIN_VENDOR_HAS_IMGUI 0
+#define KAIN_VENDOR_HAS_YOGA 0
+#define KAIN_VENDOR_HAS_RMLUI 0
+#define KAIN_VENDOR_HAS_SKIA 0
+#define KAIN_VENDOR_HAS_SLINT 0
+#define KAIN_VENDOR_HAS_QT 0
+#define KAIN_VENDOR_HAS_CEF 0
 #endif
 
 typedef struct {
@@ -84,5 +98,13 @@ extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_s
 extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_layout_yoga_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_render_skia_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_imgui_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_rmlui_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_slint_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_backend_qt_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_surface_browser_cef_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_ui_devtools_service;
 
 #endif /* KAIN_RUNTIME_VENDOR_LANE_H */

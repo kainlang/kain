@@ -11,9 +11,10 @@ use crate::span::Span;
 use kain_ui::{
     default_layout_for_tag, render_debug_tree, ui_runtime_systems_from_tree, widget_kind_for_tag,
     UiAnimationTrack, UiAnimationTrigger, UiBuildOutput, UiComputed, UiDerivedExpr, UiDockNode,
-    UiDockPlacement, UiEasingKind, UiEventPhase, UiEventRoute, UiLayoutAlignment, UiLength,
-    UiLengthUnit, UiNode, UiOverflowBehavior, UiSchedulerPhase, UiSignalId, UiStyleState,
-    UiSurface, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+    UiDockPlacement, UiEasingKind, UiEventPhase, UiEventRoute, UiHostBackendKind,
+    UiLayoutAlignment, UiLayoutEngineKind, UiLength, UiLengthUnit, UiNode,
+    UiOverflowBehavior, UiRenderEngineKind, UiSchedulerPhase, UiSignalId, UiStyleState, UiSurface,
+    UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
     UiSurfaceShaderBinding, UiThemeRegistry, UiThemeScope, UiThemeToken, UiThemeVariant,
     UiTreeBuilder, UiValue, UiWidgetKind,
 };
@@ -2190,6 +2191,32 @@ impl AuthoredUiSystemsAccumulator {
             stage: attr_string(attrs, "shader_stage"),
             derived_format: attr_string(attrs, "shader_derived_format"),
         });
+        let preferred_host_backend = attr_string(attrs, "host_backend")
+            .or_else(|| attr_string(attrs, "surface_backend"))
+            .and_then(parse_surface_host_backend)
+            .unwrap_or_else(|| match kind {
+                UiSurfaceKind::Graph | UiSurfaceKind::Timeline | UiSurfaceKind::Overlay => {
+                    UiHostBackendKind::Imgui
+                }
+                UiSurfaceKind::Canvas | UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D => {
+                    UiHostBackendKind::Qt
+                }
+                _ => UiHostBackendKind::Auto,
+            });
+        let preferred_layout_engine = attr_string(attrs, "layout_engine")
+            .or_else(|| attr_string(attrs, "surface_layout_engine"))
+            .and_then(parse_surface_layout_engine)
+            .unwrap_or(UiLayoutEngineKind::Yoga);
+        let preferred_render_engine = attr_string(attrs, "render_engine")
+            .or_else(|| attr_string(attrs, "surface_render_engine"))
+            .and_then(parse_surface_render_engine)
+            .unwrap_or_else(|| match renderer_preference {
+                UiSurfaceRendererPreference::Wgpu => UiRenderEngineKind::Wgpu,
+                UiSurfaceRendererPreference::Shader => UiRenderEngineKind::Shader,
+                UiSurfaceRendererPreference::Dom => UiRenderEngineKind::Browser,
+                UiSurfaceRendererPreference::Native => UiRenderEngineKind::Native,
+                UiSurfaceRendererPreference::Auto => UiRenderEngineKind::Auto,
+            });
 
         self.surfaces.push(UiSurface {
             id: surface_id,
@@ -2198,6 +2225,9 @@ impl AuthoredUiSystemsAccumulator {
             title,
             renderer_preference,
             composition_mode,
+            preferred_host_backend,
+            preferred_layout_engine,
+            preferred_render_engine,
             gpu_backing_required,
             shader,
         });
@@ -2285,6 +2315,43 @@ fn parse_surface_renderer_preference(input: String) -> Option<UiSurfaceRendererP
         "dom" => Some(UiSurfaceRendererPreference::Dom),
         "wgpu" => Some(UiSurfaceRendererPreference::Wgpu),
         "shader" => Some(UiSurfaceRendererPreference::Shader),
+        _ => None,
+    }
+}
+
+fn parse_surface_host_backend(input: String) -> Option<UiHostBackendKind> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiHostBackendKind::Auto),
+        "native" | "host" => Some(UiHostBackendKind::Native),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiHostBackendKind::LegacyEgui),
+        "imgui" => Some(UiHostBackendKind::Imgui),
+        "rml" | "rmlui" => Some(UiHostBackendKind::RmlUi),
+        "slint" => Some(UiHostBackendKind::Slint),
+        "qt" => Some(UiHostBackendKind::Qt),
+        "cef" | "browser" => Some(UiHostBackendKind::Cef),
+        _ => None,
+    }
+}
+
+fn parse_surface_layout_engine(input: String) -> Option<UiLayoutEngineKind> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiLayoutEngineKind::Auto),
+        "native" => Some(UiLayoutEngineKind::Native),
+        "yoga" => Some(UiLayoutEngineKind::Yoga),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiLayoutEngineKind::LegacyEgui),
+        _ => None,
+    }
+}
+
+fn parse_surface_render_engine(input: String) -> Option<UiRenderEngineKind> {
+    match input.trim().to_ascii_lowercase().as_str() {
+        "auto" => Some(UiRenderEngineKind::Auto),
+        "native" => Some(UiRenderEngineKind::Native),
+        "skia" => Some(UiRenderEngineKind::Skia),
+        "wgpu" | "gpu" => Some(UiRenderEngineKind::Wgpu),
+        "shader" | "shader_canvas" => Some(UiRenderEngineKind::Shader),
+        "browser" | "dom" | "web" => Some(UiRenderEngineKind::Browser),
+        "legacy_egui" | "legacy-egui" | "egui" => Some(UiRenderEngineKind::LegacyEgui),
         _ => None,
     }
 }

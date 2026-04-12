@@ -253,8 +253,8 @@ static int kain_native_viewport_resolve_file(
     return GetFileAttributesA(out_path) != INVALID_FILE_ATTRIBUTES;
 }
 
-static unsigned int kain_native_viewport_optional_service_mask(void) {
-    unsigned int mask = 0u;
+static KainRuntimeServiceMask kain_native_viewport_optional_service_mask(void) {
+    KainRuntimeServiceMask mask = 0;
     char* compiled_ui_path = kain_env_dup(KAIN_UI_COMPILED_BUNDLE_ENV);
     char* world_asset_path = kain_env_dup(KAIN_NATIVE_WORLD_ASSET_ENV);
     if (compiled_ui_path && compiled_ui_path[0]) {
@@ -391,7 +391,7 @@ static void kain_native_viewport_emit_contract_diagnostics(
 }
 
 static int kain_native_viewport_validate_runtime_contract(KainNativeViewportApp* app) {
-    unsigned int optional_service_mask;
+    KainRuntimeServiceMask optional_service_mask;
     if (!app) {
         return 0;
     }

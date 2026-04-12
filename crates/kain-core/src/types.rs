@@ -420,62 +420,7 @@ impl<'a> TypeEnv<'a> {
                 ]),
             ),
         );
-        env.define_global(
-            "println".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::Unknown],
-                ret: Box::new(ResolvedType::Unit),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "read_file".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::String],
-                ret: Box::new(ResolvedType::String),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "len".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::Unknown],
-                ret: Box::new(ResolvedType::Int(IntSize::I64)),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "push".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::Unknown, ResolvedType::Unknown],
-                ret: Box::new(ResolvedType::Unit),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "char_at".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
-                ret: Box::new(ResolvedType::String),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "ord".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::String],
-                ret: Box::new(ResolvedType::Int(IntSize::I64)),
-                effects: EffectSet::new(),
-            },
-        );
-        env.define_global(
-            "chr".into(),
-            ResolvedType::Function {
-                params: vec![ResolvedType::Int(IntSize::I64)],
-                ret: Box::new(ResolvedType::String),
-                effects: EffectSet::new(),
-            },
-        );
+        register_builtin_global_functions(&mut env);
         register_selfhost_constructor_globals(&mut env);
         register_selfhost_collection_methods(&mut env);
         env
@@ -583,6 +528,14 @@ fn selfhost_nullary_function_type(ret: ResolvedType) -> ResolvedType {
     }
 }
 
+fn builtin_function_type(params: Vec<ResolvedType>, ret: ResolvedType) -> ResolvedType {
+    ResolvedType::Function {
+        params,
+        ret: Box::new(ret),
+        effects: EffectSet::new(),
+    }
+}
+
 fn lowered_impl_function_name(type_name: &str, method_name: &str) -> String {
     format!("{type_name}_{method_name}")
 }
@@ -593,6 +546,70 @@ fn selfhost_static_impl_function_name(type_name: &str, method_name: &str) -> Str
 
 fn selfhost_enum_variant_alias_name(enum_name: &str, variant_name: &str) -> String {
     format!("{enum_name}__{variant_name}")
+}
+
+fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
+    env.define_global(
+        "print".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
+    env.define_global(
+        "println".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
+    env.define_global(
+        "eprint".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
+    env.define_global(
+        "eprintln".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
+    env.define_global(
+        "dbg".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
+    );
+    env.define_global(
+        "assert".into(),
+        builtin_function_type(
+            vec![ResolvedType::Bool, ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "panic".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Never),
+    );
+    env.define_global(
+        "read_file".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "len".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "push".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "char_at".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
+            ResolvedType::String,
+        ),
+    );
+    env.define_global(
+        "ord".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "chr".into(),
+        builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::String),
+    );
 }
 
 fn method_has_receiver_param(method: &Function) -> bool {
@@ -3964,6 +3981,25 @@ fn infer_method_call_type(
                         .map(|ret| ResolvedType::Option(Box::new(ret)))
                 },
             ),
+            "or" | "or_" => {
+                if args.len() != 1 {
+                    return Err(env.type_error("Option.or expects exactly one argument", span));
+                }
+                let fallback_ty = infer_expr_type_with_expected(
+                    env,
+                    &args[0].value,
+                    ctx,
+                    Some(&ResolvedType::Option(inner.clone())),
+                )?;
+                ensure_type_compatible(
+                    env,
+                    &ResolvedType::Option(inner.clone()),
+                    &fallback_ty,
+                    args[0].span,
+                    "option fallback",
+                )?;
+                Ok(ResolvedType::Option(inner.clone()))
+            }
             "unwrap" | "expect" => {
                 if method == "expect" && args.len() != 1 {
                     return Err(env.type_error("Option.expect expects exactly one argument", span));
@@ -7314,6 +7350,29 @@ mod tests {
         .expect("Option.unwrap_or_else should typecheck");
         assert_eq!(unwrapped, ResolvedType::String);
 
+        let chained_option = infer_method_call_type(
+            &mut env,
+            None,
+            &option_ty,
+            "or_",
+            &[CallArg {
+                name: None,
+                value: Expr::EnumVariant {
+                    enum_name: "Option".to_string(),
+                    variant: "Some".to_string(),
+                    fields: EnumVariantFields::Tuple(vec![Expr::String(
+                        "fallback".to_string(),
+                        span,
+                    )]),
+                    span,
+                },
+                span,
+            }],
+            span,
+        )
+        .expect("Option.or_ should typecheck");
+        assert_eq!(chained_option, option_ty);
+
         let result_ty = ResolvedType::Result(
             Box::new(ResolvedType::String),
             Box::new(ResolvedType::Bool),
@@ -7396,6 +7455,21 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn typecheck_registers_builtin_panic_global() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+        assert_eq!(
+            env.lookup("panic").cloned(),
+            Some(ResolvedType::Function {
+                params: vec![ResolvedType::String],
+                ret: Box::new(ResolvedType::Never),
+                effects: EffectSet::new(),
+            })
+        );
     }
 
     #[test]

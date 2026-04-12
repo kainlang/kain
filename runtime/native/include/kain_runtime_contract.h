@@ -4,6 +4,7 @@
 #include "kain_runtime_win32.h"
 #include "kain_runtime_version.h"
 #include "kain_runtime_services.h"
+#include <stdint.h>
 
 #define KAIN_RUNTIME_CONTRACT_ENV "KAIN_RUNTIME_CONTRACT"
 #define KAIN_RUNTIME_CONTRACT_STRICT_ENV "KAIN_RUNTIME_CONTRACT_STRICT"
@@ -14,38 +15,48 @@
 #define KAIN_RUNTIME_CONTRACT_MAX_MESSAGE 256
 #define KAIN_RUNTIME_CONTRACT_MAX_DIAGNOSTICS 8
 
-#define KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST        (1u << 0)
-#define KAIN_RUNTIME_SERVICE_NATIVE_INPUT           (1u << 1)
-#define KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT        (1u << 2)
-#define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (1u << 3)
-#define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (1u << 4)
-#define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (1u << 5)
-#define KAIN_RUNTIME_SERVICE_SCENE_RUNTIME          (1u << 6)
-#define KAIN_RUNTIME_SERVICE_SCENE_QUERY            (1u << 7)
-#define KAIN_RUNTIME_SERVICE_SCENE_MUTATION         (1u << 8)
-#define KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION     (1u << 9)
-#define KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION      (1u << 10)
-#define KAIN_RUNTIME_SERVICE_ASSET_INGESTION        (1u << 11)
-#define KAIN_RUNTIME_SERVICE_IO_LOOP                (1u << 12)
-#define KAIN_RUNTIME_SERVICE_IO_FS                  (1u << 13)
-#define KAIN_RUNTIME_SERVICE_IO_NET                 (1u << 14)
-#define KAIN_RUNTIME_SERVICE_IO_PROCESS             (1u << 15)
-#define KAIN_RUNTIME_SERVICE_IO_TIMERS              (1u << 16)
-#define KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS         (1u << 17)
-#define KAIN_RUNTIME_SERVICE_AUDIO_BACKEND          (1u << 18)
-#define KAIN_RUNTIME_SERVICE_AUDIO_GRAPH            (1u << 19)
-#define KAIN_RUNTIME_SERVICE_AUDIO_DEVICE           (1u << 20)
-#define KAIN_RUNTIME_SERVICE_AUDIO_ASSETS           (1u << 21)
-#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT     (1u << 22)
-#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL      (1u << 23)
-#define KAIN_RUNTIME_SERVICE_WASM_MODULE            (1u << 24)
-#define KAIN_RUNTIME_SERVICE_WASM_WASI              (1u << 25)
-#define KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC     (1u << 26)
-#define KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC     (1u << 27)
-#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX       (1u << 28)
-#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT   (1u << 29)
-#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT   (1u << 30)
-#define KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG     (1u << 31)
+typedef uint64_t KainRuntimeServiceMask;
+
+#define KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST        (UINT64_C(1) << 0)
+#define KAIN_RUNTIME_SERVICE_NATIVE_INPUT           (UINT64_C(1) << 1)
+#define KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT        (UINT64_C(1) << 2)
+#define KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF      (UINT64_C(1) << 3)
+#define KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED     (UINT64_C(1) << 4)
+#define KAIN_RUNTIME_SERVICE_GFX_COMPUTE            (UINT64_C(1) << 5)
+#define KAIN_RUNTIME_SERVICE_SCENE_RUNTIME          (UINT64_C(1) << 6)
+#define KAIN_RUNTIME_SERVICE_SCENE_QUERY            (UINT64_C(1) << 7)
+#define KAIN_RUNTIME_SERVICE_SCENE_MUTATION         (UINT64_C(1) << 8)
+#define KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION     (UINT64_C(1) << 9)
+#define KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION      (UINT64_C(1) << 10)
+#define KAIN_RUNTIME_SERVICE_ASSET_INGESTION        (UINT64_C(1) << 11)
+#define KAIN_RUNTIME_SERVICE_IO_LOOP                (UINT64_C(1) << 12)
+#define KAIN_RUNTIME_SERVICE_IO_FS                  (UINT64_C(1) << 13)
+#define KAIN_RUNTIME_SERVICE_IO_NET                 (UINT64_C(1) << 14)
+#define KAIN_RUNTIME_SERVICE_IO_PROCESS             (UINT64_C(1) << 15)
+#define KAIN_RUNTIME_SERVICE_IO_TIMERS              (UINT64_C(1) << 16)
+#define KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS         (UINT64_C(1) << 17)
+#define KAIN_RUNTIME_SERVICE_AUDIO_BACKEND          (UINT64_C(1) << 18)
+#define KAIN_RUNTIME_SERVICE_AUDIO_GRAPH            (UINT64_C(1) << 19)
+#define KAIN_RUNTIME_SERVICE_AUDIO_DEVICE           (UINT64_C(1) << 20)
+#define KAIN_RUNTIME_SERVICE_AUDIO_ASSETS           (UINT64_C(1) << 21)
+#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT     (UINT64_C(1) << 22)
+#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL      (UINT64_C(1) << 23)
+#define KAIN_RUNTIME_SERVICE_WASM_MODULE            (UINT64_C(1) << 24)
+#define KAIN_RUNTIME_SERVICE_WASM_WASI              (UINT64_C(1) << 25)
+#define KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC     (UINT64_C(1) << 26)
+#define KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC     (UINT64_C(1) << 27)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX       (UINT64_C(1) << 28)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT   (UINT64_C(1) << 29)
+#define KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT   (UINT64_C(1) << 30)
+#define KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG     (UINT64_C(1) << 31)
+#define KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA         (UINT64_C(1) << 32)
+#define KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA         (UINT64_C(1) << 33)
+#define KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI       (UINT64_C(1) << 34)
+#define KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI       (UINT64_C(1) << 35)
+#define KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT       (UINT64_C(1) << 36)
+#define KAIN_RUNTIME_SERVICE_UI_BACKEND_QT          (UINT64_C(1) << 37)
+#define KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF (UINT64_C(1) << 38)
+#define KAIN_RUNTIME_SERVICE_UI_DEVTOOLS            (UINT64_C(1) << 39)
 
 #define KAIN_RUNTIME_SERVICE_CORE_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST | \
@@ -82,7 +93,15 @@
     KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX | \
     KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT | \
     KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT | \
-    KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG \
+    KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG | \
+    KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA | \
+    KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA | \
+    KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI | \
+    KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI | \
+    KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT | \
+    KAIN_RUNTIME_SERVICE_UI_BACKEND_QT | \
+    KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF | \
+    KAIN_RUNTIME_SERVICE_UI_DEVTOOLS \
 )
 
 typedef struct {
@@ -127,7 +146,15 @@ typedef struct {
     int has_gfx_backend_filament;
     int has_gfx_backend_diligent;
     int has_asset_texture_bimg;
-    unsigned int service_mask;
+    int has_ui_layout_yoga;
+    int has_ui_render_skia;
+    int has_ui_backend_imgui;
+    int has_ui_backend_rmlui;
+    int has_ui_backend_slint;
+    int has_ui_backend_qt;
+    int has_ui_surface_browser_cef;
+    int has_ui_devtools;
+    KainRuntimeServiceMask service_mask;
     unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];
     char load_origin[KAIN_RUNTIME_CONTRACT_MAX_ORIGIN];
@@ -138,11 +165,11 @@ typedef struct {
     int strict_mode;
     int contract_present;
     int fatal_error;
-    unsigned int required_service_mask;
-    unsigned int optional_service_mask;
-    unsigned int available_service_mask;
-    unsigned int missing_required_mask;
-    unsigned int downgraded_optional_mask;
+    KainRuntimeServiceMask required_service_mask;
+    KainRuntimeServiceMask optional_service_mask;
+    KainRuntimeServiceMask available_service_mask;
+    KainRuntimeServiceMask missing_required_mask;
+    KainRuntimeServiceMask downgraded_optional_mask;
     int warning_count;
     int abi_compatible;
     unsigned int runtime_abi_version;
@@ -161,16 +188,16 @@ int kain_runtime_contract_load_for_current_process(
     const char* env_name,
     KainRuntimeContractBundle* bundle
 );
-unsigned int kain_runtime_contract_service_mask(const KainRuntimeContractBundle* bundle);
+KainRuntimeServiceMask kain_runtime_contract_service_mask(const KainRuntimeContractBundle* bundle);
 void kain_runtime_contract_validation_init(KainRuntimeContractValidation* validation);
 int kain_runtime_contract_validate_startup(
     const KainRuntimeContractBundle* bundle,
-    unsigned int required_service_mask,
-    unsigned int optional_service_mask,
+    KainRuntimeServiceMask required_service_mask,
+    KainRuntimeServiceMask optional_service_mask,
     KainRuntimeContractValidation* validation
 );
 void kain_runtime_contract_format_service_mask(
-    unsigned int service_mask,
+    KainRuntimeServiceMask service_mask,
     char* out,
     size_t out_cap
 );
@@ -201,8 +228,8 @@ int kain_runtime_contract_is_service_available(const char* service_key);
  */
 int kain_runtime_contract_validate_startup_enhanced(
     const KainRuntimeContractBundle* bundle,
-    unsigned int required_service_mask,
-    unsigned int optional_service_mask,
+    KainRuntimeServiceMask required_service_mask,
+    KainRuntimeServiceMask optional_service_mask,
     KainStartupValidationResult* result
 );
 

@@ -12,6 +12,7 @@ The target shape is:
 - `bx` and `bimg` as support infrastructure for that lane
 - `filament-core` as a higher-level premium scene/material renderer experiment
 - `diligentcore` as the future explicit Kain-native render-graph / compute / device-control lane
+- `the-forge` as a future bridge-first low-level renderer substrate, staged in the same backend seam but not compiled directly into the runtime yet
 
 The non-goal is wiring all three renderers into the same `gfx.viewport` path as peers.
 
@@ -114,6 +115,27 @@ What Kain should use it for later:
 - `gfx.rendergraph.diligent`
 - `gfx.compute.diligent`
 - `gfx.pipeline.diligent`
+
+### `the-forge`
+
+Strategically useful as a future low-level substrate, but not a direct compile target in the current C-first runtime bundle.
+
+Why:
+
+- it gives Kain another serious engine-facing renderer/device layer to learn from
+- it is better treated as a bridge-first backend identity than a quick direct embed
+- it fits the same long-term ambition as Diligent: explicit device, queue, and backend control without forcing Kain to hand-write raw platform render backends immediately
+
+Constraint:
+
+- the tree is C++/platform-heavy and should be staged behind the same mixed-language graphics bridge strategy instead of being dropped into the manifest today
+
+What Kain should use it for later:
+
+- `gfx.backend.forge`
+- `gfx.device.forge`
+- `gfx.queue.forge`
+- `gfx.pipeline.forge`
 
 ## Non-Negotiable Architecture Rules
 
@@ -349,6 +371,7 @@ The next clean execution slice is:
 - `bx` and `bimg` move with `bgfx`
 - `filament-core` is a premium scene renderer experiment, not the base backend
 - `diligentcore` is the future explicit Kain render-architecture lane, not the first bring-up target
+- `the-forge` is staged in the backend catalog now, but should stay bridge-first until the renderer seam and host integration are stronger
 - `gfx.viewport` stays host-facing
 - Kain owns service contracts
 - large C++ vendors should cross into the runtime through deliberate bridge strategy, not by dumping their full source trees into the current C manifest path
