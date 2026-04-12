@@ -235,7 +235,7 @@ fn classify_surface_role(surface: &UiSurface) -> SessionPaneRole {
     }
 
     if surface.preferred_host_backend == UiHostBackendKind::Cef
-        || matches!(surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
+        || matches!(&surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
     {
         return SessionPaneRole::Browser;
     }

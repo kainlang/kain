@@ -1,5 +1,19 @@
 # MEMORY
 
+## 2026-04-12 - Qt smoke styling is demo-only; Kain UI remains theme/data driven
+
+The Plasma-ish Qt smoke shell is a presentation skin for the host proof, not the authored UI contract. The actual Kain UI model still needs to stay theme-driven and backend-neutral through `UiStyleSpec`, `UiThemeRegistry`, surface roles, and bundle metadata.
+
+What changed:
+
+- Clarified the UI host docs and native Qt smoke contract so future work does not confuse the generated showcase shell with the runtime's authored look model.
+- Kept the Qt shell stylized for smoke readability, but the durable design rule is that Kain-authored apps should continue to control appearance through theme data and surface metadata rather than a single baked visual preset.
+
+Why it matters:
+
+- The smoke can keep one strong visual identity for proof screenshots.
+- The runtime itself must still be able to express many different UI styles and component libraries without reworking the host around one fixed aesthetic.
+
 ## 2026-04-12 - material_atrium smoke is now Qt-native and primitive-backed
 
 The `material_atrium_showcase` smoke now presents the 3D runtime through the `kain-ui-native` Qt shell instead of the old egui host path, and the atrium scene itself is now authored from Kain primitives instead of a mostly hand-wired mesh pile.

@@ -284,6 +284,55 @@ ApplicationWindow {
     readonly property string browserUrl: __KAIN_BROWSER_URL__
     readonly property string viewportImagePath: __KAIN_VIEWPORT_IMAGE_PATH__
     property bool browserReady: false
+    readonly property bool atriumShowcaseMode: kainSession.app_name === "material-atrium-showcase"
+    readonly property var atriumRendererModes: [
+        {
+            id: "bgfx",
+            label: "bgfx",
+            title: "Baseline backend",
+            summary: "Cross-platform renderer lane for viewport, swapchain, and debug-draw work.",
+            note: "First real vendor-backed backend lane in the runtime.",
+            status: "compile-backed runtime lane",
+            executor: "native host currently renders via compatibility executor",
+            accent: "#60c5ff",
+            glow: "#92d9ff"
+        },
+        {
+            id: "filament",
+            label: "filament",
+            title: "Premium presentation",
+            summary: "High-end material and lighting lane for polished scene output.",
+            note: "Targets authored PBR scenes, lighting, and presentation polish.",
+            status: "staged premium renderer lane",
+            executor: "visual/material bridge still pending native viewport execution",
+            accent: "#ffcf7a",
+            glow: "#ffe2a6"
+        },
+        {
+            id: "diligent",
+            label: "diligent",
+            title: "Graph and compute",
+            summary: "Explicit-engine lane for render-graph control and pipeline visibility.",
+            note: "Owns the future Kain render graph and compute orchestration story.",
+            status: "staged explicit renderer lane",
+            executor: "render-graph and compute bridge remain ahead of viewport hookup",
+            accent: "#d89cff",
+            glow: "#e2beff"
+        },
+        {
+            id: "the-forge",
+            label: "the forge",
+            title: "Low-level substrate",
+            summary: "Bridge-first backend identity for future device and queue depth.",
+            note: "Staged as the aggressive low-level GPU substrate lane.",
+            status: "staged low-level renderer lane",
+            executor: "bridge-first backend identity is cataloged, viewport path still pending",
+            accent: "#ffb47d",
+            glow: "#ffd2af"
+        }
+    ]
+    property int activeRendererIndex: 0
+    readonly property var activeRendererMode: atriumRendererModes[activeRendererIndex]
 
     function roleAccent(role) {
         switch (role) {
@@ -334,6 +383,7 @@ ApplicationWindow {
     }
 
     component PaneCard: Frame {
+        id: card
         required property var paneData
         readonly property color accentColor: root.roleAccent(paneData.role)
         Layout.fillWidth: true
@@ -343,7 +393,7 @@ ApplicationWindow {
             radius: 20
             color: "#111a26"
             border.width: 1
-            border.color: Qt.rgba(PaneCard.accentColor.r, PaneCard.accentColor.g, PaneCard.accentColor.b, 0.33)
+            border.color: Qt.rgba(card.accentColor.r, card.accentColor.g, card.accentColor.b, 0.33)
             gradient: Gradient {
                 GradientStop { position: 0.0; color: "#1d2a3d" }
                 GradientStop { position: 1.0; color: "#111821" }
@@ -380,7 +430,7 @@ ApplicationWindow {
 
                 BadgePill {
                     pillText: paneData.role.toUpperCase()
-                    pillColor: PaneCard.accentColor
+                    pillColor: card.accentColor
                 }
             }
 
@@ -477,9 +527,9 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 url: root.browserUrl.length > 0 ? root.browserUrl : "about:blank"
-                onLoadingChanged: {
-                    if (loadRequest.status === WebEngineView.LoadSucceededStatus
-                        || loadRequest.status === WebEngineView.LoadFailedStatus) {
+                onLoadingChanged: function(request) {
+                    if (request.status === WebEngineView.LoadSucceededStatus
+                        || request.status === WebEngineView.LoadFailedStatus) {
                         root.browserReady = true
                     }
                 }
@@ -694,15 +744,23 @@ ApplicationWindow {
 
                     RowLayout {
                         spacing: 8
-                        Repeater {
-                            model: ["#ff6f8b", "#ffd36d", "#69f0c7"]
-                            delegate: Rectangle {
-                                required property string modelData
-                                width: 12
-                                height: 12
-                                radius: 6
-                                color: modelData
-                            }
+                        Rectangle {
+                            width: 12
+                            height: 12
+                            radius: 6
+                            color: "#ff6f8b"
+                        }
+                        Rectangle {
+                            width: 12
+                            height: 12
+                            radius: 6
+                            color: "#ffd36d"
+                        }
+                        Rectangle {
+                            width: 12
+                            height: 12
+                            radius: 6
+                            color: "#69f0c7"
                         }
                     }
 
@@ -737,7 +795,450 @@ ApplicationWindow {
                 }
             }
 
-            SplitView {
+            StackLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: root.atriumShowcaseMode ? 0 : 1
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 16
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            radius: 24
+                            color: "#0f1723"
+                            border.width: 1
+                            border.color: "#23364b"
+                            implicitHeight: 96
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 14
+
+                                ColumnLayout {
+                                    spacing: 3
+
+                                    Label {
+                                        text: "Renderer Switchboard"
+                                        color: "#f7fbff"
+                                        font.pixelSize: 22
+                                        font.bold: true
+                                    }
+
+                                    Label {
+                                        text: "Switch the renderer mood without leaving the native Qt showcase."
+                                        color: "#aac0d6"
+                                        font.pixelSize: 12
+                                        wrapMode: Text.Wrap
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                Repeater {
+                                    model: root.atriumRendererModes
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        width: 182
+                                        height: 62
+                                        radius: 18
+                                        border.width: 1
+                                        border.color: index === root.activeRendererIndex ? modelData.accent : "#294058"
+                                        color: index === root.activeRendererIndex ? "#162535" : "#0c1520"
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: root.activeRendererIndex = index
+                                        }
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 12
+                                            spacing: 2
+
+                                            Label {
+                                                text: modelData.label.toUpperCase()
+                                                color: modelData.accent
+                                                font.pixelSize: 13
+                                                font.bold: true
+                                            }
+
+                                            Label {
+                                                text: modelData.title
+                                                color: "#eef5ff"
+                                                font.pixelSize: 12
+                                                wrapMode: Text.WordWrap
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 28
+                            color: "#0d1520"
+                            border.width: 1
+                            border.color: root.activeRendererMode.accent
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: "#111b2a" }
+                                GradientStop { position: 1.0; color: "#0b1119" }
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 18
+                                spacing: 14
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Label {
+                                            text: "Atrium Preview"
+                                            color: "#f7fbff"
+                                            font.pixelSize: 26
+                                            font.bold: true
+                                        }
+
+                                        Label {
+                                            text: root.activeRendererMode.title + " / " + root.activeRendererMode.summary
+                                            color: "#bcd0e4"
+                                            wrapMode: Text.Wrap
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+
+                                    BadgePill {
+                                        pillText: root.activeRendererMode.label.toUpperCase()
+                                        pillColor: root.activeRendererMode.accent
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    spacing: 16
+
+                                    ColumnLayout {
+                                        Layout.preferredWidth: 360
+                                        Layout.fillHeight: true
+                                        spacing: 12
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            radius: 20
+                                            color: "#111b27"
+                                            border.width: 1
+                                            border.color: "#22364c"
+                                            implicitHeight: 164
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 14
+                                                spacing: 6
+
+                                                Label {
+                                                    text: root.activeRendererMode.title
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 19
+                                                    font.bold: true
+                                                    wrapMode: Text.Wrap
+                                                }
+
+                                                Label {
+                                                    text: root.activeRendererMode.note
+                                                    color: "#b8cee0"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Item { Layout.fillHeight: true }
+
+                                                BadgePill {
+                                                    pillText: root.activeRendererMode.status
+                                                    pillColor: root.activeRendererMode.accent
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            radius: 20
+                                            color: "#101826"
+                                            border.width: 1
+                                            border.color: "#22364c"
+                                            implicitHeight: 172
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 14
+                                                spacing: 8
+
+                                                Label {
+                                                    text: "Runtime Matrix"
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 17
+                                                    font.bold: true
+                                                }
+
+                                                Label {
+                                                    text: root.activeRendererMode.executor
+                                                    color: "#bfd2e5"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 8
+
+                                                    BadgePill {
+                                                        pillText: "native runtime"
+                                                        pillColor: "#67f0c4"
+                                                    }
+
+                                                    BadgePill {
+                                                        pillText: "qt shell"
+                                                        pillColor: "#8fb4ff"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        radius: 24
+                                        color: "#08111a"
+                                        border.width: 1
+                                        border.color: root.activeRendererMode.accent
+
+                                        Image {
+                                            anchors.fill: parent
+                                            anchors.margins: 12
+                                            source: root.viewportImagePath.length > 0 ? root.viewportImagePath : ""
+                                            fillMode: Image.PreserveAspectFit
+                                            smooth: true
+                                            mipmap: true
+                                            cache: true
+                                        }
+
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.bottom: parent.bottom
+                                            anchors.margins: 14
+                                            radius: 14
+                                            color: Qt.rgba(0.05, 0.08, 0.12, 0.82)
+                                            border.width: 1
+                                            border.color: root.activeRendererMode.accent
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 10
+                                                spacing: 8
+
+                                                BadgePill {
+                                                    pillText: root.activeRendererMode.label
+                                                    pillColor: root.activeRendererMode.accent
+                                                }
+
+                                                Label {
+                                                    text: "material_atrium / primitive-backed scene"
+                                                    color: "#d8e8ff"
+                                                    font.pixelSize: 12
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.preferredWidth: 318
+                                        Layout.fillHeight: true
+                                        spacing: 12
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            radius: 18
+                                            color: "#111923"
+                                            border.width: 1
+                                            border.color: "#23364b"
+                                            implicitHeight: 108
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 4
+
+                                                Label {
+                                                    text: "Renderer Feel"
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 16
+                                                    font.bold: true
+                                                }
+
+                                                Label {
+                                                    text: root.activeRendererMode.summary
+                                                    color: "#c2d5e8"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            radius: 18
+                                            color: "#111923"
+                                            border.width: 1
+                                            border.color: "#23364b"
+                                            implicitHeight: 126
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 6
+
+                                                Label {
+                                                    text: "Execution Truth"
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 16
+                                                    font.bold: true
+                                                }
+
+                                                Label {
+                                                    text: root.activeRendererMode.executor
+                                                    color: "#b8cee0"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            radius: 18
+                                            color: "#111923"
+                                            border.width: 1
+                                            border.color: "#23364b"
+                                            implicitHeight: 126
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 6
+
+                                                Label {
+                                                    text: "Design Note"
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 16
+                                                    font.bold: true
+                                                }
+
+                                                Label {
+                                                    text: root.activeRendererMode.note
+                                                    color: "#b8cee0"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            radius: 24
+                            color: "#101923"
+                            border.width: 1
+                            border.color: "#23364b"
+                            implicitHeight: 176
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                spacing: 8
+
+                                Label {
+                                    text: "Backend Matrix"
+                                    color: "#f7fbff"
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    Repeater {
+                                        model: root.atriumRendererModes
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            required property int index
+                                            Layout.fillWidth: true
+                                            radius: 18
+                                            color: index === root.activeRendererIndex ? "#162636" : "#0f1720"
+                                            border.width: 1
+                                            border.color: index === root.activeRendererIndex ? modelData.accent : "#23364b"
+                                            implicitHeight: 118
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                onClicked: root.activeRendererIndex = index
+                                            }
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 4
+
+                                                Label {
+                                                    text: modelData.label.toUpperCase()
+                                                    color: modelData.accent
+                                                    font.pixelSize: 13
+                                                    font.bold: true
+                                                }
+
+                                                Label {
+                                                    text: modelData.title
+                                                    color: "#f7fbff"
+                                                    font.pixelSize: 14
+                                                    font.bold: true
+                                                    wrapMode: Text.Wrap
+                                                }
+
+                                                Label {
+                                                    text: modelData.status
+                                                    color: "#b8cee0"
+                                                    wrapMode: Text.Wrap
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SplitView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 orientation: Qt.Horizontal
@@ -798,18 +1299,35 @@ ApplicationWindow {
                                     font.pixelSize: 16
                                     font.bold: true
                                 }
-                                Repeater {
-                                    model: kainSession.summary_lines
-                                    delegate: PaneCard {
-                                        required property string modelData
-                                        paneData: ({
-                                            "title": "summary",
-                                            "summary": modelData,
-                                            "role": "summary",
-                                            "adapter_state_label": modelData,
-                                            "detail_lines": [modelData]
-                                        })
-                                    }
+                                PaneCard {
+                                    visible: kainSession.summary_lines.length > 0
+                                    paneData: ({
+                                        "title": "summary",
+                                        "summary": kainSession.summary_lines[0],
+                                        "role": "summary",
+                                        "adapter_state_label": kainSession.summary_lines[0],
+                                        "detail_lines": [kainSession.summary_lines[0]]
+                                    })
+                                }
+                                PaneCard {
+                                    visible: kainSession.summary_lines.length > 1
+                                    paneData: ({
+                                        "title": "summary",
+                                        "summary": kainSession.summary_lines[1],
+                                        "role": "summary",
+                                        "adapter_state_label": kainSession.summary_lines[1],
+                                        "detail_lines": [kainSession.summary_lines[1]]
+                                    })
+                                }
+                                PaneCard {
+                                    visible: kainSession.summary_lines.length > 2
+                                    paneData: ({
+                                        "title": "summary",
+                                        "summary": kainSession.summary_lines[2],
+                                        "role": "summary",
+                                        "adapter_state_label": kainSession.summary_lines[2],
+                                        "detail_lines": [kainSession.summary_lines[2]]
+                                    })
                                 }
                             }
 
@@ -822,9 +1340,25 @@ ApplicationWindow {
                                     font.pixelSize: 16
                                     font.bold: true
                                 }
-                                Repeater {
-                                    model: kainSession.document_panes
-                                    delegate: PaneCard { paneData: modelData }
+                                PaneCard {
+                                    visible: kainSession.document_panes.length > 0
+                                    paneData: kainSession.document_panes.length > 0 ? kainSession.document_panes[0] : ({
+                                        "title": "Document",
+                                        "summary": "document lane placeholder",
+                                        "role": "document",
+                                        "adapter_state_label": "Document lane placeholder",
+                                        "detail_lines": []
+                                    })
+                                }
+                                PaneCard {
+                                    visible: kainSession.document_panes.length > 1
+                                    paneData: kainSession.document_panes.length > 1 ? kainSession.document_panes[1] : ({
+                                        "title": "Document",
+                                        "summary": "document lane placeholder",
+                                        "role": "document",
+                                        "adapter_state_label": "Document lane placeholder",
+                                        "detail_lines": []
+                                    })
                                 }
                             }
                         }
@@ -952,9 +1486,15 @@ ApplicationWindow {
                                     font.pixelSize: 16
                                     font.bold: true
                                 }
-                                Repeater {
-                                    model: kainSession.shader_panes
-                                    delegate: ShaderPane { paneData: modelData }
+                                ShaderPane {
+                                    visible: kainSession.shader_panes.length > 0
+                                    paneData: kainSession.shader_panes.length > 0 ? kainSession.shader_panes[0] : ({
+                                        "title": "Shader",
+                                        "summary": "shader lane placeholder",
+                                        "role": "shader",
+                                        "adapter_state_label": "Shader lane placeholder",
+                                        "detail_lines": []
+                                    })
                                 }
                             }
 
@@ -967,9 +1507,25 @@ ApplicationWindow {
                                     font.pixelSize: 16
                                     font.bold: true
                                 }
-                                Repeater {
-                                    model: kainSession.devtools_panes
-                                    delegate: PaneCard { paneData: modelData }
+                                PaneCard {
+                                    visible: kainSession.devtools_panes.length > 0
+                                    paneData: kainSession.devtools_panes.length > 0 ? kainSession.devtools_panes[0] : ({
+                                        "title": "Devtools",
+                                        "summary": "devtools lane placeholder",
+                                        "role": "devtools",
+                                        "adapter_state_label": "Devtools lane placeholder",
+                                        "detail_lines": []
+                                    })
+                                }
+                                PaneCard {
+                                    visible: kainSession.devtools_panes.length > 1
+                                    paneData: kainSession.devtools_panes.length > 1 ? kainSession.devtools_panes[1] : ({
+                                        "title": "Devtools",
+                                        "summary": "devtools lane placeholder",
+                                        "role": "devtools",
+                                        "adapter_state_label": "Devtools lane placeholder",
+                                        "detail_lines": []
+                                    })
                                 }
                             }
 
@@ -983,14 +1539,21 @@ ApplicationWindow {
                                     font.bold: true
                                     visible: kainSession.fallback_panes.length > 0
                                 }
-                                Repeater {
-                                    model: kainSession.fallback_panes
-                                    delegate: PaneCard { paneData: modelData }
+                                PaneCard {
+                                    visible: kainSession.fallback_panes.length > 0
+                                    paneData: kainSession.fallback_panes.length > 0 ? kainSession.fallback_panes[0] : ({
+                                        "title": "Fallback",
+                                        "summary": "fallback lane placeholder",
+                                        "role": "fallback",
+                                        "adapter_state_label": "Fallback lane placeholder",
+                                        "detail_lines": []
+                                    })
                                 }
                             }
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -1033,6 +1596,31 @@ mod tests {
         assert!(qml.contains("WebEngineView"));
         assert!(qml.contains("FastBlur"));
         assert!(qml.contains("KAIN 3D PREVIEW"));
+    }
+
+    #[test]
+    fn generated_qml_contains_atrium_renderer_switchboard() {
+        let bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                app_name: Some("material-atrium-showcase".to_string()),
+                window_title: "Kain Material Atrium Showcase".to_string(),
+                root_component: "App".to_string(),
+                ..UiRuntimeMetadata::default()
+            },
+            UiBuildOutput::default(),
+        );
+        let manifest =
+            build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
+        let qml = render_main_qml(
+            &manifest,
+            Some(Path::new("/tmp/kain-smoke-shot.png")),
+            Some("file:///tmp/kain-browser.html"),
+            Some("/tmp/kain-viewport.png"),
+        );
+        assert!(qml.contains("Renderer Switchboard"));
+        assert!(qml.contains("Atrium Preview"));
+        assert!(qml.contains("Backend Matrix"));
+        assert!(qml.contains("material_atrium / primitive-backed scene"));
     }
 
     #[test]

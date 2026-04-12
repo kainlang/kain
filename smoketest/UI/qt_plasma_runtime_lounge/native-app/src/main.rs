@@ -618,6 +618,7 @@ fn write_browser_surface_html(path: &Path, bundle: &UiRuntimeBundle) -> Result<(
 "#,
         escape_html(title),
         escape_html(app_name),
+        escape_html(root_component),
         escape_html(&shell_backend),
         escape_html(&document_backend),
         escape_html(&devtools_backend),
@@ -698,7 +699,7 @@ fn surface_role(surface: &UiSurface) -> &'static str {
     }
 
     if surface.preferred_host_backend == UiHostBackendKind::Cef
-        || matches!(surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
+        || matches!(&surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
     {
         return "browser";
     }
