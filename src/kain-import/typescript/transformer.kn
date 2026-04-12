@@ -1,0 +1,1318 @@
+use std::collections::HashMap
+
+use kain_core::ast::*
+
+use kain_core::effects::Effect
+
+use kain_core::span::Span
+
+use swc_ecma_ast as ts
+
+use crate::common::identifier_registry::IdentifierDomain
+
+use crate::common::identifier_registry::StableIdentifierRenamer
+
+use crate::common::ImportContext
+
+use crate::ImportError
+
+use crate::Result
+
+use super::types::TypeMapper
+
+enum JsxFallbackMode:
+    PlaceholderString
+
+enum SpreadFallbackMode:
+    KeepExplicitFields
+
+@allow(dead_code)
+@derive(Debug, Clone, Copy)
+struct LoweringPolicy:
+    jsx_fallback: JsxFallbackMode
+    object_spread: SpreadFallbackMode
+    call_spread: SpreadFallbackMode
+    jsx_placeholder_prefix: String
+
+impl Default for LoweringPolicy:
+    fn default_() -> LoweringPolicy:
+        LoweringPolicy { jsx_fallback: JsxFallbackMode__PlaceholderString, object_spread: SpreadFallbackMode__KeepExplicitFields, call_spread: SpreadFallbackMode__KeepExplicitFields, jsx_placeholder_prefix: "__jsx__" }
+
+
+pub struct TypeScriptTransformer:
+    type_mapper: TypeMapper
+    identifier_renamer: StableIdentifierRenamer
+    policy: LoweringPolicy
+    context: ImportContext
+    local_types: Array<Map<String, Type>>
+    current_class: Option<String>
+    temp_counter: usize
+    diagnostics: Array<String>
+
+impl TypeScriptTransformer:
+    pub fn new_() -> TypeScriptTransformer:
+        TypeScriptTransformer { type_mapper: TypeMapper__new_(), identifier_renamer: StableIdentifierRenamer__default_(), policy: LoweringPolicy__default_(), context: ImportContext__default_(), local_types: [HashMap__new_()], current_class: none, temp_counter: 0, diagnostics: Vec__new_() }
+
+    pub fn transform(_self: &mut TypeScriptTransformer, module: swc_ecma_ast::Module) -> Result<Program, Error>:
+        let mut items = Vec__new_()
+        for item in module.body:
+            items.extend((*_self).transform_module_item(item)?)
+            ()
+        ()
+        Result::Ok(Program { items: items, span: Span__default_() })
+
+    fn transform_module_item(_self: &mut TypeScriptTransformer, item: swc_ecma_ast::ModuleItem) -> Result<Array<Item>, Error>:
+        match item:
+            swc_ecma_ast__ModuleItem::ModuleDecl(decl) => (*_self).transform_module_decl(decl)
+            swc_ecma_ast__ModuleItem::Stmt(stmt) => (*_self).transform_top_level_stmt(stmt)
+
+    fn transform_module_decl(_self: &mut TypeScriptTransformer, decl: swc_ecma_ast::ModuleDecl) -> Result<Array<Item>, Error>:
+        match decl:
+            swc_ecma_ast__ModuleDecl::ExportDecl(export_) => (*_self).transform_decl(export_.decl)
+            swc_ecma_ast__ModuleDecl::Import(import) =>
+                (*_self).note(f"import from '{import.src.value}' skipped (module resolution is not implemented yet)")
+                ()
+                Result::Ok(Vec__new_())
+            swc_ecma_ast__ModuleDecl::ExportDefaultDecl(export_) => (*_self).transform_export_default_decl(export_)
+            swc_ecma_ast__ModuleDecl::ExportDefaultExpr(_) =>
+                (*_self).note(("default export expression skipped").to_string())
+                ()
+                Result::Ok(Vec__new_())
+            swc_ecma_ast__ModuleDecl::ExportNamed(_) =>
+                (*_self).note(("named export list skipped").to_string())
+                ()
+                Result::Ok(Vec__new_())
+            other =>
+                (*_self).note(f"module declaration {other} skipped")
+                ()
+                Result::Ok(Vec__new_())
+
+    fn transform_export_default_decl(_self: &mut TypeScriptTransformer, export_: swc_ecma_ast::ExportDefaultDecl) -> Result<Array<Item>, Error>:
+        match export_.decl:
+            swc_ecma_ast__DefaultDecl::Fn(func) =>
+                let name = func.ident.map(fn(ident): (*_self).rename_value(&ident.sym)).unwrap_or_else(fn(): ("default_export").to_string())
+                (*_self).transform_top_level_function(name, &func.function, Visibility__Public, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())
+            swc_ecma_ast__DefaultDecl::Class(class_) =>
+                let ident = class_.ident.unwrap_or_else(fn(): Ident__new_no_ctxt(("DefaultExport").into(), class_.class_.span))
+                (*_self).transform_class_decl(swc_ecma_ast::ClassDecl { ident: ident, declare: false, class_: class_.class_ })
+            swc_ecma_ast__DefaultDecl::TsInterfaceDecl(interface_) => Result::Ok([Item::Struct((*_self).transform_interface((*interface_))?)])
+
+    fn transform_top_level_stmt(_self: &mut TypeScriptTransformer, stmt: swc_ecma_ast::Stmt) -> Result<Array<Item>, Error>:
+        match stmt:
+            swc_ecma_ast__Stmt::Decl(decl) => (*_self).transform_decl(decl)
+            other =>
+                (*_self).note(f"top-level statement {other} skipped")
+                ()
+                Result::Ok(Vec__new_())
+
+    fn transform_decl(_self: &mut TypeScriptTransformer, decl: swc_ecma_ast::Decl) -> Result<Array<Item>, Error>:
+        match decl:
+            swc_ecma_ast__Decl::Fn(func) => (*_self).transform_fn_decl(func)
+            swc_ecma_ast__Decl::TsInterface(interface_) => Result::Ok([Item::Struct((*_self).transform_interface((*interface_))?)])
+            swc_ecma_ast__Decl::TsEnum(ts_enum) => Result::Ok([Item::Enum((*_self).transform_enum((*ts_enum))?)])
+            swc_ecma_ast__Decl::TsTypeAlias(alias) => Result::Ok([Item::TypeAlias((*_self).transform_type_alias((*alias))?)])
+            swc_ecma_ast__Decl::Class(class_) => (*_self).transform_class_decl(class_)
+            swc_ecma_ast__Decl::Var(var_) => (*_self).transform_top_level_var_decl((*var_))
+            other =>
+                (*_self).note(f"declaration {other} skipped")
+                ()
+                Result::Ok(Vec__new_())
+
+    fn transform_fn_decl(_self: &mut TypeScriptTransformer, func: swc_ecma_ast::FnDecl) -> Result<Array<Item>, Error>:
+        let name = (*_self).rename_value(&func.ident.sym)
+        (*_self).transform_top_level_function(name, &func.function, Visibility__Public, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())
+
+    fn transform_top_level_function(_self: &mut TypeScriptTransformer, name: String, function: &swc_ecma_ast::Function, visibility: Visibility, generics: Array<Generic>) -> Result<Array<Item>, Error>:
+        match ((*_self).try_transform_component(&name, function, visibility, generics.clone())?):
+            Some(component_) => return Result::Ok([Item::Component(component_)])
+            _ =>
+                ()
+                ()
+        Result::Ok([Item::Function((*_self).transform_function_like(name, function, visibility, false, generics)?)])
+
+    fn transform_interface(_self: &mut TypeScriptTransformer, interface_: swc_ecma_ast::TsInterfaceDecl) -> Result<Struct, Error>:
+        let span = Span__default_()
+        let name = (*_self).rename_type(&interface_.id.sym)
+        let generics = interface_.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default()
+        let mut fields = Vec__new_()
+        if (!interface_.extends.is_empty()):
+            (*_self).note(f"interface {name} extends clauses are noted but not modeled directly")
+            ()
+            ()
+            ()
+            ()
+        for member in interface_.body.body:
+            match member:
+                swc_ecma_ast__TsTypeElement::TsPropertySignature(prop) =>
+                    match (*_self).expr_to_field_name(&prop.key):
+                        Some(field_name) =>
+                            let mut field_type = (prop.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+                            if prop.optional:
+                                field_type = Type::Option(Box__new_(field_type), span)
+                                ()
+                                ()
+                                ()
+                                ()
+                            let mut attributes = Vec__new_()
+                            if prop.readonly:
+                                attributes.push(Attribute { name: ("readonly").to_string(), args: Vec__new_(), span: span })
+                                ()
+                                ()
+                                ()
+                                ()
+                            fields.push(Field { name: (*_self).rename_field(&field_name), ty: field_type, visibility: Visibility__Public, attributes: attributes, default_: none, weak_: false, span: span })
+                            ()
+                        _ =>
+                            (*_self).note(("computed interface property skipped").to_string())
+                            ()
+                swc_ecma_ast__TsTypeElement::TsMethodSignature(method) =>
+                    match (*_self).expr_to_field_name(&method.key):
+                        Some(field_name) =>
+                            let params = (*_self).map_ts_fn_params(&method.params)?
+                            let return_type = (method.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Unit(span))
+                            let field_type = Type::Function { params: params.iter().map(fn(p): p.ty.clone()).collect(), return_type: Box__new_(return_type), effects: Vec__new_(), span: span }
+                            fields.push(Field { name: (*_self).rename_field(&field_name), ty: field_type, visibility: Visibility__Public, attributes: Vec__new_(), default_: none, weak_: false, span: span })
+                            ()
+                        _ =>
+                            (*_self).note(("computed interface method skipped").to_string())
+                            ()
+                other => (*_self).note(f"interface member {other} skipped")
+        ()
+        Result::Ok(Struct { name: name, fields: fields, visibility: Visibility__Public, generics: generics, methods: Vec__new_(), attributes: Vec__new_(), span: span })
+
+    fn transform_enum(_self: &mut TypeScriptTransformer, ts_enum: swc_ecma_ast::TsEnumDecl) -> Result<Enum, Error>:
+        let span = Span__default_()
+        let name = (*_self).rename_type(&ts_enum.id.sym)
+        let variants = ts_enum.members.into_iter().map(fn(member): Variant { name: (*_self).rename_variant(member.id), fields: VariantFields__Unit, span: span }).collect()
+        Result::Ok(Enum { name: name, variants: variants, visibility: Visibility__Public, generics: Vec__new_(), span: span })
+
+    fn transform_type_alias(_self: &mut TypeScriptTransformer, alias: swc_ecma_ast::TsTypeAliasDecl) -> Result<TypeAlias, Error>:
+        let span = Span__default_()
+        Result::Ok(TypeAlias { name: (*_self).rename_type(&alias.id.sym), generics: alias.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default(), target: (*_self).type_mapper.map_type(&alias.type_ann, span)?, visibility: Visibility__Public, span: span })
+
+    fn transform_class_decl(_self: &mut TypeScriptTransformer, class_: swc_ecma_ast::ClassDecl) -> Result<Array<Item>, Error>:
+        let span = Span__default_()
+        let class_name = (*_self).rename_type(&class_.ident.sym)
+        let generics = class_.class_.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default()
+        let mut fields = Vec__new_()
+        let mut methods = Vec__new_()
+        (*_self).current_class = Option::Some(class_name.clone())
+        ()
+        for member in class_.class_.body:
+            match member:
+                swc_ecma_ast__ClassMember::ClassProp(prop) =>
+                    match (*_self).prop_name_to_string(&prop.key):
+                        Some(field_name) =>
+                            let ty = (prop.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+                            fields.push(Field { name: (*_self).rename_field(&field_name), ty: ty, visibility: accessibility_to_visibility(prop.accessibility), attributes: Vec__new_(), default_: prop.value.map(fn(expr): (*_self).transform_expr(expr)).transpose()?, weak_: false, span: span })
+                            ()
+                        _ =>
+                            (*_self).note(("computed class property skipped").to_string())
+                            ()
+                swc_ecma_ast__ClassMember::Method(method) =>
+                    match (*_self).prop_name_to_string(&method.key):
+                        Some(name) =>
+                            methods.push((*_self).transform_class_method(name, (*method.function), method.is_static)?)
+                            ()
+                        _ =>
+                            (*_self).note(("computed class method skipped").to_string())
+                            ()
+                swc_ecma_ast__ClassMember::Constructor(ctor) =>
+                    methods.push((*_self).transform_constructor(&class_name, ctor)?)
+                    ()
+                other => (*_self).note(f"class member {other} skipped")
+        ()
+        (*_self).current_class = none
+        ()
+        let struct_item = Item::Struct(Struct { name: class_name.clone(), fields: fields, visibility: Visibility__Public, generics: generics.clone(), methods: Vec__new_(), attributes: Vec__new_(), span: span })
+        if methods.is_empty():
+            return Result::Ok([struct_item])
+        let impl_item = Item::Impl(Impl { generics: generics, trait_name: none, trait_generics: Vec__new_(), target_type: Type::Named { name: class_name, generics: Vec__new_(), span: span }, methods: methods, span: span })
+        Result::Ok([struct_item, impl_item])
+
+    fn transform_top_level_var_decl(_self: &mut TypeScriptTransformer, decl: swc_ecma_ast::VarDecl) -> Result<Array<Item>, Error>:
+        let span = Span__default_()
+        let mut items = Vec__new_()
+        for declarator in decl.decls:
+            let Some(name) = (*_self).pat_binding_name(&declarator.name)
+            let ty = ((*_self).pat_type_annotation(&declarator.name).map(fn(ann): (*_self).type_mapper.map_type(ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+            let value = declarator.init.map(fn(expr): (*_self).transform_expr(expr)).transpose()?
+            match decl.kind:
+                swc_ecma_ast__VarDeclKind::Const =>
+                    match value:
+                        Some(value) =>
+                            items.push(Item::Const(Const { name: (*_self).rename_value(&name), ty: ty, value: value, visibility: Visibility__Private, span: span }))
+                            ()
+                        _ =>
+                            (*_self).note(f"const {name} skipped because it has no initializer")
+                            ()
+                _ =>
+                    (*_self).note(f"top-level {decl.kind} declaration '{name}' skipped (KAIN has no top-level mutable binding item)")
+                    ()
+        ()
+        Result::Ok(items)
+
+    fn transform_class_method(_self: &mut TypeScriptTransformer, name: String, function: swc_ecma_ast::Function, is_static: Bool) -> Result<Function, Error>:
+        let method_name = (*_self).rename_value(&name)
+        let mut func = (*_self).transform_function_like(method_name, &function, Visibility__Public, (!is_static), function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?
+        if is_static:
+            func.attributes.push(Attribute { name: ("static").to_string(), args: Vec__new_(), span: Span__default_() })
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(func)
+
+    fn transform_constructor(_self: &mut TypeScriptTransformer, class_name: String, ctor: swc_ecma_ast::Constructor) -> Result<Function, Error>:
+        let span = Span__default_()
+        let mut params = Vec__new_()
+        for param in ctor.params:
+            match param:
+                swc_ecma_ast__ParamOrTsParamProp::Param(param) =>
+                    params.extend((*_self).map_params(&[param])?)
+                    ()
+                swc_ecma_ast__ParamOrTsParamProp::TsParamProp(prop) =>
+                    match prop.param:
+                        swc_ecma_ast__TsParamPropParam::Ident(ident) =>
+                            let name = (*_self).rename_value(&ident.id.sym)
+                            let ty = (ident.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+                            params.push(Param { name: name, ty: ty, mutable_: false, default_: none, span: span })
+                            ()
+                        _ => (*_self).note(("unsupported constructor parameter property skipped").to_string())
+        ()
+        let body = match &ctor.body:
+            Some(block) =>
+                (*_self).push_scope()
+                ()
+                for param in &params:
+                    (*_self).define(&param.name, param.ty.clone())
+                    ()
+                ()
+                let block = (*_self).transform_block_stmt(block)?
+                (*_self).pop_scope()
+                ()
+                block
+            _ => Block { stmts: Vec__new_(), span: span }
+        Result::Ok(Function { name: ("new").to_string(), generics: Vec__new_(), params: params, return_type: Option::Some(Type::Named { name: class_name.to_string(), generics: Vec__new_(), span: span }), effects: Vec__new_(), body: body, visibility: Visibility__Public, attributes: [Attribute { name: ("constructor").to_string(), args: Vec__new_(), span: span }], span: span })
+
+    fn try_transform_component(_self: &mut TypeScriptTransformer, name: String, function: &swc_ecma_ast::Function, visibility: Visibility, _generics: Array<Generic>) -> Result<Option<Component>, Error>:
+        if (!looks_like_component_name(name)):
+            return Result::Ok(none)
+        let Some(block) = &(*function).body
+        let Some((body, prefix_len)) = (*_self).extract_component_render_body(&block.stmts)?
+        let mut state_ = Vec__new_()
+        let mut methods = Vec__new_()
+        (*_self).push_scope()
+        ()
+        let props = (*_self).map_params(&(*function).params)?
+        for prop in &props:
+            (*_self).define(&prop.name, prop.ty.clone())
+            ()
+        ()
+        for stmt in &block.stmts[..prefix_len]:
+            if (!(*_self).try_hoist_component_stmt(stmt, &mut state_, &mut methods)?):
+                (*_self).pop_scope()
+                ()
+                return Result::Ok(none)
+        ()
+        let mut effects = Vec__new_()
+        if (*function).is_async:
+            effects.push(kain_core__effects__Effect__Async_)
+            ()
+            ()
+            ()
+            ()
+        effects.push(kain_core__effects__Effect__Reactive_)
+        ()
+        (*_self).pop_scope()
+        ()
+        Result::Ok(Option::Some(Component { name: name.to_string(), props: props, state_: state_, methods: methods, effects: effects, body: body, visibility: visibility, attributes: Vec__new_(), span: Span__default_() }))
+
+    fn extract_component_render_body(_self: &mut TypeScriptTransformer, stmts: &[swc_ecma_ast::Stmt]) -> Result<Option<(JSXNode, usize)>, Error>:
+        let Some(last_stmt) = stmts.last()
+        let swc_ecma_ast__Stmt::Return(ret) = last_stmt
+        let Some(expr) = ret.arg
+        let Some(body) = (*_self).try_transform_jsx_root(expr)?
+        Result::Ok(Option::Some((body, (stmts.len() - 1))))
+
+    fn try_hoist_component_stmt(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::Stmt, state_: &mut Array<StateDecl>, methods: &mut Array<Function>) -> Result<Bool, Error>:
+        match stmt:
+            swc_ecma_ast__Stmt::Decl(swc_ecma_ast__Decl::Var(var_)) => (*_self).hoist_component_var_decl(var_, state_, methods)
+            swc_ecma_ast__Stmt::Decl(swc_ecma_ast__Decl::Fn(func)) =>
+                let name = (*_self).rename_value(&func.ident.sym)
+                let method = (*_self).transform_function_like(name.clone(), &func.function, Visibility__Private, false, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?
+                methods.push(method)
+                ()
+                (*_self).define(&name, Type::Infer(Span__default_()))
+                ()
+                Result::Ok(true)
+            swc_ecma_ast__Stmt::Expr(expr) => (*_self).try_hoist_component_expr_stmt(&expr.expr)
+            swc_ecma_ast__Stmt::Empty(_) => Result::Ok(true)
+            _ => Result::Ok(false)
+
+    fn try_hoist_component_expr_stmt(_self: &mut TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> Result<Bool, Error>:
+        let swc_ecma_ast__Expr::Call(call) = expr
+        let Some(name) = (*_self).call_callee_name(call)
+        if (*_self).is_component_hook_name(&name):
+            (*_self).note(f"component hook call '{name}' preserved only as diagnostic during import")
+            ()
+            return Result::Ok(true)
+        Result::Ok(false)
+
+    fn hoist_component_var_decl(_self: &mut TypeScriptTransformer, decl: &swc_ecma_ast::VarDecl, state_: &mut Array<StateDecl>, methods: &mut Array<Function>) -> Result<Bool, Error>:
+        for declarator in &(*decl).decls:
+            if ((*_self).try_hoist_use_state(declarator, state_, methods)?):
+                continue
+            match &declarator.name:
+                swc_ecma_ast__Pat::Ident(ident) =>
+                    let name = (*_self).rename_value(&ident.id.sym)
+                    let span = Span__default_()
+                    match declarator.init:
+                        Some(init) =>
+                            match init:
+                                swc_ecma_ast__Expr::Arrow(arrow) =>
+                                    methods.push((*_self).transform_named_arrow_method(&name, arrow)?)
+                                    ()
+                                    (*_self).define(&name, Type::Infer(span))
+                                    ()
+                                    continue
+                                swc_ecma_ast__Expr::Fn(func) =>
+                                    let function = (*_self).transform_function_like(name.clone(), &func.function, Visibility__Private, false, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?
+                                    methods.push(function)
+                                    ()
+                                    (*_self).define(&name, Type::Infer(span))
+                                    ()
+                                    continue
+                                swc_ecma_ast__Expr::Call(call) =>
+                                    match ((*_self).try_transform_wrapped_callable(&name, call)?):
+                                        Some(function) =>
+                                            methods.push(function)
+                                            ()
+                                            (*_self).define(&name, Type::Infer(span))
+                                            ()
+                                            continue
+                                        _ =>
+                                            ()
+                                            ()
+                                    ()
+                                _ => ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    let ty = (ident.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+                    let initial = (declarator.init.map(fn(expr): (*_self).transform_expr(expr)).transpose()?).unwrap_or(Expr::None(span))
+                    state_.push(StateDecl { name: name.clone(), ty: ty.clone(), initial: initial, weak_: false, attributes: Vec__new_(), span: span })
+                    ()
+                    (*_self).define(&name, ty)
+                    ()
+                _ => return Result::Ok(false)
+        ()
+        Result::Ok(true)
+
+    fn try_transform_wrapped_callable(_self: &mut TypeScriptTransformer, name: String, call: &swc_ecma_ast::CallExpr) -> Result<Option<Function>, Error>:
+        let Some(callee_name) = (*_self).call_callee_name(call)
+        if (!none):
+            return Result::Ok(none)
+        let Some(first_arg) = (*call).args.first()
+        match &(*first_arg.expr):
+            swc_ecma_ast__Expr::Arrow(arrow) => Result::Ok(Option::Some((*_self).transform_named_arrow_method(name, arrow)?))
+            swc_ecma_ast__Expr::Fn(func) => Result::Ok(Option::Some((*_self).transform_function_like(name.to_string(), &func.function, Visibility__Private, false, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?))
+            _ => Result::Ok(none)
+
+    fn try_hoist_use_state(_self: &mut TypeScriptTransformer, declarator: &swc_ecma_ast::VarDeclarator, state_: &mut Array<StateDecl>, methods: &mut Array<Function>) -> Result<Bool, Error>:
+        let swc_ecma_ast__Pat::Array(array_pat) = &(*declarator).name
+        let Some(init) = (*declarator).init
+        let swc_ecma_ast__Expr::Call(call) = init
+        if (!(*_self).call_callee_name(call).is_some_and(fn(name): name.ends_with("useState"))):
+            return Result::Ok(false)
+        let Some(first) = array_pat.elems.first().and_then(fn(pat): pat)
+        let swc_ecma_ast__Pat::Ident(state_ident) = first
+        let state_name = (*_self).rename_value(&state_ident.id.sym)
+        let span = Span__default_()
+        let ty = (state_ident.type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).or_else(fn(): call.type_args.and_then(fn(type_args): type_args.params.first().and_then(fn(param): (*_self).type_mapper.map_type(param, span).ok()))).unwrap_or(Type::Infer(span))
+        let initial = (call.args.first().map(fn(arg): (*_self).transform_expr(&arg.expr)).transpose()?).unwrap_or(Expr::None(span))
+        state_.push(StateDecl { name: state_name.clone(), ty: ty.clone(), initial: initial, weak_: false, attributes: Vec__new_(), span: span })
+        ()
+        (*_self).define(&state_name, ty.clone())
+        ()
+        match array_pat.elems.get(1):
+            Some(Some(swc_ecma_ast__Pat::Ident(setter_ident))) =>
+                let setter_name = (*_self).rename_value(&setter_ident.id.sym)
+                methods.push((*_self).make_state_setter(&setter_name, &state_name, ty))
+                ()
+                (*_self).define(&setter_name, Type::Infer(span))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(true)
+
+    fn transform_named_arrow_method(_self: &mut TypeScriptTransformer, name: String, arrow: &swc_ecma_ast::ArrowExpr) -> Result<Function, Error>:
+        let span = Span__default_()
+        let params = (*arrow).params.iter().map(fn(pat): (*_self).map_pat_to_param(pat)).collect()?
+        let return_type = (*arrow).return_type.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?
+        (*_self).push_scope()
+        ()
+        for param in &params:
+            (*_self).define(&param.name, param.ty.clone())
+            ()
+        ()
+        let body = match &(*(*arrow).body):
+            swc_ecma_ast__BlockStmtOrExpr::BlockStmt(block) => (*_self).transform_block_stmt(block)?
+            swc_ecma_ast__BlockStmtOrExpr::Expr(expr) => Block { stmts: [Stmt::Return(Option::Some((*_self).transform_expr(expr)?), span)], span: span }
+        (*_self).pop_scope()
+        ()
+        Result::Ok(Function { name: name.to_string(), generics: Vec__new_(), params: params, return_type: return_type, effects: Vec__new_(), body: body, visibility: Visibility__Private, attributes: Vec__new_(), span: span })
+
+    fn make_state_setter(_self: &TypeScriptTransformer, setter_name: String, state_name: String, ty: Type) -> Function:
+        let span = Span__default_()
+        Function { name: setter_name.to_string(), generics: Vec__new_(), params: [Param { name: ("value").to_string(), ty: ty, mutable_: false, default_: none, span: span }], return_type: none, effects: [kain_core__effects__Effect__Reactive_], body: Block { stmts: [Stmt::Expr(Expr::Assign { target: Box__new_(Expr::Ident(state_name.to_string(), span)), value: Box__new_(Expr::Ident(("value").to_string(), span)), span: span })], span: span }, visibility: Visibility__Private, attributes: Vec__new_(), span: span }
+
+    fn transform_function_like(_self: &mut TypeScriptTransformer, name: String, function: &swc_ecma_ast::Function, visibility: Visibility, inject_self: Bool, generics: Array<Generic>) -> Result<Function, Error>:
+        let span = Span__default_()
+        let mut params = Vec__new_()
+        if inject_self:
+            let class_name = (*_self).current_class.clone().unwrap_or_else(fn(): ("Self").to_string())
+            params.push(Param { name: ("_self").to_string(), ty: Type::Named { name: class_name, generics: Vec__new_(), span: span }, mutable_: true, default_: none, span: span })
+            ()
+            ()
+            ()
+            ()
+        params.extend((*_self).map_params(&(*function).params)?)
+        ()
+        let return_type = (*function).return_type.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?
+        let mut effects = Vec__new_()
+        if (*function).is_async:
+            effects.push(kain_core__effects__Effect__Async_)
+            ()
+            ()
+            ()
+            ()
+        (*_self).push_scope()
+        ()
+        for param in &params:
+            (*_self).define(&param.name, param.ty.clone())
+            ()
+        ()
+        let body = match &(*function).body:
+            Some(block) => (*_self).transform_block_stmt(block)?
+            _ => Block { stmts: Vec__new_(), span: span }
+        (*_self).pop_scope()
+        ()
+        Result::Ok(Function { name: name, generics: generics, params: params, return_type: return_type, effects: effects, body: body, visibility: visibility, attributes: Vec__new_(), span: span })
+
+    fn map_params(_self: &mut TypeScriptTransformer, params: &[swc_ecma_ast::Param]) -> Result<Array<Param>, Error>:
+        let mut out_ = Vec__new_()
+        for param in params:
+            out_.push((*_self).map_pat_to_param(&param.pat)?)
+            ()
+        ()
+        Result::Ok(out_)
+
+    fn map_ts_fn_params(_self: &mut TypeScriptTransformer, params: &[swc_ecma_ast::TsFnParam]) -> Result<Array<Param>, Error>:
+        let mut out_ = Vec__new_()
+        for param in params:
+            let param = match param:
+                swc_ecma_ast__TsFnParam::Ident(ident) => (*_self).binding_ident_to_param(ident)?
+                swc_ecma_ast__TsFnParam::Array(array) => (*_self).pattern_to_param_name(&swc_ecma_ast__Pat::Array(array.clone().into()), array.type_ann.map(fn(ann): &(*ann.type_ann)))?
+                swc_ecma_ast__TsFnParam::Object(object) => (*_self).pattern_to_param_name(&swc_ecma_ast__Pat::Object(object.clone().into()), object.type_ann.map(fn(ann): &(*ann.type_ann)))?
+                swc_ecma_ast__TsFnParam::Rest(rest) => (*_self).pattern_to_param_name(&swc_ecma_ast__Pat::Rest(rest.clone().into()), rest.type_ann.map(fn(ann): &(*ann.type_ann)))?
+            out_.push(param)
+            ()
+        ()
+        Result::Ok(out_)
+
+    fn map_pat_to_param(_self: &mut TypeScriptTransformer, pat: &swc_ecma_ast::Pat) -> Result<Param, Error>:
+        match pat:
+            swc_ecma_ast__Pat::Ident(ident) => (*_self).binding_ident_to_param(ident)
+            swc_ecma_ast__Pat::Assign(assign) =>
+                let mut param = (*_self).map_pat_to_param(&assign.left)?
+                param.default_ = Option::Some((*_self).transform_expr(&assign.right)?)
+                ()
+                Result::Ok(param)
+            swc_ecma_ast__Pat::Rest(rest) => (*_self).pattern_to_param_name(pat, rest.type_ann.map(fn(ann): &(*ann.type_ann)))
+            swc_ecma_ast__Pat::Array(array) => (*_self).pattern_to_param_name(pat, array.type_ann.map(fn(ann): &(*ann.type_ann)))
+            swc_ecma_ast__Pat::Object(object) => (*_self).pattern_to_param_name(pat, object.type_ann.map(fn(ann): &(*ann.type_ann)))
+            swc_ecma_ast__Pat::Expr(_) => (*_self).pattern_to_param_name(pat, none)
+            swc_ecma_ast__Pat::Invalid(_) => (*_self).pattern_to_param_name(pat, none)
+
+    fn binding_ident_to_param(_self: &mut TypeScriptTransformer, ident: &swc_ecma_ast::BindingIdent) -> Result<Param, Error>:
+        let span = Span__default_()
+        let ty = ((*ident).type_ann.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+        Result::Ok(Param { name: (*_self).rename_value(&(*ident).id.sym), ty: ty, mutable_: false, default_: none, span: span })
+
+    fn pattern_to_param_name(_self: &mut TypeScriptTransformer, pat: &swc_ecma_ast::Pat, ty_ann: Option<&swc_ecma_ast::TsType>) -> Result<Param, Error>:
+        let span = Span__default_()
+        let ty = (ty_ann.map(fn(ann): (*_self).type_mapper.map_type(ann, span)).transpose()?).unwrap_or(Type::Infer(span))
+        let name = (*_self).pat_binding_name(pat).unwrap_or_else(fn(): (*_self).fresh_temp("arg"))
+        if (!none):
+            (*_self).note(f"pattern parameter '{name}' simplified to a binding")
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(Param { name: (*_self).rename_value(&name), ty: ty, mutable_: false, default_: none, span: span })
+
+    fn transform_block_stmt(_self: &mut TypeScriptTransformer, block: &swc_ecma_ast::BlockStmt) -> Result<Block, Error>:
+        (*_self).push_scope()
+        ()
+        let mut stmts = Vec__new_()
+        for stmt in &(*block).stmts:
+            stmts.extend((*_self).transform_stmt(stmt)?)
+            ()
+        ()
+        (*_self).pop_scope()
+        ()
+        Result::Ok(Block { stmts: stmts, span: Span__default_() })
+
+    fn transform_stmt(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::Stmt) -> Result<Array<Stmt>, Error>:
+        let span = Span__default_()
+        match stmt:
+            swc_ecma_ast__Stmt::Decl(swc_ecma_ast__Decl::Var(var_)) => (*_self).transform_var_stmt(var_)
+            swc_ecma_ast__Stmt::Decl(decl) =>
+                let items = (*_self).transform_decl(decl.clone())?
+                Result::Ok(items.into_iter().map(fn(item): Stmt::Item(Box__new_(item))).collect())
+            swc_ecma_ast__Stmt::Expr(expr) =>
+                match &(*expr.expr):
+                    swc_ecma_ast__Expr::Call(call) =>
+                        match ((*_self).try_transform_foreach_stmt(call)?):
+                            Some(lowered) => return Result::Ok(lowered)
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                Result::Ok([Stmt::Expr((*_self).transform_expr(&expr.expr)?)])
+            swc_ecma_ast__Stmt::Return(ret) => Result::Ok([Stmt::Return(ret.arg.map(fn(expr): (*_self).transform_expr(expr)).transpose()?, span)])
+            swc_ecma_ast__Stmt::If(if_stmt) => Result::Ok([Stmt::Expr((*_self).transform_if_stmt(if_stmt)?)])
+            swc_ecma_ast__Stmt::While(while_stmt) => Result::Ok([Stmt::While { condition: (*_self).transform_expr(&while_stmt.test_)?, body: (*_self).stmt_to_block(&while_stmt.body)?, span: span }])
+            swc_ecma_ast__Stmt::ForOf(for_of) => Result::Ok([Stmt::For { binding: (*_self).for_head_to_pattern(&for_of.left), iter: (*_self).transform_expr(&for_of.right)?, body: (*_self).stmt_to_block(&for_of.body)?, span: span }])
+            swc_ecma_ast__Stmt::For(for_stmt) => (*_self).transform_for_stmt(for_stmt)
+            swc_ecma_ast__Stmt::Switch(switch_stmt) => (*_self).transform_switch_stmt(switch_stmt)
+            swc_ecma_ast__Stmt::Break(_) => Result::Ok([Stmt::Break(none, span)])
+            swc_ecma_ast__Stmt::Continue(_) => Result::Ok([Stmt::Continue(span)])
+            swc_ecma_ast__Stmt::Block(block) => Result::Ok([Stmt::Expr(Expr::Block((*_self).transform_block_stmt(block)?, span))])
+            other =>
+                (*_self).note(f"statement {other} skipped")
+                ()
+                Result::Ok(Vec__new_())
+
+    fn transform_var_stmt(_self: &mut TypeScriptTransformer, decl: &swc_ecma_ast::VarDecl) -> Result<Array<Stmt>, Error>:
+        let span = Span__default_()
+        let mut out_ = Vec__new_()
+        for declarator in &(*decl).decls:
+            let pattern = (*_self).transform_pattern(&declarator.name)
+            let ty = (*_self).pat_type_annotation(&declarator.name).map(fn(ann): (*_self).type_mapper.map_type(ann, span)).transpose()?
+            let value = declarator.init.map(fn(expr): (*_self).transform_expr(expr)).transpose()?
+            match &pattern:
+                Pattern::Binding { name: name } =>
+                    match &ty:
+                        Some(ty) =>
+                            (*_self).define(name, ty.clone())
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            out_.push(Stmt::Let { pattern: pattern, ty: ty, value: value, span: span })
+            ()
+        ()
+        Result::Ok(out_)
+
+    fn transform_for_stmt(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::ForStmt) -> Result<Array<Stmt>, Error>:
+        let span = Span__default_()
+        let mut init_stmts = Vec__new_()
+        match &(*stmt).init:
+            Some(init) =>
+                match init:
+                    swc_ecma_ast__VarDeclOrExpr::VarDecl(var_) =>
+                        init_stmts.extend((*_self).transform_var_stmt(var_)?)
+                        ()
+                    swc_ecma_ast__VarDeclOrExpr::Expr(expr) =>
+                        init_stmts.push(Stmt::Expr((*_self).transform_expr(expr)?))
+                        ()
+                        ()
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        let condition = ((*stmt).test_.map(fn(expr): (*_self).transform_expr(expr)).transpose()?).unwrap_or(Expr::Bool(true, span))
+        let mut body = (*_self).stmt_to_block(&(*stmt).body)?
+        match &(*stmt).update:
+            Some(update) =>
+                body.stmts.push(Stmt::Expr((*_self).transform_expr(update)?))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        init_stmts.push(Stmt::While { condition: condition, body: body, span: span })
+        ()
+        Result::Ok(init_stmts)
+
+    fn transform_switch_stmt(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::SwitchStmt) -> Result<Array<Stmt>, Error>:
+        let span = Span__default_()
+        let discriminant = (*_self).transform_expr(&(*stmt).discriminant)?
+        let mut branch = none
+        for case_ in (*stmt).cases.iter().rev():
+            let body = (*_self).transform_switch_case_body(&case_.cons)?
+            match &case_.test_:
+                Some(test_) =>
+                    branch = Option::Some(ElseBranch::ElseIf(Box__new_(Expr::Binary { left: Box__new_(discriminant.clone()), op: BinaryOp__Eq, right: Box__new_((*_self).transform_expr(test_)?), span: span }), body, branch.map(Box__new_)))
+                    ()
+                _ =>
+                    branch = Option::Some(ElseBranch::Else(body))
+                    ()
+        ()
+        let Some(branch) = branch
+        let expr = match branch:
+            ElseBranch::Else(block) => Expr::Block(block, span)
+            ElseBranch::ElseIf(condition, then_branch, else_branch) => Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch, span: span }
+        Result::Ok([Stmt::Expr(expr)])
+
+    fn transform_switch_case_body(_self: &mut TypeScriptTransformer, stmts: &[swc_ecma_ast::Stmt]) -> Result<Block, Error>:
+        let mut lowered = Vec__new_()
+        for stmt in stmts:
+            lowered.extend((*_self).transform_stmt(stmt)?)
+            ()
+        ()
+        while none:
+            lowered.pop()
+            ()
+        ()
+        Result::Ok(Block { stmts: lowered, span: Span__default_() })
+
+    fn try_transform_foreach_stmt(_self: &mut TypeScriptTransformer, call: &swc_ecma_ast::CallExpr) -> Result<Option<Array<Stmt>>, Error>:
+        let swc_ecma_ast__Callee::Expr(callee_expr) = &(*call).callee
+        let swc_ecma_ast__Expr::Member(member) = &(*(*callee_expr))
+        let swc_ecma_ast__MemberProp::Ident(method) = &member.prop
+        if (method.sym != (*"forEach")):
+            return Result::Ok(none)
+        let Some(callback) = (*call).args.first()
+        let (value_name, index_name, body) = match &(*callback.expr):
+            swc_ecma_ast__Expr::Arrow(arrow) => (*_self).lower_foreach_callback(&arrow.params, &arrow.body)?
+            swc_ecma_ast__Expr::Fn(func) => (*_self).lower_foreach_fn_callback(&func.function)?
+            _ => return Result::Ok(none)
+        let span = Span__default_()
+        let iter_name = (*_self).fresh_temp("iter")
+        let index_tmp = (*_self).fresh_temp("index")
+        let iter_ident = Expr::Ident(iter_name.clone(), span)
+        let index_ident = Expr::Ident(index_tmp.clone(), span)
+        let mut loop_body = Vec__new_()
+        loop_body.push(Stmt::Let { pattern: Pattern::Binding { name: value_name, mutable_: false, span: span }, ty: none, value: Option::Some(Expr::Index { object: Box__new_(iter_ident.clone()), index: Box__new_(index_ident.clone()), span: span }), span: span })
+        ()
+        match index_name:
+            Some(index_name) =>
+                loop_body.push(Stmt::Let { pattern: Pattern::Binding { name: index_name, mutable_: false, span: span }, ty: none, value: Option::Some(index_ident.clone()), span: span })
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        loop_body.extend(body.stmts)
+        ()
+        loop_body.push(Stmt::Expr(Expr::Assign { target: Box__new_(index_ident.clone()), value: Box__new_(Expr::Binary { left: Box__new_(index_ident.clone()), op: BinaryOp__Add, right: Box__new_(Expr::Int(1, span)), span: span }), span: span }))
+        ()
+        Result::Ok(Option::Some([Stmt::Let { pattern: Pattern::Binding { name: iter_name.clone(), mutable_: false, span: span }, ty: none, value: Option::Some((*_self).transform_expr(&member.obj)?), span: span }, Stmt::Let { pattern: Pattern::Binding { name: index_tmp.clone(), mutable_: false, span: span }, ty: none, value: Option::Some(Expr::Int(0, span)), span: span }, Stmt::While { condition: Expr::Binary { left: Box__new_(index_ident.clone()), op: BinaryOp__Lt, right: Box__new_(Expr::Field { object: Box__new_(iter_ident), field: ("length").to_string(), span: span }), span: span }, body: Block { stmts: loop_body, span: span }, span: span }]))
+
+    fn lower_foreach_callback(_self: &mut TypeScriptTransformer, params: &[swc_ecma_ast::Pat], body: &swc_ecma_ast::BlockStmtOrExpr) -> Result<(String, Option<String>, Block), Error>:
+        let span = Span__default_()
+        let value_name = params.first().and_then(fn(pat): (*_self).pat_binding_name(pat)).map(fn(name): (*_self).rename_value(&name)).unwrap_or_else(fn(): (*_self).fresh_temp("item"))
+        let index_name = params.get(1).and_then(fn(pat): (*_self).pat_binding_name(pat)).map(fn(name): (*_self).rename_value(&name))
+        (*_self).push_scope()
+        ()
+        (*_self).define(&value_name, Type::Infer(span))
+        ()
+        match &index_name:
+            Some(index_name) =>
+                (*_self).define(index_name, Type::Infer(span))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let block = match body:
+            swc_ecma_ast__BlockStmtOrExpr::BlockStmt(block) => (*_self).transform_block_stmt(block)?
+            swc_ecma_ast__BlockStmtOrExpr::Expr(expr) => Block { stmts: [Stmt::Expr((*_self).transform_expr(expr)?)], span: span }
+        (*_self).pop_scope()
+        ()
+        Result::Ok((value_name, index_name, block))
+
+    fn lower_foreach_fn_callback(_self: &mut TypeScriptTransformer, function: &swc_ecma_ast::Function) -> Result<(String, Option<String>, Block), Error>:
+        let params = (*function).params.iter().map(fn(param): param.pat.clone()).collect()
+        let body = (*function).body.map(fn(block): swc_ecma_ast__BlockStmtOrExpr::BlockStmt(block.clone())).unwrap_or_else(fn(): swc_ecma_ast__BlockStmtOrExpr::Expr(Box__new_(swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Null(swc_ecma_ast::Null { span: (*function).span })))))
+        (*_self).lower_foreach_callback(&params, &body)
+
+    fn transform_if_stmt(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::IfStmt) -> Result<Expr, Error>:
+        Result::Ok(Expr::If { condition: Box__new_((*_self).transform_expr(&(*stmt).test_)?), then_branch: (*_self).stmt_to_block(&(*stmt).cons)?, else_branch: ((*stmt).alt.map(fn(alt): (*_self).transform_else_branch(alt)).transpose()?).map(Box__new_), span: Span__default_() })
+
+    fn transform_else_branch(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::Stmt) -> Result<ElseBranch, Error>:
+        match stmt:
+            swc_ecma_ast__Stmt::If(if_stmt) => Result::Ok(ElseBranch::ElseIf(Box__new_((*_self).transform_expr(&if_stmt.test_)?), (*_self).stmt_to_block(&if_stmt.cons)?, (if_stmt.alt.map(fn(alt): (*_self).transform_else_branch(alt)).transpose()?).map(Box__new_)))
+            _ => Result::Ok(ElseBranch::Else((*_self).stmt_to_block(stmt)?))
+
+    fn stmt_to_block(_self: &mut TypeScriptTransformer, stmt: &swc_ecma_ast::Stmt) -> Result<Block, Error>:
+        match stmt:
+            swc_ecma_ast__Stmt::Block(block) => (*_self).transform_block_stmt(block)
+            _ => Result::Ok(Block { stmts: (*_self).transform_stmt(stmt)?, span: Span__default_() })
+
+    fn transform_expr(_self: &mut TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        match expr:
+            swc_ecma_ast__Expr::Lit(lit) => (*_self).transform_lit(lit)
+            swc_ecma_ast__Expr::Ident(ident) => Result::Ok(Expr::Ident((*_self).rename_value(&ident.sym), span))
+            swc_ecma_ast__Expr::This(_) => Result::Ok(Expr::Ident(("_self").to_string(), span))
+            swc_ecma_ast__Expr::Array(array) => Result::Ok(Expr::Array(array.elems.iter().filter_map(fn(elem): elem).map(fn(elem): (*_self).transform_expr(&elem.expr)).collect()?, span))
+            swc_ecma_ast__Expr::Object(obj) => (*_self).transform_object_lit(obj)
+            swc_ecma_ast__Expr::Bin(bin) => Result::Ok(Expr::Binary { left: Box__new_((*_self).transform_expr(&bin.left)?), op: map_binary_op(bin.op).ok_or_else(fn(): ImportError::UnsupportedFeature(f"unsupported TypeScript binary op {bin.op}"))?, right: Box__new_((*_self).transform_expr(&bin.right)?), span: span })
+            swc_ecma_ast__Expr::Unary(unary) =>
+                let operand = (*_self).transform_expr(&unary.arg)?
+                match map_unary_op(unary.op):
+                    Some(op) => Result::Ok(Expr::Unary { op: op, operand: Box__new_(operand), span: span })
+                    _ =>
+                        (*_self).note(f"unary operator {unary.op} lowered to passthrough")
+                        ()
+                        Result::Ok(operand)
+            swc_ecma_ast__Expr::Update(update) => (*_self).transform_update_expr(update)
+            swc_ecma_ast__Expr::Assign(assign) => (*_self).transform_assign_expr(assign)
+            swc_ecma_ast__Expr::TsAs(ts_as) => (*_self).transform_expr(&ts_as.expr)
+            swc_ecma_ast__Expr::TsSatisfies(ts_sat) => (*_self).transform_expr(&ts_sat.expr)
+            swc_ecma_ast__Expr::TsNonNull(non_null) => (*_self).transform_expr(&non_null.expr)
+            swc_ecma_ast__Expr::TsTypeAssertion(assertion) => (*_self).transform_expr(&assertion.expr)
+            swc_ecma_ast__Expr::TsInstantiation(inst) => (*_self).transform_expr(&inst.expr)
+            swc_ecma_ast__Expr::Member(member) => (*_self).transform_member_expr(member)
+            swc_ecma_ast__Expr::Call(call) => (*_self).transform_call_expr(call)
+            swc_ecma_ast__Expr::New(new_expr) => (*_self).transform_new_expr(new_expr)
+            swc_ecma_ast__Expr::Await(await_expr) => Result::Ok(Expr::Await(Box__new_((*_self).transform_expr(&await_expr.arg)?), span))
+            swc_ecma_ast__Expr::Cond(cond) => Result::Ok(Expr::If { condition: Box__new_((*_self).transform_expr(&cond.test_)?), then_branch: block_with_expr((*_self).transform_expr(&cond.cons)?), else_branch: Option::Some(Box__new_(ElseBranch::Else(block_with_expr((*_self).transform_expr(&cond.alt)?)))), span: span })
+            swc_ecma_ast__Expr::Arrow(arrow) => (*_self).transform_arrow_expr(arrow)
+            swc_ecma_ast__Expr::Paren(paren) => Result::Ok(Expr::Paren(Box__new_((*_self).transform_expr(&paren.expr)?), span))
+            swc_ecma_ast__Expr::OptChain(chain) => (*_self).transform_opt_chain_expr(chain)
+            swc_ecma_ast__Expr::Tpl(tpl) => (*_self).transform_template_literal(tpl)
+            swc_ecma_ast__Expr::Fn(func) => (*_self).transform_function_expr(func)
+            swc_ecma_ast__Expr::JSXElement(element) => (*_self).transform_jsx_element_expr(element)
+            swc_ecma_ast__Expr::JSXFragment(fragment_) => (*_self).transform_jsx_fragment_expr(fragment_)
+            swc_ecma_ast__Expr::Seq(seq) =>
+                let last = seq.exprs.last().ok_or_else(fn(): ImportError::TransformError(("empty sequence expression").to_string()))?
+                (*_self).transform_expr(last)
+            other => Result::Err(ImportError::UnsupportedFeature(f"unsupported TypeScript expression {other}"))
+
+    fn transform_lit(_self: &mut TypeScriptTransformer, lit: &swc_ecma_ast::Lit) -> Result<Expr, Error>:
+        let span = Span__default_()
+        match lit:
+            swc_ecma_ast__Lit::Str(value) => Result::Ok(Expr::String(value.value.to_string(), span))
+            swc_ecma_ast__Lit::Num(value) =>
+                let n = value.value
+                if (((n.fract() - 0)).abs() < f64__EPSILON):
+                    Result::Ok(Expr::Int(n as i64, span))
+                else:
+                    Result::Ok(Expr::Float(n, span))
+            swc_ecma_ast__Lit::Bool(value) => Result::Ok(Expr::Bool(value.value, span))
+            swc_ecma_ast__Lit::Null(_) => Result::Ok(Expr::None(span))
+            swc_ecma_ast__Lit::BigInt(value) =>
+                let raw = value.raw.map(fn(raw): raw.trim_end_matches("n")).unwrap_or_default()
+                let digits = if raw.is_empty():
+                    value.value.to_string()
+                else:
+                    raw.to_string()
+                match digits.parse():
+                    Ok(parsed) => Result::Ok(Expr::Int(parsed, span))
+                    Err(_) =>
+                        (*_self).note(f"BigInt literal '{digits}' lowered to string placeholder")
+                        ()
+                        Result::Ok(Expr::String(digits, span))
+            other => Result::Err(ImportError::UnsupportedFeature(f"unsupported TypeScript literal {other}"))
+
+    fn transform_object_lit(_self: &mut TypeScriptTransformer, obj: &swc_ecma_ast::ObjectLit) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let mut fields = Vec__new_()
+        for prop in &(*obj).props:
+            match prop:
+                swc_ecma_ast__PropOrSpread::Prop(prop) =>
+                    match &(*(*prop)):
+                        swc_ecma_ast__Prop::KeyValue(prop) =>
+                            match (*_self).prop_name_to_string(&prop.key):
+                                Some(name) =>
+                                    fields.push(((*_self).rename_field(&name), (*_self).transform_expr(&prop.value)?))
+                                    ()
+                                _ =>
+                                    match &prop.key:
+                                        swc_ecma_ast__PropName::Computed(computed) =>
+                                            match (*_self).expr_to_field_name(&computed.expr):
+                                                Some(name) =>
+                                                    fields.push(((*_self).rename_field(&name), (*_self).transform_expr(&prop.value)?))
+                                                    ()
+                                                    (*_self).note(f"computed object key '{name}' lowered to a plain field")
+                                                    ()
+                                                _ =>
+                                                    (*_self).note(("computed object literal key dropped during import").to_string())
+                                                    ()
+                                        _ =>
+                                            (*_self).note(("unsupported object literal key dropped during import").to_string())
+                                            ()
+                        swc_ecma_ast__Prop::Shorthand(ident) =>
+                            let name = (*_self).rename_field(&ident.sym)
+                            fields.push((name.clone(), Expr::Ident((*_self).rename_value(&ident.sym), span)))
+                            ()
+                        other => return Result::Err(ImportError::UnsupportedFeature(f"unsupported object literal property {other}"))
+                swc_ecma_ast__PropOrSpread::Spread(_) =>
+                    match (*_self).policy.object_spread:
+                        SpreadFallbackMode::KeepExplicitFields =>
+                            (*_self).note(("object spread lowered lossily by keeping explicit fields only").to_string())
+                            ()
+        ()
+        Result::Ok(Expr::AggregateInit { ty: Type::Infer(span), fields: fields, zero_fill_rest: false, span: span })
+
+    fn transform_assign_expr(_self: &mut TypeScriptTransformer, assign: &swc_ecma_ast::AssignExpr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let target = (*_self).transform_assign_target(&(*assign).left)?
+        let value = (*_self).transform_expr(&(*assign).right)?
+        if ((*assign).op == swc_ecma_ast__AssignOp__Assign):
+            return Result::Ok(Expr::Assign { target: Box__new_(target), value: Box__new_(value), span: span })
+        let Some(bin_op) = (*assign).op.to_update().and_then(map_binary_op)
+        Result::Ok(Expr::Assign { target: Box__new_(target.clone()), value: Box__new_(Expr::Binary { left: Box__new_(target), op: bin_op, right: Box__new_(value), span: span }), span: span })
+
+    fn transform_assign_target(_self: &mut TypeScriptTransformer, target: &swc_ecma_ast::AssignTarget) -> Result<Expr, Error>:
+        match target:
+            swc_ecma_ast__AssignTarget::Simple(simple) => (*_self).transform_simple_assign_target(simple)
+            swc_ecma_ast__AssignTarget::Pat(pat) =>
+                let pat_as_pat: swc_ecma_ast::Pat = pat.clone().into()
+                let name = (*_self).pat_binding_name(&pat_as_pat).unwrap_or_else(fn(): (*_self).fresh_temp("destructure"))
+                (*_self).note(f"destructuring assignment target simplified to binding '{name}'")
+                ()
+                Result::Ok(Expr::Ident((*_self).rename_value(&name), Span__default_()))
+
+    fn transform_simple_assign_target(_self: &mut TypeScriptTransformer, target: &swc_ecma_ast::SimpleAssignTarget) -> Result<Expr, Error>:
+        match target:
+            swc_ecma_ast__SimpleAssignTarget::Ident(ident) => Result::Ok(Expr::Ident((*_self).rename_value(&ident.id.sym), Span__default_()))
+            swc_ecma_ast__SimpleAssignTarget::Member(member) => (*_self).transform_member_expr(member)
+            swc_ecma_ast__SimpleAssignTarget::Paren(paren) => (*_self).transform_expr(&paren.expr)
+            swc_ecma_ast__SimpleAssignTarget::SuperProp(_) => Result::Err(ImportError::UnsupportedFeature(("super property assignment is not supported").to_string()))
+            swc_ecma_ast__SimpleAssignTarget::OptChain(_) => Result::Err(ImportError::UnsupportedFeature(("optional chain assignment is not supported").to_string()))
+            swc_ecma_ast__SimpleAssignTarget::TsAs(ts_as) => (*_self).transform_expr(&ts_as.expr)
+            swc_ecma_ast__SimpleAssignTarget::TsSatisfies(ts_sat) => (*_self).transform_expr(&ts_sat.expr)
+            swc_ecma_ast__SimpleAssignTarget::TsNonNull(non_null) => (*_self).transform_expr(&non_null.expr)
+            swc_ecma_ast__SimpleAssignTarget::TsTypeAssertion(assertion) => (*_self).transform_expr(&assertion.expr)
+            swc_ecma_ast__SimpleAssignTarget::TsInstantiation(inst) => (*_self).transform_expr(&inst.expr)
+            swc_ecma_ast__SimpleAssignTarget::Invalid(_) => Result::Err(ImportError::TransformError(("invalid assignment target").to_string()))
+
+    fn transform_member_expr(_self: &mut TypeScriptTransformer, member: &swc_ecma_ast::MemberExpr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let object = (*_self).transform_expr(&(*member).obj)?
+        match &(*member).prop:
+            swc_ecma_ast__MemberProp::Ident(ident) => Result::Ok(Expr::Field { object: Box__new_(object), field: (*_self).rename_field(&ident.sym), span: span })
+            swc_ecma_ast__MemberProp::Computed(computed) => Result::Ok(Expr::Index { object: Box__new_(object), index: Box__new_((*_self).transform_expr(&computed.expr)?), span: span })
+            swc_ecma_ast__MemberProp::PrivateName(name) => Result::Ok(Expr::Field { object: Box__new_(object), field: (*_self).rename_field(&name.name), span: span })
+
+    fn transform_call_expr(_self: &mut TypeScriptTransformer, call: &swc_ecma_ast::CallExpr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let args = (*_self).transform_call_args(&(*call).args)?
+        match &(*call).callee:
+            swc_ecma_ast__Callee::Expr(expr) =>
+                match &(*(*expr)):
+                    swc_ecma_ast__Expr::Member(member) => return Result::Ok((*_self).member_call_to_kain(member, args))
+                    _ =>
+                        ()
+                        ()
+                Result::Ok(Expr::Call { callee: Box__new_((*_self).transform_expr(expr)?), args: args, span: span })
+            swc_ecma_ast__Callee::Import(_) =>
+                (*_self).note(("dynamic import lowered to import_dynamic(...) call").to_string())
+                ()
+                Result::Ok(Expr::Call { callee: Box__new_(Expr::Ident(("import_dynamic").to_string(), span)), args: args, span: span })
+            other => Result::Err(ImportError::UnsupportedFeature(f"unsupported callee {other}"))
+
+    fn transform_new_expr(_self: &mut TypeScriptTransformer, new_expr: &swc_ecma_ast::NewExpr) -> Result<Expr, Error>:
+        Result::Ok(Expr::Call { callee: Box__new_((*_self).transform_expr(&(*new_expr).callee)?), args: (*_self).transform_call_args((*new_expr).args.unwrap_or(&[]))?, span: Span__default_() })
+
+    fn transform_update_expr(_self: &mut TypeScriptTransformer, update: &swc_ecma_ast::UpdateExpr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let target = (*_self).transform_expr(&(*update).arg)?
+        let delta = match (*update).op:
+            swc_ecma_ast__UpdateOp::PlusPlus => 1
+            swc_ecma_ast__UpdateOp::MinusMinus => (-1)
+        let value = Expr::Binary { left: Box__new_(target.clone()), op: if (delta > 0): BinaryOp__Add else: BinaryOp__Sub, right: Box__new_(Expr::Int(1, span)), span: span }
+        Result::Ok(Expr::Assign { target: Box__new_(target), value: Box__new_(value), span: span })
+
+    fn transform_opt_chain_expr(_self: &mut TypeScriptTransformer, chain: &swc_ecma_ast::OptChainExpr) -> Result<Expr, Error>:
+        (*_self).note(("optional chaining lowered to plain access/call").to_string())
+        ()
+        match &(*(*chain).base):
+            swc_ecma_ast__OptChainBase::Member(member) => (*_self).transform_member_expr(member)
+            swc_ecma_ast__OptChainBase::Call(call) =>
+                let args = (*_self).transform_call_args(&call.args)?
+                match &(*call.callee):
+                    swc_ecma_ast__Expr::Member(member) => Result::Ok((*_self).member_call_to_kain(member, args))
+                    _ => Result::Ok(Expr::Call { callee: Box__new_((*_self).transform_expr(&call.callee)?), args: args, span: Span__default_() })
+
+    fn transform_arrow_expr(_self: &mut TypeScriptTransformer, arrow: &swc_ecma_ast::ArrowExpr) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let params = (*arrow).params.iter().map(fn(pat): (*_self).map_pat_to_param(pat)).collect()?
+        let return_type = (*arrow).return_type.map(fn(ann): (*_self).type_mapper.map_type(&ann.type_ann, span)).transpose()?
+        (*_self).push_scope()
+        ()
+        for param in &params:
+            (*_self).define(&param.name, param.ty.clone())
+            ()
+        ()
+        let body = match &(*(*arrow).body):
+            swc_ecma_ast__BlockStmtOrExpr::BlockStmt(block) => Expr::Block((*_self).transform_block_stmt(block)?, span)
+            swc_ecma_ast__BlockStmtOrExpr::Expr(expr) => (*_self).transform_expr(expr)?
+        (*_self).pop_scope()
+        ()
+        Result::Ok(Expr::Lambda { params: params, return_type: return_type, body: Box__new_(body), span: span })
+
+    fn transform_template_literal(_self: &mut TypeScriptTransformer, tpl: &swc_ecma_ast::Tpl) -> Result<Expr, Error>:
+        let span = Span__default_()
+        let mut parts = Vec__new_()
+        for selfhost_for_item in (*tpl).quasis.iter().enumerate():
+            let (idx, quasi) = selfhost_for_item
+            let raw = quasi.raw.to_string()
+            if (!raw.is_empty()):
+                parts.push(Expr::String(raw, span))
+                ()
+                ()
+                ()
+                ()
+            match (*tpl).exprs.get(idx):
+                Some(expr) =>
+                    parts.push((*_self).transform_expr(expr)?)
+                    ()
+                _ => ()
+        ()
+        Result::Ok(Expr::FString(parts, span))
+
+    fn transform_function_expr(_self: &mut TypeScriptTransformer, func: &swc_ecma_ast::FnExpr) -> Result<Expr, Error>:
+        let name = (*func).ident.map(fn(ident): (*_self).rename_value(&ident.sym)).unwrap_or_else(fn(): (*_self).fresh_temp("lambda"))
+        let function = (*_self).transform_function_like(name.clone(), &(*func).function, Visibility__Private, false, (*func).function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?
+        Result::Ok(Expr::Lambda { params: function.params, return_type: function.return_type, body: Box__new_(Expr::Block(function.body, Span__default_())), span: Span__default_() })
+
+    fn transform_jsx_element_expr(_self: &mut TypeScriptTransformer, element: &swc_ecma_ast::JSXElement) -> Result<Expr, Error>:
+        Result::Ok(Expr::JSX((*_self).transform_jsx_element_node(element)?, Span__default_()))
+
+    fn transform_jsx_fragment_expr(_self: &mut TypeScriptTransformer, fragment_: &swc_ecma_ast::JSXFragment) -> Result<Expr, Error>:
+        Result::Ok(Expr::JSX((*_self).transform_jsx_fragment_node(fragment_)?, Span__default_()))
+
+    fn transform_jsx_element_node(_self: &mut TypeScriptTransformer, element: &swc_ecma_ast::JSXElement) -> Result<JSXNode, Error>:
+        let span = Span__default_()
+        let attributes = (*_self).transform_jsx_attributes(&(*element).opening.attrs)?
+        let children = (*_self).transform_jsx_children(&(*element).children)?
+        let name = (*_self).jsx_element_name_to_string(&(*element).opening.name)
+        let sanitized = sanitize_jsx_name(&name)
+        if looks_like_component_name(&sanitized):
+            Result::Ok(JSXNode::ComponentCall { name: sanitized, props: attributes, children: children, span: span })
+        else:
+            Result::Ok(JSXNode::Element { tag: sanitized.to_ascii_lowercase(), attributes: attributes, children: children, span: span })
+
+    fn transform_jsx_fragment_node(_self: &mut TypeScriptTransformer, fragment_: &swc_ecma_ast::JSXFragment) -> Result<JSXNode, Error>:
+        Result::Ok(JSXNode::Fragment((*_self).transform_jsx_children(&fragment_.children)?, Span__default_()))
+
+    fn transform_jsx_attributes(_self: &mut TypeScriptTransformer, attrs: &[swc_ecma_ast::JSXAttrOrSpread]) -> Result<Array<JSXAttribute>, Error>:
+        let mut out_ = Vec__new_()
+        for attr in attrs:
+            match attr:
+                swc_ecma_ast__JSXAttrOrSpread::JSXAttr(attr) =>
+                    let Some(name) = (*_self).jsx_attr_name_to_string(&attr.name)
+                    let value = match &attr.value:
+                        None => JSXAttrValue::Bool(true)
+                        Some(swc_ecma_ast__JSXAttrValue::Lit(lit)) =>
+                            match lit:
+                                swc_ecma_ast__Lit::Str(value) => JSXAttrValue::String(value.value.to_string())
+                                swc_ecma_ast__Lit::Bool(value) => JSXAttrValue::Bool(value.value)
+                                _ => JSXAttrValue::Expr((*_self).transform_lit(lit)?)
+                        Some(swc_ecma_ast__JSXAttrValue::JSXExprContainer(container)) =>
+                            match &container.expr:
+                                swc_ecma_ast__JSXExpr::Expr(expr) => JSXAttrValue::Expr((*_self).transform_expr(expr)?)
+                                swc_ecma_ast__JSXExpr::JSXEmptyExpr(_) => JSXAttrValue::Bool(true)
+                        Some(swc_ecma_ast__JSXAttrValue::JSXElement(element)) => JSXAttrValue::Expr(Expr::JSX((*_self).transform_jsx_element_node(element)?, Span__default_()))
+                        Some(swc_ecma_ast__JSXAttrValue::JSXFragment(fragment_)) => JSXAttrValue::Expr(Expr::JSX((*_self).transform_jsx_fragment_node(fragment_)?, Span__default_()))
+                    out_.push(JSXAttribute { name: sanitize_jsx_name(&name), value: value, span: Span__default_() })
+                    ()
+                swc_ecma_ast__JSXAttrOrSpread::SpreadElement(spread) =>
+                    let lowered_expr = (*_self).transform_expr(&spread.expr).map(fn(expr): expr).unwrap_or_else(fn(_): ("<expr>").to_string())
+                    (*_self).note(f"JSX spread attribute '{lowered_expr}' lowered lossily and skipped")
+                    ()
+        ()
+        Result::Ok(out_)
+
+    fn transform_jsx_children(_self: &mut TypeScriptTransformer, children: &[swc_ecma_ast::JSXElementChild]) -> Result<Array<JSXNode>, Error>:
+        let mut out_ = Vec__new_()
+        for child in children:
+            match child:
+                swc_ecma_ast__JSXElementChild::JSXText(text) =>
+                    match normalize_jsx_text(&text.value):
+                        Some(normalized) =>
+                            out_.push(JSXNode::Text(normalized, Span__default_()))
+                            ()
+                        _ => ()
+                swc_ecma_ast__JSXElementChild::JSXExprContainer(container) =>
+                    match ((*_self).transform_jsx_expr_container(container)?):
+                        Some(node) =>
+                            out_.push(node)
+                            ()
+                        _ => ()
+                swc_ecma_ast__JSXElementChild::JSXElement(element) =>
+                    out_.push((*_self).transform_jsx_element_node(element)?)
+                    ()
+                swc_ecma_ast__JSXElementChild::JSXFragment(fragment_) =>
+                    out_.push((*_self).transform_jsx_fragment_node(fragment_)?)
+                    ()
+                swc_ecma_ast__JSXElementChild::JSXSpreadChild(spread) =>
+                    out_.push(JSXNode::Expression(Box__new_((*_self).transform_expr(&spread.expr)?)))
+                    ()
+        ()
+        Result::Ok(out_)
+
+    fn transform_jsx_expr_container(_self: &mut TypeScriptTransformer, container: &swc_ecma_ast::JSXExprContainer) -> Result<Option<JSXNode>, Error>:
+        match &(*container).expr:
+            swc_ecma_ast__JSXExpr::JSXEmptyExpr(_) => Result::Ok(none)
+            swc_ecma_ast__JSXExpr::Expr(expr) => (*_self).try_transform_jsx_root(expr)
+
+    fn try_transform_jsx_root(_self: &mut TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> Result<Option<JSXNode>, Error>:
+        let span = Span__default_()
+        match expr:
+            swc_ecma_ast__Expr::Paren(paren) => (*_self).try_transform_jsx_root(&paren.expr)
+            swc_ecma_ast__Expr::JSXElement(element) => Result::Ok(Option::Some((*_self).transform_jsx_element_node(element)?))
+            swc_ecma_ast__Expr::JSXFragment(fragment_) => Result::Ok(Option::Some((*_self).transform_jsx_fragment_node(fragment_)?))
+            swc_ecma_ast__Expr::Cond(cond) =>
+                let Some(then_branch) = (*_self).try_transform_jsx_root(&cond.cons)?
+                let else_branch = ((*_self).try_transform_jsx_root(&cond.alt)?).map(Box__new_)
+                Result::Ok(Option::Some(JSXNode::If { condition: Box__new_((*_self).transform_expr(&cond.test_)?), then_branch: Box__new_(then_branch), else_branch: else_branch, span: span }))
+            swc_ecma_ast__Expr::Bin(bin) if (bin.op == swc_ecma_ast__BinaryOp__LogicalAnd) =>
+                let Some(then_branch) = (*_self).try_transform_jsx_root(&bin.right)?
+                Result::Ok(Option::Some(JSXNode::If { condition: Box__new_((*_self).transform_expr(&bin.left)?), then_branch: Box__new_(then_branch), else_branch: none, span: span }))
+            swc_ecma_ast__Expr::Call(call) =>
+                match ((*_self).try_transform_jsx_map_call(call)?):
+                    Some(node) => Result::Ok(Option::Some(node))
+                    _ => Result::Ok(Option::Some(JSXNode::Expression(Box__new_((*_self).transform_expr(expr)?))))
+            _ => Result::Ok(Option::Some(JSXNode::Expression(Box__new_((*_self).transform_expr(expr)?))))
+
+    fn try_transform_jsx_map_call(_self: &mut TypeScriptTransformer, call: &swc_ecma_ast::CallExpr) -> Result<Option<JSXNode>, Error>:
+        let swc_ecma_ast__Callee::Expr(callee_expr) = &(*call).callee
+        let swc_ecma_ast__Expr::Member(member) = &(*(*callee_expr))
+        let swc_ecma_ast__MemberProp::Ident(prop) = &member.prop
+        if ((prop.sym != (*"map")) || ((*call).args.len() != 1)):
+            return Result::Ok(none)
+        let iter = (*_self).transform_expr(&member.obj)?
+        let callback = &(*call).args[0].expr
+        let (binding, body_expr) = match &(*(*callback)):
+            swc_ecma_ast__Expr::Arrow(arrow) =>
+                let Some(first) = arrow.params.first()
+                let binding = (*_self).pat_binding_name(first).unwrap_or_else(fn(): ("item").to_string())
+                let body = match &(*arrow.body):
+                    swc_ecma_ast__BlockStmtOrExpr::Expr(expr) => expr
+                    swc_ecma_ast__BlockStmtOrExpr::BlockStmt(block) =>
+                        let Some(swc_ecma_ast__Stmt::Return(ret)) = block.stmts.last()
+                        let Some(expr) = ret.arg
+                        expr
+                (binding, body)
+            _ => return Result::Ok(none)
+        let Some(body) = (*_self).try_transform_jsx_root(body_expr)?
+        Result::Ok(Option::Some(JSXNode::For { binding: (*_self).rename_value(&binding), iter: Box__new_(iter), body: Box__new_(body), span: Span__default_() }))
+
+    fn member_call_to_kain(_self: &mut TypeScriptTransformer, member: &swc_ecma_ast::MemberExpr, args: Array<CallArg>) -> Expr:
+        let span = Span__default_()
+        let receiver = (*_self).transform_expr(&(*member).obj).unwrap_or(Expr::Ident(("invalid_receiver").to_string(), span))
+        match &(*member).prop:
+            swc_ecma_ast__MemberProp::Ident(ident) => Expr::MethodCall { receiver: Box__new_(receiver), method: (*_self).rename_value(&ident.sym), args: args, span: span }
+            swc_ecma_ast__MemberProp::PrivateName(name) => Expr::MethodCall { receiver: Box__new_(receiver), method: (*_self).rename_value(&name.name), args: args, span: span }
+            swc_ecma_ast__MemberProp::Computed(computed) => Expr::Call { callee: Box__new_(Expr::Index { object: Box__new_(receiver), index: Box__new_((*_self).transform_expr(&computed.expr).unwrap_or(Expr::Ident(("invalid_index").to_string(), span))), span: span }), args: args, span: span }
+
+    fn transform_call_args(_self: &mut TypeScriptTransformer, args: &[swc_ecma_ast::ExprOrSpread]) -> Result<Array<CallArg>, Error>:
+        args.iter().map(fn(arg): none).collect()
+
+    fn transform_pattern(_self: &mut TypeScriptTransformer, pat: &swc_ecma_ast::Pat) -> Pattern:
+        let span = Span__default_()
+        match pat:
+            swc_ecma_ast__Pat::Ident(ident) => Pattern::Binding { name: (*_self).rename_value(&ident.id.sym), mutable_: false, span: span }
+            swc_ecma_ast__Pat::Array(array) => Pattern::Tuple(array.elems.iter().filter_map(fn(elem): elem).map(fn(pat): (*_self).transform_pattern(pat)).collect(), span)
+            swc_ecma_ast__Pat::Object(object) => Pattern::Struct { name: ("Object").to_string(), fields: object.props.iter().filter_map(fn(prop): none).collect(), rest: false, span: span }
+            swc_ecma_ast__Pat::Assign(assign) => (*_self).transform_pattern(&assign.left)
+            swc_ecma_ast__Pat::Rest(rest) => (*_self).transform_pattern(&rest.arg)
+            swc_ecma_ast__Pat::Expr(_) => Pattern::Wildcard(span)
+            swc_ecma_ast__Pat::Invalid(_) => Pattern::Wildcard(span)
+
+    fn for_head_to_pattern(_self: &mut TypeScriptTransformer, head: &swc_ecma_ast::ForHead) -> Pattern:
+        match head:
+            swc_ecma_ast__ForHead::Pat(pat) => (*_self).transform_pattern(pat)
+            swc_ecma_ast__ForHead::VarDecl(var_) => var_.decls.first().map(fn(decl): (*_self).transform_pattern(&decl.name)).unwrap_or(Pattern::Wildcard(Span__default_()))
+            swc_ecma_ast__ForHead::UsingDecl(using_decl) => using_decl.decls.first().map(fn(decl): (*_self).transform_pattern(&decl.name)).unwrap_or(Pattern::Wildcard(Span__default_()))
+
+    fn pat_binding_name(_self: &mut TypeScriptTransformer, pat: &swc_ecma_ast::Pat) -> Option<String>:
+        match pat:
+            swc_ecma_ast__Pat::Ident(ident) => Option::Some(ident.id.sym.to_string())
+            swc_ecma_ast__Pat::Assign(assign) => (*_self).pat_binding_name(&assign.left)
+            swc_ecma_ast__Pat::Rest(rest) => (*_self).pat_binding_name(&rest.arg)
+            _ => none
+
+    fn pat_type_annotation<a>(_self: &TypeScriptTransformer, pat: &a swc_ecma_ast::Pat) -> Option<&a swc_ecma_ast::TsType>:
+        match pat:
+            swc_ecma_ast__Pat::Ident(ident) => ident.type_ann.map(fn(ann): &(*ann.type_ann))
+            swc_ecma_ast__Pat::Array(array) => array.type_ann.map(fn(ann): &(*ann.type_ann))
+            swc_ecma_ast__Pat::Object(object) => object.type_ann.map(fn(ann): &(*ann.type_ann))
+            swc_ecma_ast__Pat::Rest(rest) => rest.type_ann.map(fn(ann): &(*ann.type_ann))
+            swc_ecma_ast__Pat::Assign(assign) => (*_self).pat_type_annotation(&assign.left)
+            swc_ecma_ast__Pat::Expr(_) => none
+            swc_ecma_ast__Pat::Invalid(_) => none
+
+    fn prop_name_to_string(_self: &TypeScriptTransformer, name: &swc_ecma_ast::PropName) -> Option<String>:
+        match name:
+            swc_ecma_ast__PropName::Ident(ident) => Option::Some(ident.sym.to_string())
+            swc_ecma_ast__PropName::Str(str) => Option::Some(str.value.to_string())
+            swc_ecma_ast__PropName::Num(num) => Option::Some(num.value.to_string())
+            swc_ecma_ast__PropName::BigInt(bigint) => Option::Some(bigint.value.to_string())
+            swc_ecma_ast__PropName::Computed(_) => none
+
+    fn expr_to_field_name(_self: &TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> Option<String>:
+        match expr:
+            swc_ecma_ast__Expr::Ident(ident) => Option::Some(ident.sym.to_string())
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Str(value)) => Option::Some(value.value.to_string())
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Num(value)) => Option::Some(value.value.to_string())
+            _ => none
+
+    fn rename_value(_self: &mut TypeScriptTransformer, raw: String) -> String:
+        (*_self).identifier_renamer.resolve(IdentifierDomain__Value, raw)
+
+    fn rename_type(_self: &mut TypeScriptTransformer, raw: String) -> String:
+        (*_self).identifier_renamer.resolve(IdentifierDomain__Type, raw)
+
+    fn rename_field(_self: &mut TypeScriptTransformer, raw: String) -> String:
+        (*_self).identifier_renamer.resolve(IdentifierDomain__Field, raw)
+
+    fn rename_variant(_self: &mut TypeScriptTransformer, raw: String) -> String:
+        (*_self).identifier_renamer.resolve(IdentifierDomain__Variant, raw)
+
+    fn note(_self: &mut TypeScriptTransformer, msg: String):
+        (*_self).diagnostics.push(msg)
+        ()
+
+    fn jsx_element_name_to_string(_self: &TypeScriptTransformer, name: &swc_ecma_ast::JSXElementName) -> String:
+        match name:
+            swc_ecma_ast__JSXElementName::Ident(ident) => ident.sym.to_string()
+            swc_ecma_ast__JSXElementName::JSXMemberExpr(member) => f"{(*_self).jsx_object_to_string(&member.obj)}.{member.prop.sym}"
+            swc_ecma_ast__JSXElementName::JSXNamespacedName(name) => f"{(*name).ns.sym}:{(*name).name.sym}"
+
+    fn jsx_object_to_string(_self: &TypeScriptTransformer, obj: &swc_ecma_ast::JSXObject) -> String:
+        match obj:
+            swc_ecma_ast__JSXObject::Ident(ident) => ident.sym.to_string()
+            swc_ecma_ast__JSXObject::JSXMemberExpr(member) => f"{(*_self).jsx_object_to_string(&member.obj)}.{member.prop.sym}"
+
+    fn jsx_attr_name_to_string(_self: &TypeScriptTransformer, name: &swc_ecma_ast::JSXAttrName) -> Option<String>:
+        match name:
+            swc_ecma_ast__JSXAttrName::Ident(ident) => Option::Some(ident.sym.to_string())
+            swc_ecma_ast__JSXAttrName::JSXNamespacedName(name) => Option::Some(f"{(*name).ns.sym}_{(*name).name.sym}")
+
+    fn call_callee_name(_self: &TypeScriptTransformer, call: &swc_ecma_ast::CallExpr) -> Option<String>:
+        match &(*call).callee:
+            swc_ecma_ast__Callee::Expr(expr) =>
+                match &(*(*expr)):
+                    swc_ecma_ast__Expr::Ident(ident) => Option::Some(ident.sym.to_string())
+                    swc_ecma_ast__Expr::Member(member) =>
+                        match &member.prop:
+                            swc_ecma_ast__MemberProp::Ident(ident) => Option::Some(ident.sym.to_string())
+                            _ => none
+                    _ => none
+            _ => none
+
+    fn is_component_hook_name(_self: &TypeScriptTransformer, name: String) -> Bool:
+        match name:
+            "useEffect" => true
+            "useLayoutEffect" => true
+            "useInsertionEffect" => true
+            "useImperativeHandle" => true
+            "useDebugValue" => true
+            _ => false
+
+    fn push_scope(_self: &mut TypeScriptTransformer):
+        (*_self).local_types.push(HashMap__new_())
+        ()
+
+    fn pop_scope(_self: &mut TypeScriptTransformer):
+        if ((*_self).local_types.len() > 1):
+            (*_self).local_types.pop()
+            ()
+
+    fn define(_self: &mut TypeScriptTransformer, name: String, ty: Type):
+        match (*_self).local_types.last_mut():
+            Some(scope) =>
+                scope.insert(name.to_string(), ty)
+                ()
+            _ => ()
+
+    fn fresh_temp(_self: &mut TypeScriptTransformer, prefix: String) -> String:
+        let name = f"{prefix}_{(*_self).temp_counter}"
+        (*_self).temp_counter = ((*_self).temp_counter + 1)
+        ()
+        name
+
+    fn map_generics(type_params: &swc_ecma_ast::TsTypeParamDecl) -> Array<Generic>:
+        (*type_params).params.iter().map(fn(param): Generic { name: param.name.sym.to_string(), bounds: Vec__new_(), span: Span__default_() }).collect()
+
+
+fn map_binary_op(op: swc_ecma_ast::BinaryOp) -> Option<BinaryOp>:
+    Option::Some(none)
+
+fn map_unary_op(op: swc_ecma_ast::UnaryOp) -> Option<UnaryOp>:
+    Option::Some(none)
+
+fn accessibility_to_visibility(accessibility: Option<swc_ecma_ast::Accessibility>) -> Visibility:
+    match accessibility:
+        Some(swc_ecma_ast__Accessibility::Public) => Visibility__Public
+        Some(swc_ecma_ast__Accessibility::Protected) => Visibility__Super
+        Some(swc_ecma_ast__Accessibility::Private) => Visibility__Private
+        None => Visibility__Private
+
+fn block_with_expr(expr: Expr) -> Block:
+    Block { stmts: [Stmt::Expr(expr)], span: Span__default_() }
+
+fn looks_like_component_name(name: String) -> Bool:
+    name.chars().next().is_some_and(fn(ch): ch.is_ascii_uppercase())
+
+fn sanitize_jsx_name(name: String) -> String:
+    let mut out_ = String__new_()
+    for ch in name.chars():
+        if (ch.is_ascii_alphanumeric() || (ch == "_")):
+            out_.push(ch)
+            ()
+        else:
+            out_.push("_")
+            ()
+    ()
+    while out_.contains("__"):
+        out_ = out_.replace("__", "_")
+        ()
+    ()
+    let out_ = out_.trim_matches("_").to_string()
+    if out_.is_empty():
+        ("Node").to_string()
+    elif out_.chars().next().is_some_and(fn(ch): ch.is_ascii_digit()):
+        f"n_{out_}"
+    else:
+        out_
+
+fn normalize_jsx_text(raw: String) -> Option<String>:
+    let collapsed = raw.split_whitespace().collect().join(" ")
+    if collapsed.is_empty():
+        none
+    else:
+        Option::Some(collapsed)
+

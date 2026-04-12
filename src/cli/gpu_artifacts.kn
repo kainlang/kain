@@ -1,0 +1,74 @@
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use crate::compile_shader_artifact_bundle
+
+use crate::target_extension
+
+use crate::CompileTarget
+
+use kain_core::error::KainError
+
+pub type GpuArtifactOutput = kain_driver::ShaderArtifactBundleOutput
+
+@cfg(all(feature = "gpu", feature = "sys"))
+pub fn compile_gpu_artifacts(source: String) -> Result<GpuArtifactOutput, kain_core::error::KainError>:
+    compile_shader_artifact_bundle(source)
+
+@cfg(not(all(feature = "gpu", feature = "sys")))
+pub fn compile_gpu_artifacts(_source: String) -> Result<(), kain_core::error::KainError>:
+    Result::Err(KainError__runtime("GPU artifact generation requires both gpu and sys features"))
+
+@cfg(all(feature = "gpu", feature = "sys"))
+pub fn write_gpu_artifacts_bundle(input: &std::path::Path, output: Option<&std::path::PathBuf>, artifacts: &GpuArtifactOutput) -> Result<Array<std::path::PathBuf>, kain_core::error::KainError>:
+    let base_path = output.cloned().unwrap_or_else(fn(): input.with_extension(target_extension(CompileTarget__Spirv)))
+    let spirv_path = with_file_name_suffix(&base_path, "", "spv")
+    let rust_path = with_file_name_suffix(&base_path, ".gpu", "rs")
+    let json_path = with_file_name_suffix(&base_path, ".reflect", "json")
+    let bundle_path = with_file_name_suffix(&base_path, ".shader_bundle", "json")
+    let hlsl_path = with_file_name_suffix(&base_path, ".derived", "hlsl")
+    for path in [&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path]:
+        match path.parent():
+            Some(parent) =>
+                std__fs__create_dir_all(parent).map_err(fn(err): KainError__runtime(f"Failed to create output directory {parent.display()}: {err}"))?
+                ()
+            _ => ()
+    ()
+    std__fs__write(&spirv_path, &(*artifacts).spirv).map_err(fn(err): KainError__runtime(f"Failed to write SPIR-V output {spirv_path.display()}: {err}"))?
+    ()
+    std__fs__write(&rust_path, (*artifacts).rust_host.as_bytes()).map_err(fn(err): KainError__runtime(f"Failed to write Rust GPU host output {rust_path.display()}: {err}"))?
+    ()
+    std__fs__write(&json_path, (*artifacts).reflection_json.as_bytes()).map_err(fn(err): KainError__runtime(f"Failed to write GPU reflection output {json_path.display()}: {err}"))?
+    ()
+    std__fs__write(&bundle_path, (*artifacts).bundle_json.as_bytes()).map_err(fn(err): KainError__runtime(f"Failed to write shader bundle output {bundle_path.display()}: {err}"))?
+    ()
+    let mut written = [spirv_path, rust_path, json_path, bundle_path]
+    match &(*artifacts).derived_hlsl:
+        Some(hlsl) =>
+            std__fs__write(&hlsl_path, hlsl.as_bytes()).map_err(fn(err): KainError__runtime(f"Failed to write derived HLSL output {hlsl_path.display()}: {err}"))?
+            ()
+            written.push(hlsl_path)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(written)
+
+@cfg(all(feature = "gpu", feature = "sys"))
+pub fn run_gpu_artifact_pipeline(input: &std::path::Path, output: Option<&std::path::PathBuf>) -> Result<Array<std::path::PathBuf>, kain_core::error::KainError>:
+    let source = std__fs__read_to_string(input).map_err(fn(err): KainError__runtime(f"Failed to read {input.display()}: {err}"))?
+    let artifacts = compile_gpu_artifacts(&source)?
+    write_gpu_artifacts_bundle(input, output, &artifacts)
+
+fn with_file_name_suffix(base: &std::path::Path, suffix: String, extension: String) -> std::path::PathBuf:
+    let parent = base.parent().map(Path__to_path_buf).unwrap_or_default()
+    let stem = base.file_stem().and_then(fn(stem): stem.to_str()).unwrap_or("shader")
+    let file_name = f"{stem}{suffix}.{extension}"
+    parent.join(file_name)
+

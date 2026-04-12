@@ -1,0 +1,96 @@
+use crate::diagnostic_registry::DiagnosticCode
+
+use crate::error::KainResult
+
+use crate::error::DiagnosticBuilder
+
+use crate::error::ErrorKind
+
+use crate::span::Span
+
+use std::collections::HashSet
+
+pub enum Effect:
+    Pure_
+    IO_
+    Async_
+    GPU_
+    Reactive_
+    Unsafe_
+    Alloc
+    Panic
+
+impl Effect:
+    pub fn from_str(s: String) -> Option<Effect>:
+        match s:
+            "Pure" => Option::Some(Effect__Pure_)
+            "IO" => Option::Some(Effect__IO_)
+            "Async" => Option::Some(Effect__Async_)
+            "GPU" => Option::Some(Effect__GPU_)
+            "Reactive" => Option::Some(Effect__Reactive_)
+            "Unsafe" => Option::Some(Effect__Unsafe_)
+            _ => none
+
+
+fn effect_name(effect: Effect) -> String:
+    match effect:
+        Effect::Pure_ => "Pure"
+        Effect::IO_ => "IO"
+        Effect::Async_ => "Async"
+        Effect::GPU_ => "GPU"
+        Effect::Reactive_ => "Reactive"
+        Effect::Unsafe_ => "Unsafe"
+        Effect::Alloc => "Alloc"
+        Effect::Panic => "Panic"
+
+fn effect_set_to_string(effect_set: &EffectSet) -> String:
+    if effect_set.is_pure():
+        return ("Pure").to_string()
+    let mut labels = Vec__new_()
+    for effect in (*effect_set).effects.iter().copied():
+        labels.push(effect_name(effect).to_string())
+        ()
+    ()
+    labels.join(", ")
+
+@derive(Debug, Clone, Default, PartialEq, Eq)
+pub struct EffectSet:
+    effects: Set<Effect>
+
+impl Default for EffectSet:
+    pub fn default_() -> EffectSet:
+        EffectSet { effects: HashSet__new_() }
+
+
+impl EffectSet:
+    pub fn new_() -> EffectSet:
+        EffectSet { effects: HashSet__new_() }
+
+    pub fn pure() -> EffectSet:
+        EffectSet__new_().with_(Effect__Pure_)
+
+    pub fn with_(_self: EffectSet, e: Effect) -> EffectSet:
+        _self.effects.insert(e)
+        ()
+        _self
+
+    pub fn is_pure(_self: &EffectSet) -> Bool:
+        ((*_self).effects.is_empty() || (*_self).effects.iter().all(fn(e): ((*e) == Effect__Pure_)))
+
+    pub fn can_call(_self: &EffectSet, callee: &EffectSet) -> Bool:
+        if callee.is_pure():
+            return true
+        if (*_self).is_pure():
+            return false
+        if (*_self).effects.contains(&Effect__Unsafe_):
+            return true
+        (*callee).effects.iter().all(fn(e): (*_self).effects.contains(e))
+
+
+pub fn check_effect_call(caller: &EffectSet, callee: &EffectSet, caller_name: String, callee_name: String, _span: Span) -> Result<(), KainError>:
+    if (!caller.can_call(callee)):
+        let caller_effect_str = effect_set_to_string(caller)
+        let callee_effect_str = effect_set_to_string(callee)
+        return Result::Err(DiagnosticBuilder__new_(ErrorKind__Validation, DiagnosticCode__EffectViolation, f"Effect violation: {caller_effect_str} function '{caller_name}' cannot call {callee_effect_str} function '{callee_name}'.\n\nEffect System Rules:\n  • Pure functions: No side effects, can only call Pure functions\n  • IO functions: Can perform I/O (file/network/console), can call Pure or IO functions\n  • Async functions: Can perform async operations, can call Pure, IO, or Async functions\n  • GPU functions: Run on graphics hardware, can call Pure or GPU functions\n  • Unsafe functions: Can break safety guarantees, can call any function\n\nCurrent situation:\n  • Caller '{caller_name}' is marked as {caller_effect_str}\n  • Callee '{callee_name}' is marked as {callee_effect_str}\n\nHow to fix:\n  1. Add effect annotation to caller: fn {caller_name}() -> RetType with {callee_effect_str}\n  2. OR mark callee as Pure if it has no side effects\n  3. OR change your call chain to avoid mixing incompatible effects\n\nExample (Pure calling IO - INVALID):\n  fn read_config() -> String with IO:\n      let data = load_from_disk()  # OK: IO can call IO\n      return data\n  \n  fn calculate_score() -> Int with Pure:\n      let config = read_config()   # ERROR: Pure cannot call IO\n      return 42\n\nExample (Fixed):\n  fn calculate_score() -> Int with IO:  # Changed to IO\n      let config = read_config()   # OK: IO can call IO\n      return 42\n").context(f"Caller '{caller_name}' ({caller_effect_str}) attempted to call '{callee_name}' ({callee_effect_str})").build())
+    Result::Ok(())
+

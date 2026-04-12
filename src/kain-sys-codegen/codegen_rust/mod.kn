@@ -1,0 +1,2993 @@
+use kain_core::ast::BinaryOp
+
+use kain_core::ast::Block
+
+use kain_core::ast::CallArg
+
+use kain_core::ast::Component
+
+use kain_core::ast::ElseBranch
+
+use kain_core::ast::Enum
+
+use kain_core::ast::EnumVariantFields
+
+use kain_core::ast::Expr
+
+use kain_core::ast::Function
+
+use kain_core::ast::Generic
+
+use kain_core::ast::Impl
+
+use kain_core::ast::Item
+
+use kain_core::ast::JSXAttrValue
+
+use kain_core::ast::JSXNode
+
+use kain_core::ast::Mod
+
+use kain_core::ast::Param
+
+use kain_core::ast::Pattern
+
+use kain_core::ast::Stmt
+
+use kain_core::ast::Struct
+
+use kain_core::ast::Trait
+
+use kain_core::ast::TraitMethod
+
+use kain_core::ast::Type
+
+use kain_core::ast::UnaryOp
+
+use kain_core::ast::Use
+
+use kain_core::ast::VariantFields
+
+use kain_core::ast::VariantPatternFields
+
+use kain_core::effects::Effect
+
+use kain_core::error::KainResult
+
+use kain_core::parser::RESERVED_KEYWORDS
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedMod
+
+use kain_core::types::TypedProgram
+
+use kain_core::lower_typed_program_memory_for_target
+
+use kain_core::CompileTarget
+
+use std::collections::BTreeSet
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+use artifact_bundle::generate_rust_artifact_bundle
+
+use artifact_bundle::RustArtifactBundle
+
+use artifact_bundle::RustArtifactKind
+
+use artifact_bundle::RustTextArtifact
+
+use gpu_artifacts::collect_gpu_artifacts
+
+use gpu_artifacts::collect_gpu_artifacts_json
+
+use gpu_artifacts::RustGpuArtifactOutput
+
+use gpu_artifacts::RustGpuBindingArtifact
+
+use gpu_artifacts::RustGpuBindingKind
+
+use gpu_artifacts::RustGpuInputArtifact
+
+use gpu_artifacts::RustGpuShaderArtifact
+
+use gpu_artifacts::RustGpuShaderStage
+
+use gpu_host::generate_gpu_host
+
+@doc(doc = " Generate Rust source code from a typed program")
+pub fn generate(program: &kain_core::types::TypedProgram) -> Result<String, KainError>:
+    let lowered = kain_core__lower_typed_program_memory_for_target(program, kain_core__CompileTarget__Rust)?
+    let has_modules = typed_program_has_modules(&lowered)
+    let mut gen = RustGen__new_(has_modules)
+    let rendered = gen.gen_program(&lowered)
+    if has_modules:
+        Result::Ok(rendered)
+    else:
+        Result::Ok(postprocess_flattened_selfhost_output(&rendered))
+
+pub fn generate_gpu_host_wrappers(program: &kain_core::types::TypedProgram) -> Result<String, KainError>:
+    let lowered = kain_core__lower_typed_program_memory_for_target(program, kain_core__CompileTarget__Rust)?
+    Result::Ok(gpu_host__generate_gpu_host(&lowered))
+
+struct StringBuilder:
+    lines: Array<String>
+
+impl StringBuilder:
+    fn new_() -> StringBuilder:
+        StringBuilder { lines: Vec__new_() }
+
+    fn push_line(_self: &mut StringBuilder, text: String):
+        (*_self).lines.push(f"{text}\n")
+        ()
+
+    fn build(_self: &StringBuilder) -> String:
+        (*_self).lines.join("")
+
+
+struct RustGen:
+    output: StringBuilder
+    indent: usize
+    has_modules: Bool
+    emitted_symbols: Set<String>
+    known_type_names: Set<String>
+    struct_fields: Map<String, Array<String>>
+    binding_type_stack: Array<Map<String, String>>
+    current_function_stack: Array<String>
+    current_return_struct_stack: Array<Option<String>>
+    self_type_stack: Array<String>
+    impl_target_stack: Array<String>
+    impl_trait_stack: Array<Option<String>>
+    generic_lifetime_stack: Array<Set<String>>
+    display_helpers: Set<String>
+    free_self_alias_stack: Array<Option<String>>
+
+fn postprocess_flattened_selfhost_output(source: String) -> String:
+    const LOCAL_MODULE_PREFIXES: Array<String> = ["crate::runtime::", "crate::ui::", "crate::ast::", "crate::error::", "crate::effects::", "crate::types::", "crate::lexer::", "crate::diagnostic_registry::", "crate::diagnostics::", "crate::parser::", "crate::span::", "crate::language_features::", "crate::low_level_abi::", "crate::low_level_memory::", "crate::low_level_memory_metadata::", "crate::monomorphize::", "crate::stdlib::", "crate::comptime::", "crate::asm_ir::", "runtime::", "ui::", "ast::", "error::", "effects::", "types::", "lexer::", "diagnostic_registry::", "diagnostics::", "parser::", "span::", "language_features::", "low_level_abi::", "low_level_memory::", "low_level_memory_metadata::", "monomorphize::", "stdlib::", "comptime::", "asm_ir::"]
+
+    let mut output = source.to_string()
+    for prefix in LOCAL_MODULE_PREFIXES:
+        output = replace_prefix_at_token_boundaries(&output, prefix, "")
+        ()
+    ()
+    output
+
+fn replace_prefix_at_token_boundaries(source: String, prefix: String, replacement: String) -> String:
+    let mut output = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    let mut cursor = 0
+    while (cursor < source.len()):
+        if (source[cursor..].starts_with(prefix) && is_token_boundary_before(source, cursor)):
+            output.push_str(replacement)
+            ()
+            cursor = (cursor + prefix.len())
+            ()
+            continue
+        let ch = source[cursor..].chars().next().unwrap()
+        output.push(ch)
+        ()
+        cursor = (cursor + ch.len_utf8())
+        ()
+    ()
+    output
+
+fn is_token_boundary_before(source: String, index: usize) -> Bool:
+    if (index == 0):
+        return true
+    (!none)
+
+fn typed_program_has_modules(program: &kain_core::types::TypedProgram) -> Bool:
+    (*program).items.iter().any(fn(item): none)
+
+const EMITTED_IDENTIFIER_CONTEXTUAL_KEYWORDS: Array<String> = ["state", "weak", "compute", "shader"]
+
+const RUST_RESERVED_KEYWORDS: Array<String> = ["Self", "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while"]
+
+const RUST_PATH_ROOT_SEGMENTS: Array<String> = ["Self", "crate", "self", "super"]
+
+fn sanitize_rust_identifier(name: String) -> String:
+    let mut sanitized = name.chars().map(fn(ch): if (ch.is_ascii_alphanumeric() || (ch == "_")): ch else: "_").collect()
+    if sanitized.is_empty():
+        sanitized.push("_")
+        ()
+        ()
+        ()
+        ()
+    if sanitized.chars().next().is_some_and(fn(ch): ch.is_ascii_digit()):
+        sanitized.insert(0, "_")
+        ()
+        ()
+        ()
+        ()
+    if (RUST_RESERVED_KEYWORDS.contains(&sanitized.as_str()) || (sanitized == "_")):
+        sanitized.push("_")
+        ()
+        ()
+        ()
+        ()
+    sanitized
+
+fn desanitize_kain_identifier(name: String) -> String:
+    let candidate = name.trim()
+    let Some(stripped) = candidate.strip_suffix("_")
+    if stripped.is_empty():
+        return candidate.to_string()
+    if (((kain_core__parser__RESERVED_KEYWORDS.contains(&stripped) || EMITTED_IDENTIFIER_CONTEXTUAL_KEYWORDS.contains(&stripped))) && (!RUST_RESERVED_KEYWORDS.contains(&stripped))):
+        return stripped.to_string()
+    candidate.to_string()
+
+fn sanitize_emitted_identifier(name: String) -> String:
+    sanitize_rust_identifier(&desanitize_kain_identifier(name))
+
+fn sanitize_emitted_path_segment(segment: String, is_root: Bool) -> String:
+    let normalized = desanitize_kain_identifier(segment)
+    if (is_root && RUST_PATH_ROOT_SEGMENTS.contains(&normalized.as_str())):
+        normalized
+    else:
+        sanitize_rust_identifier(&normalized)
+
+fn sanitize_emitted_path(path: String) -> String:
+    path.split("::").filter(fn(segment): (!segment.is_empty())).enumerate().map(fn(__kain_closure_arg0): sanitize_emitted_path_segment(__kain_closure_arg0.__kain_tuple_1, (__kain_closure_arg0.__kain_tuple_0 == 0))).collect().join("::")
+
+fn tuple_field_marker_index(field: String) -> Option<String>:
+    let index = field.strip_prefix("__kain_tuple_")?
+    (((!index.is_empty()) && index.chars().all(fn(ch): ch.is_ascii_digit()))).then_some(index)
+
+fn strip_rendered_type_generics(rendered: String) -> String:
+    let mut depth = 0
+    let mut output = (fn(__kain_ctor_arg0): String__new_())(rendered.len())
+    for ch in rendered.chars():
+        match ch:
+            "<" => depth = (depth + 1)
+            ">" => depth = depth.saturating_sub(1)
+            _ if (depth == 0) => output.push(ch)
+            _ => ()
+    ()
+    output.trim().to_string()
+
+fn split_sanitized_dunder_path(path: String) -> Array<String>:
+    let mut segments = Vec__new_()
+    let mut current = String__new_()
+    let chars: Array<Char> = path.chars().collect()
+    let mut index = 0
+    while (index < chars.len()):
+        if (chars[index] == "_"):
+            let run_start = index
+            while ((index < chars.len()) && (chars[index] == "_")):
+                index = (index + 1)
+                ()
+            ()
+            let run_len = (index - run_start)
+            if (run_len >= 2):
+                current.push_str(&("_").repeat(run_len.saturating_sub(2)))
+                ()
+                if (!current.is_empty()):
+                    segments.push(std__mem__take(&mut current))
+                    ()
+                    ()
+                    ()
+                    ()
+                continue
+            current.push("_")
+            ()
+            continue
+        current.push(chars[index])
+        ()
+        index = (index + 1)
+        ()
+    ()
+    if (!current.is_empty()):
+        segments.push(current)
+        ()
+        ()
+        ()
+        ()
+    segments
+
+impl RustGen:
+    fn new_(has_modules: Bool) -> RustGen:
+        RustGen { output: StringBuilder__new_(), indent: 0, has_modules: has_modules, emitted_symbols: HashSet__new_(), known_type_names: HashSet__new_(), struct_fields: HashMap__new_(), binding_type_stack: Vec__new_(), current_function_stack: Vec__new_(), current_return_struct_stack: Vec__new_(), self_type_stack: Vec__new_(), impl_target_stack: Vec__new_(), impl_trait_stack: Vec__new_(), generic_lifetime_stack: [HashSet__new_()], display_helpers: BTreeSet__new_(), free_self_alias_stack: Vec__new_() }
+
+    fn push_indent(_self: &mut RustGen):
+        (*_self).indent = ((*_self).indent + 1)
+        ()
+
+    fn pop_indent(_self: &mut RustGen):
+        if ((*_self).indent > 0):
+            (*_self).indent = ((*_self).indent - 1)
+            ()
+
+    fn indent_str(_self: &RustGen) -> String:
+        ("    ").repeat((*_self).indent)
+
+    fn write_line(_self: &mut RustGen, line_: String):
+        let indented = f"{(*_self).indent_str()}{line_}"
+        (*_self).output.push_line(&indented)
+        ()
+
+    fn write_blank(_self: &mut RustGen):
+        (*_self).output.push_line("")
+        ()
+
+    fn push_generic_lifetimes(_self: &mut RustGen, lifetimes: Set<String>):
+        let mut merged = (*_self).generic_lifetime_stack.last().cloned().unwrap_or_default()
+        merged.extend(lifetimes)
+        ()
+        (*_self).generic_lifetime_stack.push(merged)
+        ()
+
+    fn pop_generic_lifetimes(_self: &mut RustGen):
+        if ((*_self).generic_lifetime_stack.len() > 1):
+            (*_self).generic_lifetime_stack.pop()
+            ()
+
+    fn current_generic_lifetimes(_self: &RustGen) -> &Set<String>:
+        (*_self).generic_lifetime_stack.last().expect("generic lifetime stack must be initialized")
+
+    fn gen_program(_self: &mut RustGen, program: &kain_core::types::TypedProgram) -> String:
+        (*_self).collect_known_type_names(program)
+        ()
+        (*_self).write_line("// Generated by KAIN Compiler (Project Ouroboros)")
+        ()
+        (*_self).write_line("// Do not edit - regenerate from .kn source")
+        ()
+        (*_self).write_blank()
+        ()
+        (*_self).write_line("#![allow(unused_variables)]")
+        ()
+        (*_self).write_line("#![allow(unused_mut)]")
+        ()
+        (*_self).write_line("#![allow(dead_code)]")
+        ()
+        (*_self).write_line("#![allow(unused_parens)]")
+        ()
+        (*_self).write_blank()
+        ()
+        (*_self).write_line("use std::collections::{HashMap, HashSet};")
+        ()
+        (*_self).write_line("use std::rc::Rc;")
+        ()
+        (*_self).write_line("use std::cell::{Cell, RefCell};")
+        ()
+        (*_self).write_line("use std::sync::{Arc, Mutex, RwLock};")
+        ()
+        (*_self).write_line("use std::borrow::Cow;")
+        ()
+        (*_self).write_line("use std::mem::{size_of, ManuallyDrop, MaybeUninit};")
+        ()
+        (*_self).write_line("use std::pin::Pin;")
+        ()
+        (*_self).write_line("use std::cmp::min;")
+        ()
+        (*_self).write_line("use std::ffi::c_void;")
+        ()
+        (*_self).write_line("use std::fmt::Formatter;")
+        ()
+        (*_self).write_blank()
+        ()
+        (*_self).emit_runtime_helpers()
+        ()
+        (*_self).write_blank()
+        ()
+        (*_self).write_low_level_memory_helpers()
+        ()
+        (*_self).write_blank()
+        ()
+        for item in &(*program).items:
+            (*_self).gen_item(item)
+            ()
+            (*_self).write_blank()
+            ()
+        ()
+        (*_self).emit_synthetic_display_impls()
+        ()
+        (*_self).output.build()
+
+    fn collect_known_type_names(_self: &mut RustGen, program: &kain_core::types::TypedProgram):
+        (*_self).known_type_names.clear()
+        ()
+        (*_self).struct_fields.clear()
+        ()
+        for item in &(*program).items:
+            (*_self).collect_known_type_names_from_item(item)
+            ()
+
+    fn collect_known_type_names_from_item(_self: &mut RustGen, item: &kain_core::types::TypedItem):
+        match item:
+            kain_core__types__TypedItem::Struct(st) =>
+                (*_self).known_type_names.insert(st.ast.name.clone())
+                ()
+                (*_self).struct_fields.insert(st.ast.name.clone(), st.ast.fields.iter().map(fn(field): field.name.clone()).collect())
+                ()
+            kain_core__types__TypedItem::Enum(en) =>
+                (*_self).known_type_names.insert(en.ast.name.clone())
+                ()
+            kain_core__types__TypedItem::TypeAlias(alias) =>
+                (*_self).known_type_names.insert(alias.ast.name.clone())
+                ()
+            kain_core__types__TypedItem::Component(component_) =>
+                (*_self).known_type_names.insert(component_.ast.name.clone())
+                ()
+                (*_self).known_type_names.insert((*_self).component_props_name(&component_.ast.name))
+                ()
+                let props_name = (*_self).component_props_name(&component_.ast.name)
+                let mut fields: Array<String> = component_.ast.props.iter().map(fn(prop): prop.name.clone()).collect()
+                fields.push(("children").to_string())
+                ()
+                (*_self).struct_fields.insert(props_name, fields)
+                ()
+            kain_core__types__TypedItem::Mod(module) =>
+                for child in &module.items:
+                    (*_self).collect_known_type_names_from_item(child)
+                    ()
+            _ => ()
+
+    fn emit_runtime_helpers(_self: &mut RustGen):
+        (*_self).write_line("unsafe extern \"C\" {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("fn malloc(size: usize) -> *mut c_void;")
+        ()
+        (*_self).write_line("fn calloc(count: usize, size: usize) -> *mut c_void;")
+        ()
+        (*_self).write_line("fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void;")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_pow(left: f64, right: f64) -> f64 {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("left.powf(right)")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_alloc_bytes(size: usize, zeroed: bool) -> *mut u8 {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("unsafe {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("if zeroed { calloc(1, size) as *mut u8 } else { malloc(size) as *mut u8 }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_realloc_bytes(ptr: *mut u8, size: usize, _zeroed_new: bool) -> *mut u8 {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("unsafe { realloc(ptr.cast::<c_void>(), size) as *mut u8 }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn emit_synthetic_display_impls(_self: &mut RustGen):
+        let helpers: Array<String> = (*_self).display_helpers.iter().cloned().collect()
+        for target in helpers:
+            (*_self).write_line(&"impl std::fmt::Display for {target} {")
+            ()
+            (*_self).push_indent()
+            ()
+            (*_self).write_line("fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {")
+            ()
+            (*_self).push_indent()
+            ()
+            (*_self).write_line("self.fmt_impl(f).map_err(|_| std::fmt::Error)")
+            ()
+            (*_self).pop_indent()
+            ()
+            (*_self).write_line("}")
+            ()
+            (*_self).pop_indent()
+            ()
+            (*_self).write_line("}")
+            ()
+            (*_self).write_blank()
+            ()
+
+    fn write_low_level_memory_helpers(_self: &mut RustGen):
+        (*_self).write_line("fn __kain_union_wrap<TObject: Copy, TValue: Copy>(mut value: TObject, _active: &str, _type_key: &str, byte_size: i64, union_size: i64, active_value: TValue) -> TObject {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("let zero_span = min(union_size.max(0) as usize, size_of::<TObject>());")
+        ()
+        (*_self).write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));")
+        ()
+        (*_self).write_line("unsafe {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);")
+        ()
+        (*_self).write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&active_value as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("value")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_union_get<TObject: Copy, TValue: Copy>(value: TObject, _field: &str, _type_key: &str, byte_size: i64, union_size: i64, fallback: TValue) -> TValue {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("let mut result = fallback;")
+        ()
+        (*_self).write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));")
+        ()
+        (*_self).write_line("unsafe { if copy_span > 0 { std::ptr::copy_nonoverlapping((&value as *const TObject).cast::<u8>(), (&mut result as *mut TValue).cast::<u8>(), copy_span); } }")
+        ()
+        (*_self).write_line("result")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_union_set<TObject: Copy, TValue: Copy>(mut value: TObject, _field: &str, _type_key: &str, byte_size: i64, union_size: i64, next: TValue) -> TValue {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("let zero_span = min(union_size.max(0) as usize, size_of::<TObject>());")
+        ()
+        (*_self).write_line("let copy_span = min(min(byte_size.max(0) as usize, union_size.max(0) as usize), min(size_of::<TObject>(), size_of::<TValue>()));")
+        ()
+        (*_self).write_line("unsafe {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("std::ptr::write_bytes((&mut value as *mut TObject).cast::<u8>(), 0, zero_span);")
+        ()
+        (*_self).write_line("if copy_span > 0 { std::ptr::copy_nonoverlapping((&next as *const TValue).cast::<u8>(), (&mut value as *mut TObject).cast::<u8>(), copy_span); }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("next")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_load_bitfield_unit<T: Copy>(value: &T, unit_offset: i64) -> u64 {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return 0; }")
+        ()
+        (*_self).write_line("let mut unit = 0u64;")
+        ()
+        (*_self).write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);")
+        ()
+        (*_self).write_line("unsafe { std::ptr::copy_nonoverlapping((value as *const T).cast::<u8>().add(unit_offset as usize), (&mut unit as *mut u64).cast::<u8>(), available); }")
+        ()
+        (*_self).write_line("unit")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_store_bitfield_unit<T: Copy>(value: &mut T, unit_offset: i64, unit: u64) {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("if unit_offset < 0 || unit_offset as usize >= size_of::<T>() { return; }")
+        ()
+        (*_self).write_line("let available = min(8usize, size_of::<T>() - unit_offset as usize);")
+        ()
+        (*_self).write_line("unsafe { std::ptr::copy_nonoverlapping((&unit as *const u64).cast::<u8>(), (value as *mut T).cast::<u8>().add(unit_offset as usize), available); }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_bitfield_mask(width: i64) -> u64 { if width <= 0 { 0 } else if width >= 64 { u64::MAX } else { (1u64 << width) - 1 } }")
+        ()
+        (*_self).write_line("fn __kain_sign_extend(value: u64, width: i64) -> i64 { if width <= 0 { 0 } else if width >= 64 { value as i64 } else { let sign_bit = 1u64 << (width - 1); if (value & sign_bit) == 0 { value as i64 } else { (value | !__kain_bitfield_mask(width)) as i64 } } }")
+        ()
+        (*_self).write_line("fn __kain_bitfield_get<T: Copy>(value: T, _field: &str, unit_offset: i64, bit_offset: i64, width: i64, is_signed: bool, _promoted_bits: i64) -> i64 {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("let mask = __kain_bitfield_mask(width);")
+        ()
+        (*_self).write_line("let unit = __kain_load_bitfield_unit(&value, unit_offset);")
+        ()
+        (*_self).write_line("let shifted = if bit_offset <= 0 { unit } else { unit >> bit_offset };")
+        ()
+        (*_self).write_line("let encoded = shifted & mask;")
+        ()
+        (*_self).write_line("if is_signed { __kain_sign_extend(encoded, width) } else { encoded as i64 }")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_line("fn __kain_bitfield_set<T: Copy, TValue: Copy + Into<i64>>(mut value: T, _field: &str, unit_offset: i64, bit_offset: i64, width: i64, is_signed: bool, promoted_bits: i64, next: TValue) -> TValue {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line("let mask = __kain_bitfield_mask(width);")
+        ()
+        (*_self).write_line("let mut unit = __kain_load_bitfield_unit(&value, unit_offset);")
+        ()
+        (*_self).write_line("let encoded = (next.into() as u64) & mask;")
+        ()
+        (*_self).write_line("let shifted_mask = if bit_offset <= 0 { mask } else { mask << bit_offset };")
+        ()
+        (*_self).write_line("unit = (unit & !shifted_mask) | if bit_offset <= 0 { encoded } else { encoded << bit_offset };")
+        ()
+        (*_self).write_line("__kain_store_bitfield_unit(&mut value, unit_offset, unit);")
+        ()
+        (*_self).write_line("let _ = __kain_bitfield_get(value, \"\", unit_offset, bit_offset, width, is_signed, promoted_bits);")
+        ()
+        (*_self).write_line("next")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn gen_item(_self: &mut RustGen, item: &kain_core::types::TypedItem):
+        match item:
+            kain_core__types__TypedItem::Function(fn_typed) =>
+                let emitted_name = (*_self).rust_function_name(&fn_typed.ast.name)
+                if (*_self).should_emit_function(&fn_typed.ast):
+                    match (*_self).synthetic_impl_target(&fn_typed.ast):
+                        Some(target) =>
+                            if (*_self).register_symbol("method", &f"{target}::{emitted_name}"):
+                                (*_self).gen_synthetic_impl_function(&target, &fn_typed.ast)
+                                ()
+                        _ =>
+                            if (*_self).register_symbol("fn", &emitted_name):
+                                (*_self).gen_function(&fn_typed.ast)
+                                ()
+            kain_core__types__TypedItem::Component(component_) => (*_self).gen_component(&component_.ast)
+            kain_core__types__TypedItem::Struct(st) =>
+                if (*_self).register_symbol("type", &st.ast.name):
+                    (*_self).gen_struct(&st.ast)
+                    ()
+            kain_core__types__TypedItem::Enum(en) =>
+                if (*_self).register_symbol("type", &en.ast.name):
+                    (*_self).gen_enum(&en.ast)
+                    ()
+            kain_core__types__TypedItem::Trait(tr) =>
+                if (*_self).register_symbol("trait", &tr.ast.name):
+                    (*_self).gen_trait(&tr.ast)
+                    ()
+            kain_core__types__TypedItem::Impl(im) => (*_self).gen_impl(&im.ast)
+            kain_core__types__TypedItem::Const(c) =>
+                if (*_self).register_symbol("const", &c.ast.name):
+                    (*_self).gen_const(&c.ast.name, &c.ast.ty, &c.ast.value, c.ast.visibility)
+                    ()
+            kain_core__types__TypedItem::TypeAlias(alias) =>
+                if (*_self).register_symbol("type", &alias.ast.name):
+                    let lifetime_names = (*_self).type_alias_lifetime_generic_names(&alias.ast.generics, &alias.ast.target)
+                    (*_self).push_generic_lifetimes(lifetime_names.clone())
+                    ()
+                    let vis = (*_self).visibility_prefix(alias.ast.visibility)
+                    let generics = (*_self).render_generic_params(&alias.ast.generics, &lifetime_names)
+                    (*_self).write_line(&f"{vis}type {sanitize_emitted_identifier(&alias.ast.name)}{generics} = {(*_self).map_type(&alias.ast.target)};")
+                    ()
+                    (*_self).pop_generic_lifetimes()
+                    ()
+            kain_core__types__TypedItem::Use(u) => (*_self).gen_use(&u.ast)
+            kain_core__types__TypedItem::Mod(module) => (*_self).gen_typed_mod(module)
+            _ => ()
+
+    fn gen_const(_self: &mut RustGen, name: String, ty: &kain_core::ast::Type, value: &kain_core::ast::Expr, visibility: kain_core::ast::Visibility):
+        let vis = (*_self).visibility_prefix(visibility)
+        match ty:
+            kain_core__ast__Type::Named { name: type_name } =>
+                if ((type_name == "Lazy") || type_name.ends_with("::Lazy")):
+                    (*_self).write_line(&f"{vis}static {name}: {(*_self).map_storage_type(ty, none)} = {(*_self).gen_const_value_expr(value)};")
+                    ()
+                    return
+                ()
+            _ =>
+                ()
+                ()
+        if (none):
+            (*_self).write_line(&f"{vis}static {name}: &str = {(*_self).gen_const_value_expr(value)};")
+            ()
+            return
+        if (*_self).is_simple_const(ty, value):
+            (*_self).write_line(&f"{vis}static {name}: {(*_self).map_storage_type(ty, none)} = {(*_self).gen_const_value_expr(value)};")
+            ()
+            return
+        (*_self).write_line(&f"{vis}static {name}: once_cell::sync::Lazy<{(*_self).map_const_type(ty)}> = once_cell::sync::Lazy::new(|| {(*_self).gen_const_value_expr(value)});")
+        ()
+
+    fn gen_use(_self: &mut RustGen, use_item: &kain_core::ast::Use):
+        (*_self).write_line(&(*_self).render_use(use_item))
+        ()
+
+    fn gen_nested_item(_self: &mut RustGen, item: &kain_core::ast::Item):
+        match item:
+            kain_core__ast__Item::Function(function) => (*_self).gen_function(function)
+            kain_core__ast__Item::Struct(struct_def) => (*_self).gen_struct(struct_def)
+            kain_core__ast__Item::Enum(enum_def) => (*_self).gen_enum(enum_def)
+            kain_core__ast__Item::Trait(trait_def) => (*_self).gen_trait(trait_def)
+            kain_core__ast__Item::Impl(impl_def) => (*_self).gen_impl(impl_def)
+            kain_core__ast__Item::Const(const_def) =>
+                (*_self).gen_const(&const_def.name, &const_def.ty, &const_def.value, const_def.visibility)
+                ()
+            kain_core__ast__Item::Use(use_item) => (*_self).gen_use(use_item)
+            kain_core__ast__Item::Mod(module) => (*_self).gen_ast_mod(module)
+            kain_core__ast__Item::TypeAlias(alias) =>
+                let lifetime_names = (*_self).type_alias_lifetime_generic_names(&alias.generics, &alias.target)
+                (*_self).push_generic_lifetimes(lifetime_names.clone())
+                ()
+                let vis = (*_self).visibility_prefix(alias.visibility)
+                let generics = (*_self).render_generic_params(&alias.generics, &lifetime_names)
+                (*_self).write_line(&f"{vis}type {sanitize_emitted_identifier(&alias.name)}{generics} = {(*_self).map_type(&alias.target)};")
+                ()
+                (*_self).pop_generic_lifetimes()
+                ()
+            _ => ()
+
+    fn gen_typed_mod(_self: &mut RustGen, module: &kain_core::types::TypedMod):
+        let vis = (*_self).visibility_prefix((*module).ast.visibility)
+        (*_self).write_line(&"{vis}mod {sanitize_emitted_identifier(&(*module).ast.name)} {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).with_symbol_scope(fn(gen): none)
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn gen_ast_mod(_self: &mut RustGen, module: &kain_core::ast::Mod):
+        let vis = (*_self).visibility_prefix((*module).visibility)
+        (*_self).write_line(&"{vis}mod {sanitize_emitted_identifier(&(*module).name)} {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).with_symbol_scope(fn(gen): none)
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn gen_trait(_self: &mut RustGen, trait_def: &kain_core::ast::Trait):
+        let lifetime_names = (*_self).trait_lifetime_generic_names(trait_def)
+        (*_self).push_generic_lifetimes(lifetime_names.clone())
+        ()
+        let vis = (*_self).visibility_prefix((*trait_def).visibility)
+        let generics = (*_self).render_generic_params(&(*trait_def).generics, &lifetime_names)
+        (*_self).write_line(&"{vis}trait {sanitize_emitted_identifier(&(*trait_def).name)}{generics} {")
+        ()
+        (*_self).push_indent()
+        ()
+        for method in &(*trait_def).methods:
+            (*_self).gen_trait_method(method)
+            ()
+            (*_self).write_blank()
+            ()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).pop_generic_lifetimes()
+        ()
+
+    fn gen_trait_method(_self: &mut RustGen, method: &kain_core::ast::TraitMethod):
+        let params = (*_self).render_trait_method_params(&(*method).params)
+        let ret = (*method).return_type.map(fn(ty): f" -> {(*_self).map_return_type(ty, none)}").unwrap_or_default()
+        let name = (*_self).normalize_runtime_method(&(*_self).rust_function_name(&(*method).name))
+        match &(*method).default_impl:
+            Some(default_impl) =>
+                (*_self).write_line(&"fn {name}({params}){ret} {")
+                ()
+                (*_self).push_indent()
+                ()
+                let has_implicit_return = (*method).return_type.is_some_and(fn(ty): (!none))
+                (*_self).gen_block_with_implicit_return(default_impl, has_implicit_return)
+                ()
+                (*_self).pop_indent()
+                ()
+                (*_self).write_line("}")
+                ()
+            _ =>
+                (*_self).write_line(&f"fn {name}({params}){ret};")
+                ()
+
+    fn render_trait_method_params(_self: &RustGen, params: &[kain_core::ast::Param]) -> String:
+        params.iter().enumerate().map(fn(__kain_closure_arg1): none).collect().join(", ")
+
+    fn with_symbol_scope<T>(_self: &mut RustGen, f: impl FnOnce) -> T:
+        let saved = std__mem__take(&mut (*_self).emitted_symbols)
+        let result = f(*_self)
+        (*_self).emitted_symbols = saved
+        ()
+        result
+
+    fn render_use(_self: &RustGen, use_item: &kain_core::ast::Use) -> String:
+        let mut path = (*_self).normalize_runtime_path(&(*use_item).path.join("::"))
+        if (*use_item).glob:
+            path.push_str("::*")
+            ()
+            ()
+            ()
+            ()
+        match &(*use_item).alias:
+            Some(alias) => f"use {path} as {sanitize_emitted_identifier(alias)};"
+            None => f"use {path};"
+
+    fn is_simple_const(_self: &RustGen, ty: &kain_core::ast::Type, value: &kain_core::ast::Expr) -> Bool:
+        (none && none)
+
+    fn map_const_type(_self: &RustGen, ty: &kain_core::ast::Type) -> String:
+        match ty:
+            kain_core__ast__Type::Array(inner, _, _) => f"Vec<{(*_self).map_const_type(inner)}>"
+            kain_core__ast__Type::Slice(inner, _) => f"Vec<{(*_self).map_const_type(inner)}>"
+            kain_core__ast__Type::Ref { inner: inner } => (*_self).map_const_type(inner)
+            kain_core__ast__Type::Tuple(items, _) =>
+                let parts: Array<String> = items.iter().map(fn(item): (*_self).map_const_type(item)).collect()
+                if (parts.len() == 1):
+                    f"({parts[0]},)"
+                else:
+                    "({parts.join(\", \")})"
+            _ => (*_self).map_storage_type(ty, none)
+
+    fn gen_const_value_expr(_self: &RustGen, expr: &kain_core::ast::Expr) -> String:
+        match expr:
+            kain_core__ast__Expr::String(value, _) => value
+            kain_core__ast__Expr::Ref { value: value } => (*_self).gen_const_value_expr(value)
+            kain_core__ast__Expr::AddrOf { value: value } => (*_self).gen_const_value_expr(value)
+            kain_core__ast__Expr::Array(items, _) =>
+                let parts: Array<String> = items.iter().map(fn(item): (*_self).gen_const_value_expr(item)).collect()
+                "vec![{parts.join(\", \")}]"
+            kain_core__ast__Expr::Tuple(items, _) =>
+                let parts: Array<String> = items.iter().map(fn(item): (*_self).gen_const_value_expr(item)).collect()
+                if (parts.len() == 1):
+                    f"({parts[0]},)"
+                else:
+                    "({parts.join(\", \")})"
+            kain_core__ast__Expr::Struct { name: name, fields: fields, rest: rest } =>
+                let mut field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg2): f"{sanitize_emitted_identifier(__kain_closure_arg2.__kain_tuple_0)}: {(*_self).gen_const_value_expr(__kain_closure_arg2.__kain_tuple_1)}").collect()
+                match rest:
+                    Some(rest) =>
+                        field_strs.push(f"..{(*_self).gen_const_value_expr(rest)}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                if field_strs.is_empty():
+                    "{(*_self).normalize_runtime_path(name)} {}"
+                else:
+                    "{(*_self).normalize_runtime_path(name)} { {field_strs.join(\", \")} }"
+            kain_core__ast__Expr::AggregateInit { ty: ty, fields: fields, zero_fill_rest: zero_fill_rest } =>
+                match ty:
+                    kain_core__ast__Type::Named { name: name } =>
+                        match name.rsplit_once("__"):
+                            Some((enum_name, variant)) =>
+                                let head = (*_self).normalize_variant_head(Option::Some(&enum_name.to_string()), variant, none)
+                                let field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg3): f"{sanitize_emitted_identifier(__kain_closure_arg3.__kain_tuple_0)}: {(*_self).gen_const_value_expr(__kain_closure_arg3.__kain_tuple_1)}").collect()
+                                return "{head} { {field_strs.join(\", \")} }"
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                let ty_name = (*_self).map_type(ty)
+                let field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg4): f"{sanitize_emitted_identifier(__kain_closure_arg4.__kain_tuple_0)}: {(*_self).gen_const_value_expr(__kain_closure_arg4.__kain_tuple_1)}").collect()
+                if (*zero_fill_rest):
+                    if field_strs.is_empty():
+                        "{ty_name} { ..Default::default() }"
+                    else:
+                        "{ty_name} { {field_strs.join(\", \")}, ..Default::default() }"
+                else:
+                    "{ty_name} { {field_strs.join(\", \")} }"
+            kain_core__ast__Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields } =>
+                match fields:
+                    kain_core__ast__EnumVariantFields::Unit => (*_self).normalize_variant_head(Option::Some(enum_name), variant, none)
+                    kain_core__ast__EnumVariantFields::Tuple(values) =>
+                        let parts: Array<String> = values.iter().map(fn(value): (*_self).gen_const_value_expr(value)).collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)}({parts.join(\", \")})"
+                    kain_core__ast__EnumVariantFields::Struct(values) =>
+                        let parts: Array<String> = values.iter().map(fn(__kain_closure_arg5): f"{__kain_closure_arg5.__kain_tuple_0}: {(*_self).gen_const_value_expr(__kain_closure_arg5.__kain_tuple_1)}").collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)} { {parts.join(\", \")} }"
+            _ => (*_self).gen_expr(expr)
+
+    fn gen_function(_self: &mut RustGen, func: &kain_core::ast::Function):
+        match (*func).name.strip_suffix("_fmt"):
+            Some(target) =>
+                if (!target.is_empty()):
+                    (*_self).display_helpers.insert(target.to_string())
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        let self_ctx = (*_self).current_impl_target()
+        let self_ctx_ref = self_ctx
+        let free_self_alias = if (self_ctx_ref.is_none() && (*func).params.first().is_some_and(fn(param): none)):
+            Option::Some(("value").to_string())
+        else:
+            none
+        let mutated_params = (*_self).collect_mutated_bindings_in_block(&(*func).body)
+        let binding_types = (*_self).collect_binding_types(func)
+        (*_self).current_function_stack.push((*func).name.clone())
+        ()
+        let lifetime_names = (*_self).function_lifetime_generic_names(func)
+        (*_self).push_generic_lifetimes(lifetime_names.clone())
+        ()
+        let vis = (*_self).visibility_prefix((*func).visibility)
+        let modifiers = (*_self).function_modifiers(&(*func).effects)
+        let params = (*_self).gen_params_with_context(&(*func).params, self_ctx_ref, Option::Some(&mutated_params), free_self_alias)
+        let generic_params = (*_self).collect_function_generic_params(func)
+        let generic_suffix = (*_self).render_generic_names(&generic_params, &lifetime_names)
+        let ret = match (*_self).current_impl_trait():
+            Some(trait_name) => if ((((*_self).trait_name_matches(trait_name, "Display") || (*_self).trait_name_matches(trait_name, "Debug"))) && ((*_self).rust_method_name(&(*func).name) == "fmt")): (" -> std::fmt::Result").to_string() else: none
+            _ =>
+                match &(*func).return_type:
+                    Some(ty) => f" -> {(*_self).map_return_type(ty, self_ctx_ref)}"
+                    _ => String__new_()
+        let return_struct = (*func).return_type.and_then(fn(ty): none)
+        let has_implicit_return = (*func).return_type.is_some_and(fn(ty): (!none))
+        (*_self).emit_rust_attributes(&(*func).attributes)
+        ()
+        (*_self).write_line(&"{vis}{modifiers}fn {(*_self).rust_method_name(&(*func).name)}{generic_suffix}({params}){ret} {")
+        ()
+        (*_self).push_indent()
+        ()
+        match &self_ctx:
+            Some(self_ctx) =>
+                (*_self).self_type_stack.push(strip_rendered_type_generics(self_ctx))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).free_self_alias_stack.push(free_self_alias)
+        ()
+        (*_self).current_return_struct_stack.push(return_struct)
+        ()
+        (*_self).binding_type_stack.push(binding_types)
+        ()
+        (*_self).gen_block_with_implicit_return(&(*func).body, has_implicit_return)
+        ()
+        (*_self).binding_type_stack.pop()
+        ()
+        (*_self).current_return_struct_stack.pop()
+        ()
+        (*_self).free_self_alias_stack.pop()
+        ()
+        if self_ctx.is_some():
+            (*_self).self_type_stack.pop()
+            ()
+            ()
+            ()
+            ()
+        (*_self).pop_generic_lifetimes()
+        ()
+        (*_self).current_function_stack.pop()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn synthetic_impl_target(_self: &RustGen, func: &kain_core::ast::Function) -> Option<String>:
+        if (*_self).current_impl_target().is_some():
+            return none
+        let target = (*_self).inferred_self_type(&(*func).name)?
+        if (*_self).known_type_names.contains(target):
+            Option::Some(target.to_string())
+        else:
+            none
+
+    fn gen_synthetic_impl_function(_self: &mut RustGen, target: String, func: &kain_core::ast::Function):
+        (*_self).write_line(&"impl {(*_self).normalize_runtime_path(target)} {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).impl_target_stack.push(target.to_string())
+        ()
+        (*_self).impl_trait_stack.push(none)
+        ()
+        (*_self).gen_function(func)
+        ()
+        (*_self).impl_trait_stack.pop()
+        ()
+        (*_self).impl_target_stack.pop()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn gen_params(_self: &RustGen, params: &[kain_core::ast::Param]) -> String:
+        (*_self).gen_params_with_context(params, none, none, none)
+
+    fn gen_params_with_context(_self: &RustGen, params: &[kain_core::ast::Param], self_ctx: Option<String>, mutated_params: Option<&Set<String>>, free_self_alias: Option<String>) -> String:
+        let free_self_target = if (self_ctx.is_none() && free_self_alias.is_some()):
+            (*_self).current_function_name().and_then(fn(name): (*_self).inferred_self_type(name))
+        else:
+            none
+        let parts: Array<String> = params.iter().enumerate().map(fn(__kain_closure_arg6): none).collect()
+        parts.join(", ")
+
+    fn collect_function_generic_params(_self: &RustGen, func: &kain_core::ast::Function) -> Array<String>:
+        let mut names: Array<String> = (*func).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        if ((*_self).current_impl_target().is_none() && (*_self).current_impl_trait().is_none()):
+            let mut inferred = BTreeSet__new_()
+            for param in &(*func).params:
+                (*_self).collect_type_generic_params(&param.ty, &mut inferred)
+                ()
+            ()
+            match &(*func).return_type:
+                Some(return_type) =>
+                    (*_self).collect_type_generic_params(return_type, &mut inferred)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            for inferred_name in inferred:
+                if (!names.iter().any(fn(name): (name == &inferred_name))):
+                    names.push(inferred_name)
+                    ()
+            ()
+            ()
+        names
+
+    fn collect_type_generic_params(_self: &RustGen, ty: &kain_core::ast::Type, out_: &mut Set<String>):
+        match ty:
+            kain_core__ast__Type::Named { name: name, generics: generics } =>
+                let leaf = name.rsplit("::").next().unwrap_or(name).trim()
+                for generic in generics:
+                    (*_self).collect_type_generic_params(generic, out_)
+                    ()
+                ()
+                if ((generics.is_empty() && leaf.chars().all(fn(ch): ch.is_ascii_uppercase())) && (!(*_self).known_type_names.contains(leaf))):
+                    out_.insert(leaf.to_string())
+                    ()
+            kain_core__ast__Type::Tuple(types, _) =>
+                for item in types:
+                    (*_self).collect_type_generic_params(item, out_)
+                    ()
+            kain_core__ast__Type::Array(inner, _, _) =>
+                (*_self).collect_type_generic_params(inner, out_)
+                ()
+            kain_core__ast__Type::Slice(inner, _) =>
+                (*_self).collect_type_generic_params(inner, out_)
+                ()
+            kain_core__ast__Type::Ref { inner: inner } =>
+                (*_self).collect_type_generic_params(inner, out_)
+                ()
+            kain_core__ast__Type::Ptr { inner: inner } =>
+                (*_self).collect_type_generic_params(inner, out_)
+                ()
+            kain_core__ast__Type::Option(inner, _) =>
+                (*_self).collect_type_generic_params(inner, out_)
+                ()
+            kain_core__ast__Type::Result(ok, err, _) =>
+                (*_self).collect_type_generic_params(ok, out_)
+                ()
+                (*_self).collect_type_generic_params(err, out_)
+                ()
+            kain_core__ast__Type::Function { params: params, return_type: return_type } =>
+                for param in params:
+                    (*_self).collect_type_generic_params(param, out_)
+                    ()
+                ()
+                (*_self).collect_type_generic_params(return_type, out_)
+                ()
+            kain_core__ast__Type::Impl { generics: generics } =>
+                for generic in generics:
+                    (*_self).collect_type_generic_params(generic, out_)
+                    ()
+            kain_core__ast__Type::Infer(_) => ()
+            kain_core__ast__Type::Never(_) => ()
+            kain_core__ast__Type::Unit(_) => ()
+
+    fn looks_like_lifetime_name(_self: &RustGen, name: String) -> Bool:
+        let leaf = name.rsplit("::").next().unwrap_or(name)
+        if leaf.is_empty():
+            return false
+        if ((leaf == "static") || (leaf == "_")):
+            return true
+        let mut chars = leaf.chars()
+        (none && chars.all(fn(ch): (ch.is_ascii_alphanumeric() || (ch == "_"))))
+
+    fn collect_declared_lifetime_generic_names_from_type(_self: &RustGen, ty: &kain_core::ast::Type, declared_names: &Set<String>, out_: &mut Set<String>):
+        match ty:
+            kain_core__ast__Type::Named { name: name, generics: generics } =>
+                let leaf = name.rsplit("::").next().unwrap_or(name)
+                if ((generics.is_empty() && ((declared_names.contains(name) || declared_names.contains(leaf)))) && (*_self).looks_like_lifetime_name(leaf)):
+                    out_.insert(leaf.to_string())
+                    ()
+                    ()
+                    ()
+                    ()
+                for generic in generics:
+                    (*_self).collect_declared_lifetime_generic_names_from_type(generic, declared_names, out_)
+                    ()
+            kain_core__ast__Type::Tuple(types, _) =>
+                for item in types:
+                    (*_self).collect_declared_lifetime_generic_names_from_type(item, declared_names, out_)
+                    ()
+            kain_core__ast__Type::Array(inner, _, _) =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(inner, declared_names, out_)
+                ()
+            kain_core__ast__Type::Slice(inner, _) =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(inner, declared_names, out_)
+                ()
+            kain_core__ast__Type::Ptr { inner: inner } =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(inner, declared_names, out_)
+                ()
+            kain_core__ast__Type::Option(inner, _) =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(inner, declared_names, out_)
+                ()
+            kain_core__ast__Type::Ref { inner: inner, lifetime: lifetime } =>
+                match lifetime:
+                    Some(name) =>
+                        let leaf = name.rsplit("::").next().unwrap_or(name)
+                        if (((declared_names.contains(name) || declared_names.contains(leaf))) && (*_self).looks_like_lifetime_name(leaf)):
+                            out_.insert(leaf.to_string())
+                            ()
+                            ()
+                            ()
+                            ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                (*_self).collect_declared_lifetime_generic_names_from_type(inner, declared_names, out_)
+                ()
+            kain_core__ast__Type::Result(ok, err, _) =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(ok, declared_names, out_)
+                ()
+                (*_self).collect_declared_lifetime_generic_names_from_type(err, declared_names, out_)
+                ()
+            kain_core__ast__Type::Function { params: params, return_type: return_type } =>
+                for param in params:
+                    (*_self).collect_declared_lifetime_generic_names_from_type(param, declared_names, out_)
+                    ()
+                ()
+                (*_self).collect_declared_lifetime_generic_names_from_type(return_type, declared_names, out_)
+                ()
+            kain_core__ast__Type::Impl { generics: generics } =>
+                for generic in generics:
+                    (*_self).collect_declared_lifetime_generic_names_from_type(generic, declared_names, out_)
+                    ()
+            kain_core__ast__Type::Infer(_) => ()
+            kain_core__ast__Type::Never(_) => ()
+            kain_core__ast__Type::Unit(_) => ()
+
+    fn function_lifetime_generic_names(_self: &RustGen, func: &kain_core::ast::Function) -> Set<String>:
+        let declared_names: Set<String> = (*func).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        for param in &(*func).params:
+            (*_self).collect_declared_lifetime_generic_names_from_type(&param.ty, &declared_names, &mut out_)
+            ()
+        ()
+        match &(*func).return_type:
+            Some(return_type) =>
+                (*_self).collect_declared_lifetime_generic_names_from_type(return_type, &declared_names, &mut out_)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        out_
+
+    fn struct_lifetime_generic_names(_self: &RustGen, struct_def: &kain_core::ast::Struct) -> Set<String>:
+        let declared_names: Set<String> = (*struct_def).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        for field in &(*struct_def).fields:
+            (*_self).collect_declared_lifetime_generic_names_from_type(&field.ty, &declared_names, &mut out_)
+            ()
+        ()
+        out_
+
+    fn enum_lifetime_generic_names(_self: &RustGen, enum_def: &kain_core::ast::Enum) -> Set<String>:
+        let declared_names: Set<String> = (*enum_def).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        for variant in &(*enum_def).variants:
+            match &variant.fields:
+                kain_core__ast__VariantFields::Unit => ()
+                kain_core__ast__VariantFields::Tuple(types) =>
+                    for ty in types:
+                        (*_self).collect_declared_lifetime_generic_names_from_type(ty, &declared_names, &mut out_)
+                        ()
+                kain_core__ast__VariantFields::Struct(fields) =>
+                    for field in fields:
+                        (*_self).collect_declared_lifetime_generic_names_from_type(&field.ty, &declared_names, &mut out_)
+                        ()
+        ()
+        out_
+
+    fn trait_lifetime_generic_names(_self: &RustGen, trait_def: &kain_core::ast::Trait) -> Set<String>:
+        let declared_names: Set<String> = (*trait_def).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        for method in &(*trait_def).methods:
+            for param in &method.params:
+                (*_self).collect_declared_lifetime_generic_names_from_type(&param.ty, &declared_names, &mut out_)
+                ()
+            ()
+            match &method.return_type:
+                Some(return_type) =>
+                    (*_self).collect_declared_lifetime_generic_names_from_type(return_type, &declared_names, &mut out_)
+                    ()
+                _ => ()
+        ()
+        out_
+
+    fn impl_lifetime_generic_names(_self: &RustGen, impl_def: &kain_core::ast::Impl) -> Set<String>:
+        let declared_names: Set<String> = (*impl_def).generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        (*_self).collect_declared_lifetime_generic_names_from_type(&(*impl_def).target_type, &declared_names, &mut out_)
+        ()
+        for generic in &(*impl_def).trait_generics:
+            (*_self).collect_declared_lifetime_generic_names_from_type(generic, &declared_names, &mut out_)
+            ()
+        ()
+        for method in &(*impl_def).methods:
+            for param in &method.params:
+                (*_self).collect_declared_lifetime_generic_names_from_type(&param.ty, &declared_names, &mut out_)
+                ()
+            ()
+            match &method.return_type:
+                Some(return_type) =>
+                    (*_self).collect_declared_lifetime_generic_names_from_type(return_type, &declared_names, &mut out_)
+                    ()
+                _ => ()
+        ()
+        out_
+
+    fn type_alias_lifetime_generic_names(_self: &RustGen, generics: &[kain_core::ast::Generic], target: &kain_core::ast::Type) -> Set<String>:
+        let declared_names: Set<String> = generics.iter().map(fn(generic): generic.name.clone()).collect()
+        let mut out_ = HashSet__new_()
+        (*_self).collect_declared_lifetime_generic_names_from_type(target, &declared_names, &mut out_)
+        ()
+        out_
+
+    fn render_generic_name(_self: &RustGen, name: String, lifetime_names: &Set<String>) -> String:
+        let leaf = name.rsplit("::").next().unwrap_or(name)
+        if (((lifetime_names.contains(name) || lifetime_names.contains(leaf))) && (*_self).looks_like_lifetime_name(leaf)):
+            f"'{(*_self).sanitize_lifetime_name(leaf)}"
+        else:
+            sanitize_emitted_identifier(name)
+
+    fn render_generic_names(_self: &RustGen, names: &[String], lifetime_names: &Set<String>) -> String:
+        if names.is_empty():
+            String__new_()
+        else:
+            "<{names.iter().map(fn(name): (*_self).render_generic_name(name, lifetime_names)).collect().join(\", \")}>"
+
+    fn render_generic_params(_self: &RustGen, generics: &[kain_core::ast::Generic], lifetime_names: &Set<String>) -> String:
+        if generics.is_empty():
+            String__new_()
+        else:
+            let names = generics.iter().map(fn(generic): generic.name.clone()).collect()
+            (*_self).render_generic_names(&names, lifetime_names)
+
+    fn emit_rust_attributes(_self: &mut RustGen, attrs: &[kain_core::ast::Attribute]):
+        for attr in attrs:
+            match (*_self).render_rust_attribute(attr):
+                Some(rendered) =>
+                    (*_self).write_line(&rendered)
+                    ()
+                _ => ()
+
+    fn has_rust_attribute(_self: &RustGen, attrs: &[kain_core::ast::Attribute], target: String) -> Bool:
+        attrs.iter().any(fn(attr): ((*_self).normalize_runtime_path(&attr.name) == target))
+
+    fn render_rust_attribute(_self: &RustGen, attr: &kain_core::ast::Attribute) -> Option<String>:
+        let name = (*_self).normalize_runtime_path(&(*attr).name)
+        if (name == "doc"):
+            if ((*attr).args.len() == 1):
+                match (*_self).render_rust_doc_attr_value(&(*attr).args[0]):
+                    Some(value) => return Option::Some(f"#[doc = {value}]")
+                    _ =>
+                        ()
+                        ()
+                ()
+            ()
+        if (*attr).args.is_empty():
+            Option::Some(f"#[{name}]")
+        else:
+            Option::Some("#[{name}({(*attr).args.iter().map(fn(arg): (*_self).render_rust_attr_expr(arg)).collect().join(\", \")})]")
+
+    fn render_rust_doc_attr_value(_self: &RustGen, expr: &kain_core::ast::Expr) -> Option<String>:
+        match expr:
+            kain_core__ast__Expr::Tuple(parts, _) if (parts.len() == 2) =>
+                match &parts[0]:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if ((*_self).normalize_runtime_path(name) == "doc"):
+                            return Option::Some((*_self).render_rust_attr_expr(&parts[1]))
+                        ()
+                    _ =>
+                        ()
+                        ()
+                none
+            kain_core__ast__Expr::Assign { target: target, value: value } => if none: Option::Some((*_self).render_rust_attr_expr(value)) else: none
+            kain_core__ast__Expr::String(_, _) => Option::Some((*_self).render_rust_attr_expr(expr))
+            _ => none
+
+    fn render_rust_attr_expr(_self: &RustGen, expr: &kain_core::ast::Expr) -> String:
+        match expr:
+            kain_core__ast__Expr::Ident(name, _) => (*_self).normalize_runtime_path(name)
+            kain_core__ast__Expr::String(value, _) => value
+            kain_core__ast__Expr::Int(value, _) => value.to_string()
+            kain_core__ast__Expr::Float(value, _) => value.to_string()
+            kain_core__ast__Expr::Bool(value, _) => value.to_string()
+            kain_core__ast__Expr::Tuple(parts, _) if (parts.len() == 2) =>
+                match &parts[0]:
+                    kain_core__ast__Expr::Ident(name, _) => return f"{(*_self).normalize_runtime_path(name)} = {(*_self).render_rust_attr_expr(&parts[1])}"
+                    _ =>
+                        ()
+                        ()
+                (*_self).gen_expr(expr)
+            kain_core__ast__Expr::Assign { target: target, value: value } => f"{(*_self).render_rust_attr_expr(target)} = {(*_self).render_rust_attr_expr(value)}"
+            kain_core__ast__Expr::Call { callee: callee, args: args } =>
+                let callee = (*_self).render_rust_attr_expr(callee)
+                let args = args.iter().map(fn(arg): none).collect().join(", ")
+                f"{callee}({args})"
+            kain_core__ast__Expr::Field { object: object, field: field } => f"{(*_self).render_rust_attr_expr(object)}.{(*_self).render_field_accessor(field)}"
+            _ => (*_self).gen_expr(expr)
+
+    fn gen_struct(_self: &mut RustGen, struct_def: &kain_core::ast::Struct):
+        let lifetime_names = (*_self).struct_lifetime_generic_names(struct_def)
+        (*_self).push_generic_lifetimes(lifetime_names.clone())
+        ()
+        let vis = (*_self).visibility_prefix((*struct_def).visibility)
+        let generics = (*_self).render_generic_params(&(*struct_def).generics, &lifetime_names)
+        (*_self).emit_rust_attributes(&(*struct_def).attributes)
+        ()
+        if (!(*_self).has_rust_attribute(&(*struct_def).attributes, "derive")):
+            (*_self).write_line("#[derive(Debug, Clone, PartialEq)]")
+            ()
+            ()
+            ()
+            ()
+        (*_self).write_line(&"{vis}struct {sanitize_emitted_identifier(&(*struct_def).name)}{generics} {")
+        ()
+        (*_self).push_indent()
+        ()
+        for field in &(*struct_def).fields:
+            (*_self).emit_rust_attributes(&field.attributes)
+            ()
+            (*_self).write_line(&f"{(*_self).visibility_prefix(field.visibility)}{sanitize_emitted_identifier(&field.name)}: {(*_self).map_storage_type(&field.ty, Option::Some(&(*struct_def).name))},")
+            ()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).pop_generic_lifetimes()
+        ()
+
+    fn gen_impl(_self: &mut RustGen, impl_def: &kain_core::ast::Impl):
+        let lifetime_names = (*_self).impl_lifetime_generic_names(impl_def)
+        (*_self).push_generic_lifetimes(lifetime_names.clone())
+        ()
+        let impl_generics = (*_self).render_generic_params(&(*impl_def).generics, &lifetime_names)
+        let target = (*_self).map_type(&(*impl_def).target_type)
+        let trait_name = (*impl_def).trait_name.map(fn(name): none)
+        match &trait_name:
+            Some(trait_name) =>
+                (*_self).write_line(&"impl{impl_generics} {trait_name} for {target} {")
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                (*_self).write_line(&"impl{impl_generics} {target} {")
+                ()
+                ()
+                ()
+                ()
+        (*_self).push_indent()
+        ()
+        (*_self).impl_target_stack.push(target.clone())
+        ()
+        (*_self).impl_trait_stack.push((*impl_def).trait_name.clone())
+        ()
+        for method in &(*impl_def).methods:
+            (*_self).gen_function(method)
+            ()
+            (*_self).write_blank()
+            ()
+        ()
+        (*_self).impl_trait_stack.pop()
+        ()
+        (*_self).impl_target_stack.pop()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).pop_generic_lifetimes()
+        ()
+
+    fn gen_enum(_self: &mut RustGen, enum_def: &kain_core::ast::Enum):
+        let lifetime_names = (*_self).enum_lifetime_generic_names(enum_def)
+        (*_self).push_generic_lifetimes(lifetime_names.clone())
+        ()
+        let generics = (*_self).render_generic_params(&(*enum_def).generics, &lifetime_names)
+        (*_self).write_line("#[derive(Debug, Clone, PartialEq)]")
+        ()
+        (*_self).write_line(&"{(*_self).visibility_prefix((*enum_def).visibility)}enum {sanitize_emitted_identifier(&(*enum_def).name)}{generics} {")
+        ()
+        (*_self).push_indent()
+        ()
+        for variant in &(*enum_def).variants:
+            match &variant.fields:
+                kain_core__ast__VariantFields::Unit =>
+                    (*_self).write_line(&f"{sanitize_emitted_identifier(&variant.name)},")
+                    ()
+                kain_core__ast__VariantFields::Tuple(types) =>
+                    let fields: Array<String> = types.iter().map(fn(t): (*_self).map_storage_type(t, Option::Some(&(*enum_def).name))).collect()
+                    (*_self).write_line(&"{sanitize_emitted_identifier(&variant.name)}({fields.join(\", \")}),")
+                    ()
+                kain_core__ast__VariantFields::Struct(fields) =>
+                    (*_self).write_line(&"{sanitize_emitted_identifier(&variant.name)} {")
+                    ()
+                    (*_self).push_indent()
+                    ()
+                    for f in fields:
+                        (*_self).write_line(&f"{sanitize_emitted_identifier(&f.name)}: {(*_self).map_storage_type(&f.ty, Option::Some(&(*enum_def).name))},")
+                        ()
+                    ()
+                    (*_self).pop_indent()
+                    ()
+                    (*_self).write_line("},")
+                    ()
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).pop_generic_lifetimes()
+        ()
+
+    fn component_props_name(_self: &RustGen, name: String) -> String:
+        f"{name}Props"
+
+    fn gen_component_props_struct(_self: &mut RustGen, comp: &kain_core::ast::Component):
+        let props_name = (*_self).component_props_name(&(*comp).name)
+        let vis = (*_self).visibility_prefix((*comp).visibility)
+        (*_self).write_line("#[derive(Debug, Clone, PartialEq)]")
+        ()
+        (*_self).write_line(&"{vis}struct {props_name} {")
+        ()
+        (*_self).push_indent()
+        ()
+        for prop in &(*comp).props:
+            (*_self).write_line(&f"pub {prop.name}: {(*_self).map_type(&prop.ty)},")
+            ()
+        ()
+        (*_self).write_line("pub children: String,")
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+        (*_self).write_blank()
+        ()
+
+    fn gen_component(_self: &mut RustGen, comp: &kain_core::ast::Component):
+        let vis = (*_self).visibility_prefix((*comp).visibility)
+        let modifiers = (*_self).function_modifiers(&(*comp).effects)
+        let props_name = (*_self).component_props_name(&(*comp).name)
+        let mut prop_bindings: Array<String> = (*comp).props.iter().map(fn(prop): prop.name.clone()).collect()
+        prop_bindings.push(("children").to_string())
+        ()
+        (*_self).gen_component_props_struct(comp)
+        ()
+        (*_self).write_line(&"{vis}{modifiers}fn {(*_self).rust_function_name(&(*comp).name)}(props: {props_name}) -> String {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).write_line(&"let {props_name} { {prop_bindings.join(\", \")} } = props;")
+        ()
+        if ((!(*comp).state_.is_empty()) || (!(*comp).methods.is_empty())):
+            (*_self).write_blank()
+            ()
+            ()
+            ()
+            ()
+        for state_ in &(*comp).state_:
+            (*_self).write_line(&f"let mut {state_.name}: {(*_self).map_type(&state_.ty)} = {(*_self).gen_expr(&state_.initial)};")
+            ()
+        ()
+        if ((!(*comp).state_.is_empty()) && (!(*comp).methods.is_empty())):
+            (*_self).write_blank()
+            ()
+            ()
+            ()
+            ()
+        for selfhost_for_item in (*comp).methods.iter().enumerate():
+            let (index, method) = selfhost_for_item
+            (*_self).gen_component_method_binding(method)
+            ()
+            if ((index + 1) != (*comp).methods.len()):
+                (*_self).write_blank()
+                ()
+        ()
+        if (!(*comp).methods.is_empty()):
+            (*_self).write_blank()
+            ()
+            ()
+            ()
+            ()
+        (*_self).write_line(&(*_self).gen_jsx(&(*comp).body))
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("}")
+        ()
+
+    fn gen_component_method_binding(_self: &mut RustGen, method: &kain_core::ast::Function):
+        let params = (*_self).gen_params(&(*method).params)
+        let ret = match &(*method).return_type:
+            Some(ty) => f" -> {(*_self).map_return_type(ty, none)}"
+            _ => String__new_()
+        let has_implicit_return = (*method).return_type.is_some_and(fn(ty): (!none))
+        (*_self).write_line(&"let mut {(*method).name} = |{params}|{ret} {")
+        ()
+        (*_self).push_indent()
+        ()
+        (*_self).gen_block_with_implicit_return(&(*method).body, has_implicit_return)
+        ()
+        (*_self).pop_indent()
+        ()
+        (*_self).write_line("};")
+        ()
+
+    fn gen_block(_self: &mut RustGen, block: &kain_core::ast::Block):
+        (*_self).gen_block_with_implicit_return(block, false)
+        ()
+
+    fn gen_block_with_implicit_return(_self: &mut RustGen, block: &kain_core::ast::Block, implicit_return: Bool):
+        let len = (*block).stmts.len()
+        for selfhost_for_item in (*block).stmts.iter().enumerate():
+            let (i, stmt) = selfhost_for_item
+            let is_last = ((i + 1) == len)
+            if (implicit_return && is_last):
+                match stmt:
+                    kain_core__ast__Stmt::Expr(expr) =>
+                        if (!none):
+                            (*_self).write_line(&(*_self).gen_expr(expr))
+                            ()
+                            continue
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            (*_self).gen_stmt(stmt)
+            ()
+
+    fn gen_stmt(_self: &mut RustGen, stmt: &kain_core::ast::Stmt):
+        match stmt:
+            kain_core__ast__Stmt::Let { pattern: pattern, ty: ty, value: value } =>
+                let pat_str = (*_self).gen_pattern(pattern)
+                let ty_str = ty.map(fn(t): f": {(*_self).map_type(t)}").unwrap_or_default()
+                match value:
+                    Some(val) =>
+                        (*_self).write_line(&f"let {pat_str}{ty_str} = {(*_self).gen_expr(val)};")
+                        ()
+                    _ =>
+                        (*_self).write_line(&f"let {pat_str}{ty_str};")
+                        ()
+            kain_core__ast__Stmt::Return(maybe_expr, _) =>
+                match maybe_expr:
+                    Some(expr) =>
+                        (*_self).write_line(&f"return {(*_self).gen_expr(expr)};")
+                        ()
+                    _ =>
+                        (*_self).write_line("return;")
+                        ()
+            kain_core__ast__Stmt::Break(maybe_expr, _) =>
+                match maybe_expr:
+                    Some(expr) =>
+                        (*_self).write_line(&f"break {(*_self).gen_expr(expr)};")
+                        ()
+                    _ =>
+                        (*_self).write_line("break;")
+                        ()
+            kain_core__ast__Stmt::Continue(_) =>
+                (*_self).write_line("continue;")
+                ()
+            kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body } =>
+                let pat = (*_self).gen_pattern(binding)
+                (*_self).write_line(&"for {pat} in {(*_self).gen_expr(iter)} {")
+                ()
+                (*_self).push_indent()
+                ()
+                (*_self).gen_block(body)
+                ()
+                (*_self).pop_indent()
+                ()
+                (*_self).write_line("}")
+                ()
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                (*_self).write_line(&"while {(*_self).gen_expr(condition)} {")
+                ()
+                (*_self).push_indent()
+                ()
+                (*_self).gen_block(body)
+                ()
+                (*_self).pop_indent()
+                ()
+                (*_self).write_line("}")
+                ()
+            kain_core__ast__Stmt::Loop { body: body } =>
+                (*_self).write_line("loop {")
+                ()
+                (*_self).push_indent()
+                ()
+                (*_self).gen_block(body)
+                ()
+                (*_self).pop_indent()
+                ()
+                (*_self).write_line("}")
+                ()
+            kain_core__ast__Stmt::Expr(expr) =>
+                match expr:
+                    kain_core__ast__Expr::Assign { target: target, value: value } =>
+                        (*_self).write_line(&f"{(*_self).gen_expr(target)} = {(*_self).gen_expr(value)};")
+                        ()
+                    _ =>
+                        match expr:
+                            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms } =>
+                                (*_self).write_line(&(*_self).gen_match_expr(scrutinee, arms, true))
+                                ()
+                            _ =>
+                                (*_self).write_line(&f"{(*_self).gen_expr(expr)};")
+                                ()
+            kain_core__ast__Stmt::Item(item) => (*_self).gen_nested_item(item)
+
+    fn gen_block_expr(_self: &RustGen, block: &kain_core::ast::Block) -> String:
+        if (*_self).is_selfhost_empty_block(block):
+            return ("{ () }").to_string()
+        let len = (*block).stmts.len()
+        let mut stmt_strs = Vec__new_()
+        for selfhost_for_item in (*block).stmts.iter().enumerate():
+            let (index, stmt) = selfhost_for_item
+            stmt_strs.push((*_self).gen_stmt_inline(stmt, ((index + 1) == len)))
+            ()
+        ()
+        if stmt_strs.is_empty():
+            ("{ () }").to_string()
+        else:
+            "{ {stmt_strs.join(\" \")} }"
+
+    fn gen_stmt_inline(_self: &RustGen, stmt: &kain_core::ast::Stmt, is_last: Bool) -> String:
+        match stmt:
+            kain_core__ast__Stmt::Let { pattern: pattern, ty: ty, value: value } =>
+                let pat_str = (*_self).gen_pattern(pattern)
+                let ty_str = ty.map(fn(t): f": {(*_self).map_type(t)}").unwrap_or_default()
+                match value:
+                    Some(val) => f"let {pat_str}{ty_str} = {(*_self).gen_expr(val)};"
+                    _ => f"let {pat_str}{ty_str};"
+            kain_core__ast__Stmt::Expr(expr) =>
+                let expr_str = match expr:
+                    kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms } => (*_self).gen_match_expr(scrutinee, arms, true)
+                    _ => (*_self).gen_expr(expr)
+                if is_last:
+                    expr_str
+                else:
+                    f"{expr_str};"
+            kain_core__ast__Stmt::Return(maybe_expr, _) =>
+                match maybe_expr:
+                    Some(expr) => f"return {(*_self).gen_expr(expr)};"
+                    _ => ("return;").to_string()
+            kain_core__ast__Stmt::Break(maybe_expr, _) =>
+                match maybe_expr:
+                    Some(expr) => f"break {(*_self).gen_expr(expr)};"
+                    _ => ("break;").to_string()
+            kain_core__ast__Stmt::Continue(_) => ("continue;").to_string()
+            kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body } => f"for {(*_self).gen_pattern(binding)} in {(*_self).gen_expr(iter)} {(*_self).gen_block_expr(body)}"
+            kain_core__ast__Stmt::While { condition: condition, body: body } => f"while {(*_self).gen_expr(condition)} {(*_self).gen_block_expr(body)}"
+            kain_core__ast__Stmt::Loop { body: body } => f"loop {(*_self).gen_block_expr(body)}"
+            kain_core__ast__Stmt::Item(_) => ("()").to_string()
+
+    fn gen_else_branch_expr(_self: &RustGen, else_branch: &kain_core::ast::ElseBranch) -> String:
+        match else_branch:
+            kain_core__ast__ElseBranch::Else(block) => (*_self).gen_block_expr(block)
+            kain_core__ast__ElseBranch::ElseIf(condition, block, tail) =>
+                let else_tail = tail.map(fn(next): f" else {(*_self).gen_else_branch_expr(next)}").unwrap_or_default()
+                f"if {(*_self).gen_expr(condition)} {(*_self).gen_block_expr(block)}{else_tail}"
+
+    fn string_literal_expr(expr: &kain_core::ast::Expr) -> Option<String>:
+        match expr:
+            kain_core__ast__Expr::String(value, _) => Option::Some(value)
+            _ => none
+
+    fn render_format_head_macro(_self: &RustGen, name: String, args: &[&kain_core::ast::Expr]) -> String:
+        let Some((first, rest)) = args.split_first()
+        if rest.is_empty():
+            return "{name}!(\"{}\", {(*_self).gen_expr(first)})"
+        match RustGen__string_literal_expr(first):
+            Some(literal) =>
+                let rendered_rest: Array<String> = rest.iter().map(fn(arg): (*_self).gen_expr(arg)).collect()
+                "{name}!({literal}, {rendered_rest.join(\", \")})"
+            _ =>
+                let rendered_args: Array<String> = args.iter().map(fn(arg): (*_self).gen_expr(arg)).collect()
+                let placeholders = ([]).join(" ")
+                "{name}!(\"{placeholders}\", {rendered_args.join(\", \")})"
+
+    fn render_builtin_macro_exprs(_self: &RustGen, name: String, args: &[&kain_core::ast::Expr]) -> Option<String>:
+        let rendered = match name:
+            "format" => (*_self).render_format_head_macro("format", args)
+            "panic" => (*_self).render_format_head_macro(name, args)
+            "unreachable" => (*_self).render_format_head_macro(name, args)
+            "todo" => (*_self).render_format_head_macro(name, args)
+            "__kain_write_fmt" =>
+                let arg_strs: Array<String> = args.iter().map(fn(arg): (*_self).gen_expr(arg)).collect()
+                if (arg_strs.len() == 2):
+                    "write!({arg_strs[0]}, \"{}\", {arg_strs[1]})"
+                else:
+                    "write!({arg_strs.join(\", \")})"
+            "__kain_writeln_fmt" =>
+                let arg_strs: Array<String> = args.iter().map(fn(arg): (*_self).gen_expr(arg)).collect()
+                if (arg_strs.len() == 2):
+                    "writeln!({arg_strs[0]}, \"{}\", {arg_strs[1]})"
+                else:
+                    "writeln!({arg_strs.join(\", \")})"
+            "println" => (*_self).render_format_head_macro(name, args)
+            "print" => (*_self).render_format_head_macro(name, args)
+            "eprintln" => (*_self).render_format_head_macro(name, args)
+            "eprint" => (*_self).render_format_head_macro(name, args)
+            _ => return none
+        Option::Some(rendered)
+
+    fn render_bootstrap_intrinsic_call(_self: &RustGen, name: String, args: &[kain_core::ast::CallArg]) -> Option<String>:
+        match name:
+            "__kain_bootstrap_lex_tokens" if (args.len() == 1) =>
+                let source = (*_self).gen_expr(&args[0].value)
+                Option::Some("{ let __kain_source_ref = {source}; let __kain_source = __kain_source_ref.as_str(); let mut __kain_lex = crate::lexer::TokenKind::lexer(__kain_source); let mut __kain_raw_tokens = Vec::new(); while let Some(__kain_result) = __kain_lex.next() { let __kain_span = crate::span::Span::new(__kain_lex.span().start, __kain_lex.span().end); match __kain_result { Ok(__kain_kind) => { if matches!(__kain_kind, crate::lexer::TokenKind::Comment | crate::lexer::TokenKind::HashComment) { continue; } __kain_raw_tokens.push(crate::lexer::Token::new(__kain_kind, __kain_span)); } Err(_) => { return Err(crate::error::KainError::lexer(format!(\"Unexpected character: '{}'\", &__kain_source[__kain_span.start..__kain_span.end]), __kain_span)); } } } let mut __kain_result_tokens = Vec::new(); let mut __kain_indent_stack: Vec<usize> = vec![0]; let mut __kain_iter = __kain_raw_tokens.into_iter().peekable(); while let Some(__kain_token) = __kain_iter.next() { match &__kain_token.kind { crate::lexer::TokenKind::Newline(__kain_ws) => { if let Some(__kain_next) = __kain_iter.peek() { if matches!(__kain_next.kind, crate::lexer::TokenKind::Newline(_)) { continue; } } let __kain_indent: usize = __kain_ws[1..].chars().map(|__kain_ch| if __kain_ch == '\\t' { 4 } else { 1 }).sum(); let __kain_current = *__kain_indent_stack.last().unwrap(); if __kain_indent > __kain_current { __kain_indent_stack.push(__kain_indent); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Indent, __kain_token.span)); } else if __kain_indent < __kain_current { __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); while __kain_indent_stack.len() > 1 && *__kain_indent_stack.last().unwrap() > __kain_indent { __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_token.span)); } } else { __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); } } _ => __kain_result_tokens.push(__kain_token), } } let __kain_final_span = __kain_result_tokens.last().map(|__kain_token| __kain_token.span).unwrap_or(crate::span::Span::new(0, 0)); while __kain_indent_stack.len() > 1 { __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_final_span)); } __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Eof, __kain_final_span)); Ok(__kain_result_tokens) }")
+            _ => none
+
+    fn gen_expr(_self: &RustGen, expr: &kain_core::ast::Expr) -> String:
+        match expr:
+            kain_core__ast__Expr::Int(n, _) => n.to_string()
+            kain_core__ast__Expr::Float(f, _) => f
+            kain_core__ast__Expr::String(s, _) => f"\"{(*_self).escape_string(s)}\".to_string()"
+            kain_core__ast__Expr::FString(parts, _) => (*_self).render_interpolated_string(parts)
+            kain_core__ast__Expr::Bool(b, _) => b.to_string()
+            kain_core__ast__Expr::None(_) => ("None").to_string()
+            kain_core__ast__Expr::Ident(name, _) => (*_self).normalize_runtime_path(name)
+            kain_core__ast__Expr::MacroCall { name: name, args: args } =>
+                let arg_refs: Array<&kain_core::ast::Expr> = args.iter().collect()
+                match (*_self).render_builtin_macro_exprs(name, &arg_refs):
+                    Some(rendered) => rendered
+                    _ =>
+                        let arg_strs: Array<String> = args.iter().map(fn(arg): (*_self).gen_expr(arg)).collect()
+                        "{name}!({arg_strs.join(\", \")})"
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+                let l = (*_self).gen_expr(left)
+                let r = (*_self).gen_expr(right)
+                if (none):
+                    f"__kain_pow(({l}) as f64, ({r}) as f64)"
+                else:
+                    f"({l} {(*_self).map_binop(op)} {r})"
+            kain_core__ast__Expr::Unary { op: op, operand: operand } => f"({(*_self).map_unaryop(op)}{(*_self).gen_expr(operand)})"
+            kain_core__ast__Expr::Call { callee: callee, args: args } =>
+                let fn_name = (*_self).gen_expr(callee)
+                if (((fn_name == "Some") && (args.len() == 1)) && none):
+                    return ("None").to_string()
+                let call_arg_refs: Array<&kain_core::ast::Expr> = args.iter().map(fn(a): &a.value).collect()
+                match (*_self).render_builtin_macro_exprs(&fn_name, &call_arg_refs):
+                    Some(rendered) => return rendered
+                    _ =>
+                        ()
+                        ()
+                match (*_self).render_bootstrap_intrinsic_call(&fn_name, args):
+                    Some(rendered) => return rendered
+                    _ =>
+                        ()
+                        ()
+                if (fn_name == "range"):
+                    let arg_strs: Array<String> = args.iter().map(fn(a): (*_self).gen_expr(&a.value)).collect()
+                    return none
+                if (fn_name == "slice"):
+                    let arg_strs: Array<String> = args.iter().map(fn(a): (*_self).gen_expr(&a.value)).collect()
+                    return none
+                let arg_strs: Array<String> = args.iter().map(fn(a): (*_self).gen_expr(&a.value)).collect()
+                "{fn_name}({arg_strs.join(\", \")})"
+            kain_core__ast__Expr::StageCall { function: function, args: args } =>
+                let arg_strs: Array<String> = args.iter().map(fn(a): (*_self).gen_expr(&a.value)).collect()
+                "{(*_self).normalize_runtime_path(function)}({arg_strs.join(\", \")})"
+            kain_core__ast__Expr::MethodCall { receiver: receiver, method: method, args: args } =>
+                let recv = (*_self).gen_expr(receiver)
+                let normalized_method = (*_self).normalize_runtime_method(method)
+                if ((args.len() == 1) && none):
+                    return none
+                if ((normalized_method == "strip_prefix") && (args.len() == 1)):
+                    match &args[0].value:
+                        kain_core__ast__Expr::String(value, _) => return f"{recv}.strip_prefix(\"{(*_self).escape_string(value)}\")"
+                        _ =>
+                            ()
+                            ()
+                    ()
+                let arg_strs: Array<String> = args.iter().map(fn(a): (*_self).gen_expr(&a.value)).collect()
+                "{recv}.{normalized_method}({arg_strs.join(\", \")})"
+            kain_core__ast__Expr::Field { object: object, field: field } => f"{(*_self).gen_expr(object)}.{(*_self).render_field_accessor(field)}"
+            kain_core__ast__Expr::Index { object: object, index: index } => f"{(*_self).gen_expr(object)}[{(*_self).gen_expr(index)}]"
+            kain_core__ast__Expr::Assign { target: target, value: value } => f"({(*_self).gen_expr(target)} = {(*_self).gen_expr(value)})"
+            kain_core__ast__Expr::Struct { name: name, fields: fields, rest: rest } =>
+                let mut field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg7): f"{sanitize_emitted_identifier(__kain_closure_arg7.__kain_tuple_0)}: {(*_self).gen_expr(__kain_closure_arg7.__kain_tuple_1)}").collect()
+                match rest:
+                    Some(rest) =>
+                        field_strs.push(f"..{(*_self).gen_expr(rest)}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                if field_strs.is_empty():
+                    "{(*_self).normalize_runtime_path(name)} {}"
+                else:
+                    "{(*_self).normalize_runtime_path(name)} { {field_strs.join(\", \")} }"
+            kain_core__ast__Expr::AggregateInit { ty: ty, fields: fields, zero_fill_rest: zero_fill_rest } =>
+                match ty:
+                    kain_core__ast__Type::Named { name: name } =>
+                        match name.rsplit_once("__"):
+                            Some((enum_name, variant)) =>
+                                let head = (*_self).normalize_variant_head(Option::Some(&enum_name.to_string()), variant, none)
+                                let field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg8): f"{sanitize_emitted_identifier(__kain_closure_arg8.__kain_tuple_0)}: {(*_self).gen_expr(__kain_closure_arg8.__kain_tuple_1)}").collect()
+                                return "{head} { {field_strs.join(\", \")} }"
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                let ty_name = (*_self).map_type(ty)
+                let field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg9): f"{sanitize_emitted_identifier(__kain_closure_arg9.__kain_tuple_0)}: {(*_self).gen_expr(__kain_closure_arg9.__kain_tuple_1)}").collect()
+                if (*zero_fill_rest):
+                    if field_strs.is_empty():
+                        "{ty_name} { ..Default::default() }"
+                    else:
+                        "{ty_name} { {field_strs.join(\", \")}, ..Default::default() }"
+                else:
+                    "{ty_name} { {field_strs.join(\", \")} }"
+            kain_core__ast__Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields } =>
+                match fields:
+                    kain_core__ast__EnumVariantFields::Unit => (*_self).normalize_variant_head(Option::Some(enum_name), variant, none)
+                    kain_core__ast__EnumVariantFields::Tuple(values) =>
+                        let parts: Array<String> = values.iter().map(fn(value): (*_self).gen_expr(value)).collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)}({parts.join(\", \")})"
+                    kain_core__ast__EnumVariantFields::Struct(values) =>
+                        let parts: Array<String> = values.iter().map(fn(__kain_closure_arg10): f"{sanitize_emitted_identifier(__kain_closure_arg10.__kain_tuple_0)}: {(*_self).gen_expr(__kain_closure_arg10.__kain_tuple_1)}").collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)} { {parts.join(\", \")} }"
+            kain_core__ast__Expr::Array(items, _) =>
+                let parts: Array<String> = items.iter().map(fn(item): (*_self).gen_expr(item)).collect()
+                "vec![{parts.join(\", \")}]"
+            kain_core__ast__Expr::Tuple(items, _) =>
+                let parts: Array<String> = items.iter().map(fn(item): (*_self).gen_expr(item)).collect()
+                match (*_self).current_return_struct():
+                    Some(struct_name) =>
+                        match (*_self).struct_fields.get(struct_name):
+                            Some(field_names) =>
+                                if (field_names.len() == parts.len()):
+                                    let fields = field_names.iter().zip(parts.iter()).map(fn(__kain_closure_arg11): f"{__kain_closure_arg11.__kain_tuple_0}: {__kain_closure_arg11.__kain_tuple_1}").collect().join(", ")
+                                    return "{struct_name} { {fields} }"
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                if (parts.len() == 1):
+                    f"({parts[0]},)"
+                else:
+                    "({parts.join(\", \")})"
+            kain_core__ast__Expr::Range { start: start, end: end, inclusive: inclusive } =>
+                let start = start.map(fn(e): (*_self).gen_expr(e)).unwrap_or_default()
+                let end = end.map(fn(e): (*_self).gen_expr(e)).unwrap_or_default()
+                if (*inclusive):
+                    f"{start}..={end}"
+                else:
+                    f"{start}..{end}"
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                let mut then_expr = (*_self).gen_block_expr(then_branch)
+                match else_branch:
+                    Some(else_branch) =>
+                        let mut else_expr = (*_self).gen_else_branch_expr(else_branch)
+                        (*_self).coerce_placeholder_branches(&mut then_expr, &mut else_expr)
+                        ()
+                        f"if {(*_self).gen_expr(condition)} {then_expr} else {else_expr}"
+                    _ => f"if {(*_self).gen_expr(condition)} {then_expr}"
+            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms } => (*_self).gen_match_expr(scrutinee, arms, false)
+            kain_core__ast__Expr::Lambda { params: params, return_type: return_type, body: body } =>
+                let params = (*_self).gen_params(params)
+                let ret = return_type.map(fn(ty): f" -> {(*_self).map_type(ty)}").unwrap_or_default()
+                f"|{params}|{ret} {(*_self).gen_expr(body)}"
+            kain_core__ast__Expr::Ref { mutable_: mutable_, value: value } => if (*mutable_): f"&mut {(*_self).gen_expr(value)}" else: f"&{(*_self).gen_expr(value)}"
+            kain_core__ast__Expr::AddrOf { value: value, pointee_ty: pointee_ty } =>
+                match pointee_ty:
+                    Some(ty) => f"((&{(*_self).gen_expr(value)}) as *const {(*_self).map_type(ty)})"
+                    _ => f"std::ptr::addr_of!({(*_self).gen_expr(value)})"
+            kain_core__ast__Expr::Deref(value, _) => f"(*{(*_self).gen_expr(value)})"
+            kain_core__ast__Expr::PtrOffset { pointer: pointer, offset: offset, element_ty: element_ty } =>
+                let ty = element_ty.map(fn(ty): (*_self).map_type(ty)).unwrap_or_else(fn(): ("u8").to_string())
+                f"(({(*_self).gen_expr(pointer)}) as *mut {ty}).wrapping_offset(({(*_self).gen_expr(offset)}) as isize)"
+            kain_core__ast__Expr::MemLoad { pointer: pointer, load_ty: load_ty } =>
+                let ty = load_ty.map(fn(ty): (*_self).map_type(ty)).unwrap_or_else(fn(): ("u8").to_string())
+                "unsafe { std::ptr::read(({(*_self).gen_expr(pointer)}) as *const {ty}) }"
+            kain_core__ast__Expr::MemStore { pointer: pointer, value: value, store_ty: store_ty } =>
+                let ty = store_ty.map(fn(ty): (*_self).map_type(ty)).unwrap_or_else(fn(): ("u8").to_string())
+                "unsafe { std::ptr::write(({(*_self).gen_expr(pointer)}) as *mut {ty}, {(*_self).gen_expr(value)}) }"
+            kain_core__ast__Expr::SizeOfType { target: target } => f"size_of::<{(*_self).map_type(target)}>() as i64"
+            kain_core__ast__Expr::AlignOfType { target: target } => f"std::mem::align_of::<{(*_self).map_type(target)}>() as i64"
+            kain_core__ast__Expr::Alloca { ty: ty } => "Box::into_raw(Box::new(unsafe { std::mem::MaybeUninit::<{(*_self).map_type(ty)}>::zeroed().assume_init() }))"
+            kain_core__ast__Expr::Uninit { ty: ty } => "unsafe { std::mem::MaybeUninit::<{(*_self).map_type(ty)}>::uninit().assume_init() }"
+            kain_core__ast__Expr::Alloc { size: size, ty: ty, zeroed: zeroed } =>
+                let pointee = ty.map(fn(ty): (*_self).map_type(ty)).unwrap_or_else(fn(): ("u8").to_string())
+                f"__kain_alloc_bytes(({(*_self).gen_expr(size)}) as usize, {zeroed}) as *mut {pointee}"
+            kain_core__ast__Expr::Realloc { pointer: pointer, size: size, ty: ty, zeroed_new: zeroed_new } =>
+                let pointee = ty.map(fn(ty): (*_self).map_type(ty)).unwrap_or_else(fn(): ("u8").to_string())
+                f"__kain_realloc_bytes(({(*_self).gen_expr(pointer)}) as *mut u8, ({(*_self).gen_expr(size)}) as usize, {zeroed_new}) as *mut {pointee}"
+            kain_core__ast__Expr::Cast { value: value, target: target } => f"(({(*_self).gen_expr(value)}) as {(*_self).map_type(target)})"
+            kain_core__ast__Expr::Try(value, _) => f"({(*_self).gen_expr(value)}?)"
+            kain_core__ast__Expr::Await(value, _) => f"({(*_self).gen_expr(value)}.await)"
+            kain_core__ast__Expr::AsyncBlock(value, _) =>
+                match value:
+                    kain_core__ast__Expr::Block(block, _) => f"async {(*_self).gen_block_expr(block)}"
+                    _ => "async { {(*_self).gen_expr(value)} }"
+            kain_core__ast__Expr::Spawn { actor_: actor_, init: init } =>
+                let init_fields: Array<String> = init.iter().map(fn(__kain_closure_arg12): f"{__kain_closure_arg12.__kain_tuple_0}: {(*_self).gen_expr(__kain_closure_arg12.__kain_tuple_1)}").collect()
+                "{actor_} { {init_fields.join(\", \")} }"
+            kain_core__ast__Expr::SendMsg { target: target, message: message, data: data } =>
+                let data_expr = if data.is_empty():
+                    ("()").to_string()
+                else:
+                    let fields: Array<String> = data.iter().map(fn(__kain_closure_arg13): f"{__kain_closure_arg13.__kain_tuple_0}: {(*_self).gen_expr(__kain_closure_arg13.__kain_tuple_1)}").collect()
+                    "{ {fields.join(\", \")} }"
+                "{ let _target = {(*_self).gen_expr(target)}; let _message = \"{message}\"; let _data = {data_expr}; () }"
+            kain_core__ast__Expr::Comptime(expr, _) => (*_self).gen_expr(expr)
+            kain_core__ast__Expr::Block(block, _) => (*_self).gen_block_expr(block)
+            kain_core__ast__Expr::JSX(node, _) => (*_self).gen_jsx(node)
+            kain_core__ast__Expr::Paren(expr, _) => f"({(*_self).gen_expr(expr)})"
+            kain_core__ast__Expr::Return(expr, _) => (*expr).map(fn(expr): f"return {(*_self).gen_expr(expr)}").unwrap_or_else(fn(): ("return").to_string())
+            kain_core__ast__Expr::Break(expr, _) => (*expr).map(fn(expr): f"break {(*_self).gen_expr(expr)}").unwrap_or_else(fn(): ("break").to_string())
+            kain_core__ast__Expr::Continue(_) => ("continue").to_string()
+
+    fn gen_jsx_attr_value_expr(_self: &RustGen, value: &kain_core::ast::JSXAttrValue) -> String:
+        match value:
+            kain_core__ast__JSXAttrValue::String(value) => f"\"{(*_self).escape_string(value)}\".to_string()"
+            kain_core__ast__JSXAttrValue::Expr(expr) => (*_self).gen_expr(expr)
+            kain_core__ast__JSXAttrValue::Bool(value) => value.to_string()
+
+    fn gen_jsx_children_expr(_self: &RustGen, children: &[kain_core::ast::JSXNode]) -> String:
+        if children.is_empty():
+            ("String::new()").to_string()
+        else:
+            let child_strs: Array<String> = children.iter().map(fn(child): (*_self).gen_jsx(child)).collect()
+            "vec![{child_strs.join(\", \")}].join(\"\")"
+
+    fn gen_jsx(_self: &RustGen, node: &kain_core::ast::JSXNode) -> String:
+        match node:
+            kain_core__ast__JSXNode::Text(text, _) => f"\"{(*_self).escape_string(text)}\".to_string()"
+            kain_core__ast__JSXNode::Expression(expr) => "format!(\"{}\", {(*_self).gen_expr(expr)})"
+            kain_core__ast__JSXNode::Fragment(children, _) => (*_self).gen_jsx_children_expr(children)
+            kain_core__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>
+                let attr_strs: Array<String> = attributes.iter().map(fn(attr): none).collect()
+                let attrs_expr = if attr_strs.is_empty():
+                    ("String::new()").to_string()
+                else:
+                    "vec![{attr_strs.join(\", \")}].join(\"\")"
+                let children_expr = (*_self).gen_jsx_children_expr(children)
+                "format!(\"<{tag}{}{}</{tag}>\", {attrs_expr}, {children_expr})"
+            kain_core__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>
+                let props_name = (*_self).component_props_name(name)
+                let mut field_strs: Array<String> = props.iter().map(fn(prop): f"{prop.name}: {(*_self).gen_jsx_attr_value_expr(&prop.value)}").collect()
+                field_strs.push(f"children: {(*_self).gen_jsx_children_expr(children)}")
+                ()
+                "{name}({props_name} { {field_strs.join(\", \")} })"
+            kain_core__ast__JSXNode::For { binding: binding, iter: iter, body: body } => f"({(*_self).gen_expr(iter)}).into_iter().map(|{binding}| {(*_self).gen_jsx(body)}).collect::<Vec<String>>().join(\"\")"
+            kain_core__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                let else_expr = else_branch.map(fn(branch): (*_self).gen_jsx(branch)).unwrap_or_else(fn(): ("String::new()").to_string())
+                "if {(*_self).gen_expr(condition)} { {(*_self).gen_jsx(then_branch)} } else { {else_expr} }"
+
+    fn gen_match_expr(_self: &RustGen, scrutinee: &kain_core::ast::Expr, arms: &[kain_core::ast::MatchArm], statement_context: Bool) -> String:
+        let enum_hint = (*_self).enum_hint_for_expr(scrutinee)
+        let mut arm_bodies: Array<String> = arms.iter().map(fn(arm): (*_self).gen_expr(&arm.body)).collect()
+        let prefers_string = arm_bodies.iter().any(fn(body): body.contains(".to_string()"))
+        if prefers_string:
+            for body in &mut arm_bodies:
+                if body.ends_with(".as_str()"):
+                    (*body) = f"{body}.to_string()"
+                    ()
+            ()
+            ()
+        if statement_context:
+            for body in &mut arm_bodies:
+                (*body) = (*_self).coerce_statement_placeholder(body)
+                ()
+            ()
+            ()
+        let arm_strs: Array<String> = arms.iter().zip(arm_bodies.iter()).map(fn(__kain_closure_arg14): none).collect()
+        "match {(*_self).gen_expr(scrutinee)} { {arm_strs.join(\", \")} }"
+
+    fn gen_pattern(_self: &RustGen, pattern: &kain_core::ast::Pattern) -> String:
+        (*_self).gen_pattern_with_hint(pattern, none)
+
+    fn gen_pattern_with_hint(_self: &RustGen, pattern: &kain_core::ast::Pattern, enum_hint: Option<String>) -> String:
+        match pattern:
+            kain_core__ast__Pattern::Wildcard(_) => ("_").to_string()
+            kain_core__ast__Pattern::Literal(expr) => (*_self).gen_pattern_literal(expr)
+            kain_core__ast__Pattern::Binding { name: name, mutable_: mutable_ } => if (*mutable_): f"mut {sanitize_emitted_identifier(name)}" else: sanitize_emitted_identifier(name)
+            kain_core__ast__Pattern::Struct { name: name, fields: fields, rest: rest } =>
+                let mut field_strs: Array<String> = fields.iter().map(fn(__kain_closure_arg15): f"{sanitize_emitted_identifier(__kain_closure_arg15.__kain_tuple_0)}: {(*_self).gen_pattern_with_hint(__kain_closure_arg15.__kain_tuple_1, none)}").collect()
+                if ((*rest) || (!fields.is_empty())):
+                    field_strs.push(("..").to_string())
+                    ()
+                    ()
+                    ()
+                    ()
+                "{(*_self).normalize_runtime_path(name)} { {field_strs.join(\", \")} }"
+            kain_core__ast__Pattern::Tuple(patterns, _) =>
+                let parts: Array<String> = patterns.iter().map(fn(pat): (*_self).gen_pattern_with_hint(pat, none)).collect()
+                if (parts.len() == 1):
+                    f"({parts[0]},)"
+                else:
+                    "({parts.join(\", \")})"
+            kain_core__ast__Pattern::Variant { enum_name: enum_name, variant: variant, fields: fields } =>
+                let head = (*_self).normalize_variant_head(enum_name, variant, enum_hint)
+                match fields:
+                    kain_core__ast__VariantPatternFields::Unit => head
+                    kain_core__ast__VariantPatternFields::Tuple(patterns) =>
+                        let parts: Array<String> = patterns.iter().map(fn(pat): (*_self).gen_pattern_with_hint(pat, none)).collect()
+                        "{head}({parts.join(\", \")})"
+                    kain_core__ast__VariantPatternFields::Struct(fields) =>
+                        let mut parts: Array<String> = fields.iter().map(fn(__kain_closure_arg16): f"{__kain_closure_arg16.__kain_tuple_0}: {(*_self).gen_pattern_with_hint(__kain_closure_arg16.__kain_tuple_1, none)}").collect()
+                        parts.push(("..").to_string())
+                        ()
+                        "{head} { {parts.join(\", \")} }"
+            kain_core__ast__Pattern::Slice { patterns: patterns, rest: rest } =>
+                let mut parts: Array<String> = patterns.iter().map(fn(pat): (*_self).gen_pattern_with_hint(pat, none)).collect()
+                match rest:
+                    Some(rest_name) =>
+                        parts.push(f"{rest_name} @ ..")
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                "[{parts.join(\", \")}]"
+            kain_core__ast__Pattern::Or(patterns, _) => patterns.iter().map(fn(pat): (*_self).gen_pattern_with_hint(pat, enum_hint)).collect().join(" | ")
+            kain_core__ast__Pattern::Range { start: start, end: end, inclusive: inclusive } =>
+                let start = start.map(fn(value): (*_self).gen_pattern_literal(value)).unwrap_or_default()
+                let end = end.map(fn(value): (*_self).gen_pattern_literal(value)).unwrap_or_default()
+                if (*inclusive):
+                    f"{start}..={end}"
+                else:
+                    f"{start}..{end}"
+
+    fn collect_binding_types(_self: &RustGen, func: &kain_core::ast::Function) -> Map<String, String>:
+        (*func).params.iter().filter_map(fn(param): (*_self).extract_named_type_name(&param.ty).map(fn(name): (param.name.clone(), name))).collect()
+
+    fn current_self_type(_self: &RustGen) -> Option<String>:
+        (*_self).self_type_stack.last().map(String__as_str)
+
+    fn current_impl_target(_self: &RustGen) -> Option<String>:
+        (*_self).impl_target_stack.last().cloned()
+
+    fn current_function_name(_self: &RustGen) -> Option<String>:
+        (*_self).current_function_stack.last().map(String__as_str)
+
+    fn current_impl_trait(_self: &RustGen) -> Option<String>:
+        (*_self).impl_trait_stack.last().and_then(fn(value): value)
+
+    fn is_selfhost_empty_block(_self: &RustGen, block: &kain_core::ast::Block) -> Bool:
+        match (*block).stmts.as_slice():
+            [kain_core__ast__Stmt::Let { pattern: kain_core__ast__Pattern::Binding { name: name }, value: Some(kain_core__ast__Expr::None(_)) }] if (name == "__selfhost_empty") => true
+            _ => false
+
+    fn extract_named_type_name(_self: &RustGen, ty: &kain_core::ast::Type) -> Option<String>:
+        match ty:
+            kain_core__ast__Type::Named { name: name } => Option::Some(name.clone())
+            kain_core__ast__Type::Ref { inner: inner } => (*_self).extract_named_type_name(inner)
+            _ => none
+
+    fn enum_hint_for_expr(_self: &RustGen, expr: &kain_core::ast::Expr) -> Option<String>:
+        let kain_core__ast__Expr::Ident(name, _) = expr
+        (*_self).binding_type_stack.iter().rev().find_map(fn(scope): scope.get(name).cloned())
+
+    fn collect_mutated_bindings_in_block(_self: &RustGen, block: &kain_core::ast::Block) -> Set<String>:
+        let mut names = HashSet__new_()
+        (*_self).collect_mutated_bindings_in_stmts(&(*block).stmts, &mut names)
+        ()
+        names
+
+    fn collect_mutated_bindings_in_stmts(_self: &RustGen, stmts: &[kain_core::ast::Stmt], names: &mut Set<String>):
+        for stmt in stmts:
+            match stmt:
+                kain_core__ast__Stmt::Let { value: value } =>
+                    match value:
+                        Some(value) =>
+                            (*_self).collect_mutated_bindings_in_expr(value, names)
+                            ()
+                        _ => ()
+                kain_core__ast__Stmt::Expr(expr) => (*_self).collect_mutated_bindings_in_expr(expr, names)
+                kain_core__ast__Stmt::Return(value, _) =>
+                    match value:
+                        Some(value) =>
+                            (*_self).collect_mutated_bindings_in_expr(value, names)
+                            ()
+                        _ => ()
+                kain_core__ast__Stmt::Break(value, _) =>
+                    match value:
+                        Some(value) =>
+                            (*_self).collect_mutated_bindings_in_expr(value, names)
+                            ()
+                        _ => ()
+                kain_core__ast__Stmt::For { iter: iter, body: body } =>
+                    (*_self).collect_mutated_bindings_in_expr(iter, names)
+                    ()
+                    (*_self).collect_mutated_bindings_in_stmts(&body.stmts, names)
+                    ()
+                kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                    (*_self).collect_mutated_bindings_in_expr(condition, names)
+                    ()
+                    (*_self).collect_mutated_bindings_in_stmts(&body.stmts, names)
+                    ()
+                kain_core__ast__Stmt::Loop { body: body } => (*_self).collect_mutated_bindings_in_stmts(&body.stmts, names)
+                kain_core__ast__Stmt::Continue(_) => ()
+                kain_core__ast__Stmt::Item(_) => ()
+
+    fn collect_mutated_bindings_in_expr(_self: &RustGen, expr: &kain_core::ast::Expr, names: &mut Set<String>):
+        match expr:
+            kain_core__ast__Expr::Assign { target: target, value: value } =>
+                (*_self).record_assignment_target(target, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(value, names)
+                ()
+            kain_core__ast__Expr::Binary { left: left, right: right } =>
+                (*_self).collect_mutated_bindings_in_expr(left, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(right, names)
+                ()
+            kain_core__ast__Expr::Unary { operand: operand } => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Ref { value: operand } => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::AddrOf { value: operand } => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Deref(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Try(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Await(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::AsyncBlock(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Comptime(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Paren(operand, _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Return(Some(operand), _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Break(Some(operand), _) => (*_self).collect_mutated_bindings_in_expr(operand, names)
+            kain_core__ast__Expr::Call { callee: callee, args: args } =>
+                (*_self).collect_mutated_bindings_in_expr(callee, names)
+                ()
+                for arg in args:
+                    (*_self).collect_mutated_bindings_in_expr(&arg.value, names)
+                    ()
+            kain_core__ast__Expr::StageCall { args: args } =>
+                for arg in args:
+                    (*_self).collect_mutated_bindings_in_expr(&arg.value, names)
+                    ()
+            kain_core__ast__Expr::MethodCall { receiver: receiver, args: args } =>
+                (*_self).collect_mutated_bindings_in_expr(receiver, names)
+                ()
+                for arg in args:
+                    (*_self).collect_mutated_bindings_in_expr(&arg.value, names)
+                    ()
+            kain_core__ast__Expr::Field { object: object } => (*_self).collect_mutated_bindings_in_expr(object, names)
+            kain_core__ast__Expr::Index { object: object, index: index } =>
+                (*_self).collect_mutated_bindings_in_expr(object, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(index, names)
+                ()
+            kain_core__ast__Expr::Struct { fields: fields, rest: rest } =>
+                for selfhost_for_item in fields:
+                    let (_, value) = selfhost_for_item
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+                ()
+                match rest:
+                    Some(rest) =>
+                        (*_self).collect_mutated_bindings_in_expr(rest, names)
+                        ()
+                    _ => ()
+            kain_core__ast__Expr::AggregateInit { fields: fields } =>
+                for selfhost_for_item in fields:
+                    let (_, value) = selfhost_for_item
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::EnumVariant { fields: fields } =>
+                match fields:
+                    kain_core__ast__EnumVariantFields::Unit => ()
+                    kain_core__ast__EnumVariantFields::Tuple(values) =>
+                        for value in values:
+                            (*_self).collect_mutated_bindings_in_expr(value, names)
+                            ()
+                    kain_core__ast__EnumVariantFields::Struct(values) =>
+                        for selfhost_for_item in values:
+                            let (_, value) = selfhost_for_item
+                            (*_self).collect_mutated_bindings_in_expr(value, names)
+                            ()
+            kain_core__ast__Expr::Array(values, _) =>
+                for value in values:
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::Tuple(values, _) =>
+                for value in values:
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::FString(values, _) =>
+                for value in values:
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::Range { start: start, end: end } =>
+                match start:
+                    Some(start) =>
+                        (*_self).collect_mutated_bindings_in_expr(start, names)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match end:
+                    Some(end) =>
+                        (*_self).collect_mutated_bindings_in_expr(end, names)
+                        ()
+                    _ => ()
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                (*_self).collect_mutated_bindings_in_expr(condition, names)
+                ()
+                (*_self).collect_mutated_bindings_in_stmts(&then_branch.stmts, names)
+                ()
+                match else_branch:
+                    Some(else_branch) =>
+                        (*_self).collect_mutated_bindings_in_else_branch(else_branch, names)
+                        ()
+                    _ => ()
+            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms } =>
+                (*_self).collect_mutated_bindings_in_expr(scrutinee, names)
+                ()
+                for arm in arms:
+                    match &arm.guard:
+                        Some(guard) =>
+                            (*_self).collect_mutated_bindings_in_expr(guard, names)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    (*_self).collect_mutated_bindings_in_expr(&arm.body, names)
+                    ()
+            kain_core__ast__Expr::Lambda { body: body } => (*_self).collect_mutated_bindings_in_expr(body, names)
+            kain_core__ast__Expr::PtrOffset { pointer: pointer, offset: offset } =>
+                (*_self).collect_mutated_bindings_in_expr(pointer, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(offset, names)
+                ()
+            kain_core__ast__Expr::MemLoad { pointer: pointer } => (*_self).collect_mutated_bindings_in_expr(pointer, names)
+            kain_core__ast__Expr::MemStore { pointer: pointer, value: value } =>
+                (*_self).collect_mutated_bindings_in_expr(pointer, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(value, names)
+                ()
+            kain_core__ast__Expr::Alloc { size: size } => (*_self).collect_mutated_bindings_in_expr(size, names)
+            kain_core__ast__Expr::Realloc { pointer: pointer, size: size } =>
+                (*_self).collect_mutated_bindings_in_expr(pointer, names)
+                ()
+                (*_self).collect_mutated_bindings_in_expr(size, names)
+                ()
+            kain_core__ast__Expr::Cast { value: value } => (*_self).collect_mutated_bindings_in_expr(value, names)
+            kain_core__ast__Expr::Spawn { init: init } =>
+                for selfhost_for_item in init:
+                    let (_, value) = selfhost_for_item
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::SendMsg { data: init } =>
+                for selfhost_for_item in init:
+                    let (_, value) = selfhost_for_item
+                    (*_self).collect_mutated_bindings_in_expr(value, names)
+                    ()
+            kain_core__ast__Expr::Block(block, _) => (*_self).collect_mutated_bindings_in_stmts(&block.stmts, names)
+            kain_core__ast__Expr::JSX(_) => ()
+            kain_core__ast__Expr::Int(_, _) => ()
+            kain_core__ast__Expr::Float(_, _) => ()
+            kain_core__ast__Expr::String(_, _) => ()
+            kain_core__ast__Expr::Bool(_, _) => ()
+            kain_core__ast__Expr::None(_) => ()
+            kain_core__ast__Expr::Ident(_, _) => ()
+            kain_core__ast__Expr::MacroCall {  } => ()
+            kain_core__ast__Expr::SizeOfType {  } => ()
+            kain_core__ast__Expr::AlignOfType {  } => ()
+            kain_core__ast__Expr::Alloca {  } => ()
+            kain_core__ast__Expr::Uninit {  } => ()
+            kain_core__ast__Expr::Continue(_) => ()
+            kain_core__ast__Expr::Return(None, _) => ()
+            kain_core__ast__Expr::Break(None, _) => ()
+
+    fn collect_mutated_bindings_in_else_branch(_self: &RustGen, branch: &kain_core::ast::ElseBranch, names: &mut Set<String>):
+        match branch:
+            kain_core__ast__ElseBranch::Else(block) => (*_self).collect_mutated_bindings_in_stmts(&block.stmts, names)
+            kain_core__ast__ElseBranch::ElseIf(condition, block, next) =>
+                (*_self).collect_mutated_bindings_in_expr(condition, names)
+                ()
+                (*_self).collect_mutated_bindings_in_stmts(&block.stmts, names)
+                ()
+                match next:
+                    Some(next) =>
+                        (*_self).collect_mutated_bindings_in_else_branch(next, names)
+                        ()
+                    _ => ()
+
+    fn record_assignment_target(_self: &RustGen, expr: &kain_core::ast::Expr, names: &mut Set<String>):
+        match expr:
+            kain_core__ast__Expr::Ident(name, _) =>
+                names.insert(name.clone())
+                ()
+            kain_core__ast__Expr::Field { object: object } => (*_self).record_assignment_target(object, names)
+            kain_core__ast__Expr::Index { object: object } => (*_self).record_assignment_target(object, names)
+            kain_core__ast__Expr::Paren(inner, _) => (*_self).record_assignment_target(inner, names)
+            kain_core__ast__Expr::Deref(inner, _) => (*_self).record_assignment_target(inner, names)
+            _ => ()
+
+    fn gen_pattern_literal(_self: &RustGen, expr: &kain_core::ast::Expr) -> String:
+        match expr:
+            kain_core__ast__Expr::String(value, _) => f"\"{(*_self).escape_string(value)}\""
+            kain_core__ast__Expr::Int(value, _) => value.to_string()
+            kain_core__ast__Expr::Float(value, _) => value
+            kain_core__ast__Expr::Bool(value, _) => value.to_string()
+            kain_core__ast__Expr::None(_) => ("None").to_string()
+            kain_core__ast__Expr::Ident(name, _) => (*_self).normalize_runtime_path(name)
+            kain_core__ast__Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields } =>
+                match fields:
+                    kain_core__ast__EnumVariantFields::Unit => (*_self).normalize_variant_head(Option::Some(enum_name), variant, none)
+                    kain_core__ast__EnumVariantFields::Tuple(values) =>
+                        let parts: Array<String> = values.iter().map(fn(value): (*_self).gen_pattern_literal(value)).collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)}({parts.join(\", \")})"
+                    kain_core__ast__EnumVariantFields::Struct(values) =>
+                        let parts: Array<String> = values.iter().map(fn(__kain_closure_arg17): f"{sanitize_emitted_identifier(__kain_closure_arg17.__kain_tuple_0)}: {(*_self).gen_pattern_literal(__kain_closure_arg17.__kain_tuple_1)}").collect()
+                        "{(*_self).normalize_variant_head(Option::Some(enum_name), variant, none)} { {parts.join(\", \")} }"
+            kain_core__ast__Expr::Paren(inner, _) => f"({(*_self).gen_pattern_literal(inner)})"
+            _ => (*_self).gen_expr(expr)
+
+    fn rust_function_name(_self: &RustGen, name: String) -> String:
+        name.split("::").filter(fn(segment): (!segment.is_empty())).map(sanitize_emitted_identifier).collect().join("__")
+
+    fn rust_method_name(_self: &RustGen, name: String) -> String:
+        let mut emitted = (*_self).rust_function_name(name)
+        match (*_self).current_impl_target():
+            Some(target) =>
+                for prefix in [f"{target}__", f"{target}_"]:
+                    match emitted.strip_prefix(&prefix):
+                        Some(stripped) =>
+                            emitted = stripped.to_string()
+                            ()
+                            break
+                        _ => ()
+                ()
+                if emitted.ends_with("_fmt"):
+                    return ("fmt_impl").to_string()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).current_impl_trait():
+            Some(trait_name) =>
+                match trait_name:
+                    _ if ((*_self).trait_name_matches(trait_name, "Display") && emitted.ends_with("_fmt")) => return ("fmt").to_string()
+                    _ if ((*_self).trait_name_matches(trait_name, "Default") && (((emitted.ends_with("_default") || (emitted == "default")) || (emitted == "default_")))) => return ("default").to_string()
+                    _ => ()
+                ()
+            _ =>
+                ()
+                ()
+        if ((*_self).current_impl_target().is_some() || (*_self).current_impl_trait().is_some()):
+            (*_self).normalize_runtime_method(&emitted)
+        else:
+            emitted
+
+    fn map_trait_name(_self: &RustGen, name: String) -> String:
+        match name:
+            "Display" => ("std::fmt::Display").to_string()
+            "Debug" => ("std::fmt::Debug").to_string()
+            _ => (*_self).normalize_runtime_path(name)
+
+    fn trait_name_matches(_self: &RustGen, trait_name: String, target: String) -> Bool:
+        ((trait_name == target) || trait_name.ends_with(&f"::{target}"))
+
+    fn normalize_runtime_head_segment(_self: &RustGen, segment: String) -> String:
+        let normalized = desanitize_kain_identifier(segment)
+        if RUST_PATH_ROOT_SEGMENTS.contains(&normalized.as_str()):
+            normalized
+        else:
+            (*_self).map_named_type(&normalized)
+
+    fn normalize_runtime_path(_self: &RustGen, path: String) -> String:
+        const STRIP_COLON_PREFIXES: Array<String> = ["crate::runtime::", "crate::ui::", "crate::ast::", "crate::error::", "crate::effects::", "crate::types::", "crate::lexer::", "crate::diagnostic_registry::", "crate::diagnostics::", "crate::parser::", "crate::span::", "crate::language_features::", "crate::low_level_abi::", "crate::low_level_memory::", "crate::low_level_memory_metadata::", "crate::monomorphize::", "crate::stdlib::", "crate::comptime::", "crate::asm_ir::", "crate::tokio::runtime::", "runtime::", "ui::", "ast::", "error::", "effects::", "types::", "lexer::", "diagnostic_registry::", "diagnostics::", "parser::", "span::", "language_features::", "low_level_abi::", "low_level_memory::", "low_level_memory_metadata::", "monomorphize::", "stdlib::", "comptime::", "asm_ir::", "tokio::runtime::"]
+
+        const STRIP_DUNDER_PREFIXES: Array<String> = ["crate__runtime__", "crate__ui__", "crate__ast__", "crate__error__", "crate__effects__", "crate__types__", "crate__lexer__", "crate__diagnostic_registry__", "crate__diagnostics__", "crate__parser__", "crate__span__", "crate__language_features__", "crate__low_level_abi__", "crate__low_level_memory__", "crate__low_level_memory_metadata__", "crate__monomorphize__", "crate__stdlib__", "crate__comptime__", "crate__asm_ir__", "crate__tokio__runtime__", "runtime__", "ui__", "ast__", "error__", "effects__", "types__", "lexer__", "diagnostic_registry__", "diagnostics__", "parser__", "span__", "language_features__", "low_level_abi__", "low_level_memory__", "low_level_memory_metadata__", "monomorphize__", "stdlib__", "comptime__", "asm_ir__", "tokio__runtime__"]
+
+        if ((path == "_self") || (path == "self")):
+            if (*_self).current_self_type().is_none():
+                match (*_self).free_self_alias_stack.last():
+                    Some(Some(alias)) => return alias.clone()
+                    _ =>
+                        ()
+                        ()
+                ()
+            return ("self").to_string()
+        match (*_self).current_self_type():
+            Some(self_ty) =>
+                if ((path == "Self_") || (path == "Self")):
+                    return self_ty.to_string()
+                match path.strip_prefix("Self::"):
+                    Some(rest) => return f"{self_ty}::{rest}"
+                    _ =>
+                        ()
+                        ()
+                match path.strip_prefix("Self_::"):
+                    Some(rest) => return f"{self_ty}::{rest}"
+                    _ =>
+                        ()
+                        ()
+                match path.strip_prefix("Self___"):
+                    Some(rest) => return f"{self_ty}::{(*_self).normalize_runtime_segment(rest, true)}"
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        let mut normalized = path
+        if (normalized.contains("__") && normalized.contains("::")):
+            let canonical = normalized.replace("__", "::")
+            if (canonical != normalized):
+                return (*_self).normalize_runtime_path(&canonical)
+            ()
+        if (!(*_self).has_modules):
+            for prefix in STRIP_COLON_PREFIXES:
+                match normalized.strip_prefix(prefix):
+                    Some(rest) =>
+                        normalized = rest
+                        ()
+                        break
+                    _ => ()
+            ()
+            for prefix in STRIP_DUNDER_PREFIXES:
+                match normalized.strip_prefix(prefix):
+                    Some(rest) =>
+                        normalized = rest
+                        ()
+                        break
+                    _ => ()
+            ()
+            ()
+        if (normalized == "Self_"):
+            return ("Self").to_string()
+        if ((!(*_self).has_modules) && normalized.starts_with("crate::")):
+            normalized = normalized.trim_start_matches("crate::")
+            ()
+            ()
+            ()
+            ()
+        if normalized.starts_with("__kain_"):
+            return normalized.to_string()
+        if normalized.contains("::"):
+            let segments = normalized.split("::").filter(fn(segment): (!segment.is_empty())).collect()
+            match segments.split_first():
+                Some((first, rest)) =>
+                    let mapped = (*_self).normalize_runtime_head_segment(first)
+                    let rest = rest.iter().map(fn(segment): (*_self).normalize_runtime_segment(segment, true)).collect()
+                    return if rest.is_empty(): mapped else: "{mapped}::{rest.join(\"::\")}"
+                _ =>
+                    ()
+                    ()
+            ()
+        if (!normalized.contains("__")):
+            return (*_self).normalize_runtime_head_segment(normalized)
+        let segments = split_sanitized_dunder_path(normalized).into_iter().filter(fn(segment): (!segment.is_empty())).collect()
+        match segments.split_first():
+            Some((first, rest)) =>
+                let mapped = (*_self).normalize_runtime_head_segment(first)
+                let rest = rest.iter().map(fn(segment): (*_self).normalize_runtime_segment(segment, true)).collect()
+                return if rest.is_empty(): mapped else: "{mapped}::{rest.join(\"::\")}"
+            _ =>
+                ()
+                ()
+        String__new_()
+
+    fn normalize_runtime_segment(_self: &RustGen, segment: String, terminal: Bool) -> String:
+        let normalized = if terminal:
+            if (segment.starts_with("_") && segment.chars().nth(1).is_some_and(fn(ch): ch.is_ascii_uppercase())):
+                segment.trim_start_matches("_").to_string()
+            else:
+                match segment:
+                    "new_" => ("new").to_string()
+                    "default_" => ("default").to_string()
+                    "var_" => ("var").to_string()
+                    "spawn_" => ("spawn").to_string()
+                    _ => segment.to_string()
+        else:
+            segment.to_string()
+        sanitize_emitted_identifier(&normalized)
+
+    fn normalize_runtime_method(_self: &RustGen, method: String) -> String:
+        if (method.starts_with("_") && method.chars().nth(1).is_some_and(fn(ch): ch.is_ascii_uppercase())):
+            return method.trim_start_matches("_").to_string()
+        let normalized = match method:
+            "send_" => ("send").to_string()
+            "spawn_" => ("spawn").to_string()
+            "or_" => ("or").to_string()
+            "with_" => ("with").to_string()
+            "new_" => ("new").to_string()
+            "default_" => ("default").to_string()
+            "var_" => ("var").to_string()
+            _ => desanitize_kain_identifier(method)
+        sanitize_rust_identifier(&normalized)
+
+    fn render_interpolated_string(_self: &RustGen, parts: &[kain_core::ast::Expr]) -> String:
+        if parts.is_empty():
+            return ("String::new()").to_string()
+        let mut lines = (fn(__kain_ctor_arg0): Vec__new_())((parts.len() + 4))
+        lines.push(("{").to_string())
+        ()
+        lines.push(("let mut __kain_fstr = String::new();").to_string())
+        ()
+        for part in parts:
+            match part:
+                kain_core__ast__Expr::String(value, _) =>
+                    lines.push(f"__kain_fstr.push_str({value});")
+                    ()
+                expr =>
+                    lines.push("__kain_fstr.push_str(&format!(\"{}\", {(*_self).gen_expr(expr)}));")
+                    ()
+        ()
+        lines.push(("__kain_fstr").to_string())
+        ()
+        lines.push(("}").to_string())
+        ()
+        lines.join(" ")
+
+    fn current_return_struct(_self: &RustGen) -> Option<String>:
+        (*_self).current_return_struct_stack.last().and_then(fn(value): value)
+
+    fn normalize_variant_head(_self: &RustGen, enum_name: Option<String>, variant: String, enum_hint: Option<String>) -> String:
+        match enum_name:
+            Some(enum_name) =>
+                if ((enum_name == "Self_") || (enum_name == "Self")):
+                    match enum_hint:
+                        Some(enum_hint) => return f"{(*_self).normalize_runtime_path(enum_hint)}::{(*_self).normalize_runtime_method(variant)}"
+                        _ =>
+                            ()
+                            ()
+                    match (*_self).current_self_type():
+                        Some(self_ty) => return f"{(*_self).normalize_runtime_path(self_ty)}::{(*_self).normalize_runtime_method(variant)}"
+                        _ =>
+                            ()
+                            ()
+                    ()
+                return f"{(*_self).normalize_runtime_path(enum_name)}::{(*_self).normalize_runtime_method(variant)}"
+            _ =>
+                ()
+                ()
+        if variant.contains("__"):
+            let mut parts = variant.split("__").filter(fn(segment): (!segment.is_empty())).collect()
+            match parts.pop():
+                Some(last) =>
+                    let mut head = parts.join("::")
+                    if ((((head == "Self") || (head == "Self_"))) && enum_hint.is_some()):
+                        head = (*_self).normalize_runtime_path(enum_hint.unwrap())
+                        ()
+                        ()
+                        ()
+                        ()
+                    elif ((head == "Self") || (head == "Self_")):
+                        match (*_self).current_self_type():
+                            Some(self_ty) =>
+                                head = (*_self).normalize_runtime_path(self_ty)
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    if (!head.is_empty()):
+                        return f"{head}::{(*_self).normalize_runtime_method(last)}"
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        match enum_hint:
+            Some(enum_hint) => return f"{(*_self).normalize_runtime_path(enum_hint)}::{(*_self).normalize_runtime_method(variant)}"
+            _ =>
+                ()
+                ()
+        (*_self).normalize_runtime_method(variant)
+
+    fn coerce_statement_placeholder(_self: &RustGen, body: String) -> String:
+        if (body == "None"):
+            return ("()").to_string()
+        if (body.trim() == "{ None }"):
+            return ("{ () }").to_string()
+        body.replace(" else { None }", " else { () }")
+
+    fn coerce_placeholder_branches(_self: &RustGen, then_expr: String, else_expr: String):
+        let then_snapshot = then_expr.clone()
+        let else_snapshot = else_expr.clone()
+        match (*_self).replace_placeholder_expr(then_expr, &else_snapshot):
+            Some(preserved) =>
+                (*then_expr) = preserved
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).replace_placeholder_expr(else_expr, &then_snapshot):
+            Some(preserved) =>
+                (*else_expr) = preserved
+                ()
+            _ => ()
+
+    fn replace_placeholder_expr(_self: &RustGen, candidate: String, other: String) -> Option<String>:
+        let trimmed = candidate.trim()
+        if (trimmed == "None"):
+            return Option::Some((*_self).placeholder_for_peer_branch(other))
+        if (trimmed == "{ None }"):
+            return Option::Some("{ {(*_self).placeholder_for_peer_branch(other)} }")
+        none
+
+    fn placeholder_for_peer_branch(_self: &RustGen, other: String) -> String:
+        let other = other.trim()
+        if other.contains("VNode::"):
+            if ((*_self).current_function_name() == Option::Some("reconcile")):
+                return ("next.clone()").to_string()
+            return ("VNode::Fragment(Vec::new())").to_string()
+        if (((other == "()") || (other == "{ () }")) || other.contains("return ")):
+            return ("()").to_string()
+        if (other.starts_with("Some(") || (other == "None")):
+            return ("None").to_string()
+        ("None").to_string()
+
+    fn map_type(_self: &RustGen, ty: &kain_core::ast::Type) -> String:
+        (*_self).map_type_in_context(ty, none, false)
+
+    fn sanitize_lifetime_name(_self: &RustGen, lifetime: String) -> String:
+        let normalized = lifetime.trim_start_matches("'")
+        if ((normalized == "static") || (normalized == "_")):
+            normalized.to_string()
+        else:
+            sanitize_rust_identifier(normalized)
+
+    fn render_field_accessor(_self: &RustGen, field: String) -> String:
+        match tuple_field_marker_index(field):
+            Some(index) => index.to_string()
+            _ => sanitize_emitted_identifier(field)
+
+    fn render_ref_lifetime(_self: &RustGen, lifetime: Option<String>) -> String:
+        lifetime.map(fn(name): f"'{(*_self).sanitize_lifetime_name(name)} ").unwrap_or_default()
+
+    fn lifetime_generic_arg_name(_self: &RustGen, ty: &kain_core::ast::Type) -> Option<String>:
+        let kain_core__ast__Type::Named { name: name, generics: generics } = ty
+        if (!generics.is_empty()):
+            return none
+        let leaf = name.rsplit("::").next().unwrap_or(name)
+        (((((leaf == "_") || (leaf == "static"))) || (((((*_self).current_generic_lifetimes().contains(name) || (*_self).current_generic_lifetimes().contains(leaf))) && (*_self).looks_like_lifetime_name(leaf))))).then(fn(): leaf.to_string())
+
+    fn map_generic_arg_in_context(_self: &RustGen, ty: &kain_core::ast::Type, current_self: Option<String>, recursive_slot: Bool) -> String:
+        match (*_self).lifetime_generic_arg_name(ty):
+            Some(lifetime_name) => f"'{(*_self).sanitize_lifetime_name(&lifetime_name)}"
+            _ => (*_self).map_type_in_context(ty, current_self, recursive_slot)
+
+    fn map_storage_type(_self: &RustGen, ty: &kain_core::ast::Type, current_self: Option<String>) -> String:
+        (*_self).map_owned_type_in_context(ty, current_self, true)
+
+    fn map_return_type(_self: &RustGen, ty: &kain_core::ast::Type, current_self: Option<String>) -> String:
+        (*_self).map_type_in_context(ty, current_self, false)
+
+    fn map_owned_type_in_context(_self: &RustGen, ty: &kain_core::ast::Type, current_self: Option<String>, recursive_slot: Bool) -> String:
+        match ty:
+            kain_core__ast__Type::Named { name: name, generics: generics } =>
+                let rust_name = (*_self).normalize_type_name(name, current_self)
+                if (recursive_slot && current_self.is_some_and(fn(self_name): (rust_name == self_name))):
+                    return f"Box<{rust_name}>"
+                if generics.is_empty():
+                    rust_name
+                else:
+                    let gen_strs: Array<String> = generics.iter().map(fn(g): (*_self).map_generic_arg_in_context(g, current_self, false)).collect()
+                    "{rust_name}<{gen_strs.join(\", \")}>"
+            kain_core__ast__Type::Ref { inner: inner } => (*_self).map_owned_type_in_context(inner, current_self, false)
+            kain_core__ast__Type::Tuple(types, _) =>
+                let type_strs: Array<String> = types.iter().map(fn(t): (*_self).map_owned_type_in_context(t, current_self, true)).collect()
+                if (type_strs.len() == 1):
+                    f"({type_strs[0]},)"
+                else:
+                    "({type_strs.join(\", \")})"
+            kain_core__ast__Type::Array(inner, size, _) => f"[{(*_self).map_owned_type_in_context(inner, current_self, true)}; {size}]"
+            kain_core__ast__Type::Slice(inner, _) => f"Vec<{(*_self).map_owned_type_in_context(inner, current_self, true)}>"
+            kain_core__ast__Type::Function { params: params, return_type: return_type } =>
+                let param_strs: Array<String> = params.iter().map(fn(p): (*_self).map_owned_type_in_context(p, current_self, false)).collect()
+                "fn({param_strs.join(\", \")}) -> {(*_self).map_owned_type_in_context(return_type, current_self, false)}"
+            kain_core__ast__Type::Option(inner, _) => f"Option<{(*_self).map_owned_type_in_context(inner, current_self, true)}>"
+            kain_core__ast__Type::Result(ok, err, _) => f"Result<{(*_self).map_owned_type_in_context(ok, current_self, true)}, {(*_self).map_owned_type_in_context(err, current_self, true)}>"
+            _ => (*_self).map_type_in_context(ty, current_self, recursive_slot)
+
+    fn map_type_in_context(_self: &RustGen, ty: &kain_core::ast::Type, current_self: Option<String>, recursive_slot: Bool) -> String:
+        match ty:
+            kain_core__ast__Type::Named { name: name, generics: generics } =>
+                let rust_name = (*_self).normalize_type_name(name, current_self)
+                if (recursive_slot && current_self.is_some_and(fn(self_name): (rust_name == self_name))):
+                    return f"Box<{rust_name}>"
+                if generics.is_empty():
+                    rust_name
+                else:
+                    let gen_strs: Array<String> = generics.iter().map(fn(g): (*_self).map_generic_arg_in_context(g, current_self, false)).collect()
+                    "{rust_name}<{gen_strs.join(\", \")}>"
+            kain_core__ast__Type::Tuple(types, _) =>
+                let type_strs: Array<String> = types.iter().map(fn(t): (*_self).map_type_in_context(t, current_self, true)).collect()
+                if (type_strs.len() == 1):
+                    f"({type_strs[0]},)"
+                else:
+                    "({type_strs.join(\", \")})"
+            kain_core__ast__Type::Array(inner, size, _) => f"[{(*_self).map_type_in_context(inner, current_self, true)}; {size}]"
+            kain_core__ast__Type::Slice(inner, _) => f"[{(*_self).map_type_in_context(inner, current_self, true)}]"
+            kain_core__ast__Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime } =>
+                let lifetime = (*_self).render_ref_lifetime(lifetime)
+                if (*mutable_):
+                    f"&{lifetime}mut {(*_self).map_type_in_context(inner, current_self, false)}"
+                else:
+                    f"&{lifetime}{(*_self).map_type_in_context(inner, current_self, false)}"
+            kain_core__ast__Type::Ptr { mutable_: mutable_, inner: inner } => if (*mutable_): f"*mut {(*_self).map_type_in_context(inner, current_self, false)}" else: f"*const {(*_self).map_type_in_context(inner, current_self, false)}"
+            kain_core__ast__Type::Function { params: params, return_type: return_type } =>
+                let param_strs: Array<String> = params.iter().map(fn(p): (*_self).map_type_in_context(p, current_self, false)).collect()
+                "fn({param_strs.join(\", \")}) -> {(*_self).map_type_in_context(return_type, current_self, false)}"
+            kain_core__ast__Type::Option(inner, _) => f"Option<{(*_self).map_type_in_context(inner, current_self, true)}>"
+            kain_core__ast__Type::Result(ok, err, _) => f"Result<{(*_self).map_type_in_context(ok, current_self, true)}, {(*_self).map_type_in_context(err, current_self, true)}>"
+            kain_core__ast__Type::Infer(_) => ("_").to_string()
+            kain_core__ast__Type::Never(_) => ("!").to_string()
+            kain_core__ast__Type::Unit(_) => ("()").to_string()
+            kain_core__ast__Type::Impl { trait_name: trait_name, generics: generics } =>
+                if generics.is_empty():
+                    f"impl {trait_name}"
+                else:
+                    let gen_strs: Array<String> = generics.iter().map(fn(g): (*_self).map_generic_arg_in_context(g, current_self, false)).collect()
+                    "impl {trait_name}<{gen_strs.join(\", \")}>"
+
+    fn visibility_prefix(_self: &RustGen, visibility: kain_core::ast::Visibility) -> String:
+        match visibility:
+            kain_core__ast__Visibility::Public => "pub "
+            kain_core__ast__Visibility::Private => ""
+            kain_core__ast__Visibility::Crate => "pub(crate) "
+            kain_core__ast__Visibility::Super => "pub(super) "
+
+    fn function_modifiers(_self: &RustGen, effects: &[kain_core::effects::Effect]) -> String:
+        let mut parts = Vec__new_()
+        if effects.contains(&kain_core__effects__Effect__Async_):
+            parts.push("async")
+            ()
+            ()
+            ()
+            ()
+        if effects.contains(&kain_core__effects__Effect__Unsafe_):
+            parts.push("unsafe")
+            ()
+            ()
+            ()
+            ()
+        if parts.is_empty():
+            String__new_()
+        else:
+            "{parts.join(\" \")} "
+
+    fn map_named_type(_self: &RustGen, name: String) -> String:
+        let mapped = match name:
+            "Int" => ("i64").to_string()
+            "UInt" => ("u64").to_string()
+            "Int8" => ("i8").to_string()
+            "Int16" => ("i16").to_string()
+            "Int32" => ("i32").to_string()
+            "Int64" => ("i64").to_string()
+            "UInt8" => ("u8").to_string()
+            "UInt16" => ("u16").to_string()
+            "UInt32" => ("u32").to_string()
+            "UInt64" => ("u64").to_string()
+            "Float" => ("f64").to_string()
+            "Float32" => ("f32").to_string()
+            "Float64" => ("f64").to_string()
+            "Bool" => ("bool").to_string()
+            "String" => ("String").to_string()
+            "Char" => ("char").to_string()
+            "Unit" => ("()").to_string()
+            "Array" => ("Vec").to_string()
+            "Map" => ("std::collections::HashMap").to_string()
+            "Set" => ("std::collections::HashSet").to_string()
+            "Range" => ("std::ops::Range").to_string()
+            "Error" => ("crate::error::KainError").to_string()
+            "PathBuf" => ("std::path::PathBuf").to_string()
+            "Path" => ("std::path::Path").to_string()
+            "Formatter" => ("std::fmt::Formatter").to_string()
+            "Sender" => ("flume::Sender").to_string()
+            "Receiver" => ("flume::Receiver").to_string()
+            "Lazy" => ("once_cell::sync::Lazy").to_string()
+            "PyAny" => ("pyo3::PyAny").to_string()
+            "PyResult" => ("pyo3::PyResult").to_string()
+            "PyObject" => ("pyo3::PyObject").to_string()
+            "Python" => ("pyo3::Python").to_string()
+            _ => name.to_string()
+        sanitize_emitted_path(&mapped)
+
+    fn normalize_type_name(_self: &RustGen, name: String, current_self: Option<String>) -> String:
+        let raw = name.trim()
+        let mut leaf = raw.rsplit("::").next().unwrap_or(raw).trim()
+        match leaf.strip_prefix("&mut "):
+            Some(stripped) =>
+                leaf = stripped.trim()
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                match leaf.strip_prefix("&"):
+                    Some(stripped) =>
+                        leaf = stripped.trim()
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+        if ((leaf == "Self_") || (leaf == "Self")):
+            current_self.map(str__to_string).unwrap_or_else(fn(): ("Self").to_string())
+        elif raw.contains("::"):
+            sanitize_emitted_path(raw)
+        else:
+            (*_self).map_named_type(leaf)
+
+    fn inferred_self_type<a>(_self: &RustGen, fn_name: String) -> Option<String>:
+        let (prefix, _) = fn_name.split_once("_")?
+        if prefix.chars().next().is_some_and(fn(ch): ch.is_ascii_uppercase()):
+            Option::Some(prefix)
+        else:
+            none
+
+    fn register_symbol(_self: &mut RustGen, kind: String, name: String) -> Bool:
+        (*_self).emitted_symbols.insert(f"{kind}:{name}")
+
+    fn should_emit_function(_self: &RustGen, func: &kain_core::ast::Function) -> Bool:
+        let lower = (*func).name.to_ascii_lowercase()
+        if (((lower.starts_with("test_") || lower.ends_with("_test")) || lower.contains("_test_")) || lower.starts_with("create_test_")):
+            return false
+        (!(*func).attributes.iter().any(fn(attr): attr.name.eq_ignore_ascii_case("test")))
+
+    fn map_binop(_self: &RustGen, op: &kain_core::ast::BinaryOp) -> String:
+        match op:
+            kain_core__ast__BinaryOp::Add => "+"
+            kain_core__ast__BinaryOp::Sub => "-"
+            kain_core__ast__BinaryOp::Mul => "*"
+            kain_core__ast__BinaryOp::Div => "/"
+            kain_core__ast__BinaryOp::Mod => "%"
+            kain_core__ast__BinaryOp::Pow => ".pow"
+            kain_core__ast__BinaryOp::And => "&&"
+            kain_core__ast__BinaryOp::Or => "||"
+            kain_core__ast__BinaryOp::Eq => "=="
+            kain_core__ast__BinaryOp::Ne => "!="
+            kain_core__ast__BinaryOp::Lt => "<"
+            kain_core__ast__BinaryOp::Le => "<="
+            kain_core__ast__BinaryOp::Gt => ">"
+            kain_core__ast__BinaryOp::Ge => ">="
+            kain_core__ast__BinaryOp::BitAnd => "&"
+            kain_core__ast__BinaryOp::BitOr => "|"
+            kain_core__ast__BinaryOp::BitXor => "^"
+            kain_core__ast__BinaryOp::Shl => "<<"
+            kain_core__ast__BinaryOp::Shr => ">>"
+            kain_core__ast__BinaryOp::Assign => "="
+            kain_core__ast__BinaryOp::AddAssign => "+="
+            kain_core__ast__BinaryOp::SubAssign => "-="
+            kain_core__ast__BinaryOp::MulAssign => "*="
+            kain_core__ast__BinaryOp::DivAssign => "/="
+            kain_core__ast__BinaryOp::Range => ".."
+            kain_core__ast__BinaryOp::RangeInclusive => "..="
+
+    fn map_unaryop(_self: &RustGen, op: &kain_core::ast::UnaryOp) -> String:
+        match op:
+            kain_core__ast__UnaryOp::Not => "!"
+            kain_core__ast__UnaryOp::Neg => "-"
+            kain_core__ast__UnaryOp::Ref => "&"
+            kain_core__ast__UnaryOp::RefMut => "&mut "
+            kain_core__ast__UnaryOp::BitNot => "!"
+            kain_core__ast__UnaryOp::Deref => "*"
+
+    fn escape_string(_self: &RustGen, s: String) -> String:
+        let mut result = String__new_()
+        for c in s.chars():
+            match c:
+                "\n" => result.push_str("\\n")
+                "\t" => result.push_str("\\t")
+                "\\" => result.push_str("\\\\")
+                "\"" => result.push_str("\\\"")
+                _ => result.push(c)
+        ()
+        result
+
+
+@doc(doc = " Generate a Cargo.toml for the transpiled Rust project")
+pub fn gen_cargo_toml(name: String, deps: &[String]) -> String:
+    let mut sb = StringBuilder__new_()
+    sb.push_line("[package]")
+    ()
+    sb.push_line(&f"name = \"{name}\"")
+    ()
+    sb.push_line("version = \"0.1.0\"")
+    ()
+    sb.push_line("edition = \"2021\"")
+    ()
+    sb.push_line("")
+    ()
+    sb.push_line("# Generated by KAIN Compiler")
+    ()
+    sb.push_line("")
+    ()
+    sb.push_line("[dependencies]")
+    ()
+    for dep in deps:
+        sb.push_line(&f"{dep} = \"*\"")
+        ()
+    ()
+    sb.build()
+

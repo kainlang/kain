@@ -1,0 +1,40 @@
+use crate::ImportError
+
+use crate::Result
+
+use std::path::Path
+
+use swc_common::sync::Lrc
+
+use swc_common::FileName
+
+use swc_common::SourceMap
+
+use swc_ecma_ast::EsVersion
+
+use swc_ecma_ast::Module
+
+use swc_ecma_parser::lexer::Lexer
+
+use swc_ecma_parser::Parser
+
+use swc_ecma_parser::StringInput
+
+use swc_ecma_parser::Syntax
+
+use swc_ecma_parser::TsSyntax
+
+@doc(doc = " Parse a TypeScript source file into a SWC Module AST.")
+@doc(doc = "")
+@doc(doc = " This function:")
+@doc(doc = " 1. Creates a SWC SourceMap for error reporting")
+@doc(doc = " 2. Configures the parser for TypeScript syntax")
+@doc(doc = " 3. Parses the source into a Module AST")
+pub fn parse_typescript(source: String, path: &std::path::Path) -> Result<swc_ecma_ast::Module, Error>:
+    let cm: swc_common::sync::Lrc<swc_common::SourceMap> = Default__default_()
+    let fm = cm.new_source_file(Lrc__new_(swc_common__FileName::Real(path.to_path_buf())), source.to_string())
+    let syntax = swc_ecma_parser__Syntax::Typescript(swc_ecma_parser::TsSyntax { tsx: (path.extension().and_then(fn(e): e.to_str()) == Option::Some("tsx")), decorators: true, dts: false, no_early_errors: false, disallow_ambiguous_jsx_like: true })
+    let lexer = Lexer__new_(syntax, swc_ecma_ast__EsVersion__Es2022, StringInput__from(&(*fm)), none)
+    let mut parser = Parser__new_from(lexer)
+    parser.parse_module().map_err(fn(e): none)
+

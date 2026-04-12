@@ -1,0 +1,107 @@
+use kain_core::ast::Type
+
+use kain_core::effects::Effect
+
+use kain_core::span::Span
+
+use swc_ecma_ast as ts
+
+use crate::Result
+
+const PRIMITIVE_TYPE_MAP: Array<(swc_ecma_ast::TsKeywordTypeKind, String)> = [(swc_ecma_ast__TsKeywordTypeKind__TsNumberKeyword, "Float"), (swc_ecma_ast__TsKeywordTypeKind__TsStringKeyword, "String"), (swc_ecma_ast__TsKeywordTypeKind__TsBooleanKeyword, "Bool"), (swc_ecma_ast__TsKeywordTypeKind__TsBigIntKeyword, "Int")]
+
+const NULLISH_KINDS: Array<swc_ecma_ast::TsKeywordTypeKind> = [swc_ecma_ast__TsKeywordTypeKind__TsNullKeyword, swc_ecma_ast__TsKeywordTypeKind__TsUndefinedKeyword]
+
+pub struct TypeMapper:
+    __selfhost_placeholder: Bool = false
+
+impl TypeMapper:
+    pub fn new_() -> TypeMapper:
+        TypeMapper
+
+    pub fn map_type(_self: &TypeMapper, ts_type: &swc_ecma_ast::TsType, span: kain_core::span::Span) -> Result<kain_core::ast::Type, Error>:
+        let mapped = match ts_type:
+            swc_ecma_ast__TsType::TsKeywordType(keyword) => (*_self).map_keyword_type(keyword.kind, span)
+            swc_ecma_ast__TsType::TsTypeRef(type_ref) => (*_self).map_type_ref(type_ref, span)?
+            swc_ecma_ast__TsType::TsArrayType(array) => kain_core__ast__Type::Slice(Box__new_((*_self).map_type(&array.elem_type, span)?), span)
+            swc_ecma_ast__TsType::TsTupleType(tuple) => kain_core__ast__Type::Tuple(tuple.elem_types.iter().map(fn(elem): (*_self).map_type(&elem.ty, span)).collect()?, span)
+            swc_ecma_ast__TsType::TsUnionOrIntersectionType(union_or_intersection) => (*_self).map_union_or_intersection(union_or_intersection, span)?
+            swc_ecma_ast__TsType::TsOptionalType(optional) => kain_core__ast__Type::Option(Box__new_((*_self).map_type(&optional.type_ann, span)?), span)
+            swc_ecma_ast__TsType::TsFnOrConstructorType(function) => (*_self).map_function_type(function, span)?
+            swc_ecma_ast__TsType::TsParenthesizedType(paren) => (*_self).map_type(&paren.type_ann, span)?
+            swc_ecma_ast__TsType::TsLitType(lit) =>
+                match &lit.lit:
+                    swc_ecma_ast__TsLit::Number(_) => kain_core__ast__Type::Named { name: ("Float").to_string(), generics: Vec__new_(), span: span }
+                    swc_ecma_ast__TsLit::Str(_) => kain_core__ast__Type::Named { name: ("String").to_string(), generics: Vec__new_(), span: span }
+                    swc_ecma_ast__TsLit::Bool(_) => kain_core__ast__Type::Named { name: ("Bool").to_string(), generics: Vec__new_(), span: span }
+                    swc_ecma_ast__TsLit::BigInt(_) => kain_core__ast__Type::Named { name: ("Int").to_string(), generics: Vec__new_(), span: span }
+                    swc_ecma_ast__TsLit::Tpl(_) => kain_core__ast__Type::Named { name: ("String").to_string(), generics: Vec__new_(), span: span }
+            swc_ecma_ast__TsType::TsThisType(_) => kain_core__ast__Type::Named { name: ("Self").to_string(), generics: Vec__new_(), span: span }
+            _ => kain_core__ast__Type::Infer(span)
+        Result::Ok(mapped)
+
+    fn map_keyword_type(_self: &TypeMapper, kind: swc_ecma_ast::TsKeywordTypeKind, span: kain_core::span::Span) -> kain_core::ast::Type:
+        match PRIMITIVE_TYPE_MAP.iter().find(fn(__kain_closure_arg0): ((*__kain_closure_arg0.__kain_tuple_0) == kind)):
+            Some((_, name)) => return kain_core__ast__Type::Named { name: ((*name)).to_string(), generics: Vec__new_(), span: span }
+            _ =>
+                ()
+                ()
+        match kind:
+            swc_ecma_ast__TsKeywordTypeKind::TsVoidKeyword => kain_core__ast__Type::Unit(span)
+            swc_ecma_ast__TsKeywordTypeKind::TsNeverKeyword => kain_core__ast__Type::Never(span)
+            swc_ecma_ast__TsKeywordTypeKind::TsNullKeyword => kain_core__ast__Type::Option(Box__new_(kain_core__ast__Type::Infer(span)), span)
+            swc_ecma_ast__TsKeywordTypeKind::TsUndefinedKeyword => kain_core__ast__Type::Option(Box__new_(kain_core__ast__Type::Infer(span)), span)
+            _ => kain_core__ast__Type::Infer(span)
+
+    fn map_type_ref(_self: &TypeMapper, type_ref: &swc_ecma_ast::TsTypeRef, span: kain_core::span::Span) -> Result<kain_core::ast::Type, Error>:
+        let name = entity_name_to_string(&(*type_ref).type_name)
+        let generics = ((*type_ref).type_params.map(fn(params): params.params.iter().map(fn(param): (*_self).map_type(param, span)).collect()).transpose()?).unwrap_or_default()
+        match name.as_str():
+            "Array" if (generics.len() == 1) => Result::Ok(kain_core__ast__Type::Slice(Box__new_(generics[0].clone()), span))
+            "Promise" if (generics.len() == 1) => Result::Ok(kain_core__ast__Type::Impl { trait_name: ("Async").to_string(), generics: generics, span: span })
+            "ReadonlyArray" if (generics.len() == 1) => Result::Ok(kain_core__ast__Type::Slice(Box__new_(generics[0].clone()), span))
+            _ => Result::Ok(kain_core__ast__Type::Named { name: name, generics: generics, span: span })
+
+    fn map_union_or_intersection(_self: &TypeMapper, ty: &swc_ecma_ast::TsUnionOrIntersectionType, span: kain_core::span::Span) -> Result<kain_core::ast::Type, Error>:
+        match ty:
+            swc_ecma_ast__TsUnionOrIntersectionType::TsUnionType(union_) =>
+                let mut mapped = Vec__new_()
+                let mut non_nullish = Vec__new_()
+                for member in &union_.types:
+                    mapped.push((*_self).map_type(member, span)?)
+                    ()
+                    if (!is_nullish_type(member)):
+                        non_nullish.push(member)
+                        ()
+                ()
+                if ((non_nullish.len() == 1) && (union_.types.len() > 1)):
+                    return Result::Ok(kain_core__ast__Type::Option(Box__new_((*_self).map_type(non_nullish[0], span)?), span))
+                if mapped.iter().all(fn(ty): (ty == &mapped[0])):
+                    return Result::Ok(mapped[0].clone())
+                Result::Ok(kain_core__ast__Type::Infer(span))
+            swc_ecma_ast__TsUnionOrIntersectionType::TsIntersectionType(intersection) => if (intersection.types.len() == 1): (*_self).map_type(&intersection.types[0], span) else: Result::Ok(kain_core__ast__Type::Infer(span))
+
+    fn map_function_type(_self: &TypeMapper, function: &swc_ecma_ast::TsFnOrConstructorType, span: kain_core::span::Span) -> Result<kain_core::ast::Type, Error>:
+        match function:
+            swc_ecma_ast__TsFnOrConstructorType::TsFnType(fn_type) => Result::Ok(kain_core__ast__Type::Function { params: fn_type.params.iter().map(fn(param): (*_self).map_ts_fn_param(param, span)).collect()?, return_type: Box__new_((*_self).map_type(&fn_type.type_ann.type_ann, span)?), effects: Vec__new_(), span: span })
+            swc_ecma_ast__TsFnOrConstructorType::TsConstructorType(ctor) => Result::Ok(kain_core__ast__Type::Function { params: ctor.params.iter().map(fn(param): (*_self).map_ts_fn_param(param, span)).collect()?, return_type: Box__new_((*_self).map_type(&ctor.type_ann.type_ann, span)?), effects: [kain_core__effects__Effect__Unsafe_], span: span })
+
+    fn map_ts_fn_param(_self: &TypeMapper, param: &swc_ecma_ast::TsFnParam, span: kain_core::span::Span) -> Result<kain_core::ast::Type, Error>:
+        let ty = match param:
+            swc_ecma_ast__TsFnParam::Ident(ident) => (ident.type_ann.map(fn(ann): (*_self).map_type(&ann.type_ann, span)).transpose()?).unwrap_or(kain_core__ast__Type::Infer(span))
+            swc_ecma_ast__TsFnParam::Array(array) => (array.type_ann.map(fn(ann): (*_self).map_type(&ann.type_ann, span)).transpose()?).unwrap_or(kain_core__ast__Type::Infer(span))
+            swc_ecma_ast__TsFnParam::Object(object) => (object.type_ann.map(fn(ann): (*_self).map_type(&ann.type_ann, span)).transpose()?).unwrap_or(kain_core__ast__Type::Infer(span))
+            swc_ecma_ast__TsFnParam::Rest(rest) => (rest.type_ann.map(fn(ann): (*_self).map_type(&ann.type_ann, span)).transpose()?).unwrap_or(kain_core__ast__Type::Infer(span))
+        Result::Ok(ty)
+
+
+fn entity_name_to_string(entity: &swc_ecma_ast::TsEntityName) -> String:
+    match entity:
+        swc_ecma_ast__TsEntityName::Ident(ident) => ident.sym.to_string()
+        swc_ecma_ast__TsEntityName::TsQualifiedName(name) => f"{entity_name_to_string(&name.left)}.{name.right.sym}"
+
+fn is_nullish_type(ty: &swc_ecma_ast::TsType) -> Bool:
+    match ty:
+        swc_ecma_ast__TsType::TsKeywordType(keyword) => NULLISH_KINDS.contains(&keyword.kind)
+        _ => false
+

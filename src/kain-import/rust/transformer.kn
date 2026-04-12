@@ -2244,3 +2244,4 @@ fn compound_assign_rhs_op(op: &syn::BinOp) -> Option<BinaryOp>:
         syn__BinOp::ShlAssign(_) => Option::Some(BinaryOp__Shl)
         syn__BinOp::ShrAssign(_) => Option::Some(BinaryOp__Shr)
         _ => none
+

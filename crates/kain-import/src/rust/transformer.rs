@@ -1161,7 +1161,7 @@ impl RustTransformer {
                     .map(|(_, ident)| ident.to_string())
                     .unwrap_or_else(|| node.ident.to_string());
                 self.note_lossy_class(
-                    "extern_crate_decl",
+                    "external_mod_decl",
                     format!("extern crate {} skipped (use `use` imports or inline module paths instead)", crate_name),
                 );
                 Ok(vec![])
@@ -5600,6 +5600,22 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.contains("class:external_mod_decl")));
+    }
+
+    #[test]
+    fn records_extern_crate_as_external_mod_decl_class_marker() {
+        let (_program, diagnostics) = transform_with_diagnostics(
+            r#"
+            extern crate ue5;
+            "#,
+        );
+
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:external_mod_decl")));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.contains("class:extern_crate_decl")));
     }
 
     #[test]

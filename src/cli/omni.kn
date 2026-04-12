@@ -1,0 +1,33 @@
+use std::path::PathBuf
+
+use clap::Subcommand
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+pub enum OmniCommand:
+    Init { path: std::path::PathBuf }
+    Build { manifest: std::path::PathBuf }
+
+pub fn run(command: OmniCommand) -> Result<(), KainError>:
+    match command:
+        OmniCommand::Init { path: path } =>
+            let manifest_path = kain_omni__init_manifest(&path).map_err(fn(err): KainError__runtime(f"Omni init failed: {err}"))?
+            println(f"Created omni manifest: {manifest_path.display()}")
+            Result::Ok(())
+        OmniCommand::Build { manifest: manifest } =>
+            let result = kain_omni__build_manifest_path(&manifest).map_err(fn(err): KainError__runtime(f"Omni build failed: {err}"))?
+            println(f"Resolved entry: {result.resolved_entry.display()}")
+            if (!result.staged_imports.is_empty()):
+                println("Staged imports:")
+                for staged in &result.staged_imports:
+                    println(f"  - {staged.source_path.display()} -> {staged.generated_kn_path.display()}")
+                ()
+                ()
+            println("Written outputs:")
+            for path in &result.written_outputs:
+                println(f"  - {path.display()}")
+            ()
+            Result::Ok(())
+

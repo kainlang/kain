@@ -1,0 +1,184 @@
+use crate::ast::*
+
+use crate::error::KainResult
+
+use crate::runtime::eval_expr
+
+use crate::runtime::Env
+
+use crate::runtime::Value
+
+use crate::span::Span
+
+@doc(doc = " Evaluate comptime expressions in a program")
+@cfg(feature = "runtime")
+pub fn eval_program(program: &mut Program) -> Result<(), KainError>:
+    let mut env = Env__new_()
+    for item in &mut (*program).items:
+        eval_item(&mut env, item)?
+        ()
+    ()
+    Result::Ok(())
+
+@doc(doc = " Browser stub - comptime is a no-op")
+@cfg(not(feature = "runtime"))
+pub fn eval_program(_program: &mut Program) -> Result<(), KainError>:
+    Result::Ok(())
+
+@cfg(feature = "runtime")
+fn eval_item(env: &mut Env, item: &mut Item) -> Result<(), KainError>:
+    match item:
+        Item::Function(f) =>
+            eval_block(env, &mut f.body)?
+            ()
+        Item::Comptime(block) =>
+            runtime__eval_block(env, &block.body)?
+            ()
+            ()
+            ()
+            ()
+        Item::Component(c) =>
+            eval_jsx(env, &mut c.body)?
+            ()
+            for method in &mut c.methods:
+                eval_block(env, &mut method.body)?
+                ()
+            ()
+            ()
+        Item::Const(c) =>
+            eval_expr_in_place(env, &mut c.value)?
+            ()
+            ()
+            ()
+            ()
+        _ => ()
+    Result::Ok(())
+
+@cfg(feature = "runtime")
+fn eval_block(env: &mut Env, block: &mut Block) -> Result<(), KainError>:
+    for stmt in &mut (*block).stmts:
+        eval_stmt(env, stmt)?
+        ()
+    ()
+    Result::Ok(())
+
+@cfg(feature = "runtime")
+fn eval_stmt(env: &mut Env, stmt: &mut Stmt) -> Result<(), KainError>:
+    match stmt:
+        Stmt::Let { value: Some(e) } =>
+            eval_expr_in_place(env, e)?
+            ()
+        Stmt::Expr(e) =>
+            eval_expr_in_place(env, e)?
+            ()
+        Stmt::Return(Some(e), _) =>
+            eval_expr_in_place(env, e)?
+            ()
+        Stmt::For { iter: iter, body: body } =>
+            eval_expr_in_place(env, iter)?
+            ()
+            eval_block(env, body)?
+            ()
+            ()
+            ()
+            ()
+        _ => ()
+    Result::Ok(())
+
+@cfg(feature = "runtime")
+fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> Result<(), KainError>:
+    match expr:
+        Expr::Binary { left: left, right: right } =>
+            eval_expr_in_place(env, left)?
+            eval_expr_in_place(env, right)?
+        Expr::Call { callee: callee, args: args } =>
+            eval_expr_in_place(env, callee)?
+            for arg in args:
+                eval_expr_in_place(env, &mut arg.value)?
+        Expr::MethodCall { receiver: receiver, args: args } =>
+            eval_expr_in_place(env, receiver)?
+            for arg in args:
+                eval_expr_in_place(env, &mut arg.value)?
+        Expr::Assign { value: value } => eval_expr_in_place(env, value)?
+        Expr::AddrOf { value: value } => eval_expr_in_place(env, value)?
+        Expr::Ref { value: value } => eval_expr_in_place(env, value)?
+        Expr::Field { object: object } => eval_expr_in_place(env, object)?
+        Expr::Deref(object, _) => eval_expr_in_place(env, object)?
+        Expr::Try(object, _) => eval_expr_in_place(env, object)?
+        Expr::Await(object, _) => eval_expr_in_place(env, object)?
+        Expr::Comptime(object, _) => eval_expr_in_place(env, object)?
+        Expr::Paren(object, _) => eval_expr_in_place(env, object)?
+        Expr::Index { object: object, index: index } =>
+            eval_expr_in_place(env, object)?
+            eval_expr_in_place(env, index)?
+        Expr::MemLoad { pointer: pointer } => eval_expr_in_place(env, pointer)?
+        Expr::MemStore { pointer: pointer, value: value } =>
+            eval_expr_in_place(env, pointer)?
+            eval_expr_in_place(env, value)?
+        Expr::AggregateInit { fields: fields } =>
+            for field in fields:
+                let (_, value) = field
+                eval_expr_in_place(env, value)?
+        Expr::Struct { fields: fields, rest: rest } =>
+            for field in fields:
+                let (_, value) = field
+                eval_expr_in_place(env, value)?
+            match rest:
+                Some(rest_expr) => eval_expr_in_place(env, rest_expr)?
+                _ =>
+                    let __selfhost_empty = none
+        Expr::EnumVariant { fields: fields } =>
+            match fields:
+                EnumVariantFields::Tuple(values) =>
+                    for value in values:
+                        eval_expr_in_place(env, value)?
+                EnumVariantFields::Struct(values) =>
+                    for named_value in values:
+                        let (_, value) = named_value
+                        eval_expr_in_place(env, value)?
+                _ =>
+                    let __selfhost_empty = none
+        Expr::Alloc { size: size } => eval_expr_in_place(env, size)?
+        Expr::Realloc { pointer: pointer, size: size } =>
+            eval_expr_in_place(env, pointer)?
+            eval_expr_in_place(env, size)?
+        Expr::PtrOffset { pointer: pointer, offset: size } =>
+            eval_expr_in_place(env, pointer)?
+            eval_expr_in_place(env, size)?
+        Expr::Block(b, _) => eval_block(env, b)?
+        Expr::JSX(node, _) => eval_jsx(env, node)?
+        _ =>
+            let __selfhost_empty = none
+
+@cfg(feature = "runtime")
+fn eval_jsx(env: &mut Env, node: &mut JSXNode) -> Result<(), KainError>:
+    match node:
+        JSXNode::Element { attributes: attributes, children: children } =>
+            for attr in attributes:
+                match &mut attr.value:
+                    JSXAttrValue::Expr(e) =>
+                        eval_expr_in_place(env, e)?
+                        ()
+                    _ => ()
+            ()
+            for child in children:
+                eval_jsx(env, child)?
+                ()
+            ()
+            ()
+        JSXNode::Expression(e) =>
+            eval_expr_in_place(env, e)?
+            ()
+        _ => ()
+    Result::Ok(())
+
+@cfg(feature = "runtime")
+fn value_to_expr(val: Value, span: Span) -> Expr:
+    match val:
+        Value::Int(n) => Expr::Int(n, span)
+        Value::Float(n) => Expr::Float(n, span)
+        Value::Bool(b) => Expr::Bool(b, span)
+        Value::String(s) => Expr::String(s, span)
+        Value::Unit => Expr::Block(Block { stmts: [], span: span }, span)
+        _ => Expr::String(f"<unrepresentable comptime value: {val}>", span)
+

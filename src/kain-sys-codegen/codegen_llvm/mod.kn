@@ -1,0 +1,3749 @@
+use kain_core::ast::BinaryOp
+
+use kain_core::ast::Block
+
+use kain_core::ast::ElseBranch
+
+use kain_core::ast::Expr
+
+use kain_core::ast::JSXAttrValue
+
+use kain_core::ast::JSXNode
+
+use kain_core::ast::Pattern
+
+use kain_core::ast::Stmt
+
+use kain_core::ast::UnaryOp
+
+use kain_core::ast::VariantPatternFields
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::types::ResolvedType
+
+use kain_core::types::TypedComponent
+
+use kain_core::types::TypedFunction
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedProgram
+
+use kain_core::Span
+
+use kain_core::lower_typed_program_memory_for_target
+
+use kain_core::validate_typed_program_memory_support
+
+use kain_core::CompileTarget
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+enum LlvmTargetId:
+    WindowsX64Msvc
+    LinuxX64Gnu
+    MacOsArm64
+
+@derive(Clone, Copy, Debug, PartialEq, Eq)
+struct LlvmTargetDescriptor:
+    id: LlvmTargetId
+    triple: String
+    datalayout: String
+
+@derive(Clone, Debug)
+struct WorldGlobalInfo:
+    global_symbol: String
+    init_flag_symbol: String
+    init_fn_name: String
+
+const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor { id: LlvmTargetId__WindowsX64Msvc, triple: "x86_64-pc-windows-msvc", datalayout: "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128" }
+
+const LLVM_TARGET_LINUX_X64_GNU: LlvmTargetDescriptor = LlvmTargetDescriptor { id: LlvmTargetId__LinuxX64Gnu, triple: "x86_64-unknown-linux-gnu", datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128" }
+
+const LLVM_TARGET_MACOS_ARM64: LlvmTargetDescriptor = LlvmTargetDescriptor { id: LlvmTargetId__MacOsArm64, triple: "arm64-apple-darwin", datalayout: "e-m:o-i64:64-i128:128-n32:64-S128" }
+
+const LLVM_TARGET_DESCRIPTOR_REGISTRY: Array<LlvmTargetDescriptor> = [LLVM_TARGET_WINDOWS_X64_MSVC, LLVM_TARGET_LINUX_X64_GNU, LLVM_TARGET_MACOS_ARM64]
+
+fn runtime_symbol_for_stdlib_function(name: String) -> String:
+    match name:
+        "floor" => "kain_floor_i64"
+        "ceil" => "kain_ceil_i64"
+        "round" => "kain_round_i64"
+        _ => name
+
+fn resolve_host_llvm_target_descriptor() -> &static LlvmTargetDescriptor:
+    let target_id = if cfg!(all(target_os = "windows", target_arch = "x86_64")):
+        LlvmTargetId__WindowsX64Msvc
+    elif cfg!(all(target_os = "linux", target_arch = "x86_64")):
+        LlvmTargetId__LinuxX64Gnu
+    elif cfg!(all(target_os = "macos", target_arch = "aarch64")):
+        LlvmTargetId__MacOsArm64
+    else:
+        LlvmTargetId__WindowsX64Msvc
+    LLVM_TARGET_DESCRIPTOR_REGISTRY.iter().find(fn(descriptor): (descriptor.id == target_id)).unwrap_or(&LLVM_TARGET_WINDOWS_X64_MSVC)
+
+pub fn generate(program: &kain_core::types::TypedProgram) -> Result<Array<u8>, KainError>:
+    let lowered = kain_core__lower_typed_program_memory_for_target(program, kain_core__CompileTarget__Llvm)?
+    kain_core__validate_typed_program_memory_support(&lowered, kain_core__CompileTarget__Llvm)?
+    ()
+    let mut gen = LlvmGenerator__new_()
+    gen.compile_module(&lowered)?
+    ()
+    Result::Ok(gen.output.into_bytes())
+
+struct LlvmGenerator:
+    output: String
+    reg_count: usize
+    label_count: usize
+    locals: Map<String, (String, String)>
+    borrowed_locals: Set<String>
+    functions: Map<String, String>
+    function_params: Map<String, Array<String>>
+    extern_functions: Set<String>
+    strings: Map<String, String>
+    string_counter: usize
+    loop_stack: Array<(String, String)>
+    scopes: Array<Array<String>>
+    struct_defs: Map<String, Array<(String, String)>>
+    component_defs: Map<String, Array<(String, String)>>
+    current_block: String
+    current_return_type: Option<String>
+    actor_return_label: Option<String>
+    actor_return_slot: Option<String>
+    target: &static LlvmTargetDescriptor
+    world_globals: Map<String, WorldGlobalInfo>
+
+impl LlvmGenerator:
+    fn new_() -> LlvmGenerator:
+        LlvmGenerator { output: String__new_(), reg_count: 0, label_count: 0, locals: HashMap__new_(), borrowed_locals: HashSet__new_(), functions: HashMap__new_(), function_params: HashMap__new_(), extern_functions: HashSet__new_(), strings: HashMap__new_(), string_counter: 0, loop_stack: Vec__new_(), scopes: Vec__new_(), struct_defs: HashMap__new_(), component_defs: HashMap__new_(), current_block: ("entry").to_string(), current_return_type: none, actor_return_label: none, actor_return_slot: none, target: resolve_host_llvm_target_descriptor(), world_globals: HashMap__new_() }
+
+    fn emit_(_self: &mut LlvmGenerator, s: String):
+        (*_self).output.push_str(s)
+        ()
+        (*_self).output.push("\n")
+        ()
+
+    fn emit_label(_self: &mut LlvmGenerator, label: String):
+        (*_self).emit_(&f"{label}:")
+        ()
+        (*_self).current_block = label.to_string()
+        ()
+
+    fn next_reg(_self: &mut LlvmGenerator) -> String:
+        let r = f"%{(*_self).reg_count}"
+        (*_self).reg_count = ((*_self).reg_count + 1)
+        ()
+        r
+
+    fn next_label(_self: &mut LlvmGenerator) -> String:
+        let l = f"L{(*_self).label_count}"
+        (*_self).label_count = ((*_self).label_count + 1)
+        ()
+        l
+
+    fn sanitize_type_fragment(fragment_: String) -> String:
+        fragment_.chars().map(fn(ch): if ch.is_ascii_alphanumeric(): ch else: "_").collect()
+
+    fn tuple_struct_name_from_types(field_tys: &[String]) -> String:
+        let mut name = String__from("__kain_tuple")
+        for field_ty in field_tys:
+            name.push("_")
+            ()
+            name.push_str(&LlvmGenerator__sanitize_type_fragment(field_ty))
+            ()
+        ()
+        name
+
+    fn tuple_struct_ptr_type_from_types(field_tys: &[String]) -> String:
+        f"%{LlvmGenerator__tuple_struct_name_from_types(field_tys)}*"
+
+    fn register_tuple_struct(_self: &mut LlvmGenerator, field_tys: Array<String>) -> String:
+        let name = LlvmGenerator__tuple_struct_name_from_types(&field_tys)
+        if (!(*_self).struct_defs.contains_key(&name)):
+            let fields = field_tys.iter().enumerate().map(fn(__kain_closure_arg0): (f"_{__kain_closure_arg0.__kain_tuple_0}", __kain_closure_arg0.__kain_tuple_1.clone())).collect()
+            (*_self).struct_defs.insert(name.clone(), fields)
+            ()
+            (*_self).emit_(&"%{name} = type { {field_tys.join(\", \")} }")
+            ()
+            ()
+            ()
+            ()
+        name
+
+    fn collect_tuple_types_from_ast(_self: &mut LlvmGenerator, ty: &kain_core::ast::Type):
+        match ty:
+            kain_core__ast__Type::Tuple(items, _) =>
+                for item in items:
+                    (*_self).collect_tuple_types_from_ast(item)
+                    ()
+                ()
+                let field_tys = items.iter().map(fn(item): (*_self).map_type_from_ast(item)).collect()
+                (*_self).register_tuple_struct(field_tys)
+                ()
+            kain_core__ast__Type::Array(inner, _, _) => (*_self).collect_tuple_types_from_ast(inner)
+            kain_core__ast__Type::Slice(inner, _) => (*_self).collect_tuple_types_from_ast(inner)
+            kain_core__ast__Type::Option(inner, _) => (*_self).collect_tuple_types_from_ast(inner)
+            kain_core__ast__Type::Result(inner, _, _) => (*_self).collect_tuple_types_from_ast(inner)
+            kain_core__ast__Type::Ref { inner: inner } => (*_self).collect_tuple_types_from_ast(inner)
+            kain_core__ast__Type::Ptr { inner: inner } => (*_self).collect_tuple_types_from_ast(inner)
+            _ => ()
+
+    fn collect_tuple_types_from_resolved(_self: &mut LlvmGenerator, ty: &kain_core::types::ResolvedType):
+        match ty:
+            kain_core__types__ResolvedType::Tuple(items) =>
+                for item in items:
+                    (*_self).collect_tuple_types_from_resolved(item)
+                    ()
+                ()
+                let field_tys = items.iter().map(fn(item): (*_self).map_type(item)).collect()
+                (*_self).register_tuple_struct(field_tys)
+                ()
+            kain_core__types__ResolvedType::Array(inner, _) => (*_self).collect_tuple_types_from_resolved(inner)
+            kain_core__types__ResolvedType::Slice(inner) => (*_self).collect_tuple_types_from_resolved(inner)
+            kain_core__types__ResolvedType::Option(inner) => (*_self).collect_tuple_types_from_resolved(inner)
+            kain_core__types__ResolvedType::Ref { inner: inner } => (*_self).collect_tuple_types_from_resolved(inner)
+            kain_core__types__ResolvedType::Ptr { inner: inner } => (*_self).collect_tuple_types_from_resolved(inner)
+            kain_core__types__ResolvedType::Result(ok, err) =>
+                (*_self).collect_tuple_types_from_resolved(ok)
+                ()
+                (*_self).collect_tuple_types_from_resolved(err)
+                ()
+            kain_core__types__ResolvedType::Function { params: params, ret: ret } =>
+                for param in params:
+                    (*_self).collect_tuple_types_from_resolved(param)
+                    ()
+                ()
+                (*_self).collect_tuple_types_from_resolved(ret)
+                ()
+            _ => ()
+
+    fn collect_program_tuple_types(_self: &mut LlvmGenerator, program: &kain_core::types::TypedProgram):
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(func) =>
+                    (*_self).collect_tuple_types_from_resolved(&func.resolved_type)
+                    ()
+                    for param in &func.ast.params:
+                        (*_self).collect_tuple_types_from_ast(&param.ty)
+                        ()
+                    ()
+                    match &func.ast.return_type:
+                        Some(ret) =>
+                            (*_self).collect_tuple_types_from_ast(ret)
+                            ()
+                        _ => ()
+                kain_core__types__TypedItem::Patch(patch) =>
+                    (*_self).collect_tuple_types_from_resolved(&patch.resolved_type)
+                    ()
+                    for param in &patch.ast.params:
+                        (*_self).collect_tuple_types_from_ast(&param.ty)
+                        ()
+                    ()
+                    match &patch.ast.return_type:
+                        Some(ret) =>
+                            (*_self).collect_tuple_types_from_ast(ret)
+                            ()
+                        _ => ()
+                kain_core__types__TypedItem::Converge(converge) =>
+                    (*_self).collect_tuple_types_from_resolved(&converge.resolved_type)
+                    ()
+                    for param in &converge.ast.params:
+                        (*_self).collect_tuple_types_from_ast(&param.ty)
+                        ()
+                    ()
+                    match &converge.ast.return_type:
+                        Some(ret) =>
+                            (*_self).collect_tuple_types_from_ast(ret)
+                            ()
+                        _ => ()
+                kain_core__types__TypedItem::World(world) =>
+                    for state_ in &world.ast.states:
+                        (*_self).collect_tuple_types_from_ast(&state_.ty)
+                        ()
+                kain_core__types__TypedItem::Orchestrate(orchestrate) =>
+                    (*_self).collect_tuple_types_from_resolved(&orchestrate.resolved_type)
+                    ()
+                    for param in &orchestrate.ast.params:
+                        (*_self).collect_tuple_types_from_ast(&param.ty)
+                        ()
+                    ()
+                    match &orchestrate.ast.return_type:
+                        Some(ret) =>
+                            (*_self).collect_tuple_types_from_ast(ret)
+                            ()
+                        _ => ()
+                kain_core__types__TypedItem::Struct(s) =>
+                    for ty in s.field_types.values():
+                        (*_self).collect_tuple_types_from_resolved(ty)
+                        ()
+                kain_core__types__TypedItem::Component(component_) =>
+                    for ty in component_.prop_types.values():
+                        (*_self).collect_tuple_types_from_resolved(ty)
+                        ()
+                    ()
+                    for prop in &component_.ast.props:
+                        (*_self).collect_tuple_types_from_ast(&prop.ty)
+                        ()
+                kain_core__types__TypedItem::Actor(actor_) =>
+                    for ty in actor_.state_types.values():
+                        (*_self).collect_tuple_types_from_resolved(ty)
+                        ()
+                    ()
+                    for state_ in &actor_.ast.state_:
+                        (*_self).collect_tuple_types_from_ast(&state_.ty)
+                        ()
+                    ()
+                    for handler in &actor_.ast.handlers:
+                        for param in &handler.params:
+                            (*_self).collect_tuple_types_from_ast(&param.ty)
+                            ()
+                kain_core__types__TypedItem::Enum(en) =>
+                    for payload_types in en.variant_payload_types.values():
+                        for ty in payload_types:
+                            (*_self).collect_tuple_types_from_resolved(ty)
+                            ()
+                kain_core__types__TypedItem::Impl(imp) =>
+                    (*_self).collect_tuple_types_from_ast(&imp.ast.target_type)
+                    ()
+                    for method in &imp.ast.methods:
+                        for param in &method.params:
+                            (*_self).collect_tuple_types_from_ast(&param.ty)
+                            ()
+                        ()
+                        match &method.return_type:
+                            Some(ret) =>
+                                (*_self).collect_tuple_types_from_ast(ret)
+                                ()
+                            _ => ()
+                _ => ()
+
+    fn map_type_from_ast(_self: &LlvmGenerator, ty: &kain_core::ast::Type) -> String:
+        match ty:
+            kain_core__ast__Type::Named { name: name } => (*_self).map_type_from_str(name)
+            kain_core__ast__Type::Tuple(items, _) =>
+                let field_tys = items.iter().map(fn(item): (*_self).map_type_from_ast(item)).collect()
+                LlvmGenerator__tuple_struct_ptr_type_from_types(&field_tys)
+            kain_core__ast__Type::Array(_, _, _) => ("i8*").into()
+            kain_core__ast__Type::Slice(_, _) => ("i8*").into()
+            kain_core__ast__Type::Ref { inner: inner } => f"{(*_self).map_type_from_ast(inner)}*"
+            kain_core__ast__Type::Ptr { inner: inner } => f"{(*_self).map_type_from_ast(inner)}*"
+            kain_core__ast__Type::Option(inner, _) => (*_self).map_type_from_ast(inner)
+            kain_core__ast__Type::Result(ok, _, _) => (*_self).map_type_from_ast(ok)
+            kain_core__ast__Type::Unit(_) => ("void").into()
+            kain_core__ast__Type::Never(_) => ("void").into()
+            _ => ("i64").into()
+
+    fn map_type_from_str(_self: &LlvmGenerator, name: String) -> String:
+        match name:
+            "Int" => ("i64").into()
+            "i64" => ("i64").into()
+            "i32" => ("i32").into()
+            "Float" => ("double").into()
+            "f64" => ("double").into()
+            "double" => ("double").into()
+            "Bool" => ("i1").into()
+            "bool" => ("i1").into()
+            "String" => ("i8*").into()
+            "str" => ("i8*").into()
+            "Unit" => ("void").into()
+            "()" => ("void").into()
+            "void" => ("void").into()
+            "KainActorId" => ("i64").into()
+            "KainActorExitReason" => ("i32").into()
+            "KainActorState" => ("i32").into()
+            "KainSupervisionStrategy" => ("i32").into()
+            "KainRestartPolicy" => ("i32").into()
+            "KainActorMailbox" => ("i8*").into()
+            "KainActorMessage" => ("%KainActorMessage*").into()
+            "KainActorSpawnConfig" => ("%KainActorSpawnConfig*").into()
+            "KainActorBootstrapFn" => ("i32 (i64, i8*, i8*)*").into()
+            _ => if (*_self).struct_defs.contains_key(name): f"%{name}*" else: ("i64").into()
+
+    fn map_type(_self: &LlvmGenerator, ty: &kain_core::types::ResolvedType) -> String:
+        use kain_core::types::ResolvedType
+
+        match ty:
+            kain_core__types__ResolvedType::Int(_) => ("i64").into()
+            kain_core__types__ResolvedType::Float(_) => ("double").into()
+            kain_core__types__ResolvedType::Bool => ("i1").into()
+            kain_core__types__ResolvedType::String => ("i8*").into()
+            kain_core__types__ResolvedType::Unit => ("void").into()
+            kain_core__types__ResolvedType::Char => ("i8").into()
+            kain_core__types__ResolvedType::Struct(name, _) => if (*_self).struct_defs.contains_key(name): f"%{name}*" else: (*_self).map_type_from_str(name)
+            kain_core__types__ResolvedType::Enum(name, _) => f"%{name}*"
+            kain_core__types__ResolvedType::Array(_, _) => ("i64").into()
+            kain_core__types__ResolvedType::Slice(_) => ("i64").into()
+            kain_core__types__ResolvedType::Option(inner) => (*_self).map_type(inner)
+            kain_core__types__ResolvedType::Result(ok, _) => (*_self).map_type(ok)
+            kain_core__types__ResolvedType::Future(inner) => (*_self).map_type(inner)
+            kain_core__types__ResolvedType::Function {  } => ("i64").into()
+            kain_core__types__ResolvedType::Generic(name) => (*_self).map_type_from_str(name)
+            kain_core__types__ResolvedType::Tuple(items) =>
+                let field_tys = items.iter().map(fn(item): (*_self).map_type(item)).collect()
+                LlvmGenerator__tuple_struct_ptr_type_from_types(&field_tys)
+            kain_core__types__ResolvedType::Ref { inner: inner } => (*_self).map_type(inner)
+            kain_core__types__ResolvedType::Ptr { inner: inner } => f"{(*_self).map_type(inner)}*"
+            kain_core__types__ResolvedType::Never => ("void").into()
+            kain_core__types__ResolvedType::Unknown => ("i64").into()
+
+    fn compile_string_literal(_self: &mut LlvmGenerator, s: String) -> (String, String):
+        let global_name = match (*_self).strings.get(s):
+            Some(name) => name.clone()
+            _ =>
+                let name = f"@.str.{(*_self).string_counter}"
+                (*_self).string_counter = ((*_self).string_counter + 1)
+                ()
+                (*_self).strings.insert(s.to_string(), name.clone())
+                ()
+                name
+        let reg_static = (*_self).next_reg()
+        let len = (s.len() + 1)
+        (*_self).emit_(&f"  {reg_static} = getelementptr inbounds [{len} x i8], [{len} x i8]* {global_name}, i64 0, i64 0")
+        ()
+        let reg_rc = (*_self).next_reg()
+        (*_self).emit_(&f"  {reg_rc} = call i8* @string_new(i8* {reg_static})")
+        ()
+        (reg_rc, ("i8*").to_string())
+
+    fn concat_strings(_self: &mut LlvmGenerator, lhs: String, rhs: String) -> String:
+        let res = (*_self).next_reg()
+        (*_self).emit_(&f"  {res} = call i8* @str_concat(i8* {lhs}, i8* {rhs})")
+        ()
+        res
+
+    fn stringify_value(_self: &mut LlvmGenerator, val: String, ty: String) -> Result<(String, String), KainError>:
+        match ty:
+            "i8*" => Result::Ok((val.to_string(), ("i8*").to_string()))
+            "i64" =>
+                let widened = if (ty == "i64"):
+                    val.to_string()
+                else:
+                    let reg = (*_self).next_reg()
+                    (*_self).emit_(&f"  {reg} = sext i8 {val} to i64")
+                    ()
+                    reg
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = call i8* @to_string(i64 {widened})")
+                ()
+                Result::Ok((res, ("i8*").to_string()))
+            "i8" =>
+                let widened = if (ty == "i64"):
+                    val.to_string()
+                else:
+                    let reg = (*_self).next_reg()
+                    (*_self).emit_(&f"  {reg} = sext i8 {val} to i64")
+                    ()
+                    reg
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = call i8* @to_string(i64 {widened})")
+                ()
+                Result::Ok((res, ("i8*").to_string()))
+            "i1" =>
+                let widened = (*_self).next_reg()
+                (*_self).emit_(&f"  {widened} = zext i1 {val} to i64")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = call i8* @to_string(i64 {widened})")
+                ()
+                Result::Ok((res, ("i8*").to_string()))
+            "double" =>
+                let narrowed = (*_self).next_reg()
+                (*_self).emit_(&f"  {narrowed} = fptosi double {val} to i64")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = call i8* @to_string(i64 {narrowed})")
+                ()
+                Result::Ok((res, ("i8*").to_string()))
+            _ if ty.starts_with("%") => Result::Ok((*_self).compile_string_literal("<value>"))
+            _ => Result::Ok((*_self).compile_string_literal("<value>"))
+
+    fn zero_value_for_ty(_self: &LlvmGenerator, ty: String) -> String:
+        match ty:
+            "double" => ("0.0").into()
+            "i1" => ("0").into()
+            "i8" => ("0").into()
+            "i64" => ("0").into()
+            "void" => ("0").into()
+            _ if ty.ends_with("*") => ("null").into()
+            _ => ("0").into()
+
+    fn compile_expr_for_target_type(_self: &mut LlvmGenerator, expr: &kain_core::ast::Expr, target_ty: String) -> Result<(String, String), KainError>:
+        if (none):
+            return Result::Ok(((*_self).zero_value_for_ty(target_ty), target_ty.to_string()))
+        let (val, src_ty) = (*_self).compile_expr(expr)?
+        (*_self).coerce_compiled_value_to_target_type(val, &src_ty, target_ty)
+
+    fn coerce_compiled_value_to_target_type(_self: &mut LlvmGenerator, val: String, src_ty: String, target_ty: String) -> Result<(String, String), KainError>:
+        if (src_ty == target_ty):
+            return Result::Ok((val, target_ty.to_string()))
+        if (target_ty == "void"):
+            return Result::Ok(((*_self).zero_value_for_ty(target_ty), target_ty.to_string()))
+        if (none):
+            let coerced = (*_self).cast_numeric_value(val, src_ty, target_ty)?
+            return Result::Ok((coerced, target_ty.to_string()))
+        if target_ty.ends_with("*"):
+            if src_ty.ends_with("*"):
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = bitcast {src_ty} {val} to {target_ty}")
+                ()
+                return Result::Ok((reg, target_ty.to_string()))
+            let ptr_source = (*_self).coerce_to_i64_storage(&val, src_ty)
+            let reg = (*_self).next_reg()
+            (*_self).emit_(&f"  {reg} = inttoptr i64 {ptr_source} to {target_ty}")
+            ()
+            return Result::Ok((reg, target_ty.to_string()))
+        if (src_ty.ends_with("*") && (target_ty == "i64")):
+            let reg = (*_self).next_reg()
+            (*_self).emit_(&f"  {reg} = ptrtoint {src_ty} {val} to i64")
+            ()
+            return Result::Ok((reg, target_ty.to_string()))
+        if (src_ty.starts_with("%") && target_ty.starts_with("%")):
+            let reg = (*_self).next_reg()
+            (*_self).emit_(&f"  {reg} = bitcast {src_ty} {val} to {target_ty}")
+            ()
+            return Result::Ok((reg, target_ty.to_string()))
+        Result::Err(KainError__codegen(f"Unsupported LLVM value coercion from {src_ty} to {target_ty}", Span__default_()))
+
+    fn align_abi_size(size: usize, align: usize) -> usize:
+        if (align <= 1):
+            size
+        else:
+            (size.div_ceil(align) * align)
+
+    fn abi_layout_for_ty(_self: &LlvmGenerator, ty: String, span: kain_core::Span) -> Result<(usize, usize), KainError>:
+        match ty:
+            "i1" => Result::Ok((1, 1))
+            "i8" => Result::Ok((1, 1))
+            "i32" => Result::Ok((4, 4))
+            "i64" => Result::Ok((8, 8))
+            "double" => Result::Ok((8, 8))
+            "void" => Result::Err(KainError__codegen("Cannot compute runtime memory layout for void", span))
+            _ if ty.ends_with("*") => Result::Ok((8, 8))
+            _ if ty.starts_with("%") =>
+                let struct_name = ty.trim_start_matches("%")
+                let fields = (*_self).struct_defs.get(struct_name).ok_or_else(fn(): KainError__codegen(f"Unknown LLVM struct layout: {struct_name}", span))?
+                let mut size = 0
+                let mut max_align = 1
+                for selfhost_for_item in fields:
+                    let (_, field_ty) = selfhost_for_item
+                    let (field_size, field_align) = (*_self).abi_layout_for_ty(field_ty, span)?
+                    size = LlvmGenerator__align_abi_size(size, field_align)
+                    ()
+                    size = (size + field_size)
+                    ()
+                    max_align = max_align.max(field_align)
+                    ()
+                ()
+                Result::Ok((LlvmGenerator__align_abi_size(size, max_align), max_align))
+            _ => Result::Err(KainError__codegen(f"Unsupported LLVM runtime memory layout for type {ty}", span))
+
+    fn compile_runtime_mem_load(_self: &mut LlvmGenerator, pointer: &kain_core::ast::Expr, load_ty: String, span: kain_core::Span) -> Result<(String, String), KainError>:
+        let (ptr, ptr_ty) = (*_self).compile_expr(pointer)?
+        let ptr_i64 = (*_self).coerce_to_i64_storage(&ptr, &ptr_ty)
+        let (load_size, _) = (*_self).abi_layout_for_ty(load_ty, span)?
+        let ptr_i8 = (*_self).next_reg()
+        (*_self).emit_(&f"  {ptr_i8} = inttoptr i64 {ptr_i64} to i8*")
+        ()
+        let temp_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {temp_ptr} = alloca {load_ty}")
+        ()
+        let temp_i8 = (*_self).next_reg()
+        (*_self).emit_(&f"  {temp_i8} = bitcast {load_ty}* {temp_ptr} to i8*")
+        ()
+        (*_self).emit_(&f"  call void @__kain_mem_load(i8* {ptr_i8}, i8* {temp_i8}, i64 {load_size})")
+        ()
+        let loaded = (*_self).next_reg()
+        (*_self).emit_(&f"  {loaded} = load {load_ty}, {load_ty}* {temp_ptr}")
+        ()
+        Result::Ok((loaded, load_ty.to_string()))
+
+    fn compile_runtime_mem_store(_self: &mut LlvmGenerator, pointer: &kain_core::ast::Expr, value: &kain_core::ast::Expr, span: kain_core::Span) -> Result<(String, String), KainError>:
+        let (ptr, ptr_ty) = (*_self).compile_expr(pointer)?
+        let ptr_i64 = (*_self).coerce_to_i64_storage(&ptr, &ptr_ty)
+        let (stored_value, stored_ty) = (*_self).compile_expr(value)?
+        let (store_size, _) = (*_self).abi_layout_for_ty(&stored_ty, span)?
+        let ptr_i8 = (*_self).next_reg()
+        (*_self).emit_(&f"  {ptr_i8} = inttoptr i64 {ptr_i64} to i8*")
+        ()
+        let temp_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {temp_ptr} = alloca {stored_ty}")
+        ()
+        (*_self).emit_(&f"  store {stored_ty} {stored_value}, {stored_ty}* {temp_ptr}")
+        ()
+        let temp_i8 = (*_self).next_reg()
+        (*_self).emit_(&f"  {temp_i8} = bitcast {stored_ty}* {temp_ptr} to i8*")
+        ()
+        (*_self).emit_(&f"  call void @__kain_mem_store(i8* {ptr_i8}, i8* {temp_i8}, i64 {store_size})")
+        ()
+        Result::Ok((stored_value, stored_ty))
+
+    fn coerce_to_i64_storage(_self: &mut LlvmGenerator, val: String, ty: String) -> String:
+        match ty:
+            "i64" => val.to_string()
+            "i32" =>
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = sext i32 {val} to i64")
+                ()
+                reg
+            "i1" =>
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = zext i1 {val} to i64")
+                ()
+                reg
+            "i8" =>
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = sext i8 {val} to i64")
+                ()
+                reg
+            "double" =>
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = fptosi double {val} to i64")
+                ()
+                reg
+            _ if ty.ends_with("*") =>
+                let reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {reg} = ptrtoint {ty} {val} to i64")
+                ()
+                reg
+            _ => val.to_string()
+
+    fn cast_numeric_value(_self: &mut LlvmGenerator, val: String, src_ty: String, dst_ty: String) -> Result<String, KainError>:
+        if (src_ty == dst_ty):
+            return Result::Ok(val)
+        let reg = (*_self).next_reg()
+        match (src_ty, dst_ty):
+            ("i64", "double") =>
+                (*_self).emit_(&f"  {reg} = sitofp i64 {val} to double")
+                ()
+                Result::Ok(reg)
+            ("i64", "i32") =>
+                (*_self).emit_(&f"  {reg} = trunc i64 {val} to i32")
+                ()
+                Result::Ok(reg)
+            ("i64", "i8") =>
+                (*_self).emit_(&f"  {reg} = trunc i64 {val} to i8")
+                ()
+                Result::Ok(reg)
+            ("i64", "i1") =>
+                (*_self).emit_(&f"  {reg} = icmp ne i64 {val}, 0")
+                ()
+                Result::Ok(reg)
+            ("i32", "double") =>
+                (*_self).emit_(&f"  {reg} = sitofp i32 {val} to double")
+                ()
+                Result::Ok(reg)
+            ("i32", "i64") =>
+                (*_self).emit_(&f"  {reg} = sext i32 {val} to i64")
+                ()
+                Result::Ok(reg)
+            ("i32", "i8") =>
+                (*_self).emit_(&f"  {reg} = trunc i32 {val} to i8")
+                ()
+                Result::Ok(reg)
+            ("i32", "i1") =>
+                (*_self).emit_(&f"  {reg} = icmp ne i32 {val}, 0")
+                ()
+                Result::Ok(reg)
+            ("i1", "double") =>
+                (*_self).emit_(&f"  {reg} = uitofp i1 {val} to double")
+                ()
+                Result::Ok(reg)
+            ("i1", "i32") =>
+                (*_self).emit_(&f"  {reg} = zext i1 {val} to i32")
+                ()
+                Result::Ok(reg)
+            ("i8", "double") =>
+                (*_self).emit_(&f"  {reg} = sitofp i8 {val} to double")
+                ()
+                Result::Ok(reg)
+            ("i1", "i64") =>
+                (*_self).emit_(&f"  {reg} = zext i1 {val} to i64")
+                ()
+                Result::Ok(reg)
+            ("i8", "i32") =>
+                (*_self).emit_(&f"  {reg} = sext i8 {val} to i32")
+                ()
+                Result::Ok(reg)
+            ("i8", "i64") =>
+                (*_self).emit_(&f"  {reg} = sext i8 {val} to i64")
+                ()
+                Result::Ok(reg)
+            ("double", "i64") =>
+                (*_self).emit_(&f"  {reg} = fptosi double {val} to i64")
+                ()
+                Result::Ok(reg)
+            ("double", "i32") =>
+                (*_self).emit_(&f"  {reg} = fptosi double {val} to i32")
+                ()
+                Result::Ok(reg)
+            ("double", "i8") =>
+                (*_self).emit_(&f"  {reg} = fptosi double {val} to i8")
+                ()
+                Result::Ok(reg)
+            ("double", "i1") =>
+                (*_self).emit_(&f"  {reg} = fcmp one double {val}, 0.0")
+                ()
+                Result::Ok(reg)
+            _ => Result::Err(KainError__codegen(f"Unsupported numeric cast from {src_ty} to {dst_ty}", Span__default_()))
+
+    fn coerce_binary_operands(_self: &mut LlvmGenerator, lhs: String, lhs_ty: String, rhs: String, rhs_ty: String) -> Result<(String, String, String, String), KainError>:
+        if (lhs_ty == rhs_ty):
+            return Result::Ok((lhs, lhs_ty, rhs, rhs_ty))
+        if (lhs_ty == "double"):
+            let rhs_cast = (*_self).cast_numeric_value(rhs, &rhs_ty, "double")?
+            return Result::Ok((lhs, lhs_ty, rhs_cast, ("double").to_string()))
+        if (rhs_ty == "double"):
+            let lhs_cast = (*_self).cast_numeric_value(lhs, &lhs_ty, "double")?
+            return Result::Ok((lhs_cast, ("double").to_string(), rhs, rhs_ty))
+        if (lhs_ty == "i64"):
+            let rhs_cast = (*_self).cast_numeric_value(rhs, &rhs_ty, "i64")?
+            return Result::Ok((lhs, lhs_ty, rhs_cast, ("i64").to_string()))
+        if (rhs_ty == "i64"):
+            let lhs_cast = (*_self).cast_numeric_value(lhs, &lhs_ty, "i64")?
+            return Result::Ok((lhs_cast, ("i64").to_string(), rhs, rhs_ty))
+        Result::Ok((lhs, lhs_ty, rhs, rhs_ty))
+
+    fn compile_value_eq(_self: &mut LlvmGenerator, lhs: String, lhs_ty: String, rhs: String, rhs_ty: String, span: kain_core::Span) -> Result<String, KainError>:
+        let (lhs, lhs_ty, rhs, rhs_ty) = (*_self).coerce_binary_operands(lhs.to_string(), lhs_ty.to_string(), rhs.to_string(), rhs_ty.to_string())?
+        let res = (*_self).next_reg()
+        if ((lhs_ty == "i8*") || (rhs_ty == "i8*")):
+            (*_self).emit_(&f"  {res} = call i1 @deep_eq(i8* {lhs}, i8* {rhs})")
+            ()
+            return Result::Ok(res)
+        match lhs_ty.as_str():
+            "double" =>
+                (*_self).emit_(&f"  {res} = fcmp oeq double {lhs}, {rhs}")
+                ()
+            "i1" =>
+                (*_self).emit_(&f"  {res} = icmp eq {lhs_ty} {lhs}, {rhs}")
+                ()
+                ()
+            "i8" =>
+                (*_self).emit_(&f"  {res} = icmp eq {lhs_ty} {lhs}, {rhs}")
+                ()
+                ()
+            "i64" =>
+                (*_self).emit_(&f"  {res} = icmp eq {lhs_ty} {lhs}, {rhs}")
+                ()
+                ()
+            _ if lhs_ty.ends_with("*") =>
+                (*_self).emit_(&f"  {res} = icmp eq {lhs_ty} {lhs}, {rhs}")
+                ()
+                ()
+            _ => return Result::Err(KainError__codegen(f"Unsupported equality comparison between {lhs_ty} and {rhs_ty}", span))
+        Result::Ok(res)
+
+    fn compile_range_check(_self: &mut LlvmGenerator, val: String, val_ty: String, start: &Option<Box<kain_core::ast::Expr>>, end: &Option<Box<kain_core::ast::Expr>>, inclusive: Bool, span: kain_core::Span) -> Result<String, KainError>:
+        let mut checks = Vec__new_()
+        match start:
+            Some(lo) =>
+                let (lo_val, lo_ty) = (*_self).compile_expr(lo)?
+                let (lhs, lhs_ty, rhs, _) = (*_self).coerce_binary_operands(val.to_string(), val_ty.to_string(), lo_val, lo_ty)?
+                let cmp = (*_self).next_reg()
+                match lhs_ty.as_str():
+                    "double" =>
+                        (*_self).emit_(&f"  {cmp} = fcmp oge double {lhs}, {rhs}")
+                        ()
+                    "i1" =>
+                        (*_self).emit_(&f"  {cmp} = icmp sge {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                    "i8" =>
+                        (*_self).emit_(&f"  {cmp} = icmp sge {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                    "i64" =>
+                        (*_self).emit_(&f"  {cmp} = icmp sge {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen(f"Unsupported range lower bound type {lhs_ty}", span))
+                checks.push(cmp)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match end:
+            Some(hi) =>
+                let (hi_val, hi_ty) = (*_self).compile_expr(hi)?
+                let (lhs, lhs_ty, rhs, _) = (*_self).coerce_binary_operands(val.to_string(), val_ty.to_string(), hi_val, hi_ty)?
+                let cmp = (*_self).next_reg()
+                match lhs_ty.as_str():
+                    "double" =>
+                        let op = if inclusive:
+                            "fcmp ole"
+                        else:
+                            "fcmp olt"
+                        (*_self).emit_(&f"  {cmp} = {op} double {lhs}, {rhs}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    "i1" =>
+                        let op = if inclusive:
+                            "icmp sle"
+                        else:
+                            "icmp slt"
+                        (*_self).emit_(&f"  {cmp} = {op} {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    "i8" =>
+                        let op = if inclusive:
+                            "icmp sle"
+                        else:
+                            "icmp slt"
+                        (*_self).emit_(&f"  {cmp} = {op} {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    "i64" =>
+                        let op = if inclusive:
+                            "icmp sle"
+                        else:
+                            "icmp slt"
+                        (*_self).emit_(&f"  {cmp} = {op} {lhs_ty} {lhs}, {rhs}")
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen(f"Unsupported range upper bound type {lhs_ty}", span))
+                checks.push(cmp)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        if checks.is_empty():
+            return Result::Ok(("1").to_string())
+        let mut current = checks[0].clone()
+        for check in checks.iter().skip(1):
+            let combined = (*_self).next_reg()
+            (*_self).emit_(&f"  {combined} = and i1 {current}, {check}")
+            ()
+            current = combined
+            ()
+        ()
+        Result::Ok(current)
+
+    fn compile_pattern_condition(_self: &mut LlvmGenerator, pattern: &kain_core::ast::Pattern, scrutinee_val: String, scrutinee_ty: String, enum_name: Option<String>, span: kain_core::Span) -> Result<String, KainError>:
+        match pattern:
+            kain_core__ast__Pattern::Wildcard(_) => Result::Ok(("1").to_string())
+            kain_core__ast__Pattern::Binding {  } => Result::Ok(("1").to_string())
+            kain_core__ast__Pattern::Literal(expr) =>
+                let (rhs, rhs_ty) = (*_self).compile_expr(expr)?
+                (*_self).compile_value_eq(scrutinee_val, scrutinee_ty, &rhs, &rhs_ty, span)
+            kain_core__ast__Pattern::Range { start: start, end: end, inclusive: inclusive } => (*_self).compile_range_check(scrutinee_val, scrutinee_ty, start, end, (*inclusive), span)
+            kain_core__ast__Pattern::Or(items, _) =>
+                let mut regs = Vec__new_()
+                for item in items:
+                    regs.push((*_self).compile_pattern_condition(item, scrutinee_val, scrutinee_ty, enum_name, span)?)
+                    ()
+                ()
+                if regs.is_empty():
+                    return Result::Ok(("0").to_string())
+                let mut current = regs[0].clone()
+                for reg in regs.iter().skip(1):
+                    let merged = (*_self).next_reg()
+                    (*_self).emit_(&f"  {merged} = or i1 {current}, {reg}")
+                    ()
+                    current = merged
+                    ()
+                ()
+                Result::Ok(current)
+            kain_core__ast__Pattern::Variant { variant: variant } =>
+                let enum_name = enum_name.ok_or_else(fn(): KainError__codegen("Variant pattern requires an enum scrutinee", span))?
+                let tag_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {tag_ptr} = getelementptr inbounds %{enum_name}, {scrutinee_ty} {scrutinee_val}, i32 0, i32 0")
+                ()
+                let tag = (*_self).next_reg()
+                (*_self).emit_(&f"  {tag} = load i64, i64* {tag_ptr}")
+                ()
+                let cmp = (*_self).next_reg()
+                (*_self).emit_(&f"  {cmp} = icmp eq i64 {tag}, {(*_self).hash_message_tag(enum_name, variant)}")
+                ()
+                Result::Ok(cmp)
+            other => Result::Err(KainError__codegen(f"Unsupported LLVM pattern condition: {other}", span))
+
+    fn bind_local_pattern_value(_self: &mut LlvmGenerator, pattern: &kain_core::ast::Pattern, val: String, ty: String) -> Result<(), KainError>:
+        match pattern:
+            kain_core__ast__Pattern::Wildcard(_) => Result::Ok(())
+            kain_core__ast__Pattern::Binding { name: name } =>
+                let addr_reg = f"%{name}.addr_{(*_self).reg_count}"
+                (*_self).reg_count = ((*_self).reg_count + 1)
+                ()
+                (*_self).emit_(&f"  {addr_reg} = alloca {ty}")
+                ()
+                (*_self).emit_(&f"  store {ty} {val}, {ty}* {addr_reg}")
+                ()
+                (*_self).locals.insert(name.clone(), (addr_reg, ty))
+                ()
+                match (*_self).scopes.last_mut():
+                    Some(scope) =>
+                        scope.push(name.clone())
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                Result::Ok(())
+            kain_core__ast__Pattern::Tuple(patterns, span) =>
+                let struct_name = (ty.strip_prefix("%").and_then(fn(name): name.strip_suffix("*")).ok_or_else(fn(): KainError__codegen(f"Tuple pattern requires tuple pointer value, got {ty}", (*span)))?).to_string()
+                let field_defs = (*_self).struct_defs.get(&struct_name).cloned().ok_or_else(fn(): KainError__codegen(f"Unknown tuple storage type for pattern: {struct_name}", (*span)))?
+                for selfhost_for_item in patterns.iter().enumerate():
+                    let (index, sub_pattern) = selfhost_for_item
+                    let field_ty = field_defs.get(index).map(fn(__kain_closure_arg1): __kain_closure_arg1.__kain_tuple_1.clone()).unwrap_or_else(fn(): ("i64").to_string())
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{struct_name}, {ty} {val}, i32 0, i32 {index}")
+                    ()
+                    let field_val = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_val} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    if (field_ty == "i8*"):
+                        (*_self).emit_(&f"  call void @rc_retain(i8* {field_val})")
+                        ()
+                        ()
+                        ()
+                        ()
+                    (*_self).bind_local_pattern_value(sub_pattern, field_val, field_ty)?
+                    ()
+                ()
+                Result::Ok(())
+            kain_core__ast__Pattern::Struct { name: name, fields: fields, span: span } =>
+                let struct_name = (ty.strip_prefix("%").and_then(fn(name): name.strip_suffix("*")).ok_or_else(fn(): KainError__codegen(f"Struct pattern requires struct pointer value, got {ty}", (*span)))?).to_string()
+                if (&struct_name != name):
+                    return Result::Err(KainError__codegen(f"Struct pattern expected {name}, got {struct_name}", (*span)))
+                let field_defs = (*_self).struct_defs.get(&struct_name).cloned().ok_or_else(fn(): KainError__codegen(f"Unknown struct storage type for pattern: {struct_name}", (*span)))?
+                for selfhost_for_item in fields:
+                    let (field_name, sub_pattern) = selfhost_for_item
+                    let (index, field_ty) = field_defs.iter().enumerate().find(fn(__kain_closure_arg2): (__kain_closure_arg2.__kain_tuple_1.__kain_tuple_0 == field_name)).map(fn(__kain_closure_arg3): (__kain_closure_arg3.__kain_tuple_0, __kain_closure_arg3.__kain_tuple_1.__kain_tuple_1.clone())).ok_or_else(fn(): KainError__codegen(f"Unknown struct field '{field_name}' on {struct_name}", (*span)))?
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{struct_name}, {ty} {val}, i32 0, i32 {index}")
+                    ()
+                    let field_val = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_val} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    if (field_ty == "i8*"):
+                        (*_self).emit_(&f"  call void @rc_retain(i8* {field_val})")
+                        ()
+                        ()
+                        ()
+                        ()
+                    (*_self).bind_local_pattern_value(sub_pattern, field_val, field_ty)?
+                    ()
+                ()
+                Result::Ok(())
+            _ => Result::Err(KainError__codegen("Local pattern binding currently supports wildcard, binding, tuple, and struct patterns", Span__default_()))
+
+    fn bind_variant_pattern_fields(_self: &mut LlvmGenerator, enum_name: String, variant: String, fields: &kain_core::ast::VariantPatternFields, scrutinee_val: String, scrutinee_ty: String, span: kain_core::Span) -> Result<(), KainError>:
+        let payload_struct_name = f"{enum_name}_{variant}"
+        if (!(*_self).struct_defs.contains_key(&payload_struct_name)):
+            return Result::Ok(())
+        let payload_ty = f"%{payload_struct_name}"
+        let payload_ptr_ty = f"{payload_ty}*"
+        let payload_ptr_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {payload_ptr_ptr} = getelementptr inbounds %{enum_name}, {scrutinee_ty} {scrutinee_val}, i32 0, i32 1")
+        ()
+        let payload_void = (*_self).next_reg()
+        (*_self).emit_(&f"  {payload_void} = load i8*, i8** {payload_ptr_ptr}")
+        ()
+        let payload_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {payload_ptr} = bitcast i8* {payload_void} to {payload_ptr_ty}")
+        ()
+        match fields:
+            kain_core__ast__VariantPatternFields::Unit => Result::Ok(())
+            kain_core__ast__VariantPatternFields::Tuple(patterns) =>
+                let field_defs = (*_self).struct_defs.get(&payload_struct_name).cloned().unwrap_or_default()
+                for selfhost_for_item in patterns.iter().enumerate():
+                    let (index, pattern) = selfhost_for_item
+                    let field_ty = field_defs.get(index).map(fn(__kain_closure_arg4): __kain_closure_arg4.__kain_tuple_1.clone()).unwrap_or_else(fn(): ("i64").to_string())
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {payload_ty}, {payload_ptr_ty} {payload_ptr}, i32 0, i32 {index}")
+                    ()
+                    let field_val = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_val} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    (*_self).bind_local_pattern_value(pattern, field_val, field_ty)?
+                    ()
+                ()
+                Result::Ok(())
+            kain_core__ast__VariantPatternFields::Struct(named_patterns) =>
+                let field_defs = (*_self).struct_defs.get(&payload_struct_name).cloned().unwrap_or_default()
+                for selfhost_for_item in named_patterns:
+                    let (field_name, pattern) = selfhost_for_item
+                    let (index, field_ty) = field_defs.iter().enumerate().find(fn(__kain_closure_arg5): (__kain_closure_arg5.__kain_tuple_1.__kain_tuple_0 == field_name)).map(fn(__kain_closure_arg6): (__kain_closure_arg6.__kain_tuple_0, __kain_closure_arg6.__kain_tuple_1.__kain_tuple_1.clone())).ok_or_else(fn(): KainError__codegen(f"Unknown payload field '{field_name}' for {enum_name}::{variant}", span))?
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {payload_ty}, {payload_ptr_ty} {payload_ptr}, i32 0, i32 {index}")
+                    ()
+                    let field_val = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_val} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    (*_self).bind_local_pattern_value(pattern, field_val, field_ty)?
+                    ()
+                ()
+                Result::Ok(())
+
+    fn bind_match_pattern(_self: &mut LlvmGenerator, pattern: &kain_core::ast::Pattern, scrutinee_val: String, scrutinee_ty: String, enum_name: Option<String>, span: kain_core::Span) -> Result<(), KainError>:
+        match pattern:
+            kain_core__ast__Pattern::Wildcard(_) => Result::Ok(())
+            kain_core__ast__Pattern::Binding {  } => (*_self).bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string())
+            kain_core__ast__Pattern::Tuple(_, _) => (*_self).bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string())
+            kain_core__ast__Pattern::Struct {  } => (*_self).bind_local_pattern_value(pattern, scrutinee_val.to_string(), scrutinee_ty.to_string())
+            kain_core__ast__Pattern::Variant { variant: variant, fields: fields } =>
+                let enum_name = enum_name.ok_or_else(fn(): KainError__codegen("Variant pattern requires an enum scrutinee", span))?
+                (*_self).bind_variant_pattern_fields(enum_name, variant, fields, scrutinee_val, scrutinee_ty, span)
+            kain_core__ast__Pattern::Or(_, _) => Result::Ok(())
+            kain_core__ast__Pattern::Literal(_) => Result::Ok(())
+            kain_core__ast__Pattern::Range {  } => Result::Ok(())
+            other => Result::Err(KainError__codegen(f"Unsupported LLVM match binding pattern: {other}", span))
+
+    fn ptr_struct_name<a>(_self: &LlvmGenerator, ty: String) -> Option<String>:
+        if (ty.starts_with("%") && ty.ends_with("*")):
+            Option::Some(&ty[1..(ty.len() - 1)])
+        else:
+            none
+
+    fn field_index(_self: &LlvmGenerator, struct_name: String, field: String) -> Option<usize>:
+        ((*_self).struct_defs.get(struct_name)?).iter().position(fn(__kain_closure_arg7): (__kain_closure_arg7.__kain_tuple_0 == field))
+
+    fn compile_temporary_address(_self: &mut LlvmGenerator, expr: &kain_core::ast::Expr) -> Result<(String, String), KainError>:
+        let (val, ty) = (*_self).compile_expr(expr)?
+        let addr = f"%tmp.addr.{(*_self).reg_count}"
+        (*_self).reg_count = ((*_self).reg_count + 1)
+        ()
+        (*_self).emit_(&f"  {addr} = alloca {ty}")
+        ()
+        (*_self).emit_(&f"  store {ty} {val}, {ty}* {addr}")
+        ()
+        Result::Ok((addr, ty))
+
+    fn compile_index_address_from_compiled(_self: &mut LlvmGenerator, obj_val: String, obj_ty: String, idx_val: String, span: kain_core::Span) -> Result<(String, String), KainError>:
+        match obj_ty.strip_suffix("*"):
+            Some(pointee_ty) =>
+                let field_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {pointee_ty}, {obj_ty} {obj_val}, i64 {idx_val}")
+                ()
+                Result::Ok((field_ptr, pointee_ty.to_string()))
+            _ =>
+                if (obj_ty == "i64"):
+                    let base_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {base_ptr} = inttoptr i64 {obj_val} to i64*")
+                    ()
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds i64, i64* {base_ptr}, i64 {idx_val}")
+                    ()
+                    Result::Ok((field_ptr, ("i64").to_string()))
+                else:
+                    Result::Err(KainError__codegen(f"Indexing is not supported for LLVM type {obj_ty}", span))
+
+    fn compile_addressable_ptr(_self: &mut LlvmGenerator, expr: &kain_core::ast::Expr) -> Result<(String, String), KainError>:
+        match expr:
+            kain_core__ast__Expr::Ident(name, span) => (*_self).locals.get(name).cloned().map(fn(__kain_closure_arg8): (__kain_closure_arg8.__kain_tuple_0, __kain_closure_arg8.__kain_tuple_1)).ok_or_else(fn(): KainError__codegen(f"Undefined variable: {name}", (*span)))
+            kain_core__ast__Expr::Field { object: object, field: field, span: span } =>
+                let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                match (*_self).ptr_struct_name(&obj_ty).map(fn(name): name.to_string()):
+                    Some(struct_name) =>
+                        match (*_self).field_index(&struct_name, field):
+                            Some(index) =>
+                                let field_ty = (*_self).struct_defs.get(&struct_name).and_then(fn(fields): fields.get(index)).map(fn(__kain_closure_arg9): __kain_closure_arg9.__kain_tuple_1.clone()).unwrap_or_else(fn(): ("i64").to_string())
+                                let field_ptr = (*_self).next_reg()
+                                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{struct_name}, {obj_ty} {obj_val}, i32 0, i32 {index}")
+                                ()
+                                Result::Ok((field_ptr, field_ty))
+                            _ => Result::Err(KainError__codegen(f"Unknown field '{field}' on {struct_name}", (*span)))
+                    _ => Result::Err(KainError__codegen("Field address requires a struct pointer", (*span)))
+            kain_core__ast__Expr::Index { object: object, index: index, span: span } =>
+                let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                let (idx_val, _) = (*_self).compile_expr(index)?
+                if (obj_ty == "i8*"):
+                    Result::Err(KainError__codegen("Runtime array indexing is not addressable in LLVM", (*span)))
+                else:
+                    (*_self).compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, (*span))
+            _ => (*_self).compile_temporary_address(expr)
+
+    fn compile_lowered_helper_call(_self: &mut LlvmGenerator, func_name: String, args: &[kain_core::ast::CallArg], span: kain_core::Span) -> Option<Result<(String, String), KainError>>:
+        match func_name:
+            "__kain_bind_local" =>
+                if (args.len() != 1):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_bind_local expects 1 argument", span)))
+                let (addr, ty) = match &args[0].value:
+                    kain_core__ast__Expr::Ident(name, arg_span) =>
+                        match (*_self).locals.get(name).cloned():
+                            Some(pair) => pair
+                            None => return Option::Some(Result::Err(KainError__codegen(f"Undefined variable: {name}", (*arg_span))))
+                    other =>
+                        match (*_self).compile_temporary_address(other):
+                            Ok(pair) => pair
+                            Err(err) => return Option::Some(Result::Err(err))
+                let ptr_i8 = (*_self).next_reg()
+                (*_self).emit_(&f"  {ptr_i8} = bitcast {ty}* {addr} to i8*")
+                ()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_bind_local(i8* {ptr_i8})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_addr_of" =>
+                if (args.len() < 1):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_addr_of expects at least 1 argument", span)))
+                let (addr, ty) = match (*_self).compile_addressable_ptr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let ptr_i8 = (*_self).next_reg()
+                (*_self).emit_(&f"  {ptr_i8} = bitcast {ty}* {addr} to i8*")
+                ()
+                let size = if (args.len() > 1):
+                    match (*_self).compile_expr(&args[1].value):
+                        Ok((val, _)) => val
+                        Err(err) => return Option::Some(Result::Err(err))
+                else:
+                    ("8").to_string()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_addr_of(i8* {ptr_i8}, i64 {size})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_mem_load" =>
+                if (args.len() != 1):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_mem_load expects 1 argument", span)))
+                Option::Some((*_self).compile_runtime_mem_load(&args[0].value, "i64", span))
+            "__kain_mem_store" =>
+                if (args.len() != 2):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_mem_store expects 2 arguments", span)))
+                Option::Some((*_self).compile_runtime_mem_store(&args[0].value, &args[1].value, span))
+            "__kain_field_ptr" =>
+                if (args.len() != 3):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_field_ptr expects 3 arguments (ptr, field_name, offset)", span)))
+                let compiled_base = match (*_self).compile_expr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_i64 = (*_self).coerce_to_i64_storage(&compiled_base.field_0, &compiled_base.field_1)
+                let field_name = match &args[1].value:
+                    kain_core__ast__Expr::String(s, _) => s.clone()
+                    _ => ("unknown").to_string()
+                let (field_str, _) = (*_self).compile_string_literal(&field_name)
+                let (offset, _) = match (*_self).compile_expr(&args[2].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {base_ptr} = inttoptr i64 {base_i64} to i8*")
+                ()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_field_ptr(i8* {base_ptr}, i8* {field_str}, i64 {offset})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_index_ptr" =>
+                if (args.len() != 3):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_index_ptr expects 3 arguments (ptr, index, stride)", span)))
+                let compiled_base = match (*_self).compile_expr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_i64 = (*_self).coerce_to_i64_storage(&compiled_base.field_0, &compiled_base.field_1)
+                let (index, _) = match (*_self).compile_expr(&args[1].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (stride, _) = match (*_self).compile_expr(&args[2].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {base_ptr} = inttoptr i64 {base_i64} to i8*")
+                ()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_index_ptr(i8* {base_ptr}, i64 {index}, i64 {stride})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_ptr_offset" =>
+                if (args.len() != 3):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_ptr_offset expects 3 arguments (ptr, offset, stride)", span)))
+                let compiled_base = match (*_self).compile_expr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_i64 = (*_self).coerce_to_i64_storage(&compiled_base.field_0, &compiled_base.field_1)
+                let (offset, _) = match (*_self).compile_expr(&args[1].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (stride, _) = match (*_self).compile_expr(&args[2].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let base_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {base_ptr} = inttoptr i64 {base_i64} to i8*")
+                ()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_ptr_offset(i8* {base_ptr}, i64 {offset}, i64 {stride})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_alloc" =>
+                if (args.len() != 3):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_alloc expects 3 arguments (size, stride, zeroed)", span)))
+                let (size, _) = match (*_self).compile_expr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (stride, _) = match (*_self).compile_expr(&args[1].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (zeroed, _) = match (*_self).compile_expr(&args[2].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_alloc(i64 {size}, i64 {stride}, i32 {zeroed})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            "__kain_realloc" =>
+                if (args.len() != 4):
+                    return Option::Some(Result::Err(KainError__codegen("__kain_realloc expects 4 arguments (ptr, size, stride, zeroed_new)", span)))
+                let (ptr, ptr_ty) = match (*_self).compile_expr(&args[0].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let ptr_i64 = (*_self).coerce_to_i64_storage(&ptr, &ptr_ty)
+                let (size, _) = match (*_self).compile_expr(&args[1].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (stride, _) = match (*_self).compile_expr(&args[2].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let (zeroed_new, _) = match (*_self).compile_expr(&args[3].value):
+                    Ok(pair) => pair
+                    Err(err) => return Option::Some(Result::Err(err))
+                let ptr_i8 = (*_self).next_reg()
+                (*_self).emit_(&f"  {ptr_i8} = inttoptr i64 {ptr_i64} to i8*")
+                ()
+                let result = (*_self).next_reg()
+                (*_self).emit_(&f"  {result} = call i8* @__kain_realloc(i8* {ptr_i8}, i64 {size}, i64 {stride}, i32 {zeroed_new})")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = ptrtoint i8* {result} to i64")
+                ()
+                Option::Some(Result::Ok((res, ("i64").to_string())))
+            _ => none
+
+    fn jsx_span(_self: &LlvmGenerator, node: &kain_core::ast::JSXNode) -> kain_core::Span:
+        match node:
+            kain_core__ast__JSXNode::Element { span: span } => (*span)
+            kain_core__ast__JSXNode::Text(_, span) => (*span)
+            kain_core__ast__JSXNode::ComponentCall { span: span } => (*span)
+            kain_core__ast__JSXNode::For { span: span } => (*span)
+            kain_core__ast__JSXNode::If { span: span } => (*span)
+            kain_core__ast__JSXNode::Fragment(_, span) => (*span)
+            kain_core__ast__JSXNode::Expression(expr) => expr.span()
+
+    fn compile_jsx(_self: &mut LlvmGenerator, node: &kain_core::ast::JSXNode) -> Result<(String, String), KainError>:
+        match node:
+            kain_core__ast__JSXNode::Text(text, _) => Result::Ok((*_self).compile_string_literal(text))
+            kain_core__ast__JSXNode::Expression(expr) =>
+                let (val, ty) = (*_self).compile_expr(expr)?
+                (*_self).stringify_value(&val, &ty)
+            kain_core__ast__JSXNode::Fragment(children, _) =>
+                let (mut acc, _) = (*_self).compile_string_literal("")
+                for child in children:
+                    let (child_val, _) = (*_self).compile_jsx(child)?
+                    acc = (*_self).concat_strings(&acc, &child_val)
+                    ()
+                ()
+                Result::Ok((acc, ("i8*").to_string()))
+            kain_core__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>
+                let (mut acc, _) = (*_self).compile_string_literal(&f"<{tag}")
+                for attr in attributes:
+                    match &attr.value:
+                        kain_core__ast__JSXAttrValue::String(value) =>
+                            let (piece, _) = (*_self).compile_string_literal(&f" {attr.name}=\"{value}\"")
+                            acc = (*_self).concat_strings(&acc, &piece)
+                            ()
+                        kain_core__ast__JSXAttrValue::Bool(true) =>
+                            let (piece, _) = (*_self).compile_string_literal(&f" {attr.name}")
+                            acc = (*_self).concat_strings(&acc, &piece)
+                            ()
+                        kain_core__ast__JSXAttrValue::Bool(false) => ()
+                        kain_core__ast__JSXAttrValue::Expr(expr) =>
+                            let (prefix, _) = (*_self).compile_string_literal(&f" {attr.name}=\"")
+                            acc = (*_self).concat_strings(&acc, &prefix)
+                            ()
+                            let (value, ty) = (*_self).compile_expr(expr)?
+                            let (value_str, _) = (*_self).stringify_value(&value, &ty)?
+                            acc = (*_self).concat_strings(&acc, &value_str)
+                            ()
+                            let (suffix, _) = (*_self).compile_string_literal("\"")
+                            acc = (*_self).concat_strings(&acc, &suffix)
+                            ()
+                ()
+                let (open_end, _) = (*_self).compile_string_literal(">")
+                acc = (*_self).concat_strings(&acc, &open_end)
+                ()
+                for child in children:
+                    let (child_val, _) = (*_self).compile_jsx(child)?
+                    acc = (*_self).concat_strings(&acc, &child_val)
+                    ()
+                ()
+                let (close, _) = (*_self).compile_string_literal(&f"</{tag}>")
+                acc = (*_self).concat_strings(&acc, &close)
+                ()
+                Result::Ok((acc, ("i8*").to_string()))
+            kain_core__ast__JSXNode::ComponentCall { name: name, props: props, children: children, span: span } =>
+                let defs = (*_self).component_defs.get(name).cloned().unwrap_or_default()
+                let mut compiled_args = Vec__new_()
+                let mut arg_types = Vec__new_()
+                for selfhost_for_item in defs:
+                    let (prop_name, prop_ty) = selfhost_for_item
+                    match props.iter().find(fn(prop): (prop.name == prop_name)):
+                        Some(prop) =>
+                            match &prop.value:
+                                kain_core__ast__JSXAttrValue::String(value) =>
+                                    let (val, ty) = (*_self).compile_string_literal(value)
+                                    compiled_args.push(val)
+                                    ()
+                                    arg_types.push(if (prop_ty == "i8*"): ty else: prop_ty.clone())
+                                    ()
+                                kain_core__ast__JSXAttrValue::Bool(value) =>
+                                    compiled_args.push(if (*value): ("1").into() else: ("0").into())
+                                    ()
+                                    arg_types.push(prop_ty.clone())
+                                    ()
+                                kain_core__ast__JSXAttrValue::Expr(expr) =>
+                                    let (val, ty) = (*_self).compile_expr(expr)?
+                                    compiled_args.push(val)
+                                    ()
+                                    arg_types.push(ty)
+                                    ()
+                        _ =>
+                            compiled_args.push((*_self).zero_value_for_ty(&prop_ty))
+                            ()
+                            arg_types.push(prop_ty.clone())
+                            ()
+                ()
+                let (children_val, children_ty) = (*_self).compile_jsx(&kain_core__ast__JSXNode::Fragment(children.clone(), (*span)))?
+                compiled_args.push(children_val)
+                ()
+                arg_types.push(children_ty)
+                ()
+                let res = (*_self).next_reg()
+                let arg_str = compiled_args.iter().zip(arg_types.iter()).map(fn(__kain_closure_arg10): f"{__kain_closure_arg10.__kain_tuple_1} {__kain_closure_arg10.__kain_tuple_0}").collect().join(", ")
+                (*_self).emit_(&f"  {res} = call i8* @{name}({arg_str})")
+                ()
+                Result::Ok((res, ("i8*").to_string()))
+            kain_core__ast__JSXNode::For { binding: binding, iter: iter, body: body } =>
+                let (iter_val, iter_ty) = (*_self).compile_expr(iter)?
+                let _ = binding
+                let _ = body
+                (*_self).stringify_value(&iter_val, &iter_ty)
+            kain_core__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                let then_span = (*_self).jsx_span(then_branch)
+                let expr = kain_core__ast__Expr::If { condition: condition.clone(), then_branch: kain_core::ast::Block { stmts: [kain_core__ast__Stmt::Expr(kain_core__ast__Expr::JSX(((*(*then_branch))).clone(), then_span))], span: then_span }, else_branch: else_branch.map(fn(branch): none), span: then_span }
+                (*_self).compile_expr(&expr)
+
+    fn hash_message_tag(_self: &LlvmGenerator, actor_: String, msg: String) -> i64:
+        let s = f"{actor_}_{msg}"
+        let mut hash: i64 = 5381
+        for c in s.bytes():
+            hash = ((((hash << 5)).wrapping_add(hash)) ^ (c as i64))
+            ()
+        ()
+        hash
+
+    fn callable_signature(_self: &LlvmGenerator, resolved_type: &kain_core::types::ResolvedType, callable_name: String, span: kain_core::Span) -> Result<(Array<kain_core::types::ResolvedType>, String), KainError>:
+        let kain_core__types__ResolvedType::Function { params: params, ret: ret } = resolved_type
+        let mut ret_type = (*_self).map_type(ret)
+        if ((ret_type == "void") && (callable_name != "main")):
+            ret_type = ("i64").to_string()
+            ()
+            ()
+            ()
+            ()
+        Result::Ok((params.clone(), ret_type))
+
+    fn extern_callable_signature(_self: &LlvmGenerator, resolved_type: &kain_core::types::ResolvedType, callable_name: String, span: kain_core::Span) -> Result<(Array<kain_core::types::ResolvedType>, String), KainError>:
+        let kain_core__types__ResolvedType::Function { params: params, ret: ret } = resolved_type
+        Result::Ok((params.clone(), (*_self).map_type(ret)))
+
+    fn function_is_extern(func: &kain_core::types::TypedFunction) -> Bool:
+        (*func).ast.attributes.iter().any(fn(attr): (attr.name == "extern"))
+
+    fn register_world_type_and_global(_self: &mut LlvmGenerator, world: &kain_core::types::TypedWorld) -> Result<(), KainError>:
+        let mut fields = Vec__new_()
+        for state_ in &(*world).ast.states:
+            fields.push((state_.name.clone(), (*_self).map_type_from_ast(&state_.ty)))
+            ()
+        ()
+        (*_self).struct_defs.insert((*world).ast.name.clone(), fields.clone())
+        ()
+        let field_types: Array<String> = fields.iter().map(fn(__kain_closure_arg11): __kain_closure_arg11.__kain_tuple_1.clone()).collect()
+        (*_self).emit_(&"%{(*world).ast.name} = type { {field_types.join(\", \")} }")
+        ()
+        let global_symbol = f"@__kain_world_{(*world).ast.name}"
+        let init_flag_symbol = f"@__kain_world_init_flag_{(*world).ast.name}"
+        let init_fn_name = f"__kain_init_world_{(*world).ast.name}"
+        (*_self).world_globals.insert((*world).ast.name.clone(), WorldGlobalInfo { global_symbol: global_symbol.clone(), init_flag_symbol: init_flag_symbol.clone(), init_fn_name: init_fn_name })
+        ()
+        (*_self).emit_(&f"{global_symbol} = internal global %{(*world).ast.name} zeroinitializer")
+        ()
+        (*_self).emit_(&f"{init_flag_symbol} = internal global i1 0")
+        ()
+        (*_self).emit_("")
+        ()
+        Result::Ok(())
+
+    fn compile_module(_self: &mut LlvmGenerator, program: &kain_core::types::TypedProgram) -> Result<(), KainError>:
+        (*_self).emit_("; ModuleID = 'KAIN'")
+        ()
+        (*_self).emit_("source_filename = \"KAIN\"")
+        ()
+        (*_self).emit_(&f"target datalayout = \"{(*_self).target.datalayout}\"")
+        ()
+        (*_self).emit_(&f"target triple = \"{(*_self).target.triple}\"")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).collect_program_tuple_types(program)
+        ()
+        (*_self).emit_runtime_abi_types()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Struct(s) =>
+                    let mut fields = Vec__new_()
+                    for field in &s.ast.fields:
+                        match s.field_types.get(&field.name):
+                            Some(res_ty) =>
+                                fields.push((field.name.clone(), (*_self).map_type(res_ty)))
+                                ()
+                            _ =>
+                                fields.push((field.name.clone(), ("i64").into()))
+                                ()
+                    ()
+                    (*_self).struct_defs.insert(s.ast.name.clone(), fields.clone())
+                    ()
+                    let field_types: Array<String> = fields.iter().map(fn(__kain_closure_arg12): __kain_closure_arg12.__kain_tuple_1.clone()).collect()
+                    (*_self).emit_(&"%{s.ast.name} = type { {field_types.join(\", \")} }")
+                    ()
+                _ =>
+                    match item:
+                        kain_core__types__TypedItem::World(world) =>
+                            (*_self).register_world_type_and_global(world)?
+                            ()
+                        _ =>
+                            match item:
+                                kain_core__types__TypedItem::Component(component_) =>
+                                    let mut props = Vec__new_()
+                                    for prop in &component_.ast.props:
+                                        match component_.prop_types.get(&prop.name):
+                                            Some(res_ty) =>
+                                                props.push((prop.name.clone(), (*_self).map_type(res_ty)))
+                                                ()
+                                            _ =>
+                                                props.push((prop.name.clone(), (*_self).map_type_from_ast(&prop.ty)))
+                                                ()
+                                    ()
+                                    props.push((("children").to_string(), ("i8*").to_string()))
+                                    ()
+                                    (*_self).component_defs.insert(component_.ast.name.clone(), props.clone())
+                                    ()
+                                    (*_self).functions.insert(component_.ast.name.clone(), ("i8*").to_string())
+                                    ()
+                                _ =>
+                                    match item:
+                                        kain_core__types__TypedItem::Actor(a) =>
+                                            let mut fields = Vec__new_()
+                                            fields.push((("__actor_id").to_string(), ("i64").into()))
+                                            ()
+                                            for state_ in &a.ast.state_:
+                                                match a.state_types.get(&state_.name):
+                                                    Some(res_ty) =>
+                                                        fields.push((state_.name.clone(), (*_self).map_type(res_ty)))
+                                                        ()
+                                                    _ =>
+                                                        fields.push((state_.name.clone(), ("i64").into()))
+                                                        ()
+                                            ()
+                                            (*_self).struct_defs.insert(a.ast.name.clone(), fields.clone())
+                                            ()
+                                            let field_types: Array<String> = fields.iter().map(fn(__kain_closure_arg13): __kain_closure_arg13.__kain_tuple_1.clone()).collect()
+                                            (*_self).emit_(&"%{a.ast.name} = type { {field_types.join(\", \")} }")
+                                            ()
+                                            for handler in &a.ast.handlers:
+                                                let mut payload_fields = Vec__new_()
+                                                let mut field_defs = Vec__new_()
+                                                for param in &handler.params:
+                                                    let p_ty = (*_self).map_type_from_ast(&param.ty)
+                                                    payload_fields.push(p_ty.clone())
+                                                    ()
+                                                    field_defs.push((param.name.clone(), p_ty))
+                                                    ()
+                                                ()
+                                                let msg_struct_name = f"{a.ast.name}_{handler.message_type}"
+                                                (*_self).struct_defs.insert(msg_struct_name.clone(), field_defs)
+                                                ()
+                                                (*_self).emit_(&"%{msg_struct_name} = type { {payload_fields.join(\", \")} }")
+                                                ()
+                                        _ =>
+                                            match item:
+                                                kain_core__types__TypedItem::Enum(e) =>
+                                                    (*_self).emit_(&"%{e.ast.name} = type { i64, i8* }")
+                                                    ()
+                                                    for selfhost_for_item in &e.variant_payload_types:
+                                                        let (variant_name, payload_types) = selfhost_for_item
+                                                        if (!payload_types.is_empty()):
+                                                            let field_types: Array<String> = payload_types.iter().map(fn(t): (*_self).map_type(t)).collect()
+                                                            let struct_name = f"{e.ast.name}_{variant_name}"
+                                                            (*_self).emit_(&"%{struct_name} = type { {field_types.join(\", \")} }")
+                                                            ()
+                                                            let mut fields = Vec__new_()
+                                                            for selfhost_for_item in field_types.iter().enumerate():
+                                                                let (i, ty) = selfhost_for_item
+                                                                fields.push((f"_{i}", ty.clone()))
+                                                                ()
+                                                            ()
+                                                            (*_self).struct_defs.insert(struct_name, fields)
+                                                            ()
+                                                _ => ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(func) =>
+                    if LlvmGenerator__function_is_extern(func):
+                        let (params, ret_ty) = (*_self).extern_callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
+                        (*_self).functions.insert(func.ast.name.clone(), ret_ty.clone())
+                        ()
+                        (*_self).function_params.insert(func.ast.name.clone(), params.into_iter().map(fn(param): (*_self).map_type(&param)).collect())
+                        ()
+                        (*_self).extern_functions.insert(func.ast.name.clone())
+                        ()
+                    else:
+                        let (params, ret_ty) = (*_self).callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
+                        (*_self).functions.insert(func.ast.name.clone(), ret_ty.clone())
+                        ()
+                        (*_self).function_params.insert(func.ast.name.clone(), params.into_iter().map(fn(param): (*_self).map_type(&param)).collect())
+                        ()
+                _ =>
+                    match item:
+                        kain_core__types__TypedItem::Patch(patch) =>
+                            let (_, ret_ty) = (*_self).callable_signature(&patch.resolved_type, &patch.ast.name, patch.ast.span)?
+                            (*_self).functions.insert(patch.ast.name.clone(), ret_ty)
+                            ()
+                        _ =>
+                            match item:
+                                kain_core__types__TypedItem::Converge(converge) =>
+                                    let (_, ret_ty) = (*_self).callable_signature(&converge.resolved_type, &converge.ast.name, converge.ast.span)?
+                                    (*_self).functions.insert(converge.ast.name.clone(), ret_ty)
+                                    ()
+                                _ =>
+                                    match item:
+                                        kain_core__types__TypedItem::Orchestrate(orchestrate) =>
+                                            let (_, ret_ty) = (*_self).callable_signature(&orchestrate.resolved_type, &orchestrate.ast.name, orchestrate.ast.span)?
+                                            (*_self).functions.insert(orchestrate.ast.name.clone(), ret_ty)
+                                            ()
+                                        _ =>
+                                            match item:
+                                                kain_core__types__TypedItem::Impl(imp) =>
+                                                    match &imp.ast.target_type:
+                                                        kain_core__ast__Type::Named { name: name } =>
+                                                            for method in &imp.ast.methods:
+                                                                let mut ret_ty = method.return_type.map(fn(ty): (*_self).map_type_from_ast(ty)).unwrap_or_else(fn(): ("void").to_string())
+                                                                if (ret_ty == "void"):
+                                                                    ret_ty = ("i64").to_string()
+                                                                    ()
+                                                                    ()
+                                                                    ()
+                                                                    ()
+                                                                (*_self).functions.insert(f"{name}_{method.name}", ret_ty)
+                                                                ()
+                                                        _ => ()
+                                                _ => ()
+        ()
+        let stdlib = StdLib__new_()
+        for selfhost_for_item in stdlib.functions:
+            let (name, func) = selfhost_for_item
+            let ret_ty = (*_self).map_type_from_str(func.return_type)
+            (*_self).functions.insert(name, ret_ty)
+            ()
+        ()
+        (*_self).emit_externs()
+        ()
+        (*_self).emit_runtime()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(func) => (*_self).compile_function(func)?
+                kain_core__types__TypedItem::Patch(patch) => (*_self).compile_patch(patch)?
+                kain_core__types__TypedItem::Converge(converge) => (*_self).compile_converge(converge)?
+                kain_core__types__TypedItem::World(world) => (*_self).compile_world_initializer(world)?
+                kain_core__types__TypedItem::Orchestrate(orchestrate) => (*_self).compile_orchestrate(orchestrate)?
+                kain_core__types__TypedItem::Component(component_) => (*_self).compile_component(component_)?
+                kain_core__types__TypedItem::Impl(imp) => (*_self).compile_impl(imp)?
+                kain_core__types__TypedItem::Actor(actor_) => (*_self).compile_actor(actor_)?
+                _ => ()
+        ()
+        let strings: Array<(String, String)> = (*_self).strings.iter().map(fn(__kain_closure_arg14): (__kain_closure_arg14.__kain_tuple_0.clone(), __kain_closure_arg14.__kain_tuple_1.clone())).collect()
+        for selfhost_for_item in strings:
+            let (content, name) = selfhost_for_item
+            let len = (content.len() + 1)
+            let mut escaped = String__new_()
+            for b in content.bytes():
+                if ((((b >= 32) && (b < 127)) && (b != 34)) && (b != 92)):
+                    escaped.push(b as Char)
+                    ()
+                else:
+                    escaped.push_str(&f"\\{b}")
+                    ()
+            ()
+            escaped.push_str("\\00")
+            ()
+            (*_self).emit_(&f"{name} = private unnamed_addr constant [{len} x i8] c\"{escaped}\", align 1")
+            ()
+        ()
+        (*_self).emit_struct_destructors()
+        ()
+        Result::Ok(())
+
+    fn compile_actor(_self: &mut LlvmGenerator, actor_: &kain_core::types::TypedActor) -> Result<(), KainError>:
+        let name = &actor_.ast.name
+        let struct_ty = f"%{name}"
+        (*_self).reg_count = 0
+        ()
+        (*_self).locals.clear()
+        ()
+        (*_self).borrowed_locals.clear()
+        ()
+        (*_self).scopes.clear()
+        ()
+        (*_self).current_return_type = Option::Some(("i32").to_string())
+        ()
+        (*_self).actor_return_label = none
+        ()
+        (*_self).actor_return_slot = none
+        ()
+        (*_self).emit_(&"define i32 @{name}_run(i64 %actor_id, i8* %mailbox, i8* %user_data) {")
+        ()
+        (*_self).emit_label("entry")
+        ()
+        let self_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {self_ptr} = bitcast i8* %user_data to {struct_ty}*")
+        ()
+        let actor_id_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {actor_id_ptr} = getelementptr inbounds {struct_ty}, {struct_ty}* {self_ptr}, i32 0, i32 0")
+        ()
+        (*_self).emit_(&f"  store i64 %actor_id, i64* {actor_id_ptr}")
+        ()
+        (*_self).locals.insert(("self").to_string(), (self_ptr.clone(), struct_ty.clone()))
+        ()
+        (*_self).borrowed_locals.insert(("self").to_string())
+        ()
+        let message_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {message_ptr} = alloca %KainActorMessage")
+        ()
+        let label_loop = (*_self).next_label()
+        (*_self).emit_(&f"  br label %{label_loop}")
+        ()
+        (*_self).emit_label(&label_loop)
+        ()
+        let receive_status = (*_self).next_reg()
+        (*_self).emit_(&f"  {receive_status} = call i32 @kain_actor_receive(i8* %mailbox, %KainActorMessage* {message_ptr}, i8* null)")
+        ()
+        let has_message = (*_self).next_reg()
+        (*_self).emit_(&f"  {has_message} = icmp eq i32 {receive_status}, 0")
+        ()
+        let label_closed = (*_self).next_label()
+        let label_dispatch = (*_self).next_label()
+        (*_self).emit_(&f"  br i1 {has_message}, label %{label_dispatch}, label %{label_closed}")
+        ()
+        (*_self).emit_label(&label_closed)
+        ()
+        (*_self).emit_("  ret i32 0")
+        ()
+        (*_self).emit_label(&label_dispatch)
+        ()
+        let message_type_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {message_type_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 0")
+        ()
+        let message_tag = (*_self).next_reg()
+        (*_self).emit_(&f"  {message_tag} = load i64, i64* {message_type_ptr}")
+        ()
+        let message_data_ptr = (*_self).next_reg()
+        (*_self).emit_(&f"  {message_data_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 1")
+        ()
+        let message_data = (*_self).next_reg()
+        (*_self).emit_(&f"  {message_data} = load i8*, i8** {message_data_ptr}")
+        ()
+        let label_unknown = (*_self).next_label()
+        let mut handler_labels = Vec__new_()
+        for _ in &actor_.ast.handlers:
+            handler_labels.push((*_self).next_label())
+            ()
+        ()
+        let mut switch_cases = String__new_()
+        for selfhost_for_item in actor_.ast.handlers.iter().enumerate():
+            let (i, handler) = selfhost_for_item
+            let tag = (*_self).hash_message_tag(name, &handler.message_type)
+            switch_cases.push_str(&f"i64 {tag}, label %{handler_labels[i]} ")
+            ()
+        ()
+        (*_self).emit_(&f"  switch i64 {message_tag}, label %{label_unknown} [ {switch_cases} ]")
+        ()
+        (*_self).emit_label(&label_unknown)
+        ()
+        (*_self).emit_(&f"  call void @free(i8* {message_data})")
+        ()
+        (*_self).emit_(&f"  br label %{label_loop}")
+        ()
+        for selfhost_for_item in actor_.ast.handlers.iter().enumerate():
+            let (i, handler) = selfhost_for_item
+            (*_self).emit_label(&handler_labels[i])
+            ()
+            let msg_struct_name = f"{name}_{handler.message_type}"
+            let msg_struct_ty = f"%{msg_struct_name}"
+            let payload = (*_self).next_reg()
+            (*_self).emit_(&f"  {payload} = bitcast i8* {message_data} to {msg_struct_ty}*")
+            ()
+            (*_self).scopes.push(Vec__new_())
+            ()
+            (*_self).locals.clear()
+            ()
+            (*_self).locals.insert(("self").to_string(), (self_ptr.clone(), struct_ty.clone()))
+            ()
+            let return_slot = (*_self).next_reg()
+            (*_self).emit_(&f"  {return_slot} = alloca i32")
+            ()
+            (*_self).emit_(&f"  store i32 0, i32* {return_slot}")
+            ()
+            let handler_return_label = (*_self).next_label()
+            (*_self).actor_return_label = Option::Some(handler_return_label.clone())
+            ()
+            (*_self).actor_return_slot = Option::Some(return_slot.clone())
+            ()
+            for selfhost_for_item in handler.params.iter().enumerate():
+                let (j, param) = selfhost_for_item
+                let p_ty = (*_self).map_type_from_ast(&param.ty)
+                let field_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {msg_struct_ty}, {msg_struct_ty}* {payload}, i32 0, i32 {j}")
+                ()
+                let val = (*_self).next_reg()
+                (*_self).emit_(&f"  {val} = load {p_ty}, {p_ty}* {field_ptr}")
+                ()
+                let addr_reg = f"%{param.name}.addr"
+                (*_self).emit_(&f"  {addr_reg} = alloca {p_ty}")
+                ()
+                (*_self).emit_(&f"  store {p_ty} {val}, {p_ty}* {addr_reg}")
+                ()
+                (*_self).locals.insert(param.name.clone(), (addr_reg, p_ty))
+                ()
+                match (*_self).scopes.last_mut():
+                    Some(scope) =>
+                        scope.push(param.name.clone())
+                        ()
+                    _ => ()
+            ()
+            (*_self).compile_block(&handler.body)?
+            ()
+            (*_self).emit_(&f"  call void @free(i8* {message_data})")
+            ()
+            (*_self).emit_(&f"  br label %{label_loop}")
+            ()
+            (*_self).emit_label(&handler_return_label)
+            ()
+            (*_self).emit_(&f"  call void @free(i8* {message_data})")
+            ()
+            let handler_ret = (*_self).next_reg()
+            (*_self).emit_(&f"  {handler_ret} = load i32, i32* {return_slot}")
+            ()
+            (*_self).emit_(&f"  ret i32 {handler_ret}")
+            ()
+            (*_self).scopes.pop()
+            ()
+            (*_self).actor_return_label = none
+            ()
+            (*_self).actor_return_slot = none
+            ()
+        ()
+        (*_self).emit_("}")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).current_return_type = none
+        ()
+        Result::Ok(())
+
+    fn emit_runtime_abi_types(_self: &mut LlvmGenerator):
+        (*_self).emit_("; Canonical native runtime ABI types")
+        ()
+        (*_self).emit_("%KainActorMessage = type { i64, i8*, i64, i64 }")
+        ()
+        (*_self).emit_("%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, [128 x i8] }")
+        ()
+        (*_self).emit_("")
+        ()
+
+    fn emit_runtime(_self: &mut LlvmGenerator):
+        let __selfhost_empty = none
+
+    fn emit_externs(_self: &mut LlvmGenerator):
+        (*_self).emit_("declare void @print_i64(i64)")
+        ()
+        (*_self).emit_("declare void @print_f64(double)")
+        ()
+        (*_self).emit_("declare void @print_bool(i1)")
+        ()
+        (*_self).emit_("declare void @print_str(i8*, i64)")
+        ()
+        (*_self).emit_("declare i8* @to_string(i64)")
+        ()
+        (*_self).emit_("declare i8* @str_concat(i8*, i8*)")
+        ()
+        (*_self).emit_("declare i64 @clock_wrapper()")
+        ()
+        (*_self).emit_("declare i8* @KAIN_alloc(i64)")
+        ()
+        (*_self).emit_("declare void @rc_retain(i8*)")
+        ()
+        (*_self).emit_("declare void @rc_release(i8*)")
+        ()
+        (*_self).emit_("declare i8* @string_new(i8*)")
+        ()
+        (*_self).emit_("declare i8* @array_new(i64)")
+        ()
+        (*_self).emit_("declare void @array_push(i8*, i64)")
+        ()
+        (*_self).emit_("declare i64 @array_get(i8*, i64)")
+        ()
+        (*_self).emit_("declare void @array_set(i8*, i64, i64)")
+        ()
+        (*_self).emit_("declare i64 @array_len(i8*)")
+        ()
+        (*_self).emit_("declare void @kain_actor_spawn_config_init(%KainActorSpawnConfig*)")
+        ()
+        (*_self).emit_("declare i64 @kain_actor_spawn(%KainActorSpawnConfig*, i8*)")
+        ()
+        (*_self).emit_("declare i32 @kain_actor_send(i64, %KainActorMessage*, i8*)")
+        ()
+        (*_self).emit_("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)")
+        ()
+        (*_self).emit_("declare void @KAIN_set_destructor(i8*, void(i8*)*)")
+        ()
+        (*_self).emit_("declare void @free(i8*)")
+        ()
+        (*_self).emit_("declare i1 @deep_eq(i8*, i8*)")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).emit_("; Low-Level Memory Helper Surface")
+        ()
+        (*_self).emit_("; Category 1: Pointer and Address Operations")
+        ()
+        (*_self).emit_("declare i8* @__kain_bind_local(i8*)")
+        ()
+        (*_self).emit_("declare i8* @__kain_addr_of(i8*, i64)")
+        ()
+        (*_self).emit_("declare i8* @__kain_ptr_offset(i8*, i64, i64)")
+        ()
+        (*_self).emit_("declare i8* @__kain_field_ptr(i8*, i8*, i64)")
+        ()
+        (*_self).emit_("declare i8* @__kain_index_ptr(i8*, i64, i64)")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).emit_("; Category 2: Memory Load/Store Operations")
+        ()
+        (*_self).emit_("declare void @__kain_mem_load(i8*, i8*, i64)")
+        ()
+        (*_self).emit_("declare void @__kain_mem_store(i8*, i8*, i64)")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).emit_("; Category 3: Allocation Operations")
+        ()
+        (*_self).emit_("declare i8* @__kain_alloc(i64, i64, i32)")
+        ()
+        (*_self).emit_("declare i8* @__kain_realloc(i8*, i64, i64, i32)")
+        ()
+        (*_self).emit_stdlib_externs()
+        ()
+
+    fn emit_stdlib_externs(_self: &mut LlvmGenerator):
+        let stdlib = StdLib__new_()
+        let skip_list = ["print", "println", "to_string"]
+        for selfhost_for_item in stdlib.functions:
+            let (name, func) = selfhost_for_item
+            if skip_list.contains(&name.as_str()):
+                continue
+            let ret_ty = (*_self).map_type_from_str(func.return_type)
+            let mut param_tys = Vec__new_()
+            for selfhost_for_item in func.params:
+                let (_, p_ty) = selfhost_for_item
+                param_tys.push((*_self).map_type_from_str(p_ty))
+                ()
+            ()
+            let runtime_symbol = runtime_symbol_for_stdlib_function(&name)
+            (*_self).emit_(&"declare {ret_ty} @{runtime_symbol}({param_tys.join(\", \")})")
+            ()
+
+    fn emit_struct_destructors(_self: &mut LlvmGenerator):
+        let structs: Array<(String, Array<(String, String)>)> = (*_self).struct_defs.iter().map(fn(__kain_closure_arg15): (__kain_closure_arg15.__kain_tuple_0.clone(), __kain_closure_arg15.__kain_tuple_1.clone())).collect()
+        for selfhost_for_item in structs:
+            let (name, fields) = selfhost_for_item
+            let has_rc_fields = fields.iter().any(fn(__kain_closure_arg16): ((__kain_closure_arg16.__kain_tuple_1 == "i8*") || __kain_closure_arg16.__kain_tuple_1.starts_with("%")))
+            if (!has_rc_fields):
+                continue
+            let struct_ty = f"%{name}"
+            let dtor_name = f"dtor_{name}"
+            (*_self).emit_(&"define void @{dtor_name}(i8* %ptr_void) {")
+            ()
+            (*_self).emit_label("entry")
+            ()
+            let ptr_typed = (*_self).next_reg()
+            (*_self).emit_(&f"  {ptr_typed} = bitcast i8* %ptr_void to {struct_ty}*")
+            ()
+            for selfhost_for_item in fields.iter().enumerate():
+                let (i, (_, field_ty)) = selfhost_for_item
+                if ((field_ty == "i8*") || field_ty.starts_with("%")):
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {struct_ty}, {struct_ty}* {ptr_typed}, i32 0, i32 {i}")
+                    ()
+                    let loaded = (*_self).next_reg()
+                    (*_self).emit_(&f"  {loaded} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    (*_self).emit_release(&loaded, field_ty)
+                    ()
+            ()
+            (*_self).emit_("  ret void")
+            ()
+            (*_self).emit_("}")
+            ()
+
+    fn compile_component(_self: &mut LlvmGenerator, component_: &kain_core::types::TypedComponent) -> Result<(), KainError>:
+        (*_self).reg_count = 0
+        ()
+        (*_self).locals.clear()
+        ()
+        (*_self).borrowed_locals.clear()
+        ()
+        (*_self).scopes.clear()
+        ()
+        (*_self).scopes.push(Vec__new_())
+        ()
+        let name = &component_.ast.name
+        let defs = (*_self).component_defs.get(name).cloned().unwrap_or_else(fn(): none)
+        let param_str = defs.iter().enumerate().map(fn(__kain_closure_arg17): f"{__kain_closure_arg17.__kain_tuple_1.__kain_tuple_1} %arg{__kain_closure_arg17.__kain_tuple_0}").collect().join(", ")
+        (*_self).emit_(&"define i8* @{name}({param_str}) {")
+        ()
+        (*_self).emit_label("entry")
+        ()
+        for selfhost_for_item in defs.iter().enumerate():
+            let (i, (param_name, param_ty)) = selfhost_for_item
+            let addr_reg = f"%{param_name}.addr"
+            (*_self).emit_(&f"  {addr_reg} = alloca {param_ty}")
+            ()
+            (*_self).emit_(&f"  store {param_ty} %arg{i}, {param_ty}* {addr_reg}")
+            ()
+            (*_self).locals.insert(param_name.clone(), (addr_reg, param_ty.clone()))
+            ()
+            match (*_self).scopes.last_mut():
+                Some(scope) =>
+                    scope.push(param_name.clone())
+                    ()
+                _ => ()
+        ()
+        for method in &component_.ast.methods:
+            let _ = method
+        ()
+        let (result, _) = (*_self).compile_jsx(&component_.ast.body)?
+        (*_self).emit_(&f"  ret i8* {result}")
+        ()
+        (*_self).emit_("}")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).current_return_type = none
+        ()
+        Result::Ok(())
+
+    fn compile_impl(_self: &mut LlvmGenerator, imp: &kain_core::types::TypedImpl) -> Result<(), KainError>:
+        let target_name = match &(*imp).ast.target_type:
+            kain_core__ast__Type::Named { name: name } => name.as_str()
+            _ => return Result::Ok(())
+        for method in &(*imp).ast.methods:
+            (*_self).compile_impl_method(target_name, method)?
+            ()
+        ()
+        Result::Ok(())
+
+    fn compile_impl_method(_self: &mut LlvmGenerator, target_name: String, method: &kain_core::ast::Function) -> Result<(), KainError>:
+        (*_self).reg_count = 0
+        ()
+        (*_self).locals.clear()
+        ()
+        (*_self).borrowed_locals.clear()
+        ()
+        (*_self).scopes.clear()
+        ()
+        (*_self).scopes.push(Vec__new_())
+        ()
+        let self_ty = f"%{target_name}*"
+        let mut ret_type = (*method).return_type.map(fn(ty): (*_self).map_type_from_ast(ty)).unwrap_or_else(fn(): ("void").to_string())
+        if (ret_type == "void"):
+            ret_type = ("i64").to_string()
+            ()
+            ()
+            ()
+            ()
+        (*_self).current_return_type = Option::Some(ret_type.clone())
+        ()
+        let mut params = Vec__new_()
+        params.push(f"{self_ty} %arg0")
+        ()
+        for selfhost_for_item in (*method).params.iter().enumerate():
+            let (i, param) = selfhost_for_item
+            params.push(f"{(*_self).map_type_from_ast(&param.ty)} %arg{(i + 1)}")
+            ()
+        ()
+        (*_self).emit_(&"define {ret_type} @{target_name}_{(*method).name}({params.join(\", \")}) {")
+        ()
+        (*_self).emit_label("entry")
+        ()
+        let self_addr = ("%self.addr").to_string()
+        (*_self).emit_(&f"  {self_addr} = alloca {self_ty}")
+        ()
+        (*_self).emit_(&f"  store {self_ty} %arg0, {self_ty}* {self_addr}")
+        ()
+        (*_self).locals.insert(("self").to_string(), (self_addr, self_ty.clone()))
+        ()
+        (*_self).borrowed_locals.insert(("self").to_string())
+        ()
+        match (*_self).scopes.last_mut():
+            Some(scope) =>
+                scope.push(("self").to_string())
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for selfhost_for_item in (*method).params.iter().enumerate():
+            let (i, param) = selfhost_for_item
+            let p_ty = (*_self).map_type_from_ast(&param.ty)
+            let addr_reg = f"%{param.name}.addr"
+            (*_self).emit_(&f"  {addr_reg} = alloca {p_ty}")
+            ()
+            (*_self).emit_(&f"  store {p_ty} %arg{(i + 1)}, {p_ty}* {addr_reg}")
+            ()
+            (*_self).locals.insert(param.name.clone(), (addr_reg, p_ty))
+            ()
+            match (*_self).scopes.last_mut():
+                Some(scope) =>
+                    scope.push(param.name.clone())
+                    ()
+                _ => ()
+        ()
+        (*_self).compile_block(&(*method).body)?
+        ()
+        (*_self).emit_scope_exit()
+        ()
+        if (ret_type == "void"):
+            (*_self).emit_("  ret void")
+            ()
+            ()
+            ()
+            ()
+        else:
+            (*_self).emit_("  unreachable")
+            ()
+            ()
+            ()
+            ()
+        (*_self).emit_("}")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).current_return_type = none
+        ()
+        Result::Ok(())
+
+    fn compile_named_callable(_self: &mut LlvmGenerator, callable_name: String, params: &[kain_core::ast::Param], body: &kain_core::ast::Block, resolved_type: &kain_core::types::ResolvedType, span: kain_core::Span) -> Result<(), KainError>:
+        (*_self).reg_count = 0
+        ()
+        (*_self).locals.clear()
+        ()
+        (*_self).borrowed_locals.clear()
+        ()
+        (*_self).scopes.clear()
+        ()
+        (*_self).scopes.push(Vec__new_())
+        ()
+        let (param_types, mut ret_type) = (*_self).callable_signature(resolved_type, callable_name, span)?
+        (*_self).current_return_type = Option::Some(ret_type.clone())
+        ()
+        let (llvm_name, is_main) = if (callable_name == "main"):
+            if (ret_type == "void"):
+                ret_type = ("i64").to_string()
+                ()
+                ()
+                ()
+                ()
+            ("main", true)
+        else:
+            (callable_name, false)
+        let mut param_str = String__new_()
+        for selfhost_for_item in params.iter().enumerate():
+            let (index, _) = selfhost_for_item
+            if (index > 0):
+                param_str.push_str(", ")
+                ()
+                ()
+                ()
+                ()
+            let param_ty = (*_self).map_type(&param_types[index])
+            param_str.push_str(&f"{param_ty} %arg{index}")
+            ()
+        ()
+        (*_self).emit_(&"define {ret_type} @{llvm_name}({param_str}) {")
+        ()
+        (*_self).emit_label("entry")
+        ()
+        for selfhost_for_item in params.iter().enumerate():
+            let (index, param) = selfhost_for_item
+            let param_ty = (*_self).map_type(&param_types[index])
+            let addr_reg = f"%{param.name}.addr"
+            (*_self).emit_(&f"  {addr_reg} = alloca {param_ty}")
+            ()
+            (*_self).emit_(&f"  store {param_ty} %arg{index}, {param_ty}* {addr_reg}")
+            ()
+            (*_self).locals.insert(param.name.clone(), (addr_reg, param_ty))
+            ()
+            match (*_self).scopes.last_mut():
+                Some(scope) =>
+                    scope.push(param.name.clone())
+                    ()
+                _ => ()
+        ()
+        (*_self).compile_block(body)?
+        ()
+        (*_self).emit_scope_exit()
+        ()
+        if (ret_type == "void"):
+            (*_self).emit_("  ret void")
+            ()
+            ()
+            ()
+            ()
+        elif is_main:
+            (*_self).emit_("  ret i64 0")
+            ()
+            ()
+            ()
+            ()
+        else:
+            (*_self).emit_("  unreachable")
+            ()
+            ()
+            ()
+            ()
+        (*_self).emit_("}")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).current_return_type = none
+        ()
+        Result::Ok(())
+
+    fn compile_patch(_self: &mut LlvmGenerator, patch: &kain_core::types::TypedPatch) -> Result<(), KainError>:
+        (*_self).compile_named_callable(&(*patch).ast.name, &(*patch).ast.params, &(*patch).ast.body, &(*patch).resolved_type, (*patch).ast.span)
+
+    fn compile_converge(_self: &mut LlvmGenerator, converge: &kain_core::types::TypedConverge) -> Result<(), KainError>:
+        (*_self).compile_named_callable(&(*converge).ast.name, &(*converge).ast.params, &(*converge).ast.spec_lane.body, &(*converge).resolved_type, (*converge).ast.span)
+
+    fn compile_world_initializer(_self: &mut LlvmGenerator, world: &kain_core::types::TypedWorld) -> Result<(), KainError>:
+        (*_self).reg_count = 0
+        ()
+        (*_self).locals.clear()
+        ()
+        (*_self).borrowed_locals.clear()
+        ()
+        (*_self).scopes.clear()
+        ()
+        (*_self).current_return_type = Option::Some(("void").to_string())
+        ()
+        let Some(world_info) = (*_self).world_globals.get(&(*world).ast.name).cloned()
+        (*_self).emit_(&"define void @{world_info.init_fn_name}() {")
+        ()
+        (*_self).emit_label("entry")
+        ()
+        let init_loaded = (*_self).next_reg()
+        (*_self).emit_(&f"  {init_loaded} = load i1, i1* {world_info.init_flag_symbol}")
+        ()
+        let init_block = (*_self).next_label()
+        let already_init_block = (*_self).next_label()
+        (*_self).emit_(&f"  br i1 {init_loaded}, label %{already_init_block}, label %{init_block}")
+        ()
+        (*_self).emit_label(&init_block)
+        ()
+        let world_ptr_type = f"%{(*world).ast.name}*"
+        for selfhost_for_item in (*world).ast.states.iter().enumerate():
+            let (index, state_) = selfhost_for_item
+            let field_ty = (*_self).map_type_from_ast(&state_.ty)
+            let field_ptr = (*_self).next_reg()
+            (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{(*world).ast.name}, {world_ptr_type} {world_info.global_symbol}, i32 0, i32 {index}")
+            ()
+            let (initial_value, initial_ty) = (*_self).compile_expr_for_target_type(&state_.initial, &field_ty)?
+            (*_self).emit_(&f"  store {initial_ty} {initial_value}, {field_ty}* {field_ptr}")
+            ()
+        ()
+        (*_self).emit_(&f"  store i1 1, i1* {world_info.init_flag_symbol}")
+        ()
+        (*_self).emit_(&f"  br label %{already_init_block}")
+        ()
+        (*_self).emit_label(&already_init_block)
+        ()
+        (*_self).emit_("  ret void")
+        ()
+        (*_self).emit_("}")
+        ()
+        (*_self).emit_("")
+        ()
+        (*_self).current_return_type = none
+        ()
+        Result::Ok(())
+
+    fn compile_orchestrate(_self: &mut LlvmGenerator, orchestrate: &kain_core::types::TypedOrchestrate) -> Result<(), KainError>:
+        (*_self).compile_named_callable(&(*orchestrate).ast.name, &(*orchestrate).ast.params, &(*orchestrate).ast.body, &(*orchestrate).resolved_type, (*orchestrate).ast.span)
+
+    fn compile_function(_self: &mut LlvmGenerator, func: &kain_core::types::TypedFunction) -> Result<(), KainError>:
+        if LlvmGenerator__function_is_extern(func):
+            return (*_self).compile_extern_function(func)
+        (*_self).compile_named_callable(&(*func).ast.name, &(*func).ast.params, &(*func).ast.body, &(*func).resolved_type, (*func).ast.span)
+
+    fn compile_extern_function(_self: &mut LlvmGenerator, func: &kain_core::types::TypedFunction) -> Result<(), KainError>:
+        let (param_types, ret_type) = (*_self).extern_callable_signature(&(*func).resolved_type, &(*func).ast.name, (*func).ast.span)?
+        let mut param_str = String__new_()
+        let mut emitted_index = 0
+        for selfhost_for_item in (*func).ast.params.iter().enumerate():
+            let (index, _) = selfhost_for_item
+            let param_ty = (*_self).map_type(&param_types[index])
+            if (param_ty == "void"):
+                continue
+            if (emitted_index > 0):
+                param_str.push_str(", ")
+                ()
+                ()
+                ()
+                ()
+            param_str.push_str(&f"{param_ty} %arg{emitted_index}")
+            ()
+            emitted_index = (emitted_index + 1)
+            ()
+        ()
+        (*_self).extern_functions.insert((*func).ast.name.clone())
+        ()
+        (*_self).functions.insert((*func).ast.name.clone(), ret_type.clone())
+        ()
+        (*_self).emit_(&f"declare {ret_type} @{(*func).ast.name}({param_str})")
+        ()
+        (*_self).emit_("")
+        ()
+        Result::Ok(())
+
+    fn compile_block(_self: &mut LlvmGenerator, block: &kain_core::ast::Block) -> Result<(), KainError>:
+        (*_self).scopes.push(Vec__new_())
+        ()
+        for stmt in &(*block).stmts:
+            (*_self).compile_stmt(stmt)?
+            ()
+        ()
+        (*_self).emit_scope_exit()
+        ()
+        Result::Ok(())
+
+    fn compile_block_with_result(_self: &mut LlvmGenerator, block: &kain_core::ast::Block) -> Result<Option<(String, String)>, KainError>:
+        (*_self).scopes.push(Vec__new_())
+        ()
+        let mut last_res = none
+        let mut last_is_new = false
+        for selfhost_for_item in (*block).stmts.iter().enumerate():
+            let (i, stmt) = selfhost_for_item
+            if (i == ((*block).stmts.len() - 1)):
+                match stmt:
+                    kain_core__ast__Stmt::Expr(expr) =>
+                        let (val, ty) = (*_self).compile_expr(expr)?
+                        last_res = Option::Some((val, ty))
+                        ()
+                        last_is_new = (*_self).is_new_object(expr)
+                        ()
+                    _ =>
+                        (*_self).compile_stmt(stmt)?
+                        ()
+            else:
+                (*_self).compile_stmt(stmt)?
+                ()
+        ()
+        match &last_res:
+            Some((val, ty)) =>
+                if ((ty == "i8*") && (!last_is_new)):
+                    (*_self).emit_(&f"  call void @rc_retain(i8* {val})")
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).emit_scope_exit()
+        ()
+        Result::Ok(last_res)
+
+    fn emit_release(_self: &mut LlvmGenerator, val: String, ty: String):
+        if (ty == "i8*"):
+            (*_self).emit_(&f"  call void @rc_release(i8* {val})")
+            ()
+        elif ty.starts_with("%"):
+            let struct_name = &ty[1..]
+            match (*_self).struct_defs.get(struct_name).cloned():
+                Some(fields) =>
+                    for selfhost_for_item in fields.iter().enumerate():
+                        let (i, (_, field_ty)) = selfhost_for_item
+                        if ((field_ty == "i8*") || field_ty.starts_with("%")):
+                            let field_val = (*_self).next_reg()
+                            (*_self).emit_(&f"  {field_val} = extractvalue {ty} {val}, {i}")
+                            ()
+                            (*_self).emit_release(&field_val, field_ty)
+                            ()
+                _ => ()
+
+    fn emit_scope_exit(_self: &mut LlvmGenerator):
+        match (*_self).scopes.pop():
+            Some(vars) =>
+                for var_name in vars.iter().rev():
+                    match (*_self).locals.get(var_name).cloned():
+                        Some((addr, ty)) =>
+                            if (*_self).borrowed_locals.contains(var_name):
+                                continue
+                            if ((ty == "i8*") || ty.starts_with("%")):
+                                let tmp = (*_self).next_reg()
+                                (*_self).emit_(&f"  {tmp} = load {ty}, {ty}* {addr}")
+                                ()
+                                (*_self).emit_release(&tmp, &ty)
+                                ()
+                        _ => ()
+            _ => ()
+
+    fn emit_all_scopes_cleanup(_self: &mut LlvmGenerator):
+        let mut vars_to_release = Vec__new_()
+        for scope in (*_self).scopes.iter().rev():
+            for var_ in scope.iter().rev():
+                vars_to_release.push(var_.clone())
+                ()
+        ()
+        for var_name in vars_to_release:
+            match (*_self).locals.get(&var_name).cloned():
+                Some((addr, ty)) =>
+                    if (*_self).borrowed_locals.contains(&var_name):
+                        continue
+                    if ((ty == "i8*") || ty.starts_with("%")):
+                        let tmp = (*_self).next_reg()
+                        (*_self).emit_(&f"  {tmp} = load {ty}, {ty}* {addr}")
+                        ()
+                        (*_self).emit_release(&tmp, &ty)
+                        ()
+                _ => ()
+
+    fn is_new_object(_self: &LlvmGenerator, expr: &kain_core::ast::Expr) -> Bool:
+        match expr:
+            kain_core__ast__Expr::String(_) => true
+            kain_core__ast__Expr::Array(_) => true
+            kain_core__ast__Expr::Tuple(_) => true
+            kain_core__ast__Expr::Struct {  } => true
+            kain_core__ast__Expr::Call {  } => true
+            kain_core__ast__Expr::Binary { op: op } => ((*op) == kain_core__ast__BinaryOp__Add)
+            kain_core__ast__Expr::If {  } => true
+            _ => false
+
+    fn compile_stmt(_self: &mut LlvmGenerator, stmt: &kain_core::ast::Stmt) -> Result<(), KainError>:
+        match stmt:
+            kain_core__ast__Stmt::Let { pattern: pattern, value: value, ty: ty } =>
+                match value:
+                    Some(val_expr) =>
+                        match pattern:
+                            kain_core__ast__Pattern::Binding { name: name } =>
+                                let target_ty = ty.map(fn(declared): (*_self).map_type_from_ast(declared))
+                                let (val_reg, val_ty) = match target_ty:
+                                    Some(target_ty) => (*_self).compile_expr_for_target_type(val_expr, target_ty)?
+                                    _ => (*_self).compile_expr(val_expr)?
+                                let addr_reg = f"%{name}.addr_{(*_self).reg_count}"
+                                (*_self).reg_count = ((*_self).reg_count + 1)
+                                ()
+                                (*_self).emit_(&f"  {addr_reg} = alloca {val_ty}")
+                                ()
+                                (*_self).emit_(&f"  store {val_ty} {val_reg}, {val_ty}* {addr_reg}")
+                                ()
+                                if (val_ty == "i8*"):
+                                    if (!(*_self).is_new_object(val_expr)):
+                                        (*_self).emit_(&f"  call void @rc_retain(i8* {val_reg})")
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    ()
+                                (*_self).locals.insert(name.clone(), (addr_reg, val_ty))
+                                ()
+                                match (*_self).scopes.last_mut():
+                                    Some(scope) =>
+                                        scope.push(name.clone())
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                ()
+                            _ =>
+                                let (val_reg, val_ty) = (*_self).compile_expr(val_expr)?
+                                (*_self).bind_local_pattern_value(pattern, val_reg, val_ty)?
+                                ()
+                                ()
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            kain_core__ast__Stmt::Expr(expr) =>
+                let (val, ty) = (*_self).compile_expr(expr)?
+                if ((((ty == "i8*") || ty.starts_with("%"))) && (*_self).is_new_object(expr)):
+                    (*_self).emit_release(&val, &ty)
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            kain_core__ast__Stmt::Return(expr, _) =>
+                let actor_return_label = (*_self).actor_return_label.clone()
+                let actor_return_slot = (*_self).actor_return_slot.clone()
+                match expr:
+                    Some(e) =>
+                        let (val, ty) = match (*_self).current_return_type.clone():
+                            Some(target_ty) => (*_self).compile_expr_for_target_type(e, &target_ty)?
+                            _ => (*_self).compile_expr(e)?
+                        if (ty == "i8*"):
+                            (*_self).emit_(&f"  call void @rc_retain(i8* {val})")
+                            ()
+                            ()
+                            ()
+                            ()
+                        (*_self).emit_all_scopes_cleanup()
+                        ()
+                        match actor_return_slot:
+                            Some(return_slot) =>
+                                (*_self).emit_(&f"  store {ty} {val}, {ty}* {return_slot}")
+                                ()
+                                match actor_return_label:
+                                    Some(return_label) =>
+                                        (*_self).emit_(&f"  br label %{return_label}")
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        (*_self).emit_(&f"  ret {ty} {val}")
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                ()
+                            _ =>
+                                (*_self).emit_(&f"  ret {ty} {val}")
+                                ()
+                                ()
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        (*_self).emit_all_scopes_cleanup()
+                        ()
+                        match actor_return_label:
+                            Some(return_label) =>
+                                (*_self).emit_(&f"  br label %{return_label}")
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                (*_self).emit_("  ret void")
+                                ()
+                                ()
+                                ()
+                                ()
+                        ()
+                let dead_label = (*_self).next_label()
+                (*_self).emit_label(&dead_label)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::Break(_, _) =>
+                match (*_self).loop_stack.last():
+                    Some((_, break_label)) =>
+                        (*_self).emit_(&f"  br label %{break_label}")
+                        ()
+                        let dead_label = (*_self).next_label()
+                        (*_self).emit_label(&dead_label)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            kain_core__ast__Stmt::Continue(_) =>
+                match (*_self).loop_stack.last():
+                    Some((continue_label, _)) =>
+                        (*_self).emit_(&f"  br label %{continue_label}")
+                        ()
+                        let dead_label = (*_self).next_label()
+                        (*_self).emit_label(&dead_label)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                let label_cond = (*_self).next_label()
+                let label_body = (*_self).next_label()
+                let label_end = (*_self).next_label()
+                (*_self).emit_(&f"  br label %{label_cond}")
+                ()
+                (*_self).emit_label(&label_cond)
+                ()
+                let (cond_val, _) = (*_self).compile_expr(condition)?
+                (*_self).emit_(&f"  br i1 {cond_val}, label %{label_body}, label %{label_end}")
+                ()
+                (*_self).emit_label(&label_body)
+                ()
+                (*_self).loop_stack.push((label_cond.clone(), label_end.clone()))
+                ()
+                (*_self).compile_block(body)?
+                ()
+                (*_self).loop_stack.pop()
+                ()
+                (*_self).emit_(&f"  br label %{label_cond}")
+                ()
+                (*_self).emit_label(&label_end)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::Loop { body: body } =>
+                let label_body = (*_self).next_label()
+                let label_end = (*_self).next_label()
+                (*_self).emit_(&f"  br label %{label_body}")
+                ()
+                (*_self).emit_label(&label_body)
+                ()
+                (*_self).loop_stack.push((label_body.clone(), label_end.clone()))
+                ()
+                (*_self).compile_block(body)?
+                ()
+                (*_self).loop_stack.pop()
+                ()
+                (*_self).emit_(&f"  br label %{label_body}")
+                ()
+                (*_self).emit_label(&label_end)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body, span: span } =>
+                let (start_val, end_val) = match iter:
+                    kain_core__ast__Expr::Call { callee: callee, args: args } =>
+                        match callee:
+                            kain_core__ast__Expr::Ident(name, _) =>
+                                if ((name == "range") && (args.len() == 2)):
+                                    let (s, _) = (*_self).compile_expr(&args[0].value)?
+                                    let (e, _) = (*_self).compile_expr(&args[1].value)?
+                                    (s, e)
+                                else:
+                                    return Result::Err(KainError__codegen("Unsupported call in for loop", (*span)))
+                            _ => return Result::Err(KainError__codegen("Unsupported call in for loop", (*span)))
+                    kain_core__ast__Expr::Range { start: start, end: end, inclusive: inclusive } =>
+                        let s = match start:
+                            Some(e) => ((*_self).compile_expr(e)?).field_0
+                            _ => ("0").into()
+                        let mut e = match end:
+                            Some(e) => ((*_self).compile_expr(e)?).field_0
+                            _ => ("9223372036854775807").into()
+                        if (*inclusive):
+                            let tmp = (*_self).next_reg()
+                            (*_self).emit_(&f"  {tmp} = add i64 {e}, 1")
+                            ()
+                            e = tmp
+                            ()
+                            ()
+                            ()
+                            ()
+                        (s, e)
+                    _ => return Result::Err(KainError__codegen("Unsupported iterator in for loop", (*span)))
+                let loop_var = match binding:
+                    kain_core__ast__Pattern::Binding { name: name } => name
+                    _ => "it"
+                let var_addr = f"%{loop_var}.addr_{(*_self).reg_count}"
+                (*_self).reg_count = ((*_self).reg_count + 1)
+                ()
+                (*_self).emit_(&f"  {var_addr} = alloca i64")
+                ()
+                (*_self).emit_(&f"  store i64 {start_val}, i64* {var_addr}")
+                ()
+                (*_self).locals.insert(loop_var.to_string(), (var_addr.clone(), ("i64").into()))
+                ()
+                let label_cond = (*_self).next_label()
+                let label_body = (*_self).next_label()
+                let label_step = (*_self).next_label()
+                let label_end = (*_self).next_label()
+                (*_self).emit_(&f"  br label %{label_cond}")
+                ()
+                (*_self).emit_label(&label_cond)
+                ()
+                let curr_val = (*_self).next_reg()
+                (*_self).emit_(&f"  {curr_val} = load i64, i64* {var_addr}")
+                ()
+                let cond_res = (*_self).next_reg()
+                (*_self).emit_(&f"  {cond_res} = icmp slt i64 {curr_val}, {end_val}")
+                ()
+                (*_self).emit_(&f"  br i1 {cond_res}, label %{label_body}, label %{label_end}")
+                ()
+                (*_self).emit_label(&label_body)
+                ()
+                (*_self).loop_stack.push((label_step.clone(), label_end.clone()))
+                ()
+                (*_self).compile_block(body)?
+                ()
+                (*_self).loop_stack.pop()
+                ()
+                (*_self).emit_(&f"  br label %{label_step}")
+                ()
+                (*_self).emit_label(&label_step)
+                ()
+                let val_before_inc = (*_self).next_reg()
+                (*_self).emit_(&f"  {val_before_inc} = load i64, i64* {var_addr}")
+                ()
+                let val_after_inc = (*_self).next_reg()
+                (*_self).emit_(&f"  {val_after_inc} = add i64 {val_before_inc}, 1")
+                ()
+                (*_self).emit_(&f"  store i64 {val_after_inc}, i64* {var_addr}")
+                ()
+                (*_self).emit_(&f"  br label %{label_cond}")
+                ()
+                (*_self).emit_label(&label_end)
+                ()
+                ()
+                ()
+                ()
+            _ => ()
+        Result::Ok(())
+
+    fn compile_direct_call(_self: &mut LlvmGenerator, func_name: String, args: &[kain_core::ast::CallArg]) -> Result<(String, String), KainError>:
+        let mut compiled_args = Vec__new_()
+        let mut arg_types = Vec__new_()
+        let is_extern = (*_self).extern_functions.contains(func_name)
+        let param_types = (*_self).function_params.get(func_name).cloned()
+        for selfhost_for_item in args.iter().enumerate():
+            let (index, arg) = selfhost_for_item
+            let param_ty = param_types.and_then(fn(types): types.get(index)).cloned().unwrap_or_default()
+            if (is_extern && (param_ty == "void")):
+                continue
+            let (val, ty) = (*_self).compile_expr(&arg.value)?
+            let needs_cast_to_i64 = ((((ty == "i8*") || ty.starts_with("%"))) && (((((((func_name == "push") && (index == 1))) || (((func_name == "array_push") && (index == 1)))) || (((func_name == "array_set") && (index == 2)))) || (((func_name == "map_set") && (index == 2))))))
+            if needs_cast_to_i64:
+                let int_val = (*_self).next_reg()
+                (*_self).emit_(&f"  {int_val} = ptrtoint {ty} {val} to i64")
+                ()
+                compiled_args.push(int_val)
+                ()
+                arg_types.push(("i64").to_string())
+                ()
+                continue
+            compiled_args.push(val)
+            ()
+            arg_types.push(ty)
+            ()
+        ()
+        let ret_ty = (*_self).functions.get(func_name).cloned().unwrap_or_else(fn(): ("i64").to_string())
+        let arg_str = compiled_args.iter().zip(arg_types.iter()).map(fn(__kain_closure_arg18): f"{__kain_closure_arg18.__kain_tuple_1} {__kain_closure_arg18.__kain_tuple_0}").collect().join(", ")
+        let callee_symbol = runtime_symbol_for_stdlib_function(func_name)
+        if (ret_ty == "void"):
+            (*_self).emit_(&f"  call void @{callee_symbol}({arg_str})")
+            ()
+            Result::Ok((("0").into(), ("i64").into()))
+        else:
+            let res = (*_self).next_reg()
+            (*_self).emit_(&f"  {res} = call {ret_ty} @{callee_symbol}({arg_str})")
+            ()
+            Result::Ok((res, ret_ty))
+
+    fn compile_expr(_self: &mut LlvmGenerator, expr: &kain_core::ast::Expr) -> Result<(String, String), KainError>:
+        match expr:
+            kain_core__ast__Expr::Int(n, _) => Result::Ok((n, ("i64").to_string()))
+            kain_core__ast__Expr::Float(f, _) => Result::Ok((f, ("double").to_string()))
+            kain_core__ast__Expr::Bool(b, _) => Result::Ok((if (*b): ("1").into() else: ("0").into(), ("i1").to_string()))
+            kain_core__ast__Expr::String(s, _) => Result::Ok((*_self).compile_string_literal(s))
+            kain_core__ast__Expr::FString(parts, _) =>
+                let (mut acc, _) = (*_self).compile_string_literal("")
+                for part in parts:
+                    let (val, ty) = (*_self).compile_expr(part)?
+                    let (text, _) = (*_self).stringify_value(&val, &ty)?
+                    acc = (*_self).concat_strings(&acc, &text)
+                    ()
+                ()
+                Result::Ok((acc, ("i8*").to_string()))
+            kain_core__ast__Expr::None(_) => Result::Ok((("0").into(), ("i64").to_string()))
+            kain_core__ast__Expr::JSX(node, _) => (*_self).compile_jsx(node)
+            kain_core__ast__Expr::Paren(inner, _) => (*_self).compile_expr(inner)
+            kain_core__ast__Expr::Block(block, _) => (*_self).compile_block_with_result(block).map(fn(res): res.unwrap_or((("0").into(), ("i64").into())))
+            kain_core__ast__Expr::Cast { value: value, target: target } =>
+                let dst_ty = (*_self).map_type_from_ast(target)
+                match value:
+                    kain_core__ast__Expr::Call { callee: callee, args: args, span: span } =>
+                        match callee:
+                            kain_core__ast__Expr::Ident(name, _) =>
+                                if ((name == "__kain_mem_load") && (args.len() == 1)):
+                                    return (*_self).compile_runtime_mem_load(&args[0].value, &dst_ty, (*span))
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                let (val, src_ty) = (*_self).compile_expr(value)?
+                if (src_ty == dst_ty):
+                    Result::Ok((val, dst_ty))
+                elif ((src_ty == "i64") && (dst_ty == "double")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = sitofp i64 {val} to double")
+                    ()
+                    Result::Ok((res, dst_ty))
+                elif ((src_ty == "double") && (dst_ty == "i64")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = fptosi double {val} to i64")
+                    ()
+                    Result::Ok((res, dst_ty))
+                elif ((src_ty == "i1") && (dst_ty == "i64")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = zext i1 {val} to i64")
+                    ()
+                    Result::Ok((res, dst_ty))
+                elif ((src_ty == "i64") && (dst_ty == "i1")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = icmp ne i64 {val}, 0")
+                    ()
+                    Result::Ok((res, dst_ty))
+                elif ((src_ty == "i64") && dst_ty.ends_with("*")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = inttoptr i64 {val} to {dst_ty}")
+                    ()
+                    Result::Ok((res, dst_ty))
+                elif (src_ty.ends_with("*") && (dst_ty == "i64")):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = ptrtoint {src_ty} {val} to i64")
+                    ()
+                    Result::Ok((res, dst_ty))
+                else:
+                    Result::Ok((val, dst_ty))
+            kain_core__ast__Expr::Ref { value: value } =>
+                let (addr, ty) = (*_self).compile_addressable_ptr(value)?
+                Result::Ok((addr, f"{ty}*"))
+            kain_core__ast__Expr::AddrOf { value: value } =>
+                let (addr, ty) = (*_self).compile_addressable_ptr(value)?
+                Result::Ok((addr, f"{ty}*"))
+            kain_core__ast__Expr::Deref(inner, span) =>
+                let (val, ty) = (*_self).compile_expr(inner)?
+                match ty.strip_suffix("*"):
+                    Some(pointee_ty) =>
+                        let res = (*_self).next_reg()
+                        (*_self).emit_(&f"  {res} = load {pointee_ty}, {ty} {val}")
+                        ()
+                        Result::Ok((res, pointee_ty.to_string()))
+                    _ => Result::Err(KainError__codegen("Cannot dereference non-pointer value", (*span)))
+            kain_core__ast__Expr::PtrOffset { pointer: pointer, offset: offset, element_ty: element_ty } =>
+                let (base, base_ty) = (*_self).compile_expr(pointer)?
+                let (off, _) = (*_self).compile_expr(offset)?
+                let stride = element_ty.map(fn(ty): (*_self).map_type_from_ast(ty)).map(fn(ty): none).unwrap_or(8)
+                let base_i64 = (*_self).coerce_to_i64_storage(&base, &base_ty)
+                let scaled = (*_self).next_reg()
+                (*_self).emit_(&f"  {scaled} = mul i64 {off}, {stride}")
+                ()
+                let res = (*_self).next_reg()
+                (*_self).emit_(&f"  {res} = add i64 {base_i64}, {scaled}")
+                ()
+                Result::Ok((res, ("i64").into()))
+            kain_core__ast__Expr::MemLoad { pointer: pointer, load_ty: load_ty, span: span } =>
+                let target_ty = load_ty.map(fn(ty): (*_self).map_type_from_ast(ty)).unwrap_or_else(fn(): ("i64").to_string())
+                (*_self).compile_runtime_mem_load(pointer, &target_ty, (*span))
+            kain_core__ast__Expr::MemStore { pointer: pointer, value: value } => (*_self).compile_runtime_mem_store(pointer, value, value.span())
+            kain_core__ast__Expr::SizeOfType { target: target } =>
+                let mapped = (*_self).map_type_from_ast(target)
+                let size = if (mapped == "double"):
+                    8
+                elif (mapped == "i8"):
+                    1
+                elif (mapped == "i1"):
+                    1
+                else:
+                    8
+                Result::Ok((size.to_string(), ("i64").into()))
+            kain_core__ast__Expr::AlignOfType { target: target } =>
+                let mapped = (*_self).map_type_from_ast(target)
+                let align = if (mapped == "double"):
+                    8
+                elif (mapped == "i8"):
+                    1
+                elif (mapped == "i1"):
+                    1
+                else:
+                    8
+                Result::Ok((align.to_string(), ("i64").into()))
+            kain_core__ast__Expr::Alloca { ty: ty } =>
+                let ty_str = (*_self).map_type_from_ast(ty)
+                let addr = (*_self).next_reg()
+                (*_self).emit_(&f"  {addr} = alloca {ty_str}")
+                ()
+                Result::Ok((addr, f"{ty_str}*"))
+            kain_core__ast__Expr::Uninit { ty: ty } => Result::Ok(((*_self).zero_value_for_ty(&(*_self).map_type_from_ast(ty)), (*_self).map_type_from_ast(ty)))
+            kain_core__ast__Expr::Alloc {  } => Result::Err(KainError__codegen("LLVM backend expected alloc to be lowered into a canonical __kain_alloc helper call", expr.span()))
+            kain_core__ast__Expr::Realloc {  } => Result::Err(KainError__codegen("LLVM backend expected realloc_mem to be lowered into a canonical __kain_realloc helper call", expr.span()))
+            kain_core__ast__Expr::Unary { op: op, operand: operand, span: span } =>
+                let (val, ty) = (*_self).compile_expr(operand)?
+                match op:
+                    kain_core__ast__UnaryOp::Neg =>
+                        let res = (*_self).next_reg()
+                        if (ty == "double"):
+                            (*_self).emit_(&f"  {res} = fneg double {val}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = sub {ty} 0, {val}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__UnaryOp::Not =>
+                        let res = (*_self).next_reg()
+                        (*_self).emit_(&f"  {res} = xor i1 {val}, 1")
+                        ()
+                        Result::Ok((res, ("i1").into()))
+                    kain_core__ast__UnaryOp::BitNot =>
+                        let res = (*_self).next_reg()
+                        (*_self).emit_(&f"  {res} = xor {ty} {val}, -1")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__UnaryOp::Deref =>
+                        match ty.strip_suffix("*"):
+                            Some(pointee_ty) =>
+                                let res = (*_self).next_reg()
+                                (*_self).emit_(&f"  {res} = load {pointee_ty}, {ty} {val}")
+                                ()
+                                Result::Ok((res, pointee_ty.to_string()))
+                            _ => Result::Err(KainError__codegen("Cannot dereference non-pointer value", (*span)))
+                    kain_core__ast__UnaryOp::Ref => Result::Ok((val, f"{ty}*"))
+                    kain_core__ast__UnaryOp::RefMut => Result::Ok((val, f"{ty}*"))
+            kain_core__ast__Expr::Field { object: object, field: field, span: span } =>
+                let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                match (*_self).ptr_struct_name(&obj_ty).map(fn(name): name.to_string()):
+                    Some(struct_name) =>
+                        match (*_self).field_index(&struct_name, field):
+                            Some(index) =>
+                                let field_ty = (*_self).struct_defs.get(&struct_name).and_then(fn(fields): fields.get(index)).map(fn(__kain_closure_arg19): __kain_closure_arg19.__kain_tuple_1.clone()).unwrap_or_else(fn(): ("i64").to_string())
+                                let field_ptr = (*_self).next_reg()
+                                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{struct_name}, {obj_ty} {obj_val}, i32 0, i32 {index}")
+                                ()
+                                let loaded = (*_self).next_reg()
+                                (*_self).emit_(&f"  {loaded} = load {field_ty}, {field_ty}* {field_ptr}")
+                                ()
+                                Result::Ok((loaded, field_ty))
+                            _ => Result::Err(KainError__codegen(f"Unknown field '{field}' on {struct_name}", (*span)))
+                    _ => Result::Err(KainError__codegen("Field access requires a struct pointer", (*span)))
+            kain_core__ast__Expr::Assign { target: target, value: value, span: span } =>
+                match target:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        match (*_self).locals.get(name).cloned():
+                            Some((addr, ty)) =>
+                                let (rhs, rhs_ty) = (*_self).compile_expr_for_target_type(value, &ty)?
+                                (*_self).emit_(&f"  store {rhs_ty} {rhs}, {ty}* {addr}")
+                                ()
+                                Result::Ok((rhs, rhs_ty))
+                            _ => Result::Err(KainError__codegen(f"Undefined assignment target: {name}", (*span)))
+                    kain_core__ast__Expr::Field { object: object, field: field } =>
+                        let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                        match (*_self).ptr_struct_name(&obj_ty).map(fn(name): name.to_string()):
+                            Some(struct_name) =>
+                                match (*_self).field_index(&struct_name, field):
+                                    Some(index) =>
+                                        let field_ty = (*_self).struct_defs.get(&struct_name).and_then(fn(fields): fields.get(index)).map(fn(__kain_closure_arg20): __kain_closure_arg20.__kain_tuple_1.clone()).unwrap_or_else(fn(): ("i64").to_string())
+                                        let (rhs, rhs_ty) = (*_self).compile_expr_for_target_type(value, &field_ty)?
+                                        let field_ptr = (*_self).next_reg()
+                                        (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{struct_name}, {obj_ty} {obj_val}, i32 0, i32 {index}")
+                                        ()
+                                        (*_self).emit_(&f"  store {rhs_ty} {rhs}, {field_ty}* {field_ptr}")
+                                        ()
+                                        Result::Ok((rhs, rhs_ty))
+                                    _ => Result::Err(KainError__codegen(f"Unknown field '{field}' on {struct_name}", (*span)))
+                            _ => Result::Err(KainError__codegen("Field assignment requires a struct pointer", (*span)))
+                    kain_core__ast__Expr::Index { object: object, index: index } =>
+                        let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                        let (idx_val, _) = (*_self).compile_expr(index)?
+                        if (obj_ty == "i8*"):
+                            let (rhs, rhs_ty) = (*_self).compile_expr(value)?
+                            let stored = (*_self).coerce_to_i64_storage(&rhs, &rhs_ty)
+                            (*_self).emit_(&f"  call void @array_set(i8* {obj_val}, i64 {idx_val}, i64 {stored})")
+                            ()
+                            Result::Ok((rhs, rhs_ty))
+                        else:
+                            let (field_ptr, field_ty) = (*_self).compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, (*span))?
+                            let (rhs, rhs_ty) = (*_self).compile_expr_for_target_type(value, &field_ty)?
+                            (*_self).emit_(&f"  store {rhs_ty} {rhs}, {field_ty}* {field_ptr}")
+                            ()
+                            Result::Ok((rhs, rhs_ty))
+                    _ => Result::Err(KainError__codegen("Unsupported assignment target", (*span)))
+            kain_core__ast__Expr::Struct { name: name, fields: fields, rest: rest, span: span } =>
+                if rest.is_some():
+                    return Result::Err(KainError__codegen("Struct update syntax is not yet supported by LLVM codegen", (*span)))
+                let def = (*_self).struct_defs.get(name).cloned().ok_or_else(fn(): KainError__codegen(f"Unknown struct: {name}", (*span)))?
+                let struct_ty = f"%{name}"
+                let ptr_ty = f"{struct_ty}*"
+                let null_ptr = f"{ptr_ty} null"
+                let size_ptr_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_ptr_reg} = getelementptr {struct_ty}, {null_ptr}, i32 1")
+                ()
+                let size_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_reg} = ptrtoint {ptr_ty} {size_ptr_reg} to i64")
+                ()
+                let mem_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {mem_reg} = call i8* @KAIN_alloc(i64 {size_reg})")
+                ()
+                let struct_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {struct_ptr} = bitcast i8* {mem_reg} to {ptr_ty}")
+                ()
+                let mut provided: Map<String, kain_core::ast::Expr> = fields.iter().cloned().collect()
+                for selfhost_for_item in def.iter().enumerate():
+                    let (i, (field_name, field_ty)) = selfhost_for_item
+                    let (val, val_ty) = match provided.remove(field_name):
+                        Some(expr) => (*_self).compile_expr(&expr)?
+                        _ => ((*_self).zero_value_for_ty(field_ty), field_ty.clone())
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {struct_ty}, {ptr_ty} {struct_ptr}, i32 0, i32 {i}")
+                    ()
+                    (*_self).emit_(&f"  store {val_ty} {val}, {val_ty}* {field_ptr}")
+                    ()
+                ()
+                Result::Ok((struct_ptr, ptr_ty))
+            kain_core__ast__Expr::AggregateInit { ty: ty, fields: fields, span: span } =>
+                match ty:
+                    kain_core__ast__Type::Named { name: name } => (*_self).compile_expr(&kain_core__ast__Expr::Struct { name: name.clone(), fields: fields.clone(), rest: none, span: (*span) })
+                    kain_core__ast__Type::Tuple(_, _) => (*_self).compile_expr(&kain_core__ast__Expr::Tuple(fields.iter().map(fn(__kain_closure_arg21): __kain_closure_arg21.__kain_tuple_1.clone()).collect(), (*span)))
+                    _ => Result::Err(KainError__codegen(f"Unsupported LLVM aggregate init type: {ty}", (*span)))
+            kain_core__ast__Expr::Array(items, _) =>
+                let arr = (*_self).next_reg()
+                (*_self).emit_(&f"  {arr} = call i8* @array_new(i64 {items.len().max(4)})")
+                ()
+                for item in items:
+                    let (val, ty) = (*_self).compile_expr(item)?
+                    let stored = (*_self).coerce_to_i64_storage(&val, &ty)
+                    (*_self).emit_(&f"  call void @array_push(i8* {arr}, i64 {stored})")
+                    ()
+                ()
+                Result::Ok((arr, ("i8*").into()))
+            kain_core__ast__Expr::Tuple(items, span) =>
+                let mut compiled_fields = Vec__new_()
+                let mut field_tys = Vec__new_()
+                for item in items:
+                    let (val, ty) = (*_self).compile_expr(item)?
+                    compiled_fields.push((val, ty.clone()))
+                    ()
+                    field_tys.push(ty)
+                    ()
+                ()
+                let tuple_name = LlvmGenerator__tuple_struct_name_from_types(&field_tys)
+                let tuple_ptr_ty = f"%{tuple_name}*"
+                if (!(*_self).struct_defs.contains_key(&tuple_name)):
+                    return Result::Err(KainError__codegen(f"Tuple LLVM type '{tuple_name}' was not registered before codegen", (*span)))
+                let null_ptr = f"{tuple_ptr_ty} null"
+                let size_ptr_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_ptr_reg} = getelementptr %{tuple_name}, {null_ptr}, i32 1")
+                ()
+                let size_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_reg} = ptrtoint {tuple_ptr_ty} {size_ptr_reg} to i64")
+                ()
+                let mem_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {mem_reg} = call i8* @KAIN_alloc(i64 {size_reg})")
+                ()
+                let tuple_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {tuple_ptr} = bitcast i8* {mem_reg} to {tuple_ptr_ty}")
+                ()
+                for selfhost_for_item in compiled_fields.iter().enumerate():
+                    let (index, (field_val, field_ty)) = selfhost_for_item
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds %{tuple_name}, {tuple_ptr_ty} {tuple_ptr}, i32 0, i32 {index}")
+                    ()
+                    (*_self).emit_(&f"  store {field_ty} {field_val}, {field_ty}* {field_ptr}")
+                    ()
+                ()
+                Result::Ok((tuple_ptr, tuple_ptr_ty))
+            kain_core__ast__Expr::Index { object: object, index: index, span: _ } =>
+                let (obj_val, obj_ty) = (*_self).compile_expr(object)?
+                let (idx_val, _) = (*_self).compile_expr(index)?
+                if (obj_ty == "i8*"):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = call i64 @array_get(i8* {obj_val}, i64 {idx_val})")
+                    ()
+                    Result::Ok((res, ("i64").into()))
+                else:
+                    let (field_ptr, field_ty) = (*_self).compile_index_address_from_compiled(&obj_val, &obj_ty, &idx_val, index.span())?
+                    let loaded = (*_self).next_reg()
+                    (*_self).emit_(&f"  {loaded} = load {field_ty}, {field_ty}* {field_ptr}")
+                    ()
+                    Result::Ok((loaded, field_ty))
+            kain_core__ast__Expr::Spawn { actor_: actor_, init: init, span: span } =>
+                let def = (*_self).struct_defs.get(actor_).cloned().ok_or(KainError__codegen(f"Unknown actor: {actor_}", (*span)))?
+                let struct_ty = f"%{actor_}"
+                let bootstrap_fn_ty = "i32 (i64, i8*, i8*)"
+                let null_ptr = f"{struct_ty}* null"
+                let size_ptr_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_ptr_reg} = getelementptr {struct_ty}, {null_ptr}, i32 1")
+                ()
+                let size_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_reg} = ptrtoint {struct_ty}* {size_ptr_reg} to i64")
+                ()
+                let mem_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {mem_reg} = call i8* @KAIN_alloc(i64 {size_reg})")
+                ()
+                let struct_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {struct_ptr} = bitcast i8* {mem_reg} to {struct_ty}*")
+                ()
+                let config_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {config_ptr} = alloca %KainActorSpawnConfig")
+                ()
+                (*_self).emit_(&f"  call void @kain_actor_spawn_config_init(%KainActorSpawnConfig* {config_ptr})")
+                ()
+                let bootstrap_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {bootstrap_ptr} = getelementptr inbounds %KainActorSpawnConfig, %KainActorSpawnConfig* {config_ptr}, i32 0, i32 0")
+                ()
+                (*_self).emit_(&f"  store {bootstrap_fn_ty}* @{actor_}_run, {bootstrap_fn_ty}** {bootstrap_ptr}")
+                ()
+                let user_data_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {user_data_ptr} = getelementptr inbounds %KainActorSpawnConfig, %KainActorSpawnConfig* {config_ptr}, i32 0, i32 1")
+                ()
+                (*_self).emit_(&f"  store i8* {mem_reg}, i8** {user_data_ptr}")
+                ()
+                let mut provided: Map<String, kain_core::ast::Expr> = init.iter().cloned().collect()
+                for selfhost_for_item in def.iter().enumerate():
+                    let (i, (field_name, field_ty)) = selfhost_for_item
+                    if (field_name == "__actor_id"):
+                        continue
+                    let (val, val_ty) = match provided.remove(field_name):
+                        Some(expr) => (*_self).compile_expr_for_target_type(&expr, field_ty)?
+                        _ => ((*_self).zero_value_for_ty(field_ty), field_ty.clone())
+                    let field_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {struct_ty}, {struct_ty}* {struct_ptr}, i32 0, i32 {i}")
+                    ()
+                    (*_self).emit_(&f"  store {val_ty} {val}, {val_ty}* {field_ptr}")
+                    ()
+                ()
+                let has_rc_fields = def.iter().any(fn(__kain_closure_arg22): ((__kain_closure_arg22.__kain_tuple_1 == "i8*") || __kain_closure_arg22.__kain_tuple_1.starts_with("%")))
+                if has_rc_fields:
+                    let dtor_name = f"dtor_{actor_}"
+                    (*_self).emit_(&f"  call void @KAIN_set_destructor(i8* {mem_reg}, void (i8*)* @{dtor_name})")
+                    ()
+                    ()
+                    ()
+                    ()
+                let actor_id_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {actor_id_reg} = call i64 @kain_actor_spawn(%KainActorSpawnConfig* {config_ptr}, i8* null)")
+                ()
+                let actor_id_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {actor_id_ptr} = getelementptr inbounds {struct_ty}, {struct_ty}* {struct_ptr}, i32 0, i32 0")
+                ()
+                (*_self).emit_(&f"  store i64 {actor_id_reg}, i64* {actor_id_ptr}")
+                ()
+                Result::Ok((struct_ptr, f"%{actor_}*"))
+            kain_core__ast__Expr::SendMsg { target: target, message: message, data: data, span: span } =>
+                let (target_val, target_ty) = (*_self).compile_expr(target)?
+                let actor_name = if (target_ty.starts_with("%") && target_ty.ends_with("*")):
+                    target_ty.trim_start_matches("%").trim_end_matches("*").to_string()
+                else:
+                    return Result::Err(KainError__codegen(f"Cannot send message '{message}' to non-actor type {target_ty}", (*span)))
+                let target_id_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {target_id_ptr} = getelementptr inbounds %{actor_name}, {target_ty} {target_val}, i32 0, i32 0")
+                ()
+                let target_id = (*_self).next_reg()
+                (*_self).emit_(&f"  {target_id} = load i64, i64* {target_id_ptr}")
+                ()
+                let sender_id = match (*_self).locals.get("self").cloned():
+                    Some((self_addr, self_ty)) =>
+                        if self_ty.starts_with("%"):
+                            let self_id_ptr = (*_self).next_reg()
+                            (*_self).emit_(&f"  {self_id_ptr} = getelementptr inbounds {self_ty}, {self_ty}* {self_addr}, i32 0, i32 0")
+                            ()
+                            let self_id = (*_self).next_reg()
+                            (*_self).emit_(&f"  {self_id} = load i64, i64* {self_id_ptr}")
+                            ()
+                            self_id
+                        else:
+                            ("0").to_string()
+                    _ => ("0").to_string()
+                let payload_struct_name = f"{actor_name}_{message}"
+                let message_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {message_ptr} = alloca %KainActorMessage")
+                ()
+                let payload_mem = match (*_self).struct_defs.get(&payload_struct_name).cloned():
+                    Some(field_defs) =>
+                        if field_defs.is_empty():
+                            ("null").to_string()
+                        else:
+                            let payload_ty = f"%{payload_struct_name}"
+                            let payload_ptr_ty = f"{payload_ty}*"
+                            let payload_ptr = (*_self).next_reg()
+                            (*_self).emit_(&f"  {payload_ptr} = alloca {payload_ty}")
+                            ()
+                            let named_args: Map<String, kain_core::ast::Expr> = data.iter().cloned().collect()
+                            for selfhost_for_item in field_defs.iter().enumerate():
+                                let (i, (field_name, field_ty)) = selfhost_for_item
+                                let expr = named_args.get(field_name).ok_or_else(fn(): KainError__codegen(f"Missing field '{field_name}' for actor message '{actor_name}.{message}'", (*span)))?
+                                let (val, val_ty) = (*_self).compile_expr_for_target_type(expr, field_ty)?
+                                let field_ptr = (*_self).next_reg()
+                                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {payload_ty}, {payload_ptr_ty}* {payload_ptr}, i32 0, i32 {i}")
+                                ()
+                                (*_self).emit_(&f"  store {val_ty} {val}, {field_ty}* {field_ptr}")
+                                ()
+                            ()
+                            let null_ptr = f"{payload_ty}* null"
+                            let size_ptr_reg = (*_self).next_reg()
+                            (*_self).emit_(&f"  {size_ptr_reg} = getelementptr {payload_ty}, {null_ptr}, i32 1")
+                            ()
+                            let size_reg = (*_self).next_reg()
+                            (*_self).emit_(&f"  {size_reg} = ptrtoint {payload_ptr_ty}* {size_ptr_reg} to i64")
+                            ()
+                            let payload_i8 = (*_self).next_reg()
+                            (*_self).emit_(&f"  {payload_i8} = bitcast {payload_ty}* {payload_ptr} to i8*")
+                            ()
+                            payload_i8
+                    _ => ("null").to_string()
+                let message_tag = (*_self).hash_message_tag(&actor_name, message)
+                let message_tag_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {message_tag_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 0")
+                ()
+                (*_self).emit_(&f"  store i64 {message_tag}, i64* {message_tag_ptr}")
+                ()
+                let message_data_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {message_data_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 1")
+                ()
+                (*_self).emit_(&f"  store i8* {payload_mem}, i8** {message_data_ptr}")
+                ()
+                let message_size_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {message_size_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 2")
+                ()
+                let message_size = if (payload_mem == "null"):
+                    ("0").to_string()
+                else:
+                    let payload_struct_name = f"{actor_name}_{message}"
+                    let payload_ty = f"%{payload_struct_name}"
+                    let payload_ptr_ty = f"{payload_ty}*"
+                    let size_ptr_reg = (*_self).next_reg()
+                    (*_self).emit_(&"  {size_ptr_reg} = getelementptr {payload_ty}, {f\"{payload_ty}* null\"}, i32 1")
+                    ()
+                    let size_reg = (*_self).next_reg()
+                    (*_self).emit_(&f"  {size_reg} = ptrtoint {payload_ptr_ty}* {size_ptr_reg} to i64")
+                    ()
+                    size_reg
+                (*_self).emit_(&f"  store i64 {message_size}, i64* {message_size_ptr}")
+                ()
+                let message_sender_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {message_sender_ptr} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {message_ptr}, i32 0, i32 3")
+                ()
+                (*_self).emit_(&f"  store i64 {sender_id}, i64* {message_sender_ptr}")
+                ()
+                let send_status = (*_self).next_reg()
+                (*_self).emit_(&f"  {send_status} = call i32 @kain_actor_send(i64 {target_id}, %KainActorMessage* {message_ptr}, i8* null)")
+                ()
+                Result::Ok((("0").into(), ("i64").into()))
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch, span: span } =>
+                let start_block = (*_self).current_block.clone()
+                let (cond_val, _) = (*_self).compile_expr(condition)?
+                let label_then = (*_self).next_label()
+                let label_else = (*_self).next_label()
+                let label_merge = (*_self).next_label()
+                let has_else = else_branch.is_some()
+                let target_else = if has_else:
+                    &label_else
+                else:
+                    &label_merge
+                (*_self).emit_(&f"  br i1 {cond_val}, label %{label_then}, label %{target_else}")
+                ()
+                let mut incoming = Vec__new_()
+                (*_self).emit_label(&label_then)
+                ()
+                let then_res = (*_self).compile_block_with_result(then_branch)?
+                let then_end_block = (*_self).current_block.clone()
+                (*_self).emit_(&f"  br label %{label_merge}")
+                ()
+                match then_res:
+                    Some((val, ty)) =>
+                        incoming.push((val, ty, then_end_block))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        incoming.push((("0").into(), ("i64").into(), then_end_block))
+                        ()
+                        ()
+                        ()
+                        ()
+                match else_branch:
+                    Some(else_branch) =>
+                        (*_self).emit_label(&label_else)
+                        ()
+                        let else_res = match else_branch:
+                            kain_core__ast__ElseBranch::Else(b) => (*_self).compile_block_with_result(b)?
+                            kain_core__ast__ElseBranch::ElseIf(cond, then, el) =>
+                                let nested = kain_core__ast__Expr::If { condition: cond.clone(), then_branch: then.clone(), else_branch: el.clone(), span: (*span) }
+                                Option::Some((*_self).compile_expr(&nested)?)
+                        let else_end_block = (*_self).current_block.clone()
+                        (*_self).emit_(&f"  br label %{label_merge}")
+                        ()
+                        match else_res:
+                            Some((val, ty)) =>
+                                incoming.push((val, ty, else_end_block))
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                incoming.push((("0").into(), ("i64").into(), else_end_block))
+                                ()
+                                ()
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        incoming.push((("0").into(), ("i64").into(), start_block))
+                        ()
+                        ()
+                        ()
+                        ()
+                (*_self).emit_label(&label_merge)
+                ()
+                let res_ty = incoming[0].field_1.clone()
+                let res_reg = (*_self).next_reg()
+                let consistent = incoming.iter().all(fn(__kain_closure_arg23): ((*__kain_closure_arg23.__kain_tuple_1) == res_ty))
+                if consistent:
+                    let phi_args = incoming.iter().map(fn(__kain_closure_arg24): f"[ {__kain_closure_arg24.__kain_tuple_0}, %{__kain_closure_arg24.__kain_tuple_2} ]").collect().join(", ")
+                    (*_self).emit_(&f"  {res_reg} = phi {res_ty} {phi_args}")
+                    ()
+                    Result::Ok((res_reg, res_ty))
+                else:
+                    Result::Err(KainError__codegen("LLVM if-expression branches produced inconsistent result types", (*span)))
+            kain_core__ast__Expr::Ident(name, span) =>
+                match (*_self).locals.get(name).cloned():
+                    Some((ptr, ty)) =>
+                        let reg = (*_self).next_reg()
+                        (*_self).emit_(&f"  {reg} = load {ty}, {ty}* {ptr}")
+                        ()
+                        Result::Ok((reg, ty))
+                    _ =>
+                        match (*_self).world_globals.get(name).cloned():
+                            Some(world_info) =>
+                                (*_self).emit_(&f"  call void @{world_info.init_fn_name}()")
+                                ()
+                                Result::Ok((world_info.global_symbol.clone(), f"%{name}*"))
+                            _ => Result::Err(KainError__codegen(f"Undefined variable: {name}", (*span)))
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+                let (lhs, lhs_ty) = (*_self).compile_expr(left)?
+                let (rhs, rhs_ty) = (*_self).compile_expr(right)?
+                let (lhs, ty, rhs, rhs_ty) = (*_self).coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?
+                if (((*op) == kain_core__ast__BinaryOp__Add) && (((ty == "i8*") || (rhs_ty == "i8*")))):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = call i8* @str_concat(i8* {lhs}, i8* {rhs})")
+                    ()
+                    return Result::Ok((res, ("i8*").into()))
+                if (((((*op) == kain_core__ast__BinaryOp__Eq) || ((*op) == kain_core__ast__BinaryOp__Ne))) && (((ty == "i8*") || (rhs_ty == "i8*")))):
+                    let res = (*_self).next_reg()
+                    (*_self).emit_(&f"  {res} = call i1 @deep_eq(i8* {lhs}, i8* {rhs})")
+                    ()
+                    if ((*op) == kain_core__ast__BinaryOp__Ne):
+                        let inv = (*_self).next_reg()
+                        (*_self).emit_(&f"  {inv} = xor i1 {res}, 1")
+                        ()
+                        return Result::Ok((inv, ("i1").into()))
+                    return Result::Ok((res, ("i1").into()))
+                let is_float = ((ty == "double") && (rhs_ty == "double"))
+                let res = (*_self).next_reg()
+                match op:
+                    kain_core__ast__BinaryOp::Add =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fadd double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = add {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Sub =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fsub double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = sub {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Mul =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fmul double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = mul {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Div =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fdiv double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = sdiv {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Mod =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = frem double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = srem {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Pow =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = call double @pow(double {lhs}, double {rhs})")
+                            ()
+                            Result::Ok((res, ("double").to_string()))
+                        else:
+                            let lhs_cast = (*_self).cast_numeric_value(lhs, &ty, "double")?
+                            let rhs_cast = (*_self).cast_numeric_value(rhs, &rhs_ty, "double")?
+                            let pow_res = (*_self).next_reg()
+                            (*_self).emit_(&f"  {pow_res} = call double @pow(double {lhs_cast}, double {rhs_cast})")
+                            ()
+                            let int_res = (*_self).next_reg()
+                            (*_self).emit_(&f"  {int_res} = fptosi double {pow_res} to i64")
+                            ()
+                            Result::Ok((int_res, ("i64").to_string()))
+                    kain_core__ast__BinaryOp::Eq =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp oeq double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp eq {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::Ne =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp one double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp ne {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::Lt =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp olt double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp slt {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::Gt =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp ogt double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp sgt {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::Le =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp ole double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp sle {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::Ge =>
+                        if is_float:
+                            (*_self).emit_(&f"  {res} = fcmp oge double {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        else:
+                            (*_self).emit_(&f"  {res} = icmp sge {ty} {lhs}, {rhs}")
+                            ()
+                            ()
+                            ()
+                            ()
+                        Result::Ok((res, ("i1").to_string()))
+                    kain_core__ast__BinaryOp::And =>
+                        (*_self).emit_(&f"  {res} = and {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Or =>
+                        (*_self).emit_(&f"  {res} = or {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::BitAnd =>
+                        (*_self).emit_(&f"  {res} = and {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::BitOr =>
+                        (*_self).emit_(&f"  {res} = or {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::BitXor =>
+                        (*_self).emit_(&f"  {res} = xor {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Shl =>
+                        (*_self).emit_(&f"  {res} = shl {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    kain_core__ast__BinaryOp::Shr =>
+                        (*_self).emit_(&f"  {res} = ashr {ty} {lhs}, {rhs}")
+                        ()
+                        Result::Ok((res, ty))
+                    _ => Result::Err(KainError__codegen(f"Unsupported LLVM binary operator: {op}", expr.span()))
+            kain_core__ast__Expr::MethodCall { receiver: receiver, method: method, args: args, span: span } =>
+                let (obj_val, obj_ty) = (*_self).compile_expr(receiver)?
+                if (obj_ty.starts_with("%") && obj_ty.ends_with("*")):
+                    let struct_name = &obj_ty[1..(obj_ty.len() - 1)]
+                    let func_name = f"{struct_name}_{method}"
+                    if (*_self).functions.contains_key(&func_name):
+                        let mut compiled_args = Vec__new_()
+                        let mut arg_types = Vec__new_()
+                        compiled_args.push(obj_val)
+                        ()
+                        arg_types.push(obj_ty)
+                        ()
+                        for arg in args:
+                            let (val, ty) = (*_self).compile_expr(&arg.value)?
+                            compiled_args.push(val)
+                            ()
+                            arg_types.push(ty)
+                            ()
+                        ()
+                        let ret_ty = (*_self).functions.get(&func_name).unwrap().clone()
+                        let res = (*_self).next_reg()
+                        let arg_str = compiled_args.iter().zip(arg_types.iter()).map(fn(__kain_closure_arg25): f"{__kain_closure_arg25.__kain_tuple_1} {__kain_closure_arg25.__kain_tuple_0}").collect().join(", ")
+                        if (ret_ty == "void"):
+                            (*_self).emit_(&f"  call void @{func_name}({arg_str})")
+                            ()
+                            return Result::Ok((("0").into(), ("i64").into()))
+                        (*_self).emit_(&f"  {res} = call {ret_ty} @{func_name}({arg_str})")
+                        ()
+                        return Result::Ok((res, ret_ty))
+                    ()
+                return Result::Err(KainError__codegen(f"Method {method} not found on type {obj_ty}", (*span)))
+            kain_core__ast__Expr::Call { callee: callee, args: args, span: span } =>
+                match callee:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        match (*_self).compile_lowered_helper_call(name, args, (*span)):
+                            Some(result) => return result
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match callee:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if ((name == "to_string") && (args.len() == 1)):
+                            let (val, ty) = (*_self).compile_expr(&args[0].value)?
+                            if (ty == "i64"):
+                                let res = (*_self).next_reg()
+                                (*_self).emit_(&f"  {res} = call i8* @to_string(i64 {val})")
+                                ()
+                                return Result::Ok((res, ("i8*").into()))
+                            ()
+                        if (name == "now"):
+                            let res = (*_self).next_reg()
+                            (*_self).emit_(&f"  {res} = call i64 @clock_wrapper()")
+                            ()
+                            return Result::Ok((res, ("i64").into()))
+                        if ((name == "print") || (name == "println")):
+                            return Result::Err(KainError__codegen(f"LLVM backend does not lower '{name}' faithfully yet; runtime print semantics are still unsupported", (*span)))
+                        ()
+                    _ =>
+                        ()
+                        ()
+                let func_name = match callee:
+                    kain_core__ast__Expr::Ident(name, _) => name.clone()
+                    _ => return Result::Err(KainError__codegen("Only direct function calls supported", (*span)))
+                (*_self).compile_direct_call(&func_name, args)
+            kain_core__ast__Expr::StageCall { function: function, args: args } => (*_self).compile_direct_call(function, args)
+            kain_core__ast__Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields } =>
+                let struct_ty = f"%{enum_name}"
+                let ptr_ty = f"{struct_ty}*"
+                let null_ptr = f"{ptr_ty} null"
+                let size_ptr_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_ptr_reg} = getelementptr {struct_ty}, {null_ptr}, i32 1")
+                ()
+                let size_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {size_reg} = ptrtoint {ptr_ty} {size_ptr_reg} to i64")
+                ()
+                let mem_reg = (*_self).next_reg()
+                (*_self).emit_(&f"  {mem_reg} = call i8* @KAIN_alloc(i64 {size_reg})")
+                ()
+                let enum_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {enum_ptr} = bitcast i8* {mem_reg} to {ptr_ty}")
+                ()
+                let tag = (*_self).hash_message_tag(enum_name, variant)
+                let tag_ptr = (*_self).next_reg()
+                (*_self).emit_(&f"  {tag_ptr} = getelementptr inbounds {struct_ty}, {ptr_ty} {enum_ptr}, i32 0, i32 0")
+                ()
+                (*_self).emit_(&f"  store i64 {tag}, i64* {tag_ptr}")
+                ()
+                let payload_struct_name = f"{enum_name}_{variant}"
+                let payload_ty = f"%{payload_struct_name}"
+                let payload_ptr_ty = f"{payload_ty}*"
+                if (*_self).struct_defs.contains_key(&payload_struct_name):
+                    let p_null_ptr = f"{payload_ptr_ty} null"
+                    let p_size_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {p_size_ptr} = getelementptr {payload_ty}, {p_null_ptr}, i32 1")
+                    ()
+                    let p_size = (*_self).next_reg()
+                    (*_self).emit_(&f"  {p_size} = ptrtoint {payload_ptr_ty} {p_size_ptr} to i64")
+                    ()
+                    let p_mem = (*_self).next_reg()
+                    (*_self).emit_(&f"  {p_mem} = call i8* @KAIN_alloc(i64 {p_size})")
+                    ()
+                    let p_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {p_ptr} = bitcast i8* {p_mem} to {payload_ptr_ty}")
+                    ()
+                    match fields:
+                        kain_core__ast__EnumVariantFields::Tuple(exprs) =>
+                            for selfhost_for_item in exprs.iter().enumerate():
+                                let (i, expr) = selfhost_for_item
+                                let (val, val_ty) = (*_self).compile_expr(expr)?
+                                let field_ptr = (*_self).next_reg()
+                                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {payload_ty}, {payload_ptr_ty} {p_ptr}, i32 0, i32 {i}")
+                                ()
+                                (*_self).emit_(&f"  store {val_ty} {val}, {val_ty}* {field_ptr}")
+                                ()
+                            ()
+                            ()
+                        kain_core__ast__EnumVariantFields::Struct(named_fields) =>
+                            for selfhost_for_item in named_fields.iter().enumerate():
+                                let (i, (_, expr)) = selfhost_for_item
+                                let (val, val_ty) = (*_self).compile_expr(expr)?
+                                let field_ptr = (*_self).next_reg()
+                                (*_self).emit_(&f"  {field_ptr} = getelementptr inbounds {payload_ty}, {payload_ptr_ty} {p_ptr}, i32 0, i32 {i}")
+                                ()
+                                (*_self).emit_(&f"  store {val_ty} {val}, {val_ty}* {field_ptr}")
+                                ()
+                            ()
+                            ()
+                        _ => ()
+                    let payload_ptr_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {payload_ptr_ptr} = getelementptr inbounds {struct_ty}, {ptr_ty} {enum_ptr}, i32 0, i32 1")
+                    ()
+                    (*_self).emit_(&f"  store i8* {p_mem}, i8** {payload_ptr_ptr}")
+                    ()
+                    ()
+                    ()
+                    ()
+                else:
+                    let payload_ptr_ptr = (*_self).next_reg()
+                    (*_self).emit_(&f"  {payload_ptr_ptr} = getelementptr inbounds {struct_ty}, {ptr_ty} {enum_ptr}, i32 0, i32 1")
+                    ()
+                    (*_self).emit_(&f"  store i8* null, i8** {payload_ptr_ptr}")
+                    ()
+                    ()
+                    ()
+                    ()
+                Result::Ok((enum_ptr, ptr_ty))
+            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms, span: _ } =>
+                let (val, val_ty) = (*_self).compile_expr(scrutinee)?
+                let enum_name = if (val_ty.starts_with("%") && val_ty.ends_with("*")):
+                    Option::Some(val_ty.trim_start_matches("%").trim_end_matches("*").to_string())
+                else:
+                    none
+                let label_end = (*_self).next_label()
+                let mut arm_labels = Vec__new_()
+                let mut next_labels = Vec__new_()
+                for i in range(0, arms.len()):
+                    arm_labels.push((*_self).next_label())
+                    ()
+                    next_labels.push(if ((i + 1) < arms.len()): (*_self).next_label() else: label_end.clone())
+                    ()
+                ()
+                if arms.is_empty():
+                    (*_self).emit_(&f"  br label %{label_end}")
+                    ()
+                    ()
+                    ()
+                    ()
+                else:
+                    (*_self).emit_(&f"  br label %{next_labels[0]}")
+                    ()
+                    ()
+                    ()
+                    ()
+                let mut incoming = Vec__new_()
+                for selfhost_for_item in arms.iter().enumerate():
+                    let (i, arm) = selfhost_for_item
+                    (*_self).emit_label(&next_labels[i])
+                    ()
+                    let cond = (*_self).compile_pattern_condition(&arm.pattern, &val, &val_ty, enum_name, arm.span)?
+                    let branch_true = arm_labels[i].clone()
+                    let branch_false = if ((i + 1) < arms.len()):
+                        next_labels[(i + 1)].clone()
+                    else:
+                        label_end.clone()
+                    (*_self).emit_(&f"  br i1 {cond}, label %{branch_true}, label %{branch_false}")
+                    ()
+                    (*_self).emit_label(&arm_labels[i])
+                    ()
+                    (*_self).scopes.push(Vec__new_())
+                    ()
+                    (*_self).bind_match_pattern(&arm.pattern, &val, &val_ty, enum_name, arm.span)?
+                    ()
+                    match &arm.guard:
+                        Some(guard) =>
+                            let (guard_val, guard_ty) = (*_self).compile_expr(guard)?
+                            if (guard_ty != "i1"):
+                                return Result::Err(KainError__codegen(f"Match guard must compile to bool/i1, got {guard_ty}", arm.span))
+                            let guard_pass = (*_self).next_label()
+                            let guard_fail = if ((i + 1) < arms.len()):
+                                next_labels[(i + 1)].clone()
+                            else:
+                                label_end.clone()
+                            (*_self).emit_(&f"  br i1 {guard_val}, label %{guard_pass}, label %{guard_fail}")
+                            ()
+                            (*_self).emit_label(&guard_pass)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    let (res_val, res_ty) = (*_self).compile_expr(&arm.body)?
+                    let arm_end_block = (*_self).current_block.clone()
+                    (*_self).emit_scope_exit()
+                    ()
+                    (*_self).emit_(&f"  br label %{label_end}")
+                    ()
+                    incoming.push((res_val, res_ty, arm_end_block))
+                    ()
+                ()
+                (*_self).emit_label(&label_end)
+                ()
+                if incoming.is_empty():
+                    Result::Ok((("0").into(), ("i64").into()))
+                else:
+                    let res_ty = incoming[0].field_1.clone()
+                    let res_reg = (*_self).next_reg()
+                    let phi_args = incoming.iter().map(fn(__kain_closure_arg26): f"[ {__kain_closure_arg26.__kain_tuple_0}, %{__kain_closure_arg26.__kain_tuple_2} ]").collect().join(", ")
+                    (*_self).emit_(&f"  {res_reg} = phi {res_ty} {phi_args}")
+                    ()
+                    Result::Ok((res_reg, res_ty))
+            other => Result::Err(KainError__codegen(f"Unsupported LLVM expression: {other}", other.span()))
+
+

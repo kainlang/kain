@@ -1,0 +1,1452 @@
+use crate::c::parser::CSourceLayoutMetadata
+
+use crate::c::types::CTypeTransformer
+
+use crate::common::c_registry::resolve_c_binary_operator
+
+use crate::common::c_registry::resolve_c_compound_assignment_binary_operator
+
+use crate::common::c_registry::CBinaryOperatorResolution
+
+use crate::common::identifier_registry::IdentifierDomain
+
+use crate::common::identifier_registry::StableIdentifierRenamer
+
+use crate::ImportError
+
+use crate::Result
+
+use kain_core::ast::*
+
+use kain_core::diagnostic_registry::DiagnosticCode
+
+use kain_core::effects::Effect
+
+use kain_core::language_features::default_language_capabilities
+
+use kain_core::language_features::LanguageCapabilities
+
+use kain_core::low_level_abi::default_c_abi_policy
+
+use kain_core::low_level_memory_metadata::marker_attr
+
+use kain_core::low_level_memory_metadata::usize_attr
+
+use kain_core::low_level_memory_metadata::usize_bool_attr
+
+use kain_core::low_level_memory_metadata::C_BITFIELD_ATTR
+
+use kain_core::low_level_memory_metadata::C_PACKED_ATTR
+
+use kain_core::low_level_memory_metadata::C_PACK_ALIGN_ATTR
+
+use kain_core::low_level_memory_metadata::C_STORAGE_ALIGN_ATTR
+
+use kain_core::low_level_memory_metadata::C_STORAGE_BITS_ATTR
+
+use kain_core::low_level_memory_metadata::C_TYPE_ALIGN_ATTR
+
+use kain_core::low_level_memory_metadata::C_UNION_ATTR
+
+use kain_core::span::Span
+
+use lang_c::ast as c_ast
+
+use lang_c::span::Node
+
+use lang_c::span::Span as CSpan
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+@doc(doc = " C to KAIN AST transformer")
+pub struct CTransformer:
+    type_transformer: CTypeTransformer
+    current_function: Option<String>
+    structs: Map<String, Struct>
+    enums: Map<String, Enum>
+    typedefs: Map<String, Type>
+    identifier_renamer: StableIdentifierRenamer
+    language_capabilities: kain_core::language_features::LanguageCapabilities
+    temp_counter: usize
+    symbol_scopes: Array<Map<String, Type>>
+    layout_metadata: Option<CSourceLayoutMetadata>
+    pending_items: Array<Item>
+    emitted_synthetic_type_keys: Set<String>
+
+impl CTransformer:
+    pub fn new_() -> CTransformer:
+        CTransformer__with_language_capabilities(kain_core__language_features__default_language_capabilities())
+
+    pub fn with_language_capabilities(language_capabilities: kain_core::language_features::LanguageCapabilities) -> CTransformer:
+        CTransformer { type_transformer: CTypeTransformer__new_(), current_function: none, structs: HashMap__new_(), enums: HashMap__new_(), typedefs: HashMap__new_(), identifier_renamer: StableIdentifierRenamer__default_(), language_capabilities: language_capabilities, temp_counter: 0, symbol_scopes: [HashMap__new_()], layout_metadata: none, pending_items: Vec__new_(), emitted_synthetic_type_keys: HashSet__new_() }
+
+    pub fn with_language_capabilities_and_layout_metadata(language_capabilities: kain_core::language_features::LanguageCapabilities, layout_metadata: CSourceLayoutMetadata) -> CTransformer:
+        let mut transformer = CTransformer__with_language_capabilities(language_capabilities)
+        transformer.layout_metadata = Option::Some(layout_metadata)
+        ()
+        transformer
+
+    fn rename_identifier(_self: &mut CTransformer, domain: IdentifierDomain, raw: String) -> String:
+        (*_self).identifier_renamer.resolve(domain, raw)
+
+    fn rename_value_identifier(_self: &mut CTransformer, raw: String) -> String:
+        (*_self).rename_identifier(IdentifierDomain__Value, raw)
+
+    fn rename_type_identifier(_self: &mut CTransformer, raw: String) -> String:
+        (*_self).rename_identifier(IdentifierDomain__Type, raw)
+
+    fn rename_field_identifier(_self: &mut CTransformer, raw: String) -> String:
+        (*_self).rename_identifier(IdentifierDomain__Field, raw)
+
+    fn rename_variant_identifier(_self: &mut CTransformer, raw: String) -> String:
+        (*_self).rename_identifier(IdentifierDomain__Variant, raw)
+
+    fn fresh_temp(_self: &mut CTransformer, prefix: String) -> String:
+        let name = f"{prefix}_{(*_self).temp_counter}"
+        (*_self).temp_counter = ((*_self).temp_counter + 1)
+        ()
+        (*_self).rename_value_identifier(&name)
+
+    fn anonymous_type_name(_self: &mut CTransformer, owner_name: String, field_name: String, kind: String) -> String:
+        let raw = f"{owner_name}_{field_name}_{kind}"
+        (*_self).rename_type_identifier(&raw)
+
+    fn register_pending_synthetic_item(_self: &mut CTransformer, item: Item):
+        let key = match &item:
+            Item::Struct(s) => f"struct:{s.name}"
+            Item::Enum(e) => f"enum:{e.name}"
+            _ => return
+        if (*_self).emitted_synthetic_type_keys.insert(key):
+            (*_self).pending_items.push(item)
+            ()
+
+    fn drain_pending_items(_self: &mut CTransformer, out_: &mut Array<Item>):
+        out_.extend((*_self).pending_items.drain(range(0, 0)))
+        ()
+
+    fn memory_lowering_required<T>(_self: &CTransformer, context: impl Into<String>) -> Result<T, Error>:
+        let context = context.into()
+        Result::Err(ImportError::UnsupportedFeature(f"{kain_core__diagnostic_registry__spec_for_code(kain_core__diagnostic_registry__DiagnosticCode__MemoryLoweringRequired).code_str}: {context}. Add or select a pointer lowering policy before importing this expression form."))
+
+    fn push_symbol_scope(_self: &mut CTransformer):
+        (*_self).symbol_scopes.push(HashMap__new_())
+        ()
+
+    fn pop_symbol_scope(_self: &mut CTransformer):
+        if ((*_self).symbol_scopes.len() > 1):
+            (*_self).symbol_scopes.pop()
+            ()
+
+    fn define_symbol_type(_self: &mut CTransformer, name: String, ty: Type):
+        match (*_self).symbol_scopes.last_mut():
+            Some(scope) =>
+                scope.insert(name, ty)
+                ()
+            _ => ()
+
+    fn lookup_symbol_type(_self: &CTransformer, name: String) -> Option<Type>:
+        (*_self).symbol_scopes.iter().rev().find_map(fn(scope): scope.get(name).cloned())
+
+    fn sanitize_type(_self: &mut CTransformer, ty: Type) -> Type:
+        match ty:
+            Type::Named { name: name, generics: generics, span: span } => Type::Named { name: (*_self).rename_type_identifier(&name), generics: generics.into_iter().map(fn(inner): (*_self).sanitize_type(inner)).collect(), span: span }
+            Type::Tuple(items, span) => Type::Tuple(items.into_iter().map(fn(inner): (*_self).sanitize_type(inner)).collect(), span)
+            Type::Array(inner, len, span) => Type::Array(Box__new_((*_self).sanitize_type((*inner))), len, span)
+            Type::Slice(inner, span) => Type::Slice(Box__new_((*_self).sanitize_type((*inner))), span)
+            Type::Ref { mutable_: mutable_, inner: inner, lifetime: lifetime, span: span } => Type::Ref { mutable_: mutable_, inner: Box__new_((*_self).sanitize_type((*inner))), lifetime: lifetime, span: span }
+            Type::Function { params: params, return_type: return_type, effects: effects, span: span } => Type::Function { params: params.into_iter().map(fn(inner): (*_self).sanitize_type(inner)).collect(), return_type: Box__new_((*_self).sanitize_type((*return_type))), effects: effects, span: span }
+            Type::Option(inner, span) => Type::Option(Box__new_((*_self).sanitize_type((*inner))), span)
+            Type::Result(ok, err, span) => Type::Result(Box__new_((*_self).sanitize_type((*ok))), Box__new_((*_self).sanitize_type((*err))), span)
+            Type::Impl { trait_name: trait_name, generics: generics, span: span } => Type::Impl { trait_name: (*_self).rename_type_identifier(&trait_name), generics: generics.into_iter().map(fn(inner): (*_self).sanitize_type(inner)).collect(), span: span }
+            other => other
+
+    fn struct_def_for_type(_self: &CTransformer, ty: &Type) -> Option<&Struct>:
+        let Type::Named { name: name } = ty
+        (*_self).structs.get(name)
+
+    fn struct_is_union_type(_self: &CTransformer, ty: &Type) -> Bool:
+        (*_self).struct_def_for_type(ty).map(fn(st): st.attributes.iter().any(fn(attr): (attr.name == kain_core__low_level_memory_metadata__C_UNION_ATTR))).unwrap_or(false)
+
+    fn normalize_aggregate_fields_for_type(_self: &CTransformer, ty: &Type, fields: Array<(String, Expr)>) -> Array<(String, Expr)>:
+        if (!(*_self).struct_is_union_type(ty)):
+            return fields
+        let Some((active_name, active_value)) = fields.last().cloned()
+        [(active_name, active_value)]
+
+    fn lookup_field(_self: &CTransformer, ty: &Type, field_name: String) -> Option<&Field>:
+        ((*_self).struct_def_for_type(ty)?).fields.iter().find(fn(field): (field.name == field_name))
+
+    fn expr_field_is_bitfield(_self: &CTransformer, expr: &Expr) -> Bool:
+        let Expr::Field { object: object, field: field } = expr
+        let Some(object_ty) = (*_self).infer_expr_type(object)
+        (*_self).lookup_field(&object_ty, field).map(fn(field_def): field_def.attributes.iter().any(fn(attr): (attr.name == kain_core__low_level_memory_metadata__C_BITFIELD_ATTR))).unwrap_or(false)
+
+    fn c_storage_layout_for_specifiers(_self: &CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::SpecifierQualifier>]) -> (usize, usize):
+        let abi = kain_core__low_level_abi__default_c_abi_policy()
+        let mut saw_char = false
+        let mut saw_short = false
+        let mut saw_long_count = 0
+        let mut saw_float = false
+        let mut saw_double = false
+        let mut saw_bool = false
+        for spec in specifiers:
+            match &spec.node:
+                lang_c__ast__SpecifierQualifier::TypeSpecifier(type_spec) =>
+                    match &type_spec.node:
+                        lang_c__ast__TypeSpecifier::Char => saw_char = true
+                        lang_c__ast__TypeSpecifier::Short => saw_short = true
+                        lang_c__ast__TypeSpecifier::Long => saw_long_count = (saw_long_count + 1)
+                        lang_c__ast__TypeSpecifier::Float => saw_float = true
+                        lang_c__ast__TypeSpecifier::Double => saw_double = true
+                        lang_c__ast__TypeSpecifier::Bool => saw_bool = true
+                        _ => ()
+                _ => ()
+        ()
+        let bits = if saw_bool:
+            abi.bool_bits
+        elif saw_char:
+            abi.char_bits
+        elif saw_short:
+            abi.short_bits
+        elif saw_float:
+            abi.float_bits
+        elif saw_double:
+            abi.double_bits
+        elif (saw_long_count >= 2):
+            abi.long_long_bits
+        elif (saw_long_count == 1):
+            abi.long_bits
+        else:
+            abi.int_bits
+        (bits, bits)
+
+    fn bitfield_is_signed(_self: &CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::SpecifierQualifier>]) -> Bool:
+        let mut saw_unsigned = false
+        for spec in specifiers:
+            match &spec.node:
+                lang_c__ast__SpecifierQualifier::TypeSpecifier(type_spec) =>
+                    match &type_spec.node:
+                        lang_c__ast__TypeSpecifier::Unsigned => saw_unsigned = true
+                        _ => ()
+                _ => ()
+        ()
+        (!saw_unsigned)
+
+    fn struct_layout_attributes_for_spans(_self: &CTransformer, spans: &[lang_c::span::Span]) -> Array<Attribute>:
+        let Some(metadata) = &(*_self).layout_metadata
+        let mut attrs = Vec__new_()
+        let pack_align_bits = spans.iter().find_map(fn(span): metadata.pack_align_bits_for_span((*span)))
+        let has_explicit_packed = spans.iter().any(fn(span): metadata.has_packed_attr_for_span((*span)))
+        let explicit_type_align_bits = spans.iter().find_map(fn(span): metadata.explicit_type_align_bits_for_span((*span)))
+        if (has_explicit_packed || none):
+            attrs.push(kain_core__low_level_memory_metadata__marker_attr(kain_core__low_level_memory_metadata__C_PACKED_ATTR, Span__default_()))
+            ()
+            ()
+            ()
+            ()
+        match pack_align_bits:
+            Some(bits) =>
+                attrs.push(kain_core__low_level_memory_metadata__usize_attr(kain_core__low_level_memory_metadata__C_PACK_ALIGN_ATTR, bits, Span__default_()))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match explicit_type_align_bits:
+            Some(bits) =>
+                attrs.push(kain_core__low_level_memory_metadata__usize_attr(kain_core__low_level_memory_metadata__C_TYPE_ALIGN_ATTR, bits, Span__default_()))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        attrs
+
+    pub fn transform(_self: &mut CTransformer, tu: lang_c::ast::TranslationUnit) -> Result<Program, Error>:
+        let mut items = Vec__new_()
+        for decl in tu.field_0:
+            let decl_span = decl.span
+            match decl.node:
+                lang_c__ast__ExternalDeclaration::FunctionDefinition(func) =>
+                    match ((*_self).transform_function(func.node)?):
+                        Some(item) =>
+                            (*_self).drain_pending_items(&mut items)
+                            ()
+                            items.push(item)
+                            ()
+                        _ => ()
+                lang_c__ast__ExternalDeclaration::Declaration(decl) =>
+                    let mut decl_items = (*_self).transform_declaration(decl.node, decl_span)?
+                    (*_self).drain_pending_items(&mut items)
+                    ()
+                    items.append(&mut decl_items)
+                    ()
+                _ => ()
+        ()
+        Result::Ok(Program { items: items, span: Span__default_() })
+
+    fn transform_function(_self: &mut CTransformer, func: lang_c::ast::FunctionDefinition) -> Result<Option<Item>, Error>:
+        let raw_name = (*_self).extract_function_name(&func.declarator.node)?
+        let name = (*_self).rename_value_identifier(&raw_name)
+        if name.is_empty():
+            return Result::Ok(none)
+        (*_self).current_function = Option::Some(name.clone())
+        ()
+        let params = (*_self).extract_function_params(&func.declarator.node)?
+        let return_type = (*_self).extract_return_type(&func.specifiers, Option::Some(&func.declarator.node))?
+        (*_self).push_symbol_scope()
+        ()
+        for param in &params:
+            (*_self).define_symbol_type(param.name.clone(), param.ty.clone())
+            ()
+        ()
+        let body = (*_self).transform_compound_statement(&func.statement.node)?
+        (*_self).pop_symbol_scope()
+        ()
+        (*_self).current_function = none
+        ()
+        Result::Ok(Option::Some(Item::Function(Function { name: name, generics: Vec__new_(), params: params, return_type: Option::Some(return_type), body: body, effects: [kain_core__effects__Effect__Unsafe_], attributes: Vec__new_(), visibility: Visibility__Public, span: Span__default_() })))
+
+    fn extract_function_params(_self: &mut CTransformer, declarator: &lang_c::ast::Declarator) -> Result<Array<Param>, Error>:
+        use c_ast::DerivedDeclarator::*
+
+        for derived in &(*declarator).derived:
+            match &derived.node:
+                Function(func_decl) =>
+                    let mut params = Vec__new_()
+                    for param_decl in &func_decl.node.parameters:
+                        let param_name = match param_decl.node.declarator:
+                            Some(decl) =>
+                                let raw = (*_self).extract_declarator_name(&decl.node)?
+                                (*_self).rename_value_identifier(&raw)
+                            _ => f"param_{params.len()}"
+                        let param_type = match param_decl.node.declarator:
+                            Some(decl) => (*_self).extract_type_from_declaration(&param_decl.node.specifiers, &decl.node)?
+                            _ => (*_self).extract_type_from_specifiers(&param_decl.node.specifiers)?
+                        params.push(Param { name: param_name, ty: param_type, mutable_: true, default_: none, span: Span__default_() })
+                        ()
+                    ()
+                    return Result::Ok(params)
+                _ => ()
+        ()
+        Result::Ok(Vec__new_())
+
+    fn extract_return_type(_self: &mut CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>], declarator: Option<&lang_c::ast::Declarator>) -> Result<Type, Error>:
+        let base = (*_self).extract_type_from_specifiers(specifiers)?
+        match declarator:
+            Some(declarator) => (*_self).apply_declarator_type(base, declarator)
+            _ => Result::Ok(base)
+
+    fn extract_type_from_specifiers(_self: &mut CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>]) -> Result<Type, Error>:
+        use c_ast::DeclarationSpecifier::*
+
+        for spec in specifiers:
+            match &spec.node:
+                TypeSpecifier(type_spec) =>
+                    let ty = (*_self).type_transformer.transform_type_specifier(&type_spec.node)?
+                    return Result::Ok((*_self).sanitize_type(ty))
+                _ => ()
+        ()
+        Result::Ok(Type::Unit(Span__default_()))
+
+    fn extract_type_from_declaration(_self: &mut CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>], declarator: &lang_c::ast::Declarator) -> Result<Type, Error>:
+        let base = (*_self).extract_type_from_specifiers(specifiers)?
+        (*_self).apply_declarator_type(base, declarator)
+
+    fn extract_type_from_specifier_qualifiers(_self: &mut CTransformer, specifiers: &[lang_c::span::Node<lang_c::ast::SpecifierQualifier>]) -> Result<Type, Error>:
+        for spec in specifiers:
+            match &spec.node:
+                lang_c__ast__SpecifierQualifier::TypeSpecifier(type_spec) =>
+                    let ty = (*_self).type_transformer.transform_type_specifier(&type_spec.node)?
+                    return Result::Ok((*_self).sanitize_type(ty))
+                _ => ()
+        ()
+        Result::Ok(Type::Unit(Span__default_()))
+
+    fn extract_type_from_type_name(_self: &mut CTransformer, type_name: &lang_c::ast::TypeName) -> Result<Type, Error>:
+        let base = (*_self).extract_type_from_specifier_qualifiers(&(*type_name).specifiers)?
+        match (*type_name).declarator:
+            Some(declarator) => (*_self).apply_declarator_type(base, &declarator.node)
+            _ => Result::Ok(base)
+
+    fn apply_declarator_type(_self: &mut CTransformer, ty: Type, declarator: &lang_c::ast::Declarator) -> Result<Type, Error>:
+        for derived in (*declarator).derived.iter().rev():
+            ty = none
+            ()
+        ()
+        Result::Ok((*_self).sanitize_type(ty))
+
+    fn extract_array_size(_self: &CTransformer, size: &lang_c::ast::ArraySize) -> Option<usize>:
+        let expr = none?
+        (*_self).extract_const_usize(expr)
+
+    fn extract_const_usize(_self: &CTransformer, expr: &lang_c::ast::Expression) -> Option<usize>:
+        match expr:
+            lang_c__ast__Expression::Constant(constant) =>
+                match &constant.node:
+                    lang_c__ast__Constant::Integer(int_) => parse_c_integer_literal(&int_.number)
+                    _ =>
+                        none
+            lang_c__ast__Expression::UnaryOperator(unary) => if none: (*_self).extract_const_usize(&unary.node.operand.node) else: none
+            _ => none
+
+    fn extract_declarator_name(_self: &CTransformer, declarator: &lang_c::ast::Declarator) -> Result<String, Error>:
+        use c_ast::DeclaratorKind::*
+
+        match &(*declarator).kind.node:
+            Identifier(ident) => Result::Ok(ident.node.name.clone())
+            Declarator(inner) => (*_self).extract_declarator_name(&inner.node)
+            _ => Result::Ok(String__new_())
+
+    fn transform_compound_statement(_self: &mut CTransformer, stmt: &lang_c::ast::Statement) -> Result<Block, Error>:
+        use c_ast::Statement::*
+
+        match stmt:
+            Compound(items) =>
+                let mut stmts = Vec__new_()
+                (*_self).push_symbol_scope()
+                ()
+                for item in items:
+                    match &item.node:
+                        lang_c__ast__BlockItem::Statement(s) =>
+                            match ((*_self).transform_statement(&s.node)?):
+                                Some(kain_stmt) =>
+                                    stmts.push(kain_stmt)
+                                    ()
+                                _ => ()
+                        lang_c__ast__BlockItem::Declaration(d) =>
+                            stmts.extend((*_self).transform_local_declaration(&d.node)?)
+                            ()
+                        _ => ()
+                ()
+                (*_self).pop_symbol_scope()
+                ()
+                Result::Ok(Block { stmts: stmts, span: Span__default_() })
+            _ =>
+                let stmt = (*_self).transform_statement(stmt)?
+                Result::Ok(Block { stmts: stmt.into_iter().collect(), span: Span__default_() })
+
+    fn transform_declaration(_self: &mut CTransformer, decl: lang_c::ast::Declaration, decl_span: lang_c::span::Span) -> Result<Array<Item>, Error>:
+        use c_ast::DeclarationSpecifier::*
+
+        let mut items = Vec__new_()
+        let mut anonymous_struct = none
+        let mut anonymous_enum = none
+        for spec in &decl.specifiers:
+            match &spec.node:
+                TypeSpecifier(type_spec) =>
+                    match &type_spec.node:
+                        lang_c__ast__TypeSpecifier::Struct(struct_type) if struct_type.node.identifier.is_none() =>
+                            anonymous_struct = Option::Some(struct_type.node.clone())
+                            ()
+                        lang_c__ast__TypeSpecifier::Enum(enum_type) if enum_type.node.identifier.is_none() =>
+                            anonymous_enum = Option::Some(enum_type.node.clone())
+                            ()
+                        _ => ()
+                _ => ()
+        ()
+        for spec in &decl.specifiers:
+            match &spec.node:
+                TypeSpecifier(type_spec) =>
+                    match &type_spec.node:
+                        lang_c__ast__TypeSpecifier::Struct(struct_type) =>
+                            match ((*_self).transform_struct_declaration(&struct_type.node, none, &[type_spec.span, decl_span])?):
+                                Some(item) =>
+                                    items.push(item)
+                                    ()
+                                _ => ()
+                        lang_c__ast__TypeSpecifier::Enum(enum_type) =>
+                            match ((*_self).transform_enum_declaration(&enum_type.node, none)?):
+                                Some(item) =>
+                                    items.push(item)
+                                    ()
+                                _ => ()
+                        _ => ()
+                StorageClass(storage) =>
+                    match &storage.node:
+                        lang_c__ast__StorageClassSpecifier::Typedef =>
+                            for init_decl in &decl.declarators:
+                                let raw_name = (*_self).extract_declarator_name(&init_decl.node.declarator.node)?
+                                let name = (*_self).rename_type_identifier(&raw_name)
+                                match &anonymous_struct:
+                                    Some(struct_type) =>
+                                        match ((*_self).transform_struct_declaration(struct_type, Option::Some(name.clone()), &[decl_span])?):
+                                            Some(item) =>
+                                                items.push(item)
+                                                ()
+                                                ()
+                                                ()
+                                                ()
+                                            _ =>
+                                                ()
+                                                ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                match &anonymous_enum:
+                                    Some(enum_type) =>
+                                        match ((*_self).transform_enum_declaration(enum_type, Option::Some(name.clone()))?):
+                                            Some(item) =>
+                                                items.push(item)
+                                                ()
+                                                ()
+                                                ()
+                                                ()
+                                            _ =>
+                                                ()
+                                                ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                let ty = if (anonymous_struct.is_some() || anonymous_enum.is_some()):
+                                    Type::Named { name: name.clone(), generics: Vec__new_(), span: Span__default_() }
+                                else:
+                                    (*_self).extract_type_from_declaration(&decl.specifiers, &init_decl.node.declarator.node)?
+                                (*_self).typedefs.insert(raw_name.clone(), ty.clone())
+                                ()
+                                if (raw_name != name):
+                                    (*_self).typedefs.insert(name.clone(), ty.clone())
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                (*_self).type_transformer.add_typedef(raw_name.clone(), ty.clone())
+                                ()
+                                if (raw_name != name):
+                                    (*_self).type_transformer.add_typedef(name.clone(), ty.clone())
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                if (!none):
+                                    items.push(Item::TypeAlias(TypeAlias { name: name, generics: Vec__new_(), target: ty, visibility: Visibility__Public, span: Span__default_() }))
+                                    ()
+                        _ => ()
+                _ => ()
+        ()
+        if items.is_empty():
+            for init_decl in &decl.declarators:
+                let raw_name = (*_self).extract_declarator_name(&init_decl.node.declarator.node)?
+                let name = (*_self).rename_value_identifier(&raw_name)
+                let ty = (*_self).extract_type_from_declaration(&decl.specifiers, &init_decl.node.declarator.node)?
+                let value = match init_decl.node.initializer:
+                    Some(init) => (*_self).transform_initializer(&init.node)?
+                    _ => (*_self).default_value_for_type(&ty)
+                items.push(Item::Const(Const { name: name, ty: ty.clone(), value: value, visibility: Visibility__Public, span: Span__default_() }))
+                ()
+                (*_self).define_symbol_type(raw_name, ty)
+                ()
+            ()
+            ()
+        Result::Ok(items)
+
+    fn transform_struct_declaration(_self: &mut CTransformer, struct_type: &lang_c::ast::StructType, fallback_name: Option<String>, metadata_spans: &[lang_c::span::Span]) -> Result<Option<Item>, Error>:
+        let (raw_name, name) = match (*struct_type).identifier:
+            Some(ident) =>
+                let raw_name = ident.node.name.clone()
+                let sanitized = (*_self).rename_type_identifier(&raw_name)
+                (raw_name, sanitized)
+            _ =>
+                match fallback_name:
+                    Some(name) => (name.clone(), name)
+                    _ => return Result::Ok(none)
+        let mut fields = Vec__new_()
+        let mut struct_attributes = (*_self).struct_layout_attributes_for_spans(metadata_spans)
+        if (none):
+            struct_attributes.push(kain_core__low_level_memory_metadata__marker_attr(kain_core__low_level_memory_metadata__C_UNION_ATTR, Span__default_()))
+            ()
+            ()
+            ()
+            ()
+        match (*struct_type).declarations:
+            Some(declarations) =>
+                for decl in declarations:
+                    let lang_c__ast__StructDeclaration::Field(field_decl) = &decl.node
+                    let field_decl = &field_decl.node
+                    for declarator in &field_decl.declarators:
+                        match declarator.node.declarator:
+                            Some(field_declarator) =>
+                                let raw_field_name = (*_self).extract_declarator_name(&field_declarator.node)?
+                                let field_name = (*_self).rename_field_identifier(&raw_field_name)
+                                let mut anonymous_field_struct = none
+                                let mut anonymous_field_enum = none
+                                for spec in &field_decl.specifiers:
+                                    match &spec.node:
+                                        lang_c__ast__SpecifierQualifier::TypeSpecifier(type_spec) =>
+                                            match &type_spec.node:
+                                                lang_c__ast__TypeSpecifier::Struct(struct_type) if (*struct_type).node.identifier.is_none() =>
+                                                    anonymous_field_struct = Option::Some((*struct_type).node.clone())
+                                                    ()
+                                                lang_c__ast__TypeSpecifier::Enum(enum_type) if enum_type.node.identifier.is_none() =>
+                                                    anonymous_field_enum = Option::Some(enum_type.node.clone())
+                                                    ()
+                                                _ => ()
+                                        _ => ()
+                                ()
+                                let field_type = match anonymous_field_struct:
+                                    Some(struct_type) =>
+                                        let synthetic_name = (*_self).anonymous_type_name(&name, &field_name, "AnonStruct")
+                                        if (!(*_self).structs.contains_key(&synthetic_name)):
+                                            match ((*_self).transform_struct_declaration(&struct_type, Option::Some(synthetic_name.clone()), &[])?):
+                                                Some(item) =>
+                                                    (*_self).register_pending_synthetic_item(item)
+                                                    ()
+                                                    ()
+                                                    ()
+                                                    ()
+                                                _ =>
+                                                    ()
+                                                    ()
+                                            ()
+                                        (*_self).apply_declarator_type(Type::Named { name: synthetic_name, generics: Vec__new_(), span: Span__default_() }, &field_declarator.node)?
+                                    _ =>
+                                        match anonymous_field_enum:
+                                            Some(enum_type) =>
+                                                let synthetic_name = (*_self).anonymous_type_name(&name, &field_name, "AnonEnum")
+                                                if (!(*_self).enums.contains_key(&synthetic_name)):
+                                                    match ((*_self).transform_enum_declaration(&enum_type, Option::Some(synthetic_name.clone()))?):
+                                                        Some(item) =>
+                                                            (*_self).register_pending_synthetic_item(item)
+                                                            ()
+                                                            ()
+                                                            ()
+                                                            ()
+                                                        _ =>
+                                                            ()
+                                                            ()
+                                                    ()
+                                                (*_self).apply_declarator_type(Type::Named { name: synthetic_name, generics: Vec__new_(), span: Span__default_() }, &field_declarator.node)?
+                                            _ =>
+                                                let field_type = (*_self).extract_type_from_specifier_qualifiers(&field_decl.specifiers)?
+                                                (*_self).apply_declarator_type(field_type, &field_declarator.node)?
+                                let mut attributes = Vec__new_()
+                                let (storage_bits, storage_align_bits) = (*_self).c_storage_layout_for_specifiers(&field_decl.specifiers)
+                                attributes.push(kain_core__low_level_memory_metadata__usize_attr(kain_core__low_level_memory_metadata__C_STORAGE_BITS_ATTR, storage_bits, Span__default_()))
+                                ()
+                                attributes.push(kain_core__low_level_memory_metadata__usize_attr(kain_core__low_level_memory_metadata__C_STORAGE_ALIGN_ATTR, storage_align_bits, Span__default_()))
+                                ()
+                                match declarator.node.bit_width:
+                                    Some(bit_width) =>
+                                        let width = (*_self).extract_const_usize_expr(&bit_width.node, "bitfield width")?
+                                        attributes.push(kain_core__low_level_memory_metadata__usize_bool_attr(kain_core__low_level_memory_metadata__C_BITFIELD_ATTR, width, (*_self).bitfield_is_signed(&field_decl.specifiers), Span__default_()))
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                fields.push(Field { name: field_name, ty: field_type, attributes: attributes, visibility: Visibility__Public, default_: none, weak_: false, span: Span__default_() })
+                                ()
+                            _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let struct_def = Struct { name: name.clone(), generics: Vec__new_(), fields: fields, methods: Vec__new_(), attributes: struct_attributes, visibility: Visibility__Public, span: Span__default_() }
+        (*_self).structs.insert(raw_name.clone(), struct_def.clone())
+        ()
+        if (raw_name != name):
+            (*_self).structs.insert(name, struct_def.clone())
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(Option::Some(Item::Struct(struct_def)))
+
+    fn transform_enum_declaration(_self: &mut CTransformer, enum_type: &lang_c::ast::EnumType, fallback_name: Option<String>) -> Result<Option<Item>, Error>:
+        let (raw_name, name) = match (*enum_type).identifier:
+            Some(ident) =>
+                let raw_name = ident.node.name.clone()
+                let sanitized = (*_self).rename_type_identifier(&raw_name)
+                (raw_name, sanitized)
+            _ =>
+                match fallback_name:
+                    Some(name) => (name.clone(), name)
+                    _ => return Result::Ok(none)
+        let mut variants = Vec__new_()
+        for enumerator in &(*enum_type).enumerators:
+            let variant_name = (*_self).rename_variant_identifier(&enumerator.node.identifier.node.name)
+            variants.push(Variant { name: variant_name, fields: VariantFields__Unit, span: Span__default_() })
+            ()
+        ()
+        let enum_def = Enum { name: name.clone(), generics: Vec__new_(), variants: variants, visibility: Visibility__Public, span: Span__default_() }
+        (*_self).enums.insert(raw_name.clone(), enum_def.clone())
+        ()
+        if (raw_name != name):
+            (*_self).enums.insert(name, enum_def.clone())
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(Option::Some(Item::Enum(enum_def)))
+
+    fn transform_local_declaration(_self: &mut CTransformer, decl: &lang_c::ast::Declaration) -> Result<Array<Stmt>, Error>:
+        let mut stmts = Vec__new_()
+        for init_decl in &(*decl).declarators:
+            let raw_name = (*_self).extract_declarator_name(&init_decl.node.declarator.node)?
+            let name = (*_self).rename_value_identifier(&raw_name)
+            let ty = (*_self).extract_type_from_declaration(&(*decl).specifiers, &init_decl.node.declarator.node)?
+            let value = match init_decl.node.initializer:
+                Some(init) => Option::Some((*_self).transform_initializer_for_type(&init.node, Option::Some(&ty))?)
+                _ => Option::Some((*_self).storage_default_for_type(&ty))
+            (*_self).define_symbol_type(name.clone(), ty.clone())
+            ()
+            stmts.push(Stmt::Let { pattern: Pattern::Binding { name: name, mutable_: true, span: Span__default_() }, ty: Option::Some(ty), value: value, span: Span__default_() })
+            ()
+        ()
+        Result::Ok(stmts)
+
+    fn transform_initializer(_self: &mut CTransformer, init: &lang_c::ast::Initializer) -> Result<Expr, Error>:
+        use c_ast::Initializer::*
+
+        match init:
+            Expression(expr) => (*_self).transform_expression(&expr.node)
+            List(items) =>
+                let mut exprs = Vec__new_()
+                for item in items:
+                    exprs.push((*_self).transform_initializer(&item.node.initializer.node)?)
+                    ()
+                ()
+                Result::Ok(Expr::Array(exprs, Span__default_()))
+
+    fn storage_default_for_type(_self: &CTransformer, ty: &Type) -> Expr:
+        match ty:
+            Type::Array(_, _, _) => Expr::Alloca { ty: ty.clone(), span: Span__default_() }
+            _ => Expr::Uninit { ty: ty.clone(), span: Span__default_() }
+
+    fn transform_compound_literal_for_type(_self: &mut CTransformer, ty: &Type, items: &[lang_c::span::Node<lang_c::ast::InitializerListItem>]) -> Result<Expr, Error>:
+        match ty:
+            Type::Named {  } =>
+                let fields = (*_self).transform_compound_initializer_for_type(ty, items)?
+                Result::Ok(Expr::AggregateInit { ty: ty.clone(), fields: (*_self).normalize_aggregate_fields_for_type(ty, fields), zero_fill_rest: true, span: Span__default_() })
+            Type::Array(inner, count, _) =>
+                let values = (*_self).transform_array_initializer(inner, (*count), items)?
+                Result::Ok(Expr::Array(values, Span__default_()))
+            _ =>
+                let mut exprs = Vec__new_()
+                for item in items:
+                    exprs.push((*_self).transform_initializer(&item.node.initializer.node)?)
+                    ()
+                ()
+                Result::Ok(Expr::Array(exprs, Span__default_()))
+
+    fn default_value_for_type(_self: &CTransformer, ty: &Type) -> Expr:
+        match ty:
+            Type::Array(inner, count, _) => Expr::Array((range(0, (*count))).map(fn(_): (*_self).default_value_for_type(inner)).collect(), Span__default_())
+            Type::Named { name: name } =>
+                if (*_self).structs.contains_key(name):
+                    return Expr::AggregateInit { ty: ty.clone(), fields: Vec__new_(), zero_fill_rest: true, span: Span__default_() }
+                match name.as_str():
+                    "Int" => Expr::Int(0, Span__default_())
+                    "i32" => Expr::Int(0, Span__default_())
+                    "i64" => Expr::Int(0, Span__default_())
+                    "Float" => Expr::Float(0, Span__default_())
+                    "f32" => Expr::Float(0, Span__default_())
+                    "f64" => Expr::Float(0, Span__default_())
+                    "Bool" => Expr::Bool(false, Span__default_())
+                    "Char" => Expr::String(("\0").to_string(), Span__default_())
+                    _ => Expr::None(Span__default_())
+            Type::Unit(_) => Expr::Tuple(Vec__new_(), Span__default_())
+            _ => Expr::None(Span__default_())
+
+    fn field_name_for_index(_self: &CTransformer, ty: &Type, index: usize) -> Option<String>:
+        let Type::Named { name: name } = ty
+        ((*_self).structs.get(name)?).fields.get(index).map(fn(field): field.name.clone())
+
+    fn transform_compound_initializer_for_type(_self: &mut CTransformer, ty: &Type, items: &[lang_c::span::Node<lang_c::ast::InitializerListItem>]) -> Result<Array<(String, Expr)>, Error>:
+        let mut fields: Array<(String, Expr)> = Vec__new_()
+        let mut cursor = 0
+        for item in items:
+            let designators = item.node.designation.as_slice()
+            let (field_name, remainder, next_cursor) = match designators.first():
+                Some(first) =>
+                    match &first.node:
+                        lang_c__ast__Designator::Member(ident) => ((*_self).rename_field_identifier(&ident.node.name), &designators[1..], cursor)
+                        lang_c__ast__Designator::Index(index_expr) =>
+                            let index = (*_self).extract_designator_index(&index_expr.node)?
+                            ((*_self).field_name_for_index(ty, index).unwrap_or_else(fn(): f"field_{index}"), &designators[1..], index.saturating_add(1))
+                        _ => (f"field_{cursor}", &designators[1..], cursor.saturating_add(1))
+                _ =>
+                    let field_name = (*_self).field_name_for_index(ty, cursor).unwrap_or_else(fn(): f"field_{cursor}")
+                    (field_name, &designators[0..0], cursor.saturating_add(1))
+            let field_ty = (*_self).lookup_field_type(ty, &field_name)
+            let current = fields.iter().find(fn(__kain_closure_arg0): (__kain_closure_arg0.__kain_tuple_0 == &field_name)).map(fn(__kain_closure_arg1): __kain_closure_arg1.__kain_tuple_1.clone()).unwrap_or_else(fn(): field_ty.map(fn(field_ty): (*_self).default_value_for_type(field_ty)).unwrap_or_else(fn(): Expr::None(Span__default_())))
+            let value = match field_ty:
+                Some(field_ty) => (*_self).apply_designators_to_value(field_ty, current, remainder, &item.node.initializer.node)?
+                _ => (*_self).transform_initializer(&item.node.initializer.node)?
+            CTransformer__upsert_named_expr(&mut fields, field_name, value)
+            ()
+            cursor = next_cursor
+            ()
+        ()
+        Result::Ok((*_self).normalize_aggregate_fields_for_type(ty, fields))
+
+    fn transform_initializer_for_type(_self: &mut CTransformer, init: &lang_c::ast::Initializer, ty: Option<&Type>) -> Result<Expr, Error>:
+        match (init, ty):
+            (lang_c__ast__Initializer::Expression(expr), _) => (*_self).transform_expression(&expr.node)
+            (lang_c__ast__Initializer::List(items), Some(ty)) => (*_self).transform_compound_literal_for_type(ty, items)
+            (lang_c__ast__Initializer::List(items), None) =>
+                let mut exprs = Vec__new_()
+                for item in items:
+                    exprs.push((*_self).transform_initializer(&item.node.initializer.node)?)
+                    ()
+                ()
+                Result::Ok(Expr::Array(exprs, Span__default_()))
+
+    fn transform_array_initializer(_self: &mut CTransformer, element_ty: &Type, count: usize, items: &[lang_c::span::Node<lang_c::ast::InitializerListItem>]) -> Result<Array<Expr>, Error>:
+        let mut values = (range(0, count)).map(fn(_): (*_self).default_value_for_type(element_ty)).collect()
+        let mut cursor = 0
+        for item in items:
+            let designators = item.node.designation.as_slice()
+            let (target_index, remainder) = match designators.first():
+                Some(first) =>
+                    match &first.node:
+                        lang_c__ast__Designator::Index(index_expr) => ((*_self).extract_designator_index(&index_expr.node)?, &designators[1..])
+                        _ => (cursor, &designators[1..])
+                _ => (cursor, &designators[0..0])
+            let current = values.get(target_index).cloned().unwrap_or_else(fn(): (*_self).default_value_for_type(element_ty))
+            let value = (*_self).apply_designators_to_value(element_ty, current, remainder, &item.node.initializer.node)?
+            if (target_index < values.len()):
+                values[target_index] = value
+                ()
+                ()
+                ()
+                ()
+            else:
+                values.resize_with(target_index, fn(): (*_self).default_value_for_type(element_ty))
+                ()
+                values.push(value)
+                ()
+                ()
+                ()
+                ()
+            cursor = target_index.saturating_add(1)
+            ()
+        ()
+        Result::Ok(values)
+
+    fn extract_designator_index(_self: &mut CTransformer, expr: &lang_c::ast::Expression) -> Result<usize, Error>:
+        (*_self).extract_const_usize_expr(expr, "designated initializer index")
+
+    fn extract_const_usize_expr(_self: &mut CTransformer, expr: &lang_c::ast::Expression, context: String) -> Result<usize, Error>:
+        match ((*_self).transform_expression(expr)?):
+            Expr::Int(value, _) if (value >= 0) => Result::Ok(value as usize)
+            _ => Result::Err(ImportError::UnsupportedFeature(f"Non-constant {context}"))
+
+    fn lookup_field_type(_self: &CTransformer, ty: &Type, field_name: String) -> Option<Type>:
+        let Type::Named { name: name } = ty
+        ((*_self).structs.get(name)?).fields.iter().find(fn(field): (field.name == field_name)).map(fn(field): field.ty.clone())
+
+    fn apply_designators_to_value(_self: &mut CTransformer, ty: &Type, current: Expr, designators: &[lang_c::span::Node<lang_c::ast::Designator>], init: &lang_c::ast::Initializer) -> Result<Expr, Error>:
+        if designators.is_empty():
+            return (*_self).transform_initializer_for_type(init, Option::Some(ty))
+        match ty:
+            Type::Named {  } =>
+                let (field_name, field_ty) = match &designators[0].node:
+                    lang_c__ast__Designator::Member(ident) =>
+                        let field_name = (*_self).rename_field_identifier(&ident.node.name)
+                        let field_ty = (*_self).lookup_field_type(ty, &field_name)
+                        (field_name, field_ty)
+                    lang_c__ast__Designator::Index(index_expr) =>
+                        let index = (*_self).extract_designator_index(&index_expr.node)?
+                        let field_name = (*_self).field_name_for_index(ty, index).unwrap_or_else(fn(): f"field_{index}")
+                        let field_ty = (*_self).lookup_field_type(ty, &field_name)
+                        (field_name, field_ty)
+                    _ => return (*_self).transform_initializer_for_type(init, Option::Some(ty))
+                let mut fields = match current:
+                    Expr::AggregateInit { fields: fields } => fields
+                    _ => Vec__new_()
+                let Some(field_ty) = field_ty
+                let nested_current = fields.iter().find(fn(__kain_closure_arg2): (__kain_closure_arg2.__kain_tuple_0 == &field_name)).map(fn(__kain_closure_arg3): __kain_closure_arg3.__kain_tuple_1.clone()).unwrap_or_else(fn(): (*_self).default_value_for_type(&field_ty))
+                let nested_value = (*_self).apply_designators_to_value(&field_ty, nested_current, &designators[1..], init)?
+                CTransformer__upsert_named_expr(&mut fields, field_name, nested_value)
+                ()
+                Result::Ok(Expr::AggregateInit { ty: ty.clone(), fields: (*_self).normalize_aggregate_fields_for_type(ty, fields), zero_fill_rest: true, span: Span__default_() })
+            Type::Array(inner, count, _) =>
+                let target_index = match &designators[0].node:
+                    lang_c__ast__Designator::Index(index_expr) => (*_self).extract_designator_index(&index_expr.node)?
+                    _ => return (*_self).transform_initializer_for_type(init, Option::Some(ty))
+                let mut values = match current:
+                    Expr::Array(values, _) => values
+                    _ => (range(0, (*count))).map(fn(_): (*_self).default_value_for_type(inner)).collect()
+                if (target_index >= values.len()):
+                    values.resize_with((target_index + 1), fn(): (*_self).default_value_for_type(inner))
+                    ()
+                    ()
+                    ()
+                    ()
+                let nested_current = values.get(target_index).cloned().unwrap_or_else(fn(): (*_self).default_value_for_type(inner))
+                let nested_value = (*_self).apply_designators_to_value(inner, nested_current, &designators[1..], init)?
+                values[target_index] = nested_value
+                ()
+                Result::Ok(Expr::Array(values, Span__default_()))
+            _ => (*_self).transform_initializer_for_type(init, Option::Some(ty))
+
+    fn upsert_named_expr(fields: &mut Array<(String, Expr)>, field_name: String, value: Expr):
+        match fields.iter().position(fn(__kain_closure_arg4): (__kain_closure_arg4.__kain_tuple_0 == &field_name)):
+            Some(index) =>
+                fields.remove(index)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        fields.push((field_name, value))
+        ()
+
+    fn try_lower_allocator_call(_self: &mut CTransformer, call: &lang_c::ast::CallExpression) -> Result<Option<Expr>, Error>:
+        let lang_c__ast__Expression::Identifier(ident) = &(*call).callee.node
+        let name = ident.node.name.as_str()
+        if (!none):
+            return Result::Ok(none)
+        let args = (*call).arguments.iter().map(fn(arg): (*_self).transform_expression(&arg.node)).collect()?
+        let span = Span__default_()
+        let lowered = match (name, args.as_slice()):
+            ("malloc", [size]) => Expr::Alloc { size: Box__new_(size.clone()), ty: (*_self).infer_heap_type_from_size_expr(size), zeroed: false, span: span }
+            ("calloc", [count, elem_size]) => Expr::Alloc { size: Box__new_(Expr::Binary { left: Box__new_(count.clone()), op: BinaryOp__Mul, right: Box__new_(elem_size.clone()), span: span }), ty: (*_self).infer_heap_type_from_size_expr(elem_size), zeroed: true, span: span }
+            ("realloc", [pointer, size]) => Expr::Realloc { pointer: Box__new_(pointer.clone()), size: Box__new_(size.clone()), ty: (*_self).infer_heap_type_from_size_expr(size), zeroed_new: false, span: span }
+            _ => return Result::Ok(none)
+        Result::Ok(Option::Some(lowered))
+
+    fn infer_heap_type_from_size_expr(_self: &CTransformer, expr: &Expr) -> Option<Type>:
+        match expr:
+            Expr::SizeOfType { target: target } => Option::Some(target.clone())
+            Expr::Binary { left: left, op: BinaryOp::Mul, right: right } => (*_self).infer_heap_type_from_size_expr(left).or_else(fn(): (*_self).infer_heap_type_from_size_expr(right))
+            _ => none
+
+    fn estimate_sizeof_named_type(_self: &CTransformer, name: String, visited: &mut Set<String>) -> i64:
+        if (!visited.insert(name.to_string())):
+            return 8
+        let value = match name:
+            "Bool" => 1
+            "Char" => 1
+            "Int" => 8
+            "Float" => 8
+            other =>
+                match (*_self).structs.get(other):
+                    Some(struct_def) => struct_def.fields.iter().map(fn(field): (*_self).estimate_sizeof_type_inner(&field.ty, visited)).sum()
+                    _ =>
+                        match (*_self).typedefs.get(other):
+                            Some(alias_ty) => (*_self).estimate_sizeof_type_inner(alias_ty, visited)
+                            _ => 8
+        visited.remove(name)
+        ()
+        value
+
+    fn estimate_sizeof_type_inner(_self: &CTransformer, ty: &Type, visited: &mut Set<String>) -> i64:
+        match ty:
+            Type::Unit(_) => 0
+            Type::Named { name: name } => (*_self).estimate_sizeof_named_type(name, visited)
+            Type::Array(inner, count, _) =>
+                let elem = (*_self).estimate_sizeof_type_inner(inner, visited)
+                ((elem * (*count) as i64)).max(0)
+            Type::Slice(_, _) => 8
+            Type::Ref {  } => 8
+            Type::Tuple(items, _) => items.iter().map(fn(item): (*_self).estimate_sizeof_type_inner(item, visited)).sum()
+            _ => 8
+
+    fn estimate_sizeof_type(_self: &CTransformer, ty: &Type) -> i64:
+        let mut visited = HashSet__new_()
+        (*_self).estimate_sizeof_type_inner(ty, &mut visited)
+
+    fn estimate_sizeof_expression(_self: &mut CTransformer, expr: &lang_c::ast::Expression) -> i64:
+        use c_ast::Expression::*
+
+        match expr:
+            Identifier(ident) =>
+                let name = ident.node.name.as_str()
+                if (*_self).structs.contains_key(name):
+                    (*_self).estimate_sizeof_type(&Type::Named { name: name.to_string(), generics: Vec__new_(), span: Span__default_() })
+                else:
+                    match (*_self).typedefs.get(name):
+                        Some(alias_ty) => (*_self).estimate_sizeof_type(alias_ty)
+                        _ => 8
+            Cast(cast) =>
+                let ty = (*_self).extract_type_from_type_name(&cast.node.type_name.node)
+                match ty:
+                    Ok(ty) => (*_self).estimate_sizeof_type(&ty)
+                    Err(_) => 8
+            Constant(constant) =>
+                match &constant.node:
+                    lang_c__ast__Constant::Character(_) => 1
+                    lang_c__ast__Constant::Integer(_) => 8
+                    lang_c__ast__Constant::Float(_) => 8
+            StringLiteral(_) => 8
+            _ => 8
+
+    fn lower_inc_dec(_self: &mut CTransformer, operand: &lang_c::ast::Expression, increment: Bool, prefix: Bool) -> Result<Expr, Error>:
+        let operand_expr = (*_self).transform_expression(operand)?
+        if (!none):
+            return Result::Err(ImportError::UnsupportedFeature(("Increment/decrement target must be assignable").to_string()))
+        let span = Span__default_()
+        let binding = (*_self).fresh_temp("__kain_c_incdec")
+        let bound_ident = Expr::Ident(binding.clone(), span)
+        let updated = Expr::Binary { left: Box__new_(bound_ident.clone()), op: if increment: BinaryOp__Add else: BinaryOp__Sub, right: Box__new_(Expr::Int(1, span)), span: span }
+        let assign_expr = Expr::Assign { target: Box__new_(operand_expr.clone()), value: Box__new_(updated.clone()), span: span }
+        let result_expr = if prefix:
+            updated
+        else:
+            bound_ident
+        let sequenced = Expr::Index { object: Box__new_(Expr::Array([assign_expr, result_expr], span)), index: Box__new_(Expr::Int(1, span)), span: span }
+        Result::Ok(Expr::Match { scrutinee: Box__new_(operand_expr), arms: [MatchArm { pattern: Pattern::Binding { name: binding, mutable_: false, span: span }, guard: none, body: sequenced, span: span }], span: span })
+
+    fn ensure_binary_op_supported(_self: &CTransformer, op: BinaryOp) -> Result<(), Error>:
+        if (!(*_self).language_capabilities.supports_parser_binary_op(op)):
+            return Result::Err(ImportError::UnsupportedFeature(f"Binary operator '{op}' is not enabled by parser capabilities"))
+        if (!(*_self).language_capabilities.supports_runtime_binary_op(op)):
+            return Result::Err(ImportError::UnsupportedFeature(f"Binary operator '{op}' is not enabled by runtime capabilities"))
+        Result::Ok(())
+
+    fn lower_assignment_expression(_self: &mut CTransformer, operator_: &lang_c::ast::BinaryOperator, lhs: &lang_c::ast::Expression, rhs: &lang_c::ast::Expression) -> Result<Expr, Error>:
+        if (none):
+            let target = (*_self).transform_expression(lhs)?
+            let value = (*_self).transform_expression(rhs)?
+            return (*_self).lower_store_or_assign(target, value)
+        match common__c_registry__resolve_c_compound_assignment_binary_operator(operator_):
+            Some(lowered_op) =>
+                (*_self).ensure_binary_op_supported(lowered_op)?
+                ()
+                let target_expr = (*_self).transform_expression(lhs)?
+                let value_expr = (*_self).transform_expression(rhs)?
+                let updated = Expr::Binary { left: Box__new_(target_expr.clone()), op: lowered_op, right: Box__new_(value_expr), span: Span__default_() }
+                return (*_self).lower_store_or_assign(target_expr, updated)
+            _ =>
+                ()
+                ()
+        Result::Err(ImportError::UnsupportedFeature(f"Binary assignment operator is not representable in KAIN AST: {operator_}"))
+
+    fn infer_expr_type(_self: &CTransformer, expr: &Expr) -> Option<Type>:
+        match expr:
+            Expr::Int(_, span) => Some(Type::Named { name: "Int".to_string(), generics: Vec__new_(), span: span.clone() })
+            Expr::Float(_, span) => Some(Type::Named { name: "Float".to_string(), generics: Vec__new_(), span: span.clone() })
+            Expr::Bool(_, span) => Some(Type::Named { name: "Bool".to_string(), generics: Vec__new_(), span: span.clone() })
+            Expr::Ident(name, _) => ctx.local_types.get(name).cloned()
+            Expr::Field { object: object, field: field } =>
+                let object_ty = infer_expr_type(object, ctx)?
+                field_type_from_object(&object_ty, field, ctx)
+            Expr::Index { object: object } => infer_element_type(object, ctx)
+            Expr::Cast { target: target } => Some(target.clone())
+            _ => none
+
+    fn is_pointer_like_type(_self: &CTransformer, ty: &Type) -> Bool:
+        match ty:
+            Type::Ref {  } => true
+            Type::Ptr {  } => true
+            Type::Array(_, _, _) => true
+            Type::Slice(_, _) => true
+            _ => false
+
+    fn is_integer_like_expr(_self: &CTransformer, expr: &Expr) -> Bool:
+        (none || none)
+
+    fn lower_pointer_offset(_self: &CTransformer, base: Expr, offset: Expr, subtract: Bool) -> Expr:
+        let span = Span__default_()
+        let offset = if subtract:
+            Expr::Binary { left: Box__new_(Expr::Int(0, span)), op: BinaryOp__Sub, right: Box__new_(offset), span: span }
+        else:
+            offset
+        let element_ty = match (*_self).infer_expr_type(&base):
+            Some(Type::Ptr { inner: inner }) => Option::Some((*inner))
+            Some(Type::Ref { inner: inner }) => Option::Some((*inner))
+            Some(Type::Array(inner, _, _)) => Option::Some((*inner))
+            Some(Type::Slice(inner, _)) => Option::Some((*inner))
+            _ => none
+        Expr::PtrOffset { pointer: Box__new_(base), offset: Box__new_(offset), element_ty: element_ty, span: span }
+
+    fn lower_memory_load(_self: &CTransformer, pointer: Expr) -> Expr:
+        let load_ty = match (*_self).infer_expr_type(&pointer):
+            Some(Type::Ref { inner: inner }) => Option::Some((*inner))
+            Some(Type::Ptr { inner: inner }) => Option::Some((*inner))
+            _ => none
+        Expr::MemLoad { pointer: Box__new_(pointer), load_ty: load_ty, span: Span__default_() }
+
+    fn lower_store_or_assign(_self: &CTransformer, target: Expr, value: Expr) -> Result<Expr, Error>:
+        match target:
+            Expr::MemLoad { pointer: pointer, load_ty: load_ty } => Result::Ok(Expr::MemStore { pointer: pointer, value: Box__new_(value), store_ty: load_ty, span: Span__default_() })
+            other => Result::Ok(Expr::Assign { target: Box__new_(other), value: Box__new_(value), span: Span__default_() })
+
+    fn maybe_lower_pointer_arithmetic(_self: &CTransformer, operator_: &lang_c::ast::BinaryOperator, left: Expr, right: Expr) -> Result<Option<Expr>, Error>:
+        use c_ast::BinaryOperator as BinOp
+
+        let left_ty = (*_self).infer_expr_type(&left)
+        let right_ty = (*_self).infer_expr_type(&right)
+        let left_is_pointer = left_ty.is_some_and(fn(ty): (*_self).is_pointer_like_type(ty))
+        let right_is_pointer = right_ty.is_some_and(fn(ty): (*_self).is_pointer_like_type(ty))
+        match operator_:
+            c_ast__BinaryOperator::Plus if (left_is_pointer && (*_self).is_integer_like_expr(&right)) => Result::Ok(Option::Some((*_self).lower_pointer_offset(left, right, false)))
+            c_ast__BinaryOperator::Plus if (right_is_pointer && (*_self).is_integer_like_expr(&left)) => Result::Ok(Option::Some((*_self).lower_pointer_offset(right, left, false)))
+            c_ast__BinaryOperator::Minus if (left_is_pointer && (*_self).is_integer_like_expr(&right)) => Result::Ok(Option::Some((*_self).lower_pointer_offset(left, right, true)))
+            c_ast__BinaryOperator::Minus if (left_is_pointer && right_is_pointer) => (*_self).memory_lowering_required("pointer difference requires an explicit raw-memory lowering strategy")
+            c_ast__BinaryOperator::Plus if (left_is_pointer || right_is_pointer) => (*_self).memory_lowering_required("pointer arithmetic currently supports only pointer +/- integer forms")
+            c_ast__BinaryOperator::Minus if (left_is_pointer || right_is_pointer) => (*_self).memory_lowering_required("pointer arithmetic currently supports only pointer - integer forms")
+            _ => Result::Ok(none)
+
+    fn lower_address_of_expression(_self: &mut CTransformer, operand: &lang_c::ast::Expression) -> Result<Expr, Error>:
+        use c_ast::BinaryOperator as BinOp
+
+        match operand:
+            lang_c__ast__Expression::BinaryOperator(bin_op) if none =>
+                let object_expr = (*_self).transform_expression(&bin_op.node.lhs.node)?
+                let idx_expr = (*_self).transform_expression(&bin_op.node.rhs.node)?
+                if (*_self).infer_expr_type(&object_expr).is_some_and(fn(ty): none):
+                    Result::Ok((*_self).lower_pointer_offset(object_expr, idx_expr, false))
+                else:
+                    let pointee_ty = (*_self).infer_expr_type(&Expr::Index { object: Box__new_(object_expr.clone()), index: Box__new_(idx_expr.clone()), span: Span__default_() })
+                    Result::Ok(Expr::AddrOf { value: Box__new_(Expr::Index { object: Box__new_(object_expr), index: Box__new_(idx_expr), span: Span__default_() }), pointee_ty: pointee_ty, span: Span__default_() })
+            _ =>
+                let value = (*_self).transform_expression(operand)?
+                if (*_self).expr_field_is_bitfield(&value):
+                    let code = kain_core__diagnostic_registry__spec_for_code(kain_core__diagnostic_registry__DiagnosticCode__MemoryIllegalBitfieldAddress).code_str
+                    return Result::Err(ImportError::UnsupportedFeature(f"{code}: cannot take the address of a C bitfield; lower it through bitfield load/store semantics instead"))
+                let pointee_ty = (*_self).infer_expr_type(&value)
+                Result::Ok(Expr::AddrOf { value: Box__new_(value), pointee_ty: pointee_ty, span: Span__default_() })
+
+    fn decode_c_escape_sequence(chars: &[Char], idx: &mut usize) -> Option<Char>:
+        let next = (*chars.get((*idx))?)
+        (*idx) = ((*idx) + 1)
+        ()
+        match next:
+            "'" => Option::Some("'")
+            "\"" => Option::Some("\"")
+            "?" => Option::Some("?")
+            "\\" => Option::Some("\\")
+            "a" => Option::Some("\u{7}")
+            "b" => Option::Some("\u{8}")
+            "f" => Option::Some("\u{c}")
+            "n" => Option::Some("\n")
+            "r" => Option::Some("\r")
+            "t" => Option::Some("\t")
+            "v" => Option::Some("\u{b}")
+            _ =>
+                let mut digits = String__from(next)
+                while (digits.len() < 3):
+                    let Some(peek) = chars.get((*idx))
+                    if ((!peek.is_ascii_digit()) || ((*peek) > "7")):
+                        break
+                    digits.push((*peek))
+                    ()
+                    (*idx) = ((*idx) + 1)
+                    ()
+                ()
+                u32__from_str_radix(&digits, 8).ok().and_then(char__from_u32)
+            "x" =>
+                let mut digits = String__new_()
+                loop:
+                    match chars.get((*idx)):
+                        Some(peek) =>
+                            if (!peek.is_ascii_hexdigit()):
+                                break
+                            digits.push((*peek))
+                            ()
+                            (*idx) = ((*idx) + 1)
+                            ()
+                        _ => break
+                ()
+                if digits.is_empty():
+                    none
+                else:
+                    u32__from_str_radix(&digits, 16).ok().and_then(char__from_u32)
+            "u" =>
+                let width = if (next == "u"):
+                    4
+                else:
+                    8
+                let mut digits = String__new_()
+                for _ in range(0, width):
+                    let Some(peek) = chars.get((*idx))
+                    if (!peek.is_ascii_hexdigit()):
+                        break
+                    digits.push((*peek))
+                    ()
+                    (*idx) = ((*idx) + 1)
+                    ()
+                ()
+                if digits.is_empty():
+                    none
+                else:
+                    u32__from_str_radix(&digits, 16).ok().and_then(char__from_u32)
+            "U" =>
+                let width = if (next == "u"):
+                    4
+                else:
+                    8
+                let mut digits = String__new_()
+                for _ in range(0, width):
+                    let Some(peek) = chars.get((*idx))
+                    if (!peek.is_ascii_hexdigit()):
+                        break
+                    digits.push((*peek))
+                    ()
+                    (*idx) = ((*idx) + 1)
+                    ()
+                ()
+                if digits.is_empty():
+                    none
+                else:
+                    u32__from_str_radix(&digits, 16).ok().and_then(char__from_u32)
+            other => Option::Some(other)
+
+    fn decode_c_literal_body(_self: &CTransformer, body: String) -> String:
+        let chars = body.chars().collect()
+        let mut decoded = String__new_()
+        let mut idx = 0
+        while (idx < chars.len()):
+            let ch = chars[idx]
+            idx = (idx + 1)
+            ()
+            if (ch == "\\"):
+                match CTransformer__decode_c_escape_sequence(&chars, &mut idx):
+                    Some(decoded_ch) =>
+                        decoded.push(decoded_ch)
+                        ()
+                    _ => ()
+            else:
+                decoded.push(ch)
+                ()
+        ()
+        decoded
+
+    fn strip_c_literal_delimiters<a>(_self: &CTransformer, token: String, delimiter: Char) -> Option<String>:
+        let start = token.find(delimiter)?
+        let end = token.rfind(delimiter)?
+        if (end <= start):
+            return none
+        Option::Some(&token[(start + 1)..end])
+
+    fn decode_c_string_literal(_self: &CTransformer, parts: &[String]) -> String:
+        parts.iter().filter_map(fn(part): (*_self).strip_c_literal_delimiters(part, "\"")).map(fn(body): (*_self).decode_c_literal_body(body)).collect().join("")
+
+    fn decode_c_char_literal(_self: &CTransformer, token: String) -> String:
+        (*_self).strip_c_literal_delimiters(token, "'").map(fn(body): (*_self).decode_c_literal_body(body)).unwrap_or_default()
+
+    fn extract_function_name(_self: &CTransformer, declarator: &lang_c::ast::Declarator) -> Result<String, Error>:
+        use c_ast::DeclaratorKind::*
+
+        match &(*declarator).kind.node:
+            Identifier(ident) => Result::Ok(ident.node.name.clone())
+            Declarator(inner) => (*_self).extract_function_name(&inner.node)
+            _ => Result::Ok(String__new_())
+
+    fn transform_statement(_self: &mut CTransformer, stmt: &lang_c::ast::Statement) -> Result<Option<Stmt>, Error>:
+        use c_ast::Statement::*
+
+        match stmt:
+            Return(expr) =>
+                let value = match expr:
+                    Some(e) => Option::Some((*_self).transform_expression(&e.node)?)
+                    _ =>
+                        none
+                Result::Ok(Option::Some(Stmt::Return(value, Span__default_())))
+            If(if_stmt) =>
+                let condition = (*_self).transform_expression(&if_stmt.node.condition.node)?
+                let then_body = (*_self).transform_compound_statement(&if_stmt.node.then_statement.node)?
+                let else_branch = match if_stmt.node.else_statement:
+                    Some(else_stmt) => Option::Some((*_self).transform_compound_statement(&else_stmt.node)?)
+                    _ =>
+                        none
+                Result::Ok(Option::Some(Stmt::Expr(Expr::If { condition: Box__new_(condition), then_branch: then_body, else_branch: else_branch.map(fn(b): Box__new_(ElseBranch::Else(b))), span: Span__default_() })))
+            While(while_stmt) =>
+                let condition = (*_self).transform_expression(&while_stmt.node.expression.node)?
+                let body = (*_self).transform_compound_statement(&while_stmt.node.statement.node)?
+                Result::Ok(Option::Some(Stmt::While { condition: condition, body: body, span: Span__default_() }))
+            For(for_stmt) =>
+                let mut stmts = Vec__new_()
+                match &for_stmt.node.initializer.node:
+                    lang_c__ast__ForInitializer::Declaration(decl) =>
+                        stmts.extend((*_self).transform_local_declaration(&decl.node)?)
+                        ()
+                        ()
+                        ()
+                        ()
+                    lang_c__ast__ForInitializer::Expression(expr) =>
+                        stmts.push(Stmt::Expr((*_self).transform_expression(&expr.node)?))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => ()
+                let condition = match for_stmt.node.condition:
+                    Some(cond) => (*_self).transform_expression(&cond.node)?
+                    _ => Expr::Bool(true, Span__default_())
+                let mut body_stmts = ((*_self).transform_compound_statement(&for_stmt.node.statement.node)?).stmts
+                match for_stmt.node.step:
+                    Some(step) =>
+                        body_stmts.push(Stmt::Expr((*_self).transform_expression(&step.node)?))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                stmts.push(Stmt::While { condition: condition, body: Block { stmts: body_stmts, span: Span__default_() }, span: Span__default_() })
+                ()
+                Result::Ok(Option::Some(Stmt::Expr(Expr::Block(Block { stmts: stmts, span: Span__default_() }, Span__default_()))))
+            Expression(expr) =>
+                match expr:
+                    Some(e) => Result::Ok(Option::Some(Stmt::Expr((*_self).transform_expression(&e.node)?)))
+                    _ => Result::Ok(none)
+            Break => Result::Ok(Option::Some(Stmt::Break(none, Span__default_())))
+            Continue => Result::Ok(Option::Some(Stmt::Continue(Span__default_())))
+            Compound(_) =>
+                let block = (*_self).transform_compound_statement(stmt)?
+                Result::Ok(Option::Some(Stmt::Expr(Expr::Block(block, Span__default_()))))
+            _ => Result::Ok(none)
+
+    fn transform_expression(_self: &mut CTransformer, expr: &lang_c::ast::Expression) -> Result<Expr, Error>:
+        use c_ast::Expression::*
+
+        match expr:
+            Constant(constant) => (*_self).transform_constant(&constant.node)
+            StringLiteral(string_lit) => Result::Ok(Expr::String((*_self).decode_c_string_literal(&string_lit.node.iter().cloned().collect()), Span__default_()))
+            Identifier(ident) => Result::Ok(Expr::Ident((*_self).rename_value_identifier(&ident.node.name), Span__default_()))
+            BinaryOperator(bin_op) =>
+                use c_ast::BinaryOperator as BinOp
+
+                match &bin_op.node.operator_.node:
+                    c_ast__BinaryOperator::Index =>
+                        let object_expr = (*_self).transform_expression(&bin_op.node.lhs.node)?
+                        let idx_expr = (*_self).transform_expression(&bin_op.node.rhs.node)?
+                        if (*_self).infer_expr_type(&object_expr).is_some_and(fn(ty): none):
+                            Result::Ok((*_self).lower_memory_load((*_self).lower_pointer_offset(object_expr, idx_expr, false)))
+                        else:
+                            Result::Ok(Expr::Index { object: Box__new_(object_expr), index: Box__new_(idx_expr), span: Span__default_() })
+                    c_ast__BinaryOperator::Assign => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignPlus => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignMinus => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignMultiply => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignDivide => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignModulo => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignShiftLeft => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignShiftRight => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignBitwiseAnd => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignBitwiseOr => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    c_ast__BinaryOperator::AssignBitwiseXor => (*_self).lower_assignment_expression(&bin_op.node.operator_.node, &bin_op.node.lhs.node, &bin_op.node.rhs.node)
+                    _ =>
+                        let left_expr = (*_self).transform_expression(&bin_op.node.lhs.node)?
+                        let right_expr = (*_self).transform_expression(&bin_op.node.rhs.node)?
+                        match ((*_self).maybe_lower_pointer_arithmetic(&bin_op.node.operator_.node, left_expr.clone(), right_expr.clone())?):
+                            Some(lowered) => return Result::Ok(lowered)
+                            _ =>
+                                ()
+                                ()
+                        let left = Box__new_(left_expr)
+                        let right = Box__new_(right_expr)
+                        let op = (*_self).transform_binary_operator(&bin_op.node.operator_.node)?
+                        Result::Ok(Expr::Binary { left: left, op: op, right: right, span: Span__default_() })
+            UnaryOperator(unary_op) =>
+                match unary_op.node.operator_.node:
+                    lang_c__ast__UnaryOperator::Address => (*_self).lower_address_of_expression(&unary_op.node.operand.node)
+                    lang_c__ast__UnaryOperator::Indirection =>
+                        let value = Box__new_((*_self).transform_expression(&unary_op.node.operand.node)?)
+                        Result::Ok(Expr::MemLoad { pointer: value, load_ty: none, span: Span__default_() })
+                    lang_c__ast__UnaryOperator::PreIncrement => (*_self).lower_inc_dec(&unary_op.node.operand.node, true, true)
+                    lang_c__ast__UnaryOperator::PostIncrement => (*_self).lower_inc_dec(&unary_op.node.operand.node, true, false)
+                    lang_c__ast__UnaryOperator::PreDecrement => (*_self).lower_inc_dec(&unary_op.node.operand.node, false, true)
+                    lang_c__ast__UnaryOperator::PostDecrement => (*_self).lower_inc_dec(&unary_op.node.operand.node, false, false)
+                    lang_c__ast__UnaryOperator::Plus => (*_self).transform_expression(&unary_op.node.operand.node)
+                    _ =>
+                        let operand = Box__new_((*_self).transform_expression(&unary_op.node.operand.node)?)
+                        let op = (*_self).transform_unary_operator(&unary_op.node.operator_.node)?
+                        Result::Ok(Expr::Unary { op: op, operand: operand, span: Span__default_() })
+            SizeOfTy(size_of_ty) =>
+                let target_ty = (*_self).extract_type_from_type_name(&size_of_ty.node.field_0.node)?
+                Result::Ok(Expr::SizeOfType { target: target_ty, span: Span__default_() })
+            SizeOfVal(size_of_val) =>
+                let lowered = (*_self).transform_expression(&size_of_val.node.field_0.node)?
+                match (*_self).infer_expr_type(&lowered):
+                    Some(ty) => Result::Ok(Expr::SizeOfType { target: ty, span: Span__default_() })
+                    _ => Result::Ok(Expr::Int((*_self).estimate_sizeof_expression(&size_of_val.node.field_0.node), Span__default_()))
+            AlignOf(align_of_ty) =>
+                let target_ty = (*_self).extract_type_from_type_name(&align_of_ty.node.field_0.node)?
+                Result::Ok(Expr::AlignOfType { target: target_ty, span: Span__default_() })
+            Call(call) =>
+                match ((*_self).try_lower_allocator_call(&call.node)?):
+                    Some(lowered) => Result::Ok(lowered)
+                    _ =>
+                        let callee = Box__new_((*_self).transform_expression(&call.node.callee.node)?)
+                        let mut args = Vec__new_()
+                        for arg in &call.node.arguments:
+                            args.push(CallArg { name: none, value: (*_self).transform_expression(&arg.node)?, span: Span__default_() })
+                            ()
+                        ()
+                        Result::Ok(Expr::Call { callee: callee, args: args, span: Span__default_() })
+            Member(member) =>
+                let object = Box__new_((*_self).transform_expression(&member.node.expression.node)?)
+                let field = (*_self).rename_field_identifier(&member.node.identifier.node.name)
+                Result::Ok(Expr::Field { object: object, field: field, span: Span__default_() })
+            Cast(cast) =>
+                let value = Box__new_((*_self).transform_expression(&cast.node.expression.node)?)
+                let target = (*_self).extract_type_from_type_name(&cast.node.type_name.node)?
+                Result::Ok(Expr::Cast { value: value, target: target, span: Span__default_() })
+            Conditional(cond) =>
+                let condition = Box__new_((*_self).transform_expression(&cond.node.condition.node)?)
+                let then_expr = (*_self).transform_expression(&cond.node.then_expression.node)?
+                let else_expr = (*_self).transform_expression(&cond.node.else_expression.node)?
+                Result::Ok(Expr::If { condition: condition, then_branch: Block { stmts: [Stmt::Expr(then_expr)], span: Span__default_() }, else_branch: Option::Some(Box__new_(ElseBranch::Else(Block { stmts: [Stmt::Expr(else_expr)], span: Span__default_() }))), span: Span__default_() })
+            Comma(exprs) =>
+                match exprs.last():
+                    Some(last) => (*_self).transform_expression(&last.node)
+                    _ => Result::Ok(Expr::Int(0, Span__default_()))
+            CompoundLiteral(compound) =>
+                let type_name = (*_self).extract_type_from_type_name(&compound.node.type_name.node)?
+                (*_self).transform_compound_literal_for_type(&type_name, &compound.node.initializer_list)
+            _ => Result::Err(ImportError::UnsupportedFeature(f"Expression: {expr}"))
+
+    fn transform_constant(_self: &CTransformer, constant: &lang_c::ast::Constant) -> Result<Expr, Error>:
+        use c_ast::Constant::*
+
+        match constant:
+            Integer(int_) =>
+                let value = int_.number.parse().unwrap_or(0)
+                Result::Ok(Expr::Int(value, Span__default_()))
+            Float(float_) =>
+                let value = float_.number.parse().unwrap_or(0)
+                Result::Ok(Expr::Float(value, Span__default_()))
+            Character(ch) => Result::Ok(Expr::String((*_self).decode_c_char_literal(ch), Span__default_()))
+
+    fn transform_binary_operator(_self: &CTransformer, op: &lang_c::ast::BinaryOperator) -> Result<BinaryOp, Error>:
+        let mapped = match common__c_registry__resolve_c_binary_operator(op):
+            CBinaryOperatorResolution::Supported(mapped) => mapped
+            CBinaryOperatorResolution::UnsupportedAssignment => return Result::Err(ImportError::UnsupportedFeature(f"Binary assignment operator is not representable in KAIN AST: {op}"))
+            CBinaryOperatorResolution::Unsupported => return Result::Err(ImportError::UnsupportedFeature(f"Binary operator: {op}"))
+        (*_self).ensure_binary_op_supported(mapped)?
+        ()
+        Result::Ok(mapped)
+
+    fn transform_unary_operator(_self: &CTransformer, op: &lang_c::ast::UnaryOperator) -> Result<UnaryOp, Error>:
+        use c_ast::UnaryOperator::*
+
+        Result::Ok(none)
+
+
+impl Default for CTransformer:
+    fn default_() -> CTransformer:
+        CTransformer__new_()
+
+
+pub fn transform_with_language_capabilities_and_layout_metadata(tu: lang_c::ast::TranslationUnit, language_capabilities: kain_core::language_features::LanguageCapabilities, layout_metadata: CSourceLayoutMetadata) -> Result<Program, Error>:
+    let mut transformer = CTransformer__with_language_capabilities_and_layout_metadata(language_capabilities, layout_metadata)
+    transformer.transform(tu)
+
+fn parse_c_integer_literal(number: String) -> Option<usize>:
+    let digits = number.trim().trim_end_matches(fn(c: Char): none)
+    match digits.strip_prefix("0x").or_else(fn(): digits.strip_prefix("0X")):
+        Some(hex) => usize__from_str_radix(hex, 16).ok()
+        _ =>
+            match digits.strip_prefix("0b").or_else(fn(): digits.strip_prefix("0B")):
+                Some(bin) => usize__from_str_radix(bin, 2).ok()
+                _ => if ((digits.len() > 1) && digits.starts_with("0")): usize__from_str_radix(&digits[1..], 8).ok() else: digits.parse().ok()
+

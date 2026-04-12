@@ -1,0 +1,59 @@
+use crate::Result
+
+use kain_core::ast::Program
+
+use kain_core::language_features::LanguageCapabilities
+
+use lang_c::ast::TranslationUnit
+
+use std::path::Path
+
+@derive(Debug, Clone, Default)
+pub struct CImportOptions:
+    include_paths: Array<String>
+    defines: Array<String>
+    cpp_options: Array<String>
+    cpp_command: Option<String>
+
+impl Default for CImportOptions:
+    pub fn default_() -> CImportOptions:
+        CImportOptions { include_paths: Vec__new_(), defines: Vec__new_(), cpp_options: Vec__new_(), cpp_command: none }
+
+
+@doc(doc = " Import a single C file into KAIN AST")
+pub fn import_c_file(path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
+    import_c_file_with_language_capabilities(path, kain_core__default_language_capabilities())
+
+@doc(doc = " Import a single C file with importer options.")
+pub fn import_c_file_with_options(path: &std::path::Path, options: &CImportOptions) -> Result<kain_core::ast::Program, Error>:
+    import_c_file_with_language_capabilities_and_options(path, kain_core__default_language_capabilities(), options)
+
+@doc(doc = " Parse a single C file into a lang-c translation unit using the same importer pipeline.")
+pub fn parse_c_file_ast_with_options(path: &std::path::Path, options: &CImportOptions) -> Result<lang_c::ast::TranslationUnit, Error>:
+    let parsed = parser__parse_c_file_with_metadata(path, options)?
+    Result::Ok(parsed.unit)
+
+@doc(doc = " Import a single C file with an explicit KAIN language capability profile.")
+pub fn import_c_file_with_language_capabilities(path: &std::path::Path, language_capabilities: kain_core::language_features::LanguageCapabilities) -> Result<kain_core::ast::Program, Error>:
+    import_c_file_with_language_capabilities_and_options(path, language_capabilities, &CImportOptions__default_())
+
+@doc(doc = " Import a single C file with explicit capability profile and importer options.")
+pub fn import_c_file_with_language_capabilities_and_options(path: &std::path::Path, language_capabilities: kain_core::language_features::LanguageCapabilities, options: &CImportOptions) -> Result<kain_core::ast::Program, Error>:
+    let parsed = parser__parse_c_file_with_metadata(path, options)?
+    let kain_ast = transformer__transform_with_language_capabilities_and_layout_metadata(parsed.unit, language_capabilities, parsed.layout)?
+    Result::Ok(kain_ast)
+
+@doc(doc = " Import multiple C files as a single program")
+pub fn import_c_project(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:
+    import_c_project_with_language_capabilities(paths, kain_core__default_language_capabilities())
+
+@doc(doc = " Import multiple C files with an explicit KAIN language capability profile.")
+pub fn import_c_project_with_language_capabilities(paths: &[&std::path::Path], language_capabilities: kain_core::language_features::LanguageCapabilities) -> Result<kain_core::ast::Program, Error>:
+    let mut all_items = Vec__new_()
+    for path in paths:
+        let program = import_c_file_with_language_capabilities_and_options(path, language_capabilities.clone(), &CImportOptions__default_())?
+        all_items.extend(program.items)
+        ()
+    ()
+    Result::Ok(kain_core::ast::Program { items: all_items, span: Span__default_() })
+

@@ -1,0 +1,86 @@
+use crate::common::c_registry::c_type_name_aliases
+
+use crate::common::c_registry::materialize_type_descriptor
+
+use kain_core::ast::Type
+
+use kain_core::span::Span
+
+use std::collections::HashMap
+
+@doc(doc = " Type mapper for converting source language types to KAIN types")
+pub struct TypeMapper:
+    mappings: Map<String, kain_core::ast::Type>
+
+impl TypeMapper:
+    pub fn new_c() -> TypeMapper:
+        let mut mappings = HashMap__new_()
+        for selfhost_for_item in common__c_registry__c_type_name_aliases():
+            let (source, descriptor) = selfhost_for_item
+            mappings.insert(((*source)).to_string(), common__c_registry__materialize_type_descriptor((*descriptor)))
+            ()
+        ()
+        TypeMapper { mappings: mappings }
+
+    pub fn new_rust() -> TypeMapper:
+        let mut mappings = HashMap__new_()
+        mappings.insert(("i8").into(), named_type("Int"))
+        ()
+        mappings.insert(("i16").into(), named_type("Int"))
+        ()
+        mappings.insert(("i32").into(), named_type("Int"))
+        ()
+        mappings.insert(("i64").into(), named_type("Int"))
+        ()
+        mappings.insert(("i128").into(), named_type("Int"))
+        ()
+        mappings.insert(("isize").into(), named_type("Int"))
+        ()
+        mappings.insert(("u8").into(), named_type("Int"))
+        ()
+        mappings.insert(("u16").into(), named_type("Int"))
+        ()
+        mappings.insert(("u32").into(), named_type("Int"))
+        ()
+        mappings.insert(("u64").into(), named_type("Int"))
+        ()
+        mappings.insert(("u128").into(), named_type("Int"))
+        ()
+        mappings.insert(("usize").into(), named_type("Int"))
+        ()
+        mappings.insert(("f32").into(), named_type("Float"))
+        ()
+        mappings.insert(("f64").into(), named_type("Float"))
+        ()
+        mappings.insert(("bool").into(), named_type("Bool"))
+        ()
+        mappings.insert(("char").into(), named_type("Char"))
+        ()
+        mappings.insert(("str").into(), named_type("String"))
+        ()
+        TypeMapper { mappings: mappings }
+
+    pub fn get(_self: &TypeMapper, type_name: String) -> Option<&kain_core::ast::Type>:
+        (*_self).mappings.get(type_name)
+
+    pub fn add_mapping(_self: &mut TypeMapper, source_type: String, kain_type: kain_core::ast::Type):
+        (*_self).mappings.insert(source_type, kain_type)
+        ()
+
+    pub fn map_pointer(_self: &TypeMapper, inner: kain_core::ast::Type, mutable_: Bool) -> kain_core::ast::Type:
+        kain_core__ast__Type::Ref { mutable_: mutable_, inner: Box__new_(inner), lifetime: none, span: Span__default_() }
+
+    pub fn map_array(_self: &TypeMapper, element: kain_core::ast::Type, size: Option<usize>) -> kain_core::ast::Type:
+        match size:
+            Some(n) => kain_core__ast__Type::Array(Box__new_(element), n, Span__default_())
+            None => kain_core__ast__Type::Slice(Box__new_(element), Span__default_())
+
+
+impl Default for TypeMapper:
+    fn default_() -> TypeMapper:
+        TypeMapper__new_c()
+
+
+fn named_type(name: String) -> kain_core::ast::Type:
+    kain_core__ast__Type::Named { name: name.to_string(), generics: Vec__new_(), span: Span__default_() }
+

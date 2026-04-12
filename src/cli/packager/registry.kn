@@ -1,0 +1,85 @@
+use super::config
+
+use super::config::PackageMeta
+
+use super::config::RegistryIndex
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use flate2::read::GzDecoder
+
+use std::fs
+
+use std::path::PathBuf
+
+use tar::Archive
+
+pub fn add_dependency(package_name: String, version: Option<String>) -> Result<(), KainError>:
+    println(" Fetching registry index...")
+    let index: RegistryIndex = (reqwest__blocking__get(config__registry_url()).map_err(fn(e): KainError__runtime(f"Failed to fetch registry: {e}"))?).json().map_err(fn(e): KainError__runtime(f"Failed to parse registry: {e}"))?
+    let meta_url = index.packages.get(package_name).ok_or_else(fn(): KainError__runtime(f"Package '{package_name}' not found in registry"))?
+    let pkg_meta: PackageMeta = (reqwest__blocking__get(meta_url).map_err(fn(e): KainError__runtime(f"Failed to fetch package metadata: {e}"))?).json().map_err(fn(e): KainError__runtime(f"Failed to parse package metadata: {e}"))?
+    let version_to_install = version.unwrap_or_else(fn(): pkg_meta.versions.keys().max().cloned().unwrap_or_else(fn(): ("0.1.0").to_string()))
+    let pkg_ver = pkg_meta.versions.get(&version_to_install).ok_or_else(fn(): KainError__runtime(f"Version {version_to_install} not found"))?
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let mut manifest = load_manifest(&cwd)?
+    manifest.dependencies.insert(package_name.to_string(), version_to_install.clone())
+    ()
+    let toml = toml__to_string_pretty(&manifest).map_err(fn(e): KainError__runtime(f"Failed to serialize: {e}"))?
+    std__fs__write(cwd.join("KAIN.toml"), toml).map_err(fn(e): KainError::Io(e))?
+    ()
+    println(f"   Added {package_name} v{version_to_install}")
+    install_package(package_name, &version_to_install, &pkg_ver.url)
+
+pub fn install_all() -> Result<(), KainError>:
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let manifest = load_manifest(&cwd)?
+    if manifest.dependencies.is_empty():
+        println(" No dependencies to install.")
+        return Result::Ok(())
+    println(f"📦 Installing {manifest.dependencies.len()} dependencies...")
+    let index: RegistryIndex = (reqwest__blocking__get(config__registry_url()).map_err(fn(e): KainError__runtime(f"Failed to fetch registry: {e}"))?).json().map_err(fn(e): KainError__runtime(f"Failed to parse registry: {e}"))?
+    for selfhost_for_item in &manifest.dependencies:
+        let (name, version) = selfhost_for_item
+        match index.packages.get(name):
+            Some(meta_url) =>
+                let pkg_meta: PackageMeta = (reqwest__blocking__get(meta_url).map_err(fn(e): KainError__runtime(f"Failed to fetch {name}: {e}"))?).json().map_err(fn(e): KainError__runtime(f"Failed to parse {name}: {e}"))?
+                match pkg_meta.versions.get(version):
+                    Some(pkg_ver) =>
+                        install_package(name, version, &pkg_ver.url)?
+                        ()
+                    _ => eprintln(f"⚠️  Version {version} not found for {name}")
+            _ => eprintln(f"⚠️  Package {name} not found in registry")
+    ()
+    Result::Ok(())
+
+fn install_package(name: String, version: String, url: String) -> Result<(), KainError>:
+    let deps_dir = PathBuf__from("deps")
+    if (!deps_dir.exists()):
+        std__fs__create_dir_all(&deps_dir).map_err(fn(e): KainError::Io(e))?
+        ()
+        ()
+        ()
+        ()
+    let pkg_dir = deps_dir.join(name)
+    if pkg_dir.exists():
+        println(f"   {name} v{version} already installed, updating...")
+        std__fs__remove_dir_all(&pkg_dir).map_err(fn(e): KainError::Io(e))?
+        ()
+        ()
+        ()
+        ()
+    println(f"📥 Downloading {name} v{version}...")
+    let response = reqwest__blocking__get(url).map_err(fn(e): KainError__runtime(f"Download failed: {e}"))?
+    let bytes = response.bytes().map_err(fn(e): KainError__runtime(f"Failed to read response: {e}"))?
+    let decoder = GzDecoder__new_(&bytes[..])
+    let mut archive = Archive__new_(decoder)
+    std__fs__create_dir_all(&pkg_dir).map_err(fn(e): KainError::Io(e))?
+    ()
+    archive.unpack(&pkg_dir).map_err(fn(e): KainError__runtime(f"Failed to extract: {e}"))?
+    ()
+    println(f"   ✓ Installed {name} v{version}")
+    Result::Ok(())
+
