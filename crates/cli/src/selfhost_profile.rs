@@ -34,15 +34,16 @@ impl Default for SelfHostSourceProfile {
             vec![
                 "kain-core".to_string(),
                 "kain-import".to_string(),
-                "kain-sys-codegen".to_string(),
                 "cli".to_string(),
+                "kain-sys-codegen".to_string(),
             ],
         );
         Self {
             version: default_profile_version(),
             name: default_profile_name(),
-            description: "Canonical source-mirror profile for the Rust bootstrap selfhost lane."
-                .to_string(),
+            description:
+                "Executable-first source-mirror profile for the Rust bootstrap selfhost lane."
+                    .to_string(),
             roots: SelfHostSourceRoots::default(),
             artifacts: SelfHostSourceArtifacts::default(),
             phases,
@@ -267,7 +268,7 @@ mod tests {
         );
         assert_eq!(
             profile.crates_for_phase("phase2").unwrap(),
-            ["kain-core", "kain-import", "kain-sys-codegen", "cli"]
+            ["kain-core", "kain-import", "cli", "kain-sys-codegen"]
         );
     }
 

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "canonical_source_mirror",
-  "description": "File-preserving selfhost source mirror profile. Rust remains the bootstrap donor while the pipeline emits one canonical Kain file per Rust file and uses aggregate compatibility artifacts only for roundtrip/codegen.",
+  "description": "Executable-first file-preserving selfhost source mirror profile. Rust remains the bootstrap donor while the pipeline emits one canonical Kain file per Rust file and keeps the `kain` executable parity lane ahead of backend expansion.",
   "roots": {
     "canonical_source_root": "src",
     "output_mirror_root": "mirror/src",
@@ -21,8 +21,8 @@
     "phase2": [
       "kain-core",
       "kain-import",
-      "kain-sys-codegen",
-      "cli"
+      "cli",
+      "kain-sys-codegen"
     ]
   },
   "ownership": {

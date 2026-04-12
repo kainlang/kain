@@ -124,7 +124,7 @@
   "phase2_slice": [
     "kain-core",
     "kain-import",
-    "kain-sys-codegen",
-    "cli"
+    "cli",
+    "kain-sys-codegen"
   ]
 }

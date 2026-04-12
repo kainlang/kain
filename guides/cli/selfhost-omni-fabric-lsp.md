@@ -27,8 +27,10 @@ Phase 2 also supports:
 `--all-crates` discovers the live workspace crate set instead of relying only on
 the profile slice.
 
-`phase1` emits the initial mirror and bundle graph. `phase2` adds round-trip
-Rust emission plus stage2 assembly and build options.
+`phase1` emits the initial mirror and bundle graph for `kain-core` and
+`kain-import`. `phase2` adds round-trip Rust emission plus stage2 assembly and
+build options, with `cli` treated as the executable-parity gate before backend
+expansion.
 
 ## `omni`
 

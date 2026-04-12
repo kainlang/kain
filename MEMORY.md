@@ -1,5 +1,28 @@
 # MEMORY
 
+# 2026-04-12 - selfhost now treats the kain executable as the first bootstrap correctness gate
+
+The active selfhost profile stays on the Rust bridge path, but phase2 now front-loads `cli` ahead of `kain-sys-codegen` so the `kain` executable is the first thing we prove correct on this pass. That keeps the import bridge intact while making executable parity the gating milestone instead of a later byproduct.
+
+What changed:
+
+- Updated `crates/cli/src/selfhost_profile.rs` and `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json` to describe the profile as executable-first and to order phase2 as `kain-core`, `kain-import`, `cli`, `kain-sys-codegen`.
+- Synced `ouroboros/docs/selfhost/inventories/module_map.json` and `guides/cli/selfhost-omni-fabric-lsp.md` so the live inventory and command docs match the profile.
+- Updated `ARCHITECTURE.md` so the durable repo overview now states that the `kain` executable is the current bootstrap priority for the selfhost lane.
+
+Validation:
+
+- `cargo test -p cli --lib default_profile_maps_phase_slices -- --nocapture`
+- `cargo test -p cli --lib default_profile_resolves_relative_roots -- --nocapture`
+
+Current risk:
+
+- This is still a bridge-first bootstrap path; only the sequencing changed. The remaining work is to keep driving the `kain` binary until the phase2 frontend and stage2 build are actually green.
+
+Recommended next step:
+
+- Continue with the executable-parity lane, then use the same profile to chase the next lowering or build blocker.
+
 # 2026-04-12 - official Kain website rebuilt as a data-driven public site
 
 The official KAIN website at `/home/ephemara/Dev/Kain/website` was rebuilt as a

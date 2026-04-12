@@ -163,6 +163,7 @@ The current selfhost lane is no longer only a crate-level bundle export. It now 
 - `crates/kain-import` imports Rust selfhost crates per source file/module and exposes per-file typed `Program` results.
 - `crates/cli/src/selfhost.rs` consumes those file-level imports through a data-driven `SelfHostSourceProfile`.
 - The default profile lives at `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`.
+- The current bootstrap priority is the `kain` executable: the default phase2 profile keeps `cli` ahead of `kain-sys-codegen` so executable parity is proven before backend expansion.
 - Phase output now emits three aligned artifact families:
   - canonical Kain mirrors under `src/<crate>/...` or the profile-configured canonical root
   - output-local mirror copies under `<phase-output>/mirror/src/<crate>/...`
@@ -171,7 +172,7 @@ The current selfhost lane is no longer only a crate-level bundle export. It now 
 - Phase2 roundtrip Rust is then split back into a file-preserving tree under `<phase-output>/roundtrip_rust/<crate>/src/...`, and stage2 workspace assembly copies that tree into `stage2_workspace/crates/<crate>/src/...`.
 - `kain selfhost phase1|phase2 --force` keeps emitting mirrors, manifests, aggregate bundles, and any later-crate artifacts even when earlier crates fail. The command still reports `hard_fail`, but it no longer discards the partial artifact graph.
 
-The important rule is: the file-preserving mirror tree is now the primary structural artifact, while the aggregate `.kn`/`.roundtrip.rs` files are temporary compatibility bridges until Kain grows a true multi-file frontend.
+The important rule is: the file-preserving mirror tree is now the primary structural artifact, while the current bootstrap priority is the `kain` executable. The aggregate `.kn`/`.roundtrip.rs` files are temporary compatibility bridges until Kain grows a true multi-file frontend.
 
 ### Compute pipeline flow
 
