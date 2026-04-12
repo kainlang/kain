@@ -1,5 +1,41 @@
 # MEMORY
 
+## 2026-04-12 - material_atrium smoke is now Qt-native and primitive-backed
+
+The `material_atrium_showcase` smoke now presents the 3D runtime through the `kain-ui-native` Qt shell instead of the old egui host path, and the atrium scene itself is now authored from Kain primitives instead of a mostly hand-wired mesh pile.
+
+What changed:
+
+- Rewrote `smoketest/3D/material_atrium_showcase/smoke.kn`
+  - The shell now reads as a native Qt product surface with a larger hero, primitive stack cards, and a tighter runtime matrix.
+  - The smoke source stays inside the native runtime path through `kain-ui-native`.
+- Reworked `crates/kain-3D/src/scene.rs`
+  - `material_atrium` now builds through the authoring scene path and registers `PrimitiveLibrary::authored_defaults()`.
+  - The scene massing now uses the authored primitive library for the floor, columns, halo ring, monoliths, and spire shapes.
+  - The scene keeps motion by restoring a post-flatten animation list for the central orb, halo ring, monolith, and spire.
+- Refreshed `crates/kain-3D/src/bin/material_atrium_smoke.rs`
+  - The deterministic preview PNG and matrix report were regenerated from the new primitive-backed scene.
+  - The header copy was shortened so the image no longer clips the top explanatory line.
+- Updated `smoketest/3D/material_atrium_showcase/README.md`
+  - The doc now says the showcase is Qt-native and primitive-backed instead of reading like a generic harness.
+- Regenerated the checked-in native app bundle
+  - `smoketest/3D/material_atrium_showcase/native-app/generated/native_app_bundle.json`
+  - This keeps the Qt shell bundle in sync with the authored smoke source.
+
+Validation:
+
+- `cargo run -p cli --bin kain -- build native-ui smoketest/3D/material_atrium_showcase/smoke.kn --app-name material-atrium-showcase --window-title "Kain Material Atrium Showcase" -o smoketest/3D/material_atrium_showcase/native-app`
+- `cargo run -p kain-3d --bin material_atrium_smoke -- --output-image smoketest/3D/material_atrium_showcase/material_atrium_visual_example.png --output-json smoketest/3D/material_atrium_showcase/generated/material_atrium_runtime_matrix.json`
+
+Risks:
+
+- The native smoke is still a Qt-hosted shell around the runtime scene contract; it is not yet a live in-process bgfx / filament / diligent / the-forge viewport bridge.
+- The image generator still uses the Kain compatibility renderer, so it proves scene composition and shell presentation rather than real vendor backend execution.
+
+Recommended next step:
+
+- Hook the Qt viewport surface to a real backend session when the renderer bridge is ready, then regenerate the smoke image from the live path instead of the compatibility renderer.
+
 ## 2026-04-12 - Qt host gained deterministic screenshot capture and a Plasma-style smoke lane
 
 The default Qt-backed `kain-ui-native` host is no longer just a launcher plus temp artifacts. It now has a deterministic smoke path that can render the real generated shell, save its generated host files, and capture a proof PNG without a manual desktop session.

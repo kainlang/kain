@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "render": {
+    "scenes": [
+      {
+        "viewport_node": "surface.30",
+        "viewport_kind": "viewport3d",
+        "scene": "material_atrium",
+        "title": "Material Atrium",
+        "material_refs": [],
+        "shader_bundle_ref_keys": []
+      },
+      {
+        "viewport_node": "surface.node.30",
+        "viewport_kind": "viewport3d",
+        "scene": "material_atrium",
+        "title": "Material Atrium",
+        "material_refs": [],
+        "shader_bundle_ref_keys": []
+      }
+    ],
+    "materials": []
+  },
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "viewport.3d"
+  ],
+  "requirements": [
+    "host.native-ui",
+    "runtime.contract.bundle",
+    "scene.runtime-bundle",
+    "shader.bundle.metadata",
+    "viewport.presented-or-fallback"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 1,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 2,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 4,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 5,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 6,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 7,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 10,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 11,
+        "kind": "text",
+        "role": "hero",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.hero"
+      },
+      {
+        "id": 12,
+        "kind": "text",
+        "role": "muted",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.muted"
+      },
+      {
+        "id": 13,
+        "kind": "text",
+        "role": "metric",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.metric"
+      },
+      {
+        "id": 14,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 16,
+        "kind": "text",
+        "role": "metric",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.metric"
+      },
+      {
+        "id": 17,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 19,
+        "kind": "text",
+        "role": "metric",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.metric"
+      },
+      {
+        "id": 20,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 22,
+        "kind": "text",
+        "role": "metric",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.metric"
+      },
+      {
+        "id": 23,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 26,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 27,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 32,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 33,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 34,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 36,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 37,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 38,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 40,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 41,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 42,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 44,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 45,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 46,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 49,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 50,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 51,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 53,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 54,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 55,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 57,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 58,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 59,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 61,
+        "kind": "text",
+        "role": "eyebrow",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.eyebrow"
+      },
+      {
+        "id": 62,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 63,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 66,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 67,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 69,
+        "kind": "text",
+        "role": "title",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.title"
+      },
+      {
+        "id": 70,
+        "kind": "text",
+        "role": "caption",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null,
+        "region_hint": "role.caption"
+      },
+      {
+        "id": 74,
+        "identity_key": "74",
+        "kind": "component:App",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,144 @@
+component App():
+    render <slot layout="column" gap={22} padding={22} overflow_y="scroll">
+        <theme name="atrium_showcase">
+            <scope name="atrium" selector="material-atrium" />
+            <token name="theme.chrome.topbar.visible" category="chrome" value={false} />
+            <token name="theme.spacing.scale" category="space" value={1.08} />
+            <token name="theme.radius.scale" category="surface" value={1.18} />
+            <token name="theme.typography.scale" category="type" value={1.06} />
+            <token name="theme.background.top" category="color" value="#060b11" />
+            <token name="theme.background.bottom" category="color" value="#151017" />
+            <token name="theme.surface.base" category="color" value="#121922" />
+            <token name="theme.surface.alt" category="color" value="#1a202b" />
+            <token name="theme.surface.raised" category="color" value="#212734" />
+            <token name="theme.surface.overlay" category="color" value="#10151ddd" />
+            <token name="theme.accent.primary" category="color" value="#71d9ff" />
+            <token name="theme.accent.soft" category="color" value="#b4efff" />
+            <token name="theme.highlight" category="color" value="#ffba72" />
+            <token name="theme.text.default" category="color" value="#f7f4ee" />
+            <token name="theme.text.muted" category="color" value="#aab4c2" />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.viewport3d.surface.mode" category="surface" value="canvas" />
+
+            <variant scope="atrium" name="nav">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={10} />
+            </variant>
+
+            <variant scope="atrium" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={18} />
+            </variant>
+
+            <variant scope="atrium" name="section">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={16} />
+            </variant>
+
+            <variant scope="atrium" name="card">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={14} />
+            </variant>
+        </theme>
+
+        <panel scope="atrium" variant="nav" layout="row" gap={14}>
+            <slot layout="column" gap={3}>
+                <text role="eyebrow">KAIN NATIVE RUNTIME</text>
+                <text role="caption">Qt shell, primitive-backed 3D, and renderer identity in one authored surface</text>
+            </slot>
+            <slot layout="row" gap={10}>
+                <text role="caption">Qt native shell</text>
+                <text role="caption">material_atrium scene</text>
+                <text role="caption">native smoke app</text>
+                <text role="caption">backend matrix</text>
+            </slot>
+        </panel>
+
+        <panel title="Atrium Hero" scope="atrium" variant="hero" layout="grid" columns={2} gap={18}>
+            <slot layout="column" gap={14}>
+                <text role="eyebrow">PRIMITIVE-POWERED MATERIAL ATRIUM</text>
+                <text role="hero">The new Qt-native shell is carrying the showcase now, and the 3D content is built from the authored Kain primitive library instead of hand-wired one-offs.</text>
+                <text role="muted">This smoke stays inside the native runtime path, surfaces the shared scene contract, and keeps the visual proof focused on a polished product shell rather than a bare harness.</text>
+                <slot layout="row" gap={12}>
+                    <panel scope="atrium" variant="card">
+                        <text role="metric">4</text>
+                        <text role="caption">renderer identities</text>
+                    </panel>
+                    <panel scope="atrium" variant="card">
+                        <text role="metric">8</text>
+                        <text role="caption">authored primitive shapes</text>
+                    </panel>
+                    <panel scope="atrium" variant="card">
+                        <text role="metric">1</text>
+                        <text role="caption">shared scene contract</text>
+                    </panel>
+                    <panel scope="atrium" variant="card">
+                        <text role="metric">1</text>
+                        <text role="caption">Qt native shell</text>
+                    </panel>
+                </slot>
+                <panel scope="atrium" variant="card" title="Showcase Brief">
+                    <text role="title">Material-first, shell-first, runtime-first.</text>
+                    <text role="caption">The viewport stays central, but the app reads like product software instead of a test harness.</text>
+                </panel>
+            </slot>
+            <viewport3d title="Material Atrium" scene="material_atrium" />
+        </panel>
+
+        <panel title="Primitive Stack" scope="atrium" variant="section" layout="grid" columns={4} gap={14}>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">STARTUP CUBE</text>
+                <text role="title">Structural anchor</text>
+                <text role="caption">The clean block primitive used for monoliths, plinths, and stable massing.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">STUDIO CYLINDER</text>
+                <text role="title">Gallery columns</text>
+                <text role="caption">The repeating vertical primitive driving the atrium perimeter and depth cues.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">HERO TORUS</text>
+                <text role="title">Halo accent</text>
+                <text role="caption">Used as a large ring around the central orb to add motion and polish.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">HERO CONE</text>
+                <text role="title">Crown spire</text>
+                <text role="caption">The tapered primitive that keeps the scene readable and sculptural.</text>
+            </panel>
+        </panel>
+
+        <panel title="Renderer Matrix" scope="atrium" variant="section" layout="grid" columns={4} gap={14}>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">BGFX</text>
+                <text role="title">Baseline backend</text>
+                <text role="caption">Cross-platform renderer lane for viewport, swapchain, and debug-draw work.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">FILAMENT</text>
+                <text role="title">Premium presentation</text>
+                <text role="caption">The higher-level material and lighting lane for polished scene output.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">DILIGENT</text>
+                <text role="title">Graph and compute</text>
+                <text role="caption">The explicit-engine lane for render-graph control and pipeline visibility.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="eyebrow">THE FORGE</text>
+                <text role="title">Low-level substrate</text>
+                <text role="caption">Staged as a bridge-first backend identity for future device and queue depth.</text>
+            </panel>
+        </panel>
+
+        <panel title="Runtime Notes" scope="atrium" variant="section" layout="grid" columns={2} gap={16}>
+            <panel scope="atrium" variant="card">
+                <text role="title">Native runtime lane</text>
+                <text role="caption">The smoke app builds through kain-ui-native, launches the Qt shell, and keeps the showcase inside the runtime path.</text>
+            </panel>
+            <panel scope="atrium" variant="card">
+                <text role="title">Primitive-backed scene</text>
+                <text role="caption">The atrium scene now composes its massing from Kain primitives so the 3D system reads like an authored product surface.</text>
+            </panel>
+        </panel>
+    </slot>

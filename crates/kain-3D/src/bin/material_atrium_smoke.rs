@@ -102,7 +102,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         82,
         2,
         [221, 190, 146, 255],
-        "bgfx is compile-backed now; filament, diligent, and the-forge stay honest as staged lanes until their native viewport bridges are complete.",
+        "bgfx is compile-backed; the others remain staged until viewport bridges land.",
     );
 
     for (index, tile) in rendered_tiles.iter().enumerate() {
