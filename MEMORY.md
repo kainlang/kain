@@ -23,6 +23,11 @@ What changed:
 - Rewrote `smoketest/3D/material_atrium_showcase/smoke.kn`
   - The shell now reads as a native Qt product surface with a larger hero, primitive stack cards, and a tighter runtime matrix.
   - The smoke source stays inside the native runtime path through `kain-ui-native`.
+- Updated the native-ui generator pipeline in `crates/cli/src/native_ui_build.rs`
+  - `material_atrium_visual_example.png` is now packaged as a real host sidecar when present.
+  - The generated launcher now forwards that preview image through `KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH`, which is why the atrium preview now shows up in the Qt shell without a manual one-off edit.
+- Refreshed `crates/kain-ui-native/src/no_egui_qt_host.rs`
+  - The atrium branch is a real renderer switchboard with top-level backend cards and a preview rail instead of a single static view.
 - Reworked `crates/kain-3D/src/scene.rs`
   - `material_atrium` now builds through the authoring scene path and registers `PrimitiveLibrary::authored_defaults()`.
   - The scene massing now uses the authored primitive library for the floor, columns, halo ring, monoliths, and spire shapes.
@@ -39,6 +44,7 @@ What changed:
 Validation:
 
 - `cargo run -p cli --bin kain -- build native-ui smoketest/3D/material_atrium_showcase/smoke.kn --app-name material-atrium-showcase --window-title "Kain Material Atrium Showcase" -o smoketest/3D/material_atrium_showcase/native-app`
+- `cargo test -q -p cli native_ui_build_packages_material_atrium_preview_sidecar_when_present -- --nocapture`
 - `cargo run -p kain-3d --bin material_atrium_smoke -- --output-image smoketest/3D/material_atrium_showcase/material_atrium_visual_example.png --output-json smoketest/3D/material_atrium_showcase/generated/material_atrium_runtime_matrix.json`
 
 Risks:

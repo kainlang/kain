@@ -4,8 +4,9 @@ use std::path::{Component, Path, PathBuf};
 use kain_core::error::KainError;
 use kain_driver::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppLauncherEntrypoint,
-    NativeAppMaterializationConfig, NativeAppMaterializedPaths, NativeAppMetadata,
+    NativeAppBundle, NativeAppBundleConfig, NativeAppHostSidecarBinding,
+    NativeAppLauncherEntrypoint, NativeAppMaterializationConfig, NativeAppMaterializedPaths,
+    NativeAppMetadata,
     NativeAppRuntimeDependency,
 };
 
@@ -126,6 +127,7 @@ pub fn run_native_ui_build_pipeline(
         &config.runtime_dependency,
     )?;
     let executable_output_dir = resolve_executable_output_dir(&project_dir, config)?;
+    let host_sidecars = resolve_native_ui_host_sidecars(input)?;
 
     let generated = materialize_native_app_bundle(
         &source,
@@ -139,7 +141,7 @@ pub fn run_native_ui_build_pipeline(
             release: config.release,
             executable_output_dir,
             launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
-            host_sidecars: Vec::new(),
+            host_sidecars,
         },
     )?;
 
@@ -226,6 +228,26 @@ fn resolve_executable_output_dir(
         Some(path) => Ok(Some(absolute_path(path)?)),
         None => Ok(Some(project_dir.to_path_buf())),
     }
+}
+
+fn resolve_native_ui_host_sidecars(
+    input: &Path,
+) -> Result<Vec<NativeAppHostSidecarBinding>, KainError> {
+    let Some(input_directory) = input.parent() else {
+        return Ok(Vec::new());
+    };
+
+    let preview_image_path =
+        absolute_path(&input_directory.join("material_atrium_visual_example.png"))?;
+    if !preview_image_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    Ok(vec![NativeAppHostSidecarBinding {
+        source_path: preview_image_path,
+        packaged_file_name: Some("material_atrium_visual_example.png".to_string()),
+        env_var: Some("KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH".to_string()),
+    }])
 }
 
 fn resolve_workspace_root() -> Result<PathBuf, KainError> {
@@ -375,6 +397,41 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
 
         let main_rs = fs::read_to_string(&result.generated.main_rs_path).expect("main.rs");
         assert!(main_rs.contains("KAIN_COMPUTE_RESIDENCY"));
+    }
+
+    #[test]
+    fn native_ui_build_packages_material_atrium_preview_sidecar_when_present() {
+        let temp = TempDir::new().expect("temp dir");
+        let input = temp.path().join("app.kn");
+        let preview_path = temp.path().join("material_atrium_visual_example.png");
+        fs::write(
+            &input,
+            r#"
+component App():
+    render <panel title="Atrium" />
+"#,
+        )
+        .expect("write source");
+        fs::write(&preview_path, b"preview-bytes").expect("write preview");
+
+        let result = run_native_ui_build_pipeline(
+            &input,
+            &NativeUiBuildConfig {
+                project_dir: Some(temp.path().join("dist").join("atrium-app")),
+                build_executable: false,
+                runtime_dependency: NativeUiRuntimeDependencyConfig::Version("0.1.0".to_string()),
+                ..Default::default()
+            },
+        )
+        .expect("native ui build should succeed");
+
+        let main_rs = fs::read_to_string(&result.generated.main_rs_path).expect("main.rs");
+        assert!(main_rs.contains("KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH"));
+        assert!(result.generated.artifact_paths.iter().any(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value == "material_atrium_visual_example.png")
+        }));
     }
 
     #[test]

@@ -35,7 +35,7 @@
     "function_name": "run_bundled_app_json"
   },
   "hot_reload": {
-    "summary": "Product mode stays default and devtools stay opt-in. Changed artifacts: source_input, runtime_bundle, realtime_bundle. State-preserving reload remains eligible when launcher and authored identity still match.",
+    "summary": "Product mode stays default and devtools stay opt-in. Changed artifacts: none. State-preserving reload remains eligible when launcher and authored identity still match.",
     "launcher": {
       "kind": "run_bundled_app_json",
       "function_name": "run_bundled_app_json"
@@ -93,14 +93,15 @@
       }
     ],
     "materialization_fingerprint": "b8fe4a4af22477a7",
-    "previous_materialization_fingerprint": "e73bce744f28e428",
-    "changed_artifact_roles": [
-      "source_input",
-      "runtime_bundle",
-      "realtime_bundle"
-    ],
+    "previous_materialization_fingerprint": "b8fe4a4af22477a7",
+    "changed_artifact_roles": [],
     "reload_compatible_with_previous": true
   },
   "host_bridges": [],
-  "host_sidecars": []
+  "host_sidecars": [
+    {
+      "packaged_file_name": "material_atrium_visual_example.png",
+      "env_var": "KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH"
+    }
+  ]
 }

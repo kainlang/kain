@@ -37,6 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = resolve_runtime_sidecar("kain_realtime_app_bundle.json") {
         std::env::set_var("KAIN_UI_NATIVE_REALTIME_BUNDLE", &path);
     }
+    if let Some(path) = resolve_runtime_sidecar("material_atrium_visual_example.png") {
+        std::env::set_var("KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH", &path);
+    }
     if let Some(path) = resolve_project_sidecar("app_manifest.json", "../config/app_manifest.json") {
         std::env::set_var("KAIN_UI_NATIVE_APP_MANIFEST", &path);
     }

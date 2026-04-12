@@ -7,15 +7,18 @@ What it proves:
 - a source-first native UI shell under `smoketest/3D/` powered by `kain-ui-native`
 - a premium 3D viewport scene bound to the new `material_atrium` scene in `kain-3D`
 - a UI-first presentation layer that frames the runtime around renderer backends instead of a bare viewer window
+- an atrium switchboard shell with top-bar backend cards for `bgfx`, `filament`, `diligent`, and `the-forge`
 - a packaging flow that still goes through `kain build native-ui` instead of inventing a second app materializer
 - a four-lane renderer matrix that names the current graphics backend roadmap directly in the shell
 - a primitive-backed scene stack that uses the authored Kain 3D primitive library for the atrium massing
+- a packaged preview image sidecar that feeds `KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH` so the Qt shell can display the atrium visual example without a manual hack
 - a deterministic repo-local image generator that renders `material_atrium` through Kain's software compatibility lane and labels the current backend truth honestly
 
 What you should see:
 
 - a polished Qt-native shell with a hero atrium viewport
 - four renderer cards for `bgfx`, `filament`, `diligent`, and the staged `the-forge` lane
+- a top bar switchboard that changes the active renderer mood in-place
 - primitive stack cards and runtime notes around the viewport
 - the `material_atrium` scene orbiting slowly in the center viewport
 
