@@ -1,0 +1,428 @@
+use std::collections::HashMap
+
+use std::io::Cursor
+
+use ordered_float::OrderedFloat
+
+use ue5_asset_utils::ImportBuilder
+
+use ue5_asset_utils::KainEngineTarget
+
+use unreal_asset::exports::BaseExport
+
+use unreal_asset::exports::Export
+
+use unreal_asset::exports::ExportBaseTrait
+
+use unreal_asset::exports::NormalExport
+
+use unreal_asset::flags::EObjectFlags
+
+use unreal_asset::types::PackageIndex
+
+use unreal_asset::Asset
+
+use unreal_asset::Import
+
+use unreal_asset_base::types::vector::Color
+
+use unreal_asset_properties::array_property::ArrayProperty
+
+use unreal_asset_properties::color_property::LinearColorProperty
+
+use unreal_asset_properties::int_property::BoolProperty
+
+use unreal_asset_properties::int_property::FloatProperty
+
+use unreal_asset_properties::int_property::IntProperty
+
+use unreal_asset_properties::material_input_property::ExpressionInputProperty
+
+use unreal_asset_properties::material_input_property::MaterialExpression
+
+use unreal_asset_properties::object_property::ObjectProperty
+
+use unreal_asset_properties::str_property::StrProperty
+
+use unreal_asset_properties::struct_property::StructProperty
+
+use unreal_asset_properties::Property
+
+use crate::material_graph::*
+
+@doc(doc = " Builds a UE5 MaterialFunction .uasset file programmatically using the unreal_asset library.")
+@doc(doc = "")
+@doc(doc = " Material functions are reusable node graphs that can be called from multiple materials.")
+@doc(doc = " They have inputs (FunctionInput nodes) and outputs (FunctionOutput nodes).")
+@doc(doc = "")
+@doc(doc = " Usage:")
+@doc(doc = " ```ignore")
+@doc(doc = " let mut b = MaterialFunctionBuilder::new(\"MF_Multiply\");")
+@doc(doc = " let input_a = b.add_function_input(\"A\", MaterialInputType::Float);")
+@doc(doc = " let input_b = b.add_function_input(\"B\", MaterialInputType::Float);")
+@doc(doc = " let multiply = b.add_multiply_node(input_a, input_b);")
+@doc(doc = " b.add_function_output(multiply);")
+@doc(doc = " let bytes = b.build()?;")
+@doc(doc = " std::fs::write(\"MF_Multiply.uasset\", bytes)?;")
+@doc(doc = " ```")
+pub struct MaterialFunctionBuilder:
+    asset: unreal_asset::Asset<std::io::Cursor<Array<u8>>>
+    function_name: String
+    engine_import: unreal_asset::types::PackageIndex
+    core_uobject_import: unreal_asset::types::PackageIndex
+    function_class_import: unreal_asset::types::PackageIndex
+    class_imports: Map<String, unreal_asset::types::PackageIndex>
+    function_export_index: unreal_asset::types::PackageIndex
+    node_exports: Array<unreal_asset::types::PackageIndex>
+    next_node_x: i32
+    next_node_y: i32
+
+impl MaterialFunctionBuilder:
+    pub fn new_(function_name: String, engine_target: ue5_asset_utils::KainEngineTarget) -> MaterialFunctionBuilder:
+        let mut asset = Asset__new_empty(engine_target.as_serializer_version())
+        let core_uobject_import = ImportBuilder__get_or_add_package(&mut asset, "/Script/CoreUObject")
+        let engine_import = ImportBuilder__get_or_add_package(&mut asset, "/Script/Engine")
+        let function_class_import = ImportBuilder__get_or_add_class(&mut asset, "MaterialFunction", engine_import)
+        let mut builder = MaterialFunctionBuilder { asset: asset, function_name: function_name.to_string(), engine_import: engine_import, core_uobject_import: core_uobject_import, function_class_import: function_class_import, class_imports: HashMap__new_(), function_export_index: PackageIndex__new_(1), node_exports: Vec__new_(), next_node_x: (-400), next_node_y: 0 }
+        builder.create_function_export()
+        ()
+        builder
+
+    fn get_expression_class_import(_self: &mut MaterialFunctionBuilder, class_name: String) -> unreal_asset::types::PackageIndex:
+        match (*_self).class_imports.get(class_name):
+            Some(idx) => return idx
+            _ =>
+                ()
+                ()
+        let idx = ImportBuilder__get_or_add_class(&mut (*_self).asset, class_name, (*_self).engine_import)
+        (*_self).class_imports.insert(class_name.to_string(), idx)
+        ()
+        idx
+
+    fn create_function_export(_self: &mut MaterialFunctionBuilder):
+        let func_name = (*_self).asset.add_fname(&(*_self).function_name)
+        let base = unreal_asset::exports::BaseExport { class_index: (*_self).function_class_import, super_index: PackageIndex__new_(0), template_index: PackageIndex__new_(0), outer_index: PackageIndex__new_(0), object_name: func_name, object_flags: (unreal_asset__flags__EObjectFlags__RF_PUBLIC | unreal_asset__flags__EObjectFlags__RF_STANDALONE), is_asset: true, ..Default__default_() }
+        let normal = unreal_asset::exports::NormalExport { base_export: base, extras: Vec__new_(), properties: Vec__new_() }
+        (*_self).asset.asset_data.exports.push(unreal_asset__exports__Export::NormalExport(normal))
+        ()
+
+    fn next_position(_self: &mut MaterialFunctionBuilder) -> (i32, i32):
+        let pos = ((*_self).next_node_x, (*_self).next_node_y)
+        (*_self).next_node_y = ((*_self).next_node_y + 150)
+        ()
+        if ((*_self).next_node_y > 1500):
+            (*_self).next_node_y = 0
+            ()
+            (*_self).next_node_x = ((*_self).next_node_x - 300)
+            ()
+            ()
+            ()
+            ()
+        pos
+
+    fn add_expression_export(_self: &mut MaterialFunctionBuilder, ue_class: String, properties: Array<unreal_asset_properties::Property>) -> usize:
+        let node_id = (*_self).node_exports.len()
+        let class_import = (*_self).get_expression_class_import(ue_class)
+        let obj_name = (*_self).asset.add_fname(&f"{ue_class}_{node_id}")
+        let (pos_x, pos_y) = (*_self).next_position()
+        let mut all_props = properties
+        let ed_x_name = (*_self).asset.add_fname("MaterialExpressionEditorX")
+        all_props.push((unreal_asset_properties::int_property::IntProperty { name: ed_x_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: pos_x }).into())
+        ()
+        let ed_y_name = (*_self).asset.add_fname("MaterialExpressionEditorY")
+        all_props.push((unreal_asset_properties::int_property::IntProperty { name: ed_y_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: pos_y }).into())
+        ()
+        let func_ref_name = (*_self).asset.add_fname("Function")
+        all_props.push((unreal_asset_properties::object_property::ObjectProperty { name: func_ref_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: (*_self).function_export_index }).into())
+        ()
+        let base = unreal_asset::exports::BaseExport { class_index: class_import, super_index: PackageIndex__new_(0), template_index: PackageIndex__new_(0), outer_index: (*_self).function_export_index, object_name: obj_name, object_flags: unreal_asset__flags__EObjectFlags__RF_PUBLIC, ..Default__default_() }
+        let normal = unreal_asset::exports::NormalExport { base_export: base, extras: Vec__new_(), properties: all_props }
+        (*_self).asset.asset_data.exports.push(unreal_asset__exports__Export::NormalExport(normal))
+        ()
+        let export_index = PackageIndex__new_((*_self).asset.asset_data.exports.len() as i32)
+        (*_self).node_exports.push(export_index)
+        ()
+        node_id
+
+    fn make_input_property(_self: &mut MaterialFunctionBuilder, prop_name: String, source_node: usize, output_index: i32) -> unreal_asset_properties::Property:
+        let name = (*_self).asset.add_fname(prop_name)
+        let expr = (*_self).make_expression_ref(source_node, output_index)
+        (unreal_asset_properties::material_input_property::ExpressionInputProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, material_expression: expr }).into()
+
+    fn make_expression_ref(_self: &mut MaterialFunctionBuilder, source_node: usize, output_index: i32) -> unreal_asset_properties::material_input_property::MaterialExpression:
+        let export_idx = (*_self).node_exports[source_node]
+        let export_ = &(*_self).asset.asset_data.exports[((export_idx.index - 1)) as usize]
+        let expr_name = export_.get_base_export().object_name.clone()
+        let empty_name = (*_self).asset.add_fname("None")
+        let input_name = (*_self).asset.add_fname("None")
+        unreal_asset_properties::material_input_property::MaterialExpression { name: empty_name, extras: [], output_index: output_index, input_name: input_name, expression_name: expr_name }
+
+    pub fn add_function_input(_self: &mut MaterialFunctionBuilder, name: String, input_type: MaterialInputType) -> usize:
+        let input_name_fname = (*_self).asset.add_fname("InputName")
+        let input_type_fname = (*_self).asset.add_fname("InputType")
+        let mut props = Vec__new_()
+        props.push((unreal_asset_properties::str_property::StrProperty { name: input_name_fname, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Option::Some(name.to_string()) }).into())
+        ()
+        let input_type_value = match input_type:
+            MaterialInputType::Float => 0
+            MaterialInputType::Vec2 => 1
+            MaterialInputType::Vec3 => 2
+            MaterialInputType::Vec4 => 3
+            MaterialInputType::Texture2D => 4
+            MaterialInputType::Color => 2
+        props.push((unreal_asset_properties::int_property::IntProperty { name: input_type_fname, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: input_type_value as i32 }).into())
+        ()
+        (*_self).add_expression_export("MaterialExpressionFunctionInput", props)
+
+    pub fn add_function_output(_self: &mut MaterialFunctionBuilder, node_id: usize):
+        let output_name_fname = (*_self).asset.add_fname("OutputName")
+        let mut props = Vec__new_()
+        props.push((unreal_asset_properties::str_property::StrProperty { name: output_name_fname, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Option::Some(("Result").to_string()) }).into())
+        ()
+        props.push((*_self).make_input_property("A", node_id, 0))
+        ()
+        (*_self).add_expression_export("MaterialExpressionFunctionOutput", props)
+        ()
+
+    pub fn add_constant_node(_self: &mut MaterialFunctionBuilder, value: f32) -> usize:
+        let r_name = (*_self).asset.add_fname("R")
+        let props = [(unreal_asset_properties::int_property::FloatProperty { name: r_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: ordered_float__OrderedFloat(value) }).into()]
+        (*_self).add_expression_export("MaterialExpressionConstant", props)
+
+    pub fn add_constant3_node(_self: &mut MaterialFunctionBuilder, r: f32, g: f32, b: f32) -> usize:
+        let name = (*_self).asset.add_fname("Constant")
+        let struct_type = (*_self).asset.add_fname("LinearColor")
+        let color_struct = unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(struct_type), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: [(unreal_asset_properties::color_property::LinearColorProperty { name: Default__default_(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, color: Color__new_(ordered_float__OrderedFloat(r), ordered_float__OrderedFloat(g), ordered_float__OrderedFloat(b), ordered_float__OrderedFloat(1)) }).into()] }
+        (*_self).add_expression_export("MaterialExpressionConstant3Vector", [color_struct.into()])
+
+    fn add_binary_op_node(_self: &mut MaterialFunctionBuilder, ue_class: String, a: usize, b: usize) -> usize:
+        let a_prop = (*_self).make_input_property("A", a, 0)
+        let b_prop = (*_self).make_input_property("B", b, 0)
+        (*_self).add_expression_export(ue_class, [a_prop, b_prop])
+
+    pub fn add_add_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionAdd", a, b)
+
+    pub fn add_subtract_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionSubtract", a, b)
+
+    pub fn add_multiply_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionMultiply", a, b)
+
+    pub fn add_divide_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionDivide", a, b)
+
+    pub fn add_dot_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionDotProduct", a, b)
+
+    pub fn add_power_node(_self: &mut MaterialFunctionBuilder, base: usize, exponent: usize) -> usize:
+        let base_prop = (*_self).make_input_property("Base", base, 0)
+        let exp_prop = (*_self).make_input_property("Exponent", exponent, 0)
+        (*_self).add_expression_export("MaterialExpressionPower", [base_prop, exp_prop])
+
+    pub fn add_lerp_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize, alpha: usize) -> usize:
+        let a_prop = (*_self).make_input_property("A", a, 0)
+        let b_prop = (*_self).make_input_property("B", b, 0)
+        let alpha_prop = (*_self).make_input_property("Alpha", alpha, 0)
+        (*_self).add_expression_export("MaterialExpressionLinearInterpolate", [a_prop, b_prop, alpha_prop])
+
+    fn add_unary_op_node(_self: &mut MaterialFunctionBuilder, ue_class: String, input: usize) -> usize:
+        let input_prop = (*_self).make_input_property("Input", input, 0)
+        (*_self).add_expression_export(ue_class, [input_prop])
+
+    pub fn add_normalize_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        let prop = (*_self).make_input_property("VectorInput", input, 0)
+        (*_self).add_expression_export("MaterialExpressionNormalize", [prop])
+
+    pub fn add_saturate_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionSaturate", input)
+
+    pub fn add_abs_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionAbs", input)
+
+    pub fn add_frac_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionFrac", input)
+
+    pub fn add_floor_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionFloor", input)
+
+    pub fn add_ceil_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionCeil", input)
+
+    pub fn add_round_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionRound", input)
+
+    pub fn add_sqrt_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionSquareRoot", input)
+
+    pub fn add_sine_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionSine", input)
+
+    pub fn add_cosine_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        (*_self).add_unary_op_node("MaterialExpressionCosine", input)
+
+    pub fn add_length_node(_self: &mut MaterialFunctionBuilder, input: usize) -> usize:
+        let prop = (*_self).make_input_property("Input", input, 0)
+        (*_self).add_expression_export("MaterialExpressionLength", [prop])
+
+    pub fn add_cross_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionCrossProduct", a, b)
+
+    pub fn add_min_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionMin", a, b)
+
+    pub fn add_max_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionMax", a, b)
+
+    pub fn add_distance_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionDistance", a, b)
+
+    pub fn add_append_node(_self: &mut MaterialFunctionBuilder, a: usize, b: usize) -> usize:
+        (*_self).add_binary_op_node("MaterialExpressionAppendVector", a, b)
+
+    pub fn add_clamp_node(_self: &mut MaterialFunctionBuilder, input: usize, min: usize, max: usize) -> usize:
+        let input_prop = (*_self).make_input_property("Input", input, 0)
+        let min_prop = (*_self).make_input_property("Min", min, 0)
+        let max_prop = (*_self).make_input_property("Max", max, 0)
+        (*_self).add_expression_export("MaterialExpressionClamp", [input_prop, min_prop, max_prop])
+
+    pub fn add_constant4_node(_self: &mut MaterialFunctionBuilder, r: f32, g: f32, b: f32, a: f32) -> usize:
+        let name = (*_self).asset.add_fname("Constant")
+        let struct_type = (*_self).asset.add_fname("LinearColor")
+        let color_struct = unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(struct_type), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: [(unreal_asset_properties::color_property::LinearColorProperty { name: Default__default_(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, color: Color__new_(ordered_float__OrderedFloat(r), ordered_float__OrderedFloat(g), ordered_float__OrderedFloat(b), ordered_float__OrderedFloat(a)) }).into()] }
+        (*_self).add_expression_export("MaterialExpressionConstant4Vector", [color_struct.into()])
+
+    pub fn add_time_node(_self: &mut MaterialFunctionBuilder) -> usize:
+        (*_self).add_expression_export("MaterialExpressionTime", Vec__new_())
+
+    pub fn add_texture_coordinate_node(_self: &mut MaterialFunctionBuilder, index: u32) -> usize:
+        let idx_name = (*_self).asset.add_fname("CoordinateIndex")
+        let props = [(unreal_asset_properties::int_property::IntProperty { name: idx_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: index as i32 }).into()]
+        (*_self).add_expression_export("MaterialExpressionTextureCoordinate", props)
+
+    pub fn add_component_mask_node(_self: &mut MaterialFunctionBuilder, input: usize, r: Bool, g: Bool, b: Bool, a: Bool) -> usize:
+        let input_prop = (*_self).make_input_property("Input", input, 0)
+        let r_name = (*_self).asset.add_fname("R")
+        let g_name = (*_self).asset.add_fname("G")
+        let b_name = (*_self).asset.add_fname("B")
+        let a_name = (*_self).asset.add_fname("A")
+        let props = [input_prop, (unreal_asset_properties::int_property::BoolProperty { name: r_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: r }).into(), (unreal_asset_properties::int_property::BoolProperty { name: g_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: g }).into(), (unreal_asset_properties::int_property::BoolProperty { name: b_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: b }).into(), (unreal_asset_properties::int_property::BoolProperty { name: a_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: a }).into()]
+        (*_self).add_expression_export("MaterialExpressionComponentMask", props)
+
+    pub fn build(_self: MaterialFunctionBuilder) -> Result<Array<u8>, String>:
+        _self.finalize_function_export()
+        ()
+        _self.asset.rebuild_name_map()
+        ()
+        let mut output = Cursor__new_(Vec__new_())
+        _self.asset.write_data(&mut output, none).map_err(fn(e): f"Failed to write .uasset: {e}")?
+        ()
+        Result::Ok(output.into_inner())
+
+    fn finalize_function_export(_self: &mut MaterialFunctionBuilder):
+        let mut func_props: Array<unreal_asset_properties::Property> = Vec__new_()
+        if (!(*_self).node_exports.is_empty()):
+            let expr_name = (*_self).asset.add_fname("FunctionExpressions")
+            let inner_type = (*_self).asset.add_fname("ObjectProperty")
+            let expr_values: Array<unreal_asset_properties::Property> = (*_self).node_exports.iter().map(fn(__kain_closure_arg0): (unreal_asset_properties::object_property::ObjectProperty { name: expr_name.clone(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: *__kain_closure_arg0 }).into()).collect()
+            let arr_prop = unreal_asset_properties::array_property::ArrayProperty { name: expr_name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, array_type: Option::Some(inner_type), value: expr_values, dummy_property: none }
+            func_props.push(arr_prop.into())
+            ()
+            ()
+            ()
+            ()
+        match (*_self).asset.asset_data.exports.first_mut():
+            Some(unreal_asset__exports__Export::NormalExport(mut normal)) =>
+                normal.properties = func_props
+                ()
+            _ => ()
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialFunction:
+    name: String
+    inputs: Array<MaterialFunctionInput>
+    nodes: Array<MaterialNode>
+    output: String
+    description: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialFunctionInput:
+    name: String
+    input_type: MaterialInputType
+    default_value: Option<String>
+
+@doc(doc = " Convert a MaterialFunction IR to .uasset bytes.")
+pub fn serialize_material_function(func: &MaterialFunction) -> Result<Array<u8>, String>:
+    let mut builder = MaterialFunctionBuilder__new_(&f"MF_{(*func).name}", KainEngineTarget__default_())
+    let mut node_map: Map<String, usize> = HashMap__new_()
+    for input in &(*func).inputs:
+        let node_id = builder.add_function_input(&input.name, input.input_type.clone())
+        node_map.insert(input.name.clone(), node_id)
+        ()
+    ()
+    for node in &(*func).nodes:
+        let builder_id = convert_function_node(&mut builder, &node.node_type, &node_map)?
+        node_map.insert(node.id.clone(), builder_id)
+        ()
+    ()
+    match node_map.get(&(*func).output):
+        Some(output_node_id) =>
+            builder.add_function_output(output_node_id)
+            ()
+            ()
+            ()
+            ()
+        _ => return Result::Err(f"Output node '{(*func).output}' not found")
+    builder.build()
+
+@doc(doc = " Convert a single MaterialNodeType into builder calls (for functions).")
+fn convert_function_node(builder: &mut MaterialFunctionBuilder, node_type: &MaterialNodeType, node_map: &Map<String, usize>) -> Result<usize, String>:
+    let resolve = fn(id: String) -> Result<usize, String>: node_map.get(id).copied().ok_or_else(fn(): f"Unknown node reference: '{id}'")
+    match node_type:
+        MaterialNodeType::ConstantFloat { value: value } => Result::Ok(builder.add_constant_node((*value)))
+        MaterialNodeType::ConstantVec3 { value: value } => Result::Ok(builder.add_constant3_node(value[0], value[1], value[2]))
+        MaterialNodeType::ConstantVector3 { value: value } => Result::Ok(builder.add_constant3_node(value[0], value[1], value[2]))
+        MaterialNodeType::ConstantVec4 { value: value } => Result::Ok(builder.add_constant4_node(value[0], value[1], value[2], value[3]))
+        MaterialNodeType::ConstantVector4 { value: value } => Result::Ok(builder.add_constant4_node(value[0], value[1], value[2], value[3]))
+        MaterialNodeType::Add { a: a, b: b } => Result::Ok(builder.add_add_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Subtract { a: a, b: b } => Result::Ok(builder.add_subtract_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Multiply { a: a, b: b } => Result::Ok(builder.add_multiply_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Divide { a: a, b: b } => Result::Ok(builder.add_divide_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Dot { a: a, b: b } => Result::Ok(builder.add_dot_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::DotProduct { a: a, b: b } => Result::Ok(builder.add_dot_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Cross { a: a, b: b } => Result::Ok(builder.add_cross_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Min { a: a, b: b } => Result::Ok(builder.add_min_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Max { a: a, b: b } => Result::Ok(builder.add_max_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Distance { a: a, b: b } => Result::Ok(builder.add_distance_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Append { a: a, b: b } => Result::Ok(builder.add_append_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::AppendVector { a: a, b: b } => Result::Ok(builder.add_append_node(resolve(a)?, resolve(b)?))
+        MaterialNodeType::Power { base: base, exponent: exponent } => Result::Ok(builder.add_power_node(resolve(base)?, resolve(exponent)?))
+        MaterialNodeType::Lerp { a: a, b: b, alpha: alpha } => Result::Ok(builder.add_lerp_node(resolve(a)?, resolve(b)?, resolve(alpha)?))
+        MaterialNodeType::Clamp { input: input, min: min, max: max } => Result::Ok(builder.add_clamp_node(resolve(input)?, resolve(min)?, resolve(max)?))
+        MaterialNodeType::Normalize { input: input } => Result::Ok(builder.add_normalize_node(resolve(input)?))
+        MaterialNodeType::Length { input: input } => Result::Ok(builder.add_length_node(resolve(input)?))
+        MaterialNodeType::Abs { input: input } => Result::Ok(builder.add_abs_node(resolve(input)?))
+        MaterialNodeType::Saturate { input: input } => Result::Ok(builder.add_saturate_node(resolve(input)?))
+        MaterialNodeType::Frac { input: input } => Result::Ok(builder.add_frac_node(resolve(input)?))
+        MaterialNodeType::Floor { input: input } => Result::Ok(builder.add_floor_node(resolve(input)?))
+        MaterialNodeType::Ceil { input: input } => Result::Ok(builder.add_ceil_node(resolve(input)?))
+        MaterialNodeType::Round { input: input } => Result::Ok(builder.add_round_node(resolve(input)?))
+        MaterialNodeType::Sqrt { input: input } => Result::Ok(builder.add_sqrt_node(resolve(input)?))
+        MaterialNodeType::Sine { input: input } => Result::Ok(builder.add_sine_node(resolve(input)?))
+        MaterialNodeType::Cosine { input: input } => Result::Ok(builder.add_cosine_node(resolve(input)?))
+        MaterialNodeType::Time => Result::Ok(builder.add_time_node())
+        MaterialNodeType::TextureCoordinate { index: index } => Result::Ok(builder.add_texture_coordinate_node((*index)))
+        MaterialNodeType::ComponentMask { input: input, mask: mask } =>
+            let node = resolve(input)?
+            let m = mask.to_lowercase()
+            Result::Ok(builder.add_component_mask_node(node, m.contains("r"), m.contains("g"), m.contains("b"), m.contains("a")))
+        _ =>
+            let node_desc = match node_type:
+                MaterialNodeType::ScalarParameter {  } => "ScalarParameter"
+                MaterialNodeType::VectorParameter {  } => "VectorParameter"
+                MaterialNodeType::TextureSampleParameter2D {  } => "TextureSampleParameter2D"
+                MaterialNodeType::CustomHLSL {  } => "CustomHLSL"
+                _ => "unknown node type"
+            Result::Err(f"Node type '{node_desc}' not yet supported in material functions")
+

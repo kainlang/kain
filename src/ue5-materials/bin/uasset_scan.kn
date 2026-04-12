@@ -1,0 +1,179 @@
+use std::collections::BTreeMap
+
+use std::collections::BTreeSet
+
+use std::env
+
+use std::fs
+
+use std::fs::File
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use unreal_asset::base::engine_version::EngineVersion
+
+use unreal_asset::base::reader::ArchiveTrait
+
+use unreal_asset::exports::ExportBaseTrait
+
+use unreal_asset::exports::ExportNormalTrait
+
+use unreal_asset::Asset
+
+use unreal_asset_properties::Property
+
+@derive(Default)
+struct ScanReport:
+    files_scanned: usize
+    parse_failures: usize
+    material_exports: usize
+    enum_values: Map<String, Set<String>>
+    expression_extras: Map<String, Set<usize>>
+    parse_error_samples: Array<String>
+
+impl Default for ScanReport:
+    pub fn default_() -> ScanReport:
+        ScanReport { files_scanned: 0, parse_failures: 0, material_exports: 0, enum_values: HashMap__new_(), expression_extras: HashMap__new_(), parse_error_samples: Vec__new_() }
+
+
+fn collect_uasset_files(root: &std::path::Path, out_: &mut Array<std::path::PathBuf>):
+    let entries = match std__fs__read_dir(root):
+        Ok(e) => e
+        Err(_) => return
+    for entry in entries.flatten():
+        let path = entry.path()
+        if path.is_dir():
+            collect_uasset_files(&path, out_)
+            ()
+        elif path.extension().and_then(fn(e): e.to_str()).map(fn(e): e.eq_ignore_ascii_case("uasset")).unwrap_or(false):
+            out_.push(path)
+            ()
+
+fn add_enum(report: &mut ScanReport, key: String, value: String):
+    (*report).enum_values.entry(key.to_string()).or_default().insert(value.to_string())
+    ()
+
+fn engine_versions_to_try() -> &static [unreal_asset::base::engine_version::EngineVersion]:
+    &[unreal_asset__base__engine_version__EngineVersion__VER_UE5_7, unreal_asset__base__engine_version__EngineVersion__VER_UE5_6, unreal_asset__base__engine_version__EngineVersion__VER_UE5_5, unreal_asset__base__engine_version__EngineVersion__VER_UE5_4, unreal_asset__base__engine_version__EngineVersion__VER_UE5_2]
+
+fn try_parse_asset(path: &std::path::Path) -> Result<unreal_asset::Asset<std::fs::File>, String>:
+    let mut errors = Vec__new_()
+    let uexp_path = path.with_extension("uexp")
+    let has_uexp = uexp_path.exists()
+    for engine_version in engine_versions_to_try():
+        if has_uexp:
+            let file = File__open(path).map_err(fn(e): f"open uasset failed: {e}")?
+            let uexp_file = File__open(&uexp_path).map_err(fn(e): f"open uexp failed: {e}")?
+            match Asset__new_(file, Option::Some(uexp_file), engine_version, none):
+                Ok(asset) => return Result::Ok(asset)
+                Err(e) =>
+                    errors.push(f"{engine_version} with .uexp: {e}")
+                    ()
+            ()
+        let file = File__open(path).map_err(fn(e): f"open uasset failed: {e}")?
+        match Asset__new_(file, none, engine_version, none):
+            Ok(asset) => return Result::Ok(asset)
+            Err(e) => errors.push(f"{engine_version} no .uexp: {e}")
+    ()
+    Result::Err(errors.join(" | "))
+
+fn scan_file(path: &std::path::Path, report: &mut ScanReport):
+    (*report).files_scanned = ((*report).files_scanned + 1)
+    ()
+    let asset = match try_parse_asset(path):
+        Ok(a) => a
+        Err(e) =>
+            (*report).parse_failures = ((*report).parse_failures + 1)
+            ()
+            if ((*report).parse_error_samples.len() < 8):
+                (*report).parse_error_samples.push(f"{path.display()} => {e}")
+                ()
+                ()
+                ()
+                ()
+            return
+    for export_ in &asset.asset_data.exports:
+        let base = export_.get_base_export()
+        let class_name = asset.get_object_name(base.class_index).map(fn(f): f.get_owned_content()).unwrap_or_default()
+        if class_name.contains("Material"):
+            (*report).material_exports = ((*report).material_exports + 1)
+            ()
+            ()
+            ()
+            ()
+        match export_.get_normal_export():
+            Some(normal) =>
+                if class_name.starts_with("MaterialExpression"):
+                    (*report).expression_extras.entry(class_name.clone()).or_default().insert(normal.extras.len())
+                    ()
+                    ()
+                    ()
+                    ()
+                for prop in &normal.properties:
+                    match prop:
+                        unreal_asset_properties__Property::EnumProperty(ep) =>
+                            let prop_name = ep.name.get_owned_content()
+                            let enum_type = ep.enum_type.map(fn(e): e.get_owned_content()).unwrap_or_else(fn(): ("<none>").to_string())
+                            let enum_value = ep.value.map(fn(e): e.get_owned_content()).unwrap_or_else(fn(): ("<none>").to_string())
+                            let key = f"{class_name}::{prop_name}"
+                            add_enum(report, &f"{key} (type={enum_type})", &enum_value)
+                            ()
+                        _ => ()
+            _ => ()
+
+fn print_report(title: String, report: &ScanReport):
+    println(f"\n=== {title} ===")
+    println(f"files_scanned     : {(*report).files_scanned}")
+    println(f"parse_failures    : {(*report).parse_failures}")
+    println(f"material_exports  : {(*report).material_exports}")
+    if (!(*report).parse_error_samples.is_empty()):
+        println("\n-- Parse error samples --")
+        for sample in &(*report).parse_error_samples:
+            println(sample)
+        ()
+        ()
+    println("\n-- Enum values --")
+    if (*report).enum_values.is_empty():
+        println("(none found)")
+        ()
+        ()
+    else:
+        for selfhost_for_item in &(*report).enum_values:
+            let (k, vals) = selfhost_for_item
+            let joined = vals.iter().cloned().collect().join(", ")
+            println(f"{k} => [{joined}]")
+        ()
+        ()
+    println("\n-- MaterialExpression extras lengths --")
+    if (*report).expression_extras.is_empty():
+        println("(none found)")
+    else:
+        for selfhost_for_item in &(*report).expression_extras:
+            let (k, vals) = selfhost_for_item
+            let joined = vals.iter().map(fn(v): v.to_string()).collect().join(", ")
+            println(f"{k} => [{joined}]")
+
+fn main():
+    let args = std__env__args().skip(1).collect()
+    if args.is_empty():
+        eprintln("Usage: cargo run -p ue5-materials --bin uasset_scan -- <ROOT_DIR> [ROOT_DIR ...]")
+        std__process__exit(2)
+        ()
+        ()
+        ()
+        ()
+    for root in args:
+        let root_path = PathBuf__from(&root)
+        let mut files = Vec__new_()
+        collect_uasset_files(&root_path, &mut files)
+        ()
+        let mut report = ScanReport__default_()
+        for file in files:
+            scan_file(&file, &mut report)
+            ()
+        ()
+        print_report(&root, &report)
+        ()
+

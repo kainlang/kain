@@ -1,0 +1,1407 @@
+use crate::dialects::furby_6502::ImportAsmOutput
+
+use crate::dialects::furby_6502::RecoveryIssue
+
+use crate::dialects::furby_6502::RecoveryReport
+
+use crate::dialects::furby_6502::RecoverySectionScore
+
+use crate::error::AsmError
+
+use crate::error::AsmResult
+
+use indexmap::IndexMap
+
+use kain_core::diagnostics::SpanMapper
+
+use kain_core::span::Span
+
+use kain_core::AsmBlock
+
+use kain_core::AsmDataTable
+
+use kain_core::AsmDirective
+
+use kain_core::AsmInstr
+
+use kain_core::AsmProgram
+
+use kain_core::ParityTraceFrame
+
+use kain_core::TranslitUnit
+
+use petgraph::graphmap::DiGraphMap
+
+use rayon::prelude::*
+
+use schemars::JsonSchema
+
+use serde::Serialize
+
+use smallvec::SmallVec
+
+use std::collections::BTreeMap
+
+use std::collections::HashSet
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use tracing::debug
+
+use tracing::info
+
+const SUPPORTED_FORMATS: Array<String> = ["z80", "z80-arcade", "z80-spectrum", "z80-msx"]
+
+const MAX_EXPAND_DEPTH: usize = 16
+
+@derive(Clone)
+struct SourceLine:
+    text: String
+    file: String
+    line_: usize
+
+@derive(Clone)
+struct CanonLine:
+    text: String
+    file: String
+    line_: usize
+    canon: usize
+
+@derive(Clone)
+struct MacroDef:
+    body: Array<CanonLine>
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct SourceProvenance:
+    kind: String
+    symbol: String
+    source_file: String
+    source_line_start: usize
+    source_line_end: usize
+    canonical_line_start: usize
+    canonical_line_end: usize
+
+@derive(serde__Serialize)
+struct Z80Map:
+    translit_units: Array<kain_core::TranslitUnit>
+    parity_trace_schema: kain_core::ParityTraceFrame
+    source_provenance: Array<SourceProvenance>
+    rom_model_path: String
+    parity_harness_path: String
+    diagnostics_path: String
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct RomSection:
+    name: String
+    start: u16
+    end: u16
+    bytes: usize
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct Z80RomModel:
+    sections: Array<RomSection>
+    total_bytes: usize
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct ParityCheckpoint:
+    tick: u64
+    label: String
+    source_line: usize
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct Z80ParityHarness:
+    checkpoints: Array<ParityCheckpoint>
+    graph_nodes: usize
+    graph_edges: usize
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct AsmDiagnostic:
+    severity: String
+    code: String
+    message: String
+    canonical_line: usize
+    canonical_col: usize
+    canonical_snippet: String
+    source_file: String
+    source_line: usize
+
+@derive(Clone, serde__Serialize, schemars__JsonSchema)
+struct Z80Diagnostics:
+    diagnostics: Array<AsmDiagnostic>
+
+pub fn import_asm(input: &std::path::Path, format: String, out_kn: Option<&std::path::Path>, validate_only: Bool) -> AsmResult<ImportAsmOutput>:
+    let _ = tracing_subscriber__fmt__try_init()
+    let normalized = format.trim().to_ascii_lowercase()
+    if (!SUPPORTED_FORMATS.iter().any(fn(v): ((*v) == normalized))):
+        return Result::Err(AsmError__runtime("Unsupported asm format '{format}'. Supported: {SUPPORTED_FORMATS.join(\", \")}"))
+    info!("kain-asm import start: format={}, input={}", normalized, input.display())
+    let raw = load_asm_with_includes(input)?
+    let canonical = canonicalize_asm(&raw)
+    let canonical_text = canonical.iter().map(fn(l): l.text.as_str()).collect().join("\n")
+    let expanded = expand_z80_semantics(&canonical)
+    let expanded_text = expanded.iter().map(fn(l): l.text.as_str()).collect().join("\n")
+    let (parsed, provenance) = parse_asm_program(&expanded)
+    let translit_units = build_translit_units(&parsed)
+    let report = build_recovery_report(input, &expanded, &parsed)
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let root = if cwd.join("crates").is_dir():
+        cwd.clone()
+    elif cwd.join("Kain").join("crates").is_dir():
+        cwd.join("Kain")
+    else:
+        cwd
+    let research_dir = root.join("Research").join("z80")
+    let generated_dir = root.join("generated")
+    std__fs__create_dir_all(&research_dir).map_err(AsmError__Io)?
+    ()
+    std__fs__create_dir_all(&generated_dir).map_err(AsmError__Io)?
+    ()
+    let canonical_asm_path = research_dir.join("z80_canonical.asm")
+    let generated_kn_path = out_kn.map(Path__to_path_buf).unwrap_or_else(fn(): generated_dir.join("z80_firmware.kn"))
+    let map_json_path = generated_kn_path.parent().unwrap_or(&generated_dir).join("z80_map.json")
+    let report_json_path = research_dir.join("z80_recovery_report.json")
+    let rom_model_path = map_json_path.with_file_name("z80_rom_model.json")
+    let parity_harness_path = map_json_path.with_file_name("z80_parity_harness.json")
+    let diagnostics_path = map_json_path.with_file_name("z80_diagnostics.json")
+    let rom_model = build_rom_model(&expanded, &parsed)
+    let parity_harness = build_parity_harness(&parsed)
+    let diagnostics = build_diagnostics(&expanded, &expanded_text, &report)
+    debug!("import stages done: canonical_lines={}, expanded_lines={}, blocks={}", canonical.len(), expanded.len(), parsed.blocks.len())
+    if (!validate_only):
+        std__fs__write(&canonical_asm_path, canonical_text).map_err(AsmError__Io)?
+        ()
+        std__fs__write(&generated_kn_path, render_kain_firmware(&parsed, &translit_units)).map_err(AsmError__Io)?
+        ()
+        let map = Z80Map { translit_units: translit_units.clone(), parity_trace_schema: default_parity_trace_schema(), source_provenance: provenance, rom_model_path: rom_model_path.display().to_string(), parity_harness_path: parity_harness_path.display().to_string(), diagnostics_path: diagnostics_path.display().to_string() }
+        let map_json = serde_json__to_string_pretty(&map).map_err(fn(e): AsmError__runtime(f"Failed to serialize z80 map: {e}"))?
+        std__fs__write(&map_json_path, map_json).map_err(AsmError__Io)?
+        ()
+        let rom_json = serde_json__to_string_pretty(&rom_model).map_err(fn(e): AsmError__runtime(f"Failed to serialize rom model: {e}"))?
+        std__fs__write(&rom_model_path, rom_json).map_err(AsmError__Io)?
+        ()
+        let parity_json = serde_json__to_string_pretty(&parity_harness).map_err(fn(e): AsmError__runtime(f"Failed to serialize parity harness: {e}"))?
+        std__fs__write(&parity_harness_path, parity_json).map_err(AsmError__Io)?
+        ()
+        let diagnostics_json = serde_json__to_string_pretty(&diagnostics).map_err(fn(e): AsmError__runtime(f"Failed to serialize diagnostics: {e}"))?
+        std__fs__write(&diagnostics_path, diagnostics_json).map_err(AsmError__Io)?
+        ()
+        ()
+        ()
+        ()
+    let report_json = serde_json__to_string_pretty(&report).map_err(fn(e): AsmError__runtime(f"Failed to serialize z80 recovery report: {e}"))?
+    std__fs__write(&report_json_path, report_json).map_err(AsmError__Io)?
+    ()
+    Result::Ok(ImportAsmOutput { canonical_asm_path: canonical_asm_path, generated_kn_path: generated_kn_path, map_json_path: map_json_path, report_json_path: report_json_path, parsed: parsed, translit_units: translit_units })
+
+fn load_asm_with_includes(entry: &std::path::Path) -> AsmResult<Array<SourceLine>>:
+    fn walk(path: &std::path::Path, stack: &mut Set<std::path::PathBuf>, out_: &mut Array<SourceLine>) -> AsmResult<()>:
+        let canonical = std__fs__canonicalize(path).or_else(fn(_): Result::Ok(path.to_path_buf())).map_err(AsmError__Io)?
+        if (!stack.insert(canonical.clone())):
+            return Result::Err(AsmError__runtime(f"Detected recursive include loop at {canonical.display()}"))
+        let content = std__fs__read_to_string(&canonical).map_err(AsmError__Io)?
+        let dir = canonical.parent().map(Path__to_path_buf).unwrap_or_else(fn(): PathBuf__from("."))
+        let file = canonical.display().to_string()
+        for selfhost_for_item in content.lines().enumerate():
+            let (idx, line_) = selfhost_for_item
+            let ln = (idx + 1)
+            match parse_include_path(line_):
+                Some(inc) =>
+                    let inc_path = dir.join(inc)
+                    if inc_path.exists():
+                        walk(&inc_path, stack, out_)?
+                        ()
+                        continue
+                    ()
+                _ =>
+                    ()
+                    ()
+            out_.push(SourceLine { text: line_.to_string(), file: file.clone(), line_: ln })
+            ()
+        ()
+        stack.remove(&canonical)
+        ()
+        Result::Ok(())
+
+    let mut out_ = Vec__new_()
+    let mut stack = HashSet__new_()
+    walk(entry, &mut stack, &mut out_)?
+    ()
+    Result::Ok(out_)
+
+fn parse_include_path(line_: String) -> Option<String>:
+    let code = strip_comment(line_).trim()
+    if (!code.to_ascii_uppercase().starts_with("INCLUDE ")):
+        return none
+    let i0 = code.find("\"")?
+    let rest = &code[(i0 + 1)..]
+    let i1 = rest.find("\"")?
+    Option::Some(rest[..i1].to_string())
+
+fn canonicalize_asm(raw: &[SourceLine]) -> Array<CanonLine>:
+    let mut out_ = Vec__new_()
+    for line_ in raw:
+        let trimmed = line_.text.replace("\u{feff}", "").trim().to_string()
+        if trimmed.is_empty():
+            continue
+        let squashed = trimmed.chars().map(fn(c): if (c.is_ascii() && (!c.is_control())): c else: " ").collect().split_whitespace().collect().join(" ")
+        if squashed.is_empty():
+            continue
+        out_.push(CanonLine { text: squashed, file: line_.file.clone(), line_: line_.line_, canon: (out_.len() + 1) })
+        ()
+    ()
+    out_
+
+fn expand_z80_semantics(lines: &[CanonLine]) -> Array<CanonLine>:
+    let mut out_ = Vec__new_()
+    let mut macros = IndexMap__new_()
+    let mut symbols = IndexMap__new_()
+    let mut stack = Vec__new_()
+    let mut macro_invoke_counter = 0
+    let mut active = true
+    let mut i = 0
+    while (i < lines.len()):
+        let line_ = lines[i].clone()
+        let text = strip_comment(&line_.text).trim().to_string()
+        if text.is_empty():
+            i = (i + 1)
+            ()
+            continue
+        match parse_macro_definition(lines, i):
+            Some((name, consumed)) =>
+                if active:
+                    macros.insert(name.to_ascii_uppercase(), MacroDef { body: lines[((i + 1))..(((i + consumed) - 1))].to_vec() })
+                    ()
+                    ()
+                    ()
+                    ()
+                i = (i + consumed)
+                ()
+                continue
+            _ =>
+                ()
+                ()
+        let token = text.split_whitespace().next().unwrap_or("").to_ascii_uppercase()
+        if (token == "IF"):
+            let cond = if active:
+                eval_cond(text[2..].trim(), &symbols)
+            else:
+                false
+            stack.push((active, cond))
+            ()
+            active = (active && cond)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if (token == "ELSE"):
+            match stack.last().copied():
+                Some((parent, cond)) =>
+                    active = (parent && (!cond))
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            i = (i + 1)
+            ()
+            continue
+        if (token == "ENDIF"):
+            match stack.pop():
+                Some((parent, _)) =>
+                    active = parent
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            i = (i + 1)
+            ()
+            continue
+        if (token == "REPT"):
+            match parse_rept_block(lines, i, &symbols):
+                Some((repeat_count, consumed)) =>
+                    if active:
+                        let body = &lines[((i + 1))..(((i + consumed) - 1))]
+                        for _ in range(0, repeat_count):
+                            for entry in body:
+                                out_.extend(expand_macro_call(entry, &macros, 0, &mut macro_invoke_counter))
+                                ()
+                        ()
+                        ()
+                    i = (i + consumed)
+                    ()
+                    continue
+                _ =>
+                    ()
+                    ()
+            ()
+        if (!active):
+            i = (i + 1)
+            ()
+            continue
+        match parse_symbol_assignment(&text, &symbols):
+            Some((name, value)) =>
+                symbols.insert(name.to_ascii_uppercase(), value)
+                ()
+                out_.push(line_)
+                ()
+                i = (i + 1)
+                ()
+                continue
+            _ =>
+                ()
+                ()
+        out_.extend(expand_macro_call(&line_, &macros, 0, &mut macro_invoke_counter))
+        ()
+        i = (i + 1)
+        ()
+    ()
+    out_
+
+fn parse_rept_block(lines: &[CanonLine], start: usize, symbols: &Map<String, i64>) -> Option<(usize, usize)>:
+    let head = strip_comment(&lines[start].text).trim()
+    let mut parts = head.split_whitespace()
+    if (!(parts.next()?).eq_ignore_ascii_case("REPT")):
+        return none
+    let count_expr = parts.collect().join(" ")
+    let repeat_count = (eval_expr_i64(count_expr.trim(), symbols)?).max(0) as usize
+    let mut depth = 0
+    let mut idx = (start + 1)
+    while (idx < lines.len()):
+        let token = strip_comment(&lines[idx].text).trim().split_whitespace().next().unwrap_or("").to_ascii_uppercase()
+        if (token == "REPT"):
+            depth = (depth + 1)
+            ()
+            ()
+            ()
+            ()
+        elif (token == "ENDR"):
+            if (depth == 0):
+                return Option::Some((repeat_count, ((idx - start) + 1)))
+            depth = (depth - 1)
+            ()
+            ()
+            ()
+            ()
+        idx = (idx + 1)
+        ()
+    ()
+    none
+
+fn parse_macro_definition(lines: &[CanonLine], start: usize) -> Option<(String, usize)>:
+    let head = strip_comment(&lines[start].text).trim()
+    let name = match head.split_once(":"):
+        Some((left, right)) => if right.trim().eq_ignore_ascii_case("MACRO"): left.trim().to_string() else: String__new_()
+        _ =>
+            let mut p = head.split_whitespace()
+            if (p.next()?).eq_ignore_ascii_case("MACRO"):
+                p.next().unwrap_or("").to_string()
+            else:
+                String__new_()
+    if name.is_empty():
+        return none
+    let mut idx = (start + 1)
+    while (idx < lines.len()):
+        if strip_comment(&lines[idx].text).trim().eq_ignore_ascii_case("ENDM"):
+            return Option::Some((name, ((idx - start) + 1)))
+        idx = (idx + 1)
+        ()
+    ()
+    none
+
+fn parse_symbol_assignment(text: String, symbols: &Map<String, i64>) -> Option<(String, i64)>:
+    match text.split_once(" EQU ").or_else(fn(): text.split_once(" equ ")):
+        Some((left, right)) => return Option::Some((left.trim().to_string(), eval_expr_i64(right.trim(), symbols)?))
+        _ =>
+            ()
+            ()
+    let mut p = text.split_whitespace()
+    let k = p.next()?
+    let op = (p.next()?).to_ascii_uppercase()
+    if ((op == "EQU") || (op == "DEF")):
+        return Option::Some((k.to_string(), eval_expr_i64(p.collect().join(" ").trim(), symbols)?))
+    none
+
+fn eval_cond(expr: String, symbols: &Map<String, i64>) -> Bool:
+    (eval_expr_i64(expr, symbols).unwrap_or(0) != 0)
+
+fn parse_num(v: String) -> Option<i64>:
+    let t = v.trim()
+    match t.strip_suffix("H").or_else(fn(): t.strip_suffix("h")):
+        Some(h) => return i64__from_str_radix(h, 16).ok()
+        _ =>
+            ()
+            ()
+    match t.strip_prefix("0x").or_else(fn(): t.strip_prefix("0X")):
+        Some(h) => return i64__from_str_radix(h, 16).ok()
+        _ =>
+            ()
+            ()
+    match t.strip_prefix("$"):
+        Some(h) => return i64__from_str_radix(h, 16).ok()
+        _ =>
+            ()
+            ()
+    match t.strip_suffix("B").or_else(fn(): t.strip_suffix("b")):
+        Some(b) => return i64__from_str_radix(b, 2).ok()
+        _ =>
+            ()
+            ()
+    match t.strip_prefix("%"):
+        Some(b) => return i64__from_str_radix(b, 2).ok()
+        _ =>
+            ()
+            ()
+    t.parse().ok()
+
+enum ExprTok:
+    Num(i64)
+    Ident(String)
+    LParen
+    RParen
+    Comma
+    OrOr
+    AndAnd
+    EqEq
+    NotEq
+    Lt
+    Lte
+    Gt
+    Gte
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Bang
+    End
+
+fn eval_expr_i64(expr: String, symbols: &Map<String, i64>) -> Option<i64>:
+    let toks = tokenize_expr(expr)?
+    let mut p = ExprParser { toks: toks, idx: 0, symbols: symbols }
+    let value = p.parse_or()?
+    if (p.peek() != &ExprTok__End):
+        return none
+    Option::Some(value)
+
+fn tokenize_expr(expr: String) -> Option<Array<ExprTok>>:
+    let mut out_ = SmallVec__new_()
+    let bytes = expr.as_bytes()
+    let mut i = 0
+    while (i < bytes.len()):
+        let c = bytes[i] as Char
+        if c.is_ascii_whitespace():
+            i = (i + 1)
+            ()
+            continue
+        if (c == "$"):
+            let start = (i + 1)
+            let mut j = start
+            while ((j < bytes.len()) && (bytes[j] as Char).is_ascii_hexdigit()):
+                j = (j + 1)
+                ()
+            ()
+            if (j == start):
+                return none
+            out_.push(ExprTok::Num(i64__from_str_radix(&expr[start..j], 16).ok()?))
+            ()
+            i = j
+            ()
+            continue
+        if (c == "%"):
+            let start = (i + 1)
+            let mut j = start
+            while ((j < bytes.len()) && none):
+                j = (j + 1)
+                ()
+            ()
+            if (j > start):
+                out_.push(ExprTok::Num(i64__from_str_radix(&expr[start..j], 2).ok()?))
+                ()
+                i = j
+                ()
+                ()
+                ()
+                ()
+            else:
+                out_.push(ExprTok__Percent)
+                ()
+                i = (i + 1)
+                ()
+                ()
+                ()
+                ()
+            continue
+        if c.is_ascii_digit():
+            let start = i
+            let mut j = i
+            while ((j < bytes.len()) && (bytes[j] as Char).is_ascii_alphanumeric()):
+                j = (j + 1)
+                ()
+            ()
+            out_.push(ExprTok::Num(parse_num(&expr[start..j])?))
+            ()
+            i = j
+            ()
+            continue
+        if ((c.is_ascii_alphabetic() || (c == "_")) || (c == ".")):
+            let start = i
+            let mut j = i
+            while (j < bytes.len()):
+                let ch = bytes[j] as Char
+                if ((ch.is_ascii_alphanumeric() || (ch == "_")) || (ch == ".")):
+                    j = (j + 1)
+                    ()
+                else:
+                    break
+            ()
+            out_.push(ExprTok::Ident(expr[start..j].to_ascii_uppercase()))
+            ()
+            i = j
+            ()
+            continue
+        let two = if ((i + 1) < bytes.len()):
+            Option::Some(&expr[i..(i + 2)])
+        else:
+            none
+        match two:
+            Some(op) =>
+                match op:
+                    "||" =>
+                        out_.push(ExprTok__OrOr)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    "&&" =>
+                        out_.push(ExprTok__AndAnd)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    "==" =>
+                        out_.push(ExprTok__EqEq)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    "!=" =>
+                        out_.push(ExprTok__NotEq)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    "<=" =>
+                        out_.push(ExprTok__Lte)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    ">=" =>
+                        out_.push(ExprTok__Gte)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    _ => ()
+                ()
+            _ =>
+                ()
+                ()
+        match c:
+            "(" =>
+                out_.push(ExprTok__LParen)
+                ()
+            ")" =>
+                out_.push(ExprTok__RParen)
+                ()
+            "," =>
+                out_.push(ExprTok__Comma)
+                ()
+            "<" =>
+                out_.push(ExprTok__Lt)
+                ()
+            ">" =>
+                out_.push(ExprTok__Gt)
+                ()
+            "+" =>
+                out_.push(ExprTok__Plus)
+                ()
+            "-" =>
+                out_.push(ExprTok__Minus)
+                ()
+            "*" =>
+                out_.push(ExprTok__Star)
+                ()
+            "/" =>
+                out_.push(ExprTok__Slash)
+                ()
+            "!" =>
+                out_.push(ExprTok__Bang)
+                ()
+            _ => return none
+        i = (i + 1)
+        ()
+    ()
+    out_.push(ExprTok__End)
+    ()
+    Option::Some(out_.into_vec())
+
+struct ExprParser<a>:
+    toks: Array<ExprTok>
+    idx: usize
+    symbols: &a Map<String, i64>
+
+impl<a> ExprParser<a>:
+    fn peek(_self: &ExprParser<a>) -> &ExprTok:
+        &(*_self).toks[(*_self).idx]
+
+    fn eat(_self: &mut ExprParser<a>) -> ExprTok:
+        let t = (*_self).toks[(*_self).idx].clone()
+        (*_self).idx = ((*_self).idx + 1)
+        ()
+        t
+
+    fn expect(_self: &mut ExprParser<a>, tok: ExprTok) -> Option<()>:
+        if ((*_self).peek() == &tok):
+            (*_self).eat()
+            ()
+            Option::Some(())
+        else:
+            none
+
+    fn parse_or(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_and()?
+        while ((*_self).peek() == &ExprTok__OrOr):
+            (*_self).eat()
+            ()
+            let rhs = (*_self).parse_and()?
+            lhs = if ((lhs != 0) || (rhs != 0)): 1 else: 0
+            ()
+        ()
+        Option::Some(lhs)
+
+    fn parse_and(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_eq()?
+        while ((*_self).peek() == &ExprTok__AndAnd):
+            (*_self).eat()
+            ()
+            let rhs = (*_self).parse_eq()?
+            lhs = if ((lhs != 0) && (rhs != 0)): 1 else: 0
+            ()
+        ()
+        Option::Some(lhs)
+
+    fn parse_eq(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_rel()?
+        loop:
+            match (*_self).peek():
+                ExprTok::EqEq =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_rel()?
+                    lhs = if (lhs == rhs): 1 else: 0
+                    ()
+                ExprTok::NotEq =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_rel()?
+                    lhs = if (lhs != rhs): 1 else: 0
+                    ()
+                _ => break
+        ()
+        Option::Some(lhs)
+
+    fn parse_rel(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_add()?
+        loop:
+            match (*_self).peek():
+                ExprTok::Lt =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_add()?
+                    lhs = if (lhs < rhs): 1 else: 0
+                    ()
+                ExprTok::Lte =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_add()?
+                    lhs = if (lhs <= rhs): 1 else: 0
+                    ()
+                ExprTok::Gt =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_add()?
+                    lhs = if (lhs > rhs): 1 else: 0
+                    ()
+                ExprTok::Gte =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_add()?
+                    lhs = if (lhs >= rhs): 1 else: 0
+                    ()
+                _ => break
+        ()
+        Option::Some(lhs)
+
+    fn parse_add(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_mul()?
+        loop:
+            match (*_self).peek():
+                ExprTok::Plus =>
+                    (*_self).eat()
+                    ()
+                    lhs = (lhs + (*_self).parse_mul()?)
+                    ()
+                ExprTok::Minus =>
+                    (*_self).eat()
+                    ()
+                    lhs = (lhs - (*_self).parse_mul()?)
+                    ()
+                _ => break
+        ()
+        Option::Some(lhs)
+
+    fn parse_mul(_self: &mut ExprParser<a>) -> Option<i64>:
+        let mut lhs = (*_self).parse_unary()?
+        loop:
+            match (*_self).peek():
+                ExprTok::Star =>
+                    (*_self).eat()
+                    ()
+                    lhs = (lhs * (*_self).parse_unary()?)
+                    ()
+                ExprTok::Slash =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_unary()?
+                    if (rhs == 0):
+                        return none
+                    lhs = (lhs / rhs)
+                    ()
+                ExprTok::Percent =>
+                    (*_self).eat()
+                    ()
+                    let rhs = (*_self).parse_unary()?
+                    if (rhs == 0):
+                        return none
+                    lhs = (lhs % rhs)
+                    ()
+                _ => break
+        ()
+        Option::Some(lhs)
+
+    fn parse_unary(_self: &mut ExprParser<a>) -> Option<i64>:
+        match (*_self).peek():
+            ExprTok::Bang =>
+                (*_self).eat()
+                ()
+                Option::Some(if ((*_self).parse_unary()? == 0): 1 else: 0)
+            ExprTok::Minus =>
+                (*_self).eat()
+                ()
+                Option::Some((-(*_self).parse_unary()?))
+            ExprTok::Plus =>
+                (*_self).eat()
+                ()
+                (*_self).parse_unary()
+            _ => (*_self).parse_primary()
+
+    fn parse_primary(_self: &mut ExprParser<a>) -> Option<i64>:
+        match (*_self).eat():
+            ExprTok::Num(n) => Option::Some(n)
+            ExprTok::Ident(name) =>
+                if (name == "TRUE"):
+                    return Option::Some(1)
+                if (name == "FALSE"):
+                    return Option::Some(0)
+                if ((name == "DEF") || (name == "DEFINED")):
+                    (*_self).expect(ExprTok__LParen)?
+                    ()
+                    let symbol = match (*_self).eat():
+                        ExprTok::Ident(s) => s
+                        _ => return none
+                    (*_self).expect(ExprTok__RParen)?
+                    ()
+                    return Option::Some(if (*_self).symbols.contains_key(&symbol): 1 else: 0)
+                Option::Some((*_self).symbols.get(&name).copied().unwrap_or(0))
+            ExprTok::LParen =>
+                let v = (*_self).parse_or()?
+                (*_self).expect(ExprTok__RParen)?
+                ()
+                Option::Some(v)
+            _ => none
+
+
+fn expand_macro_call(line_: &CanonLine, macros: &Map<String, MacroDef>, depth: usize, macro_invoke_counter: &mut u64) -> Array<CanonLine>:
+    if (depth >= MAX_EXPAND_DEPTH):
+        return [line_.clone()]
+    let text = strip_comment(&line_.text).trim().to_string()
+    let mut p = text.split_whitespace()
+    let name = p.next().unwrap_or("")
+    if name.ends_with(":"):
+        return [line_.clone()]
+    let Some(def) = macros.get(&name.to_ascii_uppercase())
+    (*macro_invoke_counter) = ((*macro_invoke_counter) + 1)
+    ()
+    let macro_id = (*macro_invoke_counter)
+    let local_prefix = f"__m{macro_id}_{name.to_ascii_lowercase()}"
+    let args = text[name.len()..].trim().split(",").map(str__trim).filter(fn(v): (!v.is_empty())).map(str__to_string).collect()
+    let mut out_ = Vec__new_()
+    for l in &def.body:
+        let mut t = l.text.clone()
+        for i in range(0, args.len()):
+            t = t.replace(&f"\\{(i + 1)}", &args[i])
+            ()
+        ()
+        t = t.replace("\\@", &macro_id.to_string())
+        ()
+        t = rewrite_local_macro_labels(&t, &local_prefix)
+        ()
+        let nested = expand_macro_call(&CanonLine { text: t, file: l.file.clone(), line_: l.line_, canon: l.canon }, macros, (depth + 1), macro_invoke_counter)
+        out_.extend(nested)
+        ()
+    ()
+    out_
+
+fn rewrite_local_macro_labels(text: String, prefix: String) -> String:
+    let mut out_ = String__new_()
+    let chars = text.chars().collect()
+    let mut i = 0
+    while (i < chars.len()):
+        let c = chars[i]
+        if (c == "."):
+            let prev = if (i == 0):
+                " "
+            else:
+                chars[(i - 1)]
+            if (!(((prev.is_ascii_alphanumeric() || (prev == "_")) || (prev == ".")))):
+                let mut j = (i + 1)
+                while ((j < chars.len()) && ((chars[j].is_ascii_alphanumeric() || (chars[j] == "_")))):
+                    j = (j + 1)
+                    ()
+                ()
+                if (j > (i + 1)):
+                    out_.push_str(prefix)
+                    ()
+                    out_.push("_")
+                    ()
+                    out_.extend(chars[((i + 1))..j].iter())
+                    ()
+                    i = j
+                    ()
+                    continue
+                ()
+            ()
+        out_.push(c)
+        ()
+        i = (i + 1)
+        ()
+    ()
+    out_
+
+fn parse_asm_program(lines: &[CanonLine]) -> (kain_core::AsmProgram, Array<SourceProvenance>):
+    let mut blocks = Vec__new_()
+    let mut directives = Vec__new_()
+    let mut data_tables = Vec__new_()
+    let mut provenance = Vec__new_()
+    let mut cur_label = String__new_()
+    let mut cur_instrs = Vec__new_()
+    let mut cur_start = 1
+    let mut cur_file = String__new_()
+    let mut cur_src_start = 1
+    let mut cur_src_end = 1
+    let flush = fn(end_line: usize, blocks: &mut Array<kain_core::AsmBlock>, provenance: &mut Array<SourceProvenance>, cur_label: String, cur_instrs: &mut Array<kain_core::AsmInstr>, cur_start: usize, cur_file: String, cur_src_start: usize, cur_src_end: usize): none
+    for l in lines:
+        let text = strip_comment(&l.text).trim()
+        if text.is_empty():
+            continue
+        if is_label_line(text):
+            flush(l.canon.saturating_sub(1), &mut blocks, &mut provenance, &mut cur_label, &mut cur_instrs, cur_start, &cur_file, cur_src_start, cur_src_end)
+            ()
+            cur_label = normalize_label(text)
+            ()
+            cur_start = l.canon
+            ()
+            cur_file = l.file.clone()
+            ()
+            cur_src_start = l.line_
+            ()
+            cur_src_end = l.line_
+            ()
+            continue
+        if is_directive_line(text):
+            let sym = text.split_whitespace().next().unwrap_or(text).to_string()
+            directives.push(kain_core::AsmDirective { name: text.to_string(), args: Vec__new_(), source_line: l.canon })
+            ()
+            provenance.push(SourceProvenance { kind: ("directive").to_string(), symbol: sym, source_file: l.file.clone(), source_line_start: l.line_, source_line_end: l.line_, canonical_line_start: l.canon, canonical_line_end: l.canon })
+            ()
+            continue
+        match parse_data_line(text):
+            Some((label, bytes)) =>
+                data_tables.push(kain_core::AsmDataTable { label: label.clone(), bytes: bytes, source_line_start: l.canon, source_line_end: l.canon })
+                ()
+                provenance.push(SourceProvenance { kind: ("data_table").to_string(), symbol: label, source_file: l.file.clone(), source_line_start: l.line_, source_line_end: l.line_, canonical_line_start: l.canon, canonical_line_end: l.canon })
+                ()
+                continue
+            _ =>
+                ()
+                ()
+        if cur_label.is_empty():
+            cur_label = f"z80_entry_{l.canon}"
+            ()
+            cur_start = l.canon
+            ()
+            cur_file = l.file.clone()
+            ()
+            cur_src_start = l.line_
+            ()
+            cur_src_end = l.line_
+            ()
+            ()
+            ()
+            ()
+        match parse_instruction(text, l.canon):
+            Some(instr) =>
+                cur_src_end = l.line_
+                ()
+                cur_instrs.push(instr)
+                ()
+            _ => ()
+    ()
+    flush(lines.len(), &mut blocks, &mut provenance, &mut cur_label, &mut cur_instrs, cur_start, &cur_file, cur_src_start, cur_src_end)
+    ()
+    (kain_core::AsmProgram { blocks: blocks, directives: directives, data_tables: data_tables }, provenance)
+
+fn strip_comment(line_: String) -> String:
+    line_.split_once(";").map(fn(__kain_closure_arg0): __kain_closure_arg0.__kain_tuple_0).unwrap_or(line_)
+
+fn normalize_label(label: String) -> String:
+    label.trim().trim_end_matches(":").to_string()
+
+fn is_label_line(line_: String) -> Bool:
+    let t = line_.trim()
+    if t.ends_with(":"):
+        let n = t.trim_end_matches(":")
+        return ((!n.is_empty()) && n.chars().all(fn(c): ((c.is_ascii_alphanumeric() || (c == "_")) || (c == "."))))
+    false
+
+fn is_directive_line(line_: String) -> Bool:
+    let code = strip_comment(line_).trim()
+    if code.is_empty():
+        return false
+    let upper = code.to_ascii_uppercase()
+    if upper.contains(" EQU "):
+        return true
+    let t = upper.split_whitespace().next().unwrap_or("")
+    match t:
+        "ORG" => true
+        "INCLUDE" => true
+        "MACRO" => true
+        "ENDM" => true
+        "REPT" => true
+        "ENDR" => true
+        "DEF" => true
+        "DS" => true
+        "DEFS" => true
+        _ => false
+
+fn parse_data_line(line_: String) -> Option<(String, Array<String>)>:
+    let upper = line_.to_ascii_uppercase()
+    let marker = if (upper.contains(" DB ") || upper.starts_with("DB ")):
+        "DB"
+    elif (upper.contains(" DW ") || upper.starts_with("DW ")):
+        "DW"
+    elif (upper.contains(" DEFB ") || upper.starts_with("DEFB ")):
+        "DEFB"
+    elif (upper.contains(" DEFW ") || upper.starts_with("DEFW ")):
+        "DEFW"
+    else:
+        return none
+    let pos = upper.find(&f" {marker} ").map(fn(p): (p + 1)).unwrap_or(0)
+    let left = line_[..pos].trim()
+    let right = line_[(pos + marker.len())..].trim()
+    let label = if left.is_empty():
+        ("__anonymous_table").to_string()
+    else:
+        normalize_label(left)
+    let values = right.split(fn(c: Char): ((c == ",") || c.is_ascii_whitespace())).map(str__trim).filter(fn(v): (!v.is_empty())).map(str__to_string).collect()
+    if values.is_empty():
+        none
+    else:
+        Option::Some((label, values))
+
+fn parse_instruction(line_: String, source_line: usize) -> Option<kain_core::AsmInstr>:
+    let mut parts = line_.split_whitespace()
+    let opcode = (parts.next()?).to_ascii_uppercase()
+    if (!is_opcode_keyword(&opcode)):
+        return none
+    let operand = parts.collect().join(" ")
+    Option::Some(kain_core::AsmInstr { opcode: opcode, operand: if operand.is_empty(): none else: Option::Some(operand), source_line: source_line })
+
+fn build_translit_units(program: &kain_core::AsmProgram) -> Array<kain_core::TranslitUnit>:
+    (*program).blocks.par_iter().map(fn(b): kain_core::TranslitUnit { source_label: b.label.clone(), target_item: f"z80_{normalize_identifier(&b.label)}", source_line_start: b.source_line_start, source_line_end: b.source_line_end }).collect()
+
+fn normalize_identifier(label: String) -> String:
+    let mut out_ = String__new_()
+    for c in label.chars():
+        if c.is_ascii_alphanumeric():
+            out_.push(c.to_ascii_lowercase())
+            ()
+        elif ((c == "_") || (c == ".")):
+            out_.push("_")
+            ()
+    ()
+    if out_.is_empty():
+        ("z80_label").to_string()
+    else:
+        out_
+
+fn render_kain_firmware(program: &kain_core::AsmProgram, units: &[kain_core::TranslitUnit]) -> String:
+    let mut out_ = String__new_()
+    out_.push_str("# Generated by kain import-asm --format z80\n")
+    ()
+    out_.push_str("# Z80 transliteration seed\n")
+    ()
+    out_.push_str("# Includes UE5-facing runtime shim entrypoints for fixed-step simulation\n\n")
+    ()
+    out_.push_str("struct CpuState:\n    a: Int\n    b: Int\n    c: Int\n    d: Int\n    e: Int\n    h: Int\n    l: Int\n    f: Int\n    i: Int\n    r: Int\n    ix: Int\n    iy: Int\n    sp: Int\n    pc: Int\n    iff1: Int\n    iff2: Int\n    im: Int\n\n")
+    ()
+    out_.push_str("struct Memory:\n    ram: Array<Int>\n    vram: Array<Int>\n    io_ports: Array<Int>\n    rom_banks: Array<Array<Int>>\n\n")
+    ()
+    out_.push_str("struct Ue5ShimState:\n    cpu: CpuState\n    mem: Memory\n    tick: Int\n    last_effect: Int\n\n")
+    ()
+    out_.push_str("fn read_port(port_id: Int) -> Int:\n    let _port = port_id\n    return 0\n\n")
+    ()
+    out_.push_str("fn write_port(port_id: Int, value: Int):\n    let _port = port_id\n    let _value = value\n\n")
+    ()
+    out_.push_str("fn step(cpu: CpuState, mem: Memory) -> (CpuState, Memory, Int):\n")
+    ()
+    out_.push_str("    let next_cpu = cpu\n")
+    ()
+    out_.push_str("    let next_mem = mem\n")
+    ()
+    out_.push_str("    let opcode = 0\n")
+    ()
+    out_.push_str("    if opcode == 0:\n")
+    ()
+    out_.push_str("        # NOP\n")
+    ()
+    out_.push_str("        return (next_cpu, next_mem, 4)\n")
+    ()
+    out_.push_str("    return (next_cpu, next_mem, 0)\n\n")
+    ()
+    out_.push_str("fn parity_frame(state: Ue5ShimState) -> Int:\n")
+    ()
+    out_.push_str("    let _state = state\n")
+    ()
+    out_.push_str("    return 0\n\n")
+    ()
+    out_.push_str("fn ue5_init(cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n")
+    ()
+    out_.push_str("fn ue5_reset(state: Ue5ShimState, cpu: CpuState, mem: Memory) -> Ue5ShimState:\n    let _old = state\n    return Ue5ShimState { cpu: cpu, mem: mem, tick: 0, last_effect: 0 }\n\n")
+    ()
+    out_.push_str("fn ue5_tick_step(state: Ue5ShimState, step_count: Int) -> Ue5ShimState:\n    let next_state = state\n    let _steps = step_count\n    return next_state\n\n")
+    ()
+    out_.push_str("fn ue5_apply_sensor_input(state: Ue5ShimState, port_id: Int, value: Int) -> Ue5ShimState:\n    write_port(port_id, value)\n    return state\n\n")
+    ()
+    out_.push_str("fn ue5_read_actuator_output(state: Ue5ShimState, port_id: Int) -> Int:\n    let _state = state\n    return read_port(port_id)\n\n")
+    ()
+    out_.push_str("const Z80_TABLES: Array<Array<Int>> = [\n")
+    ()
+    for table in &(*program).data_tables:
+        out_.push_str(&"    [{table.bytes.join(\", \")}],\n")
+        ()
+    ()
+    out_.push_str("]\n\n")
+    ()
+    for unit in units:
+        out_.push_str(&f"fn {unit.target_item}(cpu: CpuState, mem: Memory) -> (CpuState, Memory):\n    let next_cpu = cpu\n    let next_mem = mem\n")
+        ()
+        match (*program).blocks.iter().find(fn(b): (b.label == unit.source_label)):
+            Some(block) =>
+                for instr in &block.instructions:
+                    let op = instr.operand.unwrap_or("")
+                    out_.push_str(&f"    # [{unit.source_label}:{instr.source_line}] {instr.opcode} {op}\n")
+                    ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        out_.push_str("    return (next_cpu, next_mem)\n\n")
+        ()
+    ()
+    out_
+
+fn build_rom_model(lines: &[CanonLine], program: &kain_core::AsmProgram) -> Z80RomModel:
+    let mut pc = 0
+    let mut section_bytes = 0
+    let mut sections = Vec__new_()
+    let current_section = ("ROM").to_string()
+    let mut section_start = 0
+    let flush_section = fn(name: String, start: u16, pc_now: u16, bytes: usize, sections: &mut Array<RomSection>): none
+    for line_ in lines:
+        let text = strip_comment(&line_.text).trim()
+        if text.is_empty():
+            continue
+        if text.to_ascii_uppercase().starts_with("ORG "):
+            flush_section(&current_section, section_start, pc, section_bytes, &mut sections)
+            ()
+            match text.split_whitespace().nth(1):
+                Some(addr_str) =>
+                    match parse_num(addr_str):
+                        Some(addr) =>
+                            pc = addr as u16
+                            ()
+                            section_start = pc
+                            ()
+                            section_bytes = 0
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            continue
+        if parse_data_line(text).is_some():
+            match parse_data_line(text):
+                Some((_, vals)) =>
+                    section_bytes = (section_bytes + vals.len())
+                    ()
+                    pc = pc.saturating_add(vals.len() as u16)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            continue
+        match parse_instruction(text, line_.canon):
+            Some(instr) =>
+                let size = estimate_instruction_size(&instr)
+                section_bytes = (section_bytes + size as usize)
+                ()
+                pc = pc.saturating_add(size)
+                ()
+            _ => ()
+    ()
+    flush_section(&current_section, section_start, pc, section_bytes, &mut sections)
+    ()
+    let total_bytes = sections.iter().map(fn(s): s.bytes).sum()
+    let _ = program
+    Z80RomModel { sections: sections, total_bytes: total_bytes }
+
+fn build_parity_harness(program: &kain_core::AsmProgram) -> Z80ParityHarness:
+    let checkpoints = (*program).blocks.iter().take(512).enumerate().map(fn(__kain_closure_arg1): ParityCheckpoint { tick: __kain_closure_arg1.__kain_tuple_0 as u64, label: __kain_closure_arg1.__kain_tuple_1.label.clone(), source_line: __kain_closure_arg1.__kain_tuple_1.source_line_start }).collect()
+    let mut graph = DiGraphMap__new_()
+    for idx in range(0, (*program).blocks.len()):
+        graph.add_node(idx)
+        ()
+    ()
+    for selfhost_for_item in (*program).blocks.iter().enumerate():
+        let (idx, block) = selfhost_for_item
+        for instr in &block.instructions:
+            let op = instr.opcode.as_str()
+            if ((((op != "JP") && (op != "JR")) && (op != "CALL")) && (op != "DJNZ")):
+                continue
+            let Some(operand) = instr.operand
+            let target = operand.split(",").next_back().unwrap_or("").trim().trim_start_matches(".")
+            if target.is_empty():
+                continue
+            match (*program).blocks.iter().position(fn(b): (b.label.eq_ignore_ascii_case(target) || b.label.ends_with(&f".{target}"))):
+                Some(to_idx) =>
+                    graph.add_edge(idx, to_idx, ())
+                    ()
+                _ => ()
+    ()
+    Z80ParityHarness { checkpoints: checkpoints, graph_nodes: graph.node_count(), graph_edges: graph.edge_count() }
+
+fn estimate_instruction_size(instr: &kain_core::AsmInstr) -> u16:
+    let op = (*instr).opcode.as_str()
+    let operand = (*instr).operand.unwrap_or("")
+    if (none):
+        return 1
+    if (none):
+        return 2
+    if (none && (!operand.starts_with("("))):
+        return 3
+    if (operand.contains("IX") || operand.contains("IY")):
+        return 3
+    if (none):
+        return 2
+    if (none):
+        return 2
+    if (op == "LD"):
+        if (operand.contains("(") && ((operand.contains("$") || operand.chars().any(fn(c): c.is_ascii_digit())))):
+            return 3
+        if (operand.contains("$") || operand.chars().any(fn(c): c.is_ascii_digit())):
+            return 2
+        return 1
+    1
+
+fn build_recovery_report(input: &std::path::Path, canonical: &[CanonLine], parsed: &kain_core::AsmProgram) -> RecoveryReport:
+    let mut unresolved_tokens = Vec__new_()
+    let mut ambiguous_labels = Vec__new_()
+    let mut seen = HashSet__new_()
+    for line_ in canonical:
+        let t = line_.text.trim()
+        if t.is_empty():
+            continue
+        let ok = (((is_label_line(t) || is_directive_line(t)) || parse_data_line(t).is_some()) || parse_instruction(t, line_.canon).is_some())
+        if (!ok):
+            unresolved_tokens.push(RecoveryIssue { line_: line_.canon, message: f"Unrecognized canonical line: {t}" })
+            ()
+            ()
+            ()
+            ()
+        if is_label_line(t):
+            let label = normalize_label(t)
+            if (!seen.insert(label.clone())):
+                ambiguous_labels.push(RecoveryIssue { line_: line_.canon, message: f"Duplicate label '{label}'" })
+                ()
+    ()
+    let total = canonical.len().max(1)
+    let rec = canonical.len().saturating_sub(unresolved_tokens.len())
+    let _ = parsed
+    RecoveryReport { input: input.display().to_string(), canonical_output: ("Research/z80/z80_canonical.asm").to_string(), unresolved_tokens: unresolved_tokens, ambiguous_labels: ambiguous_labels, section_scores: [RecoverySectionScore { section: ("global").to_string(), recognized: rec, total: total, confidence: ((rec as f64) / (total as f64)) }] }
+
+fn build_diagnostics(lines: &[CanonLine], expanded_text: String, report: &RecoveryReport) -> Z80Diagnostics:
+    let mapper = SpanMapper__new_(expanded_text)
+    let line_starts = compute_line_starts(expanded_text)
+    let mut diagnostics = Vec__new_()
+    for issue in &(*report).unresolved_tokens:
+        match issue_to_diag("error", "ASM_UNRESOLVED", issue, lines, &mapper, &line_starts):
+            Some(diag) =>
+                diagnostics.push(diag)
+                ()
+            _ => ()
+    ()
+    for issue in &(*report).ambiguous_labels:
+        match issue_to_diag("warning", "ASM_AMBIGUOUS", issue, lines, &mapper, &line_starts):
+            Some(diag) =>
+                diagnostics.push(diag)
+                ()
+            _ => ()
+    ()
+    Z80Diagnostics { diagnostics: diagnostics }
+
+fn issue_to_diag(severity: String, code: String, issue: &RecoveryIssue, lines: &[CanonLine], mapper: &kain_core::diagnostics::SpanMapper, line_starts: &[usize]) -> Option<AsmDiagnostic>:
+    if (((*issue).line_ == 0) || ((*issue).line_ > lines.len())):
+        return none
+    let line_idx = ((*issue).line_ - 1)
+    let canon = &lines[line_idx]
+    let col0 = canon.text.char_indices().find_map(fn(__kain_closure_arg2): if __kain_closure_arg2.__kain_tuple_1.is_ascii_whitespace(): none else: Option::Some(__kain_closure_arg2.__kain_tuple_0)).unwrap_or(0)
+    let span_start = line_starts.get(line_idx).copied().unwrap_or(0).saturating_add(col0)
+    let span = Span__new_(span_start, span_start.saturating_add(1))
+    let loc = mapper.span_to_location(span, "<expanded>")
+    Option::Some(AsmDiagnostic { severity: severity.to_string(), code: code.to_string(), message: (*issue).message.clone(), canonical_line: (*issue).line_, canonical_col: loc.col, canonical_snippet: canon.text.clone(), source_file: canon.file.clone(), source_line: canon.line_ })
+
+fn compute_line_starts(text: String) -> Array<usize>:
+    let mut starts = [0]
+    for selfhost_for_item in text.char_indices():
+        let (idx, ch) = selfhost_for_item
+        if (ch == "\n"):
+            starts.push((idx + 1))
+            ()
+    ()
+    starts
+
+fn default_parity_trace_schema() -> kain_core::ParityTraceFrame:
+    let mut registers = BTreeMap__new_()
+    for reg in ["a", "b", "c", "d", "e", "h", "l", "f", "i", "r", "ix", "iy", "sp", "pc"]:
+        registers.insert(reg.to_string(), 0)
+        ()
+    ()
+    let mut flags = BTreeMap__new_()
+    for fl in ["s", "z", "h", "pv", "n", "c"]:
+        flags.insert(fl.to_string(), false)
+        ()
+    ()
+    kain_core::ParityTraceFrame { tick: 0, pc: 0, opcode: ("NOP").to_string(), registers: registers, flags: flags, notes: [("z80-schema").to_string()] }
+
+fn is_opcode_keyword(kw: String) -> Bool:
+    match kw:
+        "LD" => true
+        "ADD" => true
+        "ADC" => true
+        "SUB" => true
+        "SBC" => true
+        "AND" => true
+        "OR" => true
+        "XOR" => true
+        "CP" => true
+        "INC" => true
+        "DEC" => true
+        "JP" => true
+        "JR" => true
+        "CALL" => true
+        "RET" => true
+        "PUSH" => true
+        "POP" => true
+        "NOP" => true
+        "HALT" => true
+        "DI" => true
+        "EI" => true
+        "IM" => true
+        "IN" => true
+        "OUT" => true
+        "EX" => true
+        "EXX" => true
+        "DJNZ" => true
+        "BIT" => true
+        "SET" => true
+        "RES" => true
+        "RL" => true
+        "RLC" => true
+        "RR" => true
+        "RRC" => true
+        "SLA" => true
+        "SRA" => true
+        "SRL" => true
+        "NEG" => true
+        "CPL" => true
+        "CCF" => true
+        "SCF" => true
+        "DAA" => true
+        "RETI" => true
+        "RETN" => true
+        "LDI" => true
+        "LDIR" => true
+        "LDD" => true
+        "LDDR" => true
+        "CPI" => true
+        "CPIR" => true
+        "CPD" => true
+        "CPDR" => true
+        "INI" => true
+        "INIR" => true
+        "IND" => true
+        "INDR" => true
+        "OUTI" => true
+        "OTIR" => true
+        "OUTD" => true
+        "OTDR" => true
+        "RST" => true
+        "RLA" => true
+        "RRA" => true
+        "RLCA" => true
+        "RRCA" => true
+        "RLD" => true
+        "RRD" => true
+        _ => false
+

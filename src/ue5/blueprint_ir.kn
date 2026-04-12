@@ -1,0 +1,162 @@
+use crate::ue5::context::Ue5Context
+
+use crate::ue5::types::TypeMapper
+
+use kain_core::ast::Attribute
+
+use kain_core::ast::Block
+
+use kain_core::ast::Function
+
+@doc(doc = " Blueprint event intermediate representation")
+@doc(doc = " Represents a function that can be overridden in Blueprint with native implementation")
+@derive(Debug, Clone)
+pub struct BlueprintEventIR:
+    event_name: String
+    params: Array<BlueprintParamIR>
+    return_type: Option<String>
+    category: String
+    implementation_body: Option<String>
+
+@doc(doc = " A single parameter for Blueprint event")
+@derive(Debug, Clone)
+pub struct BlueprintParamIR:
+    name: String
+    cpp_type: String
+    is_ref: Bool
+    is_const: Bool
+
+@doc(doc = " K2Node intermediate representation")
+@doc(doc = " Represents a custom Blueprint node with input/output pins")
+@derive(Debug, Clone)
+pub struct K2NodeIR:
+    node_name: String
+    input_pins: Array<K2PinIR>
+    output_pins: Array<K2PinIR>
+    node_title: String
+    category: String
+    expand_logic: Option<String>
+
+@doc(doc = " A single pin for K2Node")
+@derive(Debug, Clone)
+pub struct K2PinIR:
+    name: String
+    pin_type: K2PinType
+    is_array: Bool
+    default_value: Option<String>
+
+pub enum K2PinType:
+    Exec
+    Bool
+    Int
+    Int64
+    Float
+    String
+    Name
+    Text
+    Vector
+    Rotator
+    Transform
+    Object(String)
+    Struct(String)
+    Wildcard
+
+@doc(doc = " Async Blueprint node intermediate representation")
+@doc(doc = " Represents a latent Blueprint action that executes asynchronously")
+@derive(Debug, Clone)
+pub struct AsyncBlueprintIR:
+    action_name: String
+    input_params: Array<BlueprintParamIR>
+    output_pins: Array<AsyncOutputPinIR>
+    activate_body: Option<String>
+    category: String
+
+@doc(doc = " Output pin for async Blueprint node (delegate)")
+@derive(Debug, Clone)
+pub struct AsyncOutputPinIR:
+    name: String
+    params: Array<BlueprintParamIR>
+
+impl Default for BlueprintEventIR:
+    fn default_() -> BlueprintEventIR:
+        BlueprintEventIR { event_name: String__new_(), params: Vec__new_(), return_type: none, category: ("Events").to_string(), implementation_body: none }
+
+
+impl Default for K2NodeIR:
+    fn default_() -> K2NodeIR:
+        K2NodeIR { node_name: String__new_(), input_pins: Vec__new_(), output_pins: Vec__new_(), node_title: String__new_(), category: ("Custom").to_string(), expand_logic: none }
+
+
+impl Default for AsyncBlueprintIR:
+    fn default_() -> AsyncBlueprintIR:
+        AsyncBlueprintIR { action_name: String__new_(), input_params: Vec__new_(), output_pins: Vec__new_(), activate_body: none, category: ("Async").to_string() }
+
+
+@doc(doc = " Convert a function with @blueprint_event attribute to BlueprintEventIR")
+@doc(doc = "")
+@doc(doc = " # Arguments")
+@doc(doc = " * `func` - The function definition from AST")
+@doc(doc = " * `ctx` - UE5 compilation context for type mapping")
+@doc(doc = "")
+@doc(doc = " # Returns")
+@doc(doc = " * `Ok(BlueprintEventIR)` - Successfully converted IR")
+@doc(doc = " * `Err(String)` - Conversion error with description")
+pub fn convert_to_blueprint_event_ir(func: &kain_core::ast::Function, ctx: &Ue5Context) -> Result<BlueprintEventIR, String>:
+    let mut type_mapper = TypeMapper__with_knowledge((*ctx).knowledge.clone())
+    register_context_types(&mut type_mapper, ctx)
+    ()
+    let params = (*func).params.iter().map(fn(param): convert_param(param, &type_mapper)).collect()?
+    let return_type = (*func).return_type.map(fn(ty): type_mapper.map_type_string(ty))
+    let category = extract_category(&(*func).attributes).unwrap_or_else(fn(): ("Events").to_string())
+    let implementation_body = Option::Some(convert_block_to_cpp(&(*func).body, ctx))
+    Result::Ok(BlueprintEventIR { event_name: (*func).name.clone(), params: params, return_type: return_type, category: category, implementation_body: implementation_body })
+
+@doc(doc = " Convert a parameter to BlueprintParamIR")
+fn convert_param(param: &kain_core::ast::Param, type_mapper: &TypeMapper) -> Result<BlueprintParamIR, String>:
+    let cpp_type = type_mapper.map_type_string(&(*param).ty)
+    let is_ref = cpp_type.contains("&")
+    let is_const = cpp_type.starts_with("const ")
+    Result::Ok(BlueprintParamIR { name: (*param).name.clone(), cpp_type: cpp_type, is_ref: is_ref, is_const: is_const })
+
+@doc(doc = " Extract category from attributes")
+fn extract_category(attributes: &[kain_core::ast::Attribute]) -> Option<String>:
+    for attr in attributes:
+        if (attr.name == "category"):
+            match attr.args.first():
+                Some(first_arg) =>
+                    match first_arg:
+                        kain_core__ast__Expr::String(s, _) => return Option::Some(s.clone())
+                        _ => ()
+                _ => ()
+    ()
+    none
+
+@doc(doc = " Register all known types from context into type mapper")
+fn register_context_types(type_mapper: &mut TypeMapper, ctx: &Ue5Context):
+    for enum_name in &(*ctx).enum_names:
+        type_mapper.register_enum(enum_name.clone())
+        ()
+    ()
+    for struct_name in &(*ctx).struct_names:
+        type_mapper.register_struct(struct_name.clone())
+        ()
+    ()
+    for component_name in &(*ctx).component_names:
+        type_mapper.register_component(component_name.clone())
+        ()
+    ()
+    for actor_name in &(*ctx).actor_names:
+        type_mapper.register_actor(actor_name.clone())
+        ()
+    ()
+    for delegate_name in &(*ctx).delegate_names:
+        type_mapper.register_delegate(delegate_name.clone())
+        ()
+
+@doc(doc = " Convert a KAIN block to C++ code")
+@doc(doc = "")
+@doc(doc = " This is a placeholder implementation that will be replaced with proper")
+@doc(doc = " expression codegen when the full codegen pipeline is integrated.")
+fn convert_block_to_cpp(block: &kain_core::ast::Block, _ctx: &Ue5Context) -> String:
+    f"/* Block with {(*block).stmts.len()} statements */"
+

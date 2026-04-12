@@ -1,0 +1,460 @@
+use crate::model::BindingBundle
+
+use crate::model::BindingReportEntry
+
+use crate::model::BridgeFunctionBinding
+
+use crate::model::BridgeParam
+
+use crate::model::BridgeType
+
+use crate::model::FileFingerprint
+
+use crate::model::GeneratedModuleItem
+
+use crate::model::ItemKind
+
+use crate::model::ItemStatus
+
+use crate::model::ModuleNode
+
+use crate::model::ResolvedCrate
+
+use crate::resolve::simple_file_sha256
+
+use heck::ToSnakeCase
+
+use kain_core::error::KainError
+
+use std::collections::HashSet
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use syn::spanned::Spanned
+
+use syn::Attribute
+
+use syn::Expr
+
+use syn::Fields
+
+use syn::File
+
+use syn::ImplItem
+
+use syn::Item
+
+use syn::ItemConst
+
+use syn::ItemEnum
+
+use syn::ItemFn
+
+use syn::ItemImpl
+
+use syn::ItemMod
+
+use syn::ItemStruct
+
+use syn::ItemType
+
+use syn::Lit
+
+use syn::Meta
+
+use syn::Type
+
+use syn::Visibility
+
+pub fn extract_binding_bundle(resolved: &ResolvedCrate) -> Result<BindingBundle, kain_core::error::KainError>:
+    let mut state_ = ExtractionState { resolved: resolved, module_root: ModuleNode__default_(), bridge_functions: Vec__new_(), report_entries: Vec__new_(), source_fingerprints: Vec__new_(), parsed_files: HashSet__new_(), public_type_names: HashSet__new_() }
+    state_.parse_module_file(&(*resolved).crate_root_file, &[])?
+    ()
+    Result::Ok(BindingBundle { module_root: state_.module_root, bridge_functions: state_.bridge_functions, report_entries: state_.report_entries, source_fingerprints: state_.source_fingerprints })
+
+struct ExtractionState<a>:
+    resolved: &a ResolvedCrate
+    module_root: ModuleNode
+    bridge_functions: Array<BridgeFunctionBinding>
+    report_entries: Array<BindingReportEntry>
+    source_fingerprints: Array<FileFingerprint>
+    parsed_files: Set<std::path::PathBuf>
+    public_type_names: Set<String>
+
+impl<a> ExtractionState<a>:
+    fn parse_module_file(_self: &mut ExtractionState<a>, file_path: &std::path::Path, module_path: &[String]) -> Result<(), kain_core::error::KainError>:
+        let canonical = std__fs__canonicalize(file_path).unwrap_or_else(fn(_): file_path.to_path_buf())
+        if (!(*_self).parsed_files.insert(canonical.clone())):
+            return Result::Ok(())
+        let source = std__fs__read_to_string(&canonical).map_err(kain_core__error__KainError__Io)?
+        (*_self).source_fingerprints.push(FileFingerprint { path: canonical.display().to_string(), sha256: resolve__simple_file_sha256(&canonical)? })
+        ()
+        let parsed = syn__parse_file(&source).map_err(fn(err): KainError__runtime(f"Failed to parse Rust source '{canonical.display()}' for crate FFI extraction: {err}"))?
+        (*_self).parse_items(&parsed, canonical.parent().unwrap_or_else(fn(): Path__new_(".")), module_path)
+
+    fn parse_items(_self: &mut ExtractionState<a>, parsed: &syn::File, base_dir: &std::path::Path, module_path: &[String]) -> Result<(), kain_core::error::KainError>:
+        for item in &(*parsed).items:
+            match item:
+                syn__Item::Fn(value) => (*_self).handle_function(value, module_path)
+                syn__Item::Struct(value) => (*_self).handle_struct(value, module_path)
+                syn__Item::Enum(value) => (*_self).handle_enum(value, module_path)
+                syn__Item::Type(value) => (*_self).handle_type_alias(value, module_path)
+                syn__Item::Const(value) => (*_self).handle_const(value, module_path)
+                syn__Item::Impl(value) => (*_self).handle_impl(value, module_path)
+                syn__Item::Mod(value) => (*_self).handle_module(value, base_dir, module_path)?
+                syn__Item::Use(value) =>
+                    if is_public(&value.vis):
+                        (*_self).push_report(module_path, "use", ItemKind__ReExport, ItemStatus__Stubbed, Option::Some(("pub use re-exports are not expanded yet").to_string()), doc_lines(&value.attrs), none)
+                        ()
+                syn__Item::Trait(value) =>
+                    if is_public(&value.vis):
+                        (*_self).push_report(module_path, &value.ident.to_string(), ItemKind__Trait, ItemStatus__Stubbed, Option::Some(("trait items are reported but not lowered into callable Kain bindings yet").to_string()), doc_lines(&value.attrs), none)
+                        ()
+                syn__Item::Macro(value) =>
+                    let name = value.ident.map(ToString__to_string).unwrap_or_else(fn(): ("macro").to_string())
+                    (*_self).push_report(module_path, &name, ItemKind__Macro, ItemStatus__Stubbed, Option::Some(("macro items are not lowered into runtime bindings").to_string()), doc_lines(&value.attrs), none)
+                    ()
+                _ => ()
+        ()
+        Result::Ok(())
+
+    fn handle_module(_self: &mut ExtractionState<a>, value: &syn::ItemMod, base_dir: &std::path::Path, parent_path: &[String]) -> Result<(), kain_core::error::KainError>:
+        if (!is_public(&(*value).vis)):
+            (*_self).push_report(parent_path, &(*value).ident.to_string(), ItemKind__Module, ItemStatus__SkippedInternal, Option::Some(("private modules are skipped by v1 crate FFI extraction").to_string()), doc_lines(&(*value).attrs), none)
+            ()
+            return Result::Ok(())
+        let mut next_module_path = parent_path.to_vec()
+        next_module_path.push((*value).ident.to_string())
+        ()
+        match &(*value).content:
+            Some((_, items)) =>
+                let parsed = syn::File { shebang: none, attrs: Vec__new_(), items: items.clone() }
+                (*_self).parse_items(&parsed, base_dir, &next_module_path)?
+                ()
+                return Result::Ok(())
+            _ =>
+                ()
+                ()
+        match resolve_module_file(base_dir, &(*value).ident.to_string()):
+            Some(path) =>
+                (*_self).parse_module_file(&path, &next_module_path)?
+                ()
+                return Result::Ok(())
+            _ =>
+                ()
+                ()
+        (*_self).push_report(parent_path, &(*value).ident.to_string(), ItemKind__Module, ItemStatus__Stubbed, Option::Some(("public module declaration could not be resolved to a source file").to_string()), doc_lines(&(*value).attrs), none)
+        ()
+        Result::Ok(())
+
+    fn handle_function(_self: &mut ExtractionState<a>, value: &syn::ItemFn, module_path: &[String]):
+        if (!is_public(&(*value).vis)):
+            return
+        let docs = doc_lines(&(*value).attrs)
+        let function_name = (*value).sig.ident.to_string()
+        if ((!(*value).sig.generics.params.is_empty()) || (*value).sig.asyncness.is_some()):
+            (*_self).add_stub_function(module_path, &function_name, docs, ("generic and async functions are stubbed in crate FFI v1").to_string())
+            ()
+            return
+        let mut params = Vec__new_()
+        for input in &(*value).sig.inputs:
+            let syn__FnArg::Typed(pat_ty) = input
+            let Some(name) = pat_to_ident_name(&pat_ty.pat)
+            let Some(ty) = bridge_type_from_syn(&pat_ty.ty)
+            params.push(BridgeParam { name: name, ty: ty })
+            ()
+        ()
+        let return_type = match &(*value).sig.output:
+            syn__ReturnType::Default => BridgeType__Unit
+            syn__ReturnType::Type(_, ty) =>
+                match bridge_type_from_syn(ty):
+                    Some(ty) => ty
+                    None =>
+                        (*_self).add_stub_function(module_path, &function_name, docs, f"unsupported return type '{type_to_string(ty)}'")
+                        ()
+                        return
+        let emitted_name = function_name.clone()
+        let prefixed_alias = prefixed_symbol_name(&(*_self).resolved.import_name, module_path, &function_name)
+        let signature = render_kain_fn_signature(&emitted_name, &params, &return_type)
+        (*_self).insert_module_item(module_path, GeneratedModuleItem { name: emitted_name.clone(), source: f"{signature}\n    return {return_type.default_literal()}\n", docs: docs.clone() })
+        ()
+        (*_self).insert_module_item(module_path, GeneratedModuleItem { name: prefixed_alias.clone(), source: f"{render_kain_fn_signature(&prefixed_alias, &params, &return_type)}\n    return {return_type.default_literal()}\n", docs: docs.clone() })
+        ()
+        let rust_call_path = if module_path.is_empty():
+            f"{(*_self).resolved.dependency_name}::{function_name}"
+        else:
+            "{(*_self).resolved.dependency_name}::{module_path.join(\"::\")}::{function_name}"
+        (*_self).bridge_functions.push(BridgeFunctionBinding { emitted_name: emitted_name.clone(), exported_aliases: [emitted_name.clone(), prefixed_alias.clone()], rust_call_path: rust_call_path, params: params, return_type: return_type, docs: docs.clone() })
+        ()
+        (*_self).push_report(module_path, &function_name, ItemKind__Function, ItemStatus__Callable, none, docs, Option::Some(prefixed_alias))
+        ()
+
+    fn handle_struct(_self: &mut ExtractionState<a>, value: &syn::ItemStruct, module_path: &[String]):
+        if (!is_public(&(*value).vis)):
+            return
+        let docs = doc_lines(&(*value).attrs)
+        let name = (*value).ident.to_string()
+        (*_self).public_type_names.insert(name.clone())
+        ()
+        let source = match &(*value).fields:
+            syn__Fields::Named(fields) =>
+                let mut lines = [f"struct {name}:"]
+                if fields.named.is_empty():
+                    lines.push(("    __kain_placeholder: Int").to_string())
+                    ()
+                    ()
+                    ()
+                    ()
+                else:
+                    for field in &fields.named:
+                        let field_name = field.ident.map(ToString__to_string).unwrap_or_else(fn(): ("field").to_string())
+                        let rendered_type = bridge_type_from_syn(&field.ty).map(fn(ty): ty.render_kain()).unwrap_or_else(fn(): ("Any").to_string())
+                        lines.push(f"    {field_name}: {rendered_type}")
+                        ()
+                    ()
+                    ()
+                (lines.join("\n") + "\n")
+            _ => f"struct {name}:\n    __kain_placeholder: Int\n"
+        (*_self).insert_module_item(module_path, GeneratedModuleItem { name: name.clone(), source: source, docs: docs.clone() })
+        ()
+        (*_self).push_report(module_path, &name, ItemKind__Struct, ItemStatus__TypeOnly, none, docs, none)
+        ()
+
+    fn handle_enum(_self: &mut ExtractionState<a>, value: &syn::ItemEnum, module_path: &[String]):
+        if (!is_public(&(*value).vis)):
+            return
+        let docs = doc_lines(&(*value).attrs)
+        let name = (*value).ident.to_string()
+        (*_self).public_type_names.insert(name.clone())
+        ()
+        let mut lines = [f"enum {name}:"]
+        if (*value).variants.is_empty():
+            lines.push(("    Placeholder").to_string())
+            ()
+            ()
+            ()
+            ()
+        else:
+            for variant in &(*value).variants:
+                lines.push(f"    {variant.ident}")
+                ()
+            ()
+            ()
+        (*_self).insert_module_item(module_path, GeneratedModuleItem { name: name.clone(), source: (lines.join("\n") + "\n"), docs: docs.clone() })
+        ()
+        (*_self).push_report(module_path, &name, ItemKind__Enum, ItemStatus__TypeOnly, none, docs, none)
+        ()
+
+    fn handle_type_alias(_self: &mut ExtractionState<a>, value: &syn::ItemType, module_path: &[String]):
+        if (!is_public(&(*value).vis)):
+            return
+        let docs = doc_lines(&(*value).attrs)
+        let name = (*value).ident.to_string()
+        match bridge_type_from_syn(&(*value).ty):
+            Some(ty) =>
+                (*_self).insert_module_item(module_path, GeneratedModuleItem { name: name.clone(), source: f"type {name} = {ty.render_kain()}\n", docs: docs.clone() })
+                ()
+                (*_self).push_report(module_path, &name, ItemKind__TypeAlias, ItemStatus__TypeOnly, none, docs, none)
+                ()
+            _ =>
+                (*_self).push_report(module_path, &name, ItemKind__TypeAlias, ItemStatus__Stubbed, Option::Some(("type alias target is not representable in v1 crate FFI").to_string()), docs, none)
+                ()
+
+    fn handle_const(_self: &mut ExtractionState<a>, value: &syn::ItemConst, module_path: &[String]):
+        if (!is_public(&(*value).vis)):
+            return
+        let docs = doc_lines(&(*value).attrs)
+        let name = (*value).ident.to_string()
+        let rendered_type = bridge_type_from_syn(&(*value).ty).map(fn(ty): ty.render_kain())
+        let literal = render_const_literal(&(*value).expr)
+        match (rendered_type, literal):
+            (Some(rendered_type), Some(literal)) =>
+                (*_self).insert_module_item(module_path, GeneratedModuleItem { name: name.clone(), source: f"const {name}: {rendered_type} = {literal}\n", docs: docs.clone() })
+                ()
+                (*_self).push_report(module_path, &name, ItemKind__Constant, ItemStatus__Callable, none, docs, none)
+                ()
+            _ => (*_self).push_report(module_path, &name, ItemKind__Constant, ItemStatus__Stubbed, Option::Some(("const item is not a simple literal representable in Kain").to_string()), docs, none)
+
+    fn handle_impl(_self: &mut ExtractionState<a>, value: &syn::ItemImpl, module_path: &[String]):
+        if (*value).trait_.is_some():
+            return
+        let syn__Type::Path(type_path) = (*value).self_ty
+        let Some(type_name) = type_path.path.segments.last().map(fn(segment): segment.ident.to_string())
+        if (!(*_self).public_type_names.contains(&type_name)):
+            return
+        for item in &(*value).items:
+            let syn__ImplItem::Fn(method) = item
+            if (!is_public(&method.vis)):
+                continue
+            let method_name = f"{type_name.to_snake_case()}_{method.sig.ident}"
+            let docs = doc_lines(&method.attrs)
+            if (method.sig.receiver().is_some() || (!method.sig.generics.params.is_empty())):
+                (*_self).add_stub_function(module_path, &method_name, docs, ("receiver methods and generic inherent methods are stubbed in v1 crate FFI").to_string())
+                ()
+                continue
+            let mut params = Vec__new_()
+            let mut unsupported = none
+            for input in &method.sig.inputs:
+                let syn__FnArg::Typed(pat_ty) = input
+                let Some(name) = pat_to_ident_name(&pat_ty.pat)
+                let Some(ty) = bridge_type_from_syn(&pat_ty.ty)
+                params.push(BridgeParam { name: name, ty: ty })
+                ()
+            ()
+            let return_type = match &method.sig.output:
+                syn__ReturnType::Default => BridgeType__Unit
+                syn__ReturnType::Type(_, ty) =>
+                    match bridge_type_from_syn(ty):
+                        Some(value) => value
+                        None =>
+                            unsupported = Option::Some(f"unsupported method return type '{type_to_string(ty)}'")
+                            ()
+                            BridgeType__Unit
+            match unsupported:
+                Some(reason) =>
+                    (*_self).add_stub_function(module_path, &method_name, docs, reason)
+                    ()
+                    continue
+                _ =>
+                    ()
+                    ()
+            let emitted_name = method_name.clone()
+            let prefixed_alias = prefixed_symbol_name(&(*_self).resolved.import_name, module_path, &emitted_name)
+            (*_self).insert_module_item(module_path, GeneratedModuleItem { name: emitted_name.clone(), source: f"{render_kain_fn_signature(&emitted_name, &params, &return_type)}\n    return {return_type.default_literal()}\n", docs: docs.clone() })
+            ()
+            (*_self).insert_module_item(module_path, GeneratedModuleItem { name: prefixed_alias.clone(), source: f"{render_kain_fn_signature(&prefixed_alias, &params, &return_type)}\n    return {return_type.default_literal()}\n", docs: docs.clone() })
+            ()
+            (*_self).bridge_functions.push(BridgeFunctionBinding { emitted_name: emitted_name.clone(), exported_aliases: [emitted_name.clone(), prefixed_alias.clone()], rust_call_path: if module_path.is_empty(): f"{(*_self).resolved.dependency_name}::{type_name}::{method.sig.ident}" else: "{(*_self).resolved.dependency_name}::{module_path.join(\"::\")}::{type_name}::{method.sig.ident}", params: params, return_type: return_type, docs: docs.clone() })
+            ()
+            (*_self).push_report(module_path, &method_name, ItemKind__Method, ItemStatus__Callable, none, docs, Option::Some(prefixed_alias))
+            ()
+
+    fn add_stub_function(_self: &mut ExtractionState<a>, module_path: &[String], name: String, docs: Array<String>, reason: String):
+        let message = f"Rust crate FFI stub: crate '{(*_self).resolved.import_name}' symbol '{join_symbol_path(module_path, name)}' is unsupported in v1: {reason}"
+        (*_self).insert_module_item(module_path, GeneratedModuleItem { name: name.to_string(), source: f"fn {name}() -> Unit:\n    panic({message})\n", docs: docs.clone() })
+        ()
+        (*_self).push_report(module_path, name, ItemKind__Function, ItemStatus__Stubbed, Option::Some(reason), docs, none)
+        ()
+
+    fn insert_module_item(_self: &mut ExtractionState<a>, module_path: &[String], item: GeneratedModuleItem):
+        let mut cursor = &mut (*_self).module_root
+        for segment in module_path:
+            cursor = cursor.children.entry(segment.clone()).or_default()
+            ()
+        ()
+        cursor.items.push(item)
+        ()
+
+    fn push_report(_self: &mut ExtractionState<a>, module_path: &[String], symbol_name: String, kind: ItemKind, status: ItemStatus, reason: Option<String>, docs: Array<String>, emitted_symbol: Option<String>):
+        (*_self).report_entries.push(BindingReportEntry { symbol_path: join_symbol_path(module_path, symbol_name), module_path: module_path.to_vec(), kind: kind, status: status, reason: reason, docs: docs, emitted_symbol: emitted_symbol })
+        ()
+
+
+fn resolve_module_file(base_dir: &std::path::Path, name: String) -> Option<std::path::PathBuf>:
+    let flat = base_dir.join(f"{name}.rs")
+    if flat.exists():
+        return Option::Some(flat)
+    let nested = base_dir.join(name).join("mod.rs")
+    if nested.exists():
+        return Option::Some(nested)
+    none
+
+fn render_kain_fn_signature(name: String, params: &[BridgeParam], return_type: &BridgeType) -> String:
+    let rendered_params = params.iter().map(fn(param): f"{param.name}: {param.ty.render_kain()}").collect().join(", ")
+    f"fn {name}({rendered_params}) -> {return_type.render_kain()}:"
+
+fn prefixed_symbol_name(crate_name: String, module_path: &[String], symbol_name: String) -> String:
+    let mut segments = [("rust").to_string(), crate_name.to_snake_case()]
+    for segment in module_path:
+        segments.push(segment.to_snake_case())
+        ()
+    ()
+    segments.push(symbol_name.to_snake_case())
+    ()
+    segments.join("_")
+
+fn join_symbol_path(module_path: &[String], symbol_name: String) -> String:
+    if module_path.is_empty():
+        symbol_name.to_string()
+    else:
+        "{module_path.join(\"::\")}::{symbol_name}"
+
+fn is_public(visibility: &syn::Visibility) -> Bool:
+    match visibility:
+        syn__Visibility::Public(_) => true
+        _ => false
+
+fn pat_to_ident_name(pattern: &syn::Pat) -> Option<String>:
+    match pattern:
+        syn__Pat::Ident(value) => Option::Some(value.ident.to_string())
+        _ => none
+
+fn doc_lines(attrs: &[syn::Attribute]) -> Array<String>:
+    attrs.iter().filter_map(fn(attr): none).filter(fn(line_): (!line_.is_empty())).collect()
+
+fn render_const_literal(expr: &syn::Expr) -> Option<String>:
+    match expr:
+        syn__Expr::Lit(value) =>
+            match &value.lit:
+                syn__Lit::Int(value) => Option::Some(value.base10_digits().to_string())
+                syn__Lit::Float(value) => Option::Some(value.base10_digits().to_string())
+                syn__Lit::Bool(value) => Option::Some(value.value.to_string())
+                syn__Lit::Str(value) => Option::Some(value.value())
+                _ => none
+        syn__Expr::Unary(value) =>
+            match value.op:
+                syn__UnOp::Neg(_) => render_const_literal(&value.expr).map(fn(literal): f"-{literal}")
+                _ =>
+                    none
+        _ => none
+
+pub fn bridge_type_from_syn(ty: &syn::Type) -> Option<BridgeType>:
+    match ty:
+        syn__Type::Tuple(value) if value.elems.is_empty() => Option::Some(BridgeType__Unit)
+        syn__Type::Path(value) =>
+            let segment = value.path.segments.last()?
+            let name = segment.ident.to_string()
+            match name.as_str():
+                "bool" => Option::Some(BridgeType::Bool(("bool").to_string()))
+                "i8" => Option::Some(BridgeType::Int(name))
+                "i16" => Option::Some(BridgeType::Int(name))
+                "i32" => Option::Some(BridgeType::Int(name))
+                "i64" => Option::Some(BridgeType::Int(name))
+                "u8" => Option::Some(BridgeType::Int(name))
+                "u16" => Option::Some(BridgeType::Int(name))
+                "u32" => Option::Some(BridgeType::Int(name))
+                "u64" => Option::Some(BridgeType::Int(name))
+                "usize" => Option::Some(BridgeType::Int(name))
+                "f32" => Option::Some(BridgeType::Float(name))
+                "f64" => Option::Some(BridgeType::Float(name))
+                "String" => Option::Some(BridgeType__StringOwned)
+                "Option" =>
+                    let inner = angle_bracket_type(segment)?
+                    bridge_type_from_syn(inner).map(fn(value): BridgeType::Option(Box__new_(value)))
+                "Vec" =>
+                    let inner = angle_bracket_type(segment)?
+                    bridge_type_from_syn(inner).map(fn(value): BridgeType::Array(Box__new_(value)))
+                _ => none
+        syn__Type::Reference(value) =>
+            if value.mutability.is_some():
+                return none
+            match value.elem:
+                syn__Type::Path(inner) if inner.path.is_ident("str") => Option::Some(BridgeType__StringRef)
+                _ => none
+        _ => none
+
+fn angle_bracket_type<a>(segment: &a syn::PathSegment) -> Option<&a syn::Type>:
+    let syn__PathArguments::AngleBracketed(value) = &(*segment).arguments
+    value.args.iter().find_map(fn(arg): none)
+
+fn type_to_string(ty: &syn::Type) -> String:
+    match ty:
+        syn__Type::Path(value) => value.path.segments.iter().map(fn(segment): segment.ident.to_string()).collect().join("::")
+        syn__Type::Reference(value) => f"&{type_to_string(&value.elem)}"
+        syn__Type::Tuple(value) if value.elems.is_empty() => ("()").to_string()
+        _ => ty.span()
+

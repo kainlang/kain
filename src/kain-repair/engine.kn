@@ -1,0 +1,404 @@
+use crate::AppliedFix
+
+use crate::FixKind
+
+use crate::RepairMode
+
+pub fn apply_normalize_line_endings(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    if (!text.contains("\r")):
+        return none
+    let replacement = text.replace("\r\n", "\n").replace("\r", "\n")
+    ((replacement != text)).then(fn(): (replacement.clone(), AppliedFix { kind: FixKind__NormalizeLineEndings, start: 0, end: text.len(), replacement: replacement, note: Option::Some(("normalized CRLF/CR line endings to LF").into()) }))
+
+pub fn apply_trim_trailing_whitespace(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let mut changed = false
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(text.len())
+    for line_ in text.split_inclusive("\n"):
+        let (body, newline) = line_.strip_suffix("\n").map_or((line_, ""), fn(s): (s, "\n"))
+        let trimmed = body.trim_end_matches([" ", "\t"])
+        changed = (changed | (trimmed.len() != body.len()))
+        ()
+        out_.push_str(trimmed)
+        ()
+        out_.push_str(newline)
+        ()
+    ()
+    if (!text.ends_with("\n")):
+        let trimmed = out_.trim_end_matches([" ", "\t"]).to_string()
+        changed = (changed | (trimmed != out_))
+        ()
+        out_ = trimmed
+        ()
+        ()
+        ()
+        ()
+    changed.then(fn(): (out_.clone(), AppliedFix { kind: FixKind__TrimTrailingWhitespace, start: 0, end: text.len(), replacement: out_, note: Option::Some(("trimmed trailing spaces and tabs").into()) }))
+
+pub fn apply_collapse_extra_blank_lines(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(text.len())
+    let mut blank_run = 0
+    let mut changed = false
+    for line_ in text.split_inclusive("\n"):
+        let is_blank = (line_.trim() == "")
+        if is_blank:
+            blank_run = (blank_run + 1)
+            ()
+            ()
+            ()
+            ()
+        else:
+            blank_run = 0
+            ()
+            ()
+            ()
+            ()
+        if (blank_run > 2):
+            changed = true
+            ()
+            continue
+        out_.push_str(line_)
+        ()
+    ()
+    changed.then(fn(): (out_.clone(), AppliedFix { kind: FixKind__CollapseExtraBlankLines, start: 0, end: text.len(), replacement: out_, note: Option::Some(("collapsed excessive blank line runs").into()) }))
+
+pub fn apply_close_unterminated_block_comment(text: String, mode: RepairMode) -> Option<(String, AppliedFix)>:
+    let open_count = text.match_indices("/*").count()
+    let close_count = text.match_indices("*/").count()
+    if ((open_count <= close_count) || none):
+        return none
+    let mut out_ = text.to_string()
+    let start = out_.len()
+    if (!out_.ends_with("\n")):
+        out_.push("\n")
+        ()
+        ()
+        ()
+        ()
+    out_.push_str("*/\n")
+    ()
+    Option::Some((out_.clone(), AppliedFix { kind: if none: FixKind__InsertMissingBlockCommentCloser else: FixKind__CloseUnterminatedBlockComment, start: start, end: out_.len(), replacement: ("*/\n").into(), note: Option::Some(("appended block comment closer for unterminated comment").into()) }))
+
+pub fn apply_normalize_indentation(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = normalize_indentation(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__NormalizeIndentation, start: 0, end: text.len(), replacement: out_, note: Option::Some(("normalized tabs and ragged leading indentation").into()) }))
+
+pub fn apply_normalize_declaration_headers(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = normalize_declaration_headers(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__NormalizeDeclarationHeader, start: 0, end: text.len(), replacement: out_, note: Option::Some(("normalized parser-hostile declaration headers into canonical Kain syntax").into()) }))
+
+pub fn apply_flatten_nested_declaration_placement(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = flatten_nested_declaration_placement(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__FlattenNestedDeclarationPlacement, start: 0, end: text.len(), replacement: out_, note: Option::Some(("flattened nested declaration blocks to top-level placement").into()) }))
+
+pub fn apply_rewrite_reserved_identifiers(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = rewrite_reserved_identifiers(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__RewriteReservedIdentifier, start: 0, end: text.len(), replacement: out_, note: Option::Some(("rewrote parser-hostile reserved identifiers with a deterministic suffix").into()) }))
+
+pub fn apply_normalize_self_constructor_syntax(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = normalize_self_constructor_syntax(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__NormalizeSelfConstructorSyntax, start: 0, end: text.len(), replacement: out_, note: Option::Some(("normalized invalid Self constructor syntax to Self::").into()) }))
+
+pub fn apply_rewrite_inline_initializers(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = rewrite_inline_initializers(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__RewriteInlineInitialization, start: 0, end: text.len(), replacement: out_, note: Option::Some(("rewrote low-risk inline constructor initializers into parser-safe form").into()) }))
+
+pub fn apply_normalize_namespace_paths(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = normalize_namespace_paths(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__NormalizeNamespacePath, start: 0, end: text.len(), replacement: out_, note: Option::Some(("normalized namespace/path separators that confuse the parser").into()) }))
+
+pub fn apply_reconstruct_parser_safe_blocks(text: String, _: RepairMode) -> Option<(String, AppliedFix)>:
+    let out_ = reconstruct_parser_safe_blocks(text)
+    ((out_ != text)).then(fn(): (out_.clone(), AppliedFix { kind: FixKind__ReconstructParserSafeBlock, start: 0, end: text.len(), replacement: out_, note: Option::Some(("reconstructed block indentation from parser-safe structure").into()) }))
+
+fn normalize_indentation(source: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    for line_ in source.lines():
+        let trimmed = line_.trim_start_matches([" ", "\t"])
+        let indent_len = (line_.len() - trimmed.len())
+        let indent = line_[..indent_len].replace("\t", "    ")
+        let normalized = (" ").repeat((((indent.len() / 4)) * 4))
+        out_.push_str(&normalized)
+        ()
+        out_.push_str(trimmed)
+        ()
+        out_.push("\n")
+        ()
+    ()
+    out_.trim_end_matches("\n").to_string()
+
+fn rewrite_reserved_identifiers(source: String) -> String:
+    const RESERVED: Array<String> = ["type", "mod", "self", "Self", "use", "impl", "struct", "enum", "trait", "const", "var"]
+
+    let mut out_lines = Vec__new_()
+    for line_ in source.lines():
+        let (_, trimmed) = split_leading_whitespace(line_)
+        let header_keyword = trimmed.split_whitespace().next().map(fn(kw): kw.trim_end_matches(":")).filter(fn(kw): none)
+        let mut current = line_.to_string()
+        for reserved in RESERVED:
+            if (header_keyword == Option::Some((*reserved))):
+                continue
+            let replacement = f"{reserved}_"
+            let mut cursor = 0
+            loop:
+                match find_word(&current, reserved, cursor):
+                    Some(pos) =>
+                        current.replace_range(range(pos, (pos + reserved.len())), &replacement)
+                        ()
+                        cursor = (pos + replacement.len())
+                        ()
+                    _ => break
+        ()
+        out_lines.push(current)
+        ()
+    ()
+    out_lines.join("\n")
+
+fn normalize_declaration_headers(source: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    let mut changed = false
+    for line_ in source.lines():
+        let (prefix, body) = split_leading_whitespace(line_)
+        let (next, line_changed) = normalize_declaration_header_line(body)
+        changed = (changed | line_changed)
+        ()
+        out_.push_str(prefix)
+        ()
+        out_.push_str(&next)
+        ()
+        out_.push("\n")
+        ()
+    ()
+    if source.ends_with("\n"):
+        out_
+    else:
+        changed.then_some(out_.trim_end_matches("\n").to_string()).unwrap_or_else(fn(): source.to_string())
+
+fn normalize_declaration_header_line(line_: String) -> (String, Bool):
+    let trimmed = line_.trim_start()
+    let indent = &line_[..(line_.len() - trimmed.len())]
+    let Some(split_at) = trimmed.find(char__is_whitespace)
+    let (keyword, rest) = trimmed.split_at(split_at)
+    let rest = rest.trim_start()
+    let is_declaration = match keyword:
+        "enum_" => true
+        "struct_" => true
+        "trait_" => true
+        "impl_" => true
+        _ => false
+    if (!is_declaration):
+        return (line_.to_string(), false)
+    let canonical = keyword.trim_end_matches("_")
+    let rest = rest.trim_end_matches(":")
+    let mut normalized = String__new_()
+    normalized.push_str(indent)
+    ()
+    normalized.push_str(canonical)
+    ()
+    normalized.push(" ")
+    ()
+    normalized.push_str(rest)
+    ()
+    if trimmed.ends_with(":"):
+        normalized.push(":")
+        ()
+        ()
+        ()
+        ()
+    (normalized, true)
+
+fn flatten_nested_declaration_placement(source: String) -> String:
+    const DECLARATION_KEYWORDS: [String; 4] = ["enum", "struct", "trait", "impl"]
+
+    let lines: Array<String> = source.lines().collect()
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    let mut index = 0
+    while (index < lines.len()):
+        let line_ = lines[index]
+        let (indent, trimmed) = split_leading_whitespace(line_)
+        let current_indent_width = indent_width(indent)
+        let starts_nested_declaration = ((current_indent_width > 0) && starts_with_declaration_header(trimmed, &DECLARATION_KEYWORDS))
+        if (!starts_nested_declaration):
+            out_.push_str(line_)
+            ()
+            out_.push("\n")
+            ()
+            index = (index + 1)
+            ()
+            continue
+        let block_end = find_declaration_block_end(&lines, index, current_indent_width, &DECLARATION_KEYWORDS)
+        let base_indent = current_indent_width
+        for block_index in range(index, block_end):
+            let block_line = lines[block_index]
+            if block_line.trim().is_empty():
+                out_.push("\n")
+                ()
+                continue
+            let (block_indent, _) = split_leading_whitespace(block_line)
+            let dedented = if (indent_width(block_indent) >= base_indent):
+                &block_line[base_indent.min(block_line.len())..]
+            else:
+                block_line
+            out_.push_str(dedented)
+            ()
+            out_.push("\n")
+            ()
+        ()
+        index = block_end
+        ()
+    ()
+    out_.trim_end_matches("\n").to_string()
+
+fn find_declaration_block_end(lines: &[String], start: usize, base_indent: usize, keywords: &[String]) -> usize:
+    let mut index = (start + 1)
+    while (index < lines.len()):
+        let line_ = lines[index]
+        let (indent, trimmed) = split_leading_whitespace(line_)
+        if trimmed.is_empty():
+            index = (index + 1)
+            ()
+            continue
+        let current_indent = indent_width(indent)
+        if ((current_indent <= base_indent) && starts_with_declaration_header(trimmed, keywords)):
+            break
+        if (current_indent < base_indent):
+            break
+        index = (index + 1)
+        ()
+    ()
+    index
+
+fn starts_with_declaration_header(text: String, keywords: &[String]) -> Bool:
+    let keyword = text.split_whitespace().next().map(fn(token): token.trim_end_matches(":"))
+    keyword.map(fn(kw): keywords.contains(&kw)).unwrap_or(false)
+
+fn indent_width(indent: String) -> usize:
+    indent.chars().map(fn(ch): if (ch == "\t"): 4 else: 1).sum()
+
+fn indent_width_of(indent: String) -> usize:
+    indent_width(indent)
+
+fn split_leading_whitespace(line_: String) -> (String, String):
+    let trimmed = line_.trim_start_matches([" ", "\t"])
+    let indent_len = (line_.len() - trimmed.len())
+    (&line_[..indent_len], trimmed)
+
+fn normalize_self_constructor_syntax(source: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    for line_ in source.lines():
+        let (next, _) = normalize_self_constructor_line(line_)
+        out_.push_str(&next)
+        ()
+        out_.push("\n")
+        ()
+    ()
+    out_.trim_end_matches("\n").to_string()
+
+fn normalize_self_constructor_line(line_: String) -> (String, Bool):
+    let mut current = line_.to_string()
+    let mut changed = false
+    changed = (changed | replace_word_form(&mut current, "Self_:", "Self::"))
+    ()
+    changed = (changed | replace_word_form(&mut current, "Self_ :", "Self::"))
+    ()
+    changed = (changed | replace_word_form(&mut current, "Self_::", "Self::"))
+    ()
+    changed = (changed | replace_word_form(&mut current, "-> Self_", "-> Self"))
+    ()
+    changed = (changed | replace_word_form(&mut current, ": Self_", ": Self"))
+    ()
+    changed = (changed | replace_word_form(&mut current, "(Self_", "(Self"))
+    ()
+    changed = (changed | replace_word_form(&mut current, " Self_)", " Self)"))
+    ()
+    changed = (changed | replace_word_form(&mut current, ", Self_", ", Self"))
+    ()
+    changed = (changed | replace_word_form(&mut current, " Self_,", " Self,"))
+    ()
+    (current, changed)
+
+fn replace_word_form(text: String, needle: String, replacement: String) -> Bool:
+    if (!text.contains(needle)):
+        return false
+    let updated = text.replace(needle, replacement)
+    if (updated == (*text)):
+        return false
+    (*text) = updated
+    ()
+    true
+
+fn rewrite_inline_initializers(source: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    for line_ in source.lines():
+        let trimmed = line_.trim()
+        match trimmed.split_once(" = "):
+            Some((lhs, rhs)) =>
+                if ((rhs.contains("(") && rhs.contains(")")) && (!rhs.trim_end().ends_with(":"))):
+                    out_.push_str(lhs)
+                    ()
+                    out_.push_str(" = ")
+                    ()
+                    out_.push_str(rhs)
+                    ()
+                    out_.push("\n")
+                    ()
+                    continue
+                ()
+            _ =>
+                ()
+                ()
+        out_.push_str(line_)
+        ()
+        out_.push("\n")
+        ()
+    ()
+    out_.trim_end_matches("\n").to_string()
+
+fn normalize_namespace_paths(source: String) -> String:
+    source.replace("/", "::").replace("\\", "::")
+
+fn reconstruct_parser_safe_blocks(source: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(source.len())
+    let mut depth = 0
+    for line_ in source.lines():
+        let trimmed = line_.trim_start()
+        if (trimmed.starts_with("}") || trimmed.starts_with("end")):
+            depth = depth.saturating_sub(1)
+            ()
+            ()
+            ()
+            ()
+        let expected = ("    ").repeat(depth)
+        if (!trimmed.is_empty()):
+            out_.push_str(&expected)
+            ()
+            out_.push_str(trimmed)
+            ()
+            ()
+            ()
+            ()
+        out_.push("\n")
+        ()
+        if (trimmed.ends_with(":") || trimmed.ends_with("{")):
+            depth = (depth + 1)
+            ()
+    ()
+    out_.trim_end_matches("\n").to_string()
+
+fn find_word(text: String, needle: String, from: usize) -> Option<usize>:
+    let mut search = from
+    loop:
+        match text[search..].find(needle):
+            Some(pos) =>
+                let abs = (search + pos)
+                let before = text[..abs].chars().next_back()
+                let after = text[(abs + needle.len())..].chars().next()
+                let before_ok = before.map(fn(c): ((!c.is_ascii_alphanumeric()) && (c != "_"))).unwrap_or(true)
+                let after_ok = after.map(fn(c): ((!c.is_ascii_alphanumeric()) && (c != "_"))).unwrap_or(true)
+                if (before_ok && after_ok):
+                    return Option::Some(abs)
+                search = (abs + needle.len())
+                ()
+            _ => break
+    ()
+    none
+

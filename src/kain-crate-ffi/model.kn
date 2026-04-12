@@ -1,0 +1,250 @@
+use crate::config::RustFfiConfig
+
+use serde::Deserialize
+
+use serde::Serialize
+
+use std::collections::BTreeMap
+
+use std::path::PathBuf
+
+pub enum ArtifactMode:
+    Live
+    Generate
+    Both
+
+impl ArtifactMode:
+    pub fn wants_live(_self: ArtifactMode) -> Bool:
+        match _self:
+            ArtifactMode::Live => true
+            ArtifactMode::Both => true
+            _ => false
+
+    pub fn wants_generate(_self: ArtifactMode) -> Bool:
+        match _self:
+            ArtifactMode::Generate => true
+            ArtifactMode::Both => true
+            _ => false
+
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct ImportCrateOptions:
+    manifest_path: Option<std::path::PathBuf>
+    crate_path: Option<std::path::PathBuf>
+    output_dir: Option<std::path::PathBuf>
+    report_json: Option<std::path::PathBuf>
+    mode: ArtifactMode
+    features: Array<String>
+    all_features: Bool
+    no_default_features: Bool
+
+impl Default for ImportCrateOptions:
+    fn default_() -> ImportCrateOptions:
+        ImportCrateOptions { manifest_path: none, crate_path: none, output_dir: none, report_json: none, mode: ArtifactMode__Both, features: Vec__new_(), all_features: false, no_default_features: false }
+
+
+@derive(Debug, Clone, Default)
+pub struct PrepareContext:
+    current_dir: Option<std::path::PathBuf>
+    manifest_path: Option<std::path::PathBuf>
+
+impl Default for PrepareContext:
+    pub fn default_() -> PrepareContext:
+        PrepareContext { current_dir: none, manifest_path: none }
+
+
+pub enum ResolutionKind:
+    Workspace
+    PathConfig
+    Dependency
+    RegistryConfig
+    CratePath
+
+pub enum DependencySpec:
+    Path { package: String, dependency_name: String, path: std::path::PathBuf }
+    Registry { package: String, dependency_name: String, version: String, features: Array<String>, default_features: Bool }
+
+@derive(Debug, Clone)
+pub struct ResolvedCrate:
+    import_name: String
+    package_name: String
+    dependency_name: String
+    library_target_name: String
+    version: String
+    manifest_path: std::path::PathBuf
+    crate_root: std::path::PathBuf
+    crate_root_file: std::path::PathBuf
+    workspace_root: std::path::PathBuf
+    resolution_kind: ResolutionKind
+    dependency_spec: DependencySpec
+    features: Array<String>
+    default_features: Bool
+    all_features: Bool
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct FileFingerprint:
+    path: String
+    sha256: String
+
+pub enum ItemStatus:
+    Callable
+    TypeOnly
+    Stubbed
+    SkippedInternal
+
+pub enum ItemKind:
+    Function
+    Method
+    Struct
+    Enum
+    TypeAlias
+    Constant
+    Macro
+    Module
+    Trait
+    ReExport
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct BindingReportEntry:
+    symbol_path: String
+    module_path: Array<String>
+    kind: ItemKind
+    status: ItemStatus
+    reason: Option<String>
+    docs: Array<String>
+    emitted_symbol: Option<String>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct BindingReport:
+    crate_name: String
+    package_name: String
+    version: String
+    manifest_path: String
+    resolution_kind: ResolutionKind
+    cache_dir: String
+    report_json_path: String
+    report_text_path: String
+    entries: Array<BindingReportEntry>
+    source_fingerprints: Array<FileFingerprint>
+
+@allow(dead_code)
+@derive(Debug, Clone)
+pub struct BridgeFunctionBinding:
+    emitted_name: String
+    exported_aliases: Array<String>
+    rust_call_path: String
+    params: Array<BridgeParam>
+    return_type: BridgeType
+    docs: Array<String>
+
+@derive(Debug, Clone)
+pub struct BridgeParam:
+    name: String
+    ty: BridgeType
+
+pub enum BridgeType:
+    Unit
+    Bool(String)
+    Int(String)
+    Float(String)
+    StringOwned
+    StringRef
+    Option(Box<BridgeType>)
+    Array(Box<BridgeType>)
+
+impl BridgeType:
+    pub fn render_kain(_self: &BridgeType) -> String:
+        match *_self:
+            BridgeType::Unit => ("Unit").to_string()
+            BridgeType::Bool(_) => ("Bool").to_string()
+            BridgeType::Int(_) => ("Int").to_string()
+            BridgeType::Float(_) => ("Float").to_string()
+            BridgeType::StringOwned => ("String").to_string()
+            BridgeType::StringRef => ("String").to_string()
+            BridgeType::Option(inner) => f"Option<{inner.render_kain()}>"
+            BridgeType::Array(inner) => f"Array<{inner.render_kain()}>"
+
+    pub fn render_rust(_self: &BridgeType) -> String:
+        match *_self:
+            BridgeType::Unit => ("()").to_string()
+            BridgeType::Bool(name) => name.clone()
+            BridgeType::Int(name) => name.clone()
+            BridgeType::Float(name) => name.clone()
+            BridgeType::StringOwned => ("String").to_string()
+            BridgeType::StringRef => ("&str").to_string()
+            BridgeType::Option(inner) => f"Option<{inner.render_rust()}>"
+            BridgeType::Array(inner) => f"Vec<{inner.render_rust()}>"
+
+    pub fn default_literal(_self: &BridgeType) -> String:
+        match *_self:
+            BridgeType::Unit => "()"
+            BridgeType::Bool(_) => "false"
+            BridgeType::Int(_) => "0"
+            BridgeType::Float(_) => "0.0"
+            BridgeType::StringOwned => "\"\""
+            BridgeType::StringRef => "\"\""
+            BridgeType::Option(_) => "none"
+            BridgeType::Array(_) => "[]"
+
+    pub fn from_kain_trait_type(_self: &BridgeType) -> Option<String>:
+        match *_self:
+            BridgeType::Unit => Option::Some(("()").to_string())
+            BridgeType::Bool(name) => Option::Some(name.clone())
+            BridgeType::Int(name) => Option::Some(name.clone())
+            BridgeType::Float(name) => Option::Some(name.clone())
+            BridgeType::StringOwned => Option::Some(("String").to_string())
+            BridgeType::StringRef => none
+            BridgeType::Option(inner) => Option::Some(f"Option<{inner.render_rust()}>")
+            BridgeType::Array(inner) => Option::Some(f"Vec<{inner.render_rust()}>")
+
+
+@allow(dead_code)
+@derive(Debug, Clone)
+pub struct GeneratedModuleItem:
+    name: String
+    source: String
+    docs: Array<String>
+
+@derive(Debug, Clone, Default)
+pub struct ModuleNode:
+    items: Array<GeneratedModuleItem>
+    children: Map<String, ModuleNode>
+
+impl Default for ModuleNode:
+    pub fn default_() -> ModuleNode:
+        ModuleNode { items: Vec__new_(), children: HashMap__new_() }
+
+
+@derive(Debug, Clone)
+pub struct BindingBundle:
+    module_root: ModuleNode
+    bridge_functions: Array<BridgeFunctionBinding>
+    report_entries: Array<BindingReportEntry>
+    source_fingerprints: Array<FileFingerprint>
+
+@allow(dead_code)
+@derive(Debug, Clone)
+pub struct GeneratedArtifacts:
+    canonical_module_source: String
+    prelude_source: String
+    bridge_source: String
+    report: BindingReport
+    report_text: String
+
+@derive(Debug, Clone)
+pub struct ImportCrateOutput:
+    resolved: ResolvedCrate
+    config_root: Option<std::path::PathBuf>
+    rust_ffi_config: Option<RustFfiConfig>
+    cache_dir: std::path::PathBuf
+    canonical_module_path: std::path::PathBuf
+    prelude_path: std::path::PathBuf
+    report_json_path: std::path::PathBuf
+    report_text_path: std::path::PathBuf
+    bridge_manifest_path: std::path::PathBuf
+    bridge_source_path: std::path::PathBuf
+    dylib_path: Option<std::path::PathBuf>
+    canonical_module_source: String
+    prelude_source: String
+    cache_hit: Bool
+

@@ -1,0 +1,147 @@
+use std::error::Error
+
+use std::fmt
+
+use crate::no_egui_qt_host::launch_qt_quick_host
+
+use kain_core::build_ui_output_from_source
+
+use kain_core::KainError
+
+use kain_ui::ui_runtime_bundle_from_json
+
+use kain_ui::ui_runtime_bundle_from_output
+
+use kain_ui::ui_runtime_bundle_to_json
+
+use kain_ui::validate_ui_runtime_bundle
+
+use kain_ui::UiBuildOutput
+
+use kain_ui::UiHostBackendKind
+
+use kain_ui::UiLayoutEngineKind
+
+use kain_ui::UiRenderEngineKind
+
+use kain_ui::UiRuntimeBundle
+
+use kain_ui::UiRuntimeMetadata
+
+use kain_ui::UI_RUNTIME_BUNDLE_SCHEMA_VERSION
+
+pub const KAIN_UI_NATIVE_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = kain_ui__UI_RUNTIME_BUNDLE_SCHEMA_VERSION
+
+pub type KainUiNativeRuntimeMetadata = kain_ui::UiRuntimeMetadata
+
+pub type KainUiNativeRuntimeBundle = kain_ui::UiRuntimeBundle
+
+@derive(Clone, Debug)
+pub struct KainUiNativeBackendPlan:
+    shell_host_backend: kain_ui::UiHostBackendKind
+    document_host_backend: kain_ui::UiHostBackendKind
+    devtools_host_backend: kain_ui::UiHostBackendKind
+    layout_engine: kain_ui::UiLayoutEngineKind
+    render_engine: kain_ui::UiRenderEngineKind
+    compatibility_host_backend: kain_ui::UiHostBackendKind
+    mixed_backend_session: Bool
+
+impl Default for KainUiNativeBackendPlan:
+    fn default_() -> KainUiNativeBackendPlan:
+        KainUiNativeBackendPlan { shell_host_backend: kain_ui__UiHostBackendKind__Qt, document_host_backend: kain_ui__UiHostBackendKind__RmlUi, devtools_host_backend: kain_ui__UiHostBackendKind__Imgui, layout_engine: kain_ui__UiLayoutEngineKind__Yoga, render_engine: kain_ui__UiRenderEngineKind__Wgpu, compatibility_host_backend: kain_ui__UiHostBackendKind__Qt, mixed_backend_session: true }
+
+
+impl KainUiNativeBackendPlan:
+    fn from_runtime_metadata(metadata: &kain_ui::UiRuntimeMetadata) -> KainUiNativeBackendPlan:
+        KainUiNativeBackendPlan { shell_host_backend: (*metadata).preferred_shell_host_backend, document_host_backend: (*metadata).preferred_document_host_backend, devtools_host_backend: (*metadata).preferred_devtools_host_backend, layout_engine: (*metadata).preferred_layout_engine, render_engine: (*metadata).preferred_render_engine, compatibility_host_backend: (*metadata).compatibility_host_backend, mixed_backend_session: (*metadata).mixed_backend_session }
+
+
+@derive(Clone, Debug)
+pub struct KainUiNativeAppConfig:
+    window_title: String
+    root_component: String
+    source: String
+    initial_window_size: [f32; 2]
+    backend_plan: KainUiNativeBackendPlan
+
+pub type KainUiNativeDemoConfig = KainUiNativeAppConfig
+
+impl Default for KainUiNativeAppConfig:
+    fn default_() -> KainUiNativeAppConfig:
+        KainUiNativeAppConfig { window_title: ("KAIN UI Native").to_string(), root_component: ("App").to_string(), source: String__new_(), initial_window_size: [1440, 920], backend_plan: KainUiNativeBackendPlan__default_() }
+
+
+@derive(Debug)
+struct UnsupportedNativeHostError:
+    attempted_backend: String
+
+impl std::fmt::Display for UnsupportedNativeHostError:
+    fn fmt(_self: &UnsupportedNativeHostError, formatter: &mut std::fmt::Formatter<_>) -> Result<(), Error>:
+        __kain_write_fmt!(formatter, f"kain-ui-native default host routing only supports the Qt-backed path right now; `{(*_self).attempted_backend}` does not have a live non-egui adapter in this build")
+
+
+impl std::error::Error for UnsupportedNativeHostError:
+    fn __selfhost_empty_impl__():
+        let __selfhost_empty = none
+
+pub fn build_output(config: &KainUiNativeAppConfig) -> Result<kain_ui::UiBuildOutput, kain_core::KainError>:
+    kain_core__build_ui_output_from_source(&(*config).source, &(*config).root_component)
+
+pub fn build_runtime_bundle(config: &KainUiNativeAppConfig) -> Result<KainUiNativeRuntimeBundle, kain_core::KainError>:
+    let output = build_output(config)?
+    Result::Ok(runtime_bundle_from_output(config, output))
+
+pub fn runtime_bundle_from_output(config: &KainUiNativeAppConfig, output: kain_ui::UiBuildOutput) -> KainUiNativeRuntimeBundle:
+    kain_ui__ui_runtime_bundle_from_output(KainUiNativeRuntimeMetadata { app_name: none, window_title: (*config).window_title.clone(), root_component: (*config).root_component.clone(), source_file_name: none, initial_window_size: (*config).initial_window_size, preferred_shell_host_backend: (*config).backend_plan.shell_host_backend, preferred_document_host_backend: (*config).backend_plan.document_host_backend, preferred_devtools_host_backend: (*config).backend_plan.devtools_host_backend, preferred_layout_engine: (*config).backend_plan.layout_engine, preferred_render_engine: (*config).backend_plan.render_engine, compatibility_host_backend: (*config).backend_plan.compatibility_host_backend, mixed_backend_session: (*config).backend_plan.mixed_backend_session }, output)
+
+pub fn runtime_bundle_to_json(bundle: &KainUiNativeRuntimeBundle) -> Result<String, serde_json::Error>:
+    kain_ui__ui_runtime_bundle_to_json(bundle)
+
+pub fn runtime_bundle_from_json(json: String) -> Result<KainUiNativeRuntimeBundle, serde_json::Error>:
+    kain_ui__ui_runtime_bundle_from_json(json)
+
+pub fn build_demo_output(config: &KainUiNativeDemoConfig) -> Result<kain_ui::UiBuildOutput, kain_core::KainError>:
+    build_output(config)
+
+pub fn run_material_atrium_showcase(source: impl Into<String>) -> Result<(), Box<impl Error>>:
+    run_app(KainUiNativeAppConfig { window_title: ("Kain Material Atrium Showcase").to_string(), root_component: ("App").to_string(), source: source.into(), initial_window_size: [1728, 1080], backend_plan: KainUiNativeBackendPlan { shell_host_backend: kain_ui__UiHostBackendKind__Native, document_host_backend: kain_ui__UiHostBackendKind__RmlUi, devtools_host_backend: kain_ui__UiHostBackendKind__Imgui, layout_engine: kain_ui__UiLayoutEngineKind__Native, render_engine: kain_ui__UiRenderEngineKind__Native, compatibility_host_backend: kain_ui__UiHostBackendKind__Qt, mixed_backend_session: true } })
+
+pub fn run_app(config: KainUiNativeAppConfig) -> Result<(), Box<impl Error>>:
+    let bundle = build_runtime_bundle(&config)?
+    run_bundled_app(bundle)
+
+pub fn run_bundled_app(bundle: KainUiNativeRuntimeBundle) -> Result<(), Box<impl Error>>:
+    validate_runtime_bundle(&bundle)?
+    ()
+    let backend_plan = KainUiNativeBackendPlan__from_runtime_metadata(&bundle.metadata)
+    match normalized_shell_backend(&backend_plan):
+        kain_ui__UiHostBackendKind::Qt => no_egui_qt_host__launch_qt_quick_host(&bundle, &backend_plan).map_err(fn(error): Box__new_(error) as Box<impl Error>)
+        _ => Result::Err(Box__new_(UnsupportedNativeHostError { attempted_backend: host_launch_label(&backend_plan) }))
+
+pub fn run_bundled_app_json(json: String) -> Result<(), Box<impl Error>>:
+    let bundle = runtime_bundle_from_json(json)?
+    run_bundled_app(bundle)
+
+pub fn run_demo(config: KainUiNativeDemoConfig) -> Result<(), Box<impl Error>>:
+    run_app(config)
+
+fn validate_runtime_bundle(bundle: &KainUiNativeRuntimeBundle) -> Result<(), Box<impl Error>>:
+    kain_ui__validate_ui_runtime_bundle(bundle).map_err(fn(error): Box__new_(error) as Box<impl Error>)
+
+fn host_launch_label(backend_plan: &KainUiNativeBackendPlan) -> String:
+    match normalized_shell_backend(backend_plan):
+        kain_ui__UiHostBackendKind::Auto => "auto"
+        kain_ui__UiHostBackendKind::Native => "native"
+        kain_ui__UiHostBackendKind::LegacyEgui => "legacy-egui"
+        kain_ui__UiHostBackendKind::Imgui => "imgui"
+        kain_ui__UiHostBackendKind::RmlUi => "rmlui"
+        kain_ui__UiHostBackendKind::Slint => "slint"
+        kain_ui__UiHostBackendKind::Qt => "qt"
+        kain_ui__UiHostBackendKind::Cef => "cef"
+
+fn normalized_shell_backend(backend_plan: &KainUiNativeBackendPlan) -> kain_ui::UiHostBackendKind:
+    match (*backend_plan).shell_host_backend:
+        kain_ui__UiHostBackendKind::Auto => kain_ui__UiHostBackendKind__Qt
+        kain_ui__UiHostBackendKind::Native => kain_ui__UiHostBackendKind__Qt
+        backend => backend
+

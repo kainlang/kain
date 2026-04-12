@@ -1,0 +1,69 @@
+use kain_core::DerivedShaderArtifact
+
+use kain_core::ShaderArtifactBundle
+
+use kain_core::ShaderArtifactFormat
+
+use kain_core::ShaderDebugBundle
+
+use kain_core::ShaderEntryPoint
+
+use kain_core::ShaderReflectionSummary
+
+use kain_core::ShaderResourceLayout
+
+use kain_core::ShaderSourceMapEntry
+
+use kain_core::ShaderStageMetadata
+
+use kain_core::SpirvModuleArtifact
+
+use kain_core::SHADER_ARTIFACT_SCHEMA_VERSION
+
+pub const VIEWPORT_SHADER_MODULE_NAME: String = "kain_3d.viewport_surface"
+
+pub const VIEWPORT_SHADER_SOURCE_ORIGIN: String = "crates/kain-3D/src/shaders/viewport_surface.wgsl"
+
+const VIEWPORT_SHADER_SOURCE: String = include_str!("shaders/viewport_surface.wgsl")
+
+pub fn default_viewport_shader_bundle() -> kain_core::ShaderArtifactBundle:
+    kain_core::ShaderArtifactBundle { schema_version: kain_core__SHADER_ARTIFACT_SCHEMA_VERSION, canonical_native_payload: kain_core__ShaderArtifactFormat__Spirv, spirv_modules: Vec__new_(), reflection: kain_core::ShaderReflectionSummary { emitted: false, shaders: Vec__new_(), notes: [("Transitional viewport shader bundle.").to_string(), ("Canonical SPIR-V emission is owned by the compiler lane; kain-3D consumes derived WGSL metadata until that handoff is complete.").to_string()] }, resource_layouts: [kain_core::ShaderResourceLayout { shader_: ("viewport").to_string(), name: ("scene").to_string(), binding: 0, descriptor_set: 0, ty: ("SceneUniforms").to_string(), kind: ("uniform_buffer").to_string() }], entry_points: [shader_entry("scene_vs_main", "vertex"), shader_entry("background_vs_main", "vertex"), shader_entry("pick_vs_main", "vertex"), shader_entry("gizmo_vs_main", "vertex"), shader_entry("particle_vs_main", "vertex"), shader_entry("scene_fs_main", "fragment"), shader_entry("background_fs_main", "fragment"), shader_entry("pick_fs_main", "fragment"), shader_entry("gizmo_fs_main", "fragment"), shader_entry("particle_fs_main", "fragment")], stage_metadata: [shader_stage("scene_vs_main", "vertex"), shader_stage("background_vs_main", "vertex"), shader_stage("pick_vs_main", "vertex"), shader_stage("gizmo_vs_main", "vertex"), shader_stage("particle_vs_main", "vertex"), shader_stage("scene_fs_main", "fragment"), shader_stage("background_fs_main", "fragment"), shader_stage("pick_fs_main", "fragment"), shader_stage("gizmo_fs_main", "fragment"), shader_stage("particle_fs_main", "fragment")], specialization_constants: Vec__new_(), debug: kain_core::ShaderDebugBundle { source_map: [kain_core::ShaderSourceMapEntry { shader_: ("viewport").to_string(), source_origin: VIEWPORT_SHADER_SOURCE_ORIGIN.to_string(), module_name: VIEWPORT_SHADER_MODULE_NAME.to_string(), entry_point: ("scene_vs_main").to_string() }], notes: [("Bundle-backed Kain 3D viewport shader.").to_string()] }, derived_outputs: [kain_core::DerivedShaderArtifact { format: kain_core__ShaderArtifactFormat__Wgsl, module_name: VIEWPORT_SHADER_MODULE_NAME.to_string(), contents: VIEWPORT_SHADER_SOURCE.to_string() }] }
+
+pub fn wgsl_module_source<a>(bundle: &a kain_core::ShaderArtifactBundle, module_name: String) -> Result<borrow::Cow<a, String>, String>:
+    match (*bundle).derived_outputs.iter().find(fn(artifact): ((artifact.format == kain_core__ShaderArtifactFormat__Wgsl) && (artifact.module_name == module_name))).map(fn(artifact): artifact.contents.as_str()):
+        Some(source) => return Result::Ok(borrow__Cow::Borrowed(source))
+        _ =>
+            ()
+            ()
+    let spirv = (*bundle).spirv_modules.iter().find(fn(artifact): (artifact.module_name == module_name)).ok_or_else(fn(): f"WGSL module `{module_name}` was not present in ShaderArtifactBundle and no SPIR-V fallback was available")?
+    transpile_spirv_module_to_wgsl(spirv)
+
+fn transpile_spirv_module_to_wgsl(artifact: &kain_core::SpirvModuleArtifact) -> Result<borrow::Cow<static_, String>, String>:
+    let bytes = hex_to_bytes(&(*artifact).bytes_hex)?
+    let options = Options__default_()
+    let module = naga__front__spv__parse_u8_slice(&bytes, &options).map_err(fn(err): f"failed to parse SPIR-V module `{(*artifact).module_name}`: {err}")?
+    let info = Validator__new_(ValidationFlags__all(), Capabilities__all()).validate(&module).map_err(fn(err): f"failed to validate SPIR-V module `{(*artifact).module_name}`: {err}")?
+    let wgsl = naga__back__wgsl__write_string(&module, &info, WriterFlags__empty()).map_err(fn(err): f"failed to transpile SPIR-V module `{(*artifact).module_name}` to WGSL: {err}")?
+    Result::Ok(borrow__Cow::Owned(wgsl))
+
+fn hex_to_bytes(hex: String) -> Result<Array<u8>, String>:
+    let trimmed = hex.trim()
+    if ((trimmed.len() % 2) != 0):
+        return Result::Err(("hex payload length must be even").to_string())
+    let mut bytes = (fn(__kain_ctor_arg0): Vec__new_())((trimmed.len() / 2))
+    let mut index = 0
+    while (index < trimmed.len()):
+        let byte = u8__from_str_radix(&trimmed[index..(index + 2)], 16).map_err(fn(err): f"invalid hex byte at offset {index}: {err}")?
+        bytes.push(byte)
+        ()
+        index = (index + 2)
+        ()
+    ()
+    Result::Ok(bytes)
+
+fn shader_entry(entry_point: String, stage: String) -> kain_core::ShaderEntryPoint:
+    kain_core::ShaderEntryPoint { shader_: ("viewport").to_string(), module_name: VIEWPORT_SHADER_MODULE_NAME.to_string(), entry_point: entry_point.to_string(), stage: stage.to_string() }
+
+fn shader_stage(entry_point: String, stage: String) -> kain_core::ShaderStageMetadata:
+    kain_core::ShaderStageMetadata { shader_: ("viewport").to_string(), stage: stage.to_string(), entry_point: entry_point.to_string(), input_count: 0, binding_count: 1, output_type: ("builtin").to_string() }
+

@@ -1,0 +1,52 @@
+use kain_core::ast::CueType
+
+use kain_core::ast::GameplayCueDef
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+@doc(doc = " Intermediate representation of a gameplay cue")
+@derive(Debug, Clone)
+pub struct GameplayCueIR:
+    name: String
+    tag: String
+    cue_type: CueTypeIR
+    auto_destroy: Bool
+    state_fields: Array<StateFieldIR>
+    on_execute_body: Option<String>
+    on_add_body: Option<String>
+    on_remove_body: Option<String>
+    while_active_body: Option<String>
+
+pub enum CueTypeIR:
+    Static
+    Actor
+
+@doc(doc = " State field IR")
+@derive(Debug, Clone)
+pub struct StateFieldIR:
+    name: String
+    field_type: String
+
+impl GameplayCueIR:
+    pub fn from_ast(cue: &kain_core::ast::GameplayCueDef) -> Result<GameplayCueIR, KainError>:
+        if (!(*cue).attributes.iter().any(fn(a): (a.name == "gameplay_cue"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*cue).name}' must have @gameplay_cue attribute", (*cue).span))
+        if (*cue).tag.is_empty():
+            return Result::Err(KainError__codegen(("Tag cannot be empty").to_string(), (*cue).span))
+        if (!(*cue).tag.starts_with("GameplayCue.")):
+            return Result::Err(KainError__codegen(f"Cue tag '{(*cue).tag}' must start with 'GameplayCue.'", (*cue).span))
+        if ((*cue).tag == "GameplayCue."):
+            return Result::Err(KainError__codegen(("Tag must have content after 'GameplayCue.' prefix").to_string(), (*cue).span))
+        let cue_type = match (*cue).cue_type:
+            kain_core__ast__CueType::Static => CueTypeIR__Static
+            kain_core__ast__CueType::Actor => CueTypeIR__Actor
+        let state_fields = (*cue).state_fields.iter().map(fn(f): StateFieldIR { name: f.name.clone(), field_type: f.ty }).collect()
+        let on_execute_body = (*cue).on_execute.map(fn(_): ("// TODO: Implement on_execute codegen").to_string())
+        let on_add_body = (*cue).on_add.map(fn(_): ("// TODO: Implement on_add codegen").to_string())
+        let on_remove_body = (*cue).on_remove.map(fn(_): ("// TODO: Implement on_remove codegen").to_string())
+        let while_active_body = (*cue).while_active.map(fn(_): ("// TODO: Implement while_active codegen").to_string())
+        Result::Ok(GameplayCueIR { name: (*cue).name.clone(), tag: (*cue).tag.clone(), cue_type: cue_type, auto_destroy: (*cue).auto_destroy, state_fields: state_fields, on_execute_body: on_execute_body, on_add_body: on_add_body, on_remove_body: on_remove_body, while_active_body: while_active_body })
+
+

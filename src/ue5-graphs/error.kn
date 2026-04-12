@@ -1,0 +1,15 @@
+use thiserror::Error
+
+pub type Result<T> = Result<T, GraphError>
+
+pub enum GraphError:
+    ASTConversion(String)
+    IRValidation(String)
+    FactoryGeneration(String)
+    BinarySerialization(String)
+    SchemaBuilding(String)
+    NodeType(String)
+    PinType(String)
+    Io(io::Error)
+    Serialization(serde_json::Error)
+

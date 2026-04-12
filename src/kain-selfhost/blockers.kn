@@ -1,0 +1,16 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+pub enum BlockerBucket:
+    MemoryLoweringLeakage
+    SpawnRuntimeLeakage
+    ParserHelperLeakage
+    SpanOwnership
+    TypeShapeMismatch
+    ResultOptionUnitCoercion
+    RuntimeHelperTransliteration
+    TraitImplFidelity
+    PlaceholderNone
+    Unknown
+

@@ -1,0 +1,35 @@
+use serde::Deserialize
+
+use std::collections::BTreeMap
+
+use std::path::PathBuf
+
+@derive(Debug, Clone, Default, serde__Deserialize)
+pub struct CFfiConfig:
+    include_paths: Array<std::path::PathBuf>
+    defines: Array<String>
+    cpp_options: Array<String>
+    cpp_command: Option<String>
+    libraries: Array<CLibraryConfig>
+
+impl Default for CFfiConfig:
+    pub fn default_() -> CFfiConfig:
+        CFfiConfig { include_paths: Vec__new_(), defines: Vec__new_(), cpp_options: Vec__new_(), cpp_command: none, libraries: Vec__new_() }
+
+
+@derive(Debug, Clone, Default, serde__Deserialize)
+pub struct CLibraryConfig:
+    name: String
+    header: std::path::PathBuf
+    shared_lib: Option<std::path::PathBuf>
+    symbols: Map<String, String>
+    include_paths: Array<std::path::PathBuf>
+    defines: Array<String>
+    cpp_options: Array<String>
+    cpp_command: Option<String>
+
+impl Default for CLibraryConfig:
+    pub fn default_() -> CLibraryConfig:
+        CLibraryConfig { name: String__new_(), header: PathBuf__default_(), shared_lib: none, symbols: HashMap__new_(), include_paths: Vec__new_(), defines: Vec__new_(), cpp_options: Vec__new_(), cpp_command: none }
+
+

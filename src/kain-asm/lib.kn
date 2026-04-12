@@ -1,0 +1,51 @@
+use std::path::Path
+
+use dialects::furby_6502::ImportAsmOutput
+
+use dialects::furby_6502::RecoveryIssue
+
+use dialects::furby_6502::RecoveryReport
+
+use dialects::furby_6502::RecoverySectionScore
+
+use error::AsmError
+
+use error::AsmResult
+
+type ImporterFn = fn(&std::path::Path, String, Option<&std::path::Path>, Bool) -> error::AsmResult<dialects::furby_6502::ImportAsmOutput>
+
+struct AsmDialect:
+    id: String
+    aliases: &static [String]
+    importer: ImporterFn
+
+const DIALECTS: Array<AsmDialect> = [AsmDialect { id: "6502-furby", aliases: ["furby-6502", "6502", "furby"], importer: dialects__furby_6502__import_asm }, AsmDialect { id: "lr35902-gameboy", aliases: ["gameboy-lr35902", "gb-lr35902", "lr35902", "gameboy"], importer: dialects__gameboy_lr35902__import_asm }, AsmDialect { id: "z80", aliases: ["z80-arcade", "z80-spectrum", "z80-msx"], importer: dialects__z80__import_asm }]
+
+pub fn supported_formats() -> Array<String>:
+    DIALECTS.iter().map(fn(d): d.id).collect()
+
+pub fn supported_format_aliases() -> Array<String>:
+    let mut out_ = Vec__new_()
+    for dialect in DIALECTS:
+        out_.push(dialect.id)
+        ()
+        out_.extend(dialect.aliases.iter().copied())
+        ()
+    ()
+    out_
+
+fn normalize_format(format: String) -> String:
+    format.trim().to_ascii_lowercase()
+
+fn find_dialect(format: String) -> Option<&static AsmDialect>:
+    let norm = normalize_format(format)
+    DIALECTS.iter().find(fn(dialect): ((dialect.id == norm) || dialect.aliases.iter().any(fn(alias): ((*alias) == norm))))
+
+pub fn import_asm(input: &std::path::Path, format: String, out_kn: Option<&std::path::Path>, validate_only: Bool) -> error::AsmResult<dialects::furby_6502::ImportAsmOutput>:
+    match find_dialect(format):
+        Some(dialect) => return dialect.importer(input, format, out_kn, validate_only)
+        _ =>
+            ()
+            ()
+    Result::Err(AsmError__runtime("Unsupported asm format '{format}'. Supported: {supported_format_aliases().join(\", \")}"))
+

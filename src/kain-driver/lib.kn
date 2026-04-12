@@ -1,0 +1,775 @@
+use std::path::PathBuf
+
+use kain_core::ast::Expr
+
+use kain_core::ast::Program
+
+use kain_core::ast::WorldSurfaceKind
+
+use kain_core::error::KainError
+
+use kain_core::monomorphize::MonomorphizedProgram
+
+use kain_core::runtime
+
+use kain_core::comptime_
+
+use kain_core::diagnostics
+
+use kain_core::emit_realtime_app_bundle
+
+use kain_core::emit_runtime_contract_bundle
+
+use kain_core::monomorphize
+
+use kain_core::realtime_app_bundle_to_json
+
+use kain_core::stdlib
+
+use kain_core::types
+
+use kain_core::CompileTarget
+
+use kain_core::Lexer
+
+use kain_core::Parser
+
+use kain_core::RealtimeAppBundle
+
+use kain_core::ResolvedType
+
+use kain_core::RuntimeContractBundle
+
+use kain_core::ShaderArtifactBundle
+
+use kain_core::TypedItem
+
+use kain_core::TypedProgram
+
+use kain_core::bytes_to_hex
+
+use kain_core::shader_artifact_bundle_to_json
+
+use kain_core::DerivedShaderArtifact
+
+use kain_core::ShaderArtifactFormat
+
+use kain_core::ShaderDebugBundle
+
+use kain_core::ShaderEntryPoint
+
+use kain_core::ShaderIoField
+
+use kain_core::ShaderReflectionShader
+
+use kain_core::ShaderReflectionSummary
+
+use kain_core::ShaderResourceLayout
+
+use kain_core::ShaderSourceMapEntry
+
+use kain_core::ShaderSpecializationConstant
+
+use kain_core::ShaderStageMetadata
+
+use kain_core::SpirvModuleArtifact
+
+use kain_core::SHADER_ARTIFACT_SCHEMA_VERSION
+
+use kain_core::Span
+
+use gpu
+
+use kain_sys_codegen as sys
+
+use compute_residency::write_compute_residency_sidecars
+
+use compute_residency::ComputeResidencyBinding
+
+use compute_residency::ComputeResidencyBundle
+
+use compute_residency::ComputeResidencyEntry
+
+use compute_residency::COMPUTE_RESIDENCY_ENV_VAR
+
+use compute_residency::COMPUTE_RESIDENCY_FILE_NAME
+
+use native_app::compile_native_app_bundle
+
+use native_app::discover_native_app_root_component
+
+use native_app::materialize_native_app_bundle
+
+use native_app::NativeAppBundle
+
+use native_app::NativeAppBundleConfig
+
+use native_app::NativeAppHostSidecarBinding
+
+use native_app::NativeAppLauncherEntrypoint
+
+use native_app::NativeAppMaterializationConfig
+
+use native_app::NativeAppMaterializedPaths
+
+use native_app::NativeAppMetadata
+
+use native_app::NativeAppRuntimeDependency
+
+use ue5
+
+use ue5_editor
+
+use ue5_shaders
+
+use web
+
+@derive(Clone, Copy)
+struct TargetSpec:
+    target: kain_core::CompileTarget
+    extension: String
+    aliases: &static [String]
+
+const TARGET_SPECS: Array<TargetSpec> = [TargetSpec { target: kain_core__CompileTarget__Wasm, extension: "wasm", aliases: ["wasm", "w"] }, TargetSpec { target: kain_core__CompileTarget__Llvm, extension: "ll", aliases: ["llvm", "native", "n"] }, TargetSpec { target: kain_core__CompileTarget__Spirv, extension: "spv", aliases: ["spirv", "gpu", "shader", "s"] }, TargetSpec { target: kain_core__CompileTarget__Hlsl, extension: "hlsl", aliases: ["hlsl", "h"] }, TargetSpec { target: kain_core__CompileTarget__Usf, extension: "usf", aliases: ["usf"] }, TargetSpec { target: kain_core__CompileTarget__Js, extension: "js", aliases: ["js", "javascript", "j"] }, TargetSpec { target: kain_core__CompileTarget__Ts, extension: "ts", aliases: ["ts", "typescript"] }, TargetSpec { target: kain_core__CompileTarget__Rust, extension: "rs", aliases: ["rust", "rs"] }, TargetSpec { target: kain_core__CompileTarget__Hybrid, extension: "js", aliases: ["hybrid", "web"] }, TargetSpec { target: kain_core__CompileTarget__Cpp, extension: "cpp", aliases: ["cpp", "c++"] }, TargetSpec { target: kain_core__CompileTarget__Ue5, extension: "h", aliases: ["ue5", "unreal", "u"] }, TargetSpec { target: kain_core__CompileTarget__Ue5Editor, extension: "h", aliases: ["ue5editor", "ue5-editor", "editor", "slate"] }, TargetSpec { target: kain_core__CompileTarget__Interpret, extension: "txt", aliases: ["run", "r", "interpret", "i"] }, TargetSpec { target: kain_core__CompileTarget__Test, extension: "txt", aliases: ["test", "t"] }, TargetSpec { target: kain_core__CompileTarget__Ks, extension: "ks", aliases: ["ks", "kainscript", "kscript"] }]
+
+@derive(Debug, Clone, Default)
+pub struct DriverSession:
+    ue5_metadata_dir: Option<std::path::PathBuf>
+
+impl Default for DriverSession:
+    pub fn default_() -> DriverSession:
+        DriverSession { ue5_metadata_dir: none }
+
+
+@derive(Debug, Clone)
+pub struct ShaderArtifactBundleOutput:
+    bundle: kain_core::ShaderArtifactBundle
+    bundle_json: String
+    spirv: Array<u8>
+    rust_host: String
+    reflection_json: String
+    derived_hlsl: Option<String>
+
+pub type GpuArtifactOutput = ShaderArtifactBundleOutput
+
+@derive(Debug, Clone)
+pub struct RealtimeAppBundleOutput:
+    bundle: kain_core::RealtimeAppBundle
+    bundle_json: String
+
+@derive(Debug, Clone)
+pub struct CheckedFrontend:
+    ast: kain_core::ast::Program
+    typed: kain_core::TypedProgram
+
+@derive(Debug, Clone, Default)
+struct ResolvedWorldSelection:
+    root_component: Option<String>
+    active_world_name: Option<String>
+
+impl Default for ResolvedWorldSelection:
+    pub fn default_() -> ResolvedWorldSelection:
+        ResolvedWorldSelection { root_component: none, active_world_name: none }
+
+
+@derive(Debug, Clone)
+struct WorldSelectionInfo:
+    name: String
+    surfaces: Array<WorldSurfaceSelection>
+
+@derive(Debug, Clone)
+struct WorldSurfaceSelection:
+    kind: kain_core::ast::WorldSurfaceKind
+    root_component: Option<String>
+
+@cfg(feature = "sys")
+@derive(Debug, Clone)
+pub struct RustBundleOutput:
+    bundle: kain_sys_codegen::RustArtifactBundle
+    spirv: Option<Array<u8>>
+
+impl DriverSession:
+    pub fn new_() -> DriverSession:
+        DriverSession__default_()
+
+    pub fn with_ue5_metadata_dir(_self: DriverSession, path: impl Into<std::path::PathBuf>) -> DriverSession:
+        _self.ue5_metadata_dir = Option::Some(path.into())
+        ()
+        _self
+
+    pub fn set_ue5_metadata_dir(_self: &mut DriverSession, path: impl Into<std::path::PathBuf>):
+        (*_self).ue5_metadata_dir = Option::Some(path.into())
+        ()
+
+    pub fn frontend_to_checked_program(_self: &DriverSession, source: String, target: kain_core::CompileTarget) -> Result<CheckedFrontend, kain_core::error::KainError>:
+        (*_self).frontend_to_checked_program_with_extra_globals(source, target, std__iter__empty())
+
+    pub fn frontend_to_checked_program_with_extra_globals<I>(_self: &DriverSession, source: String, target: kain_core::CompileTarget, extra_globals: I) -> Result<CheckedFrontend, kain_core::error::KainError>:
+        register_frontend_extensions_for_target(target)
+        ()
+        let source = prepare_frontend_source_for_target(source, target)?
+        let stdlib_source = kain_core__stdlib__load_stdlib_for_target(target)
+        let full_source = f"{stdlib_source}\n{source}"
+        let tokens = Lexer__new_(&full_source).tokenize()?
+        let span_mapper = SpanMapper__new_(&full_source)
+        let mut ast = Parser__new_(&tokens, &span_mapper, "<input>").parse()?
+        kain_core__comptime__eval_program(&mut ast)?
+        ()
+        let typed = kain_core__types__check_with_extra_globals(&ast, &span_mapper, "<input>", extra_globals)?
+        Result::Ok(CheckedFrontend { ast: ast, typed: typed })
+
+    pub fn frontend_to_monomorphized_program(_self: &DriverSession, source: String, target: kain_core::CompileTarget) -> Result<kain_core::monomorphize::MonomorphizedProgram, kain_core::error::KainError>:
+        let checked = (*_self).frontend_to_checked_program(source, target)?
+        kain_core__monomorphize__monomorphize(&checked.typed)
+
+    pub fn frontend_to_typed_program(_self: &DriverSession, source: String, target: kain_core::CompileTarget) -> Result<kain_core::TypedProgram, kain_core::error::KainError>:
+        Result::Ok(((*_self).frontend_to_checked_program(source, target)?).typed)
+
+    pub fn frontend_to_typed_program_with_extra_globals<I>(_self: &DriverSession, source: String, target: kain_core::CompileTarget, extra_globals: I) -> Result<kain_core::TypedProgram, kain_core::error::KainError>:
+        Result::Ok(((*_self).frontend_to_checked_program_with_extra_globals(source, target, extra_globals)?).typed)
+
+    pub fn compile_runtime_contract_bundle(_self: &DriverSession, source: String, target: kain_core::CompileTarget) -> Result<kain_core::RuntimeContractBundle, kain_core::error::KainError>:
+        let typed = (*_self).frontend_to_typed_program(source, target)?
+        Result::Ok(kain_core__emit_runtime_contract_bundle(&typed, target))
+
+    pub fn compile_realtime_app_bundle(_self: &DriverSession, source: String, target: kain_core::CompileTarget, root_component: Option<String>) -> Result<RealtimeAppBundleOutput, kain_core::error::KainError>:
+        let typed = (*_self).frontend_to_typed_program(source, target)?
+        let prepared_source = prepare_c_ffi_source(source, target).unwrap_or_else(fn(_): source.to_string())
+        let resolved_world = resolve_world_selection(&typed, target, root_component)?
+        let ui_output = match resolved_world.root_component:
+            Some(root_component) => Option::Some(kain_core__build_ui_output_from_source(&prepared_source, root_component)?)
+            _ =>
+                none
+        let mut bundle = kain_core__emit_realtime_app_bundle(&typed, ui_output, target)
+        apply_active_world_selection_to_realtime_bundle(&mut bundle, resolved_world.active_world_name)?
+        ()
+        let bundle_json = kain_core__realtime_app_bundle_to_json(&bundle).map_err(fn(err): KainError__runtime(f"Failed to serialize realtime app bundle JSON: {err}"))?
+        Result::Ok(RealtimeAppBundleOutput { bundle: bundle, bundle_json: bundle_json })
+
+    pub fn compile_(_self: &DriverSession, source: String, target: kain_core::CompileTarget) -> Result<String, kain_core::error::KainError>:
+        match target:
+            kain_core__CompileTarget::Ue5 =>
+                let mono_for_codegen = (*_self).frontend_to_monomorphized_program(source, target)?
+                let output = ue5__generate(&mono_for_codegen, none, none)?
+                Result::Ok(f"{output.header}\n{output.source}")
+            _ =>
+                let typed_for_codegen = (*_self).frontend_to_typed_program(source, target)?
+                match target:
+                    kain_core__CompileTarget::Usf => ue5_shaders__generate_usf(&typed_for_codegen)
+                    kain_core__CompileTarget::Spirv => gpu__generate_spirv(&typed_for_codegen).map(fn(bytes): f"{bytes.len()} bytes")
+                    kain_core__CompileTarget::Hlsl => gpu__generate_hlsl(&typed_for_codegen)
+                    kain_core__CompileTarget::Wasm => web__generate_wasm(&typed_for_codegen).map(fn(bytes): f"{bytes.len()} bytes")
+                    kain_core__CompileTarget::Js => web__generate_js(&typed_for_codegen)
+                    kain_core__CompileTarget::Ts => web__generate_ts(&typed_for_codegen)
+                    kain_core__CompileTarget::Ks => web__generate_ks(&typed_for_codegen)
+                    kain_core__CompileTarget::Hybrid =>
+                        let output = web__generate_hybrid(&typed_for_codegen)?
+                        Result::Ok(output.js)
+                    kain_core__CompileTarget::Llvm => kain_sys_codegen__generate_llvm(&typed_for_codegen).and_then(fn(bytes): String__from_utf8(bytes).map_err(fn(err): KainError__codegen(f"LLVM output was not valid UTF-8: {err}", Span__default_())))
+                    kain_core__CompileTarget::Rust => kain_sys_codegen__generate_rust(&typed_for_codegen)
+                    kain_core__CompileTarget::Cpp => kain_sys_codegen__generate_cpp(&typed_for_codegen)
+                    kain_core__CompileTarget::Interpret =>
+                        let value = kain_core__runtime__interpret(&typed_for_codegen)?
+                        Result::Ok(value.to_string())
+                    kain_core__CompileTarget::Test =>
+                        kain_core__runtime__run_tests(&typed_for_codegen)?
+                        ()
+                        Result::Ok(("Tests passed").to_string())
+                    kain_core__CompileTarget::Ue5Editor =>
+                        let output = ue5_editor__generate(&typed_for_codegen, "EditorTools", none)?
+                        Result::Ok(f"{output.header}\n{output.source}")
+                    kain_core__CompileTarget::Ue5Editor => Result::Err(KainError__runtime("UE5 Editor target requires ue5 feature"))
+                    _ => Result::Err(KainError__runtime(f"Target {target} not enabled. Recompile with appropriate feature flag."))
+
+    pub fn compile_spirv_binary(_self: &DriverSession, source: String) -> Result<Array<u8>, kain_core::error::KainError>:
+        let typed_for_codegen = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Spirv)?
+        gpu__generate_spirv(&typed_for_codegen)
+
+    pub fn compile_spirv_binary(_self: &DriverSession, _source: String) -> Result<Array<u8>, kain_core::error::KainError>:
+        Result::Err(KainError__runtime("SPIR-V target requires gpu feature"))
+
+    pub fn compile_shader_artifact_bundle(_self: &DriverSession, source: String) -> Result<ShaderArtifactBundleOutput, kain_core::error::KainError>:
+        let typed_program = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Spirv)?
+        let spirv = gpu__generate_spirv(&typed_program)?
+        let rust_host = kain_sys_codegen__generate_rust_gpu_host_wrappers(&typed_program)?
+        let reflection = kain_sys_codegen__collect_gpu_artifacts(&typed_program)
+        let reflection_json = kain_sys_codegen__collect_gpu_artifacts_json(&typed_program).map_err(fn(err): KainError__runtime(f"Failed to serialize GPU reflection JSON: {err}"))?
+        let derived_hlsl = Option::Some(gpu__generate_hlsl(&typed_program)?)
+        let bundle = build_shader_artifact_bundle(&reflection, &spirv, derived_hlsl, "<input>")
+        let bundle_json = kain_core__shader_artifact_bundle_to_json(&bundle).map_err(fn(err): KainError__runtime(f"Failed to serialize shader artifact bundle JSON: {err}"))?
+        Result::Ok(ShaderArtifactBundleOutput { bundle: bundle, bundle_json: bundle_json, spirv: spirv, rust_host: rust_host, reflection_json: reflection_json, derived_hlsl: derived_hlsl })
+
+    pub fn compile_shader_artifact_bundle(_self: &DriverSession, _source: String) -> Result<ShaderArtifactBundleOutput, kain_core::error::KainError>:
+        Result::Err(KainError__runtime("GPU artifact generation requires both gpu and sys features"))
+
+    pub fn compile_gpu_artifacts(_self: &DriverSession, source: String) -> Result<GpuArtifactOutput, kain_core::error::KainError>:
+        (*_self).compile_shader_artifact_bundle(source)
+
+    pub fn compile_gpu_artifacts(_self: &DriverSession, _source: String) -> Result<GpuArtifactOutput, kain_core::error::KainError>:
+        Result::Err(KainError__runtime("GPU artifact generation requires both gpu and sys features"))
+
+    pub fn compile_rust_artifact_bundle(_self: &DriverSession, source: String, include_spirv: Bool) -> Result<RustBundleOutput, kain_core::error::KainError>:
+        let typed_program = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Rust)?
+        let bundle = kain_sys_codegen__generate_rust_artifact_bundle(&typed_program)?
+        let spirv = if (include_spirv && bundle.shader_metadata.is_some_and(fn(metadata): (!metadata.shaders.is_empty()))):
+            Option::Some((*_self).compile_spirv_binary(source)?)
+            ()
+            ()
+            return Result::Err(KainError__runtime("Rust shader bundle requested SPIR-V output but gpu feature is disabled"))
+        else:
+            none
+        Result::Ok(RustBundleOutput { bundle: bundle, spirv: spirv })
+
+    pub fn compile_rust_artifact_bundle(_self: &DriverSession, _source: String, _include_spirv: Bool) -> Result<(), kain_core::error::KainError>:
+        Result::Err(KainError__runtime("Rust artifact bundling requires the sys feature"))
+
+    pub fn compile_ue5(_self: &DriverSession, source: String, output_name: Option<String>, copyright: Option<String>) -> Result<ue5::Ue5Output, kain_core::error::KainError>:
+        (*_self).compile_ue5_with_context(source, output_name, copyright, none)
+
+    pub fn compile_ue5_with_context(_self: &DriverSession, source: String, output_name: Option<String>, copyright: Option<String>, metadata_dir: Option<std::path::PathBuf>) -> Result<ue5::Ue5Output, kain_core::error::KainError>:
+        let source = prepare_rust_ffi_source(source, kain_core__CompileTarget__Ue5)?
+        let stdlib_source = kain_core__stdlib__load_stdlib_for_target(kain_core__CompileTarget__Ue5)
+        let full_source = f"{stdlib_source}\n{source}"
+        let tokens = Lexer__new_(&full_source).tokenize()?
+        let span_mapper = SpanMapper__new_(&full_source)
+        let mut ast = Parser__new_(&tokens, &span_mapper, "<input>").parse()?
+        kain_core__comptime__eval_program(&mut ast)?
+        ()
+        let typed_ast = kain_core__types__check(&ast, &span_mapper, "<input>")?
+        let mono_ast = kain_core__monomorphize__monomorphize(&typed_ast)?
+        let typed_for_codegen = kain_core::TypedProgram { items: mono_ast.items }
+        let metadata_path = (*_self).resolve_metadata_dir(metadata_dir)
+        let mut context = Ue5Context__new_(output_name.unwrap_or("Kain"), copyright)
+        if (metadata_path.exists() && metadata_path.is_dir()):
+            match std__fs__read_dir(&metadata_path):
+                Ok(entries) =>
+                    for entry in entries.flatten():
+                        let path = entry.path()
+                        if path.extension().is_some_and(fn(ext): (ext == "json")):
+                            match std__fs__read_to_string(&path):
+                                Ok(data) =>
+                                    let filename = path.file_name().and_then(fn(value): value.to_str()).unwrap_or("")
+                                    match filename:
+                                        "widget_registry.json" =>
+                                            let _ = context.widget_registry.load(&data)
+                                        "editor_attributes.json" =>
+                                            let _ = context.editor_attributes.load(&data)
+                                        "shader_knowledge.json" =>
+                                            let _ = context.shader_knowledge.load(&data)
+                                        "uht_rules.json" =>
+                                            let _ = context.uht_rules.load(&data)
+                                        "module_graph.json" =>
+                                            let _ = context.module_graph.load(&data)
+                                        "virtual_obligations.json" =>
+                                            let _ = context.virtual_obligations.load(&data)
+                                        _ =>
+                                            let _ = context.knowledge.load_metadata(&data)
+                                            let _ = context.resolver.load_from_metadata(&data)
+                                _ => ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        ue5__oracle__validate_program_full(&typed_for_codegen, &context.knowledge, &context.uht_rules, &span_mapper, "<input>")?
+        ()
+        ue5__generate_with_context_typed(&typed_for_codegen, output_name, copyright, &context)
+
+    pub fn generate_usf_header(_self: &DriverSession, source: String, shader_name: String) -> Result<String, kain_core::error::KainError>:
+        let typed_for_codegen = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Usf)?
+        Result::Ok(ue5_shaders__generate_cpp_header(&typed_for_codegen, shader_name))
+
+    pub fn generate_usf_implementation(_self: &DriverSession, source: String, shader_name: String, plugin_name: String) -> Result<String, kain_core::error::KainError>:
+        let typed_for_codegen = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Usf)?
+        Result::Ok(ue5_shaders__generate_cpp_implementation(&typed_for_codegen, shader_name, plugin_name))
+
+    pub fn compile_ue5editor(_self: &DriverSession, source: String, plugin_name: String, copyright: Option<String>) -> Result<ue5_editor::Ue5EditorOutput, kain_core::error::KainError>:
+        let typed_for_codegen = (*_self).frontend_to_typed_program(source, kain_core__CompileTarget__Ue5Editor)?
+        ue5_editor__generate(&typed_for_codegen, plugin_name, copyright)
+
+    fn resolve_metadata_dir(_self: &DriverSession, override_dir: Option<std::path::PathBuf>) -> std::path::PathBuf:
+        override_dir.or_else(fn(): (*_self).ue5_metadata_dir.clone()).unwrap_or_else(find_metadata_dir)
+
+
+fn prepare_rust_ffi_source(source: String, target: kain_core::CompileTarget) -> Result<String, kain_core::error::KainError>:
+    let prepare = kain_crate_ffi::PrepareContext { current_dir: std__env__current_dir().ok(), manifest_path: none }
+    kain_crate_ffi__augment_source_for_runtime(source, target, &prepare)
+
+fn prepare_c_ffi_source(source: String, target: kain_core::CompileTarget) -> Result<String, kain_core::error::KainError>:
+    let prepare = kain_c_ffi::PrepareContext { current_dir: std__env__current_dir().ok(), manifest_path: none }
+    kain_c_ffi__augment_source_for_runtime(source, target, &prepare)
+
+fn register_frontend_extensions_for_target(target: kain_core::CompileTarget):
+    match target:
+        kain_core__CompileTarget::Interpret =>
+            kain_interop__register_()
+            ()
+            kain_python__register_()
+            ()
+            kain_node__register_()
+            ()
+            kain_crate_ffi__register_()
+            ()
+            kain_c_ffi__register_()
+            ()
+        kain_core__CompileTarget::Test =>
+            kain_interop__register_()
+            ()
+            kain_python__register_()
+            ()
+            kain_node__register_()
+            ()
+            kain_crate_ffi__register_()
+            ()
+            kain_c_ffi__register_()
+            ()
+        kain_core__CompileTarget::Rust =>
+            kain_c_ffi__register_()
+            ()
+        _ => ()
+
+fn prepare_frontend_source_for_target(source: String, target: kain_core::CompileTarget) -> Result<String, kain_core::error::KainError>:
+    match target:
+        kain_core__CompileTarget::Interpret =>
+            let source = prepare_c_ffi_source(source, target)?
+            let source = kain_node__prepare_source_for_runtime(&source, target)?
+            prepare_rust_ffi_source(&source, target)
+        kain_core__CompileTarget::Test =>
+            let source = prepare_c_ffi_source(source, target)?
+            let source = kain_node__prepare_source_for_runtime(&source, target)?
+            prepare_rust_ffi_source(&source, target)
+        kain_core__CompileTarget::Rust => prepare_c_ffi_source(source, target)
+        kain_core__CompileTarget::Llvm => prepare_c_ffi_source(source, target)
+        _ => Result::Ok(source.to_string())
+
+fn find_target_spec_by_alias(alias: String) -> Option<&static TargetSpec>:
+    let normalized = alias.trim().to_ascii_lowercase()
+    TARGET_SPECS.iter().find(fn(spec): spec.aliases.iter().any(fn(candidate): ((*candidate) == normalized)))
+
+fn find_target_spec_by_target(target: kain_core::CompileTarget) -> Option<&static TargetSpec>:
+    TARGET_SPECS.iter().find(fn(spec): (spec.target == target))
+
+pub fn parse_compile_target(alias: String) -> Option<kain_core::CompileTarget>:
+    find_target_spec_by_alias(alias).map(fn(spec): spec.target)
+
+pub fn target_extension(target: kain_core::CompileTarget) -> String:
+    find_target_spec_by_target(target).map(fn(spec): spec.extension).unwrap_or("out")
+
+pub fn supported_targets_csv() -> String:
+    TARGET_SPECS.iter().map(fn(spec): spec.aliases[0]).collect().join(", ")
+
+pub fn frontend_to_monomorphized_program(source: String, target: kain_core::CompileTarget) -> Result<kain_core::monomorphize::MonomorphizedProgram, kain_core::error::KainError>:
+    DriverSession__default_().frontend_to_monomorphized_program(source, target)
+
+pub fn frontend_to_checked_program(source: String, target: kain_core::CompileTarget) -> Result<CheckedFrontend, kain_core::error::KainError>:
+    DriverSession__default_().frontend_to_checked_program(source, target)
+
+pub fn frontend_to_typed_program(source: String, target: kain_core::CompileTarget) -> Result<kain_core::TypedProgram, kain_core::error::KainError>:
+    DriverSession__default_().frontend_to_typed_program(source, target)
+
+pub fn compile_(source: String, target: kain_core::CompileTarget) -> Result<String, kain_core::error::KainError>:
+    DriverSession__default_().compile_(source, target)
+
+pub fn compile_spirv_binary(source: String) -> Result<Array<u8>, kain_core::error::KainError>:
+    DriverSession__default_().compile_spirv_binary(source)
+
+pub fn compile_shader_artifact_bundle(source: String) -> Result<ShaderArtifactBundleOutput, kain_core::error::KainError>:
+    DriverSession__default_().compile_shader_artifact_bundle(source)
+
+pub fn compile_realtime_app_bundle(source: String, target: kain_core::CompileTarget, root_component: Option<String>) -> Result<RealtimeAppBundleOutput, kain_core::error::KainError>:
+    DriverSession__default_().compile_realtime_app_bundle(source, target, root_component)
+
+pub fn resolve_root_component_name(program: &kain_core::TypedProgram, target: kain_core::CompileTarget, requested_root: Option<String>) -> Result<Option<String>, kain_core::error::KainError>:
+    Result::Ok((resolve_world_selection(program, target, requested_root)?).root_component)
+
+pub fn resolve_world_selection(program: &kain_core::TypedProgram, target: kain_core::CompileTarget, requested_root: Option<String>) -> Result<ResolvedWorldSelection, kain_core::error::KainError>:
+    let component_names = collect_component_names(&(*program).items)
+    let worlds = collect_world_selection_info(&(*program).items)
+    let required_surface = required_world_surface_for_target(target)
+    match requested_root.map(str__trim).filter(fn(value): (!value.is_empty())):
+        Some(requested_root) =>
+            match worlds.iter().find(fn(world): (world.name == requested_root)):
+                Some(world) =>
+                    ensure_world_supports_target_surface(world, target, required_surface)?
+                    ()
+                    return Result::Ok(ResolvedWorldSelection { root_component: preferred_world_root_component(world, required_surface), active_world_name: Option::Some(world.name.clone()) })
+                _ =>
+                    ()
+                    ()
+            if component_names.iter().any(fn(name): (name == requested_root)):
+                let matching_worlds = worlds.iter().filter(fn(world): (world_root_component_for_target(world, required_surface) == Option::Some(requested_root))).collect()
+                if (matching_worlds.len() > 1):
+                    let world_names = matching_worlds.iter().map(fn(world): world.name.as_str()).collect().join(", ")
+                    return Result::Err(KainError__runtime(f"Configured root '{requested_root}' matched multiple worlds for target {target}: {world_names}"))
+                return Result::Ok(ResolvedWorldSelection { root_component: Option::Some(requested_root.to_string()), active_world_name: matching_worlds.first().map(fn(world): world.name.clone()) })
+            return Result::Err(KainError__runtime(f"Configured root '{requested_root}' did not match any component or world"))
+        _ =>
+            ()
+            ()
+    match required_surface:
+        Some(required_surface) =>
+            let eligible_worlds = worlds.iter().filter(fn(world): world.has_surface(required_surface)).collect()
+            if (eligible_worlds.len() > 1):
+                let world_names = eligible_worlds.iter().map(fn(world): world.name.as_str()).collect().join(", ")
+                return Result::Err(KainError__runtime(f"Multiple worlds declare {required_surface.as_str()} surfaces ({world_names}); pass --root <world-name> to select one explicitly"))
+            match eligible_worlds.first():
+                Some(world) => return Result::Ok(ResolvedWorldSelection { root_component: preferred_world_root_component(world, Option::Some(required_surface)).or_else(fn(): fallback_root_component(&component_names)), active_world_name: Option::Some(world.name.clone()) })
+                _ =>
+                    ()
+                    ()
+            if (!worlds.is_empty()):
+                return Result::Err(KainError__runtime(f"No world declares the required '{required_surface.as_str()}' surface for target {target}"))
+            ()
+        _ =>
+            ()
+            ()
+    if (worlds.len() == 1):
+        return Result::Ok(ResolvedWorldSelection { root_component: preferred_world_root_component(&worlds[0], required_surface).or_else(fn(): fallback_root_component(&component_names)), active_world_name: Option::Some(worlds[0].name.clone()) })
+    match fallback_root_component(&component_names):
+        Some(root_component) => return Result::Ok(ResolvedWorldSelection { root_component: Option::Some(root_component), active_world_name: none })
+        _ =>
+            ()
+            ()
+    Result::Ok(ResolvedWorldSelection { root_component: none, active_world_name: none })
+
+fn required_world_surface_for_target(target: kain_core::CompileTarget) -> Option<kain_core::ast::WorldSurfaceKind>:
+    match target:
+        kain_core__CompileTarget::Rust => Option::Some(kain_core__ast__WorldSurfaceKind__NativeUi)
+        kain_core__CompileTarget::Llvm => Option::Some(kain_core__ast__WorldSurfaceKind__NativeUi)
+        kain_core__CompileTarget::Cpp => Option::Some(kain_core__ast__WorldSurfaceKind__NativeUi)
+        kain_core__CompileTarget::Js => Option::Some(kain_core__ast__WorldSurfaceKind__Web)
+        kain_core__CompileTarget::Ts => Option::Some(kain_core__ast__WorldSurfaceKind__Web)
+        kain_core__CompileTarget::Wasm => Option::Some(kain_core__ast__WorldSurfaceKind__Web)
+        kain_core__CompileTarget::Hybrid => Option::Some(kain_core__ast__WorldSurfaceKind__Web)
+        kain_core__CompileTarget::Ue5 => Option::Some(kain_core__ast__WorldSurfaceKind__Ue5)
+        kain_core__CompileTarget::Ue5Editor => Option::Some(kain_core__ast__WorldSurfaceKind__Ue5)
+        _ => none
+
+fn ensure_world_supports_target_surface(world: &WorldSelectionInfo, target: kain_core::CompileTarget, required_surface: Option<kain_core::ast::WorldSurfaceKind>) -> Result<(), kain_core::error::KainError>:
+    match required_surface:
+        Some(required_surface) =>
+            if (!world.has_surface(required_surface)):
+                return Result::Err(KainError__runtime(f"World '{(*world).name}' does not declare the required '{required_surface.as_str()}' surface for target {target}"))
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(())
+
+fn fallback_root_component(component_names: &[String]) -> Option<String>:
+    component_names.iter().find(fn(name): (name.as_str() == "App")).cloned().or_else(fn(): component_names.first().cloned())
+
+fn preferred_world_root_component(world: &WorldSelectionInfo, required_surface: Option<kain_core::ast::WorldSurfaceKind>) -> Option<String>:
+    world_root_component_for_target(world, required_surface).or_else(fn(): world.root_component_for(kain_core__ast__WorldSurfaceKind__NativeUi)).or_else(fn(): world.first_root_component())
+
+fn world_root_component_for_target(world: &WorldSelectionInfo, required_surface: Option<kain_core::ast::WorldSurfaceKind>) -> Option<String>:
+    required_surface.and_then(fn(surface): world.root_component_for(surface))
+
+pub fn apply_active_world_selection_to_realtime_bundle(bundle: &mut kain_core::RealtimeAppBundle, active_world_name: Option<String>) -> Result<(), kain_core::error::KainError>:
+    (*bundle).active_world = resolve_realtime_active_world(bundle, active_world_name)?
+    ()
+    Result::Ok(())
+
+pub fn apply_active_world_selection_to_runtime_contract(bundle: &mut kain_core::RuntimeContractBundle, active_world_name: Option<String>) -> Result<(), kain_core::error::KainError>:
+    (*bundle).active_world = resolve_runtime_contract_active_world(bundle, active_world_name)?
+    ()
+    Result::Ok(())
+
+fn resolve_realtime_active_world(bundle: &kain_core::RealtimeAppBundle, active_world_name: Option<String>) -> Result<Option<kain_core::RealtimeWorldBinding>, kain_core::error::KainError>:
+    match active_world_name:
+        Some(active_world_name) => return (*bundle).worlds.iter().find(fn(world): (world.name == active_world_name)).cloned().map(fn(__kain_closure_arg0): Option::Some(__kain_closure_arg0)).ok_or_else(fn(): KainError__runtime(f"Requested active world '{active_world_name}' was not emitted into the realtime bundle"))
+        _ =>
+            ()
+            ()
+    Result::Ok(if ((*bundle).worlds.len() == 1): (*bundle).worlds.first().cloned() else: none)
+
+fn resolve_runtime_contract_active_world(bundle: &kain_core::RuntimeContractBundle, active_world_name: Option<String>) -> Result<Option<kain_core::RuntimeWorldContract>, kain_core::error::KainError>:
+    match active_world_name:
+        Some(active_world_name) => return (*bundle).worlds.iter().find(fn(world): (world.name == active_world_name)).cloned().map(fn(__kain_closure_arg1): Option::Some(__kain_closure_arg1)).ok_or_else(fn(): KainError__runtime(f"Requested active world '{active_world_name}' was not emitted into the runtime contract bundle"))
+        _ =>
+            ()
+            ()
+    Result::Ok(if ((*bundle).worlds.len() == 1): (*bundle).worlds.first().cloned() else: none)
+
+fn collect_component_names(items: &[kain_core::TypedItem]) -> Array<String>:
+    let mut names = Vec__new_()
+    collect_component_names_into(items, &mut names)
+    ()
+    names
+
+fn collect_component_names_into(items: &[kain_core::TypedItem], output: &mut Array<String>):
+    for item in items:
+        match item:
+            kain_core__TypedItem::Component(component_) => output.push(component_.ast.name.clone())
+            kain_core__TypedItem::Mod(module) => collect_component_names_into(&module.items, output)
+            _ => ()
+
+fn collect_world_selection_info(items: &[kain_core::TypedItem]) -> Array<WorldSelectionInfo>:
+    let mut worlds = Vec__new_()
+    collect_world_selection_info_into(items, &mut worlds)
+    ()
+    worlds
+
+fn collect_world_selection_info_into(items: &[kain_core::TypedItem], output: &mut Array<WorldSelectionInfo>):
+    for item in items:
+        match item:
+            kain_core__TypedItem::World(world) => output.push(WorldSelectionInfo { name: world.ast.name.clone(), surfaces: world.ast.surfaces.iter().map(fn(surface): WorldSurfaceSelection { kind: surface.kind, root_component: expr_component_name(&surface.expr) }).collect() })
+            kain_core__TypedItem::Mod(module) => collect_world_selection_info_into(&module.items, output)
+            _ => ()
+
+impl WorldSelectionInfo:
+    fn has_surface(_self: &WorldSelectionInfo, kind: kain_core::ast::WorldSurfaceKind) -> Bool:
+        (*_self).surfaces.iter().any(fn(surface): (surface.kind == kind))
+
+    fn root_component_for(_self: &WorldSelectionInfo, kind: kain_core::ast::WorldSurfaceKind) -> Option<String>:
+        (*_self).surfaces.iter().find(fn(surface): (surface.kind == kind)).and_then(fn(surface): surface.root_component.clone())
+
+    fn first_root_component(_self: &WorldSelectionInfo) -> Option<String>:
+        (*_self).surfaces.iter().find_map(fn(surface): surface.root_component.clone())
+
+
+fn expr_component_name(expr: &kain_core::ast::Expr) -> Option<String>:
+    match expr:
+        kain_core__ast__Expr::Ident(name, _) => Option::Some(name.clone())
+        kain_core__ast__Expr::Call { callee: callee } =>
+            match callee:
+                kain_core__ast__Expr::Ident(name, _) => Option::Some(name.clone())
+                _ => none
+        _ => none
+
+pub fn compile_gpu_artifacts(source: String) -> Result<GpuArtifactOutput, kain_core::error::KainError>:
+    DriverSession__default_().compile_gpu_artifacts(source)
+
+@cfg(all(feature = "gpu", feature = "sys"))
+fn build_shader_artifact_bundle(reflection: &kain_sys_codegen::RustGpuArtifactOutput, spirv: &[u8], derived_hlsl: Option<String>, source_origin: String) -> kain_core::ShaderArtifactBundle:
+    let module_name = if (*reflection).shaders.is_empty():
+        ("kain_shader_program").to_string()
+    else:
+        (*reflection).shaders.iter().map(fn(shader_): shader_.name.as_str()).collect().join("__")
+    let mut resource_layouts = Vec__new_()
+    let mut entry_points = Vec__new_()
+    let mut stage_metadata = Vec__new_()
+    let mut specialization_constants = Vec__new_()
+    let mut reflection_shaders = Vec__new_()
+    let mut source_map = Vec__new_()
+    let mut stage_hints = Vec__new_()
+    for shader_ in &(*reflection).shaders:
+        let stage = shader_stage_name(shader_.stage).to_string()
+        stage_hints.push(stage.clone())
+        ()
+        entry_points.push(kain_core::ShaderEntryPoint { shader_: shader_.name.clone(), module_name: module_name.clone(), entry_point: shader_.entry_point.clone(), stage: stage.clone() })
+        ()
+        stage_metadata.push(kain_core::ShaderStageMetadata { shader_: shader_.name.clone(), stage: stage.clone(), entry_point: shader_.entry_point.clone(), input_count: shader_.inputs.len(), binding_count: shader_.bindings.len(), output_type: shader_.output_type.clone() })
+        ()
+        source_map.push(kain_core::ShaderSourceMapEntry { shader_: shader_.name.clone(), source_origin: source_origin.to_string(), module_name: module_name.clone(), entry_point: shader_.entry_point.clone() })
+        ()
+        let normalized_bindings = shader_.bindings.iter().map(fn(binding): none).collect()
+        resource_layouts.extend(normalized_bindings.iter().cloned())
+        ()
+        reflection_shaders.push(kain_core::ShaderReflectionShader { shader_: shader_.name.clone(), stage: stage, entry_point: shader_.entry_point.clone(), inputs: shader_.inputs.iter().map(fn(input): kain_core::ShaderIoField { name: input.name.clone(), ty: input.ty.clone() }).collect(), bindings: normalized_bindings, output_type: shader_.output_type.clone() })
+        ()
+    ()
+    stage_hints.sort()
+    ()
+    stage_hints.dedup()
+    ()
+    let mut derived_outputs = Vec__new_()
+    match derived_hlsl:
+        Some(hlsl) =>
+            derived_outputs.push(kain_core::DerivedShaderArtifact { format: kain_core__ShaderArtifactFormat__Hlsl, module_name: module_name.clone(), contents: hlsl.to_string() })
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    kain_core::ShaderArtifactBundle { schema_version: kain_core__SHADER_ARTIFACT_SCHEMA_VERSION, canonical_native_payload: kain_core__ShaderArtifactFormat__Spirv, spirv_modules: [kain_core::SpirvModuleArtifact { module_name: module_name.clone(), byte_len: spirv.len(), bytes_hex: kain_core__bytes_to_hex(spirv), entry_points: entry_points.iter().map(fn(entry): entry.entry_point.clone()).collect(), stage_hints: stage_hints }], reflection: kain_core::ShaderReflectionSummary { emitted: (!reflection_shaders.is_empty()), shaders: reflection_shaders, notes: [("Compiler-owned shader artifact bundle emitted from kain-driver.").to_string(), ("SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs.").to_string()] }, resource_layouts: resource_layouts, entry_points: entry_points, stage_metadata: stage_metadata, specialization_constants: specialization_constants, debug: kain_core::ShaderDebugBundle { source_map: source_map, notes: [("Shader bundle source map is currently scoped to shader entry points.").to_string()] }, derived_outputs: derived_outputs }
+
+@cfg(all(feature = "gpu", feature = "sys"))
+fn shader_stage_name(stage: kain_sys_codegen::RustGpuShaderStage) -> String:
+    match stage:
+        kain_sys_codegen__RustGpuShaderStage::Vertex => "vertex"
+        kain_sys_codegen__RustGpuShaderStage::Fragment => "fragment"
+        kain_sys_codegen__RustGpuShaderStage::Compute => "compute"
+        kain_sys_codegen__RustGpuShaderStage::Surface => "surface"
+
+@cfg(all(feature = "gpu", feature = "sys"))
+fn shader_binding_kind_name(kind: kain_sys_codegen::RustGpuBindingKind) -> String:
+    match kind:
+        kain_sys_codegen__RustGpuBindingKind::StorageBuffer => "storage_buffer"
+        kain_sys_codegen__RustGpuBindingKind::Sampler2D => "sampler_2d"
+        kain_sys_codegen__RustGpuBindingKind::Uniform => "uniform"
+        kain_sys_codegen__RustGpuBindingKind::LocalSize => "local_size"
+        kain_sys_codegen__RustGpuBindingKind::SpecializationConstant => "specialization_constant"
+
+@cfg(feature = "sys")
+pub fn compile_rust_artifact_bundle(source: String, include_spirv: Bool) -> Result<RustBundleOutput, kain_core::error::KainError>:
+    DriverSession__default_().compile_rust_artifact_bundle(source, include_spirv)
+
+pub fn compile_runtime_contract_bundle(source: String, target: kain_core::CompileTarget) -> Result<kain_core::RuntimeContractBundle, kain_core::error::KainError>:
+    DriverSession__default_().compile_runtime_contract_bundle(source, target)
+
+@cfg(feature = "ue5")
+pub fn compile_ue5(source: String, output_name: Option<String>, copyright: Option<String>) -> Result<ue5::Ue5Output, kain_core::error::KainError>:
+    DriverSession__default_().compile_ue5(source, output_name, copyright)
+
+@cfg(feature = "ue5")
+pub fn compile_ue5_with_context(source: String, output_name: Option<String>, copyright: Option<String>, metadata_dir: Option<std::path::PathBuf>) -> Result<ue5::Ue5Output, kain_core::error::KainError>:
+    DriverSession__default_().compile_ue5_with_context(source, output_name, copyright, metadata_dir)
+
+@cfg(feature = "ue5")
+pub fn generate_usf_header(source: String, shader_name: String) -> Result<String, kain_core::error::KainError>:
+    DriverSession__default_().generate_usf_header(source, shader_name)
+
+@cfg(feature = "ue5")
+pub fn generate_usf_implementation(source: String, shader_name: String, plugin_name: String) -> Result<String, kain_core::error::KainError>:
+    DriverSession__default_().generate_usf_implementation(source, shader_name, plugin_name)
+
+@cfg(feature = "ue5")
+pub fn compile_ue5editor(source: String, plugin_name: String, copyright: Option<String>) -> Result<ue5_editor::Ue5EditorOutput, kain_core::error::KainError>:
+    DriverSession__default_().compile_ue5editor(source, plugin_name, copyright)
+
+@cfg(feature = "ue5")
+fn find_metadata_dir() -> std::path::PathBuf:
+    match std__env__var_("KAIN_METADATA_DIR"):
+        Ok(explicit_) =>
+            let candidate = PathBuf__from(explicit_)
+            if candidate.exists():
+                return candidate
+            ()
+        _ =>
+            ()
+            ()
+    let suffixes = [Path__new_("unreal").join("metadata"), Path__new_("Kain").join("unreal").join("metadata")]
+    match std__env__var_("KAIN_ROOT"):
+        Ok(root) =>
+            let base = PathBuf__from(root)
+            for suffix in &suffixes:
+                let candidate = base.join(suffix)
+                if candidate.exists():
+                    return candidate
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_dir():
+        Ok(mut dir) =>
+            for _ in range(0, 10):
+                for suffix in &suffixes:
+                    let candidate = dir.join(suffix)
+                    if candidate.exists():
+                        return candidate
+                ()
+                match dir.parent():
+                    Some(parent) => dir = parent.to_path_buf()
+                    None => break
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from(".")).join(Path__new_("unreal").join("metadata"))
+

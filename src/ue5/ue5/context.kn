@@ -1,0 +1,343 @@
+use super::editor_attributes::EditorAttributesRegistry
+
+use super::engine_knowledge::EngineKnowledge
+
+use super::module_graph::ModuleGraph
+
+use super::project::BuildFile
+
+use super::uht_rules::UhtRules
+
+use super::virtual_obligations::VirtualObligations
+
+use super::widget_registry::WidgetRegistry
+
+use std::cell::RefCell
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+use std::sync::OnceLock
+
+use ue5_shaders::ShaderKnowledge
+
+fn metadata_candidate_suffixes() -> Array<path::PathBuf>:
+    [Path__new_("unreal").join("metadata"), Path__new_("Kain").join("unreal").join("metadata")]
+
+@derive(Clone)
+struct LoadedMetadata:
+    resolver: StdLibResolver
+    knowledge: EngineKnowledge
+    widget_registry: WidgetRegistry
+    editor_attributes: EditorAttributesRegistry
+    shader_knowledge: ue5_shaders::ShaderKnowledge
+    uht_rules: UhtRules
+    module_graph: ModuleGraph
+    virtual_obligations: VirtualObligations
+
+fn compute_metadata_dir() -> path::PathBuf:
+    match std__env__var_("KAIN_METADATA_DIR"):
+        Ok(explicit_) =>
+            let candidate = PathBuf__from(explicit_)
+            if candidate.exists():
+                return candidate
+            ()
+        _ =>
+            ()
+            ()
+    let suffixes = metadata_candidate_suffixes()
+    let mut base_dirs: Array<path::PathBuf> = Vec__new_()
+    match std__env__var_("KAIN_ROOT"):
+        Ok(root) =>
+            base_dirs.push(PathBuf__from(root))
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_dir():
+        Ok(mut dir) =>
+            for _ in range(0, 10):
+                base_dirs.push(dir.clone())
+                ()
+                match dir.parent():
+                    Some(p) => dir = p.to_path_buf()
+                    None => break
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_exe():
+        Ok(exe_path) =>
+            match exe_path.parent().map(fn(p): p.to_path_buf()):
+                Some(mut dir) =>
+                    for _ in range(0, 8):
+                        base_dirs.push(dir.clone())
+                        ()
+                        match dir.parent():
+                            Some(p) => dir = p.to_path_buf()
+                            None => break
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    for base in &base_dirs:
+        for suffix in &suffixes:
+            let candidate = base.join(suffix)
+            if candidate.exists():
+                return candidate
+    ()
+    std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from(".")).join(Path__new_("unreal").join("metadata"))
+
+fn resolve_metadata_dir() -> path::PathBuf:
+    const METADATA_DIR_CACHE: std::sync::OnceLock<path::PathBuf> = OnceLock__new_()
+
+    METADATA_DIR_CACHE.get_or_init(compute_metadata_dir).clone()
+
+fn load_metadata_bundle() -> LoadedMetadata:
+    let mut resolver = StdLibResolver__new_()
+    let mut knowledge = EngineKnowledge__new_()
+    let mut widget_registry = WidgetRegistry__new_()
+    let mut editor_attributes = EditorAttributesRegistry__new_()
+    let mut shader_knowledge = ShaderKnowledge__new_()
+    let mut uht_rules = UhtRules__new_()
+    let mut module_graph = ModuleGraph__new_()
+    let mut virtual_obligations = VirtualObligations__new_()
+    let metadata_dir = resolve_metadata_dir()
+    if (metadata_dir.exists() && metadata_dir.is_dir()):
+        match std__fs__read_dir(&metadata_dir):
+            Ok(entries) =>
+                for entry in entries.flatten():
+                    let path = entry.path()
+                    if path.extension().map_or(false, fn(e): (e == "json")):
+                        match std__fs__read_to_string(&path):
+                            Ok(data) =>
+                                let filename = path.file_name().and_then(fn(f): f.to_str()).unwrap_or("")
+                                if (filename == "widget_registry.json"):
+                                    let _ = widget_registry.load(&data)
+                                elif (filename == "editor_attributes.json"):
+                                    let _ = editor_attributes.load(&data)
+                                elif (filename == "shader_knowledge.json"):
+                                    let _ = shader_knowledge.load(&data)
+                                elif (filename == "uht_rules.json"):
+                                    let _ = uht_rules.load(&data)
+                                elif (filename == "module_graph.json"):
+                                    let _ = module_graph.load(&data)
+                                elif (filename == "virtual_obligations.json"):
+                                    let _ = virtual_obligations.load(&data)
+                                else:
+                                    let _ = knowledge.load_metadata(&data)
+                                    let _ = resolver.load_from_metadata(&data)
+                            _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    let extensions_dir = metadata_dir.join("extensions")
+    let _ = knowledge.load_extensions(&extensions_dir)
+    LoadedMetadata { resolver: resolver, knowledge: knowledge, widget_registry: widget_registry, editor_attributes: editor_attributes, shader_knowledge: shader_knowledge, uht_rules: uht_rules, module_graph: module_graph, virtual_obligations: virtual_obligations }
+
+fn get_loaded_metadata() -> LoadedMetadata:
+    const METADATA_BUNDLE_CACHE: std::sync::OnceLock<LoadedMetadata> = OnceLock__new_()
+
+    METADATA_BUNDLE_CACHE.get_or_init(load_metadata_bundle).clone()
+
+@doc(doc = " Shared compilation context for UE5 code generation")
+@doc(doc = "")
+@doc(doc = " This context is passed between different codegen phases to enable")
+@doc(doc = " cross-module intelligence. For example:")
+@doc(doc = " - Runtime codegen registers actors/components")
+@doc(doc = " - Editor codegen can reference them for UI generation")
+@doc(doc = " - Shader codegen can auto-wire to actor state")
+@derive(Debug, Clone)
+pub struct Ue5Context:
+    enum_names: Set<String>
+    struct_names: Set<String>
+    component_names: Set<String>
+    subsystem_names: Set<String>
+    delegate_names: Set<String>
+    actor_names: Set<String>
+    ident_remap: Map<String, String>
+    forward_decls: Set<String>
+    module_api: String
+    output_name: String
+    enabled_features: Set<String>
+    build_file: BuildFile
+    resolver: StdLibResolver
+    copyright: String
+    type_to_header: Map<String, String>
+    needed_headers: std::cell::RefCell<Set<String>>
+    knowledge: EngineKnowledge
+    needed_modules: std::cell::RefCell<Set<String>>
+    widget_registry: WidgetRegistry
+    editor_attributes: EditorAttributesRegistry
+    shader_knowledge: ue5_shaders::ShaderKnowledge
+    uht_rules: UhtRules
+    module_graph: ModuleGraph
+    virtual_obligations: VirtualObligations
+    trait_impls: Map<String, Array<String>>
+    marker_config: ue5::kain_markers::MarkerConfig
+
+use super::resolver::StdLibResolver
+
+impl Ue5Context:
+    pub fn new_(output_name: String, copyright: Option<String>) -> Ue5Context:
+        let module_api = f"{output_name.to_uppercase()}_API"
+        let metadata = get_loaded_metadata()
+        let resolver = metadata.resolver
+        let knowledge = metadata.knowledge
+        let widget_registry = metadata.widget_registry
+        let editor_attributes = metadata.editor_attributes
+        let shader_knowledge = metadata.shader_knowledge
+        let uht_rules = metadata.uht_rules
+        let module_graph = metadata.module_graph
+        let virtual_obligations = metadata.virtual_obligations
+        let copyright = copyright.map(fn(s): s.to_string()).unwrap_or_else(fn(): "Copyright {Local__now().format(\"%Y\")} Zentako. All Rights Reserved.")
+        Ue5Context { enum_names: HashSet__new_(), struct_names: HashSet__new_(), component_names: HashSet__new_(), subsystem_names: HashSet__new_(), delegate_names: HashSet__new_(), actor_names: HashSet__new_(), ident_remap: HashMap__new_(), forward_decls: HashSet__new_(), module_api: module_api.clone(), output_name: output_name.to_string(), enabled_features: HashSet__new_(), build_file: BuildFile__new_(output_name), resolver: resolver, copyright: copyright, type_to_header: HashMap__new_(), needed_headers: RefCell__new_(HashSet__new_()), knowledge: knowledge, needed_modules: RefCell__new_(HashSet__new_()), widget_registry: widget_registry, editor_attributes: editor_attributes, shader_knowledge: shader_knowledge, uht_rules: uht_rules, module_graph: module_graph, virtual_obligations: virtual_obligations, trait_impls: HashMap__new_(), marker_config: MarkerConfig__default_() }
+
+    pub fn set_type_to_header(_self: &mut Ue5Context, map: Map<String, String>):
+        (*_self).type_to_header = map
+        ()
+
+    pub fn need_module(_self: &Ue5Context, module: String):
+        (*_self).needed_modules.borrow_mut().insert(module)
+        ()
+
+    pub fn flush_modules(_self: &mut Ue5Context):
+        let modules: Array<String> = (*_self).needed_modules.borrow().iter().cloned().collect()
+        for module in modules:
+            (*_self).build_file.public_dependencies.insert(module)
+            ()
+
+    pub fn enable_markers(_self: &mut Ue5Context, style: ue5::kain_markers::MarkerStyle):
+        (*_self).marker_config = ue5::kain_markers::MarkerConfig { style: style, include_attributes: true, include_types: true, include_expressions: true }
+        ()
+
+    pub fn need_header(_self: &Ue5Context, header: String):
+        if (header != f"{(*_self).output_name}.h"):
+            (*_self).needed_headers.borrow_mut().insert(header)
+            ()
+
+    pub fn get_needed_headers(_self: &Ue5Context) -> Array<String>:
+        let mut headers: Array<_> = (*_self).needed_headers.borrow().iter().cloned().collect()
+        headers.sort()
+        ()
+        headers
+
+    pub fn register_enum(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).enum_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn register_struct(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).struct_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn register_component(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).component_names.insert(name.clone())
+        ()
+        (*_self).struct_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn register_subsystem(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).subsystem_names.insert(name.clone())
+        ()
+        (*_self).struct_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn register_delegate(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).delegate_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn register_actor(_self: &mut Ue5Context, name: String, header: String):
+        (*_self).actor_names.insert(name.clone())
+        ()
+        (*_self).type_to_header.insert(name, header)
+        ()
+
+    pub fn is_enum(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).enum_names.contains(name)
+
+    pub fn is_struct(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).struct_names.contains(name)
+
+    pub fn is_component(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).component_names.contains(name)
+
+    pub fn is_subsystem(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).subsystem_names.contains(name)
+
+    pub fn is_delegate(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).delegate_names.contains(name)
+
+    pub fn is_actor(_self: &Ue5Context, name: String) -> Bool:
+        (*_self).actor_names.contains(name)
+
+    pub fn add_ident_remap(_self: &mut Ue5Context, from: String, to: String):
+        (*_self).ident_remap.insert(from, to)
+        ()
+
+    pub fn remap_ident(_self: &Ue5Context, name: String) -> String:
+        (*_self).ident_remap.get(name).cloned().unwrap_or_else(fn(): name.to_string())
+
+    pub fn clear_ident_remaps(_self: &mut Ue5Context):
+        (*_self).ident_remap.clear()
+        ()
+
+    pub fn add_forward_decl(_self: &mut Ue5Context, decl: String):
+        (*_self).forward_decls.insert(decl)
+        ()
+
+    pub fn use_feature(_self: &mut Ue5Context, feature: String):
+        (*_self).build_file.add_dependency_for_feature(feature)
+        ()
+
+    pub fn get_forward_decls(_self: &Ue5Context) -> String:
+        if (*_self).forward_decls.is_empty():
+            return String__new_()
+        let mut decls: Array<_> = (*_self).forward_decls.iter().collect()
+        decls.sort()
+        ()
+        let mut result = String__from("// Forward declarations\n")
+        for decl in decls:
+            result.push_str(decl)
+            ()
+            result.push_str(";\n")
+            ()
+        ()
+        result.push("\n")
+        ()
+        result
+
+
+impl Ue5Context:
+    pub fn register_trait_impl(_self: &mut Ue5Context, class_name: String, trait_name: String):
+        (*_self).trait_impls.entry(class_name.to_string()).or_default().push(trait_name.to_string())
+        ()
+
+    pub fn get_interface_list(_self: &Ue5Context, class_name: String) -> String:
+        match (*_self).trait_impls.get(class_name):
+            Some(traits) => traits.iter().map(fn(t): f", public I{t}").collect().join("")
+            None => String__new_()
+
+

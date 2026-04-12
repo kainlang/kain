@@ -1,0 +1,176 @@
+use kain_core::ast::Field
+
+use kain_core::ast::Function
+
+use kain_core::ast::Struct
+
+use kain_core::ast::Type
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::span::Span
+
+@doc(doc = " Intermediate representation of an attribute set")
+@derive(Debug, Clone)
+pub struct AttributeSetIR:
+    name: String
+    attributes: Array<AttributeIR>
+    lifecycle_hooks: LifecycleHooksIR
+    delegates: Array<DelegateIR>
+
+@doc(doc = " Intermediate representation of a single attribute")
+@derive(Debug, Clone)
+pub struct AttributeIR:
+    name: String
+    ty: kain_core::ast::Type
+    default_value: Option<String>
+    replicated: Bool
+    rep_notify: Bool
+    hide_from_modifiers: Bool
+    is_meta: Bool
+    clamp_min: Option<f32>
+    clamp_max: Option<f32>
+    category: String
+
+@doc(doc = " Lifecycle hooks for attribute sets")
+@derive(Debug, Clone, Default)
+pub struct LifecycleHooksIR:
+    pre_gameplay_effect_execute: Option<FunctionIR>
+    post_gameplay_effect_execute: Option<FunctionIR>
+    pre_attribute_change: Option<FunctionIR>
+    post_attribute_change: Option<FunctionIR>
+
+impl Default for LifecycleHooksIR:
+    pub fn default_() -> LifecycleHooksIR:
+        LifecycleHooksIR { pre_gameplay_effect_execute: none, post_gameplay_effect_execute: none, pre_attribute_change: none, post_attribute_change: none }
+
+
+@doc(doc = " Simplified function IR for lifecycle hooks")
+@derive(Debug, Clone)
+pub struct FunctionIR:
+    name: String
+    body: String
+
+@doc(doc = " Delegate IR for attribute events")
+@derive(Debug, Clone)
+pub struct DelegateIR:
+    name: String
+    delegate_type: String
+
+impl AttributeSetIR:
+    pub fn from_ast(struct_def: &kain_core::ast::Struct) -> Result<AttributeSetIR, KainError>:
+        if (!(*struct_def).attributes.iter().any(fn(a): (a.name == "attribute_set"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*struct_def).name}' must have @attribute_set attribute", (*struct_def).span))
+        let mut attributes = Vec__new_()
+        let mut delegates = Vec__new_()
+        let mut lifecycle_hooks = LifecycleHooksIR__default_()
+        for field in &(*struct_def).fields:
+            if field.attributes.iter().any(fn(a): (a.name == "delegate")):
+                delegates.push(DelegateIR__from_field(field)?)
+                ()
+            elif field.attributes.iter().any(fn(a): (a.name == "attribute")):
+                attributes.push(AttributeIR__from_field(field)?)
+                ()
+            else:
+                attributes.push(AttributeIR__from_field(field)?)
+                ()
+        ()
+        for method in &(*struct_def).methods:
+            match method.name.as_str():
+                "pre_gameplay_effect_execute" =>
+                    lifecycle_hooks.pre_gameplay_effect_execute = Option::Some(FunctionIR__from_ast(method)?)
+                    ()
+                "post_gameplay_effect_execute" =>
+                    lifecycle_hooks.post_gameplay_effect_execute = Option::Some(FunctionIR__from_ast(method)?)
+                    ()
+                "pre_attribute_change" =>
+                    lifecycle_hooks.pre_attribute_change = Option::Some(FunctionIR__from_ast(method)?)
+                    ()
+                "post_attribute_change" =>
+                    lifecycle_hooks.post_attribute_change = Option::Some(FunctionIR__from_ast(method)?)
+                    ()
+                _ => return Result::Err(KainError__codegen(f"Unknown lifecycle hook: {method.name}", method.span))
+        ()
+        Result::Ok(AttributeSetIR { name: (*struct_def).name.clone(), attributes: attributes, lifecycle_hooks: lifecycle_hooks, delegates: delegates })
+
+
+impl AttributeIR:
+    fn from_field(field: &kain_core::ast::Field) -> Result<AttributeIR, KainError>:
+        let mut replicated = false
+        let mut rep_notify = false
+        let mut hide_from_modifiers = false
+        let mut is_meta = false
+        let clamp_min = none
+        let clamp_max = none
+        let mut category = String__new_()
+        for attr in &(*field).attributes:
+            if (attr.name == "attribute"):
+                for arg in &attr.args:
+                    let arg_str = arg
+                    if (arg_str.contains("replicated") && arg_str.contains("true")):
+                        replicated = true
+                        ()
+                        ()
+                        ()
+                        ()
+                    if (arg_str.contains("rep_notify") && arg_str.contains("true")):
+                        rep_notify = true
+                        ()
+                        ()
+                        ()
+                        ()
+                    if (arg_str.contains("hide_from_modifiers") && arg_str.contains("true")):
+                        hide_from_modifiers = true
+                        ()
+                        ()
+                        ()
+                        ()
+                    if (arg_str.contains("meta") && arg_str.contains("true")):
+                        is_meta = true
+                        ()
+        ()
+        if category.is_empty():
+            category = ("Attributes").to_string()
+            ()
+            ()
+            ()
+            ()
+        if (is_meta && replicated):
+            return Result::Err(KainError__codegen(f"Meta attribute '{(*field).name}' cannot be replicated", (*field).span))
+        if (rep_notify && (!replicated)):
+            return Result::Err(KainError__codegen(f"Attribute '{(*field).name}' has rep_notify but is not replicated", (*field).span))
+        let default_value = (*field).default_.map(fn(expr): expr)
+        Result::Ok(AttributeIR { name: (*field).name.clone(), ty: (*field).ty.clone(), default_value: default_value, replicated: replicated, rep_notify: rep_notify, hide_from_modifiers: hide_from_modifiers, is_meta: is_meta, clamp_min: clamp_min, clamp_max: clamp_max, category: category })
+
+
+impl DelegateIR:
+    fn from_field(field: &kain_core::ast::Field) -> Result<DelegateIR, KainError>:
+        let delegate_type = match &(*field).ty:
+            kain_core__ast__Type::Named { name: name } => name.clone()
+            _ => return Result::Err(KainError__codegen(f"Delegate '{(*field).name}' must have a named type", (*field).span))
+        Result::Ok(DelegateIR { name: (*field).name.clone(), delegate_type: delegate_type })
+
+
+impl FunctionIR:
+    fn from_ast(func: &kain_core::ast::Function) -> Result<FunctionIR, KainError>:
+        Result::Ok(FunctionIR { name: (*func).name.clone(), body: (*func).body })
+
+
+@allow(dead_code)
+fn parse_bool_param(value: String) -> Result<Bool, KainError>:
+    match value:
+        "true" => Result::Ok(true)
+        "false" => Result::Ok(false)
+        _ => Result::Err(KainError__codegen(f"Invalid boolean value: {value}", Span__default_()))
+
+@allow(dead_code)
+fn parse_float_param(value: String) -> Result<f32, KainError>:
+    value.parse().map_err(fn(_): KainError__codegen(f"Invalid float value: {value}", Span__default_()))
+
+@allow(dead_code)
+fn parse_string_param(value: String) -> Result<String, KainError>:
+    let trimmed = value.trim_matches("\"").trim_matches("'")
+    Result::Ok(trimmed.to_string())
+

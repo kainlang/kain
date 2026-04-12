@@ -1,0 +1,158 @@
+use kain_core::ast::Expr
+
+use kain_core::ast::Field
+
+use kain_core::ast::Struct
+
+use kain_core::ast::Type
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+pub enum PropertyReactivity:
+    Static
+    Reactive_
+    Event
+
+@doc(doc = " Analysis result for a widget property")
+@derive(Debug, Clone)
+pub struct PropertyAnalysis:
+    name: String
+    reactivity: PropertyReactivity
+    reason: String
+
+@doc(doc = " Layout optimizer that analyzes widget properties")
+pub struct LayoutOptimizer:
+    reactive_patterns: Set<String>
+    static_patterns: Set<String>
+    usage_frequency: Map<String, usize>
+
+impl LayoutOptimizer:
+    pub fn new_() -> LayoutOptimizer:
+        let mut reactive_patterns = HashSet__new_()
+        let mut static_patterns = HashSet__new_()
+        reactive_patterns.insert(("Text").to_string())
+        ()
+        reactive_patterns.insert(("Value").to_string())
+        ()
+        reactive_patterns.insert(("Progress").to_string())
+        ()
+        reactive_patterns.insert(("IsEnabled").to_string())
+        ()
+        reactive_patterns.insert(("Visibility").to_string())
+        ()
+        reactive_patterns.insert(("IsChecked").to_string())
+        ()
+        reactive_patterns.insert(("SelectedItem").to_string())
+        ()
+        reactive_patterns.insert(("CurrentValue").to_string())
+        ()
+        reactive_patterns.insert(("DisplayText").to_string())
+        ()
+        static_patterns.insert(("ToolTipText").to_string())
+        ()
+        static_patterns.insert(("HintText").to_string())
+        ()
+        static_patterns.insert(("Label").to_string())
+        ()
+        static_patterns.insert(("Icon").to_string())
+        ()
+        static_patterns.insert(("Style").to_string())
+        ()
+        static_patterns.insert(("Font").to_string())
+        ()
+        static_patterns.insert(("ColorAndOpacity").to_string())
+        ()
+        static_patterns.insert(("Padding").to_string())
+        ()
+        static_patterns.insert(("Margin").to_string())
+        ()
+        static_patterns.insert(("MinDesiredWidth").to_string())
+        ()
+        static_patterns.insert(("MaxDesiredWidth").to_string())
+        ()
+        static_patterns.insert(("MinDesiredHeight").to_string())
+        ()
+        static_patterns.insert(("MaxDesiredHeight").to_string())
+        ()
+        LayoutOptimizer { reactive_patterns: reactive_patterns, static_patterns: static_patterns, usage_frequency: HashMap__new_() }
+
+    pub fn analyze_widget(_self: &mut LayoutOptimizer, st: &kain_core::ast::Struct) -> Array<PropertyAnalysis>:
+        let mut results = Vec__new_()
+        for field in &(*st).fields:
+            let analysis = (*_self).analyze_property(field, st)
+            results.push(analysis)
+            ()
+        ()
+        results
+
+    fn analyze_property(_self: &LayoutOptimizer, field: &kain_core::ast::Field, st: &kain_core::ast::Struct) -> PropertyAnalysis:
+        let name = &(*field).name
+        if name.starts_with("On"):
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Event, reason: ("Event handler (naming convention)").to_string() }
+        if (*field).attributes.iter().any(fn(a): (a.name == "argument")):
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Static, reason: ("Explicit @argument attribute").to_string() }
+        if (*field).attributes.iter().any(fn(a): (a.name == "reactive")):
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Reactive_, reason: ("Explicit @reactive attribute").to_string() }
+        if (*_self).reactive_patterns.contains(name):
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Reactive_, reason: ("Known reactive pattern").to_string() }
+        if (*_self).static_patterns.contains(name):
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Static, reason: ("Known static pattern").to_string() }
+        let is_complex_type = match &(*field).ty:
+            kain_core__ast__Type::Array(_, _, _) => true
+            kain_core__ast__Type::Named { name: name } if (name.contains("Brush") || name.contains("Style")) => true
+            _ => false
+        if is_complex_type:
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Static, reason: ("Complex type (usually static)").to_string() }
+        let used_in_compose = (*_self).is_used_in_compose(name, st)
+        if used_in_compose:
+            return PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Reactive_, reason: ("Used in Compose() method (likely reactive)").to_string() }
+        PropertyAnalysis { name: name.clone(), reactivity: PropertyReactivity__Static, reason: ("Default (no clear reactive usage)").to_string() }
+
+    fn is_used_in_compose(_self: &LayoutOptimizer, prop_name: String, st: &kain_core::ast::Struct) -> Bool:
+        match (*st).methods.iter().find(fn(m): (m.name == "Compose")):
+            Some(compose_fn) => (*_self).expr_references_property(&compose_fn.body.stmts.iter().filter_map(fn(stmt): none).next().unwrap_or(&kain_core__ast__Expr::None(Span__default_())), prop_name)
+            _ => false
+
+    fn expr_references_property(_self: &LayoutOptimizer, expr: &kain_core::ast::Expr, prop_name: String) -> Bool:
+        match expr:
+            kain_core__ast__Expr::Ident(name, _) => (name == prop_name)
+            kain_core__ast__Expr::Field { object: object, field: field } => ((field == prop_name) || (*_self).expr_references_property(object, prop_name))
+            kain_core__ast__Expr::Call { args: args } => args.iter().any(fn(arg): (*_self).expr_references_property(&arg.value, prop_name))
+            kain_core__ast__Expr::MethodCall { receiver: receiver, args: args } => ((*_self).expr_references_property(receiver, prop_name) || args.iter().any(fn(arg): (*_self).expr_references_property(&arg.value, prop_name)))
+            _ => false
+
+    pub fn generate_report(_self: &LayoutOptimizer, analyses: &[PropertyAnalysis]) -> String:
+        let mut report = String__new_()
+        let static_count = analyses.iter().filter(fn(a): (a.reactivity == PropertyReactivity__Static)).count()
+        let reactive_count = analyses.iter().filter(fn(a): (a.reactivity == PropertyReactivity__Reactive_)).count()
+        let event_count = analyses.iter().filter(fn(a): (a.reactivity == PropertyReactivity__Event)).count()
+        report.push_str(&"// Layout Optimization Report\n")
+        ()
+        report.push_str(&f"// Static Properties: {static_count} (no Tick overhead)\n")
+        ()
+        report.push_str(&f"// Reactive Properties: {reactive_count} (requires Tick)\n")
+        ()
+        report.push_str(&f"// Event Handlers: {event_count}\n")
+        ()
+        report.push_str(&f"// Estimated Tick Reduction: {(((static_count as f32 / analyses.len() as f32)) * 100)}%\n")
+        ()
+        report.push_str("//\n")
+        ()
+        for analysis in analyses:
+            let macro_type = match analysis.reactivity:
+                PropertyReactivity::Static => "SLATE_ARGUMENT"
+                PropertyReactivity::Reactive_ => "SLATE_ATTRIBUTE"
+                PropertyReactivity::Event => "SLATE_EVENT"
+            report.push_str(&f"// {macro_type} {analysis.name} - {analysis.reason}\n")
+            ()
+        ()
+        report
+
+
+impl Default for LayoutOptimizer:
+    fn default_() -> LayoutOptimizer:
+        LayoutOptimizer__new_()
+
+

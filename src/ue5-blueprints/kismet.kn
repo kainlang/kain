@@ -1,0 +1,108 @@
+use std::io::Cursor
+
+use unreal_asset::exports::base_export::BaseExport
+
+use unreal_asset::exports::function_export::FunctionExport
+
+use unreal_asset::exports::normal_export::NormalExport
+
+use unreal_asset::exports::struct_export::StructExport
+
+use unreal_asset::exports::Export
+
+use unreal_asset::flags::EFunctionFlags
+
+use unreal_asset::flags::EObjectFlags
+
+use unreal_asset::types::PackageIndex
+
+use unreal_asset::Asset
+
+use unreal_asset_kismet::EExprToken
+
+use unreal_asset_kismet::ExContext
+
+use unreal_asset_kismet::ExEndOfScript
+
+use unreal_asset_kismet::ExInstanceVariable
+
+use unreal_asset_kismet::ExNothing
+
+use unreal_asset_kismet::ExReturn
+
+use unreal_asset_kismet::ExVirtualFunction
+
+use unreal_asset_kismet::FieldPath
+
+use unreal_asset_kismet::KismetExpression
+
+use unreal_asset_kismet::KismetPropertyPointer
+
+use crate::ir::EventGraphNode
+
+use crate::ir::KismetCall
+
+@doc(doc = " Result of emitting kismet bytecode for a blueprint's event graph.")
+pub struct KismetEmitResult:
+    function_exports: Array<unreal_asset::exports::Export<unreal_asset::types::PackageIndex>>
+    ubergraph_name: String
+    event_function_names: Array<String>
+
+@doc(doc = " Emit kismet bytecode for all event graph nodes in a blueprint.")
+@doc(doc = "")
+@doc(doc = " Each event gets a standalone `FunctionExport` with full inline bytecode.")
+@doc(doc = " A minimal UberGraphFunction is also created for UE5 runtime compatibility.")
+@doc(doc = "")
+@doc(doc = " Returns `None` if the event graph is empty.")
+pub fn emit_event_graph(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, bp_name: String, events: &[EventGraphNode], gen_class_export: unreal_asset::types::PackageIndex, function_class_import: unreal_asset::types::PackageIndex) -> Option<KismetEmitResult>:
+    if events.is_empty():
+        return none
+    let ubergraph_name = f"ExecuteUbergraph_{bp_name}"
+    let mut function_exports: Array<unreal_asset::exports::Export<unreal_asset::types::PackageIndex>> = Vec__new_()
+    let mut event_function_names: Array<String> = Vec__new_()
+    let ubergraph_fname = asset.add_fname(&ubergraph_name)
+    let ubergraph_export = make_function_export(function_class_import, gen_class_export, ubergraph_fname, unreal_asset__flags__EFunctionFlags__FUNC_UBERGRAPHFUNCTION, [ExEndOfScript__default_().into()])
+    function_exports.push(unreal_asset__exports__Export::FunctionExport(ubergraph_export))
+    ()
+    for event in events:
+        let (ue_event_name, calls) = match event:
+            EventGraphNode::BeginPlay { calls: calls } => ("ReceiveBeginPlay", calls.as_slice())
+            EventGraphNode::Tick { calls: calls } => ("ReceiveTick", calls.as_slice())
+            EventGraphNode::CustomEvent { event_name: event_name, calls: calls } => (event_name.as_str(), calls.as_slice())
+        let mut bytecode: Array<unreal_asset_kismet::KismetExpression> = Vec__new_()
+        for call in calls:
+            bytecode.push(emit_kismet_call(asset, call, gen_class_export))
+            ()
+        ()
+        bytecode.push((unreal_asset_kismet::ExReturn { token: unreal_asset_kismet__EExprToken__ExReturn, return_expression: Box__new_(ExNothing__default_().into()) }).into())
+        ()
+        bytecode.push(ExEndOfScript__default_().into())
+        ()
+        let event_fname = asset.add_fname(ue_event_name)
+        let event_flags = ((unreal_asset__flags__EFunctionFlags__FUNC_EVENT | unreal_asset__flags__EFunctionFlags__FUNC_BLUEPRINTEVENT) | unreal_asset__flags__EFunctionFlags__FUNC_PUBLIC)
+        let event_export = make_function_export(function_class_import, gen_class_export, event_fname, event_flags, bytecode)
+        function_exports.push(unreal_asset__exports__Export::FunctionExport(event_export))
+        ()
+        event_function_names.push(ue_event_name.to_string())
+        ()
+    ()
+    Option::Some(KismetEmitResult { function_exports: function_exports, ubergraph_name: ubergraph_name, event_function_names: event_function_names })
+
+@doc(doc = " Create a FunctionExport with the given bytecode.")
+fn make_function_export(class_import: unreal_asset::types::PackageIndex, outer: unreal_asset::types::PackageIndex, name: unreal_asset_base::types::FName, flags: unreal_asset::flags::EFunctionFlags, bytecode: Array<unreal_asset_kismet::KismetExpression>) -> unreal_asset::exports::function_export::FunctionExport<unreal_asset::types::PackageIndex>:
+    unreal_asset::exports::function_export::FunctionExport { struct_export: unreal_asset::exports::struct_export::StructExport { normal_export: unreal_asset::exports::normal_export::NormalExport { base_export: unreal_asset::exports::base_export::BaseExport { class_index: class_import, super_index: PackageIndex__new_(0), template_index: PackageIndex__new_(0), outer_index: outer, object_name: name, object_flags: unreal_asset__flags__EObjectFlags__RF_PUBLIC, ..Default__default_() }, extras: Vec__new_(), properties: Vec__new_() }, field: Default__default_(), super_struct: PackageIndex__new_(0), children: Vec__new_(), loaded_properties: Vec__new_(), script_bytecode: Option::Some(bytecode), script_bytecode_size: 0, script_bytecode_raw: none }, function_flags: flags }
+
+@doc(doc = " Convert a single `KismetCall` IR node into a `KismetExpression`.")
+@doc(doc = "")
+@doc(doc = " - No target → `ExVirtualFunction` (call on self)")
+@doc(doc = " - With target → `ExContext { ExInstanceVariable(target), ExVirtualFunction(name) }`")
+fn emit_kismet_call(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, call: &KismetCall, gen_class_export: unreal_asset::types::PackageIndex) -> unreal_asset_kismet::KismetExpression:
+    let fname = asset.add_fname(&(*call).function_name)
+    let vfunc: unreal_asset_kismet::KismetExpression = (unreal_asset_kismet::ExVirtualFunction { token: unreal_asset_kismet__EExprToken__ExVirtualFunction, virtual_function_name: fname, parameters: Vec__new_() }).into()
+    match &(*call).target:
+        None => vfunc
+        Some(target_name) =>
+            let target_fname = asset.add_fname(target_name)
+            let var_ptr = KismetPropertyPointer__from_new(FieldPath__new_([target_fname], gen_class_export))
+            (unreal_asset_kismet::ExContext { token: unreal_asset_kismet__EExprToken__ExContext, object_expression: Box__new_((unreal_asset_kismet::ExInstanceVariable { token: unreal_asset_kismet__EExprToken__ExInstanceVariable, variable: var_ptr }).into()), offset: 0, r_value_pointer: KismetPropertyPointer__default_(), context_expression: Box__new_(vfunc) }).into()
+

@@ -1,0 +1,205 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ModuleGraphData:
+    meta: ModuleGraphMeta
+    modules: Map<String, ModuleInfo>
+    transitive_public_deps: Map<String, Array<String>>
+    type_to_module: Map<String, String>
+    header_to_module: Map<String, String>
+    api_to_module: Map<String, String>
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct ModuleGraphMeta:
+    generator: String
+    source: String
+    total_modules: usize
+    total_types_mapped: usize
+    total_headers_mapped: usize
+    total_api_symbols: usize
+
+impl Default for ModuleGraphMeta:
+    pub fn default_() -> ModuleGraphMeta:
+        ModuleGraphMeta { generator: String__new_(), source: String__new_(), total_modules: 0, total_types_mapped: 0, total_headers_mapped: 0, total_api_symbols: 0 }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ModuleInfo:
+    name: String
+    category: String
+    path: String
+    public_deps: Array<String>
+    private_deps: Array<String>
+    dynamic_deps: Array<String>
+    private_include_path_modules: Array<String>
+    public_include_path_modules: Array<String>
+
+@derive(Debug, Default, Clone)
+pub struct ModuleGraph:
+    modules: Map<String, ModuleInfo>
+    type_to_module: Map<String, String>
+    header_to_module: Map<String, String>
+    api_to_module: Map<String, String>
+    transitive_deps: Map<String, Array<String>>
+    total_modules: usize
+    total_types: usize
+    total_headers: usize
+
+impl Default for ModuleGraph:
+    pub fn default_() -> ModuleGraph:
+        ModuleGraph { modules: HashMap__new_(), type_to_module: HashMap__new_(), header_to_module: HashMap__new_(), api_to_module: HashMap__new_(), transitive_deps: HashMap__new_(), total_modules: 0, total_types: 0, total_headers: 0 }
+
+
+impl ModuleGraph:
+    pub fn new_() -> ModuleGraph:
+        ModuleGraph__default_()
+
+    pub fn load(_self: &mut ModuleGraph, json_data: String) -> Result<(), String>:
+        let data: ModuleGraphData = serde_json__from_str(json_data).map_err(fn(e): f"Failed to parse module_graph.json: {e}")?
+        (*_self).modules = data.modules
+        ()
+        (*_self).type_to_module = data.type_to_module
+        ()
+        (*_self).header_to_module = data.header_to_module
+        ()
+        (*_self).api_to_module = data.api_to_module
+        ()
+        (*_self).transitive_deps = data.transitive_public_deps
+        ()
+        (*_self).total_modules = (*_self).modules.len()
+        ()
+        (*_self).total_types = (*_self).type_to_module.len()
+        ()
+        (*_self).total_headers = (*_self).header_to_module.len()
+        ()
+        Result::Ok(())
+
+    pub fn is_loaded(_self: &ModuleGraph) -> Bool:
+        ((*_self).total_modules > 0)
+
+    pub fn module_for_type(_self: &ModuleGraph, type_name: String) -> Option<String>:
+        match (*_self).type_to_module.get(type_name):
+            Some(m) => return Option::Some(m.as_str())
+            _ =>
+                ()
+                ()
+        for prefix in &["U", "A", "F", "E", "I", "S"]:
+            let prefixed = f"{prefix}{type_name}"
+            match (*_self).type_to_module.get(&prefixed):
+                Some(m) => return Option::Some(m.as_str())
+                _ => ()
+        ()
+        if (type_name.len() > 1):
+            let first = &type_name[..1]
+            if (["U", "A", "F", "E", "I", "S"]).contains(&first):
+                let stripped = &type_name[1..]
+                match (*_self).type_to_module.get(stripped):
+                    Some(m) => return Option::Some(m.as_str())
+                    _ =>
+                        ()
+                        ()
+                ()
+            ()
+        none
+
+    pub fn module_for_header(_self: &ModuleGraph, header: String) -> Option<String>:
+        match (*_self).header_to_module.get(header):
+            Some(m) => return Option::Some(m.as_str())
+            _ =>
+                ()
+                ()
+        match header.rsplit("/").next():
+            Some(fname) =>
+                if (fname != header):
+                    match (*_self).header_to_module.get(fname):
+                        Some(m) => return Option::Some(m.as_str())
+                        _ =>
+                            ()
+                            ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        none
+
+    pub fn module_for_api(_self: &ModuleGraph, symbol: String) -> Option<String>:
+        (*_self).api_to_module.get(symbol).map(fn(s): s.as_str())
+
+    pub fn get_module(_self: &ModuleGraph, name: String) -> Option<&ModuleInfo>:
+        (*_self).modules.get(name)
+
+    pub fn public_deps(_self: &ModuleGraph, module: String) -> &[String]:
+        (*_self).modules.get(module).map(fn(m): m.public_deps.as_slice()).unwrap_or(&[])
+
+    pub fn private_deps(_self: &ModuleGraph, module: String) -> &[String]:
+        (*_self).modules.get(module).map(fn(m): m.private_deps.as_slice()).unwrap_or(&[])
+
+    pub fn transitive_public_deps(_self: &ModuleGraph, module: String) -> &[String]:
+        (*_self).transitive_deps.get(module).map(fn(v): v.as_slice()).unwrap_or(&[])
+
+    pub fn module_category(_self: &ModuleGraph, module: String) -> Option<String>:
+        (*_self).modules.get(module).map(fn(m): m.category.as_str())
+
+    pub fn has_module(_self: &ModuleGraph, name: String) -> Bool:
+        (*_self).modules.contains_key(name)
+
+    pub fn resolve_deps_for_types(_self: &ModuleGraph, referenced_types: &[String], referenced_headers: &[String], referenced_apis: &[String], base_modules: &[String]) -> Array<String>:
+        let base_set: Set<String> = base_modules.iter().copied().collect()
+        let mut needed: Set<String> = HashSet__new_()
+        for type_name in referenced_types:
+            match (*_self).module_for_type(type_name):
+                Some(module) =>
+                    if (!base_set.contains(module)):
+                        needed.insert(module.to_string())
+                        ()
+                _ => ()
+        ()
+        for header in referenced_headers:
+            match (*_self).module_for_header(header):
+                Some(module) =>
+                    if (!base_set.contains(module)):
+                        needed.insert(module.to_string())
+                        ()
+                _ => ()
+        ()
+        for api in referenced_apis:
+            match (*_self).module_for_api(api):
+                Some(module) =>
+                    if (!base_set.contains(module)):
+                        needed.insert(module.to_string())
+                        ()
+                _ => ()
+        ()
+        let needed_vec: Array<String> = needed.iter().cloned().collect()
+        let mut redundant: Set<String> = HashSet__new_()
+        for module in &needed_vec:
+            let transitive = (*_self).transitive_public_deps(module)
+            for dep in transitive:
+                if (needed.contains(dep) && (dep != module)):
+                    let dep_transitive = (*_self).transitive_public_deps(dep)
+                    if (!dep_transitive.contains(module)):
+                        redundant.insert(dep.clone())
+                        ()
+        ()
+        let mut result: Array<String> = needed.into_iter().filter(fn(m): (!redundant.contains(m))).collect()
+        result.sort()
+        ()
+        result
+
+    pub fn stats(_self: &ModuleGraph) -> (usize, usize, usize):
+        ((*_self).total_modules, (*_self).total_types, (*_self).total_headers)
+
+    pub fn module_names(_self: &ModuleGraph) -> Array<String>:
+        (*_self).modules.keys().map(fn(s): s.as_str()).collect()
+
+    pub fn modules_in_category(_self: &ModuleGraph, category: String) -> Array<String>:
+        (*_self).modules.values().filter(fn(m): (m.category == category)).map(fn(m): m.name.as_str()).collect()
+
+

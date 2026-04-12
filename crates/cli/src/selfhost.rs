@@ -134,6 +134,9 @@ pub enum SelfHostCommand {
         emit_bundles: bool,
 
         #[arg(long)]
+        all_crates: bool,
+
+        #[arg(long)]
         force: bool,
     },
     Phase2 {
@@ -159,6 +162,9 @@ pub enum SelfHostCommand {
         build_stage2: bool,
 
         #[arg(long)]
+        all_crates: bool,
+
+        #[arg(long)]
         force: bool,
     },
 }
@@ -170,8 +176,16 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             output_dir,
             profile_path,
             emit_bundles,
+            all_crates,
             force,
-        } => run_phase1(inventory_dir, output_dir, profile_path, emit_bundles, force),
+        } => run_phase1(
+            inventory_dir,
+            output_dir,
+            profile_path,
+            emit_bundles,
+            all_crates,
+            force,
+        ),
         SelfHostCommand::Phase2 {
             inventory_dir,
             output_dir,
@@ -180,6 +194,7 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             emit_roundtrip_rust,
             assemble_stage2,
             build_stage2,
+            all_crates,
             force,
         } => run_phase2(
             inventory_dir,
@@ -189,6 +204,7 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             emit_roundtrip_rust,
             assemble_stage2,
             build_stage2,
+            all_crates,
             force,
         ),
     }
@@ -199,6 +215,7 @@ fn run_phase1(
     output_dir: Option<PathBuf>,
     profile_path: Option<PathBuf>,
     emit_bundles: bool,
+    all_crates: bool,
     force: bool,
 ) -> KainResult<()> {
     run_phase(
@@ -210,6 +227,7 @@ fn run_phase1(
         false,
         false,
         false,
+        all_crates,
         force,
     )
 }
@@ -222,6 +240,7 @@ fn run_phase2(
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,
     build_stage2: bool,
+    all_crates: bool,
     force: bool,
 ) -> KainResult<()> {
     run_phase(
@@ -233,6 +252,7 @@ fn run_phase2(
         emit_roundtrip_rust,
         assemble_stage2,
         build_stage2,
+        all_crates,
         force,
     )
 }
@@ -246,6 +266,7 @@ fn run_phase(
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,
     build_stage2: bool,
+    all_crates: bool,
     force: bool,
 ) -> KainResult<()> {
     let repo_root = find_repo_root(&std::env::current_dir().map_err(KainError::Io)?)?;
@@ -270,7 +291,13 @@ fn run_phase(
         ))
     })?;
 
-    let crates_processed = resolve_crates_for_phase(&profile, &inventories.module_map, phase_name);
+    let crates_processed = resolve_crates_for_phase(
+        &profile,
+        &inventories.module_map,
+        &repo_root,
+        phase_name,
+        all_crates,
+    )?;
     let mut modules_discovered: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut crate_results = Vec::new();
     let mut all_rejected = Vec::new();
@@ -352,11 +379,12 @@ fn run_phase(
                         let program = result.program;
                         diagnostics.extend(result.diagnostics);
                         item_count = program.items.len();
-                        required_direct_lowering_still_preserved = preserved_required_macro_findings(
-                            crate_name,
-                            &program,
-                            &inventories.allowlist.phase1_required_direct_lowering,
-                        );
+                        required_direct_lowering_still_preserved =
+                            preserved_required_macro_findings(
+                                crate_name,
+                                &program,
+                                &inventories.allowlist.phase1_required_direct_lowering,
+                            );
                         if !required_direct_lowering_still_preserved.is_empty() {
                             diagnostics.push(format!(
                                 "required direct-lower macros preserved: {}",
@@ -406,8 +434,8 @@ fn run_phase(
 
                         if emit_roundtrip_rust {
                             let rendered = rendered.as_ref().expect("rendered aggregate bundle");
-                            let roundtrip_path = output_dir
-                                .join(profile.aggregate_roundtrip_file_name(crate_name));
+                            let roundtrip_path =
+                                output_dir.join(profile.aggregate_roundtrip_file_name(crate_name));
                             let rust_source = compile_kn_source_to_rust(rendered)?;
                             fs::write(&roundtrip_path, &rust_source).map_err(|err| {
                                 KainError::runtime(format!(
@@ -604,6 +632,7 @@ fn run_phase(
         profile_path: profile_path.display().to_string(),
         profile_name: profile.name.clone(),
         force_mode: force,
+        all_crates_mode: all_crates,
         inventory_dir: inventory_dir.display().to_string(),
         inventory_inputs,
         output_dir: output_dir.display().to_string(),
@@ -648,18 +677,62 @@ fn run_phase(
 fn resolve_crates_for_phase(
     profile: &SelfHostSourceProfile,
     module_map: &ModuleMapInventory,
+    repo_root: &Path,
     phase_name: &str,
-) -> Vec<String> {
+    all_crates: bool,
+) -> KainResult<Vec<String>> {
+    if all_crates {
+        return discover_all_workspace_crates(repo_root);
+    }
+
     if let Some(profile_crates) = profile.crates_for_phase(phase_name) {
         if !profile_crates.is_empty() {
-            return profile_crates.to_vec();
+            return Ok(profile_crates.to_vec());
         }
     }
 
-    match phase_name {
+    Ok(match phase_name {
         "phase2" if !module_map.phase2_slice.is_empty() => module_map.phase2_slice.clone(),
         _ => module_map.initial_slice.clone(),
+    })
+}
+
+fn discover_all_workspace_crates(repo_root: &Path) -> KainResult<Vec<String>> {
+    let crates_root = repo_root.join("crates");
+    let entries = fs::read_dir(&crates_root).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to read workspace crates directory {}: {}",
+            crates_root.display(),
+            err
+        ))
+    })?;
+
+    let mut crate_names = entries
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !path.is_dir() {
+                return None;
+            }
+            if !path.join("Cargo.toml").is_file() {
+                return None;
+            }
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name.to_string())
+        })
+        .collect::<Vec<_>>();
+    crate_names.sort();
+    crate_names.dedup();
+
+    if crate_names.is_empty() {
+        return Err(KainError::runtime(format!(
+            "No workspace crates with Cargo.toml discovered under {}",
+            crates_root.display()
+        )));
     }
+
+    Ok(crate_names)
 }
 
 fn write_source_correspondence_manifest(
@@ -1761,6 +1834,9 @@ fn print_summary(phase_name: &str, report: &SelfHostPhase1Report) {
     );
     if report.force_mode {
         println!("   Force mode: true");
+    }
+    if report.all_crates_mode {
+        println!("   All crates mode: true");
     }
     println!(
         "   Status: {}",
@@ -6678,6 +6754,61 @@ fn untouched_afterwards():
             SelfHostRustSourceKind::ModuleDirectoryRoot
         );
         assert_eq!(plans[2].source_kind, SelfHostRustSourceKind::ModuleFile);
+    }
+
+    #[test]
+    fn discover_all_workspace_crates_lists_sorted_cargo_directories() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let repo_root = temp_dir.path();
+        fs::create_dir_all(repo_root.join("crates/cli")).expect("cli dir");
+        fs::create_dir_all(repo_root.join("crates/kain-core")).expect("kain-core dir");
+        fs::create_dir_all(repo_root.join("crates/not-a-crate")).expect("non-crate dir");
+        fs::write(
+            repo_root.join("crates/cli/Cargo.toml"),
+            "[package]\nname = \"cli\"\n",
+        )
+        .expect("cli cargo");
+        fs::write(
+            repo_root.join("crates/kain-core/Cargo.toml"),
+            "[package]\nname = \"kain-core\"\n",
+        )
+        .expect("kain-core cargo");
+
+        let crates = discover_all_workspace_crates(repo_root).expect("crate discovery");
+        assert_eq!(crates, vec!["cli".to_string(), "kain-core".to_string()]);
+    }
+
+    #[test]
+    fn resolve_crates_for_phase_prefers_all_crates_override() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let repo_root = temp_dir.path();
+        fs::create_dir_all(repo_root.join("crates/alpha")).expect("alpha dir");
+        fs::create_dir_all(repo_root.join("crates/zeta")).expect("zeta dir");
+        fs::write(
+            repo_root.join("crates/alpha/Cargo.toml"),
+            "[package]\nname = \"alpha\"\n",
+        )
+        .expect("alpha cargo");
+        fs::write(
+            repo_root.join("crates/zeta/Cargo.toml"),
+            "[package]\nname = \"zeta\"\n",
+        )
+        .expect("zeta cargo");
+
+        let mut phases = BTreeMap::new();
+        phases.insert("phase2".to_string(), vec!["cli".to_string()]);
+        let profile = SelfHostSourceProfile {
+            phases,
+            ..SelfHostSourceProfile::default()
+        };
+        let module_map = ModuleMapInventory {
+            initial_slice: vec!["kain-core".to_string()],
+            phase2_slice: vec!["kain-import".to_string()],
+        };
+
+        let crates = resolve_crates_for_phase(&profile, &module_map, repo_root, "phase2", true)
+            .expect("all crates override");
+        assert_eq!(crates, vec!["alpha".to_string(), "zeta".to_string()]);
     }
 
     #[test]

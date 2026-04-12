@@ -71,6 +71,7 @@ pub struct SelfHostPhase1Report {
     pub profile_path: String,
     pub profile_name: String,
     pub force_mode: bool,
+    pub all_crates_mode: bool,
     pub inventory_dir: String,
     pub inventory_inputs: Vec<InventoryInputEvidence>,
     pub output_dir: String,
@@ -106,6 +107,10 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         report.profile_name, report.profile_path
     ));
     out.push_str(&format!("- Force mode: `{}`\n", report.force_mode));
+    out.push_str(&format!(
+        "- All crates mode: `{}`\n",
+        report.all_crates_mode
+    ));
     out.push_str(&format!("- Inventory dir: `{}`\n", report.inventory_dir));
     if report.inventory_inputs.is_empty() {
         out.push_str("- Inventory inputs: `none`\n");

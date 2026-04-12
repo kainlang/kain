@@ -1,0 +1,33 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use crate::artifacts::ArtifactExpectation
+
+pub enum StepKind:
+    Python
+    PowershellFile
+    Shell
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct SelfHostStep:
+    id: String
+    kind: StepKind
+    command_template: String
+    expected_artifacts: Array<ArtifactExpectation>
+    timeout_seconds: Option<u64>
+    retry_policy: Option<String>
+    produces: Array<String>
+    consumes: Array<String>
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct SelfHostLane:
+    id: String
+    description: String
+    dependencies: Array<String>
+    required_artifacts: Array<ArtifactExpectation>
+    crate_slice: Array<String>
+    steps: Array<SelfHostStep>
+    continue_on_failure: Bool
+    failure_policy: Option<String>
+

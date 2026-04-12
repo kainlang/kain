@@ -1,0 +1,2274 @@
+use kain_core::ast::BinaryOp
+
+use kain_core::ast::Block
+
+use kain_core::ast::CallArg
+
+use kain_core::ast::ElseBranch
+
+use kain_core::ast::Expr
+
+use kain_core::ast::Pattern
+
+use kain_core::ast::ShaderStage
+
+use kain_core::ast::Stmt
+
+use kain_core::ast::Type
+
+use kain_core::ast::UnaryOp
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedProgram
+
+use kain_core::types::TypedShader
+
+use rspirv::binary::Assemble
+
+use rspirv::dr::Builder
+
+use rspirv::dr::Operand
+
+use rspirv::spirv::AddressingModel
+
+use rspirv::spirv::Capability
+
+use rspirv::spirv::Decoration
+
+use rspirv::spirv::ExecutionMode
+
+use rspirv::spirv::ExecutionModel
+
+use rspirv::spirv::MemoryModel
+
+use rspirv::spirv::StorageClass
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+pub fn generate(program: &kain_core::types::TypedProgram) -> Result<Array<u8>, KainError>:
+    let mut builder = Builder__new_()
+    let mut emitted_shaders = 0
+    builder.capability(rspirv__spirv__Capability__Shader)
+    ()
+    builder.memory_model(rspirv__spirv__AddressingModel__Logical, rspirv__spirv__MemoryModel__GLSL450)
+    ()
+    for item in &(*program).items:
+        match item:
+            kain_core__types__TypedItem::Shader(shader_) =>
+                emit_shader(&mut builder, shader_)?
+                ()
+                emitted_shaders = (emitted_shaders + 1)
+                ()
+            _ => ()
+    ()
+    let module = builder.module()
+    if ((emitted_shaders == 0) || module.entry_points.is_empty()):
+        return Result::Err(KainError__codegen(f"SPIR-V backend emitted no entry points for {emitted_shaders} typed shader item(s)", Span__default_()))
+    let bytes: Array<u8> = module.assemble().iter().flat_map(fn(w): w.to_le_bytes()).collect()
+    Result::Ok(bytes)
+
+struct ShaderContext<a>:
+    b: &mut a rspirv::dr::Builder
+    vars: Map<String, VarBinding>
+    output_var: Option<u32>
+    struct_uniforms: Set<String>
+    storage_buffers: Set<String>
+    glsl_ext: Option<u32>
+    loop_continue_targets: Array<u32>
+    loop_break_targets: Array<u32>
+    hoisted_vars: Map<String, Array<(u32, u32)>>
+
+@derive(Clone)
+struct VarBinding:
+    id: u32
+    ty: kain_core::ast::Type
+    is_ptr: Bool
+
+fn emit_shader(b: &mut rspirv::dr::Builder, shader_: &kain_core::types::TypedShader) -> Result<(), KainError>:
+    let exec_model = match (*shader_).ast.stage:
+        kain_core__ast__ShaderStage::Vertex => rspirv__spirv__ExecutionModel__Vertex
+        kain_core__ast__ShaderStage::Fragment => rspirv__spirv__ExecutionModel__Fragment
+        kain_core__ast__ShaderStage::Compute => rspirv__spirv__ExecutionModel__GLCompute
+        kain_core__ast__ShaderStage::Surface => rspirv__spirv__ExecutionModel__Fragment
+    let void_ = b.type_void()
+    let fn_void_void = b.type_function(void_, [])
+    let mut interface_vars = []
+    let mut ctx_vars = HashMap__new_()
+    let mut struct_uniforms = HashSet__new_()
+    let mut storage_buffers = HashSet__new_()
+    let mut storage_buffer_type_cache: Map<String, u32> = HashMap__new_()
+    let mut uniform_wrapper_type_cache: Map<String, u32> = HashMap__new_()
+    let mut compute_input_params: Array<(String, kain_core::ast::Type)> = Vec__new_()
+    let mut local_size_values: [u32; 3] = [8, 8, 1]
+    for selfhost_for_item in (*shader_).ast.inputs.iter().enumerate():
+        let (i, param) = selfhost_for_item
+        if (exec_model == rspirv__spirv__ExecutionModel__GLCompute):
+            compute_input_params.push((param.name.clone(), param.ty.clone()))
+            ()
+            continue
+        let ty = map_ast_type(b, &param.ty)
+        let ptr_ty = b.type_pointer(none, rspirv__spirv__StorageClass__Input, ty)
+        let var_ = b.variable(ptr_ty, none, rspirv__spirv__StorageClass__Input, none)
+        b.decorate(var_, rspirv__spirv__Decoration__Location, [rspirv__dr__Operand::LiteralBit32(i as u32)])
+        ()
+        interface_vars.push(var_)
+        ()
+        ctx_vars.insert(param.name.clone(), VarBinding { id: var_, ty: param.ty.clone(), is_ptr: true })
+        ()
+    ()
+    let output_var = if ((exec_model != rspirv__spirv__ExecutionModel__GLCompute) && (!is_void(&(*shader_).ast.outputs))):
+        let output_ty = map_ast_type(b, &(*shader_).ast.outputs)
+        let ptr_ty = b.type_pointer(none, rspirv__spirv__StorageClass__Output, output_ty)
+        let var_ = b.variable(ptr_ty, none, rspirv__spirv__StorageClass__Output, none)
+        if ((exec_model == rspirv__spirv__ExecutionModel__Vertex) && is_vec4(&(*shader_).ast.outputs)):
+            b.decorate(var_, rspirv__spirv__Decoration__BuiltIn, [rspirv__dr__Operand::BuiltIn(rspirv__spirv__BuiltIn__Position)])
+            ()
+            ()
+            ()
+            ()
+        else:
+            b.decorate(var_, rspirv__spirv__Decoration__Location, [rspirv__dr__Operand::LiteralBit32(0)])
+            ()
+            ()
+            ()
+            ()
+        interface_vars.push(var_)
+        ()
+        Option::Some(var_)
+    else:
+        none
+    for uniform_ in &(*shader_).ast.uniforms:
+        if (none && is_local_size_param(&uniform_.name)):
+            let slot = match uniform_.name.as_str():
+                "LOCAL_SIZE_X" => 0
+                "LOCAL_SIZE_Y" => 1
+                "LOCAL_SIZE_Z" => 2
+                _ => 0
+            let default_value = match slot:
+                0 => 8
+                1 => 8
+                _ => 1
+            local_size_values[slot] = default_value
+            ()
+            let uint_ty = b.type_int(32, 0)
+            let const_id = b.constant_bit32(uint_ty, default_value)
+            ctx_vars.insert(uniform_.name.clone(), VarBinding { id: const_id, ty: kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: uniform_.span }, is_ptr: false })
+            ()
+            continue
+        if is_permutation_param(&uniform_.name):
+            match emit_permutation_spec_constant(b, &uniform_.ty, uniform_.binding):
+                Some(spec_id) =>
+                    ctx_vars.insert(uniform_.name.clone(), VarBinding { id: spec_id, ty: uniform_.ty.clone(), is_ptr: false })
+                    ()
+                    continue
+                _ =>
+                    ()
+                    ()
+            ()
+        let is_sampler = match &uniform_.ty:
+            kain_core__ast__Type::Named { name: name } if (name == "Sampler2D") => true
+            _ => false
+        if is_sampler:
+            let inner_ty = map_ast_type(b, &uniform_.ty)
+            let ptr_ty = b.type_pointer(none, rspirv__spirv__StorageClass__UniformConstant, inner_ty)
+            let var_ = b.variable(ptr_ty, none, rspirv__spirv__StorageClass__UniformConstant, none)
+            b.decorate(var_, rspirv__spirv__Decoration__DescriptorSet, [rspirv__dr__Operand::LiteralBit32(0)])
+            ()
+            b.decorate(var_, rspirv__spirv__Decoration__Binding, [rspirv__dr__Operand::LiteralBit32(uniform_.binding)])
+            ()
+            interface_vars.push(var_)
+            ()
+            ctx_vars.insert(uniform_.name.clone(), VarBinding { id: var_, ty: uniform_.ty.clone(), is_ptr: true })
+            ()
+        else:
+            let is_storage_buffer = is_storage_buffer(&uniform_.ty)
+            let (storage_class, pointee_ty) = if is_storage_buffer:
+                (rspirv__spirv__StorageClass__StorageBuffer, get_or_create_storage_buffer_type(b, &uniform_.ty, &mut storage_buffer_type_cache))
+            else:
+                (rspirv__spirv__StorageClass__Uniform, get_or_create_uniform_wrapper_type(b, &uniform_.ty, &mut uniform_wrapper_type_cache))
+            let ptr_ty = b.type_pointer(none, storage_class, pointee_ty)
+            let var_ = b.variable(ptr_ty, none, storage_class, none)
+            b.decorate(var_, rspirv__spirv__Decoration__DescriptorSet, [rspirv__dr__Operand::LiteralBit32(0)])
+            ()
+            b.decorate(var_, rspirv__spirv__Decoration__Binding, [rspirv__dr__Operand::LiteralBit32(uniform_.binding)])
+            ()
+            interface_vars.push(var_)
+            ()
+            ctx_vars.insert(uniform_.name.clone(), VarBinding { id: var_, ty: uniform_.ty.clone(), is_ptr: true })
+            ()
+            if is_storage_buffer:
+                storage_buffers.insert(uniform_.name.clone())
+                ()
+            else:
+                struct_uniforms.insert(uniform_.name.clone())
+                ()
+    ()
+    if (exec_model == rspirv__spirv__ExecutionModel__GLCompute):
+        let uint_ = b.type_int(32, 0)
+        let uvec3 = b.type_vector(uint_, 3)
+        let uvec3_ptr = b.type_pointer(none, rspirv__spirv__StorageClass__Input, uvec3)
+        let uint_ptr = b.type_pointer(none, rspirv__spirv__StorageClass__Input, uint_)
+        let gid = b.variable(uvec3_ptr, none, rspirv__spirv__StorageClass__Input, none)
+        b.decorate(gid, rspirv__spirv__Decoration__BuiltIn, [rspirv__dr__Operand::BuiltIn(rspirv__spirv__BuiltIn__GlobalInvocationId)])
+        ()
+        interface_vars.push(gid)
+        ()
+        let lid = b.variable(uvec3_ptr, none, rspirv__spirv__StorageClass__Input, none)
+        b.decorate(lid, rspirv__spirv__Decoration__BuiltIn, [rspirv__dr__Operand::BuiltIn(rspirv__spirv__BuiltIn__LocalInvocationId)])
+        ()
+        interface_vars.push(lid)
+        ()
+        let wid = b.variable(uvec3_ptr, none, rspirv__spirv__StorageClass__Input, none)
+        b.decorate(wid, rspirv__spirv__Decoration__BuiltIn, [rspirv__dr__Operand::BuiltIn(rspirv__spirv__BuiltIn__WorkgroupId)])
+        ()
+        interface_vars.push(wid)
+        ()
+        let lindex = b.variable(uint_ptr, none, rspirv__spirv__StorageClass__Input, none)
+        b.decorate(lindex, rspirv__spirv__Decoration__BuiltIn, [rspirv__dr__Operand::BuiltIn(rspirv__spirv__BuiltIn__LocalInvocationIndex)])
+        ()
+        interface_vars.push(lindex)
+        ()
+        let uvec3_ty = kain_core__ast__Type::Named { name: ("UVec3").into(), generics: [], span: (*shader_).ast.span }
+        let uint_ty = kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: (*shader_).ast.span }
+        ctx_vars.insert(("global_invocation_id").into(), VarBinding { id: gid, ty: uvec3_ty.clone(), is_ptr: true })
+        ()
+        ctx_vars.insert(("local_invocation_id").into(), VarBinding { id: lid, ty: uvec3_ty.clone(), is_ptr: true })
+        ()
+        ctx_vars.insert(("workgroup_id").into(), VarBinding { id: wid, ty: uvec3_ty, is_ptr: true })
+        ()
+        ctx_vars.insert(("local_invocation_index").into(), VarBinding { id: lindex, ty: uint_ty.clone(), is_ptr: true })
+        ()
+        ctx_vars.insert(("dispatch_thread_id").into(), VarBinding { id: gid, ty: kain_core__ast__Type::Named { name: ("UVec3").into(), generics: [], span: (*shader_).ast.span }, is_ptr: true })
+        ()
+        ctx_vars.insert(("group_thread_id").into(), VarBinding { id: lid, ty: kain_core__ast__Type::Named { name: ("UVec3").into(), generics: [], span: (*shader_).ast.span }, is_ptr: true })
+        ()
+        ctx_vars.insert(("group_id").into(), VarBinding { id: wid, ty: kain_core__ast__Type::Named { name: ("UVec3").into(), generics: [], span: (*shader_).ast.span }, is_ptr: true })
+        ()
+        ctx_vars.insert(("group_index").into(), VarBinding { id: lindex, ty: uint_ty, is_ptr: true })
+        ()
+        for selfhost_for_item in compute_input_params.iter():
+            let (name, ty) = selfhost_for_item
+            let lowered = if (none):
+                VarBinding { id: lindex, ty: ty.clone(), is_ptr: true }
+            else:
+                VarBinding { id: gid, ty: ty.clone(), is_ptr: true }
+            ctx_vars.insert(name.clone(), lowered)
+            ()
+        ()
+        ()
+    let mut binding_types: Array<(String, kain_core::ast::Type)> = Vec__new_()
+    let mut seed_known: Map<String, kain_core::ast::Type> = (*shader_).ast.inputs.iter().map(fn(p): (p.name.clone(), p.ty.clone())).collect()
+    seed_known.extend((*shader_).ast.uniforms.iter().map(fn(u): (u.name.clone(), u.ty.clone())))
+    ()
+    if (exec_model == rspirv__spirv__ExecutionModel__GLCompute):
+        let uvec3_ty = kain_core__ast__Type::Named { name: ("UVec3").into(), generics: [], span: (*shader_).ast.span }
+        let uint_ty = kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: (*shader_).ast.span }
+        seed_known.insert(("global_invocation_id").into(), uvec3_ty.clone())
+        ()
+        seed_known.insert(("local_invocation_id").into(), uvec3_ty.clone())
+        ()
+        seed_known.insert(("workgroup_id").into(), uvec3_ty.clone())
+        ()
+        seed_known.insert(("dispatch_thread_id").into(), uvec3_ty.clone())
+        ()
+        seed_known.insert(("group_thread_id").into(), uvec3_ty.clone())
+        ()
+        seed_known.insert(("group_id").into(), uvec3_ty)
+        ()
+        seed_known.insert(("local_invocation_index").into(), uint_ty.clone())
+        ()
+        seed_known.insert(("group_index").into(), uint_ty)
+        ()
+        ()
+        ()
+        ()
+    collect_binding_types_seeded(&(*shader_).ast.body, seed_known, &mut binding_types)
+    ()
+    let mut hoisted_vars: Map<String, Array<(u32, u32)>> = HashMap__new_()
+    for selfhost_for_item in &binding_types:
+        let (name, kain_ty) = selfhost_for_item
+        let type_id = map_ast_type(b, kain_ty)
+        let ptr_ty = b.type_pointer(none, rspirv__spirv__StorageClass__Function, type_id)
+        hoisted_vars.entry(name.clone()).or_default().push((0, ptr_ty))
+        ()
+    ()
+    let main_fn = b.begin_function(void_, none, rspirv__spirv__FunctionControl__NONE, fn_void_void).unwrap()
+    b.begin_block(none).unwrap()
+    ()
+    for selfhost_for_item in hoisted_vars.iter_mut():
+        let (name_2, slots) = selfhost_for_item
+        for slot in slots.iter_mut():
+            let var_id = b.variable(slot.field_1, none, rspirv__spirv__StorageClass__Function, none)
+            slot.field_0 = var_id
+            ()
+    ()
+    let mut ctx = ShaderContext { b: b, vars: ctx_vars, output_var: output_var, struct_uniforms: struct_uniforms, storage_buffers: storage_buffers, glsl_ext: none, loop_continue_targets: [], loop_break_targets: [], hoisted_vars: hoisted_vars }
+    emit_block(&mut ctx, &(*shader_).ast.body)?
+    ()
+    if (*shader_).ast.body.stmts.last().map_or(true, fn(s): (!none)):
+        ctx.b.ret().unwrap()
+        ()
+        ()
+        ()
+        ()
+    ctx.b.end_function().unwrap()
+    ()
+    b.entry_point(exec_model, main_fn, &(*shader_).ast.name, interface_vars)
+    ()
+    if (exec_model == rspirv__spirv__ExecutionModel__Fragment):
+        b.execution_mode(main_fn, rspirv__spirv__ExecutionMode__OriginUpperLeft, [])
+        ()
+        ()
+        ()
+        ()
+    elif (exec_model == rspirv__spirv__ExecutionModel__GLCompute):
+        b.execution_mode(main_fn, rspirv__spirv__ExecutionMode__LocalSize, local_size_values.to_vec())
+        ()
+        ()
+        ()
+        ()
+    Result::Ok(())
+
+fn get_or_create_storage_buffer_type(b: &mut rspirv::dr::Builder, buffer_ty: &kain_core::ast::Type, cache: &mut Map<String, u32>) -> u32:
+    let key = f"storage:{type_cache_key(&storage_buffer_elem_type(buffer_ty, Span__default_()))}"
+    match cache.get(&key):
+        Some(existing) => return (*existing)
+        _ =>
+            ()
+            ()
+    let elem_type_ast = storage_buffer_elem_type(buffer_ty, Span__default_())
+    let elem_ty = map_ast_type(b, &elem_type_ast)
+    let rt_array = b.type_runtime_array(elem_ty)
+    b.decorate(rt_array, rspirv__spirv__Decoration__ArrayStride, [rspirv__dr__Operand::LiteralBit32(storage_buffer_stride(buffer_ty))])
+    ()
+    let struct_ty = b.type_struct([rt_array])
+    b.decorate(struct_ty, rspirv__spirv__Decoration__Block, [])
+    ()
+    b.member_decorate(struct_ty, 0, rspirv__spirv__Decoration__Offset, [rspirv__dr__Operand::LiteralBit32(0)])
+    ()
+    cache.insert(key, struct_ty)
+    ()
+    struct_ty
+
+fn get_or_create_uniform_wrapper_type(b: &mut rspirv::dr::Builder, uniform_ty: &kain_core::ast::Type, cache: &mut Map<String, u32>) -> u32:
+    let key = f"uniform:{type_cache_key(uniform_ty)}"
+    match cache.get(&key):
+        Some(existing) => return (*existing)
+        _ =>
+            ()
+            ()
+    let inner_ty = map_ast_type(b, uniform_ty)
+    let struct_ty = b.type_struct([inner_ty])
+    b.decorate(struct_ty, rspirv__spirv__Decoration__Block, [])
+    ()
+    b.member_decorate(struct_ty, 0, rspirv__spirv__Decoration__Offset, [rspirv__dr__Operand::LiteralBit32(0)])
+    ()
+    if (none):
+        b.member_decorate(struct_ty, 0, rspirv__spirv__Decoration__ColMajor, [])
+        ()
+        b.member_decorate(struct_ty, 0, rspirv__spirv__Decoration__MatrixStride, [rspirv__dr__Operand::LiteralBit32(16)])
+        ()
+        ()
+        ()
+        ()
+    cache.insert(key, struct_ty)
+    ()
+    struct_ty
+
+fn type_cache_key(ty: &kain_core::ast::Type) -> String:
+    match ty:
+        kain_core__ast__Type::Named { name: name, generics: generics } =>
+            if generics.is_empty():
+                name.clone()
+            else:
+                let inner = generics.iter().map(type_cache_key).collect().join(",")
+                f"{name}<{inner}>"
+        kain_core__ast__Type::Ref { inner: inner } => f"ref:{type_cache_key(inner)}"
+        kain_core__ast__Type::Array(inner, size, _) => f"array:{type_cache_key(inner)}:{size}"
+        kain_core__ast__Type::Slice(inner, _) => f"slice:{type_cache_key(inner)}"
+        other => other
+
+fn infer_numeric_result_type(left: Option<&kain_core::ast::Type>, right: Option<&kain_core::ast::Type>, span: kain_core::span::Span) -> Option<kain_core::ast::Type>:
+    let left = left?
+    let right = right?
+    let left_dim = infer_numeric_dim(left)
+    let right_dim = infer_numeric_dim(right)
+    if ((left_dim == 0) && (right_dim == 0)):
+        return none
+    let out_dim = left_dim.max(right_dim).max(1)
+    let scalar_name = if (is_uint_family_name(left) || is_uint_family_name(right)):
+        "UInt"
+    elif (is_int_family_name(left) || is_int_family_name(right)):
+        "Int"
+    else:
+        "Float"
+    Option::Some(if (out_dim == 1): kain_core__ast__Type::Named { name: scalar_name.into(), generics: [], span: span } else: infer_vec_type_from_scalar_name(scalar_name, out_dim, span))
+
+fn infer_numeric_dim(ty: &kain_core::ast::Type) -> usize:
+    match ty:
+        kain_core__ast__Type::Named { name: name } =>
+            match name.as_str():
+                "Float" => 1
+                "f32" => 1
+                "Int" => 1
+                "i32" => 1
+                "UInt" => 1
+                "u32" => 1
+                "Bool" => 1
+                "Vec2" => 2
+                "IVec2" => 2
+                "UVec2" => 2
+                "Vec3" => 3
+                "IVec3" => 3
+                "UVec3" => 3
+                "Vec4" => 4
+                "IVec4" => 4
+                "UVec4" => 4
+                _ => 0
+        _ => 0
+
+fn is_uint_family_name(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if none => true
+        _ => false
+
+fn is_int_family_name(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if none => true
+        _ => false
+
+fn infer_vec_type_from_scalar_name(scalar_name: String, width: usize, span: kain_core::span::Span) -> kain_core::ast::Type:
+    let name = match (scalar_name, width):
+        ("UInt", 2) => "UVec2"
+        ("UInt", 3) => "UVec3"
+        ("UInt", _) => "UVec4"
+        ("Int", 2) => "IVec2"
+        ("Int", 3) => "IVec3"
+        ("Int", _) => "IVec4"
+        ("Float", 2) => "Vec2"
+        ("Float", 3) => "Vec3"
+        _ => "Vec4"
+    kain_core__ast__Type::Named { name: name.into(), generics: [], span: span }
+
+fn infer_single_expr_block_type(block: &kain_core::ast::Block, known: &Map<String, kain_core::ast::Type>) -> Option<kain_core::ast::Type>:
+    if ((*block).stmts.len() != 1):
+        return none
+    match &(*block).stmts[0]:
+        kain_core__ast__Stmt::Expr(expr) => infer_kain_type(expr, known)
+        _ => none
+
+fn infer_else_branch_type(else_branch: &kain_core::ast::ElseBranch, known: &Map<String, kain_core::ast::Type>) -> Option<kain_core::ast::Type>:
+    match else_branch:
+        kain_core__ast__ElseBranch::Else(block) => infer_single_expr_block_type(block, known)
+        kain_core__ast__ElseBranch::ElseIf(_, then_block, nested) =>
+            let then_ty = infer_single_expr_block_type(then_block, known)
+            let nested_ty = nested.and_then(fn(next): infer_else_branch_type(next, known))
+            infer_numeric_result_type(then_ty, nested_ty, then_block.span).or_(then_ty).or_(nested_ty)
+
+impl<a> ShaderContext<a>:
+    fn get_glsl_ext(_self: &mut ShaderContext<a>) -> u32:
+        match (*_self).glsl_ext:
+            Some(ext) => ext
+            _ =>
+                let ext = (*_self).b.ext_inst_import("GLSL.std.450")
+                (*_self).glsl_ext = Option::Some(ext)
+                ()
+                ext
+
+
+@doc(doc = " Pure AST type inference — no Builder calls. Returns KAIN Type for a let-binding RHS.")
+@doc(doc = " Uses a known-names map to resolve Ident references from previously seen let-bindings.")
+fn infer_kain_type(expr: &kain_core::ast::Expr, known: &Map<String, kain_core::ast::Type>) -> Option<kain_core::ast::Type>:
+    let span = expr.span()
+    let named = fn(n: String) -> kain_core::ast::Type: kain_core__ast__Type::Named { name: n.into(), generics: [], span: span }
+    match expr:
+        kain_core__ast__Expr::Float(_, _) => Option::Some(named("Float"))
+        kain_core__ast__Expr::Int(_, _) => Option::Some(named("Int"))
+        kain_core__ast__Expr::Bool(_, _) => Option::Some(named("Bool"))
+        kain_core__ast__Expr::Ident(name, _) => known.get(name.as_str()).cloned()
+        kain_core__ast__Expr::Unary { operand: operand } => infer_kain_type(operand, known)
+        kain_core__ast__Expr::Paren(inner, _) => infer_kain_type(inner, known)
+        kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+            match op:
+                kain_core__ast__BinaryOp::Eq => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Ne => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Lt => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Le => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Gt => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Ge => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::And => Option::Some(named("Bool"))
+                kain_core__ast__BinaryOp::Or => Option::Some(named("Bool"))
+                _ =>
+                    let left_ty = infer_kain_type(left, known)
+                    let right_ty = infer_kain_type(right, known)
+                    infer_numeric_result_type(left_ty, right_ty, span).or_(left_ty).or_(right_ty)
+        kain_core__ast__Expr::If { then_branch: then_branch, else_branch: else_branch } =>
+            let then_ty = infer_single_expr_block_type(then_branch, known)
+            let else_ty = else_branch.and_then(fn(eb): infer_else_branch_type(eb, known))
+            infer_numeric_result_type(then_ty, else_ty, span).or_(then_ty).or_(else_ty)
+        kain_core__ast__Expr::Cast { target: target } => Option::Some(target.clone())
+        kain_core__ast__Expr::Field { object: object, field: field } =>
+            let parent_ty = infer_kain_type(object, known)
+            let elem_scalar = match parent_ty.and_then(fn(t): none):
+                Some("IVec2") => "Int"
+                Some("IVec3") => "Int"
+                Some("IVec4") => "Int"
+                Some("UVec2") => "UInt"
+                Some("UVec3") => "UInt"
+                Some("UVec4") => "UInt"
+                _ => "Float"
+            let elem_vec2 = match elem_scalar:
+                "Int" => "IVec2"
+                "UInt" => "UVec2"
+                _ => "Vec2"
+            let elem_vec3 = match elem_scalar:
+                "Int" => "IVec3"
+                "UInt" => "UVec3"
+                _ => "Vec3"
+            let elem_vec4 = match elem_scalar:
+                "Int" => "IVec4"
+                "UInt" => "UVec4"
+                _ => "Vec4"
+            match field.len():
+                1 => Option::Some(named(elem_scalar))
+                2 => Option::Some(named(elem_vec2))
+                3 => Option::Some(named(elem_vec3))
+                4 => Option::Some(named(elem_vec4))
+                _ => parent_ty
+        kain_core__ast__Expr::Call { callee: callee, args: args } =>
+            match callee:
+                kain_core__ast__Expr::Ident(fn_name, _) =>
+                    match (fn_name.as_str(), args.len()):
+                        ("vec2", n) if (n > 0) => Option::Some(named("Vec2"))
+                        ("Vec2", n) if (n > 0) => Option::Some(named("Vec2"))
+                        ("vec3", n) if (n > 0) => Option::Some(named("Vec3"))
+                        ("Vec3", n) if (n > 0) => Option::Some(named("Vec3"))
+                        ("vec4", n) if (n > 0) => Option::Some(named("Vec4"))
+                        ("Vec4", n) if (n > 0) => Option::Some(named("Vec4"))
+                        ("ivec2", n) if (n > 0) => Option::Some(named("IVec2"))
+                        ("IVec2", n) if (n > 0) => Option::Some(named("IVec2"))
+                        ("ivec3", n) if (n > 0) => Option::Some(named("IVec3"))
+                        ("IVec3", n) if (n > 0) => Option::Some(named("IVec3"))
+                        ("ivec4", n) if (n > 0) => Option::Some(named("IVec4"))
+                        ("IVec4", n) if (n > 0) => Option::Some(named("IVec4"))
+                        ("uvec2", n) if (n > 0) => Option::Some(named("UVec2"))
+                        ("UVec2", n) if (n > 0) => Option::Some(named("UVec2"))
+                        ("uvec3", n) if (n > 0) => Option::Some(named("UVec3"))
+                        ("UVec3", n) if (n > 0) => Option::Some(named("UVec3"))
+                        ("uvec4", n) if (n > 0) => Option::Some(named("UVec4"))
+                        ("UVec4", n) if (n > 0) => Option::Some(named("UVec4"))
+                        ("Float", 1) => Option::Some(named("Float"))
+                        ("Int", 1) => Option::Some(named("Int"))
+                        ("UInt", 1) => Option::Some(named("UInt"))
+                        ("Bool", 1) => Option::Some(named("Bool"))
+                        ("sin", 1) => infer_kain_type(&args[0].value, known)
+                        ("cos", 1) => infer_kain_type(&args[0].value, known)
+                        ("tan", 1) => infer_kain_type(&args[0].value, known)
+                        ("asin", 1) => infer_kain_type(&args[0].value, known)
+                        ("acos", 1) => infer_kain_type(&args[0].value, known)
+                        ("atan", 1) => infer_kain_type(&args[0].value, known)
+                        ("sqrt", 1) => infer_kain_type(&args[0].value, known)
+                        ("abs", 1) => infer_kain_type(&args[0].value, known)
+                        ("floor", 1) => infer_kain_type(&args[0].value, known)
+                        ("ceil", 1) => infer_kain_type(&args[0].value, known)
+                        ("fract", 1) => infer_kain_type(&args[0].value, known)
+                        ("round", 1) => infer_kain_type(&args[0].value, known)
+                        ("trunc", 1) => infer_kain_type(&args[0].value, known)
+                        ("sign", 1) => infer_kain_type(&args[0].value, known)
+                        ("exp", 1) => infer_kain_type(&args[0].value, known)
+                        ("log", 1) => infer_kain_type(&args[0].value, known)
+                        ("exp2", 1) => infer_kain_type(&args[0].value, known)
+                        ("log2", 1) => infer_kain_type(&args[0].value, known)
+                        ("inversesqrt", 1) => infer_kain_type(&args[0].value, known)
+                        ("radians", 1) => infer_kain_type(&args[0].value, known)
+                        ("degrees", 1) => infer_kain_type(&args[0].value, known)
+                        ("pow", 2) => infer_kain_type(&args[0].value, known)
+                        ("atan2", 2) => infer_kain_type(&args[0].value, known)
+                        ("min", 2) => infer_kain_type(&args[0].value, known)
+                        ("max", 2) => infer_kain_type(&args[0].value, known)
+                        ("step", 2) => infer_kain_type(&args[0].value, known)
+                        ("clamp", 3) => infer_kain_type(&args[0].value, known)
+                        ("mix", 3) => infer_kain_type(&args[0].value, known)
+                        ("smoothstep", 3) => infer_kain_type(&args[0].value, known)
+                        ("length", _) => Option::Some(named("Float"))
+                        ("distance", _) => Option::Some(named("Float"))
+                        ("dot", _) => Option::Some(named("Float"))
+                        ("normalize", _) => infer_kain_type(&args[0].value, known)
+                        ("cross", _) => infer_kain_type(&args[0].value, known)
+                        ("reflect", _) => infer_kain_type(&args[0].value, known)
+                        ("refract", 3) => infer_kain_type(&args[0].value, known)
+                        ("sample", _) => Option::Some(named("Vec4"))
+                        ("sample_lod", _) => Option::Some(named("Vec4"))
+                        _ => none
+                _ =>
+                    none
+        kain_core__ast__Expr::Index { object: object } =>
+            let object_ty = infer_kain_type(object, known)?
+            match object_ty:
+                kain_core__ast__Type::Named { name: name, generics: generics } if (name == "StorageBuffer") => generics.first().cloned().or_else(fn(): Option::Some(named("Float")))
+                kain_core__ast__Type::Array(inner, _, _) => Option::Some(((*inner)).clone())
+                kain_core__ast__Type::Slice(inner, _) => Option::Some(((*inner)).clone())
+                _ => none
+        _ => none
+
+@doc(doc = " Pure AST walk — collects (binding_name, inferred_KainType) for every let in the block tree.")
+@doc(doc = " No Builder interaction at all. Unknown types are mapped to Float as safe fallback.")
+fn collect_binding_types(block: &kain_core::ast::Block, out_: &mut Array<(String, kain_core::ast::Type)>):
+    let known: Map<String, kain_core::ast::Type> = HashMap__new_()
+    collect_block_types(block, &mut known, out_)
+    ()
+
+fn collect_binding_types_seeded(block: &kain_core::ast::Block, seed: Map<String, kain_core::ast::Type>, out_: &mut Array<(String, kain_core::ast::Type)>):
+    collect_block_types(block, &mut seed, out_)
+    ()
+
+enum VectorScalarKind:
+    Float
+    Int
+    UInt
+
+fn vector_ctor_spec(name: String) -> Option<(VectorScalarKind, usize, String)>:
+    match name:
+        "vec2" => Option::Some((VectorScalarKind__Float, 2, "Vec2"))
+        "Vec2" => Option::Some((VectorScalarKind__Float, 2, "Vec2"))
+        "vec3" => Option::Some((VectorScalarKind__Float, 3, "Vec3"))
+        "Vec3" => Option::Some((VectorScalarKind__Float, 3, "Vec3"))
+        "vec4" => Option::Some((VectorScalarKind__Float, 4, "Vec4"))
+        "Vec4" => Option::Some((VectorScalarKind__Float, 4, "Vec4"))
+        "ivec2" => Option::Some((VectorScalarKind__Int, 2, "IVec2"))
+        "IVec2" => Option::Some((VectorScalarKind__Int, 2, "IVec2"))
+        "ivec3" => Option::Some((VectorScalarKind__Int, 3, "IVec3"))
+        "IVec3" => Option::Some((VectorScalarKind__Int, 3, "IVec3"))
+        "ivec4" => Option::Some((VectorScalarKind__Int, 4, "IVec4"))
+        "IVec4" => Option::Some((VectorScalarKind__Int, 4, "IVec4"))
+        "uvec2" => Option::Some((VectorScalarKind__UInt, 2, "UVec2"))
+        "UVec2" => Option::Some((VectorScalarKind__UInt, 2, "UVec2"))
+        "uvec3" => Option::Some((VectorScalarKind__UInt, 3, "UVec3"))
+        "UVec3" => Option::Some((VectorScalarKind__UInt, 3, "UVec3"))
+        "uvec4" => Option::Some((VectorScalarKind__UInt, 4, "UVec4"))
+        "UVec4" => Option::Some((VectorScalarKind__UInt, 4, "UVec4"))
+        _ => none
+
+fn cast_to_vector_scalar(ctx: &mut ShaderContext, value_id: u32, value_ty: &kain_core::ast::Type, scalar_kind: VectorScalarKind) -> u32:
+    match scalar_kind:
+        VectorScalarKind::Float => cast_to_f32(ctx, value_id, value_ty)
+        VectorScalarKind::Int => cast_to_i32(ctx, value_id, value_ty)
+        VectorScalarKind::UInt => cast_to_u32(ctx, value_id, value_ty)
+
+fn scalar_spv_for_vector_kind(ctx: &mut ShaderContext, scalar_kind: VectorScalarKind) -> u32:
+    match scalar_kind:
+        VectorScalarKind::Float => (*ctx).b.type_float(32)
+        VectorScalarKind::Int => (*ctx).b.type_int(32, 1)
+        VectorScalarKind::UInt => (*ctx).b.type_int(32, 0)
+
+fn emit_vector_constructor(ctx: &mut ShaderContext, expr: &kain_core::ast::Expr, scalar_kind: VectorScalarKind, width: usize, result_type_name: String, args: &[kain_core::ast::CallArg]) -> Result<(u32, kain_core::ast::Type), KainError>:
+    let scalar_spv = scalar_spv_for_vector_kind(ctx, scalar_kind)
+    let vector_spv = (*ctx).b.type_vector(scalar_spv, width as u32)
+    let mut components = (fn(__kain_ctor_arg0): Vec__new_())(width)
+    for arg in args:
+        let (value_id, value_ty) = emit_expr(ctx, &arg.value)?
+        let coerced = cast_to_vector_scalar(ctx, value_id, &value_ty, scalar_kind)
+        let dim = numeric_dim(&value_ty)
+        if (dim == 0):
+            return Result::Err(KainError__codegen(f"Unsupported argument type '{value_ty}' for {result_type_name} constructor", expr.span()))
+        if (dim == 1):
+            components.push(coerced)
+            ()
+            continue
+        for i in range(0, dim):
+            let component_ = (*ctx).b.composite_extract(scalar_spv, none, coerced, [i as u32]).unwrap()
+            components.push(component_)
+            ()
+    ()
+    if (components.len() != width):
+        return Result::Err(KainError__codegen(f"{result_type_name} constructor expects {width} scalar component(s), got {components.len()}", expr.span()))
+    let res_id = (*ctx).b.composite_construct(vector_spv, none, components).unwrap()
+    Result::Ok((res_id, kain_core__ast__Type::Named { name: result_type_name.into(), generics: [], span: expr.span() }))
+
+fn internal_hoist_name(prefix: String, span: kain_core::span::Span) -> String:
+    f"__{prefix}_{span.start}_{span.end}"
+
+fn collect_block_types(block: &kain_core::ast::Block, known: &mut Map<String, kain_core::ast::Type>, out_: &mut Array<(String, kain_core::ast::Type)>):
+    let float_ty = fn(span: kain_core::span::Span): kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: span }
+    let int_ty = fn(span: kain_core::span::Span): kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: span }
+    for stmt in &(*block).stmts:
+        match stmt:
+            kain_core__ast__Stmt::Let { pattern: pattern, value: value } =>
+                match (pattern, value):
+                    (kain_core__ast__Pattern::Binding { name: name }, Some(value)) =>
+                        let span = value.span()
+                        let ty = infer_kain_type(value, known).unwrap_or_else(fn(): float_ty(span))
+                        known.insert(name.clone(), ty.clone())
+                        ()
+                        out_.push((name.clone(), ty))
+                        ()
+                    _ => ()
+            kain_core__ast__Stmt::Expr(kain_core__ast__Expr::If { then_branch: then_branch, else_branch: else_branch }) =>
+                collect_block_types(then_branch, known, out_)
+                ()
+                match else_branch:
+                    Some(eb) =>
+                        match eb:
+                            kain_core__ast__ElseBranch::Else(blk) => collect_block_types(blk, known, out_)
+                            kain_core__ast__ElseBranch::ElseIf(_, blk, next) =>
+                                collect_block_types(blk, known, out_)
+                                ()
+                                match next:
+                                    Some(nb) =>
+                                        match nb:
+                                            kain_core__ast__ElseBranch::Else(b2) =>
+                                                collect_block_types(b2, known, out_)
+                                                ()
+                                            _ => ()
+                                    _ => ()
+                    _ => ()
+            kain_core__ast__Stmt::While { body: body } => collect_block_types(body, known, out_)
+            kain_core__ast__Stmt::For { body: body, span: span } =>
+                out_.push((internal_hoist_name("for_iter", (*span)), int_ty((*span))))
+                ()
+                out_.push((internal_hoist_name("for_end", (*span)), int_ty((*span))))
+                ()
+                collect_block_types(body, known, out_)
+            kain_core__ast__Stmt::Loop { body: body } => collect_block_types(body, known, out_)
+            _ => ()
+
+fn take_hoisted_slot(ctx: &mut ShaderContext, name: String, ptr_ty: u32) -> Option<u32>:
+    (*ctx).hoisted_vars.get_mut(name).and_then(fn(slots): none)
+
+fn emit_block(ctx: &mut ShaderContext, block: &kain_core::ast::Block) -> Result<(), KainError>:
+    for stmt in &(*block).stmts:
+        match stmt:
+            kain_core__ast__Stmt::Return(expr, _) =>
+                match expr:
+                    Some(expr) =>
+                        match (*ctx).output_var:
+                            Some(out_var) =>
+                                let (val, _) = emit_expr(ctx, expr)?
+                                (*ctx).b.store(out_var, val, none, []).unwrap()
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                (*ctx).b.ret().unwrap()
+                ()
+            kain_core__ast__Stmt::Let { pattern: pattern, value: value } =>
+                match value:
+                    Some(value) =>
+                        let (val, ty) = emit_expr(ctx, value)?
+                        match pattern:
+                            kain_core__ast__Pattern::Binding { name: name } =>
+                                let type_id = map_ast_type((*ctx).b, &ty)
+                                let ptr_ty = (*ctx).b.type_pointer(none, rspirv__spirv__StorageClass__Function, type_id)
+                                let local_var = take_hoisted_slot(ctx, name, ptr_ty).unwrap_or_else(fn(): (*ctx).b.variable(ptr_ty, none, rspirv__spirv__StorageClass__Function, none))
+                                (*ctx).b.store(local_var, val, none, std__iter__empty()).unwrap()
+                                ()
+                                (*ctx).vars.insert(name.clone(), VarBinding { id: local_var, ty: ty, is_ptr: true })
+                                ()
+                            _ => ()
+                    _ => ()
+            kain_core__ast__Stmt::Expr(expr) =>
+                match expr:
+                    kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                        emit_if_statement(ctx, condition, then_branch, else_branch)?
+                        ()
+                    _ =>
+                        emit_expr(ctx, expr)?
+                        ()
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                emit_while_statement(ctx, condition, body)?
+                ()
+            kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body, span: span } =>
+                emit_for_statement(ctx, binding, iter, body, (*span))?
+                ()
+            kain_core__ast__Stmt::Break(_, span) =>
+                let break_target = (*ctx).loop_break_targets.last().copied().ok_or_else(fn(): KainError__codegen("break outside loop", (*span)))?
+                terminate_with_branch(ctx, break_target)?
+                ()
+                let cont_label = (*ctx).b.id()
+                (*ctx).b.begin_block(Option::Some(cont_label)).unwrap()
+                ()
+            kain_core__ast__Stmt::Continue(span) =>
+                let continue_target = (*ctx).loop_continue_targets.last().copied().ok_or_else(fn(): KainError__codegen("continue outside loop", (*span)))?
+                terminate_with_branch(ctx, continue_target)?
+                ()
+                let cont_label = (*ctx).b.id()
+                (*ctx).b.begin_block(Option::Some(cont_label)).unwrap()
+                ()
+            _ => ()
+    ()
+    Result::Ok(())
+
+fn emit_expr(ctx: &mut ShaderContext, expr: &kain_core::ast::Expr) -> Result<(u32, kain_core::ast::Type), KainError>:
+    match expr:
+        kain_core__ast__Expr::Ident(name, span) =>
+            match (*ctx).vars.get(name).cloned():
+                Some(binding) =>
+                    if binding.is_ptr:
+                        if is_storage_buffer(&binding.ty):
+                            return Result::Ok((binding.id, binding.ty))
+                        let type_id = map_ast_type((*ctx).b, &binding.ty)
+                        if (*ctx).struct_uniforms.contains(name):
+                            let ptr_ty = (*ctx).b.type_pointer(none, rspirv__spirv__StorageClass__Uniform, type_id)
+                            let int_ty = (*ctx).b.type_int(32, 0)
+                            let zero = (*ctx).b.constant_bit32(int_ty, 0)
+                            let member_ptr = (*ctx).b.access_chain(ptr_ty, none, binding.id, [zero]).unwrap()
+                            let val_id = (*ctx).b.load(type_id, none, member_ptr, none, std__iter__empty()).unwrap()
+                            Result::Ok((val_id, binding.ty))
+                        else:
+                            let val_id = (*ctx).b.load(type_id, none, binding.id, none, std__iter__empty()).unwrap()
+                            Result::Ok((val_id, binding.ty))
+                    else:
+                        Result::Ok((binding.id, binding.ty))
+                _ => Result::Err(KainError__codegen(f"Unknown variable: {name}", (*span)))
+        kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+            let (lhs, lhs_ty) = emit_expr(ctx, left)?
+            let (rhs, rhs_ty) = emit_expr(ctx, right)?
+            let res_ty_id = map_ast_type((*ctx).b, &lhs_ty)
+            let mut result_ty_override: Option<kain_core::ast::Type> = none
+            let res_id = match op:
+                kain_core__ast__BinaryOp::Mul =>
+                    if (is_mat4(&lhs_ty) && is_mat4(&rhs_ty)):
+                        (*ctx).b.matrix_times_matrix(res_ty_id, none, lhs, rhs).unwrap()
+                    elif (is_mat4(&lhs_ty) && is_vec4(&rhs_ty)):
+                        let vec4_ty = map_ast_type((*ctx).b, &rhs_ty)
+                        (*ctx).b.matrix_times_vector(vec4_ty, none, lhs, rhs).unwrap()
+                    elif (is_vec4(&lhs_ty) && is_mat4(&rhs_ty)):
+                        let vec4_ty = map_ast_type((*ctx).b, &lhs_ty)
+                        (*ctx).b.vector_times_matrix(vec4_ty, none, lhs, rhs).unwrap()
+                    elif (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_mul(res_ty_id, none, lhs, rhs).unwrap()
+                    elif (is_uint(&lhs_ty) || is_uint(&rhs_ty)):
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let lhs_u = cast_to_u32(ctx, lhs, &lhs_ty)
+                        let rhs_u = cast_to_u32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_mul(uint_ty, none, lhs_u, rhs_u).unwrap()
+                    elif (is_int(&lhs_ty) || is_int(&rhs_ty)):
+                        let int_ty = (*ctx).b.type_int(32, 1)
+                        let lhs_i = cast_to_i32(ctx, lhs, &lhs_ty)
+                        let rhs_i = cast_to_i32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_mul(int_ty, none, lhs_i, rhs_i).unwrap()
+                    else:
+                        let (lhs_f, rhs_f, out_ty) = coerce_float_binary_operands(ctx, lhs, &lhs_ty, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(out_ty.clone())
+                        ()
+                        let out_ty_id = map_ast_type((*ctx).b, &out_ty)
+                        (*ctx).b.f_mul(out_ty_id, none, lhs_f, rhs_f).unwrap()
+                kain_core__ast__BinaryOp::Add =>
+                    if (is_uint(&lhs_ty) || is_uint(&rhs_ty)):
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let lhs_u = cast_to_u32(ctx, lhs, &lhs_ty)
+                        let rhs_u = cast_to_u32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_add(uint_ty, none, lhs_u, rhs_u).unwrap()
+                    elif (is_int(&lhs_ty) || is_int(&rhs_ty)):
+                        let int_ty = (*ctx).b.type_int(32, 1)
+                        let lhs_i = cast_to_i32(ctx, lhs, &lhs_ty)
+                        let rhs_i = cast_to_i32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_add(int_ty, none, lhs_i, rhs_i).unwrap()
+                    else:
+                        let (lhs_f, rhs_f, out_ty) = coerce_float_binary_operands(ctx, lhs, &lhs_ty, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(out_ty.clone())
+                        ()
+                        let out_ty_id = map_ast_type((*ctx).b, &out_ty)
+                        (*ctx).b.f_add(out_ty_id, none, lhs_f, rhs_f).unwrap()
+                kain_core__ast__BinaryOp::Sub =>
+                    if (is_uint(&lhs_ty) || is_uint(&rhs_ty)):
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let lhs_u = cast_to_u32(ctx, lhs, &lhs_ty)
+                        let rhs_u = cast_to_u32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_sub(uint_ty, none, lhs_u, rhs_u).unwrap()
+                    elif (is_int(&lhs_ty) || is_int(&rhs_ty)):
+                        let int_ty = (*ctx).b.type_int(32, 1)
+                        let lhs_i = cast_to_i32(ctx, lhs, &lhs_ty)
+                        let rhs_i = cast_to_i32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.i_sub(int_ty, none, lhs_i, rhs_i).unwrap()
+                    else:
+                        let (lhs_f, rhs_f, out_ty) = coerce_float_binary_operands(ctx, lhs, &lhs_ty, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(out_ty.clone())
+                        ()
+                        let out_ty_id = map_ast_type((*ctx).b, &out_ty)
+                        (*ctx).b.f_sub(out_ty_id, none, lhs_f, rhs_f).unwrap()
+                kain_core__ast__BinaryOp::Div =>
+                    if (is_uint(&lhs_ty) || is_uint(&rhs_ty)):
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let lhs_u = cast_to_u32(ctx, lhs, &lhs_ty)
+                        let rhs_u = cast_to_u32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.u_div(uint_ty, none, lhs_u, rhs_u).unwrap()
+                    elif (is_int(&lhs_ty) || is_int(&rhs_ty)):
+                        let int_ty = (*ctx).b.type_int(32, 1)
+                        let lhs_i = cast_to_i32(ctx, lhs, &lhs_ty)
+                        let rhs_i = cast_to_i32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.s_div(int_ty, none, lhs_i, rhs_i).unwrap()
+                    else:
+                        let (lhs_f, rhs_f, out_ty) = coerce_float_binary_operands(ctx, lhs, &lhs_ty, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(out_ty.clone())
+                        ()
+                        let out_ty_id = map_ast_type((*ctx).b, &out_ty)
+                        (*ctx).b.f_div(out_ty_id, none, lhs_f, rhs_f).unwrap()
+                kain_core__ast__BinaryOp::Mod =>
+                    if (is_uint(&lhs_ty) || is_uint(&rhs_ty)):
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let lhs_u = cast_to_u32(ctx, lhs, &lhs_ty)
+                        let rhs_u = cast_to_u32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.u_mod(uint_ty, none, lhs_u, rhs_u).unwrap()
+                    elif (is_int(&lhs_ty) || is_int(&rhs_ty)):
+                        let int_ty = (*ctx).b.type_int(32, 1)
+                        let lhs_i = cast_to_i32(ctx, lhs, &lhs_ty)
+                        let rhs_i = cast_to_i32(ctx, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() })
+                        ()
+                        (*ctx).b.s_mod(int_ty, none, lhs_i, rhs_i).unwrap()
+                    else:
+                        let (lhs_f, rhs_f, out_ty) = coerce_float_binary_operands(ctx, lhs, &lhs_ty, rhs, &rhs_ty)
+                        result_ty_override = Option::Some(out_ty.clone())
+                        ()
+                        let out_ty_id = map_ast_type((*ctx).b, &out_ty)
+                        (*ctx).b.f_mod(out_ty_id, none, lhs_f, rhs_f).unwrap()
+                kain_core__ast__BinaryOp::Pow =>
+                    let glsl = ctx.get_glsl_ext()
+                    (*ctx).b.ext_inst(res_ty_id, none, glsl, 26, [rspirv__dr__Operand::IdRef(lhs), rspirv__dr__Operand::IdRef(rhs)]).unwrap()
+                kain_core__ast__BinaryOp::Eq =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_equal(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.i_equal(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Ne =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_not_equal(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.i_not_equal(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Lt =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_less_than(bool_ty, none, lhs, rhs).unwrap()
+                    elif (is_uint(&lhs_ty) && is_uint(&rhs_ty)):
+                        (*ctx).b.u_less_than(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.s_less_than(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Le =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_less_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                    elif (is_uint(&lhs_ty) && is_uint(&rhs_ty)):
+                        (*ctx).b.u_less_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.s_less_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Gt =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_greater_than(bool_ty, none, lhs, rhs).unwrap()
+                    elif (is_uint(&lhs_ty) && is_uint(&rhs_ty)):
+                        (*ctx).b.u_greater_than(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.s_greater_than(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Ge =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    if (is_float(&lhs_ty) && is_float(&rhs_ty)):
+                        (*ctx).b.f_ord_greater_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                    elif (is_uint(&lhs_ty) && is_uint(&rhs_ty)):
+                        (*ctx).b.u_greater_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                    else:
+                        (*ctx).b.s_greater_than_equal(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::And =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    (*ctx).b.logical_and(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Or =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    (*ctx).b.logical_or(bool_ty, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::BitAnd => (*ctx).b.bitwise_and(res_ty_id, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::BitOr => (*ctx).b.bitwise_or(res_ty_id, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::BitXor => (*ctx).b.bitwise_xor(res_ty_id, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Shl => (*ctx).b.shift_left_logical(res_ty_id, none, lhs, rhs).unwrap()
+                kain_core__ast__BinaryOp::Shr => if is_uint(&lhs_ty): (*ctx).b.shift_right_logical(res_ty_id, none, lhs, rhs).unwrap() else: (*ctx).b.shift_right_arithmetic(res_ty_id, none, lhs, rhs).unwrap()
+                _ => return Result::Err(KainError__codegen("Unsupported binary op in shader", expr.span()))
+            let res_ty = match result_ty_override:
+                Some(override_ty) => override_ty
+                _ =>
+                    if (none):
+                        kain_core__ast__Type::Named { name: ("Bool").into(), generics: [], span: expr.span() }
+                    elif (is_mat4(&lhs_ty) && is_vec4(&rhs_ty)):
+                        rhs_ty
+                    else:
+                        lhs_ty
+            Result::Ok((res_id, res_ty))
+        kain_core__ast__Expr::Call { callee: callee, args: args } =>
+            match &(*(*callee)):
+                kain_core__ast__Expr::Ident(name, _) =>
+                    match vector_ctor_spec(name.as_str()):
+                        Some((scalar_kind, width, result_name)) => return emit_vector_constructor(ctx, expr, scalar_kind, width, result_name, args)
+                        _ =>
+                            ()
+                            ()
+                    let float_ = (*ctx).b.type_float(32)
+                    match name.as_str():
+                        "float" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "Float" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "int" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "Int" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "uint" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "UInt" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "bool" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Bool").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "Bool" if (args.len() == 1) =>
+                            let cast_expr = kain_core__ast__Expr::Cast { value: Box__new_(args[0].value.clone()), target: kain_core__ast__Type::Named { name: ("Bool").into(), generics: [], span: expr.span() }, span: expr.span() }
+                            return emit_expr(ctx, &cast_expr)
+                        "sin" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 13, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "cos" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 14, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "tan" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 15, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "pow" if (args.len() == 2) =>
+                            let (base, ty) = emit_expr(ctx, &args[0].value)?
+                            let (exp, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 26, [rspirv__dr__Operand::IdRef(base), rspirv__dr__Operand::IdRef(exp)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "sqrt" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 31, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "abs" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 4, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "floor" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 8, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "ceil" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 9, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "fract" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 10, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "min" if (args.len() == 2) =>
+                            let (a, ty) = emit_expr(ctx, &args[0].value)?
+                            let (b, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let opcode = if is_float_like(&ty):
+                                37
+                            elif is_uint_like(&ty):
+                                38
+                            else:
+                                39
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, opcode, [rspirv__dr__Operand::IdRef(a), rspirv__dr__Operand::IdRef(b)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "max" if (args.len() == 2) =>
+                            let (a, ty) = emit_expr(ctx, &args[0].value)?
+                            let (b, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let opcode = if is_float_like(&ty):
+                                40
+                            elif is_uint_like(&ty):
+                                41
+                            else:
+                                42
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, opcode, [rspirv__dr__Operand::IdRef(a), rspirv__dr__Operand::IdRef(b)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "clamp" if (args.len() == 3) =>
+                            let (val, val_ty) = emit_expr(ctx, &args[0].value)?
+                            let (min_val, min_ty) = emit_expr(ctx, &args[1].value)?
+                            let (max_val, max_ty) = emit_expr(ctx, &args[2].value)?
+                            let (val_f, min_f, max_f, out_ty) = coerce_float_ternary_operands(ctx, val, &val_ty, min_val, &min_ty, max_val, &max_ty)
+                            let res_ty = map_ast_type((*ctx).b, &out_ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 43, [rspirv__dr__Operand::IdRef(val_f), rspirv__dr__Operand::IdRef(min_f), rspirv__dr__Operand::IdRef(max_f)]).unwrap()
+                            return Result::Ok((res_id, out_ty))
+                        "mix" if (args.len() == 3) =>
+                            let (a, ty) = emit_expr(ctx, &args[0].value)?
+                            let (b, b_ty) = emit_expr(ctx, &args[1].value)?
+                            let (t, t_ty) = emit_expr(ctx, &args[2].value)?
+                            let (a_f, b_f, t_f, out_ty) = coerce_float_ternary_operands(ctx, a, &ty, b, &b_ty, t, &t_ty)
+                            let res_ty = map_ast_type((*ctx).b, &out_ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 46, [rspirv__dr__Operand::IdRef(a_f), rspirv__dr__Operand::IdRef(b_f), rspirv__dr__Operand::IdRef(t_f)]).unwrap()
+                            return Result::Ok((res_id, out_ty))
+                        "step" if (args.len() == 2) =>
+                            let (edge, edge_ty) = emit_expr(ctx, &args[0].value)?
+                            let (x, x_ty) = emit_expr(ctx, &args[1].value)?
+                            let (edge_f, x_f, out_ty) = coerce_float_binary_operands(ctx, edge, &edge_ty, x, &x_ty)
+                            let res_ty = map_ast_type((*ctx).b, &out_ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 48, [rspirv__dr__Operand::IdRef(edge_f), rspirv__dr__Operand::IdRef(x_f)]).unwrap()
+                            return Result::Ok((res_id, out_ty))
+                        "smoothstep" if (args.len() == 3) =>
+                            let (edge0, edge0_ty) = emit_expr(ctx, &args[0].value)?
+                            let (edge1, edge1_ty) = emit_expr(ctx, &args[1].value)?
+                            let (x, x_ty) = emit_expr(ctx, &args[2].value)?
+                            let (edge0_f, edge1_f, x_f, out_ty) = coerce_float_ternary_operands(ctx, edge0, &edge0_ty, edge1, &edge1_ty, x, &x_ty)
+                            let res_ty = map_ast_type((*ctx).b, &out_ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 49, [rspirv__dr__Operand::IdRef(edge0_f), rspirv__dr__Operand::IdRef(edge1_f), rspirv__dr__Operand::IdRef(x_f)]).unwrap()
+                            return Result::Ok((res_id, out_ty))
+                        "length" if (args.len() == 1) =>
+                            let (val, _) = emit_expr(ctx, &args[0].value)?
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(float_, none, glsl, 66, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: expr.span() }))
+                        "normalize" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 69, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "dot" if (args.len() == 2) =>
+                            let (a, _) = emit_expr(ctx, &args[0].value)?
+                            let (b, _) = emit_expr(ctx, &args[1].value)?
+                            let res_id = (*ctx).b.dot(float_, none, a, b).unwrap()
+                            return Result::Ok((res_id, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: expr.span() }))
+                        "cross" if (args.len() == 2) =>
+                            let (a, ty) = emit_expr(ctx, &args[0].value)?
+                            let (b, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 68, [rspirv__dr__Operand::IdRef(a), rspirv__dr__Operand::IdRef(b)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "reflect" if (args.len() == 2) =>
+                            let (i, ty) = emit_expr(ctx, &args[0].value)?
+                            let (n, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 71, [rspirv__dr__Operand::IdRef(i), rspirv__dr__Operand::IdRef(n)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "asin" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 16, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "acos" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 17, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "atan" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 18, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "atan2" if (args.len() == 2) =>
+                            let (y, ty) = emit_expr(ctx, &args[0].value)?
+                            let (x, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 25, [rspirv__dr__Operand::IdRef(y), rspirv__dr__Operand::IdRef(x)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "round" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 1, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "trunc" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 3, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "sign" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 6, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "radians" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 11, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "degrees" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 12, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "exp" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 27, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "log" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 28, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "exp2" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 29, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "log2" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 30, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "inversesqrt" if (args.len() == 1) =>
+                            let (val, ty) = emit_expr(ctx, &args[0].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 32, [rspirv__dr__Operand::IdRef(val)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "mod" if (args.len() == 2) =>
+                            let (x, ty) = emit_expr(ctx, &args[0].value)?
+                            let (y, _) = emit_expr(ctx, &args[1].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let res_id = (*ctx).b.f_mod(res_ty, none, x, y).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "distance" if (args.len() == 2) =>
+                            let (a, _) = emit_expr(ctx, &args[0].value)?
+                            let (b, _) = emit_expr(ctx, &args[1].value)?
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(float_, none, glsl, 67, [rspirv__dr__Operand::IdRef(a), rspirv__dr__Operand::IdRef(b)]).unwrap()
+                            return Result::Ok((res_id, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: expr.span() }))
+                        "refract" if (args.len() == 3) =>
+                            let (i, ty) = emit_expr(ctx, &args[0].value)?
+                            let (n, _) = emit_expr(ctx, &args[1].value)?
+                            let (eta, _) = emit_expr(ctx, &args[2].value)?
+                            let res_ty = map_ast_type((*ctx).b, &ty)
+                            let glsl = ctx.get_glsl_ext()
+                            let res_id = (*ctx).b.ext_inst(res_ty, none, glsl, 72, [rspirv__dr__Operand::IdRef(i), rspirv__dr__Operand::IdRef(n), rspirv__dr__Operand::IdRef(eta)]).unwrap()
+                            return Result::Ok((res_id, ty))
+                        "sample" if (args.len() == 2) =>
+                            let (sampler_, _) = emit_expr(ctx, &args[0].value)?
+                            let (coords, _) = emit_expr(ctx, &args[1].value)?
+                            let vec4 = (*ctx).b.type_vector(float_, 4)
+                            let res_id = (*ctx).b.image_sample_implicit_lod(vec4, none, sampler_, coords, none, std__iter__empty()).unwrap()
+                            return Result::Ok((res_id, kain_core__ast__Type::Named { name: ("Vec4").into(), generics: [], span: expr.span() }))
+                        "sample_lod" if (args.len() == 3) =>
+                            let (sampler_, _) = emit_expr(ctx, &args[0].value)?
+                            let (coords, _) = emit_expr(ctx, &args[1].value)?
+                            let (lod, _) = emit_expr(ctx, &args[2].value)?
+                            let vec4 = (*ctx).b.type_vector(float_, 4)
+                            let res_id = (*ctx).b.image_sample_explicit_lod(vec4, none, sampler_, coords, rspirv__spirv__ImageOperands__LOD, [rspirv__dr__Operand::IdRef(lod)]).unwrap()
+                            return Result::Ok((res_id, kain_core__ast__Type::Named { name: ("Vec4").into(), generics: [], span: expr.span() }))
+                        _ => ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            let callee_name = match &(*(*callee)):
+                kain_core__ast__Expr::Ident(name, _) => name.clone()
+                _ => ("<complex expression>").to_string()
+            Result::Err(KainError__codegen(f"Unsupported function call in shader: '{callee_name}'", expr.span()))
+        kain_core__ast__Expr::Float(f, span) =>
+            let float_ = (*ctx).b.type_float(32)
+            let val = (*ctx).b.constant_bit32(float_, ((*f) as f32).to_bits())
+            Result::Ok((val, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: (*span) }))
+        kain_core__ast__Expr::Int(i, span) =>
+            let int_ = (*ctx).b.type_int(32, 1)
+            let val = (*ctx).b.constant_bit32(int_, (*i) as u32)
+            Result::Ok((val, kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: (*span) }))
+        kain_core__ast__Expr::Bool(v, span) =>
+            let bool_ty = (*ctx).b.type_bool()
+            let bool_id = if (*v):
+                (*ctx).b.constant_true(bool_ty)
+            else:
+                (*ctx).b.constant_false(bool_ty)
+            Result::Ok((bool_id, kain_core__ast__Type::Named { name: ("Bool").into(), generics: [], span: (*span) }))
+        kain_core__ast__Expr::Paren(inner, _) => emit_expr(ctx, inner)
+        kain_core__ast__Expr::Cast { value: value, target: target, span: span } =>
+            let (src_val, src_ty) = emit_expr(ctx, value)?
+            let dst_ty = target.clone()
+            let dst_ty_id = map_ast_type((*ctx).b, &dst_ty)
+            if is_same_type_family(&src_ty, &dst_ty):
+                return Result::Ok((src_val, dst_ty))
+            if is_bool(&dst_ty):
+                let as_b = as_bool(ctx, src_val, &src_ty)
+                return Result::Ok((as_b, dst_ty))
+            if is_bool(&src_ty):
+                let src_b = as_bool(ctx, src_val, &src_ty)
+                let out_ = if (is_float(&dst_ty) || is_float_vector(&dst_ty)):
+                    let one = float_one((*ctx).b, &dst_ty)
+                    let zero = float_zero((*ctx).b, &dst_ty)
+                    (*ctx).b.select(dst_ty_id, none, src_b, one, zero).unwrap()
+                elif is_uint_like(&dst_ty):
+                    let one = uint_one((*ctx).b, &dst_ty)
+                    let zero = uint_zero((*ctx).b, &dst_ty)
+                    (*ctx).b.select(dst_ty_id, none, src_b, one, zero).unwrap()
+                elif is_int_like(&dst_ty):
+                    let one = int_one((*ctx).b, &dst_ty)
+                    let zero = int_zero((*ctx).b, &dst_ty)
+                    (*ctx).b.select(dst_ty_id, none, src_b, one, zero).unwrap()
+                else:
+                    return Result::Err(KainError__codegen("Unsupported bool cast target in shader", (*span)))
+                return Result::Ok((out_, dst_ty))
+            let src_dim = numeric_dim(&src_ty)
+            let dst_dim = numeric_dim(&dst_ty)
+            if (((src_dim == 0) || (dst_dim == 0)) || (src_dim != dst_dim)):
+                return Result::Err(KainError__codegen("Invalid cast in shader: source/target dimensions or categories are incompatible", (*span)))
+            let converted = if (is_float_like(&src_ty) && is_int_like(&dst_ty)):
+                (*ctx).b.convert_f_to_s(dst_ty_id, none, src_val).unwrap()
+            elif (is_float_like(&src_ty) && is_uint_like(&dst_ty)):
+                (*ctx).b.convert_f_to_u(dst_ty_id, none, src_val).unwrap()
+            elif (is_int_like(&src_ty) && is_float_like(&dst_ty)):
+                (*ctx).b.convert_s_to_f(dst_ty_id, none, src_val).unwrap()
+            elif (is_uint_like(&src_ty) && is_float_like(&dst_ty)):
+                (*ctx).b.convert_u_to_f(dst_ty_id, none, src_val).unwrap()
+            elif (is_int_like(&src_ty) && is_uint_like(&dst_ty)):
+                (*ctx).b.bitcast(dst_ty_id, none, src_val).unwrap()
+            elif (is_uint_like(&src_ty) && is_int_like(&dst_ty)):
+                (*ctx).b.bitcast(dst_ty_id, none, src_val).unwrap()
+            elif (is_int_like(&src_ty) && is_int_like(&dst_ty)):
+                (*ctx).b.s_convert(dst_ty_id, none, src_val).unwrap()
+            elif (is_uint_like(&src_ty) && is_uint_like(&dst_ty)):
+                (*ctx).b.u_convert(dst_ty_id, none, src_val).unwrap()
+            else:
+                return Result::Err(KainError__codegen("Unsupported numeric cast in shader", (*span)))
+            Result::Ok((converted, dst_ty))
+        kain_core__ast__Expr::Assign { target: target, value: value } =>
+            let (next_val, next_ty) = emit_expr(ctx, value)?
+            match target:
+                kain_core__ast__Expr::Ident(name, span) =>
+                    match (*ctx).vars.get(name).cloned():
+                        Some(binding) =>
+                            if (!binding.is_ptr):
+                                return Result::Err(KainError__codegen(f"Cannot assign to immutable value '{name}'", (*span)))
+                            if is_storage_buffer(&binding.ty):
+                                return Result::Err(KainError__codegen(f"Assigning a whole storage buffer '{name}' is not supported", (*span)))
+                            (*ctx).b.store(binding.id, next_val, none, std__iter__empty()).unwrap()
+                            ()
+                            Result::Ok((next_val, next_ty))
+                        _ => Result::Err(KainError__codegen(f"Unknown assignment target: {name}", (*span)))
+                kain_core__ast__Expr::Index { object: object, index: index } =>
+                    let elem_ptr = emit_index_lvalue_ptr(ctx, object, index, &next_ty, target.span())?
+                    (*ctx).b.store(elem_ptr, next_val, none, std__iter__empty()).unwrap()
+                    ()
+                    Result::Ok((next_val, next_ty))
+                _ => Result::Err(KainError__codegen("Unsupported assignment target in shader", target.span()))
+        kain_core__ast__Expr::Index { object: object, index: index } =>
+            match object:
+                kain_core__ast__Expr::Ident(buffer_name, span) =>
+                    if (*ctx).storage_buffers.contains(buffer_name):
+                        let binding = (*ctx).vars.get(buffer_name).cloned().ok_or_else(fn(): KainError__codegen(f"Unknown storage buffer: {buffer_name}", (*span)))?
+                        let (index_raw_id, index_raw_ty) = emit_expr(ctx, index)?
+                        let index_id = coerce_to_u32_index(ctx, index_raw_id, &index_raw_ty, expr.span())?
+                        let elem_ty = storage_buffer_elem_type(&binding.ty, expr.span())
+                        let elem_ty_id = map_ast_type((*ctx).b, &elem_ty)
+                        let elem_ptr_ty = (*ctx).b.type_pointer(none, rspirv__spirv__StorageClass__StorageBuffer, elem_ty_id)
+                        let uint_ty = (*ctx).b.type_int(32, 0)
+                        let zero = (*ctx).b.constant_bit32(uint_ty, 0)
+                        let elem_ptr = (*ctx).b.access_chain(elem_ptr_ty, none, binding.id, [zero, index_id]).unwrap()
+                        let loaded = (*ctx).b.load(elem_ty_id, none, elem_ptr, none, std__iter__empty()).unwrap()
+                        return Result::Ok((loaded, elem_ty))
+                    ()
+                _ =>
+                    ()
+                    ()
+            Result::Err(KainError__codegen("Unsupported index expression in shader", expr.span()))
+        kain_core__ast__Expr::Field { object: object, field: field, span: span } =>
+            let (obj_id, obj_ty) = emit_expr(ctx, object)?
+            match swizzle_indices(field):
+                Some(indices) =>
+                    let scalar_ty = vector_scalar_type(ctx, &obj_ty)
+                    let scalar_spv = map_ast_type((*ctx).b, &scalar_ty)
+                    if (indices.len() == 1):
+                        let res_id = (*ctx).b.composite_extract(scalar_spv, none, obj_id, [indices[0]]).unwrap()
+                        return Result::Ok((res_id, scalar_ty))
+                    let swizzle_len = indices.len()
+                    let out_vec = (*ctx).b.type_vector(scalar_spv, swizzle_len as u32)
+                    let res_id = (*ctx).b.vector_shuffle(out_vec, none, obj_id, obj_id, indices).unwrap()
+                    return Result::Ok((res_id, vec_type_from_scalar(&scalar_ty, swizzle_len, (*span))))
+                _ =>
+                    ()
+                    ()
+            Result::Err(KainError__codegen(f"Unsupported field access: {field}", (*span)))
+        kain_core__ast__Expr::Unary { op: op, operand: operand } =>
+            let (val, ty) = emit_expr(ctx, operand)?
+            let ty_id = map_ast_type((*ctx).b, &ty)
+            let out_ = match op:
+                kain_core__ast__UnaryOp::Neg => if is_float_like(&ty): (*ctx).b.f_negate(ty_id, none, val).unwrap() else: (*ctx).b.s_negate(ty_id, none, val).unwrap()
+                kain_core__ast__UnaryOp::Not =>
+                    let bool_ty = (*ctx).b.type_bool()
+                    let b = as_bool(ctx, val, &ty)
+                    return Result::Ok(((*ctx).b.logical_not(bool_ty, none, b).unwrap(), kain_core__ast__Type::Named { name: ("Bool").into(), generics: [], span: expr.span() }))
+                kain_core__ast__UnaryOp::BitNot => (*ctx).b.not(ty_id, none, val).unwrap()
+                kain_core__ast__UnaryOp::Ref => val
+                kain_core__ast__UnaryOp::RefMut => val
+                kain_core__ast__UnaryOp::Deref => val
+            Result::Ok((out_, ty))
+        kain_core__ast__Expr::MethodCall { receiver: receiver, method: method, args: args, span: span } =>
+            let (recv_val, recv_ty) = emit_expr(ctx, receiver)?
+            let float_ = (*ctx).b.type_float(32)
+            match method.as_str():
+                "length" if args.is_empty() =>
+                    let glsl = ctx.get_glsl_ext()
+                    let id = (*ctx).b.ext_inst(float_, none, glsl, 66, [rspirv__dr__Operand::IdRef(recv_val)]).unwrap()
+                    Result::Ok((id, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: (*span) }))
+                "normalize" if args.is_empty() =>
+                    let res_ty = map_ast_type((*ctx).b, &recv_ty)
+                    let glsl = ctx.get_glsl_ext()
+                    let id = (*ctx).b.ext_inst(res_ty, none, glsl, 69, [rspirv__dr__Operand::IdRef(recv_val)]).unwrap()
+                    Result::Ok((id, recv_ty))
+                "dot" if (args.len() == 1) =>
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?
+                    let id = (*ctx).b.dot(float_, none, recv_val, rhs).unwrap()
+                    Result::Ok((id, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: (*span) }))
+                "cross" if (args.len() == 1) =>
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?
+                    let res_ty = map_ast_type((*ctx).b, &recv_ty)
+                    let glsl = ctx.get_glsl_ext()
+                    let id = (*ctx).b.ext_inst(res_ty, none, glsl, 68, [rspirv__dr__Operand::IdRef(recv_val), rspirv__dr__Operand::IdRef(rhs)]).unwrap()
+                    Result::Ok((id, recv_ty))
+                "reflect" if (args.len() == 1) =>
+                    let (rhs, _) = emit_expr(ctx, &args[0].value)?
+                    let res_ty = map_ast_type((*ctx).b, &recv_ty)
+                    let glsl = ctx.get_glsl_ext()
+                    let id = (*ctx).b.ext_inst(res_ty, none, glsl, 71, [rspirv__dr__Operand::IdRef(recv_val), rspirv__dr__Operand::IdRef(rhs)]).unwrap()
+                    Result::Ok((id, recv_ty))
+                _ => Result::Err(KainError__codegen(f"Unsupported method call in shader: {method}", (*span)))
+        kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch, span: span } =>
+            let (cond_raw, cond_ty) = emit_expr(ctx, condition)?
+            let cond = as_bool(ctx, cond_raw, &cond_ty)
+            let then_expr = single_expr_from_block(then_branch, (*span))?
+            let (then_val, then_ty) = emit_expr(ctx, then_expr)?
+            let else_expr = match else_branch:
+                Some(kain_core__ast__ElseBranch::Else(block)) => single_expr_from_block(block, (*span))?
+                Some(kain_core__ast__ElseBranch::ElseIf(_, _, _)) => return Result::Err(KainError__codegen("Else-if expression chains are not yet supported in SPIR-V value expressions", (*span)))
+                None => return Result::Err(KainError__codegen("If expression requires an else branch in SPIR-V backend", (*span)))
+            let (else_val, else_ty) = emit_expr(ctx, else_expr)?
+            if (std__mem__discriminant(&then_ty) != std__mem__discriminant(&else_ty)):
+                return Result::Err(KainError__codegen("If expression branches must return compatible types", (*span)))
+            let res_ty = map_ast_type((*ctx).b, &then_ty)
+            let selected = (*ctx).b.select(res_ty, none, cond, then_val, else_val).unwrap()
+            Result::Ok((selected, then_ty))
+        _ => Result::Err(KainError__codegen(f"Unsupported expression in shader: {expr_kind_name(expr)}", expr.span()))
+
+fn expr_kind_name(expr: &kain_core::ast::Expr) -> String:
+    match expr:
+        kain_core__ast__Expr::Int(_) => "Int"
+        kain_core__ast__Expr::Float(_) => "Float"
+        kain_core__ast__Expr::Bool(_) => "Bool"
+        kain_core__ast__Expr::None(_) => "None"
+        kain_core__ast__Expr::String(_) => "String"
+        kain_core__ast__Expr::FString(_) => "FString"
+        kain_core__ast__Expr::Ident(_) => "Ident"
+        kain_core__ast__Expr::MacroCall {  } => "MacroCall"
+        kain_core__ast__Expr::Binary {  } => "Binary"
+        kain_core__ast__Expr::Unary {  } => "Unary"
+        kain_core__ast__Expr::Call {  } => "Call"
+        kain_core__ast__Expr::StageCall {  } => "StageCall"
+        kain_core__ast__Expr::MethodCall {  } => "MethodCall"
+        kain_core__ast__Expr::Field {  } => "Field"
+        kain_core__ast__Expr::Index {  } => "Index"
+        kain_core__ast__Expr::Assign {  } => "Assign"
+        kain_core__ast__Expr::Struct {  } => "Struct"
+        kain_core__ast__Expr::AggregateInit {  } => "AggregateInit"
+        kain_core__ast__Expr::EnumVariant {  } => "EnumVariant"
+        kain_core__ast__Expr::Tuple(_) => "Tuple"
+        kain_core__ast__Expr::Array(_) => "Array"
+        kain_core__ast__Expr::Range {  } => "Range"
+        kain_core__ast__Expr::If {  } => "If"
+        kain_core__ast__Expr::Match {  } => "Match"
+        kain_core__ast__Expr::Lambda {  } => "Lambda"
+        kain_core__ast__Expr::Ref {  } => "Ref"
+        kain_core__ast__Expr::AddrOf {  } => "AddrOf"
+        kain_core__ast__Expr::Deref(_) => "Deref"
+        kain_core__ast__Expr::PtrOffset {  } => "PtrOffset"
+        kain_core__ast__Expr::MemLoad {  } => "MemLoad"
+        kain_core__ast__Expr::MemStore {  } => "MemStore"
+        kain_core__ast__Expr::SizeOfType {  } => "SizeOfType"
+        kain_core__ast__Expr::AlignOfType {  } => "AlignOfType"
+        kain_core__ast__Expr::Alloca {  } => "Alloca"
+        kain_core__ast__Expr::Uninit {  } => "Uninit"
+        kain_core__ast__Expr::Alloc {  } => "Alloc"
+        kain_core__ast__Expr::Realloc {  } => "Realloc"
+        kain_core__ast__Expr::Cast {  } => "Cast"
+        kain_core__ast__Expr::Try(_) => "Try"
+        kain_core__ast__Expr::Await(_) => "Await"
+        kain_core__ast__Expr::AsyncBlock(_) => "AsyncBlock"
+        kain_core__ast__Expr::Spawn {  } => "Spawn"
+        kain_core__ast__Expr::SendMsg {  } => "SendMsg"
+        kain_core__ast__Expr::Comptime(_) => "Comptime"
+        kain_core__ast__Expr::Block(_) => "Block"
+        kain_core__ast__Expr::JSX(_) => "JSX"
+        kain_core__ast__Expr::Paren(_) => "Paren"
+        kain_core__ast__Expr::Return(_) => "Return"
+        kain_core__ast__Expr::Break(_) => "Break"
+        kain_core__ast__Expr::Continue(_) => "Continue"
+
+fn single_expr_from_block<a>(block: &a kain_core::ast::Block, span: kain_core::span::Span) -> Result<&a kain_core::ast::Expr, KainError>:
+    if ((*block).stmts.len() != 1):
+        return Result::Err(KainError__codegen("Expected single-expression block", span))
+    match &(*block).stmts[0]:
+        kain_core__ast__Stmt::Expr(expr) => Result::Ok(expr)
+        _ => Result::Err(KainError__codegen("Expected expression statement in block", span))
+
+fn as_bool(ctx: &mut ShaderContext, value: u32, ty: &kain_core::ast::Type) -> u32:
+    if (none):
+        return value
+    let bool_ty = (*ctx).b.type_bool()
+    if is_uint(ty):
+        let uint_ty = map_ast_type((*ctx).b, ty)
+        let zero = (*ctx).b.constant_bit32(uint_ty, 0)
+        return (*ctx).b.i_not_equal(bool_ty, none, value, zero).unwrap()
+    if is_int(ty):
+        let int_ty = map_ast_type((*ctx).b, ty)
+        let zero = (*ctx).b.constant_bit32(int_ty, 0)
+        return (*ctx).b.i_not_equal(bool_ty, none, value, zero).unwrap()
+    let float_ty = (*ctx).b.type_float(32)
+    let zero = (*ctx).b.constant_bit32(float_ty, (0).to_bits())
+    (*ctx).b.f_ord_not_equal(bool_ty, none, value, zero).unwrap()
+
+fn terminate_with_branch(ctx: &mut ShaderContext, target: u32) -> Result<(), KainError>:
+    if (*ctx).b.selected_block().is_some():
+        (*ctx).b.branch(target).unwrap()
+        ()
+        ()
+        ()
+        ()
+    Result::Ok(())
+
+fn emit_if_statement(ctx: &mut ShaderContext, condition: &kain_core::ast::Expr, then_branch: &kain_core::ast::Block, else_branch: Option<&kain_core::ast::ElseBranch>) -> Result<(), KainError>:
+    let (cond_raw, cond_ty) = emit_expr(ctx, condition)?
+    let cond = as_bool(ctx, cond_raw, &cond_ty)
+    let then_label = (*ctx).b.id()
+    let else_label = (*ctx).b.id()
+    let merge_label = (*ctx).b.id()
+    (*ctx).b.selection_merge(merge_label, rspirv__spirv__SelectionControl__NONE).unwrap()
+    ()
+    (*ctx).b.branch_conditional(cond, then_label, else_label, std__iter__empty()).unwrap()
+    ()
+    (*ctx).b.begin_block(Option::Some(then_label)).unwrap()
+    ()
+    emit_block(ctx, then_branch)?
+    ()
+    terminate_with_branch(ctx, merge_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(else_label)).unwrap()
+    ()
+    match else_branch:
+        Some(else_branch) =>
+            emit_else_branch(ctx, else_branch)?
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    terminate_with_branch(ctx, merge_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(merge_label)).unwrap()
+    ()
+    Result::Ok(())
+
+fn emit_else_branch(ctx: &mut ShaderContext, else_branch: &kain_core::ast::ElseBranch) -> Result<(), KainError>:
+    match else_branch:
+        kain_core__ast__ElseBranch::Else(block) => emit_block(ctx, block)
+        kain_core__ast__ElseBranch::ElseIf(cond, then_block, nested) => emit_if_statement(ctx, cond, then_block, nested)
+
+fn emit_while_statement(ctx: &mut ShaderContext, condition: &kain_core::ast::Expr, body: &kain_core::ast::Block) -> Result<(), KainError>:
+    let header_label = (*ctx).b.id()
+    let condition_label = (*ctx).b.id()
+    let loop_body_label = (*ctx).b.id()
+    let continue_label = (*ctx).b.id()
+    let merge_label = (*ctx).b.id()
+    terminate_with_branch(ctx, header_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(header_label)).unwrap()
+    ()
+    (*ctx).b.loop_merge(merge_label, continue_label, rspirv__spirv__LoopControl__NONE, std__iter__empty()).unwrap()
+    ()
+    (*ctx).b.branch(condition_label).unwrap()
+    ()
+    (*ctx).b.begin_block(Option::Some(condition_label)).unwrap()
+    ()
+    let (cond_raw, cond_ty) = emit_expr(ctx, condition)?
+    let cond = as_bool(ctx, cond_raw, &cond_ty)
+    (*ctx).b.branch_conditional(cond, loop_body_label, merge_label, std__iter__empty()).unwrap()
+    ()
+    (*ctx).loop_continue_targets.push(continue_label)
+    ()
+    (*ctx).loop_break_targets.push(merge_label)
+    ()
+    (*ctx).b.begin_block(Option::Some(loop_body_label)).unwrap()
+    ()
+    emit_block(ctx, body)?
+    ()
+    terminate_with_branch(ctx, continue_label)?
+    ()
+    (*ctx).loop_continue_targets.pop()
+    ()
+    (*ctx).loop_break_targets.pop()
+    ()
+    (*ctx).b.begin_block(Option::Some(continue_label)).unwrap()
+    ()
+    terminate_with_branch(ctx, header_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(merge_label)).unwrap()
+    ()
+    Result::Ok(())
+
+fn emit_for_statement(ctx: &mut ShaderContext, binding: &kain_core::ast::Pattern, iter: &kain_core::ast::Expr, body: &kain_core::ast::Block, span: kain_core::span::Span) -> Result<(), KainError>:
+    let (name, bind_span) = match binding:
+        kain_core__ast__Pattern::Binding { name: name, span: span } => (name.clone(), (*span))
+        _ => return Result::Err(KainError__codegen("for loop requires binding pattern", span))
+    let (start_expr, end_expr, inclusive) = match iter:
+        kain_core__ast__Expr::Range { start: start, end: end, inclusive: inclusive } => (start, end, (*inclusive))
+        kain_core__ast__Expr::Call { callee: callee, args: args } =>
+            match callee:
+                kain_core__ast__Expr::Ident(fn_name, _) => if (fn_name == "range"): none else: return Result::Err(KainError__codegen("SPIR-V for loops currently require range iteration", span))
+                _ => return Result::Err(KainError__codegen("SPIR-V for loops currently require range iteration", span))
+        _ => return Result::Err(KainError__codegen("SPIR-V for loops currently require range iteration", span))
+    let end_expr = end_expr.ok_or_else(fn(): KainError__codegen("for range requires an end bound", span))?
+    let int_ty_ast = kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: bind_span }
+    let int_ty = map_ast_type((*ctx).b, &int_ty_ast)
+    let int_ptr_ty = (*ctx).b.type_pointer(none, rspirv__spirv__StorageClass__Function, int_ty)
+    let loop_var_name = internal_hoist_name("for_iter", span)
+    let loop_var = take_hoisted_slot(ctx, &loop_var_name, int_ptr_ty).unwrap_or_else(fn(): (*ctx).b.variable(int_ptr_ty, none, rspirv__spirv__StorageClass__Function, none))
+    let init_val = match start_expr:
+        Some(start_expr) =>
+            let (v, _) = emit_expr(ctx, start_expr)?
+            v
+        _ => (*ctx).b.constant_bit32(int_ty, 0)
+    (*ctx).b.store(loop_var, init_val, none, std__iter__empty()).unwrap()
+    ()
+    let range_end_name = internal_hoist_name("for_end", span)
+    let range_end_var = take_hoisted_slot(ctx, &range_end_name, int_ptr_ty).unwrap_or_else(fn(): (*ctx).b.variable(int_ptr_ty, none, rspirv__spirv__StorageClass__Function, none))
+    let (end_val, _) = emit_expr(ctx, end_expr)?
+    (*ctx).b.store(range_end_var, end_val, none, std__iter__empty()).unwrap()
+    ()
+    let previous = (*ctx).vars.insert(name.clone(), VarBinding { id: loop_var, ty: int_ty_ast.clone(), is_ptr: true })
+    let header_label = (*ctx).b.id()
+    let condition_label = (*ctx).b.id()
+    let loop_body_label = (*ctx).b.id()
+    let continue_label = (*ctx).b.id()
+    let merge_label = (*ctx).b.id()
+    terminate_with_branch(ctx, header_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(header_label)).unwrap()
+    ()
+    (*ctx).b.loop_merge(merge_label, continue_label, rspirv__spirv__LoopControl__NONE, std__iter__empty()).unwrap()
+    ()
+    (*ctx).b.branch(condition_label).unwrap()
+    ()
+    (*ctx).b.begin_block(Option::Some(condition_label)).unwrap()
+    ()
+    let i_val = (*ctx).b.load(int_ty, none, loop_var, none, std__iter__empty()).unwrap()
+    let end_loaded = (*ctx).b.load(int_ty, none, range_end_var, none, std__iter__empty()).unwrap()
+    let bool_ty = (*ctx).b.type_bool()
+    let cond = if inclusive:
+        (*ctx).b.s_less_than_equal(bool_ty, none, i_val, end_loaded).unwrap()
+    else:
+        (*ctx).b.s_less_than(bool_ty, none, i_val, end_loaded).unwrap()
+    (*ctx).b.branch_conditional(cond, loop_body_label, merge_label, std__iter__empty()).unwrap()
+    ()
+    (*ctx).loop_continue_targets.push(continue_label)
+    ()
+    (*ctx).loop_break_targets.push(merge_label)
+    ()
+    (*ctx).b.begin_block(Option::Some(loop_body_label)).unwrap()
+    ()
+    emit_block(ctx, body)?
+    ()
+    terminate_with_branch(ctx, continue_label)?
+    ()
+    (*ctx).loop_continue_targets.pop()
+    ()
+    (*ctx).loop_break_targets.pop()
+    ()
+    (*ctx).b.begin_block(Option::Some(continue_label)).unwrap()
+    ()
+    let cur_i = (*ctx).b.load(int_ty, none, loop_var, none, std__iter__empty()).unwrap()
+    let one = (*ctx).b.constant_bit32(int_ty, 1)
+    let next_i = (*ctx).b.i_add(int_ty, none, cur_i, one).unwrap()
+    (*ctx).b.store(loop_var, next_i, none, std__iter__empty()).unwrap()
+    ()
+    terminate_with_branch(ctx, header_label)?
+    ()
+    (*ctx).b.begin_block(Option::Some(merge_label)).unwrap()
+    ()
+    match previous:
+        Some(prev) =>
+            (*ctx).vars.insert(name, prev)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            (*ctx).vars.remove(&name)
+            ()
+            ()
+            ()
+            ()
+    Result::Ok(())
+
+fn map_ast_type(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let float_ = b.type_float(32)
+    let int_ = b.type_int(32, 1)
+    let uint_ = b.type_int(32, 0)
+    match ty:
+        kain_core__ast__Type::Named { name: name, generics: generics } =>
+            match name.as_str():
+                "Float" => float_
+                "f32" => float_
+                "Int" => int_
+                "i32" => int_
+                "UInt" => uint_
+                "u32" => uint_
+                "Bool" => b.type_bool()
+                "Vec2" => b.type_vector(float_, 2)
+                "Vec3" => b.type_vector(float_, 3)
+                "Vec4" => b.type_vector(float_, 4)
+                "IVec2" => b.type_vector(int_, 2)
+                "IVec3" => b.type_vector(int_, 3)
+                "IVec4" => b.type_vector(int_, 4)
+                "UVec2" => b.type_vector(uint_, 2)
+                "UVec3" => b.type_vector(uint_, 3)
+                "UVec4" => b.type_vector(uint_, 4)
+                "Mat4" =>
+                    let v4 = b.type_vector(float_, 4)
+                    b.type_matrix(v4, 4)
+                "Sampler2D" =>
+                    let image = b.type_image(float_, rspirv__spirv__Dim__Dim2D, 0, 0, 0, 1, rspirv__spirv__ImageFormat__Unknown, none)
+                    b.type_sampled_image(image)
+                "StorageBuffer" =>
+                    let elem_type_ast = match generics.first():
+                        Some(first) => first.clone()
+                        _ => kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: Span__default_() }
+                    let elem_ty = map_ast_type(b, &elem_type_ast)
+                    let rt_array = b.type_runtime_array(elem_ty)
+                    let struct_ty = b.type_struct([rt_array])
+                    struct_ty
+                "Void" => b.type_void()
+                _ => b.type_void()
+        kain_core__ast__Type::Ref { inner: inner } => map_ast_type(b, inner)
+        kain_core__ast__Type::Array(inner, _, _) => map_ast_type(b, inner)
+        kain_core__ast__Type::Slice(inner, _) => map_ast_type(b, inner)
+        _ => b.type_void()
+
+fn is_void(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Void") => true
+        _ => false
+
+fn is_vec4(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Vec4") => true
+        _ => false
+
+fn is_mat4(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Mat4") => true
+        _ => false
+
+fn is_float(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "Float") || (name == "f32")) => true
+        _ => false
+
+fn is_bool(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Bool") => true
+        _ => false
+
+fn is_uint(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "UInt") || (name == "u32")) => true
+        _ => false
+
+fn is_int(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "Int") || (name == "i32")) => true
+        _ => false
+
+fn type_name(ty: &kain_core::ast::Type) -> Option<String>:
+    match ty:
+        kain_core__ast__Type::Named { name: name } => Option::Some(name.as_str())
+        _ =>
+            none
+
+fn numeric_dim(ty: &kain_core::ast::Type) -> usize:
+    match type_name(ty):
+        Some("Float") => 1
+        Some("f32") => 1
+        Some("Int") => 1
+        Some("i32") => 1
+        Some("UInt") => 1
+        Some("u32") => 1
+        Some("Bool") => 1
+        Some("Vec2") => 2
+        Some("IVec2") => 2
+        Some("UVec2") => 2
+        Some("Vec3") => 3
+        Some("IVec3") => 3
+        Some("UVec3") => 3
+        Some("Vec4") => 4
+        Some("IVec4") => 4
+        Some("UVec4") => 4
+        _ => 0
+
+fn is_float_vector(ty: &kain_core::ast::Type) -> Bool:
+    match type_name(ty):
+        Some("Vec2") => true
+        Some("Vec3") => true
+        Some("Vec4") => true
+        _ => false
+
+fn is_int_vector(ty: &kain_core::ast::Type) -> Bool:
+    match type_name(ty):
+        Some("IVec2") => true
+        Some("IVec3") => true
+        Some("IVec4") => true
+        _ => false
+
+fn is_uint_vector(ty: &kain_core::ast::Type) -> Bool:
+    match type_name(ty):
+        Some("UVec2") => true
+        Some("UVec3") => true
+        Some("UVec4") => true
+        _ => false
+
+fn is_float_like(ty: &kain_core::ast::Type) -> Bool:
+    (is_float(ty) || is_float_vector(ty))
+
+fn is_int_like(ty: &kain_core::ast::Type) -> Bool:
+    (is_int(ty) || is_int_vector(ty))
+
+fn is_uint_like(ty: &kain_core::ast::Type) -> Bool:
+    (is_uint(ty) || is_uint_vector(ty))
+
+fn is_same_type_family(a: &kain_core::ast::Type, b: &kain_core::ast::Type) -> Bool:
+    (type_name(a) == type_name(b))
+
+fn float_zero(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let float_ = b.type_float(32)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(float_, 2)
+            let z = b.constant_bit32(float_, (0).to_bits())
+            b.constant_composite(vec, [z, z])
+        3 =>
+            let vec = b.type_vector(float_, 3)
+            let z = b.constant_bit32(float_, (0).to_bits())
+            b.constant_composite(vec, [z, z, z])
+        4 =>
+            let vec = b.type_vector(float_, 4)
+            let z = b.constant_bit32(float_, (0).to_bits())
+            b.constant_composite(vec, [z, z, z, z])
+        _ => b.constant_bit32(float_, (0).to_bits())
+
+fn float_one(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let float_ = b.type_float(32)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(float_, 2)
+            let o = b.constant_bit32(float_, (1).to_bits())
+            b.constant_composite(vec, [o, o])
+        3 =>
+            let vec = b.type_vector(float_, 3)
+            let o = b.constant_bit32(float_, (1).to_bits())
+            b.constant_composite(vec, [o, o, o])
+        4 =>
+            let vec = b.type_vector(float_, 4)
+            let o = b.constant_bit32(float_, (1).to_bits())
+            b.constant_composite(vec, [o, o, o, o])
+        _ => b.constant_bit32(float_, (1).to_bits())
+
+fn int_zero(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let int_ = b.type_int(32, 1)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(int_, 2)
+            let z = b.constant_bit32(int_, 0)
+            b.constant_composite(vec, [z, z])
+        3 =>
+            let vec = b.type_vector(int_, 3)
+            let z = b.constant_bit32(int_, 0)
+            b.constant_composite(vec, [z, z, z])
+        4 =>
+            let vec = b.type_vector(int_, 4)
+            let z = b.constant_bit32(int_, 0)
+            b.constant_composite(vec, [z, z, z, z])
+        _ => b.constant_bit32(int_, 0)
+
+fn int_one(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let int_ = b.type_int(32, 1)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(int_, 2)
+            let o = b.constant_bit32(int_, 1)
+            b.constant_composite(vec, [o, o])
+        3 =>
+            let vec = b.type_vector(int_, 3)
+            let o = b.constant_bit32(int_, 1)
+            b.constant_composite(vec, [o, o, o])
+        4 =>
+            let vec = b.type_vector(int_, 4)
+            let o = b.constant_bit32(int_, 1)
+            b.constant_composite(vec, [o, o, o, o])
+        _ => b.constant_bit32(int_, 1)
+
+fn uint_zero(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let uint_ = b.type_int(32, 0)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(uint_, 2)
+            let z = b.constant_bit32(uint_, 0)
+            b.constant_composite(vec, [z, z])
+        3 =>
+            let vec = b.type_vector(uint_, 3)
+            let z = b.constant_bit32(uint_, 0)
+            b.constant_composite(vec, [z, z, z])
+        4 =>
+            let vec = b.type_vector(uint_, 4)
+            let z = b.constant_bit32(uint_, 0)
+            b.constant_composite(vec, [z, z, z, z])
+        _ => b.constant_bit32(uint_, 0)
+
+fn uint_one(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type) -> u32:
+    let uint_ = b.type_int(32, 0)
+    match numeric_dim(ty):
+        2 =>
+            let vec = b.type_vector(uint_, 2)
+            let o = b.constant_bit32(uint_, 1)
+            b.constant_composite(vec, [o, o])
+        3 =>
+            let vec = b.type_vector(uint_, 3)
+            let o = b.constant_bit32(uint_, 1)
+            b.constant_composite(vec, [o, o, o])
+        4 =>
+            let vec = b.type_vector(uint_, 4)
+            let o = b.constant_bit32(uint_, 1)
+            b.constant_composite(vec, [o, o, o, o])
+        _ => b.constant_bit32(uint_, 1)
+
+fn is_storage_buffer(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "StorageBuffer") => true
+        _ => false
+
+fn is_local_size_param(name: String) -> Bool:
+    match name:
+        "LOCAL_SIZE_X" => true
+        "LOCAL_SIZE_Y" => true
+        "LOCAL_SIZE_Z" => true
+        _ => false
+
+fn is_permutation_param(name: String) -> Bool:
+    if ((((((name.starts_with("CFG_") || name.starts_with("ENABLE_")) || name.starts_with("USE_")) || name.starts_with("WITH_")) || name.starts_with("HAS_")) || name.starts_with("ALLOW_")) || name.starts_with("SUPPORT_")):
+        return true
+    (((name.len() >= 4) && name.contains("_")) && name.chars().all(fn(c): ((c.is_uppercase() || (c == "_")) || c.is_ascii_digit())))
+
+fn emit_permutation_spec_constant(b: &mut rspirv::dr::Builder, ty: &kain_core::ast::Type, spec_id: u32) -> Option<u32>:
+    let id = match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Bool") =>
+            let bool_ty = b.type_bool()
+            b.spec_constant_false(bool_ty)
+        kain_core__ast__Type::Named { name: name } if ((name == "UInt") || (name == "u32")) =>
+            let uint_ty = b.type_int(32, 0)
+            b.spec_constant_bit32(uint_ty, 0)
+        kain_core__ast__Type::Named { name: name } if ((name == "Int") || (name == "i32")) =>
+            let int_ty = b.type_int(32, 1)
+            b.spec_constant_bit32(int_ty, 0)
+        kain_core__ast__Type::Named { name: name } if ((name == "Float") || (name == "f32")) =>
+            let float_ty = b.type_float(32)
+            b.spec_constant_bit32(float_ty, (0).to_bits())
+        _ => return none
+    b.decorate(id, rspirv__spirv__Decoration__SpecId, [rspirv__dr__Operand::LiteralBit32(spec_id)])
+    ()
+    Option::Some(id)
+
+fn emit_u32_spec_constant(b: &mut rspirv::dr::Builder, value: u32, spec_id: u32) -> u32:
+    let uint_ty = b.type_int(32, 0)
+    let id = b.spec_constant_bit32(uint_ty, value)
+    b.decorate(id, rspirv__spirv__Decoration__SpecId, [rspirv__dr__Operand::LiteralBit32(spec_id)])
+    ()
+    id
+
+fn storage_buffer_elem_type(buffer_ty: &kain_core::ast::Type, span: kain_core::span::Span) -> kain_core::ast::Type:
+    match buffer_ty:
+        kain_core__ast__Type::Named { name: name, generics: generics } if (name == "StorageBuffer") => generics.first().cloned().unwrap_or(kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: span })
+        _ => kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: span }
+
+fn storage_buffer_stride(buffer_ty: &kain_core::ast::Type) -> u32:
+    let elem_ty = storage_buffer_elem_type(buffer_ty, Span__default_())
+    match elem_ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "Vec4") || (name == "UVec4")) => 16
+        kain_core__ast__Type::Named { name: name } if ((name == "Vec3") || (name == "UVec3")) => 12
+        kain_core__ast__Type::Named { name: name } if ((name == "Vec2") || (name == "UVec2")) => 8
+        _ => 4
+
+fn coerce_to_u32_index(ctx: &mut ShaderContext, value_id: u32, value_ty: &kain_core::ast::Type, span: kain_core::span::Span) -> Result<u32, KainError>:
+    let uint_ty = (*ctx).b.type_int(32, 0)
+    if is_uint(value_ty):
+        return Result::Ok(value_id)
+    if is_int(value_ty):
+        return Result::Ok((*ctx).b.bitcast(uint_ty, none, value_id).unwrap())
+    if is_float(value_ty):
+        return Result::Ok((*ctx).b.convert_f_to_u(uint_ty, none, value_id).unwrap())
+    if is_bool(value_ty):
+        let one = (*ctx).b.constant_bit32(uint_ty, 1)
+        let zero = (*ctx).b.constant_bit32(uint_ty, 0)
+        return Result::Ok((*ctx).b.select(uint_ty, none, value_id, one, zero).unwrap())
+    Result::Err(KainError__codegen("Shader index expression must be scalar Int/UInt/Float/Bool", span))
+
+fn cast_to_u32(ctx: &mut ShaderContext, value_id: u32, value_ty: &kain_core::ast::Type) -> u32:
+    if is_uint_like(value_ty):
+        return value_id
+    let dim = numeric_dim(value_ty)
+    let scalar_u32 = (*ctx).b.type_int(32, 0)
+    let target_ty = if (dim > 1):
+        (*ctx).b.type_vector(scalar_u32, dim as u32)
+    else:
+        scalar_u32
+    if is_int_like(value_ty):
+        return (*ctx).b.bitcast(target_ty, none, value_id).unwrap()
+    if is_float_like(value_ty):
+        return (*ctx).b.convert_f_to_u(target_ty, none, value_id).unwrap()
+    if is_bool(value_ty):
+        let one = (*ctx).b.constant_bit32(scalar_u32, 1)
+        let zero = (*ctx).b.constant_bit32(scalar_u32, 0)
+        return (*ctx).b.select(target_ty, none, value_id, one, zero).unwrap()
+    value_id
+
+fn cast_to_i32(ctx: &mut ShaderContext, value_id: u32, value_ty: &kain_core::ast::Type) -> u32:
+    if is_int_like(value_ty):
+        return value_id
+    let dim = numeric_dim(value_ty)
+    let scalar_i32 = (*ctx).b.type_int(32, 1)
+    let target_ty = if (dim > 1):
+        (*ctx).b.type_vector(scalar_i32, dim as u32)
+    else:
+        scalar_i32
+    if is_uint_like(value_ty):
+        return (*ctx).b.bitcast(target_ty, none, value_id).unwrap()
+    if is_float_like(value_ty):
+        return (*ctx).b.convert_f_to_s(target_ty, none, value_id).unwrap()
+    if is_bool(value_ty):
+        let one = (*ctx).b.constant_bit32(scalar_i32, 1)
+        let zero = (*ctx).b.constant_bit32(scalar_i32, 0)
+        return (*ctx).b.select(target_ty, none, value_id, one, zero).unwrap()
+    value_id
+
+fn cast_to_f32(ctx: &mut ShaderContext, value_id: u32, value_ty: &kain_core::ast::Type) -> u32:
+    if is_float_like(value_ty):
+        return value_id
+    let dim = numeric_dim(value_ty)
+    let scalar_f32 = (*ctx).b.type_float(32)
+    let target_ty = if (dim > 1):
+        (*ctx).b.type_vector(scalar_f32, dim as u32)
+    else:
+        scalar_f32
+    if is_int_like(value_ty):
+        return (*ctx).b.convert_s_to_f(target_ty, none, value_id).unwrap()
+    if is_uint_like(value_ty):
+        return (*ctx).b.convert_u_to_f(target_ty, none, value_id).unwrap()
+    if is_bool(value_ty):
+        let one = float_one((*ctx).b, value_ty)
+        let zero = float_zero((*ctx).b, value_ty)
+        return (*ctx).b.select(target_ty, none, value_id, one, zero).unwrap()
+    value_id
+
+fn splat_to_vec(ctx: &mut ShaderContext, scalar_id: u32, scalar_ty: &kain_core::ast::Type, width: usize) -> u32:
+    if (width <= 1):
+        return scalar_id
+    let scalar_spv = map_ast_type((*ctx).b, scalar_ty)
+    let vec_spv = (*ctx).b.type_vector(scalar_spv, width as u32)
+    let mut comps = (fn(__kain_ctor_arg0): Vec__new_())(width)
+    for _ in range(0, width):
+        comps.push(scalar_id)
+        ()
+    ()
+    (*ctx).b.composite_construct(vec_spv, none, comps).unwrap()
+
+fn coerce_float_binary_operands(ctx: &mut ShaderContext, lhs_id: u32, lhs_ty: &kain_core::ast::Type, rhs_id: u32, rhs_ty: &kain_core::ast::Type) -> (u32, u32, kain_core::ast::Type):
+    let lhs_f = cast_to_f32(ctx, lhs_id, lhs_ty)
+    let rhs_f = cast_to_f32(ctx, rhs_id, rhs_ty)
+    let lhs_dim = numeric_dim(lhs_ty)
+    let rhs_dim = numeric_dim(rhs_ty)
+    if ((lhs_dim > 1) && (rhs_dim == 1)):
+        let rhs_scalar_ty = kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: rhs_ty.span() }
+        let rhs_splat = splat_to_vec(ctx, rhs_f, &rhs_scalar_ty, lhs_dim)
+        let out_ty = vec_type_from_scalar(&kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: lhs_ty.span() }, lhs_dim, lhs_ty.span())
+        return (lhs_f, rhs_splat, out_ty)
+    if ((rhs_dim > 1) && (lhs_dim == 1)):
+        let lhs_scalar_ty = kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: lhs_ty.span() }
+        let lhs_splat = splat_to_vec(ctx, lhs_f, &lhs_scalar_ty, rhs_dim)
+        let out_ty = vec_type_from_scalar(&kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: rhs_ty.span() }, rhs_dim, rhs_ty.span())
+        return (lhs_splat, rhs_f, out_ty)
+    if (lhs_dim > 1):
+        let out_ty = vec_type_from_scalar(&kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: lhs_ty.span() }, lhs_dim, lhs_ty.span())
+        return (lhs_f, rhs_f, out_ty)
+    (lhs_f, rhs_f, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: lhs_ty.span() })
+
+fn coerce_float_ternary_operands(ctx: &mut ShaderContext, a_id: u32, a_ty: &kain_core::ast::Type, b_id: u32, b_ty: &kain_core::ast::Type, c_id: u32, c_ty: &kain_core::ast::Type) -> (u32, u32, u32, kain_core::ast::Type):
+    let a_f = cast_to_f32(ctx, a_id, a_ty)
+    let b_f = cast_to_f32(ctx, b_id, b_ty)
+    let c_f = cast_to_f32(ctx, c_id, c_ty)
+    let out_dim = numeric_dim(a_ty).max(numeric_dim(b_ty)).max(numeric_dim(c_ty))
+    if (out_dim <= 1):
+        return (a_f, b_f, c_f, kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: a_ty.span() })
+    let scalar_ty = kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: a_ty.span() }
+    let a_out = if (numeric_dim(a_ty) == 1):
+        splat_to_vec(ctx, a_f, &scalar_ty, out_dim)
+    else:
+        a_f
+    let b_out = if (numeric_dim(b_ty) == 1):
+        splat_to_vec(ctx, b_f, &scalar_ty, out_dim)
+    else:
+        b_f
+    let c_out = if (numeric_dim(c_ty) == 1):
+        splat_to_vec(ctx, c_f, &scalar_ty, out_dim)
+    else:
+        c_f
+    let out_ty = vec_type_from_scalar(&scalar_ty, out_dim, a_ty.span())
+    (a_out, b_out, c_out, out_ty)
+
+fn vector_scalar_type(ctx: &mut ShaderContext, vec_ty: &kain_core::ast::Type) -> kain_core::ast::Type:
+    if (none):
+        kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: Span__default_() }
+    elif (none):
+        kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: Span__default_() }
+    elif is_uint(vec_ty):
+        kain_core__ast__Type::Named { name: ("UInt").into(), generics: [], span: Span__default_() }
+    elif is_int(vec_ty):
+        kain_core__ast__Type::Named { name: ("Int").into(), generics: [], span: Span__default_() }
+    else:
+        let _ = ctx
+        kain_core__ast__Type::Named { name: ("Float").into(), generics: [], span: Span__default_() }
+
+fn vec_type_from_scalar(scalar_ty: &kain_core::ast::Type, width: usize, span: kain_core::span::Span) -> kain_core::ast::Type:
+    let is_u = match scalar_ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "UInt") || (name == "u32")) => true
+        _ => false
+    let is_i = match scalar_ty:
+        kain_core__ast__Type::Named { name: name } if ((name == "Int") || (name == "i32")) => true
+        _ => false
+    let name = if is_u:
+        match width:
+            2 => "UVec2"
+            3 => "UVec3"
+            _ => "UVec4"
+    elif is_i:
+        match width:
+            2 => "IVec2"
+            3 => "IVec3"
+            _ => "IVec4"
+    else:
+        match width:
+            2 => "Vec2"
+            3 => "Vec3"
+            _ => "Vec4"
+    kain_core__ast__Type::Named { name: name.into(), generics: [], span: span }
+
+fn swizzle_indices(field: String) -> Option<Array<u32>>:
+    if (field.is_empty() || (field.len() > 4)):
+        return none
+    let mut out_ = (fn(__kain_ctor_arg0): Vec__new_())(field.len())
+    for ch in field.chars():
+        let idx = match ch:
+            "x" => 0
+            "r" => 0
+            "y" => 1
+            "g" => 1
+            "z" => 2
+            "b" => 2
+            "w" => 3
+            "a" => 3
+            _ => return none
+        out_.push(idx)
+        ()
+    ()
+    Option::Some(out_)
+
+fn emit_index_lvalue_ptr(ctx: &mut ShaderContext, object: &kain_core::ast::Expr, index: &kain_core::ast::Expr, elem_ty: &kain_core::ast::Type, span: kain_core::span::Span) -> Result<u32, KainError>:
+    match object:
+        kain_core__ast__Expr::Ident(buffer_name, _) =>
+            if (*ctx).storage_buffers.contains(buffer_name):
+                let binding = (*ctx).vars.get(buffer_name).cloned().ok_or_else(fn(): KainError__codegen(f"Unknown storage buffer: {buffer_name}", span))?
+                let (index_raw_id, index_raw_ty) = emit_expr(ctx, index)?
+                let index_id = coerce_to_u32_index(ctx, index_raw_id, &index_raw_ty, span)?
+                let elem_ty_id = map_ast_type((*ctx).b, elem_ty)
+                let elem_ptr_ty = (*ctx).b.type_pointer(none, rspirv__spirv__StorageClass__StorageBuffer, elem_ty_id)
+                let uint_ty = (*ctx).b.type_int(32, 0)
+                let zero = (*ctx).b.constant_bit32(uint_ty, 0)
+                let elem_ptr = (*ctx).b.access_chain(elem_ptr_ty, none, binding.id, [zero, index_id]).unwrap()
+                return Result::Ok(elem_ptr)
+            ()
+        _ =>
+            ()
+            ()
+    Result::Err(KainError__codegen("Unsupported lvalue index target in shader", span))
+

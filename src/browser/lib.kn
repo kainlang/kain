@@ -1,0 +1,53 @@
+use wasm_bindgen::prelude::*
+
+use kain_core::compile_
+
+use kain_core::CompileTarget
+
+@doc(doc = " Compile KAIN source code to JavaScript")
+@wasm_bindgen
+pub fn compile_to_js(source: String) -> Result<String, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Js):
+        Ok(bytes) => Result::Ok(String__from_utf8_lossy(&bytes).to_string())
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Compile KAIN source code to TypeScript")
+@wasm_bindgen
+pub fn compile_to_ts(source: String) -> Result<String, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Ts):
+        Ok(bytes) => Result::Ok(String__from_utf8_lossy(&bytes).to_string())
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Compile KAIN source code to WebAssembly (returns bytes)")
+@wasm_bindgen
+pub fn compile_to_wasm(source: String) -> Result<Array<u8>, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Wasm):
+        Ok(bytes) => Result::Ok(bytes)
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Compile KAIN source code to Rust")
+@wasm_bindgen
+pub fn compile_to_rust(source: String) -> Result<String, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Rust):
+        Ok(bytes) => Result::Ok(String__from_utf8_lossy(&bytes).to_string())
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Compile KAIN source code to HLSL")
+@wasm_bindgen
+pub fn compile_to_hlsl(source: String) -> Result<String, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Hlsl):
+        Ok(bytes) => Result::Ok(String__from_utf8_lossy(&bytes).to_string())
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Compile KAIN source code to USF (Unreal Engine)")
+@wasm_bindgen
+pub fn compile_to_usf(source: String) -> Result<String, JsValue>:
+    match kain_core__compile_(source, kain_core__CompileTarget__Usf):
+        Ok(bytes) => Result::Ok(String__from_utf8_lossy(&bytes).to_string())
+        Err(e) => Result::Err(JsValue__from_str(&e))
+
+@doc(doc = " Get compiler version")
+@wasm_bindgen
+pub fn get_version() -> String:
+    kain__VERSION.to_string()
+

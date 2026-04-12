@@ -1,0 +1,168 @@
+use ast_converter::*
+
+use factory_generator::*
+
+use graph_ir::*
+
+use error::*
+
+use node_types::*
+
+use runtime_codegen::*
+
+use schema_builder::*
+
+use runtime_converter::convert_graph_runtime_to_ir
+
+use runtime_converter::convert_runtime_graph
+
+use runtime_ir::ExecuteLogic
+
+use runtime_ir::ExecutionMode
+
+use runtime_ir::FunctionSpecifier
+
+use runtime_ir::PinDirection
+
+use runtime_ir::PropertySpecifier
+
+use runtime_ir::RuntimeGraph
+
+use runtime_ir::RuntimeGraphProperties
+
+use runtime_ir::RuntimeInstance
+
+use runtime_ir::RuntimeMethod
+
+use runtime_ir::RuntimeNodeData
+
+use runtime_ir::RuntimeParam
+
+use runtime_ir::RuntimePin
+
+use runtime_ir::RuntimePinType
+
+use runtime_ir::RuntimeProperty
+
+use runtime_codegen::generate_graph_instance
+
+use runtime_codegen::InstanceGenerator
+
+use runtime_codegen::InstanceOutput
+
+@doc(doc = " Output from graph editor generation")
+@derive(Debug, Clone)
+pub struct GraphEditorOutput:
+    uasset: Array<u8>
+    header: String
+    source: String
+
+@doc(doc = " Generate a complete graph editor from KAIN AST")
+@doc(doc = "")
+@doc(doc = " # Example")
+@doc(doc = "")
+@doc(doc = " ```ignore")
+@doc(doc = " use ue5_graphs::generate_graph_editor;")
+@doc(doc = "")
+@doc(doc = " let output = generate_graph_editor(&graph_def, \"MyPlugin\")?;")
+@doc(doc = " std::fs::write(\"MyGraph.uasset\", &output.uasset)?;")
+@doc(doc = " std::fs::write(\"MyGraphFactory.h\", &output.header)?;")
+@doc(doc = " std::fs::write(\"MyGraphFactory.cpp\", &output.source)?;")
+@doc(doc = " ```")
+pub fn generate_graph_editor(ast: &kain_core::ast::GraphEditorDef, plugin_name: String) -> Result<GraphEditorOutput, Error>:
+    let ir = convert_graph_editor(ast)?
+    let generator = FactoryGenerator__new_(ir.clone(), plugin_name)
+    let factory_output = generator.generate()?
+    let mut include_lines: Array<String> = Vec__new_()
+    let mut body_chunks: Array<String> = Vec__new_()
+    let mut collect_fragment = fn(content: String): none
+    collect_fragment(&factory_output.base_node_header.field_1)
+    ()
+    for selfhost_for_item in &factory_output.node_headers:
+        let (_, node_header) = selfhost_for_item
+        collect_fragment(node_header)
+        ()
+    ()
+    collect_fragment(&factory_output.schema_header.field_1)
+    ()
+    collect_fragment(&factory_output.graph_header.field_1)
+    ()
+    let mut header = String__new_()
+    header.push_str("#pragma once\n\n")
+    ()
+    for include in &include_lines:
+        header.push_str(include)
+        ()
+        header.push("\n")
+        ()
+    ()
+    header.push_str(&f"#include \"{(*ast).name}Factory.generated.h\"\n\n")
+    ()
+    header.push_str(&body_chunks.join("\n\n"))
+    ()
+    let mut source_include_lines: Array<String> = Vec__new_()
+    let mut source_chunks: Array<String> = Vec__new_()
+    let mut collect_source_fragment = fn(content: String): none
+    collect_source_fragment(&factory_output.base_node_source.field_1)
+    ()
+    for selfhost_for_item in &factory_output.node_sources:
+        let (_, node_source) = selfhost_for_item
+        collect_source_fragment(node_source)
+        ()
+    ()
+    collect_source_fragment(&factory_output.schema_source.field_1)
+    ()
+    collect_source_fragment(&factory_output.graph_source.field_1)
+    ()
+    let mut source = String__new_()
+    source.push_str(&f"#include \"{(*ast).name}Factory.h\"\n\n")
+    ()
+    for include in &source_include_lines:
+        source.push_str(include)
+        ()
+        source.push("\n")
+        ()
+    ()
+    if (!source_include_lines.is_empty()):
+        source.push("\n")
+        ()
+        ()
+        ()
+        ()
+    source.push_str(&source_chunks.join("\n\n"))
+    ()
+    let uasset = Vec__new_()
+    Result::Ok(GraphEditorOutput { uasset: uasset, header: header, source: source })
+
+@doc(doc = " Output from runtime graph generation")
+@derive(Debug, Clone)
+pub struct RuntimeOutput:
+    instance_files: runtime_codegen::InstanceOutput
+    graph_data_files: Option<(String, String, String, String)>
+
+@doc(doc = " Generate a complete runtime graph system from GraphEditor IR")
+@doc(doc = "")
+@doc(doc = " This generates the runtime execution system for a graph:")
+@doc(doc = " - GraphInstance class (manages graph execution state)")
+@doc(doc = " - GraphNodeData class (base class for node data)")
+@doc(doc = " - GraphData class (optional, for graph asset data)")
+@doc(doc = "")
+@doc(doc = " # Example")
+@doc(doc = "")
+@doc(doc = " ```ignore")
+@doc(doc = " use ue5_graphs::{GraphEditor, generate_runtime_graph};")
+@doc(doc = "")
+@doc(doc = " let graph = GraphEditor::new(\"CombatGraph\");")
+@doc(doc = " let output = generate_runtime_graph(&graph, \"CombatPlugin\")?;")
+@doc(doc = "")
+@doc(doc = " // Write instance files")
+@doc(doc = " std::fs::write(\"CombatGraphInstance.h\", &output.instance_files.instance_header.1)?;")
+@doc(doc = " std::fs::write(\"CombatGraphInstance.cpp\", &output.instance_files.instance_source.1)?;")
+@doc(doc = " std::fs::write(\"CombatGraphNodeData.h\", &output.instance_files.node_data_header.1)?;")
+@doc(doc = " std::fs::write(\"CombatGraphNodeData.cpp\", &output.instance_files.node_data_source.1)?;")
+@doc(doc = " ```")
+pub fn generate_runtime_graph(ast: &GraphEditor, plugin_name: String) -> Result<RuntimeOutput, Error>:
+    let instance_files = runtime_codegen__generate_graph_instance(ast, plugin_name)?
+    let graph_data_files = none
+    Result::Ok(RuntimeOutput { instance_files: instance_files, graph_data_files: graph_data_files })
+

@@ -1,0 +1,120 @@
+use std::io::Cursor
+
+use ordered_float::OrderedFloat
+
+use unreal_asset::Asset
+
+use unreal_asset_base::types::vector::Color
+
+use unreal_asset_base::types::vector::Vector
+
+use unreal_asset_properties::array_property::ArrayProperty
+
+use unreal_asset_properties::color_property::LinearColorProperty
+
+use unreal_asset_properties::enum_property::EnumProperty
+
+use unreal_asset_properties::int_property::BoolProperty
+
+use unreal_asset_properties::int_property::DoubleProperty
+
+use unreal_asset_properties::int_property::FloatProperty
+
+use unreal_asset_properties::int_property::Int64Property
+
+use unreal_asset_properties::int_property::IntProperty
+
+use unreal_asset_properties::object_property::ObjectProperty
+
+use unreal_asset_properties::object_property::SoftObjectPath
+
+use unreal_asset_properties::object_property::TopLevelAssetPath
+
+use unreal_asset_properties::soft_path_property::SoftObjectPathProperty
+
+use unreal_asset_properties::soft_path_property::SoftObjectPathPropertyValue
+
+use unreal_asset_properties::str_property::NameProperty
+
+use unreal_asset_properties::str_property::StrProperty
+
+use unreal_asset_properties::struct_property::StructProperty
+
+use unreal_asset_properties::vector_property::RotatorProperty
+
+use unreal_asset_properties::vector_property::VectorProperty
+
+use unreal_asset_properties::Property
+
+use crate::import_builder::ImportBuilder
+
+use crate::property_types::PropertyDef
+
+use crate::property_types::PropertyValue
+
+@doc(doc = " Convert a slice of `PropertyDef` into UE5 `Property` objects.")
+pub fn convert_property_defs(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, defs: &[PropertyDef]) -> Array<unreal_asset_properties::Property>:
+    defs.iter().filter_map(fn(def): convert_property_def(asset, def)).collect()
+
+@doc(doc = " Convert a single `PropertyDef` into a UE5 `Property`.")
+@doc(doc = "")
+@doc(doc = " Returns `None` for types that can't be mapped (shouldn't happen with")
+@doc(doc = " well-formed IR).")
+pub fn convert_property_def(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, def: &PropertyDef) -> Option<unreal_asset_properties::Property>:
+    let name = asset.add_fname(&(*def).name)
+    match &(*def).value:
+        PropertyValue::Bool(v) => Option::Some((unreal_asset_properties::int_property::BoolProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: (*v) }).into())
+        PropertyValue::Int(v) => Option::Some((unreal_asset_properties::int_property::IntProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: (*v) }).into())
+        PropertyValue::Int64(v) => Option::Some((unreal_asset_properties::int_property::Int64Property { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: (*v) }).into())
+        PropertyValue::Float(v) => Option::Some((unreal_asset_properties::int_property::FloatProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: ordered_float__OrderedFloat((*v)) }).into())
+        PropertyValue::Double(v) => Option::Some((unreal_asset_properties::int_property::DoubleProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: ordered_float__OrderedFloat((*v)) }).into())
+        PropertyValue::Str(v) => Option::Some((unreal_asset_properties::str_property::StrProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Option::Some(v.clone()) }).into())
+        PropertyValue::Name(v) =>
+            let val = asset.add_fname(v)
+            Option::Some((unreal_asset_properties::str_property::NameProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: val }).into())
+        PropertyValue::Text(v) => Option::Some((unreal_asset_properties::str_property::StrProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Option::Some(v.clone()) }).into())
+        PropertyValue::SoftObject(path) =>
+            let (asset_path_str, sub_path) = split_soft_path(path)
+            let asset_path_fname = asset.add_fname(&asset_path_str)
+            Option::Some((unreal_asset_properties::soft_path_property::SoftObjectPathProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: unreal_asset_properties__soft_path_property__SoftObjectPathPropertyValue::New(unreal_asset_properties::object_property::SoftObjectPath { asset_path: unreal_asset_properties::object_property::TopLevelAssetPath { package_name: Option::Some(asset_path_fname), asset_name: asset.add_fname("") }, sub_path_string: sub_path }) }).into())
+        PropertyValue::Vector { x: x, y: y, z: z } =>
+            let struct_type = asset.add_fname("Vector")
+            Option::Some((unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(struct_type), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: [(unreal_asset_properties::vector_property::VectorProperty { name: Default__default_(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Vector__new_(ordered_float__OrderedFloat((*x) as f64), ordered_float__OrderedFloat((*y) as f64), ordered_float__OrderedFloat((*z) as f64)) }).into()] }).into())
+        PropertyValue::Rotator { pitch: pitch, yaw: yaw, roll: roll } =>
+            let struct_type = asset.add_fname("Rotator")
+            Option::Some((unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(struct_type), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: [(unreal_asset_properties::vector_property::RotatorProperty { name: Default__default_(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: Vector__new_(ordered_float__OrderedFloat((*pitch) as f64), ordered_float__OrderedFloat((*yaw) as f64), ordered_float__OrderedFloat((*roll) as f64)) }).into()] }).into())
+        PropertyValue::LinearColor { r: r, g: g, b: b, a: a } =>
+            let struct_type = asset.add_fname("LinearColor")
+            Option::Some((unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(struct_type), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: [(unreal_asset_properties::color_property::LinearColorProperty { name: Default__default_(), ancestry: Default__default_(), property_guid: none, duplication_index: 0, color: Color__new_(ordered_float__OrderedFloat((*r)), ordered_float__OrderedFloat((*g)), ordered_float__OrderedFloat((*b)), ordered_float__OrderedFloat((*a))) }).into()] }).into())
+        PropertyValue::Enum { enum_type: enum_type, value: value } =>
+            let enum_fname = asset.add_fname(enum_type)
+            let val_str = f"{enum_type}::{value}"
+            let val_fname = asset.add_fname(&val_str)
+            Option::Some((unreal_asset_properties::enum_property::EnumProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, enum_type: Option::Some(enum_fname), inner_type: none, value: Option::Some(val_fname) }).into())
+        PropertyValue::ObjectRef(path) =>
+            let resolved = ImportBuilder__resolve_object_import(asset, path)
+            Option::Some((unreal_asset_properties::object_property::ObjectProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, value: resolved }).into())
+        PropertyValue::Array { inner_type: _, values: values } =>
+            let inner_props: Array<unreal_asset_properties::Property> = values.iter().filter_map(fn(v): none).collect()
+            let arr_type = asset.add_fname(&infer_array_inner_type(&(*def).value))
+            Option::Some((unreal_asset_properties::array_property::ArrayProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, array_type: Option::Some(arr_type), value: inner_props, dummy_property: none }).into())
+        PropertyValue::Struct { struct_type: struct_type, fields: fields } =>
+            let st = asset.add_fname(struct_type)
+            let inner = convert_property_defs(asset, fields)
+            Option::Some((unreal_asset_properties::struct_property::StructProperty { name: name, ancestry: Default__default_(), property_guid: none, duplication_index: 0, struct_type: Option::Some(st), struct_guid: Option::Some(Default__default_()), serialize_none: true, value: inner }).into())
+
+@doc(doc = " Split a soft object path like \"/Game/Meshes/SM_Player.SM_Player\" into")
+@doc(doc = " (asset_path, sub_path).")
+fn split_soft_path(path: String) -> (String, Option<String>):
+    match path.rfind("."):
+        Some(dot_pos) =>
+            let sub = &path[(dot_pos + 1)..]
+            (path.to_string(), Option::Some(sub.to_string()))
+        _ => (path.to_string(), none)
+
+@doc(doc = " Infer the UE property type name for an array's inner type.")
+fn infer_array_inner_type(val: &PropertyValue) -> String:
+    match val:
+        PropertyValue::Array { inner_type: inner_type } => (none).to_string()
+        _ => ("StructProperty").to_string()
+

@@ -1,0 +1,29 @@
+use crate::math::Float4
+
+use crate::model::CombineMode
+
+@derive(Clone, Copy, Debug)
+pub struct CombinerState:
+    mode: CombineMode
+    primitive_color: Float4
+    env_color: Float4
+
+@derive(Clone, Copy, Debug)
+pub struct CompiledCombiner:
+    mode: CombineMode
+
+impl CompiledCombiner:
+    pub fn compile_(mode: CombineMode) -> CompiledCombiner:
+        CompiledCombiner { mode: mode }
+
+    pub fn shade(_self: &CompiledCombiner, texture_color: Float4, vertex_color: Float4, primitive_color: Float4, env_color: Float4) -> Float4:
+        match (*_self).mode:
+            CombineMode::Texture => texture_color
+            CombineMode::TextureVertex => (texture_color * vertex_color)
+            CombineMode::TexturePrimitive => (texture_color * primitive_color)
+            CombineMode::TextureVertexPrimitive => ((texture_color * vertex_color) * primitive_color)
+            CombineMode::TextureEnvMix => ((texture_color * 0.55) + (env_color * 0.45))
+            CombineMode::Primitive => primitive_color
+            CombineMode::Vertex => vertex_color
+
+

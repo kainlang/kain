@@ -1,0 +1,583 @@
+use crate::bindings::ComputeCase
+
+use crate::bindings::GpuBindingAccess
+
+use crate::bindings::GpuDescriptorKind
+
+use crate::bindings::GpuDispatchBinding
+
+use crate::bindings::GpuDispatchRequest
+
+use crate::bindings::GpuDispatchResult
+
+use ash::vk
+
+use ash::Entry
+
+use kain_core::shader_artifact_bundle_from_json
+
+use kain_interop::shared_buffer_gpu_binding_view
+
+use kain_interop::GpuBindingAccess as InteropAccess
+
+use kain_interop::GpuDescriptorKind as InteropDescriptorKind
+
+use kain_interop::KainSharedBuffer
+
+use kain_interop::SharedBufferMetadata
+
+use serde::Deserialize
+
+use std::convert::TryFrom
+
+use std::ffi::c_char
+
+use std::ffi::c_void
+
+use std::ffi::CStr
+
+use std::ffi::CString
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use std::slice
+
+use thiserror::Error
+
+const DEFAULT_WORKGROUP_SIZE_X: u32 = 8
+
+@derive(Debug, Clone, Default)
+pub struct GpuComputeExecutorConfig:
+    validation_mode: u32
+
+impl Default for GpuComputeExecutorConfig:
+    pub fn default_() -> GpuComputeExecutorConfig:
+        GpuComputeExecutorConfig { validation_mode: 0 }
+
+
+@repr(C)
+pub struct GpuRuntimeDispatchRequest:
+    shader_bundle_path: ptr<std::ffi::c_char>
+    compute_residency_path: ptr<std::ffi::c_char>
+    compute_key: ptr<std::ffi::c_char>
+
+@repr(C)
+pub struct GpuRuntimeDispatchResult:
+    status_code: i32
+    dispatch_invocations: u64
+    tensor_binding_count: u32
+    stream_binding_count: u32
+    neural_node_count: u32
+    message: [std::ffi::c_char; 256]
+
+pub enum ComputeExecutorError:
+    LoadEntry(ash::LoadingError)
+    CreateInstance(Result<(), Error>)
+    EnumeratePhysicalDevices(Result<(), Error>)
+    NoComputeDevice
+    CreateDevice(Result<(), Error>)
+    CreateCommandPool(Result<(), Error>)
+    CreateShaderModule(Result<(), Error>)
+    CreateDescriptorSetLayout(Result<(), Error>)
+    CreatePipelineLayout(Result<(), Error>)
+    CreateComputePipeline(Result<(), Error>)
+    CreateDescriptorPool(Result<(), Error>)
+    AllocateDescriptorSets(Result<(), Error>)
+    AllocateCommandBuffers(Result<(), Error>)
+    BeginCommandBuffer(Result<(), Error>)
+    EndCommandBuffer(Result<(), Error>)
+    QueueSubmit(Result<(), Error>)
+    QueueWaitIdle(Result<(), Error>)
+    CreateBuffer(Result<(), Error>)
+    AllocateMemory(Result<(), Error>)
+    BindBufferMemory(Result<(), Error>)
+    MapMemory(Result<(), Error>)
+    NoSuitableMemoryType
+    EmptyBindingPayload { binding: usize }
+    OutputBindingOutOfRange { binding: usize, len: usize }
+    SpirvMisaligned { len: usize }
+    InvalidShaderEntryName
+    DeviceSizeTooLarge { size: u64 }
+    ReadFile { path: String, message: String }
+    ParseShaderBundle { path: String, message: String }
+    ParseComputeResidency { path: String, message: String }
+    MissingComputeKey { compute_key: String, path: String }
+    MissingSpirvModule { module_name: String, path: String }
+    InvalidSpirvHex { module_name: String, message: String }
+    UnsupportedDescriptorKind { value: String }
+    UnsupportedAccessMode { value: String }
+    UnsupportedSharedBufferContract { binding: String, value: String }
+    InvalidSharedBufferBinding { binding: String, message: String }
+
+pub type GpuComputeExecutor = VulkanComputeExecutor
+
+pub struct VulkanComputeExecutor:
+    entry: ash::Entry
+    instance: ash::Instance
+    physical_device: ash::vk::PhysicalDevice
+    device: ash::Device
+    queue: ash::vk::Queue
+    command_pool: ash::vk::CommandPool
+    config: GpuComputeExecutorConfig
+
+struct GpuBuffer<a>:
+    device: &a ash::Device
+    buffer: ash::vk::Buffer
+    memory: ash::vk::DeviceMemory
+    size: ash::vk::DeviceSize
+
+impl Drop for GpuBuffer<_>:
+    fn drop(_self: &mut GpuBuffer<_>):
+        (*_self).device.destroy_buffer((*_self).buffer, none)
+        ()
+        (*_self).device.free_memory((*_self).memory, none)
+        ()
+
+
+struct ExecutionResources<a>:
+    device: &a ash::Device
+    command_pool: ash::vk::CommandPool
+    shader_module: Option<ash::vk::ShaderModule>
+    descriptor_set_layout: Option<ash::vk::DescriptorSetLayout>
+    pipeline_layout: Option<ash::vk::PipelineLayout>
+    pipeline: Option<ash::vk::Pipeline>
+    descriptor_pool: Option<ash::vk::DescriptorPool>
+    command_buffer: Option<ash::vk::CommandBuffer>
+
+impl<a> ExecutionResources<a>:
+    fn new_(device: &a ash::Device, command_pool: ash::vk::CommandPool) -> ExecutionResources<a>:
+        ExecutionResources { device: device, command_pool: command_pool, shader_module: none, descriptor_set_layout: none, pipeline_layout: none, pipeline: none, descriptor_pool: none, command_buffer: none }
+
+
+impl Drop for ExecutionResources<_>:
+    fn drop(_self: &mut ExecutionResources<_>):
+        match (*_self).command_buffer.take():
+            Some(command_buffer) =>
+                (*_self).device.free_command_buffers((*_self).command_pool, &[command_buffer])
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).descriptor_pool.take():
+            Some(descriptor_pool) =>
+                (*_self).device.destroy_descriptor_pool(descriptor_pool, none)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).pipeline.take():
+            Some(pipeline) =>
+                (*_self).device.destroy_pipeline(pipeline, none)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).pipeline_layout.take():
+            Some(pipeline_layout) =>
+                (*_self).device.destroy_pipeline_layout(pipeline_layout, none)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).descriptor_set_layout.take():
+            Some(descriptor_set_layout) =>
+                (*_self).device.destroy_descriptor_set_layout(descriptor_set_layout, none)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).shader_module.take():
+            Some(shader_module) =>
+                (*_self).device.destroy_shader_module(shader_module, none)
+                ()
+            _ => ()
+
+
+@derive(Debug, Clone, serde__Deserialize)
+struct ComputeResidencyBundle:
+    target: String
+    compute_shaders: Array<ComputeResidencyEntry>
+
+@derive(Debug, Clone, serde__Deserialize)
+struct ComputeResidencyEntry:
+    key: String
+    module_name: String
+    entry_point: String
+    workgroup_size: Option<[u32; 3]>
+    dispatch_size: Option<[u32; 3]>
+    tensor_binding_count: usize
+    stream_binding_count: usize
+    neural_node_count: usize
+    bindings: Array<ComputeResidencyBinding>
+
+@derive(Debug, Clone, serde__Deserialize)
+struct ComputeResidencyBinding:
+    key: String
+    contract: String
+    descriptor_kind: String
+    element_type: String
+    shape: Array<i64>
+    strides: Array<i64>
+    access_mode: String
+    slot: u32
+    payload_file: String
+
+impl VulkanComputeExecutor:
+    pub fn try_new() -> Result<VulkanComputeExecutor, ComputeExecutorError>:
+        VulkanComputeExecutor__try_new_with_config(GpuComputeExecutorConfig__default_())
+
+    pub fn try_new_with_config(config: GpuComputeExecutorConfig) -> Result<VulkanComputeExecutor, ComputeExecutorError>:
+        let entry = Entry__load().map_err(fn(__kain_closure_arg0): ComputeExecutorError::LoadEntry(__kain_closure_arg0))?
+        let app_name = CString__new_("kain-gpu-runtime").expect("static string")
+        let engine_name = CString__new_("kain").expect("static string")
+        let app_info = ApplicationInfo__builder().application_name(&app_name).application_version(0).engine_name(&engine_name).engine_version(0).api_version(ash__vk__make_api_version(0, 1, 1, 0))
+        let instance_info = InstanceCreateInfo__builder().application_info(&app_info)
+        let instance = entry.create_instance(&instance_info, none).map_err(fn(__kain_closure_arg1): ComputeExecutorError::CreateInstance(__kain_closure_arg1))?
+        let physical_devices = instance.enumerate_physical_devices().map_err(fn(__kain_closure_arg2): ComputeExecutorError::EnumeratePhysicalDevices(__kain_closure_arg2))?
+        let mut selected = none
+        for physical_device in physical_devices:
+            let queue_families = instance.get_physical_device_queue_family_properties(physical_device)
+            match queue_families.iter().enumerate().find(fn(__kain_closure_arg3): __kain_closure_arg3.__kain_tuple_1.queue_flags.contains(ash__vk__QueueFlags__COMPUTE)):
+                Some((index, _)) =>
+                    selected = Option::Some((physical_device, index as u32))
+                    ()
+                    break
+                _ => ()
+        ()
+        let (physical_device, queue_family_index) = selected.ok_or(ComputeExecutorError__NoComputeDevice)?
+        let priorities = [1]
+        let queue_info = [DeviceQueueCreateInfo__builder().queue_family_index(queue_family_index).queue_priorities(&priorities).build()]
+        let device_info = DeviceCreateInfo__builder().queue_create_infos(&queue_info)
+        let device = instance.create_device(physical_device, &device_info, none).map_err(fn(__kain_closure_arg4): ComputeExecutorError::CreateDevice(__kain_closure_arg4))?
+        let queue = device.get_device_queue(queue_family_index, 0)
+        let pool_info = CommandPoolCreateInfo__builder().queue_family_index(queue_family_index).flags(ash__vk__CommandPoolCreateFlags__RESET_COMMAND_BUFFER)
+        let command_pool = device.create_command_pool(&pool_info, none).map_err(fn(__kain_closure_arg5): ComputeExecutorError::CreateCommandPool(__kain_closure_arg5))?
+        Result::Ok(VulkanComputeExecutor { entry: entry, instance: instance, physical_device: physical_device, device: device, queue: queue, command_pool: command_pool, config: config })
+
+    pub fn dispatch_from_sidecars(_self: &VulkanComputeExecutor, shader_bundle_path: &std::path::Path, compute_residency_path: &std::path::Path, compute_key: String) -> Result<GpuDispatchResult, ComputeExecutorError>:
+        let (spirv, request) = dispatch_request_from_sidecars(shader_bundle_path, compute_residency_path, compute_key)?
+        (*_self).run_dispatch_request(&spirv, &request)
+
+    pub fn run_dispatch_request(_self: &VulkanComputeExecutor, spirv: &[u8], request: &GpuDispatchRequest) -> Result<GpuDispatchResult, ComputeExecutorError>:
+        let shader_words = bytes_to_words(spirv)?
+        let module_info = ShaderModuleCreateInfo__builder().code(&shader_words)
+        let shader_module = (*_self).device.create_shader_module(&module_info, none).map_err(fn(__kain_closure_arg6): ComputeExecutorError::CreateShaderModule(__kain_closure_arg6))?
+        let buffers: Array<GpuBuffer<_>> = (*request).bindings.iter().enumerate().map(fn(__kain_closure_arg7): (*_self).create_buffer(__kain_closure_arg7.__kain_tuple_0, __kain_closure_arg7.__kain_tuple_1)).collect()?
+        let mut resources = ExecutionResources__new_(&(*_self).device, (*_self).command_pool)
+        resources.shader_module = Option::Some(shader_module)
+        ()
+        let mut sorted_bindings = (*request).bindings.iter().collect()
+        sorted_bindings.sort_by_key(fn(binding): binding.binding_slot)
+        ()
+        let layout_bindings: Array<_> = sorted_bindings.iter().map(fn(binding): DescriptorSetLayoutBinding__builder().binding(binding.binding_slot).descriptor_type(binding.descriptor_kind.descriptor_type()).descriptor_count(1).stage_flags(ash__vk__ShaderStageFlags__COMPUTE).build()).collect()
+        let set_layout_info = DescriptorSetLayoutCreateInfo__builder().bindings(&layout_bindings)
+        let descriptor_set_layout = (*_self).device.create_descriptor_set_layout(&set_layout_info, none).map_err(fn(__kain_closure_arg8): ComputeExecutorError::CreateDescriptorSetLayout(__kain_closure_arg8))?
+        resources.descriptor_set_layout = Option::Some(descriptor_set_layout)
+        ()
+        let set_layouts = [descriptor_set_layout]
+        let pipeline_layout_info = PipelineLayoutCreateInfo__builder().set_layouts(&set_layouts)
+        let pipeline_layout = (*_self).device.create_pipeline_layout(&pipeline_layout_info, none).map_err(fn(__kain_closure_arg9): ComputeExecutorError::CreatePipelineLayout(__kain_closure_arg9))?
+        resources.pipeline_layout = Option::Some(pipeline_layout)
+        ()
+        let entry_name = CString__new_((*request).entry_point.as_str()).map_err(fn(_): ComputeExecutorError__InvalidShaderEntryName)?
+        let stage = PipelineShaderStageCreateInfo__builder().stage(ash__vk__ShaderStageFlags__COMPUTE).module(shader_module).name(&entry_name)
+        let pipeline_info = ComputePipelineCreateInfo__builder().stage((*stage)).layout(pipeline_layout)
+        let compute_pipelines = (*_self).device.create_compute_pipelines(PipelineCache__null(), &[(*pipeline_info)], none).map_err(fn(__kain_closure_arg10): ComputeExecutorError::CreateComputePipeline(__kain_closure_arg10.__kain_tuple_1))?
+        let pipeline = compute_pipelines[0]
+        resources.pipeline = Option::Some(pipeline)
+        ()
+        let pool_sizes: Array<_> = layout_bindings.iter().map(fn(binding): ash::vk::DescriptorPoolSize { ty: binding.descriptor_type, descriptor_count: 1 }).collect()
+        let descriptor_pool_info = DescriptorPoolCreateInfo__builder().pool_sizes(&pool_sizes).max_sets(1)
+        let descriptor_pool = (*_self).device.create_descriptor_pool(&descriptor_pool_info, none).map_err(fn(__kain_closure_arg11): ComputeExecutorError::CreateDescriptorPool(__kain_closure_arg11))?
+        resources.descriptor_pool = Option::Some(descriptor_pool)
+        ()
+        let alloc_info = DescriptorSetAllocateInfo__builder().descriptor_pool(descriptor_pool).set_layouts(&set_layouts)
+        let descriptor_set = ((*_self).device.allocate_descriptor_sets(&alloc_info).map_err(fn(__kain_closure_arg12): ComputeExecutorError::AllocateDescriptorSets(__kain_closure_arg12))?)[0]
+        let mut buffer_refs = (*request).bindings.iter().zip(buffers.iter()).collect()
+        buffer_refs.sort_by_key(fn(__kain_closure_arg13): __kain_closure_arg13.__kain_tuple_0.binding_slot)
+        ()
+        let buffer_infos: Array<_> = buffer_refs.iter().map(fn(__kain_closure_arg14): DescriptorBufferInfo__builder().buffer(__kain_closure_arg14.__kain_tuple_1.buffer).offset(0).range(__kain_closure_arg14.__kain_tuple_1.size).build()).collect()
+        let writes: Array<_> = buffer_refs.iter().enumerate().map(fn(__kain_closure_arg15): WriteDescriptorSet__builder().dst_set(descriptor_set).dst_binding(__kain_closure_arg15.__kain_tuple_1.__kain_tuple_0.binding_slot).descriptor_type(__kain_closure_arg15.__kain_tuple_1.__kain_tuple_0.descriptor_kind.descriptor_type()).buffer_info(std__slice__from_ref(&buffer_infos[__kain_closure_arg15.__kain_tuple_0])).build()).collect()
+        (*_self).device.update_descriptor_sets(&writes, &[])
+        ()
+        let command_buffer_info = CommandBufferAllocateInfo__builder().command_pool((*_self).command_pool).level(ash__vk__CommandBufferLevel__PRIMARY).command_buffer_count(1)
+        let command_buffer = ((*_self).device.allocate_command_buffers(&command_buffer_info).map_err(fn(__kain_closure_arg16): ComputeExecutorError::AllocateCommandBuffers(__kain_closure_arg16))?)[0]
+        resources.command_buffer = Option::Some(command_buffer)
+        ()
+        let begin_info = CommandBufferBeginInfo__builder().flags(ash__vk__CommandBufferUsageFlags__ONE_TIME_SUBMIT)
+        (*_self).device.begin_command_buffer(command_buffer, &begin_info).map_err(fn(__kain_closure_arg17): ComputeExecutorError::BeginCommandBuffer(__kain_closure_arg17))?
+        ()
+        (*_self).device.cmd_bind_pipeline(command_buffer, ash__vk__PipelineBindPoint__COMPUTE, pipeline)
+        ()
+        (*_self).device.cmd_bind_descriptor_sets(command_buffer, ash__vk__PipelineBindPoint__COMPUTE, pipeline_layout, 0, &[descriptor_set], &[])
+        ()
+        (*_self).device.cmd_dispatch(command_buffer, dispatch_group_count((*request).dispatch_size[0], (*request).workgroup_size[0]), dispatch_group_count((*request).dispatch_size[1], (*request).workgroup_size[1]), dispatch_group_count((*request).dispatch_size[2], (*request).workgroup_size[2]))
+        ()
+        let barrier = MemoryBarrier__builder().src_access_mask(ash__vk__AccessFlags__SHADER_WRITE).dst_access_mask(ash__vk__AccessFlags__HOST_READ).build()
+        (*_self).device.cmd_pipeline_barrier(command_buffer, ash__vk__PipelineStageFlags__COMPUTE_SHADER, ash__vk__PipelineStageFlags__HOST, DependencyFlags__empty(), &[barrier], &[], &[])
+        ()
+        (*_self).device.end_command_buffer(command_buffer).map_err(fn(__kain_closure_arg18): ComputeExecutorError::EndCommandBuffer(__kain_closure_arg18))?
+        ()
+        let submit_info = SubmitInfo__builder().command_buffers(std__slice__from_ref(&command_buffer))
+        (*_self).device.queue_submit((*_self).queue, &[(*submit_info)], Fence__null()).map_err(fn(__kain_closure_arg19): ComputeExecutorError::QueueSubmit(__kain_closure_arg19))?
+        ()
+        (*_self).device.queue_wait_idle((*_self).queue).map_err(fn(__kain_closure_arg20): ComputeExecutorError::QueueWaitIdle(__kain_closure_arg20))?
+        ()
+        let mut output_bindings = Vec__new_()
+        for selfhost_for_item in (*request).bindings.iter().zip(buffers.iter()):
+            let (binding, buffer) = selfhost_for_item
+            if binding.access.is_output():
+                let output = (*_self).read_buffer_bytes(buffer, binding.bytes.len())?
+                output_bindings.push((binding.binding_slot, output))
+                ()
+        ()
+        Result::Ok(GpuDispatchResult { dispatch_invocations: (*request).dispatch_size.iter().map(fn(value): (*value) as u64).product(), output_bindings: output_bindings, tensor_binding_count: (*request).tensor_binding_count, stream_binding_count: (*request).stream_binding_count, neural_node_count: (*request).neural_node_count })
+
+    pub fn run_compute_case(_self: &VulkanComputeExecutor, spirv: &[u8], entry_name: String, case_: &ComputeCase) -> Result<Array<u8>, ComputeExecutorError>:
+        let request = GpuDispatchRequest { module_name: entry_name.to_string(), entry_point: entry_name.to_string(), workgroup_size: [DEFAULT_WORKGROUP_SIZE_X, 1, 1], dispatch_size: [case_.invocation_count.max(1), 1, 1], bindings: case_.bindings.iter().enumerate().map(fn(__kain_closure_arg21): GpuDispatchBinding { key: f"binding_{__kain_closure_arg21.__kain_tuple_0}", binding_slot: __kain_closure_arg21.__kain_tuple_0 as u32, descriptor_kind: __kain_closure_arg21.__kain_tuple_1.kind(), access: if (__kain_closure_arg21.__kain_tuple_0 == case_.output_binding): GpuBindingAccess__Write else: GpuBindingAccess__Read, bytes: __kain_closure_arg21.__kain_tuple_1.to_bytes(), element_type: ("f32").to_string(), shape: [case_.invocation_count.max(1) as i64], strides: [1] }).collect(), tensor_binding_count: 0, stream_binding_count: 0, neural_node_count: 0 }
+        let result = (*_self).run_dispatch_request(spirv, &request)?
+        result.output_bindings.into_iter().find(fn(__kain_closure_arg22): ((*__kain_closure_arg22.__kain_tuple_0) == case_.output_binding as u32)).map(fn(__kain_closure_arg23): __kain_closure_arg23.__kain_tuple_1).ok_or(ComputeExecutorError::OutputBindingOutOfRange { binding: case_.output_binding, len: case_.bindings.len() })
+
+    fn create_buffer<a>(_self: &VulkanComputeExecutor, binding_index: usize, binding: &GpuDispatchBinding) -> Result<GpuBuffer<a>, ComputeExecutorError>:
+        if (*binding).bytes.is_empty():
+            return Result::Err(ComputeExecutorError::EmptyBindingPayload { binding: binding_index })
+        let size = (*binding).bytes.len() as ash::vk::DeviceSize
+        let buffer_info = BufferCreateInfo__builder().size(size).usage((*binding).descriptor_kind.buffer_usage()).sharing_mode(ash__vk__SharingMode__EXCLUSIVE)
+        let buffer = (*_self).device.create_buffer(&buffer_info, none).map_err(fn(__kain_closure_arg24): ComputeExecutorError::CreateBuffer(__kain_closure_arg24))?
+        let requirements = (*_self).device.get_buffer_memory_requirements(buffer)
+        let memory_type_index = (*_self).find_memory_type_index(requirements.memory_type_bits, (ash__vk__MemoryPropertyFlags__HOST_VISIBLE | ash__vk__MemoryPropertyFlags__HOST_COHERENT)).ok_or(ComputeExecutorError__NoSuitableMemoryType)?
+        let alloc_info = MemoryAllocateInfo__builder().allocation_size(requirements.size).memory_type_index(memory_type_index)
+        let memory = (*_self).device.allocate_memory(&alloc_info, none).map_err(fn(__kain_closure_arg25): ComputeExecutorError::AllocateMemory(__kain_closure_arg25))?
+        (*_self).device.bind_buffer_memory(buffer, memory, 0).map_err(fn(__kain_closure_arg26): ComputeExecutorError::BindBufferMemory(__kain_closure_arg26))?
+        ()
+        let mapped = (*_self).device.map_memory(memory, 0, requirements.size, MemoryMapFlags__empty()).map_err(fn(__kain_closure_arg27): ComputeExecutorError::MapMemory(__kain_closure_arg27))? as ptr_mut<u8>
+        let mapped_len = device_size_to_usize(requirements.size).map_err(fn(_): ComputeExecutorError::DeviceSizeTooLarge { size: requirements.size })?
+        std__ptr__write_bytes(mapped, 0, mapped_len)
+        ()
+        mapped.copy_from_nonoverlapping((*binding).bytes.as_ptr(), (*binding).bytes.len())
+        ()
+        (*_self).device.unmap_memory(memory)
+        ()
+        Result::Ok(GpuBuffer { device: &(*_self).device, buffer: buffer, memory: memory, size: requirements.size })
+
+    fn read_buffer_bytes(_self: &VulkanComputeExecutor, buffer: &GpuBuffer<_>, byte_len: usize) -> Result<Array<u8>, ComputeExecutorError>:
+        let buffer_len = device_size_to_usize((*buffer).size).map_err(fn(_): ComputeExecutorError::DeviceSizeTooLarge { size: (*buffer).size })?
+        if (buffer_len < byte_len):
+            return Result::Err(ComputeExecutorError::OutputBindingOutOfRange { binding: 0, len: buffer_len })
+        let mapped = (*_self).device.map_memory((*buffer).memory, 0, (*buffer).size, MemoryMapFlags__empty()).map_err(fn(__kain_closure_arg28): ComputeExecutorError::MapMemory(__kain_closure_arg28))? as ptr<u8>
+        let data = std__slice__from_raw_parts(mapped, byte_len).to_vec()
+        (*_self).device.unmap_memory((*buffer).memory)
+        ()
+        Result::Ok(data)
+
+    fn find_memory_type_index(_self: &VulkanComputeExecutor, type_bits: u32, required: ash::vk::MemoryPropertyFlags) -> Option<u32>:
+        let props = (*_self).instance.get_physical_device_memory_properties((*_self).physical_device)
+        for index in range(0, props.memory_type_count):
+            let bit = (1 << index)
+            let memory_type = props.memory_types[index as usize]
+            if ((((type_bits & bit)) != 0) && memory_type.property_flags.contains(required)):
+                return Option::Some(index)
+        ()
+        none
+
+
+impl Drop for VulkanComputeExecutor:
+    fn drop(_self: &mut VulkanComputeExecutor):
+        let _ = (*_self).device.device_wait_idle()
+        (*_self).device.destroy_command_pool((*_self).command_pool, none)
+        ()
+        (*_self).device.destroy_device(none)
+        ()
+        (*_self).instance.destroy_instance(none)
+        ()
+
+
+@no_mangle
+pub fn kain_gpu_runtime_create(_config: ptr<GpuComputeExecutorConfig>) -> ptr_mut<std::ffi::c_void>:
+    match VulkanComputeExecutor__try_new():
+        Ok(executor) => Box__into_raw(Box__new_(executor)) as ptr_mut<std::ffi::c_void>
+        Err(_) => std__ptr__null_mut()
+
+@no_mangle
+pub fn kain_gpu_runtime_destroy(handle: ptr_mut<std::ffi::c_void>):
+    if handle.is_null():
+        return
+    drop(Box__from_raw(handle as ptr_mut<VulkanComputeExecutor>))
+    ()
+
+@no_mangle
+pub fn kain_gpu_runtime_dispatch_primary_compute(handle: ptr_mut<std::ffi::c_void>, request: ptr<GpuRuntimeDispatchRequest>, out_result: ptr_mut<GpuRuntimeDispatchResult>) -> i32:
+    let Some(result) = (*out_result)
+    (*result) = empty_dispatch_result()
+    ()
+    if (handle.is_null() || request.is_null()):
+        write_result_message(result, "runtime handle or request was null")
+        ()
+        return (-1)
+    let executor = &(*(handle as ptr_mut<VulkanComputeExecutor>))
+    let request = &(*request)
+    let shader_bundle_path = match c_string_arg((*request).shader_bundle_path):
+        Ok(value) => PathBuf__from(value)
+        Err(err) =>
+            write_result_message(result, &err.to_string())
+            ()
+            return (-1)
+    let compute_residency_path = match c_string_arg((*request).compute_residency_path):
+        Ok(value) => PathBuf__from(value)
+        Err(err) =>
+            write_result_message(result, &err.to_string())
+            ()
+            return (-1)
+    let compute_key = match c_string_arg((*request).compute_key):
+        Ok(value) => value
+        Err(err) =>
+            write_result_message(result, &err.to_string())
+            ()
+            return (-1)
+    match executor.dispatch_from_sidecars(&shader_bundle_path, &compute_residency_path, &compute_key):
+        Ok(dispatch) =>
+            result.status_code = 0
+            ()
+            result.dispatch_invocations = dispatch.dispatch_invocations
+            ()
+            result.tensor_binding_count = dispatch.tensor_binding_count as u32
+            ()
+            result.stream_binding_count = dispatch.stream_binding_count as u32
+            ()
+            result.neural_node_count = dispatch.neural_node_count as u32
+            ()
+            write_result_message(result, "dispatch ok")
+            ()
+            0
+        Err(err) =>
+            result.status_code = (-1)
+            ()
+            write_result_message(result, &err.to_string())
+            ()
+            (-1)
+
+fn dispatch_request_from_sidecars(shader_bundle_path: &std::path::Path, compute_residency_path: &std::path::Path, compute_key: String) -> Result<(Array<u8>, GpuDispatchRequest), ComputeExecutorError>:
+    let shader_bundle_json = std__fs__read_to_string(shader_bundle_path).map_err(fn(err): ComputeExecutorError::ReadFile { path: shader_bundle_path.display().to_string(), message: err.to_string() })?
+    let shader_bundle = kain_core__shader_artifact_bundle_from_json(&shader_bundle_json).map_err(fn(err): ComputeExecutorError::ParseShaderBundle { path: shader_bundle_path.display().to_string(), message: err.to_string() })?
+    let residency_json = std__fs__read_to_string(compute_residency_path).map_err(fn(err): ComputeExecutorError::ReadFile { path: compute_residency_path.display().to_string(), message: err.to_string() })?
+    let residency: ComputeResidencyBundle = serde_json__from_str(&residency_json).map_err(fn(err): ComputeExecutorError::ParseComputeResidency { path: compute_residency_path.display().to_string(), message: err.to_string() })?
+    let entry = residency.compute_shaders.iter().find(fn(entry): (entry.key == compute_key)).ok_or_else(fn(): ComputeExecutorError::MissingComputeKey { compute_key: compute_key.to_string(), path: compute_residency_path.display().to_string() })?
+    let module = shader_bundle.spirv_modules.iter().find(fn(module): (module.module_name == entry.module_name)).ok_or_else(fn(): ComputeExecutorError::MissingSpirvModule { module_name: entry.module_name.clone(), path: shader_bundle_path.display().to_string() })?
+    let spirv = decode_hex(&module.bytes_hex).map_err(fn(message): ComputeExecutorError::InvalidSpirvHex { module_name: entry.module_name.clone(), message: message })?
+    let residency_root = compute_residency_path.parent().unwrap_or_else(fn(): Path__new_("."))
+    let mut bindings = (fn(__kain_ctor_arg0): Vec__new_())(entry.bindings.len())
+    for binding in &entry.bindings:
+        let payload_path = residency_root.join(&binding.payload_file)
+        let bytes = std__fs__read(&payload_path).map_err(fn(err): ComputeExecutorError::ReadFile { path: payload_path.display().to_string(), message: err.to_string() })?
+        if (binding.contract != "kain.shared.buffer"):
+            return Result::Err(ComputeExecutorError::UnsupportedSharedBufferContract { binding: binding.key.clone(), value: binding.contract.clone() })
+        let metadata = kain_interop::SharedBufferMetadata { element_type: binding.element_type.clone(), element_size: infer_element_size(&binding.element_type), shape: binding.shape.clone(), strides: binding.strides.clone(), format: Option::Some(binding.element_type.clone()), mime_type: Option::Some(("application/octet-stream").to_string()), source_runtime: ("compute-residency").to_string(), source_backend: Option::Some(residency.target.clone()), ownership: ("owned").to_string(), labels: [binding.key.clone()] }
+        let shared_ = KainSharedBuffer__owned(metadata, bytes.clone())
+        let descriptor_kind = parse_descriptor_kind(&binding.descriptor_kind)?
+        let access = parse_access_mode(&binding.access_mode)?
+        let view = kain_interop__shared_buffer_gpu_binding_view(&shared_, none, none).map_err(fn(err): ComputeExecutorError::InvalidSharedBufferBinding { binding: binding.key.clone(), message: err.to_string() })?
+        bindings.push(GpuDispatchBinding { key: binding.key.clone(), binding_slot: binding.slot, descriptor_kind: descriptor_kind, access: access, bytes: bytes, element_type: binding.element_type.clone(), shape: binding.shape.clone(), strides: binding.strides.clone() })
+        ()
+    ()
+    Result::Ok((spirv, GpuDispatchRequest { module_name: entry.module_name.clone(), entry_point: entry.entry_point.clone(), workgroup_size: entry.workgroup_size.unwrap_or([DEFAULT_WORKGROUP_SIZE_X, 1, 1]), dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]), bindings: bindings, tensor_binding_count: entry.tensor_binding_count, stream_binding_count: entry.stream_binding_count, neural_node_count: entry.neural_node_count }))
+
+fn parse_descriptor_kind(value: String) -> Result<GpuDescriptorKind, ComputeExecutorError>:
+    match value:
+        "storage_buffer" => Result::Ok(GpuDescriptorKind__StorageBuffer)
+        "uniform_buffer" => Result::Ok(GpuDescriptorKind__UniformBuffer)
+        other => Result::Err(ComputeExecutorError::UnsupportedDescriptorKind { value: other.to_string() })
+
+fn parse_access_mode(value: String) -> Result<GpuBindingAccess, ComputeExecutorError>:
+    match value:
+        "read" => Result::Ok(GpuBindingAccess__Read)
+        "write" => Result::Ok(GpuBindingAccess__Write)
+        "read_write" => Result::Ok(GpuBindingAccess__ReadWrite)
+        other => Result::Err(ComputeExecutorError::UnsupportedAccessMode { value: other.to_string() })
+
+fn infer_element_size(element_type: String) -> i64:
+    match element_type:
+        "u8" => 1
+        "i8" => 1
+        "bool" => 1
+        "u16" => 2
+        "i16" => 2
+        "u32" => 4
+        "i32" => 4
+        "f32" => 4
+        "u64" => 8
+        "i64" => 8
+        "f64" => 8
+        "vec2<f32>" => 8
+        "vec2<i32>" => 8
+        "vec2<u32>" => 8
+        "vec3<f32>" => 12
+        "vec3<i32>" => 12
+        "vec3<u32>" => 12
+        "vec4<f32>" => 16
+        "vec4<i32>" => 16
+        "vec4<u32>" => 16
+        _ => 4
+
+fn c_string_arg(raw: ptr<std::ffi::c_char>) -> Result<String, ComputeExecutorError>:
+    if raw.is_null():
+        return Result::Err(ComputeExecutorError::ReadFile { path: ("<null>").to_string(), message: ("null c string").to_string() })
+    CStr__from_ptr(raw).to_str().map(fn(value): value.to_string()).map_err(fn(err): ComputeExecutorError::ReadFile { path: ("<c-string>").to_string(), message: err.to_string() })
+
+fn empty_dispatch_result() -> GpuRuntimeDispatchResult:
+    GpuRuntimeDispatchResult { status_code: (-1), dispatch_invocations: 0, tensor_binding_count: 0, stream_binding_count: 0, neural_node_count: 0, message: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+
+fn write_result_message(result: &mut GpuRuntimeDispatchResult, message: String):
+    let bytes = message.as_bytes()
+    let len = bytes.len().min((*result).message.len().saturating_sub(1))
+    for item in &mut (*result).message:
+        (*item) = 0
+        ()
+    ()
+    for selfhost_for_item in bytes.iter().take(len).enumerate():
+        let (index, byte) = selfhost_for_item
+        (*result).message[index] = (*byte) as std::ffi::c_char
+        ()
+
+fn dispatch_group_count(dispatch: u32, workgroup: u32) -> u32:
+    let safe_dispatch = dispatch.max(1)
+    let safe_workgroup = workgroup.max(1)
+    (((((safe_dispatch - 1)) / safe_workgroup)) + 1)
+
+fn decode_hex(input: String) -> Result<Array<u8>, String>:
+    if ((input.len() % 2) != 0):
+        return Result::Err(("hex length must be even").to_string())
+    let mut bytes = (fn(__kain_ctor_arg0): Vec__new_())((input.len() / 2))
+    for chunk in input.as_bytes().chunks_exact(2):
+        let value = std__str__from_utf8(chunk).map_err(fn(err): err.to_string()).and_then(fn(pair): u8__from_str_radix(pair, 16).map_err(fn(err): err.to_string()))?
+        bytes.push(value)
+        ()
+    ()
+    Result::Ok(bytes)
+
+fn bytes_to_words(bytes: &[u8]) -> Result<Array<u32>, ComputeExecutorError>:
+    if ((bytes.len() % 4) != 0):
+        return Result::Err(ComputeExecutorError::SpirvMisaligned { len: bytes.len() })
+    Result::Ok(bytes.chunks_exact(4).map(fn(chunk): u32__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])).collect())
+
+fn device_size_to_usize(size: ash::vk::DeviceSize) -> Result<usize, ()>:
+    usize__try_from(size).map_err(fn(_): ())
+

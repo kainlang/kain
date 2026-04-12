@@ -1,5 +1,47 @@
 # MEMORY
 
+## 2026-04-12 - selfhost can now mirror every workspace crate with `--all-crates`
+
+The selfhost mirror tree no longer has to stop at the profile's bounded phase slices when the operator wants a whole-workspace source dump. `kain selfhost phase1` and `phase2` now accept `--all-crates`, which discovers every `crates/*/Cargo.toml` directory at runtime, drives the same file-preserving mirror pipeline over that live crate set, and records the selection mode in the emitted report.
+
+What changed:
+
+- Reworked `crates/cli/src/selfhost.rs`
+  - Added `--all-crates` to both selfhost phases.
+  - Phase crate selection is now overridable by live workspace discovery from `repo_root/crates/*/Cargo.toml` instead of only the profile/module-map slices.
+  - Added focused tests covering sorted crate discovery and the override behavior.
+- Updated `crates/cli/src/selfhost_report.rs`
+  - Reports and markdown summaries now record `all_crates_mode` so forced whole-workspace sweeps are explicit evidence artifacts instead of inferred behavior.
+- Updated `ARCHITECTURE.md`
+  - Added the canonical whole-workspace mirror command for future operators and agents.
+
+Validation:
+
+- `cargo test -p cli --lib discover_all_workspace_crates_lists_sorted_cargo_directories -- --nocapture`
+- `cargo test -p cli --lib resolve_crates_for_phase_prefers_all_crates_override -- --nocapture`
+- `cargo test -p cli --lib default_profile_maps_phase_slices -- --nocapture`
+- `cargo test -p cli --lib build_file_mirror_plans_preserves_file_level_paths -- --nocapture`
+- `cargo test -p cli --lib write_roundtrip_rust_tree_splits_inline_modules_into_real_files -- --nocapture`
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir ouroboros/out/selfhost/phase2_all_crates_repo_src --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force --all-crates`
+  - Mirrored 36 workspace crates into repo-root `src/` as 269 `.kn` files.
+  - 23 crates imported cleanly enough to mirror under strict mode; 13 still hard-failed.
+  - Dominant strict blocker families in the wide sweep were `trait_surface_lowering` (24 diagnostics), `trait_object_lowering` (13), `extern_crate_decl` (4), and `array_repeat_lowering` (4).
+  - Representative failing crates in the wide sweep were `cli`, `kain-3D`, `kain-host`, `kain-ui-native`, and `ue5-editor`.
+
+Design decisions:
+
+- Kept `--all-crates` as a CLI override instead of mutating the default profile slices so the bounded repair lane stays stable and the workspace-wide source dump stays opt-in.
+- Discovery keys off real `Cargo.toml` directories under `crates/` because the selfhost pipeline is path-preserving around the repo's crate folder names, not Cargo package metadata aliases.
+
+Current risks:
+
+- The whole-workspace sweep is structurally correct now, but it is still a mirror-first bootstrap artifact set rather than a green selfhost compile lane.
+- Trait-surface and trait-object support remain the main semantic blockers across the newly imported crates.
+
+Recommended next step:
+
+- Triage the wide-sweep failures by diagnostic family rather than crate count. `trait_surface_lowering` and `trait_object_lowering` now dominate enough of the remaining frontier that they should be attacked as importer policy families, not one crate at a time.
+
 ## 2026-04-12 - selfhost now emits a profile-driven file mirror tree and can keep partial artifacts under `--force`
 
 The selfhost lane is no longer structurally centered on one generated `.kn` per crate. It now emits a file-preserving Kain mirror tree, a source-correspondence manifest, split roundtrip Rust trees, and a stage2 workspace assembled from those per-file artifacts. The CLI also now has a `--force` mode so phase runs keep later artifacts instead of aborting on the first crate that fails.

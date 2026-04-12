@@ -1,0 +1,19 @@
+use ue5_graphs::GraphEditor
+
+use ue5_graphs::runtime_codegen::InstanceGenerator
+
+fn main():
+    let graph = GraphEditor__new_("TestGraph")
+    let gen = InstanceGenerator__new_(&graph, "TestPlugin")
+    let header = gen.generate_instance_header().unwrap()
+    println(&header[..(500).min(header.len())])
+    if header.contains("class UTestGraphInstance"):
+        println("\n✓ Contains 'class UTestGraphInstance'")
+    else:
+        println("\n✗ Does NOT contain 'class UTestGraphInstance'")
+        match header.find("class U"):
+            Some(pos) =>
+                let snippet = &header[pos..(pos + (50).min((header.len() - pos)))]
+                println(f"Found instead: {snippet}")
+            _ => ()
+

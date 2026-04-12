@@ -1,0 +1,75 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+pub enum PropertyValue:
+    Bool(Bool)
+    Int(i32)
+    Int64(i64)
+    Float(f32)
+    Double(f64)
+    Str(String)
+    Name(String)
+    SoftObject(String)
+    ObjectRef(String)
+    Vector { x: f32, y: f32, z: f32 }
+    Rotator { pitch: f32, yaw: f32, roll: f32 }
+    LinearColor { r: f32, g: f32, b: f32, a: f32 }
+    Enum { enum_type: String, value: String }
+    Text(String)
+    Array { inner_type: String, values: Array<PropertyValue> }
+    Struct { struct_type: String, fields: Array<PropertyDef> }
+
+@doc(doc = " One tagged property: name + value.")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct PropertyDef:
+    name: String
+    value: PropertyValue
+
+impl PropertyDef:
+    pub fn new_(name: impl Into<String>, value: PropertyValue) -> PropertyDef:
+        PropertyDef { name: name.into(), value: value }
+
+    pub fn bool_(name: impl Into<String>, v: Bool) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Bool(v))
+
+    pub fn int_(name: impl Into<String>, v: i32) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Int(v))
+
+    pub fn int64(name: impl Into<String>, v: i64) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Int64(v))
+
+    pub fn float_(name: impl Into<String>, v: f32) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Float(v))
+
+    pub fn double_(name: impl Into<String>, v: f64) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Double(v))
+
+    pub fn str(name: impl Into<String>, v: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Str(v.into()))
+
+    pub fn name_prop(name: impl Into<String>, v: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Name(v.into()))
+
+    pub fn soft_object(name: impl Into<String>, path: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::SoftObject(path.into()))
+
+    pub fn object_ref(name: impl Into<String>, path: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::ObjectRef(path.into()))
+
+    pub fn vector(name: impl Into<String>, x: f32, y: f32, z: f32) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Vector { x: x, y: y, z: z })
+
+    pub fn rotator(name: impl Into<String>, pitch: f32, yaw: f32, roll: f32) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Rotator { pitch: pitch, yaw: yaw, roll: roll })
+
+    pub fn color(name: impl Into<String>, r: f32, g: f32, b: f32, a: f32) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::LinearColor { r: r, g: g, b: b, a: a })
+
+    pub fn enum_val(name: impl Into<String>, enum_type: impl Into<String>, value: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Enum { enum_type: enum_type.into(), value: value.into() })
+
+    pub fn text(name: impl Into<String>, v: impl Into<String>) -> PropertyDef:
+        PropertyDef__new_(name, PropertyValue::Text(v.into()))
+
+

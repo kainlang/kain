@@ -1,0 +1,112 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+@doc(doc = " Complete graph editor definition")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct GraphEditor:
+    name: String
+    node_types: Array<NodeType>
+    schema: GraphSchema
+    properties: GraphProperties
+
+@doc(doc = " Node type definition")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct NodeType:
+    name: String
+    category: String
+    inputs: Array<PinDefinition>
+    outputs: Array<PinDefinition>
+    properties: Array<PropertyDefinition>
+    color: Option<[f32; 4]>
+    icon: Option<String>
+    tooltip: Option<String>
+    execution_logic: Option<String>
+
+@doc(doc = " Property definition for node properties")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct PropertyDefinition:
+    name: String
+    property_type: String
+    default_value: Option<String>
+
+@doc(doc = " Pin definition")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct PinDefinition:
+    name: String
+    pin_type: PinType
+    is_array: Bool
+    default_value: Option<String>
+    tooltip: Option<String>
+
+pub enum PinType:
+    Exec
+    Bool
+    Int
+    Float
+    String
+    Object(String)
+    Struct(String)
+    Enum(String)
+    Wildcard
+
+@doc(doc = " Graph schema definition")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct GraphSchema:
+    allowed_connections: Array<ConnectionRule>
+    context_actions: Array<ContextAction>
+    validation_rules: Array<ValidationRule>
+
+@doc(doc = " Connection rule")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ConnectionRule:
+    from: PinType
+    to: PinType
+    allowed: Bool
+    error_message: Option<String>
+
+@doc(doc = " Context menu action")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ContextAction:
+    label: String
+    category: String
+    tooltip: Option<String>
+    implementation: String
+
+@doc(doc = " Validation rule")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ValidationRule:
+    name: String
+    description: String
+    implementation: String
+
+@doc(doc = " Graph-level properties")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct GraphProperties:
+    allow_multiple_input_connections: Bool
+    allow_multiple_output_connections: Bool
+    allow_cycles: Bool
+    grid_snap_size: i32
+
+impl Default for GraphProperties:
+    fn default_() -> GraphProperties:
+        GraphProperties { allow_multiple_input_connections: false, allow_multiple_output_connections: true, allow_cycles: false, grid_snap_size: 16 }
+
+
+impl GraphEditor:
+    pub fn new_(name: impl Into<String>) -> GraphEditor:
+        GraphEditor { name: name.into(), node_types: Vec__new_(), schema: GraphSchema__default_(), properties: GraphProperties__default_() }
+
+    pub fn add_node_type(_self: &mut GraphEditor, node_type: NodeType):
+        (*_self).node_types.push(node_type)
+        ()
+
+    pub fn find_node_type(_self: &GraphEditor, name: String) -> Option<&NodeType>:
+        (*_self).node_types.iter().find(fn(nt): (nt.name == name))
+
+
+impl Default for GraphSchema:
+    fn default_() -> GraphSchema:
+        GraphSchema { allowed_connections: [ConnectionRule { from: PinType__Exec, to: PinType__Exec, allowed: true, error_message: none }, ConnectionRule { from: PinType__Bool, to: PinType__Bool, allowed: true, error_message: none }, ConnectionRule { from: PinType__Int, to: PinType__Int, allowed: true, error_message: none }, ConnectionRule { from: PinType__Float, to: PinType__Float, allowed: true, error_message: none }, ConnectionRule { from: PinType__String, to: PinType__String, allowed: true, error_message: none }], context_actions: Vec__new_(), validation_rules: Vec__new_() }
+
+

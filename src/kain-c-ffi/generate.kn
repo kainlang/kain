@@ -1,0 +1,373 @@
+use crate::model::BindingBundle
+
+use crate::model::BindingManifest
+
+use crate::model::BindingReport
+
+use crate::model::BridgeParam
+
+use crate::model::BridgeType
+
+use crate::model::CFunctionBinding
+
+use crate::model::GeneratedArtifacts
+
+use crate::model::HostBridgeModuleDescriptor
+
+use crate::model::HostBridgeServiceDescriptor
+
+use crate::model::ImportCOutput
+
+use crate::model::ItemStatus
+
+use crate::model::PackagedBridgeBinaryArtifact
+
+use crate::model::PackagedBridgeImport
+
+use crate::model::PackagedBridgeManifest
+
+use crate::model::PackagedBridgeSymbolDescriptor
+
+use crate::model::ResolvedCLibrary
+
+use heck::ToSnakeCase
+
+use kain_core::error::KainError
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+pub const BRIDGE_FORMAT_VERSION: String = "c-ffi-v1"
+
+pub const BRIDGE_SYMBOL_NAME: Array<u8> = [107, 97, 105, 110, 95, 114, 101, 103, 105, 115, 116, 101, 114, 95, 98, 114, 105, 100, 103, 101]
+
+pub const BINDING_MANIFEST_SCHEMA_VERSION: String = "kain-c-ffi-manifest-v1"
+
+pub const PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION: String = "kain-c-ffi-runtime-v1"
+
+pub fn write_generated_artifacts(resolved: &ResolvedCLibrary, bundle: &BindingBundle, cache_dir: &std::path::Path, output_dir_override: Option<&std::path::Path>) -> Result<(GeneratedArtifacts, ImportCOutput), kain_core::error::KainError>:
+    let generated_dir = output_dir_override.map(Path__to_path_buf).unwrap_or_else(fn(): cache_dir.to_path_buf())
+    std__fs__create_dir_all(&generated_dir).map_err(kain_core__error__KainError__Io)?
+    ()
+    let bridge_dir = cache_dir.join("bridge")
+    std__fs__create_dir_all(bridge_dir.join("src")).map_err(kain_core__error__KainError__Io)?
+    ()
+    let canonical_module_source = render_canonical_module_source(resolved, bundle)
+    let prelude_source = render_prelude_source(resolved, bundle)
+    let bridge_source = render_bridge_source(resolved, bundle)
+    let canonical_module_path = generated_dir.join(f"{(*resolved).import_name}.kn")
+    let prelude_path = generated_dir.join(f"{(*resolved).import_name}_prelude.kn")
+    let report_json_path = generated_dir.join(f"{(*resolved).import_name}_report.json")
+    let report_text_path = generated_dir.join(f"{(*resolved).import_name}_report.txt")
+    let manifest_json_path = generated_dir.join(f"{(*resolved).import_name}_binding_manifest.json")
+    let packaged_bridge_manifest_path = generated_dir.join(f"{(*resolved).import_name}_runtime_bridge.json")
+    let bridge_manifest_path = bridge_dir.join("Cargo.toml")
+    let bridge_source_path = bridge_dir.join("src").join("lib.rs")
+    let supported_targets = [("interpret").to_string(), ("rust").to_string(), ("test").to_string()]
+    let capabilities = collect_capabilities(bundle)
+    let report = BindingReport { library_name: (*resolved).import_name.clone(), parser_backend: ("kain-import.c + kain-c-ffi").to_string(), header_path: (*resolved).header_path.display().to_string(), shared_lib_path: (*resolved).shared_lib_path.map(fn(value): value.display().to_string()), cache_dir: cache_dir.display().to_string(), report_json_path: report_json_path.display().to_string(), report_text_path: report_text_path.display().to_string(), manifest_json_path: manifest_json_path.display().to_string(), supported_targets: supported_targets.clone(), capabilities: capabilities.clone(), entries: (*bundle).report_entries.clone(), source_fingerprints: (*bundle).source_fingerprints.clone() }
+    let binding_manifest = BindingManifest { schema_version: BINDING_MANIFEST_SCHEMA_VERSION.to_string(), library_name: (*resolved).import_name.clone(), parser_backend: report.parser_backend.clone(), supported_targets: supported_targets, capabilities: capabilities, generated_module: canonical_module_path.display().to_string(), generated_prelude: prelude_path.display().to_string(), entries: (*bundle).report_entries.clone() }
+    let packaged_bridge_import = build_packaged_bridge_import(resolved, bundle, &manifest_json_path, &report_json_path)
+    let packaged_bridge_manifest = PackagedBridgeManifest { schema_version: PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION.to_string(), lane: ("c").to_string(), imports: [packaged_bridge_import.clone()] }
+    let report_json = serde_json__to_string_pretty(&report).map_err(fn(err): KainError__runtime(f"Failed to serialize C FFI binding report for '{(*resolved).import_name}': {err}"))?
+    let report_text = render_report_text(&report)
+    let manifest_json = serde_json__to_string_pretty(&binding_manifest).map_err(fn(err): KainError__runtime(f"Failed to serialize C FFI binding manifest for '{(*resolved).import_name}': {err}"))?
+    let packaged_bridge_manifest_json = serde_json__to_string_pretty(&packaged_bridge_manifest).map_err(fn(err): KainError__runtime(f"Failed to serialize packaged C FFI bridge manifest for '{(*resolved).import_name}': {err}"))?
+    std__fs__write(&canonical_module_path, &canonical_module_source).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&prelude_path, &prelude_source).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&report_json_path, report_json).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&report_text_path, &report_text).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&manifest_json_path, &manifest_json).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&packaged_bridge_manifest_path, &packaged_bridge_manifest_json).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&bridge_manifest_path, render_bridge_manifest(resolved)).map_err(kain_core__error__KainError__Io)?
+    ()
+    std__fs__write(&bridge_source_path, &bridge_source).map_err(kain_core__error__KainError__Io)?
+    ()
+    let artifacts = GeneratedArtifacts { canonical_module_source: canonical_module_source.clone(), prelude_source: prelude_source.clone(), bridge_source: bridge_source, report: report, report_text: report_text, manifest_json: manifest_json, packaged_bridge_manifest_json: packaged_bridge_manifest_json }
+    let output = ImportCOutput { resolved: resolved.clone(), config_root: Option::Some((*resolved).manifest_root.clone()), c_ffi_config: Option::Some((*resolved).global_config.clone()), cache_dir: cache_dir.to_path_buf(), canonical_module_path: canonical_module_path, prelude_path: prelude_path, report_json_path: report_json_path, report_text_path: report_text_path, manifest_json_path: manifest_json_path, packaged_bridge_manifest_path: packaged_bridge_manifest_path, bridge_manifest_path: bridge_manifest_path, bridge_source_path: bridge_source_path, dylib_path: none, canonical_module_source: canonical_module_source, prelude_source: prelude_source, packaged_bridge_manifest: packaged_bridge_import, cache_hit: false }
+    Result::Ok((artifacts, output))
+
+fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String:
+    let mut output = String__new_()
+    output.push_str(&f"# Generated by kain-c-ffi for library {(*resolved).import_name}\n# Header: {(*resolved).header_path.display()}\n\n")
+    ()
+    output.push_str("mod c:\n")
+    ()
+    output.push_str(&f"    mod {(*resolved).import_name}:\n")
+    ()
+    for binding in &(*bundle).functions:
+        for alias in &binding.exported_aliases:
+            output.push_str("        @extern fn ")
+            ()
+            output.push_str(alias)
+            ()
+            output.push("(")
+            ()
+            for selfhost_for_item in binding.params.iter().enumerate():
+                let (index, param) = selfhost_for_item
+                if (index > 0):
+                    output.push_str(", ")
+                    ()
+                    ()
+                    ()
+                    ()
+                output.push_str(&f"{param.name}: {param.ty.render_kain()}")
+                ()
+            ()
+            output.push(")")
+            ()
+            if (!none):
+                output.push_str(&f" -> {binding.return_type.render_kain()}")
+                ()
+                ()
+                ()
+                ()
+            output.push("\n")
+            ()
+    ()
+    output
+
+fn render_prelude_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String:
+    let mut output = String__new_()
+    output.push_str(&f"# Generated import shim for C library {(*resolved).import_name}\n")
+    ()
+    for binding in &(*bundle).functions:
+        match binding.exported_aliases.get(1):
+            Some(prefixed) =>
+                output.push_str(&f"use c::{(*resolved).import_name}::{prefixed} as {prefixed}\n")
+                ()
+            _ => ()
+    ()
+    output
+
+fn render_bridge_manifest(resolved: &ResolvedCLibrary) -> String:
+    let repo_root = PathBuf__from(env!("CARGO_MANIFEST_DIR")).parent().and_then(fn(value): value.parent()).map(Path__to_path_buf).unwrap_or_else(fn(): (*resolved).manifest_root.clone())
+    let crate_name = bridge_crate_name(&(*resolved).import_name)
+    "[package]\nname = {crate_name}\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n[dependencies]\nkain-core = { path = {repo_root.join(\"crates\").join(\"kain-core\").display().to_string()} }\nkain-interop = { path = {repo_root.join(\"crates\").join(\"kain-interop\").display().to_string()} }\nlibloading = \"0.8\"\n\n[profile.dev]\ndebug = 0\npanic = \"unwind\"\n\n[workspace]\nresolver = \"2\"\n"
+
+fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String:
+    let shared_lib_file_name = (*resolved).shared_lib_path.and_then(fn(value): value.file_name()).and_then(fn(value): value.to_str()).unwrap_or_default().to_string()
+    let shared_lib_path = (*resolved).shared_lib_path.map(fn(value): value.display().to_string()).unwrap_or_default()
+    let shared_lib_env_var = "KAIN_C_FFI_SHARED_LIB_{(*resolved).import_name.replace(fn(ch: Char): (!ch.is_ascii_alphanumeric()), \"_\").to_ascii_uppercase()}"
+    let mut output = String__new_()
+    output.push_str("use kain_core::error::KainError;\n")
+    ()
+    output.push_str("use kain_core::runtime::{Env, Value};\n")
+    ()
+    output.push_str("use libloading::{Library, Symbol};\n")
+    ()
+    output.push_str("use std::ffi::{c_void, CStr, CString};\n")
+    ()
+    output.push_str("use std::path::PathBuf;\n")
+    ()
+    output.push_str("use std::sync::{Arc, RwLock};\n\n")
+    ()
+    output.push_str(&f"const SHARED_LIB_PATH: &str = {shared_lib_path};\nconst SHARED_LIB_FILE_NAME: &str = {shared_lib_file_name};\nconst SHARED_LIB_ENV_VAR: &str = {shared_lib_env_var};\n\n")
+    ()
+    output.push_str("#[derive(Clone)]\nstruct CAbiOpaqueHandle {\n    pointee: String,\n    mutable: bool,\n    address: usize,\n}\n\nstruct ByteBufferArg {\n    bytes: Vec<u8>,\n    writeback: Option<ByteBufferWriteback>,\n}\n\nenum ByteBufferWriteback {\n    SharedBuffer(Value),\n    SharedImage(Value),\n}\n\nimpl ByteBufferArg {\n    fn from_value(env: &mut Env, value: Value, mutable: bool) -> Result<Self, KainError> {\n        if value.host_object_label() == Some(\"kain.shared.image\") {\n            let snapshot = env.call_named_function(\n                \"kain_shared_image_bytes\",\n                vec![value.clone()],\n            )?;\n            return Ok(Self {\n                bytes: bytes_from_value(snapshot)?,\n                writeback: if mutable {\n                    Some(ByteBufferWriteback::SharedImage(value))\n                } else {\n                    None\n                },\n            });\n        }\n        if value.host_object_label() == Some(\"kain.shared.buffer\") {\n            let snapshot = env.call_named_function(\n                \"kain_shared_buffer_bytes\",\n                vec![value.clone()],\n            )?;\n            return Ok(Self {\n                bytes: bytes_from_value(snapshot)?,\n                writeback: if mutable {\n                    Some(ByteBufferWriteback::SharedBuffer(value))\n                } else {\n                    None\n                },\n            });\n        }\n        Ok(Self {\n            bytes: bytes_from_value(value)?,\n            writeback: None,\n        })\n    }\n\n    fn as_ptr(&self) -> *const u8 {\n        self.bytes.as_ptr()\n    }\n\n    fn as_mut_ptr(&mut self) -> *mut u8 {\n        self.bytes.as_mut_ptr()\n    }\n\n    fn commit(self, env: &mut Env) -> Result<(), KainError> {\n        match self.writeback {\n            Some(ByteBufferWriteback::SharedBuffer(buffer)) => {\n                env.call_named_function(\n                    \"kain_shared_buffer_replace_bytes\",\n                    vec![buffer, bytes_to_value(&self.bytes)],\n                )?;\n                Ok(())\n            }\n            Some(ByteBufferWriteback::SharedImage(image)) => {\n                env.call_named_function(\n                    \"kain_shared_image_replace_bytes\",\n                    vec![image, bytes_to_value(&self.bytes)],\n                )?;\n                Ok(())\n            }\n            None => Ok(()),\n        }\n    }\n}\n\nfn bytes_from_value(value: Value) -> Result<Vec<u8>, KainError> {\n    match value {\n        Value::Array(values) => values\n            .read()\n            .map_err(|_| KainError::runtime(\"Failed to read Kain byte array\".to_string()))?\n            .iter()\n            .map(|value| match value {\n                Value::Int(value) if (0..=255).contains(value) => Ok(*value as u8),\n                other => Err(KainError::runtime(format!(\n                    \"Expected byte-sized Int in array, got {other:?}\"\n                ))),\n            })\n            .collect(),\n        other => Err(KainError::runtime(format!(\n            \"Expected Array<Int> for byte buffer, got {other:?}\"\n        ))),\n    }\n}\n\nfn bytes_to_value(bytes: &[u8]) -> Value {\n    Value::Array(Arc::new(RwLock::new(\n        bytes.iter().map(|value| Value::Int(*value as i64)).collect(),\n    )))\n}\n\nfn extract_c_handle(\n    value: Value,\n    expected_pointee: &str,\n    allow_null: bool,\n) -> Result<*mut c_void, KainError> {\n    match value {\n        Value::None if allow_null => Ok(std::ptr::null_mut()),\n        other => {\n            let handle = other\n                .downcast_host_object::<CAbiOpaqueHandle>()\n                .ok_or_else(|| KainError::runtime(\"expected a C ABI opaque handle\".to_string()))?;\n            if expected_pointee != \"void\" && handle.pointee != expected_pointee {\n                return Err(KainError::runtime(format!(\n                    \"expected C ABI handle for {}, got {}\",\n                    expected_pointee, handle.pointee\n                )));\n            }\n            Ok(handle.address as *mut c_void)\n        }\n    }\n}\n\nfn bool_from_value(value: Value) -> Result<bool, KainError> {\n    match value {\n        Value::Bool(value) => Ok(value),\n        other => Err(KainError::runtime(format!(\"Expected Bool, got {other:?}\"))),\n    }\n}\n\nfn int_from_value(value: Value) -> Result<i64, KainError> {\n    match value {\n        Value::Int(value) => Ok(value),\n        other => Err(KainError::runtime(format!(\"Expected Int, got {other:?}\"))),\n    }\n}\n\nfn float_from_value(value: Value) -> Result<f64, KainError> {\n    match value {\n        Value::Float(value) => Ok(value),\n        Value::Int(value) => Ok(value as f64),\n        other => Err(KainError::runtime(format!(\"Expected Float, got {other:?}\"))),\n    }\n}\n\nfn string_from_value(value: Value) -> Result<String, KainError> {\n    match value {\n        Value::String(value) => Ok(value),\n        other => Err(KainError::runtime(format!(\"Expected String, got {other:?}\"))),\n    }\n}\n\nfn value_from_bool(value: bool) -> Value {\n    Value::Bool(value)\n}\n\nfn value_from_int(value: i64) -> Value {\n    Value::Int(value)\n}\n\nfn value_from_float(value: f64) -> Value {\n    Value::Float(value)\n}\n\nfn value_from_string(value: String) -> Value {\n    Value::String(value)\n}\n\nfn resolve_shared_library_path() -> Result<PathBuf, KainError> {\n    if let Ok(explicit) = std::env::var(SHARED_LIB_ENV_VAR) {\n        let candidate = PathBuf::from(explicit);\n        if candidate.exists() {\n            return Ok(candidate);\n        }\n    }\n    if !SHARED_LIB_FILE_NAME.is_empty() {\n        if let Some(current_exe_candidate) = std::env::current_exe()\n            .ok()\n            .and_then(|exe| exe.parent().map(|dir| dir.join(SHARED_LIB_FILE_NAME)))\n            .filter(|path| path.exists())\n        {\n            return Ok(current_exe_candidate);\n        }\n        let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\"))\n            .join(\"generated\")\n            .join(SHARED_LIB_FILE_NAME);\n        if manifest_candidate.exists() {\n            return Ok(manifest_candidate);\n        }\n    }\n    if !SHARED_LIB_PATH.is_empty() {\n        let configured = PathBuf::from(SHARED_LIB_PATH);\n        if configured.exists() {\n            return Ok(configured);\n        }\n    }\n    Err(KainError::runtime(format!(\n        \"Failed to resolve packaged C shared library for {} (env: {})\",\n        SHARED_LIB_FILE_NAME,\n        SHARED_LIB_ENV_VAR\n    )))\n}\n\n")
+    ()
+    for binding in &(*bundle).functions:
+        output.push_str(&render_bridge_wrapper(binding))
+        ()
+        output.push("\n")
+        ()
+    ()
+    output.push_str("fn register_all(env: &mut Env) {\n")
+    ()
+    for binding in &(*bundle).functions:
+        let wrapper_name = wrapper_name(&binding.emitted_name)
+        for alias in &binding.exported_aliases:
+            output.push_str(&f"    env.register_native_fn({alias}, {wrapper_name});\n")
+            ()
+    ()
+    output.push_str("}\n\n")
+    ()
+    output.push_str("#[no_mangle]\n")
+    ()
+    output.push_str("pub extern \"C\" fn kain_register_bridge(env: *mut Env) {\n")
+    ()
+    output.push_str("    let Some(env) = (unsafe { env.as_mut() }) else {\n")
+    ()
+    output.push_str("        return;\n")
+    ()
+    output.push_str("    };\n")
+    ()
+    output.push_str("    register_all(env);\n")
+    ()
+    output.push_str("}\n")
+    ()
+    output
+
+fn render_bridge_wrapper(binding: &CFunctionBinding) -> String:
+    let wrapper_name = wrapper_name(&(*binding).emitted_name)
+    let mut output = String__new_()
+    let mut post_call = Vec__new_()
+    output.push_str(&"fn {wrapper_name}(_env: &mut Env, args: Vec<Value>) -> Result<Value, KainError> {\n")
+    ()
+    output.push_str(&"    if args.len() != {(*binding).params.len()} {\n")
+    ()
+    output.push_str(&"        return Err(KainError::runtime(format!(\"{(*binding).emitted_name} expected {(*binding).params.len()} argument(s), got {}\", args.len())));\n")
+    ()
+    output.push_str("    }\n")
+    ()
+    output.push_str("    let shared_library_path = resolve_shared_library_path()?;\n")
+    ()
+    output.push_str("    let library = unsafe { Library::new(&shared_library_path) }\n        .map_err(|err| KainError::runtime(format!(\"Failed to load C shared library {}: {err}\", shared_library_path.display())))?;\n")
+    ()
+    output.push_str("    let mut iter = args.into_iter();\n")
+    ()
+    for selfhost_for_item in (*binding).params.iter().enumerate():
+        let (index, param) = selfhost_for_item
+        output.push_str(&render_param_conversion(index, param, &mut post_call))
+        ()
+    ()
+    let ffi_params = (*binding).params.iter().map(fn(param): param.ty.render_rust_ffi()).collect().join(", ")
+    let ffi_return = (*binding).return_type.render_rust_ffi()
+    output.push_str(&"    let symbol: Symbol<unsafe extern \"C\" fn({ffi_params}) -> {ffi_return}> = unsafe { library.get(&{(f\"{(*binding).symbol_name}\0\").as_bytes()}) }\n        .map_err(|err| KainError::runtime(format!(\"Missing C symbol {} in {}: {err}\", {(*binding).symbol_name}, shared_library_path.display())))?;\n")
+    ()
+    let call_args = (*binding).params.iter().map(fn(param): param.name.as_str()).collect().join(", ")
+    output.push_str(&"    let result = unsafe { symbol({call_args}) };\n")
+    ()
+    for line_ in post_call:
+        output.push_str(&line_)
+        ()
+    ()
+    output.push_str(&render_return_conversion(&(*binding).return_type))
+    ()
+    output.push_str("}\n")
+    ()
+    output
+
+fn render_param_conversion(_index: usize, param: &BridgeParam, post_call: &mut Array<String>) -> String:
+    match &(*param).ty:
+        BridgeType::Unit => "    let __{(*param).name}_value = iter.next().expect(\"checked arg count\");\n    if !matches!(__{(*param).name}_value, Value::Unit) { return Err(KainError::runtime(\"Expected Unit for C ABI argument\".to_string())); }\n    let {(*param).name} = ();\n"
+        BridgeType::Bool => f"    let {(*param).name} = bool_from_value(iter.next().expect(\"checked arg count\"))?;\n"
+        BridgeType::SignedInt(name) => f"    let {(*param).name} = int_from_value(iter.next().expect(\"checked arg count\"))? as {name};\n"
+        BridgeType::UnsignedInt(name) => "    let __{(*param).name}_value = int_from_value(iter.next().expect(\"checked arg count\"))?;\n    if __{(*param).name}_value < 0 { return Err(KainError::runtime(\"unsigned C ABI argument cannot be negative\".to_string())); }\n    let {(*param).name} = __{(*param).name}_value as {name};\n"
+        BridgeType::Float32 => f"    let {(*param).name} = float_from_value(iter.next().expect(\"checked arg count\"))? as f32;\n"
+        BridgeType::Float64 => f"    let {(*param).name} = float_from_value(iter.next().expect(\"checked arg count\"))?;\n"
+        BridgeType::CString => f"    let __{(*param).name}_owned = string_from_value(iter.next().expect(\"checked arg count\"))?;\n    let __{(*param).name}_cstring = CString::new(__{(*param).name}_owned).map_err(|_| KainError::runtime(\"C string argument contained interior NUL\".to_string()))?;\n    let {(*param).name} = __{(*param).name}_cstring.as_ptr();\n"
+        BridgeType::ByteBuffer { mutable_: mutable_ } =>
+            if (*mutable_):
+                post_call.push(f"    __{(*param).name}_buffer.commit(_env)?;\n")
+                ()
+                f"    let mut __{(*param).name}_buffer = ByteBufferArg::from_value(_env, iter.next().expect(\"checked arg count\"), true)?;\n    let {(*param).name} = __{(*param).name}_buffer.as_mut_ptr();\n"
+            else:
+                f"    let __{(*param).name}_buffer = ByteBufferArg::from_value(_env, iter.next().expect(\"checked arg count\"), false)?;\n    let {(*param).name} = __{(*param).name}_buffer.as_ptr();\n"
+        BridgeType::OpaqueHandle { pointee: pointee } => f"    let {(*param).name} = extract_c_handle(iter.next().expect(\"checked arg count\"), {pointee}, true)?;\n"
+
+fn render_return_conversion(ty: &BridgeType) -> String:
+    match ty:
+        BridgeType::Unit => ("    Ok(Value::Unit)\n").to_string()
+        BridgeType::Bool => ("    Ok(value_from_bool(result))\n").to_string()
+        BridgeType::SignedInt(_) => ("    Ok(value_from_int(result as i64))\n").to_string()
+        BridgeType::UnsignedInt(_) => ("    if (result as u128) > (i64::MAX as u128) { return Err(KainError::runtime(\"unsigned C ABI return overflowed Kain Int\".to_string())); }\n    Ok(value_from_int(result as i64))\n").to_string()
+        BridgeType::Float32 => ("    Ok(value_from_float(result as f64))\n").to_string()
+        BridgeType::Float64 => ("    Ok(value_from_float(result as f64))\n").to_string()
+        BridgeType::CString => ("    if result.is_null() { return Err(KainError::runtime(\"C string return was null\".to_string())); }\n    let text = unsafe { CStr::from_ptr(result) }.to_string_lossy().into_owned();\n    Ok(value_from_string(text))\n").to_string()
+        BridgeType::ByteBuffer {  } => ("    Err(KainError::runtime(\"byte-buffer returns require explicit output metadata and are not supported yet\".to_string()))\n").to_string()
+        BridgeType::OpaqueHandle { mutable_: mutable_, pointee: pointee } => "    if result.is_null() { return Ok(Value::None); }\n    Ok(Value::host_object(\"kain.c.handle\", Arc::new(CAbiOpaqueHandle { pointee: {pointee}.to_string(), mutable: {if (*mutable_): \"true\" else: \"false\"}, address: result as usize })))\n"
+
+fn render_report_text(report: &BindingReport) -> String:
+    let mut output = String__new_()
+    output.push_str(&"library: {(*report).library_name}\nheader: {(*report).header_path}\nshared_lib: {(*report).shared_lib_path.unwrap_or(\"<none>\")}\ncache_dir: {(*report).cache_dir}\n")
+    ()
+    output.push_str(&f"parser_backend: {(*report).parser_backend}\n")
+    ()
+    output.push_str(&"supported_targets: {(*report).supported_targets.join(\", \")}\n")
+    ()
+    output.push_str(&"capabilities: {(*report).capabilities.join(\", \")}\n\n")
+    ()
+    output.push_str("entries:\n")
+    ()
+    for entry in &(*report).entries:
+        output.push_str(&f"- [{none}] {entry.kind} {entry.symbol_path}\n")
+        ()
+        match &entry.reason:
+            Some(reason) =>
+                output.push_str(&f"  reason: {reason}\n")
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match &entry.emitted_symbol:
+            Some(emitted) =>
+                output.push_str(&f"  emitted: {emitted}\n")
+                ()
+            _ => ()
+    ()
+    output.push_str("\nsource_fingerprints:\n")
+    ()
+    for fingerprint in &(*report).source_fingerprints:
+        output.push_str(&f"- {fingerprint.sha256} {fingerprint.path}\n")
+        ()
+    ()
+    output
+
+fn wrapper_name(emitted_name: String) -> String:
+    f"__kain_c_bridge_{emitted_name.to_snake_case()}"
+
+fn collect_capabilities(bundle: &BindingBundle) -> Array<String>:
+    let mut capabilities = [("binding-report").to_string(), ("host-backed").to_string(), ("host-bridge").to_string(), ("native-packaged").to_string()]
+    if (*bundle).functions.iter().any(fn(binding): (binding.params.iter().any(fn(param): none) || none)):
+        capabilities.push(("opaque-handle").to_string())
+        ()
+        ()
+        ()
+        ()
+    if (*bundle).functions.iter().any(fn(binding): binding.params.iter().any(fn(param): none)):
+        capabilities.push(("shared-buffer").to_string())
+        ()
+        capabilities.push(("shared-image").to_string())
+        ()
+        ()
+        ()
+        ()
+    if (*bundle).report_entries.iter().any(fn(entry): none):
+        capabilities.push(("classification").to_string())
+        ()
+        ()
+        ()
+        ()
+    capabilities.sort()
+    ()
+    capabilities.dedup()
+    ()
+    capabilities
+
+fn build_packaged_bridge_import(resolved: &ResolvedCLibrary, bundle: &BindingBundle, binding_manifest_path: &std::path::Path, report_json_path: &std::path::Path) -> PackagedBridgeImport:
+    let bridge_library_file_name = bridge_library_file_name(&(*resolved).import_name)
+    let shared_library = (*resolved).shared_lib_path.map(fn(path): PackagedBridgeBinaryArtifact { file_name: path.file_name().and_then(fn(value): value.to_str()).unwrap_or_default().to_string(), source_path: Option::Some(path.display().to_string()) })
+    let module_id = "bridge.c.{(*resolved).import_name.replace(\"_\", \"-\")}"
+    let module_name = f"C ABI Bridge {(*resolved).import_name}"
+    let mut services = [HostBridgeServiceDescriptor { service_key: f"c.{(*resolved).import_name}.bridge", service_name: f"C ABI Bridge {(*resolved).import_name}", provider: ("host.c").to_string(), abi_version: 1, capability_mask: 1 }]
+    services.extend((*bundle).functions.iter().map(fn(binding): HostBridgeServiceDescriptor { service_key: f"c.{(*resolved).import_name}.symbol.{binding.symbol_name}", service_name: binding.symbol_name.clone(), provider: ("host.c").to_string(), abi_version: 1, capability_mask: 1 }))
+    ()
+    PackagedBridgeImport { import_name: (*resolved).import_name.clone(), module: HostBridgeModuleDescriptor { module_id: module_id, module_name: module_name, provider: ("host.c").to_string(), lane: ("c").to_string(), abi_version: 1, required_capability_mask: 1, required_runtime_services: [("contract").to_string(), ("host.bridge").to_string()], hot_reload_capable: true }, services: services, bridge_library: PackagedBridgeBinaryArtifact { file_name: bridge_library_file_name, source_path: none }, shared_library: shared_library, binding_manifest_file_name: binding_manifest_path.file_name().and_then(fn(value): value.to_str()).unwrap_or_default().to_string(), binding_report_file_name: report_json_path.file_name().and_then(fn(value): value.to_str()).unwrap_or_default().to_string(), symbols: (*bundle).functions.iter().map(fn(binding): PackagedBridgeSymbolDescriptor { symbol_name: binding.symbol_name.clone(), exported_aliases: binding.exported_aliases.clone() }).collect() }
+
+fn bridge_library_file_name(import_name: String) -> String:
+    bridge_dynamic_library_file_name(&bridge_crate_name(import_name))
+
+fn bridge_dynamic_library_file_name(crate_name: String) -> String:
+    if cfg!(target_os = "windows"):
+        f"{crate_name}.dll"
+    elif cfg!(target_os = "macos"):
+        f"lib{crate_name}.dylib"
+    else:
+        f"lib{crate_name}.so"
+
+pub fn bridge_crate_name(import_name: String) -> String:
+    f"kain_c_ffi_bridge_{import_name.to_snake_case()}"
+

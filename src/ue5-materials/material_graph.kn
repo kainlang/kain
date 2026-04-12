@@ -1,0 +1,215 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialGraph:
+    name: String
+    inputs: Array<MaterialInput>
+    nodes: Array<MaterialNode>
+    outputs: MaterialOutputs
+    properties: MaterialProperties
+    is_dynamic: Bool
+    dynamic_parameters: Array<DynamicParameter>
+    uses_vertex_shader: Bool
+    vertex_displacement_scale: Option<f32>
+
+@doc(doc = " Feature 7.1: Dynamic parameter metadata for runtime modification")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct DynamicParameter:
+    name: String
+    param_type: DynamicParameterType
+    default_value: DynamicParameterValue
+    min_value: Option<f32>
+    max_value: Option<f32>
+
+pub enum DynamicParameterType:
+    Scalar
+    Vector
+    Color
+
+pub enum DynamicParameterValue:
+    Scalar(f32)
+    Vector([f32; 3])
+    Color([f32; 4])
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialInput:
+    name: String
+    input_type: MaterialInputType
+    default_value: Option<String>
+    is_dynamic: Bool
+
+pub enum MaterialInputType:
+    Texture2D
+    Float
+    Vec2
+    Vec3
+    Vec4
+    Color
+
+pub enum CustomOutputType:
+    Float1
+    Float2
+    Float3
+    Float4
+
+@doc(doc = " Input definition for Custom HLSL nodes")
+@doc(doc = " Each input becomes a pin on the UMaterialExpressionCustom node")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct CustomInput:
+    name: String
+    input_type: CustomOutputType
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialNode:
+    id: String
+    node_type: MaterialNodeType
+    position: (i32, i32)
+
+pub enum MaterialNodeType:
+    TextureSample { texture_input: Option<String>, uv_input: Option<String> }
+    TextureSampleParameter2D { param_name: String, default_texture: Option<String>, uv_input: Option<String> }
+    ScalarParameter { name: String, default_: f32 }
+    VectorParameter { name: String, default_: [f32; 3] }
+    ColorParameter { name: String, default_: [f32; 4] }
+    Multiply { a: String, b: String }
+    Add { a: String, b: String }
+    Subtract { a: String, b: String }
+    Divide { a: String, b: String }
+    Lerp { a: String, b: String, alpha: String }
+    Dot { a: String, b: String }
+    DotProduct { a: String, b: String }
+    Cross { a: String, b: String }
+    Normalize { input: String }
+    Length { input: String }
+    Distance { a: String, b: String }
+    Power { base: String, exponent: String }
+    Clamp { input: String, min: String, max: String }
+    Abs { input: String }
+    Min { a: String, b: String }
+    Max { a: String, b: String }
+    Saturate { input: String }
+    Frac { input: String }
+    Floor { input: String }
+    Ceil { input: String }
+    Round { input: String }
+    Sqrt { input: String }
+    Exp { input: String }
+    Log { input: String }
+    Sine { input: String }
+    Cosine { input: String }
+    Fresnel { exponent: String, base_reflect_fraction: String }
+    ComponentMask { input: String, mask: String }
+    Append { a: String, b: String }
+    AppendVector { a: String, b: String }
+    ConstantFloat { value: f32 }
+    ConstantVec3 { value: [f32; 3] }
+    ConstantVec4 { value: [f32; 4] }
+    ConstantVector3 { value: [f32; 3] }
+    ConstantVector4 { value: [f32; 4] }
+    TextureCoordinate { index: u32, tiling: [f32; 2] }
+    CustomHLSL { code: String, output_type: CustomOutputType, inputs: Array<CustomInput> }
+    Time
+    UVScroll { uv_input: String, offset_x: String, offset_y: String }
+    UVScale { uv_input: String, scale_x: String, scale_y: String }
+    UVRotate { uv_input: String, angle: String, center: Option<(String, String)> }
+    MaterialFunctionCall { function_path: String, inputs: Array<String> }
+    MaterialLayer { base_layer: String, blend_layer: String, blend_mode: LayerBlendMode, alpha: String }
+    MaterialLayerBlend { layers: Array<String>, blend_modes: Array<LayerBlendMode>, alphas: Array<String> }
+    WorldPosition
+    WorldNormal
+    AbsoluteWorldPosition
+    CameraPosition
+    ObjectPosition
+    ObjectOrientation
+    TriplanarSample { texture: String, world_position: Option<String>, blend_sharpness: f32 }
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialOutputs:
+    base_color: Option<String>
+    metallic: Option<String>
+    specular: Option<String>
+    roughness: Option<String>
+    emissive: Option<String>
+    opacity: Option<String>
+    normal: Option<String>
+    ambient_occlusion: Option<String>
+    world_position_offset: Option<String>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct MaterialProperties:
+    domain: MaterialDomain
+    blend_mode: BlendMode
+    shading_model: ShadingModel
+    two_sided: Bool
+    expose_parameters: Bool
+
+pub enum MaterialDomain:
+    Surface
+    DeferredDecal
+    LightFunction
+    PostProcess
+    UI
+
+pub enum BlendMode:
+    Opaque
+    Masked
+    Translucent
+    Additive
+    Modulate
+
+pub enum ShadingModel:
+    DefaultLit
+    Unlit
+    Subsurface
+    PreintegratedSkin
+    ClearCoat
+    SubsurfaceProfile
+    TwoSidedFoliage
+    Hair
+    Cloth
+    Eye
+
+pub enum LayerBlendMode:
+    Lerp
+    Add
+    Multiply
+    Overlay
+    Screen
+
+impl MaterialGraph:
+    pub fn new_(name: String) -> MaterialGraph:
+        MaterialGraph { name: name, inputs: Vec__new_(), nodes: Vec__new_(), outputs: MaterialOutputs__default_(), properties: MaterialProperties__default_(), is_dynamic: false, dynamic_parameters: Vec__new_(), uses_vertex_shader: false, vertex_displacement_scale: none }
+
+    pub fn mark_parameter_dynamic(_self: &mut MaterialGraph, param_name: String) -> Result<(), String>:
+        let input = (*_self).inputs.iter_mut().find(fn(i): (i.name == param_name)).ok_or_else(fn(): f"Parameter '{param_name}' not found")?
+        input.is_dynamic = true
+        ()
+        let (param_type, default_value) = match input.input_type:
+            MaterialInputType::Float =>
+                let default_ = input.default_value.and_then(fn(s): s.parse().ok()).unwrap_or(0)
+                (DynamicParameterType__Scalar, DynamicParameterValue::Scalar(default_))
+            MaterialInputType::Vec3 => (DynamicParameterType__Vector, DynamicParameterValue::Vector([0, 0, 0]))
+            MaterialInputType::Color => (DynamicParameterType__Color, DynamicParameterValue::Color([1, 1, 1, 1]))
+            MaterialInputType::Vec4 => (DynamicParameterType__Color, DynamicParameterValue::Color([1, 1, 1, 1]))
+            _ =>
+                let type_name = match input.input_type:
+                    MaterialInputType::Texture2D => "Texture2D"
+                    _ => "unknown type"
+                return Result::Err(f"Parameter type '{type_name}' cannot be made dynamic")
+        (*_self).dynamic_parameters.push(DynamicParameter { name: param_name.to_string(), param_type: param_type, default_value: default_value, min_value: none, max_value: none })
+        ()
+        Result::Ok(())
+
+
+impl Default for MaterialOutputs:
+    fn default_() -> MaterialOutputs:
+        MaterialOutputs { base_color: none, metallic: none, specular: none, roughness: none, emissive: none, opacity: none, normal: none, ambient_occlusion: none, world_position_offset: none }
+
+
+impl Default for MaterialProperties:
+    fn default_() -> MaterialProperties:
+        MaterialProperties { domain: MaterialDomain__Surface, blend_mode: BlendMode__Opaque, shading_model: ShadingModel__DefaultLit, two_sided: false, expose_parameters: false }
+
+

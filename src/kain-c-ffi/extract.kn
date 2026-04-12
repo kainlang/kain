@@ -1,0 +1,615 @@
+use crate::model::BindingBundle
+
+use crate::model::BindingReportEntry
+
+use crate::model::BridgeParam
+
+use crate::model::BridgeType
+
+use crate::model::CFunctionBinding
+
+use crate::model::FileFingerprint
+
+use crate::model::ItemKind
+
+use crate::model::ItemStatus
+
+use crate::model::ResolvedCLibrary
+
+use kain_core::error::KainError
+
+use kain_import::c::parse_c_file_ast_with_options
+
+use kain_import::c::CImportOptions
+
+use lang_c::ast as c_ast
+
+use lang_c::span::Node
+
+use once_cell::sync::Lazy
+
+use regex::Regex
+
+use sha2::Digest
+
+use sha2::Sha256
+
+use std::fs
+
+pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBundle, kain_core::error::KainError>:
+    let options = build_import_options(resolved)
+    let source = std__fs__read_to_string(&(*resolved).header_path).map_err(kain_core__error__KainError__Io)?
+    let fingerprint = FileFingerprint { path: (*resolved).header_path.display().to_string(), sha256: hex_sha256(source.as_bytes()) }
+    let mut bundle = match extract_binding_bundle_from_ast(resolved, &options):
+        Ok(bundle) => bundle
+        Err(_) => extract_binding_bundle_from_regex(resolved, &strip_comments(&source))?
+    bundle.source_fingerprints = [fingerprint]
+    ()
+    Result::Ok(bundle)
+
+fn build_import_options(resolved: &ResolvedCLibrary) -> kain_import::c::CImportOptions:
+    let mut options = CImportOptions__default_()
+    options.include_paths = (*resolved).global_config.include_paths.iter().chain((*resolved).config.include_paths.iter()).map(fn(value): value.display().to_string()).collect()
+    ()
+    options.defines = (*resolved).global_config.defines.iter().chain((*resolved).config.defines.iter()).cloned().collect()
+    ()
+    options.cpp_options = (*resolved).global_config.cpp_options.iter().chain((*resolved).config.cpp_options.iter()).cloned().collect()
+    ()
+    options.cpp_command = (*resolved).config.cpp_command.clone().or_else(fn(): (*resolved).global_config.cpp_command.clone())
+    ()
+    options
+
+fn extract_binding_bundle_from_ast(resolved: &ResolvedCLibrary, options: &kain_import::c::CImportOptions) -> Result<BindingBundle, kain_core::error::KainError>:
+    let translation_unit = kain_import__c__parse_c_file_ast_with_options(&(*resolved).header_path, options).map_err(fn(err): KainError__runtime(f"kain-import could not parse C FFI header '{(*resolved).header_path.display()}': {err}"))?
+    let mut functions = Vec__new_()
+    let mut report_entries = Vec__new_()
+    for external in translation_unit.field_0:
+        match external.node:
+            lang_c__ast__ExternalDeclaration::FunctionDefinition(func) =>
+                collect_function_definition(&(*resolved).import_name, &func.node, &(*resolved).config.symbols, &mut functions, &mut report_entries)
+                ()
+            lang_c__ast__ExternalDeclaration::Declaration(decl) =>
+                collect_declaration_items(&(*resolved).import_name, &decl.node, &(*resolved).config.symbols, &mut functions, &mut report_entries)
+                ()
+            _ => ()
+    ()
+    functions.sort_by(fn(left, right): left.emitted_name.cmp(&right.emitted_name))
+    ()
+    functions.dedup_by(fn(left, right): (left.emitted_name == right.emitted_name))
+    ()
+    report_entries.sort_by(fn(left, right): left.symbol_path.cmp(&right.symbol_path).then_with(fn(): kind_rank(left.kind).cmp(&kind_rank(right.kind))))
+    ()
+    report_entries.dedup_by(fn(left, right): ((left.symbol_path == right.symbol_path) && (left.kind == right.kind)))
+    ()
+    Result::Ok(BindingBundle { functions: functions, report_entries: report_entries, source_fingerprints: Vec__new_() })
+
+fn kind_rank(kind: ItemKind) -> u8:
+    match kind:
+        ItemKind::Function => 0
+        ItemKind::Struct => 1
+        ItemKind::Enum => 2
+        ItemKind::Typedef => 3
+        ItemKind::Callback => 4
+        ItemKind::Global => 5
+
+fn collect_function_definition(import_name: String, func: &lang_c::ast::FunctionDefinition, symbol_overrides: &Map<String, String>, functions: &mut Array<CFunctionBinding>, report_entries: &mut Array<BindingReportEntry>):
+    let raw_name = match extract_declarator_name(&(*func).declarator.node):
+        Ok(name) if (!name.is_empty()) => name
+        _ => return
+    match build_function_binding(import_name, &raw_name, &(*func).specifiers, &(*func).declarator.node, symbol_overrides):
+        Ok(binding) =>
+            report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{binding.emitted_name}", kind: ItemKind__Function, status: ItemStatus__Callable, reason: none, emitted_symbol: Option::Some(binding.exported_aliases[1].clone()) })
+            ()
+            functions.push(binding)
+            ()
+        Err((status, reason)) =>
+            report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{raw_name}", kind: ItemKind__Function, status: status, reason: Option::Some(reason), emitted_symbol: none })
+            ()
+
+fn collect_declaration_items(import_name: String, decl: &lang_c::ast::Declaration, symbol_overrides: &Map<String, String>, functions: &mut Array<CFunctionBinding>, report_entries: &mut Array<BindingReportEntry>):
+    let is_typedef = declaration_is_typedef(&(*decl).specifiers)
+    collect_named_type_entries(import_name, &(*decl).specifiers, report_entries)
+    ()
+    for init_decl in &(*decl).declarators:
+        let declarator = &init_decl.node.declarator.node
+        let raw_name = match extract_declarator_name(declarator):
+            Ok(name) if (!name.is_empty()) => name
+            _ => continue
+        let analysis = analyze_declarator(declarator)
+        if analysis.callback_like:
+            report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{raw_name}", kind: ItemKind__Callback, status: ItemStatus__Unsupported, reason: Option::Some(("function-pointer callbacks are not emitted yet; generate a stable wrapper C API first").to_string()), emitted_symbol: none })
+            ()
+            continue
+        if analysis.is_direct_function:
+            match build_function_binding(import_name, &raw_name, &(*decl).specifiers, declarator, symbol_overrides):
+                Ok(binding) =>
+                    report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{binding.emitted_name}", kind: ItemKind__Function, status: ItemStatus__Callable, reason: none, emitted_symbol: Option::Some(binding.exported_aliases[1].clone()) })
+                    ()
+                    functions.push(binding)
+                    ()
+                    ()
+                    ()
+                    ()
+                Err((status, reason)) =>
+                    report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{raw_name}", kind: ItemKind__Function, status: status, reason: Option::Some(reason), emitted_symbol: none })
+                    ()
+                    ()
+                    ()
+                    ()
+            continue
+        if is_typedef:
+            report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{raw_name}", kind: ItemKind__Typedef, status: ItemStatus__TypeOnly, reason: Option::Some(("C typedef discovered in header; emitted as type metadata only for now").to_string()), emitted_symbol: none })
+            ()
+            continue
+        report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{raw_name}", kind: ItemKind__Global, status: ItemStatus__Stubbed, reason: Option::Some(("global variable bindings are not emitted yet; expose accessors through a stable C API first").to_string()), emitted_symbol: none })
+        ()
+
+fn collect_named_type_entries(import_name: String, specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>], report_entries: &mut Array<BindingReportEntry>):
+    for specifier in specifiers:
+        match &specifier.node:
+            lang_c__ast__DeclarationSpecifier::TypeSpecifier(type_specifier) =>
+                match &type_specifier.node:
+                    lang_c__ast__TypeSpecifier::Struct(struct_type) =>
+                        match struct_type.node.identifier.map(fn(value): value.node.name.clone()):
+                            Some(name) =>
+                                report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{name}", kind: ItemKind__Struct, status: ItemStatus__OpaqueHandle, reason: Option::Some(("C struct discovered in header; pointer-based usage can bind as an opaque handle").to_string()), emitted_symbol: none })
+                                ()
+                            _ => ()
+                    lang_c__ast__TypeSpecifier::Enum(enum_type) =>
+                        match enum_type.node.identifier.map(fn(value): value.node.name.clone()):
+                            Some(name) =>
+                                report_entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{name}", kind: ItemKind__Enum, status: ItemStatus__TypeOnly, reason: Option::Some(("C enum discovered in header; by-value enum parameters currently lower through integer ABI handling").to_string()), emitted_symbol: none })
+                                ()
+                            _ => ()
+                    _ => ()
+            _ => ()
+
+fn declaration_is_typedef(specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>]) -> Bool:
+    specifiers.iter().any(fn(specifier): none)
+
+fn build_function_binding(import_name: String, raw_name: String, specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>], declarator: &lang_c::ast::Declarator, symbol_overrides: &Map<String, String>) -> Result<CFunctionBinding, (ItemStatus, String)>:
+    let params = extract_function_params(declarator).map_err(fn(reason): (ItemStatus__Unsupported, reason))?
+    let return_type = resolve_bridge_type_from_declaration(specifiers, Option::Some(declarator)).map_err(fn(reason): (ItemStatus__Unsupported, reason))?
+    if (none):
+        return Result::Err((ItemStatus__Stubbed, ("byte-buffer returns require explicit output metadata and are not emitted yet").to_string()))
+    let emitted_name = raw_name.to_string()
+    let prefixed = f"c_{import_name}_{emitted_name}"
+    let symbol_name = symbol_overrides.get(&emitted_name).cloned().unwrap_or_else(fn(): emitted_name.clone())
+    Result::Ok(CFunctionBinding { emitted_name: emitted_name.clone(), exported_aliases: [emitted_name, prefixed], symbol_name: symbol_name, params: params, return_type: return_type })
+
+fn extract_function_params(declarator: &lang_c::ast::Declarator) -> Result<Array<BridgeParam>, String>:
+    for derived in &(*declarator).derived:
+        match &derived.node:
+            lang_c__ast__DerivedDeclarator::Function(func_decl) =>
+                let mut params = Vec__new_()
+                for selfhost_for_item in func_decl.node.parameters.iter().enumerate():
+                    let (index, param_decl) = selfhost_for_item
+                    let param_decl = &param_decl.node
+                    let param_name = param_decl.declarator.and_then(fn(decl): extract_declarator_name(&decl.node).ok()).filter(fn(name): (!name.is_empty())).unwrap_or_else(fn(): f"arg{(index + 1)}")
+                    let param_type = resolve_bridge_type_from_declaration(&param_decl.specifiers, param_decl.declarator.map(fn(decl): &decl.node))?
+                    params.push(BridgeParam { name: param_name, ty: param_type })
+                    ()
+                ()
+                return Result::Ok(params)
+            lang_c__ast__DerivedDeclarator::KRFunction(_) => return Result::Err(("K&R-style function declarations are not supported in the C ABI bridge").to_string())
+            _ => ()
+    ()
+    Result::Ok(Vec__new_())
+
+fn resolve_bridge_type_from_declaration(specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>], declarator: Option<&lang_c::ast::Declarator>) -> Result<BridgeType, String>:
+    let facts = collect_type_facts(specifiers)?
+    let analysis = declarator.map(analyze_declarator).unwrap_or_default()
+    if analysis.callback_like:
+        return Result::Err(("function-pointer callbacks are not supported yet; expose a stable wrapper function").to_string())
+    if analysis.has_array:
+        return Result::Err(("array declarators are not supported yet in the C ABI bridge").to_string())
+    if (analysis.pointer_depth > 1):
+        return Result::Err(("multi-level pointers are not supported yet in the C ABI bridge").to_string())
+    if (analysis.pointer_depth == 1):
+        return none
+    match facts.named:
+        Some(NamedType::Enum(_)) => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_int").to_string()))
+        Some(NamedType::Struct(name)) =>
+            match map_common_typedef_name(name.as_str()):
+                Some(mapped) => Result::Ok(mapped)
+                _ => Result::Err(f"unsupported by-value C type '{name}'; pointer-based opaque handles are supported first")
+        Some(NamedType::Typedef(name)) =>
+            match map_common_typedef_name(name.as_str()):
+                Some(mapped) => Result::Ok(mapped)
+                _ => Result::Err(f"unsupported by-value C type '{name}'; pointer-based opaque handles are supported first")
+        None => map_scalar_key_to_bridge_type(facts.scalar_key.as_str())
+
+@derive(Debug, Clone, Default)
+struct CTypeFacts:
+    named: Option<NamedType>
+    scalar_key: String
+    is_const: Bool
+
+impl Default for CTypeFacts:
+    pub fn default_() -> CTypeFacts:
+        CTypeFacts { named: none, scalar_key: String__new_(), is_const: false }
+
+
+enum NamedType:
+    Struct(String)
+    Enum(String)
+    Typedef(String)
+
+fn collect_type_facts(specifiers: &[lang_c::span::Node<lang_c::ast::DeclarationSpecifier>]) -> Result<CTypeFacts, String>:
+    let mut facts = CTypeFacts__default_()
+    let mut scalar_tokens = Vec__new_()
+    for specifier in specifiers:
+        match &specifier.node:
+            lang_c__ast__DeclarationSpecifier::TypeQualifier(qualifier) =>
+                if (none):
+                    facts.is_const = true
+                    ()
+            lang_c__ast__DeclarationSpecifier::TypeSpecifier(type_specifier) =>
+                match &type_specifier.node:
+                    lang_c__ast__TypeSpecifier::Void => scalar_tokens.push("void")
+                    lang_c__ast__TypeSpecifier::Bool => scalar_tokens.push("bool")
+                    lang_c__ast__TypeSpecifier::Float => scalar_tokens.push("float")
+                    lang_c__ast__TypeSpecifier::Double => scalar_tokens.push("double")
+                    lang_c__ast__TypeSpecifier::Char => scalar_tokens.push("char")
+                    lang_c__ast__TypeSpecifier::Short => scalar_tokens.push("short")
+                    lang_c__ast__TypeSpecifier::Int => scalar_tokens.push("int")
+                    lang_c__ast__TypeSpecifier::Long => scalar_tokens.push("long")
+                    lang_c__ast__TypeSpecifier::Signed => scalar_tokens.push("signed")
+                    lang_c__ast__TypeSpecifier::Unsigned => scalar_tokens.push("unsigned")
+                    lang_c__ast__TypeSpecifier::TypedefName(name) =>
+                        facts.named = Option::Some(NamedType::Typedef(name.node.name.clone()))
+                        ()
+                    lang_c__ast__TypeSpecifier::Struct(struct_type) =>
+                        facts.named = Option::Some(NamedType::Struct(struct_type.node.identifier.map(fn(value): value.node.name.clone()).unwrap_or_else(fn(): ("AnonymousStruct").to_string())))
+                        ()
+                    lang_c__ast__TypeSpecifier::Enum(enum_type) =>
+                        facts.named = Option::Some(NamedType::Enum(enum_type.node.identifier.map(fn(value): value.node.name.clone()).unwrap_or_else(fn(): ("AnonymousEnum").to_string())))
+                        ()
+                    other => return Result::Err(f"unsupported C type specifier in ABI bridge: {other}")
+            _ => ()
+    ()
+    if facts.named.is_none():
+        facts.scalar_key = canonical_scalar_key(&scalar_tokens)?
+        ()
+        ()
+        ()
+        ()
+    Result::Ok(facts)
+
+fn canonical_scalar_key(tokens: &[String]) -> Result<String, String>:
+    if tokens.is_empty():
+        return Result::Ok(("void").to_string())
+    let mut saw_void = false
+    let mut saw_bool = false
+    let mut saw_char = false
+    let mut saw_short = false
+    let mut saw_int = false
+    let mut saw_long_count = 0
+    let mut saw_float = false
+    let mut saw_double = false
+    let mut saw_signed = false
+    let mut saw_unsigned = false
+    for token in tokens:
+        match (*token):
+            "void" => saw_void = true
+            "bool" => saw_bool = true
+            "char" => saw_char = true
+            "short" => saw_short = true
+            "int" => saw_int = true
+            "long" => saw_long_count = (saw_long_count + 1)
+            "float" => saw_float = true
+            "double" => saw_double = true
+            "signed" => saw_signed = true
+            "unsigned" => saw_unsigned = true
+            other => return Result::Err(f"unsupported C scalar specifier token in ABI bridge: {other}")
+    ()
+    if saw_void:
+        return Result::Ok(("void").to_string())
+    if saw_bool:
+        return Result::Ok(("bool").to_string())
+    if saw_float:
+        return Result::Ok(("float").to_string())
+    if (saw_double && (saw_long_count == 0)):
+        return Result::Ok(("double").to_string())
+    if saw_char:
+        if saw_unsigned:
+            return Result::Ok(("unsigned char").to_string())
+        if saw_signed:
+            return Result::Ok(("signed char").to_string())
+        return Result::Ok(("char").to_string())
+    if saw_short:
+        return Result::Ok(if saw_unsigned: ("unsigned short").to_string() else: ("short").to_string())
+    if (saw_long_count >= 2):
+        return Result::Ok(if saw_unsigned: ("unsigned long long").to_string() else: ("long long").to_string())
+    if (saw_long_count == 1):
+        return Result::Ok(if saw_unsigned: ("unsigned long").to_string() else: ("long").to_string())
+    if ((saw_int || saw_signed) || saw_unsigned):
+        return Result::Ok(if saw_unsigned: ("unsigned int").to_string() else: ("int").to_string())
+    Result::Err("unsupported C scalar declaration in ABI bridge: {tokens.join(\" \")}")
+
+fn map_scalar_key_to_bridge_type(raw: String) -> Result<BridgeType, String>:
+    match raw:
+        "void" => Result::Ok(BridgeType__Unit)
+        "bool" => Result::Ok(BridgeType__Bool)
+        "_Bool" => Result::Ok(BridgeType__Bool)
+        "float" => Result::Ok(BridgeType__Float32)
+        "double" => Result::Ok(BridgeType__Float64)
+        "char" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_char").to_string()))
+        "signed char" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_char").to_string()))
+        "unsigned char" => Result::Ok(BridgeType::UnsignedInt(("u8").to_string()))
+        "short" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_short").to_string()))
+        "unsigned short" => Result::Ok(BridgeType::UnsignedInt(("std::os::raw::c_ushort").to_string()))
+        "int" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_int").to_string()))
+        "unsigned int" => Result::Ok(BridgeType::UnsignedInt(("std::os::raw::c_uint").to_string()))
+        "long" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_long").to_string()))
+        "unsigned long" => Result::Ok(BridgeType::UnsignedInt(("std::os::raw::c_ulong").to_string()))
+        "long long" => Result::Ok(BridgeType::SignedInt(("std::os::raw::c_longlong").to_string()))
+        "unsigned long long" => Result::Ok(BridgeType::UnsignedInt(("std::os::raw::c_ulonglong").to_string()))
+        other => Result::Err(f"unsupported value type '{other}'")
+
+fn map_common_typedef_name(name: String) -> Option<BridgeType>:
+    match name:
+        "size_t" => Option::Some(BridgeType::UnsignedInt(("usize").to_string()))
+        "ptrdiff_t" => Option::Some(BridgeType::SignedInt(("isize").to_string()))
+        "intptr_t" => Option::Some(BridgeType::SignedInt(("isize").to_string()))
+        "uintptr_t" => Option::Some(BridgeType::UnsignedInt(("usize").to_string()))
+        "int8_t" => Option::Some(BridgeType::SignedInt(("i8").to_string()))
+        "uint8_t" => Option::Some(BridgeType::UnsignedInt(("u8").to_string()))
+        "int16_t" => Option::Some(BridgeType::SignedInt(("i16").to_string()))
+        "uint16_t" => Option::Some(BridgeType::UnsignedInt(("u16").to_string()))
+        "int32_t" => Option::Some(BridgeType::SignedInt(("i32").to_string()))
+        "uint32_t" => Option::Some(BridgeType::UnsignedInt(("u32").to_string()))
+        "int64_t" => Option::Some(BridgeType::SignedInt(("i64").to_string()))
+        "uint64_t" => Option::Some(BridgeType::UnsignedInt(("u64").to_string()))
+        _ => none
+
+fn is_byte_buffer_scalar(raw: String) -> Bool:
+    match raw:
+        "uint8_t" => true
+        "unsigned char" => true
+        "int8_t" => true
+        _ => false
+
+@derive(Debug, Clone, Default)
+struct DeclaratorAnalysis:
+    name: Option<String>
+    pointer_depth: usize
+    is_const: Bool
+    has_function: Bool
+    has_array: Bool
+    has_block: Bool
+    wrapped_kind: Bool
+    is_direct_function: Bool
+    callback_like: Bool
+
+impl Default for DeclaratorAnalysis:
+    pub fn default_() -> DeclaratorAnalysis:
+        DeclaratorAnalysis { name: none, pointer_depth: 0, is_const: false, has_function: false, has_array: false, has_block: false, wrapped_kind: false, is_direct_function: false, callback_like: false }
+
+
+fn analyze_declarator(declarator: &lang_c::ast::Declarator) -> DeclaratorAnalysis:
+    let mut analysis = DeclaratorAnalysis__default_()
+    match &(*declarator).kind.node:
+        lang_c__ast__DeclaratorKind::Identifier(identifier) =>
+            analysis.name = Option::Some(identifier.node.name.clone())
+            ()
+            ()
+            ()
+            ()
+        lang_c__ast__DeclaratorKind::Declarator(inner) =>
+            analysis = analyze_declarator(&inner.node)
+            ()
+            analysis.wrapped_kind = true
+            ()
+            ()
+            ()
+            ()
+        _ => ()
+    for derived in &(*declarator).derived:
+        match &derived.node:
+            lang_c__ast__DerivedDeclarator::Pointer(qualifiers) =>
+                analysis.pointer_depth = (analysis.pointer_depth + 1)
+                ()
+                if qualifiers.iter().any(fn(qualifier): none):
+                    analysis.is_const = true
+                    ()
+            lang_c__ast__DerivedDeclarator::Array(_) =>
+                analysis.has_array = true
+                ()
+            lang_c__ast__DerivedDeclarator::Function(_) =>
+                analysis.has_function = true
+                ()
+            lang_c__ast__DerivedDeclarator::KRFunction(_) =>
+                analysis.has_function = true
+                ()
+            lang_c__ast__DerivedDeclarator::Block(_) =>
+                analysis.has_block = true
+                ()
+    ()
+    analysis.is_direct_function = (analysis.has_function && (!analysis.wrapped_kind))
+    ()
+    analysis.callback_like = (analysis.has_block || ((analysis.has_function && analysis.wrapped_kind)))
+    ()
+    analysis
+
+fn extract_declarator_name(declarator: &lang_c::ast::Declarator) -> Result<String, String>:
+    match &(*declarator).kind.node:
+        lang_c__ast__DeclaratorKind::Identifier(identifier) => Result::Ok(identifier.node.name.clone())
+        lang_c__ast__DeclaratorKind::Declarator(inner) => extract_declarator_name(&inner.node)
+        _ => Result::Ok(String__new_())
+
+fn extract_binding_bundle_from_regex(resolved: &ResolvedCLibrary, sanitized_source: String) -> Result<BindingBundle, kain_core::error::KainError>:
+    let prototypes = collect_function_prototypes(sanitized_source)
+    let mut functions = Vec__new_()
+    let mut report_entries = collect_regex_type_entries(&(*resolved).import_name, sanitized_source)
+    for prototype in prototypes:
+        match parse_function_binding(&(*resolved).import_name, &prototype, &(*resolved).config.symbols):
+            Ok(binding) =>
+                report_entries.push(BindingReportEntry { symbol_path: f"c::{(*resolved).import_name}::{binding.emitted_name}", kind: ItemKind__Function, status: ItemStatus__Callable, reason: none, emitted_symbol: Option::Some(binding.exported_aliases[1].clone()) })
+                ()
+                functions.push(binding)
+                ()
+            Err((name, status, reason)) =>
+                report_entries.push(BindingReportEntry { symbol_path: f"c::{(*resolved).import_name}::{name}", kind: ItemKind__Function, status: status, reason: Option::Some(reason), emitted_symbol: none })
+                ()
+    ()
+    Result::Ok(BindingBundle { functions: functions, report_entries: report_entries, source_fingerprints: Vec__new_() })
+
+@derive(Debug, Clone)
+struct RawPrototype:
+    return_type: String
+    name: String
+    args: String
+
+fn collect_function_prototypes(source: String) -> Array<RawPrototype>:
+    const PROTOTYPE_REGEX: regex::Regex = (fn(): Regex__new_("(?ms)(?:^|\\n)\\s*(?:extern\\s+)?(?P<ret>[A-Za-z_][A-Za-z0-9_\\s\\*]*?)\\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\\s*\\((?P<args>[^;{}()]*(?:\\([^)]*\\)[^;{}()]*)*)\\)\\s*;").expect("prototype regex"))()
+
+    PROTOTYPE_REGEX.captures_iter(source).filter_map(fn(caps): Option::Some(RawPrototype { return_type: (caps.name("ret")?).as_str().trim().to_string(), name: (caps.name("name")?).as_str().trim().to_string(), args: (caps.name("args")?).as_str().trim().to_string() })).collect()
+
+fn collect_regex_type_entries(import_name: String, source: String) -> Array<BindingReportEntry>:
+    const TYPEDEF_STRUCT_REGEX: regex::Regex = (fn(): Regex__new_("(?m)^\\s*typedef\\s+struct\\s+([A-Za-z_][A-Za-z0-9_]*)").expect("struct regex"))()
+
+    const TYPEDEF_ENUM_REGEX: regex::Regex = (fn(): Regex__new_("(?m)^\\s*typedef\\s+enum\\s+([A-Za-z_][A-Za-z0-9_]*)").expect("enum regex"))()
+
+    const TYPEDEF_ALIAS_REGEX: regex::Regex = (fn(): Regex__new_("(?m)^\\s*typedef\\s+.+?\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*;").expect("typedef regex"))()
+
+    let mut entries = Vec__new_()
+    for captures in TYPEDEF_STRUCT_REGEX.captures_iter(source):
+        let Some(name) = captures.get(1)
+        entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{name.as_str()}", kind: ItemKind__Struct, status: ItemStatus__OpaqueHandle, reason: Option::Some(("C struct discovered in header; emitted as type metadata only for now").to_string()), emitted_symbol: none })
+        ()
+    ()
+    for captures in TYPEDEF_ENUM_REGEX.captures_iter(source):
+        let Some(name) = captures.get(1)
+        entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{name.as_str()}", kind: ItemKind__Enum, status: ItemStatus__TypeOnly, reason: Option::Some(("C enum discovered in header; emitted as type metadata only for now").to_string()), emitted_symbol: none })
+        ()
+    ()
+    for captures in TYPEDEF_ALIAS_REGEX.captures_iter(source):
+        let Some(name) = captures.get(1)
+        entries.push(BindingReportEntry { symbol_path: f"c::{import_name}::{name.as_str()}", kind: ItemKind__Typedef, status: ItemStatus__TypeOnly, reason: Option::Some(("C typedef discovered in header; emitted as type metadata only for now").to_string()), emitted_symbol: none })
+        ()
+    ()
+    entries.sort_by(fn(left, right): left.symbol_path.cmp(&right.symbol_path))
+    ()
+    entries.dedup_by(fn(left, right): ((left.symbol_path == right.symbol_path) && (left.kind == right.kind)))
+    ()
+    entries
+
+fn parse_function_binding(import_name: String, prototype: &RawPrototype, symbol_overrides: &Map<String, String>) -> Result<CFunctionBinding, (String, ItemStatus, String)>:
+    let return_type = parse_c_type(&(*prototype).return_type).map_err(fn(reason): ((*prototype).name.clone(), ItemStatus__Unsupported, reason))?
+    let params = parse_params(&(*prototype).args).map_err(fn(reason): ((*prototype).name.clone(), ItemStatus__Unsupported, reason))?
+    let emitted_name = (*prototype).name.clone()
+    let prefixed = f"c_{import_name}_{emitted_name}"
+    let symbol_name = symbol_overrides.get(&emitted_name).cloned().unwrap_or_else(fn(): emitted_name.clone())
+    Result::Ok(CFunctionBinding { emitted_name: emitted_name, exported_aliases: [(*prototype).name.clone(), prefixed], symbol_name: symbol_name, params: params, return_type: return_type })
+
+fn parse_params(args: String) -> Result<Array<BridgeParam>, String>:
+    let trimmed = args.trim()
+    if (trimmed.is_empty() || (trimmed == "void")):
+        return Result::Ok(Vec__new_())
+    let mut params = Vec__new_()
+    for selfhost_for_item in trimmed.split(",").enumerate():
+        let (index, raw) = selfhost_for_item
+        let token = raw.trim()
+        if (token.contains("(") || token.contains(")")):
+            return Result::Err(f"function-pointer or callback parameters are not supported yet: '{token}'")
+        let (ty_raw, name) = split_type_and_name(token, index)
+        let ty = parse_c_type(ty_raw.as_str())?
+        params.push(BridgeParam { name: name, ty: ty })
+        ()
+    ()
+    Result::Ok(params)
+
+fn split_type_and_name(token: String, index: usize) -> (String, String):
+    let token = token.trim()
+    if token.ends_with("*"):
+        return (token.to_string(), f"arg{(index + 1)}")
+    match token.rfind(char__is_whitespace):
+        Some(pos) =>
+            let type_part = token[..pos].trim()
+            let name_part = token[(pos + 1)..].trim()
+            if ((!name_part.is_empty()) && name_part.chars().all(fn(ch): (ch.is_ascii_alphanumeric() || (ch == "_")))):
+                match name_part.strip_prefix("*"):
+                    Some(stripped) => return (f"{type_part} *", stripped.to_string())
+                    _ =>
+                        ()
+                        ()
+                return (type_part.to_string(), name_part.to_string())
+            ()
+        _ =>
+            ()
+            ()
+    (token.to_string(), f"arg{(index + 1)}")
+
+fn parse_c_type(raw: String) -> Result<BridgeType, String>:
+    let mut normalized = raw.replace("\t", " ").replace("extern ", "").replace("static ", "").replace("inline ", "").trim().to_string()
+    normalized = strip_declspec_like(&normalized)
+    ()
+    normalized = strip_uppercase_prefix_tokens(&normalized)
+    ()
+    while normalized.contains("  "):
+        normalized = normalized.replace("  ", " ")
+        ()
+    ()
+    let is_const = normalized.contains("const ")
+    let pointer_depth = normalized.chars().filter(fn(ch): ((*ch) == "*")).count()
+    normalized = normalized.replace("*", " ")
+    ()
+    while normalized.contains("  "):
+        normalized = normalized.replace("  ", " ")
+        ()
+    ()
+    normalized = normalized.trim().to_string()
+    ()
+    let normalized_no_const = normalized.replace("const ", "").replace(" volatile", "").replace("volatile ", "").trim().to_string()
+    if (pointer_depth > 1):
+        return Result::Err(f"multi-level pointers are not supported yet: '{raw}'")
+    if (pointer_depth == 1):
+        if (normalized_no_const == "char"):
+            return Result::Ok(BridgeType__CString)
+        if is_byte_buffer_scalar(&normalized_no_const):
+            return Result::Ok(BridgeType::ByteBuffer { mutable_: (!is_const), element_type: normalized_no_const })
+        return Result::Err(f"raw scalar pointer '{normalized_no_const}' is not emitted yet; expose a shared buffer/image contract or stable wrapper")
+    match map_common_typedef_name(&normalized_no_const):
+        Some(mapped) => return Result::Ok(mapped)
+        _ =>
+            ()
+            ()
+    map_scalar_key_to_bridge_type(&normalized_no_const)
+
+fn strip_declspec_like(raw: String) -> String:
+    const DECLSPEC_RE: regex::Regex = (fn(): Regex__new_("__declspec\\s*\\([^)]*\\)|__attribute__\\s*\\(\\([^)]*\\)\\)").expect("declspec regex"))()
+
+    DECLSPEC_RE.replace_all(raw, " ").to_string()
+
+fn strip_uppercase_prefix_tokens(raw: String) -> String:
+    let mut remaining = raw.trim()
+    loop:
+        let Some((first, rest)) = remaining.split_once(" ")
+        let token = first.trim()
+        if token.is_empty():
+            remaining = rest.trim()
+            ()
+            continue
+        let looks_like_macro = token.chars().all(fn(ch): ((ch.is_ascii_uppercase() || (ch == "_")) || ch.is_ascii_digit()))
+        if looks_like_macro:
+            remaining = rest.trim()
+            ()
+            continue
+        return remaining.to_string()
+
+fn strip_comments(source: String) -> String:
+    const BLOCK_RE: regex::Regex = (fn(): Regex__new_("(?s)/\\*.*?\\*/").expect("block regex"))()
+
+    const LINE_RE: regex::Regex = (fn(): Regex__new_("//.*").expect("line regex"))()
+
+    let without_block = BLOCK_RE.replace_all(source, " ")
+    let without_line = LINE_RE.replace_all(&without_block, "")
+    without_line.to_string()
+
+fn hex_sha256(bytes: &[u8]) -> String:
+    let mut hasher = Sha256__new_()
+    hasher.update(bytes)
+    ()
+    hasher.finalize()
+

@@ -1,0 +1,384 @@
+use kain_host::bridge
+
+use kain_host::Env
+
+use kain_host::FromKainValue
+
+use kain_host::HostResult
+
+use kain_host::HostSession
+
+use kain_host::KainError
+
+use kain_host::ToKainValue
+
+use kain_host::Value
+
+use crate::emit_kain_prelude
+
+use crate::Brush
+
+use crate::BrushFalloff
+
+use crate::Camera
+
+use crate::ColorRgb
+
+use crate::Field
+
+use crate::Geometry
+
+use crate::GeometryTopology
+
+use crate::Material
+
+use crate::Modifier
+
+use crate::Vec2
+
+use crate::Vec3
+
+pub const KAIN_3D_MODULE_NAME: String = "zen3d"
+
+pub struct Kain3dSession:
+    host: kain_host::HostSession
+
+impl Kain3dSession:
+    pub fn new_() -> Kain3dSession:
+        Kain3dSession { host: HostSession__new_() }
+
+    pub fn host(_self: &Kain3dSession) -> &kain_host::HostSession:
+        &(*_self).host
+
+    pub fn host_mut(_self: &mut Kain3dSession) -> &mut kain_host::HostSession:
+        &mut (*_self).host
+
+    pub fn prelude_source(_self: &Kain3dSession) -> String:
+        emit_kain_prelude()
+
+    pub fn load_source(_self: &mut Kain3dSession, source: String) -> kain_host::HostResult<&mut Kain3dSession>:
+        let full_source = f"{emit_kain_prelude()}\n{source}"
+        (*_self).host.load_source(&full_source)?
+        ()
+        install_runtime_natives((*_self).host.env_mut())
+        ()
+        Result::Ok(*_self)
+
+    pub fn call<R>(_self: &mut Kain3dSession, function_name: String, args: Array<kain_host::Value>) -> kain_host::HostResult<R>:
+        (*_self).host.call(function_name, args)
+
+
+impl Default for Kain3dSession:
+    fn default_() -> Kain3dSession:
+        Kain3dSession__new_()
+
+
+pub fn install_runtime_natives(env: &mut kain_host::Env):
+    env.register_native_fn("__zen3d_box_geometry", native_box_geometry)
+    ()
+    env.register_native_fn("__zen3d_plane_geometry", native_plane_geometry)
+    ()
+    env.register_native_fn("__zen3d_uv_sphere", native_uv_sphere)
+    ()
+    env.register_native_fn("__zen3d_quad_sphere", native_quad_sphere)
+    ()
+    env.register_native_fn("__zen3d_cylinder", native_cylinder)
+    ()
+    env.register_native_fn("__zen3d_cone", native_cone)
+    ()
+    env.register_native_fn("__zen3d_capsule", native_capsule)
+    ()
+    env.register_native_fn("__zen3d_torus", native_torus)
+    ()
+    env.register_native_fn("__zen3d_standard_material", native_standard_material)
+    ()
+    env.register_native_fn("__zen3d_matte_material", native_matte_material)
+    ()
+    env.register_native_fn("__zen3d_glossy_material", native_glossy_material)
+    ()
+    env.register_native_fn("__zen3d_orbit_camera", native_orbit_camera)
+    ()
+    env.register_native_fn("__zen3d_radial_field", native_radial_field)
+    ()
+    env.register_native_fn("__zen3d_twist", native_twist)
+    ()
+    env.register_native_fn("__zen3d_noise_displace", native_noise_displace)
+    ()
+    env.register_native_fn("__zen3d_brush", native_brush)
+    ()
+
+impl kain_host::ToKainValue for Vec2:
+    fn to_kain_value(_self: Vec2) -> kain_host::Value:
+        kain_host__bridge__struct_value("Vec2", [("x", _self.x.to_kain_value()), ("y", _self.y.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Vec2:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Vec2>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Vec2")?
+        Result::Ok(Vec2 { x: kain_host__bridge__take_struct_field(&mut fields, "x")?, y: kain_host__bridge__take_struct_field(&mut fields, "y")? })
+
+
+impl kain_host::ToKainValue for Vec3:
+    fn to_kain_value(_self: Vec3) -> kain_host::Value:
+        kain_host__bridge__struct_value("Vec3", [("x", _self.x.to_kain_value()), ("y", _self.y.to_kain_value()), ("z", _self.z.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Vec3:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Vec3>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Vec3")?
+        Result::Ok(Vec3 { x: kain_host__bridge__take_struct_field(&mut fields, "x")?, y: kain_host__bridge__take_struct_field(&mut fields, "y")?, z: kain_host__bridge__take_struct_field(&mut fields, "z")? })
+
+
+impl kain_host::ToKainValue for ColorRgb:
+    fn to_kain_value(_self: ColorRgb) -> kain_host::Value:
+        kain_host__bridge__struct_value("ColorRgb", [("r", _self.r.to_kain_value()), ("g", _self.g.to_kain_value()), ("b", _self.b.to_kain_value())])
+
+
+impl kain_host::FromKainValue for ColorRgb:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<ColorRgb>:
+        let mut fields = kain_host__bridge__expect_struct(value, "ColorRgb")?
+        Result::Ok(ColorRgb { r: kain_host__bridge__take_struct_field(&mut fields, "r")?, g: kain_host__bridge__take_struct_field(&mut fields, "g")?, b: kain_host__bridge__take_struct_field(&mut fields, "b")? })
+
+
+impl kain_host::ToKainValue for GeometryTopology:
+    fn to_kain_value(_self: GeometryTopology) -> kain_host::Value:
+        match _self:
+            GeometryTopology::Triangles => kain_host__bridge__enum_variant_value("GeometryTopology", "Triangles", [])
+            GeometryTopology::Lines => kain_host__bridge__enum_variant_value("GeometryTopology", "Lines", [])
+            GeometryTopology::Points => kain_host__bridge__enum_variant_value("GeometryTopology", "Points", [])
+
+
+impl kain_host::FromKainValue for GeometryTopology:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<GeometryTopology>:
+        let (variant, fields) = kain_host__bridge__expect_enum(value, "GeometryTopology")?
+        let fields = kain_host__bridge__expect_variant_len(fields, 0, "GeometryTopology", &variant)?
+        let _ = fields
+        match variant.as_str():
+            "Triangles" => Result::Ok(GeometryTopology__Triangles)
+            "Lines" => Result::Ok(GeometryTopology__Lines)
+            "Points" => Result::Ok(GeometryTopology__Points)
+            _ => Result::Err(KainError__runtime(f"Unknown GeometryTopology variant `{variant}`"))
+
+
+impl kain_host::ToKainValue for Geometry:
+    fn to_kain_value(_self: Geometry) -> kain_host::Value:
+        kain_host__bridge__struct_value("Geometry", [("positions", _self.positions().unwrap_or(&[]).to_vec().to_kain_value()), ("normals", _self.normals().unwrap_or(&[]).to_vec().to_kain_value()), ("uvs", _self.uvs().unwrap_or(&[]).to_vec().to_kain_value()), ("colors", Vec__new_().to_kain_value()), ("indices", _self.indices.iter().map(fn(value): (*value) as i64).collect().to_kain_value()), ("topology", _self.topology.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Geometry:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Geometry>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Geometry")?
+        let positions = kain_host__bridge__take_struct_field(&mut fields, "positions")?
+        let normals = kain_host__bridge__take_struct_field(&mut fields, "normals")?
+        let uvs = kain_host__bridge__take_struct_field(&mut fields, "uvs")?
+        let colors = kain_host__bridge__take_struct_field(&mut fields, "colors")?
+        let indices = kain_host__bridge__take_struct_field(&mut fields, "indices")?
+        let topology = kain_host__bridge__take_struct_field(&mut fields, "topology")?
+        let mut geometry = Geometry__new_(topology).with_positions(positions).with_normals(normals).with_uvs(uvs).with_colors(colors).with_indices(indices.into_iter().map(fn(value): u32__try_from(value).map_err(fn(_): KainError__runtime("index out of range"))).collect()?)
+        if (geometry.normals().is_none() || geometry.normals().is_some_and(fn(values): values.is_empty())):
+            let _ = geometry.compute_vertex_normals()
+            ()
+        Result::Ok(geometry)
+
+
+impl kain_host::ToKainValue for Material:
+    fn to_kain_value(_self: Material) -> kain_host::Value:
+        kain_host__bridge__struct_value("Material", [("base_color", _self.base_color.to_kain_value()), ("specular_color", _self.specular_color.to_kain_value()), ("ambient_strength", _self.ambient_strength.to_kain_value()), ("diffuse_strength", _self.diffuse_strength.to_kain_value()), ("specular_strength", _self.specular_strength.to_kain_value()), ("shininess", _self.shininess.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Material:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Material>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Material")?
+        Result::Ok(Material { base_color: kain_host__bridge__take_struct_field(&mut fields, "base_color")?, specular_color: kain_host__bridge__take_struct_field(&mut fields, "specular_color")?, ambient_strength: kain_host__bridge__take_struct_field(&mut fields, "ambient_strength")?, diffuse_strength: kain_host__bridge__take_struct_field(&mut fields, "diffuse_strength")?, specular_strength: kain_host__bridge__take_struct_field(&mut fields, "specular_strength")?, shininess: kain_host__bridge__take_struct_field(&mut fields, "shininess")? })
+
+
+impl kain_host::ToKainValue for Camera:
+    fn to_kain_value(_self: Camera) -> kain_host::Value:
+        kain_host__bridge__struct_value("Camera", [("target", _self.target.to_kain_value()), ("up", _self.up.to_kain_value()), ("orbit_radius", _self.orbit_radius.to_kain_value()), ("orbit_height", _self.orbit_height.to_kain_value()), ("orbit_speed_radians_per_second", _self.orbit_speed_radians_per_second.to_kain_value()), ("fov_y_degrees", _self.fov_y_degrees.to_kain_value()), ("near_plane", _self.near_plane.to_kain_value()), ("far_plane", _self.far_plane.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Camera:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Camera>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Camera")?
+        Result::Ok(Camera { target: kain_host__bridge__take_struct_field(&mut fields, "target")?, up: kain_host__bridge__take_struct_field(&mut fields, "up")?, orbit_radius: kain_host__bridge__take_struct_field(&mut fields, "orbit_radius")?, orbit_height: kain_host__bridge__take_struct_field(&mut fields, "orbit_height")?, orbit_speed_radians_per_second: kain_host__bridge__take_struct_field(&mut fields, "orbit_speed_radians_per_second")?, fov_y_degrees: kain_host__bridge__take_struct_field(&mut fields, "fov_y_degrees")?, near_plane: kain_host__bridge__take_struct_field(&mut fields, "near_plane")?, far_plane: kain_host__bridge__take_struct_field(&mut fields, "far_plane")? })
+
+
+impl kain_host::ToKainValue for Field:
+    fn to_kain_value(_self: Field) -> kain_host::Value:
+        match _self:
+            Field::Constant(value) => kain_host__bridge__enum_variant_value("Field", "Constant", [value.to_kain_value()])
+            Field::Linear { axis: axis, start: start, end: end } => kain_host__bridge__enum_variant_value("Field", "Linear", [axis.to_kain_value(), start.to_kain_value(), end.to_kain_value()])
+            Field::Radial { center: center, inner_radius: inner_radius, outer_radius: outer_radius } => kain_host__bridge__enum_variant_value("Field", "Radial", [center.to_kain_value(), inner_radius.to_kain_value(), outer_radius.to_kain_value()])
+            Field::Noise { frequency: frequency, offset: offset } => kain_host__bridge__enum_variant_value("Field", "Noise", [frequency.to_kain_value(), offset.to_kain_value()])
+            Field::VolumeMask {  } => KainError__runtime("VolumeMask bridge is not implemented").to_string().to_kain_value()
+
+
+impl kain_host::FromKainValue for Field:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Field>:
+        let (variant, fields) = kain_host__bridge__expect_enum(value, "Field")?
+        match variant.as_str():
+            "Constant" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 1, "Field", "Constant")?
+                Result::Ok(Field::Constant(f32__from_kain_value(fields.remove(0))?))
+            "Linear" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 3, "Field", "Linear")?
+                Result::Ok(Field::Linear { axis: Vec3__from_kain_value(fields.remove(0))?, start: f32__from_kain_value(fields.remove(0))?, end: f32__from_kain_value(fields.remove(0))? })
+            "Radial" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 3, "Field", "Radial")?
+                Result::Ok(Field::Radial { center: Vec3__from_kain_value(fields.remove(0))?, inner_radius: f32__from_kain_value(fields.remove(0))?, outer_radius: f32__from_kain_value(fields.remove(0))? })
+            "Noise" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 2, "Field", "Noise")?
+                Result::Ok(Field::Noise { frequency: f32__from_kain_value(fields.remove(0))?, offset: Vec3__from_kain_value(fields.remove(0))? })
+            _ => Result::Err(KainError__runtime(f"Unknown Field variant `{variant}`"))
+
+
+impl kain_host::ToKainValue for Modifier:
+    fn to_kain_value(_self: Modifier) -> kain_host::Value:
+        match _self:
+            Modifier::Translate(offset) => kain_host__bridge__enum_variant_value("Modifier", "Translate", [offset.to_kain_value()])
+            Modifier::Scale(factor) => kain_host__bridge__enum_variant_value("Modifier", "Scale", [factor.to_kain_value()])
+            Modifier::Inflate { amount: amount } => kain_host__bridge__enum_variant_value("Modifier", "Inflate", [amount.to_kain_value()])
+            Modifier::Twist { axis: axis, angle_radians: angle_radians } => kain_host__bridge__enum_variant_value("Modifier", "Twist", [axis.to_kain_value(), angle_radians.to_kain_value()])
+            Modifier::NoiseDisplace { amplitude: amplitude, frequency: frequency } => kain_host__bridge__enum_variant_value("Modifier", "NoiseDisplace", [amplitude.to_kain_value(), frequency.to_kain_value()])
+            Modifier::Spherify { factor: factor } => kain_host__bridge__enum_variant_value("Modifier", "Spherify", [factor.to_kain_value()])
+
+
+impl kain_host::FromKainValue for Modifier:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Modifier>:
+        let (variant, fields) = kain_host__bridge__expect_enum(value, "Modifier")?
+        match variant.as_str():
+            "Translate" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 1, "Modifier", "Translate")?
+                Result::Ok(Modifier::Translate(Vec3__from_kain_value(fields.remove(0))?))
+            "Scale" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 1, "Modifier", "Scale")?
+                Result::Ok(Modifier::Scale(Vec3__from_kain_value(fields.remove(0))?))
+            "Inflate" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 1, "Modifier", "Inflate")?
+                Result::Ok(Modifier::Inflate { amount: f32__from_kain_value(fields.remove(0))? })
+            "Twist" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 2, "Modifier", "Twist")?
+                Result::Ok(Modifier::Twist { axis: Vec3__from_kain_value(fields.remove(0))?, angle_radians: f32__from_kain_value(fields.remove(0))?, field: none })
+            "NoiseDisplace" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 2, "Modifier", "NoiseDisplace")?
+                Result::Ok(Modifier::NoiseDisplace { amplitude: f32__from_kain_value(fields.remove(0))?, frequency: f32__from_kain_value(fields.remove(0))?, along_normal: true, field: none })
+            "Spherify" =>
+                let mut fields = kain_host__bridge__expect_variant_len(fields, 1, "Modifier", "Spherify")?
+                Result::Ok(Modifier::Spherify { factor: f32__from_kain_value(fields.remove(0))? })
+            _ => Result::Err(KainError__runtime(f"Unknown Modifier variant `{variant}`"))
+
+
+impl kain_host::ToKainValue for BrushFalloff:
+    fn to_kain_value(_self: BrushFalloff) -> kain_host::Value:
+        let variant = match _self:
+            BrushFalloff::Constant => "Constant"
+            BrushFalloff::Linear => "Linear"
+            BrushFalloff::Smooth => "Smooth"
+            BrushFalloff::Sphere => "Sphere"
+        kain_host__bridge__enum_variant_value("BrushFalloff", variant, [])
+
+
+impl kain_host::FromKainValue for BrushFalloff:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<BrushFalloff>:
+        let (variant, fields) = kain_host__bridge__expect_enum(value, "BrushFalloff")?
+        let fields = kain_host__bridge__expect_variant_len(fields, 0, "BrushFalloff", &variant)?
+        let _ = fields
+        match variant.as_str():
+            "Constant" => Result::Ok(BrushFalloff__Constant)
+            "Linear" => Result::Ok(BrushFalloff__Linear)
+            "Smooth" => Result::Ok(BrushFalloff__Smooth)
+            "Sphere" => Result::Ok(BrushFalloff__Sphere)
+            _ => Result::Err(KainError__runtime(f"Unknown BrushFalloff variant `{variant}`"))
+
+
+impl kain_host::ToKainValue for Brush:
+    fn to_kain_value(_self: Brush) -> kain_host::Value:
+        kain_host__bridge__struct_value("Brush", [("radius", _self.radius.to_kain_value()), ("strength", _self.strength.to_kain_value()), ("spacing", _self.spacing.to_kain_value()), ("falloff", _self.falloff.to_kain_value())])
+
+
+impl kain_host::FromKainValue for Brush:
+    fn from_kain_value(value: kain_host::Value) -> kain_host::HostResult<Brush>:
+        let mut fields = kain_host__bridge__expect_struct(value, "Brush")?
+        Result::Ok(Brush { radius: kain_host__bridge__take_struct_field(&mut fields, "radius")?, strength: kain_host__bridge__take_struct_field(&mut fields, "strength")?, spacing: kain_host__bridge__take_struct_field(&mut fields, "spacing")?, falloff: kain_host__bridge__take_struct_field(&mut fields, "falloff")? })
+
+
+fn native_box_geometry(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    let size = expect_single("__zen3d_box_geometry", args)?
+    Result::Ok(Geometry__box_mesh(size).to_kain_value())
+
+fn native_plane_geometry(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    let size = expect_single("__zen3d_plane_geometry", args)?
+    Result::Ok(Geometry__plane(size).to_kain_value())
+
+fn native_uv_sphere(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, lat, lon] => Result::Ok(Geometry__uv_sphere(f32__from_kain_value(radius.clone())?, usize__from_kain_value(lat.clone())?, usize__from_kain_value(lon.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_uv_sphere expects (Float, Int, Int)"))
+
+fn native_quad_sphere(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, resolution] => Result::Ok(Geometry__quad_sphere(f32__from_kain_value(radius.clone())?, usize__from_kain_value(resolution.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_quad_sphere expects (Float, Int)"))
+
+fn native_cylinder(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, height, radial_segments, height_segments] => Result::Ok(Geometry__cylinder(f32__from_kain_value(radius.clone())?, f32__from_kain_value(height.clone())?, usize__from_kain_value(radial_segments.clone())?, usize__from_kain_value(height_segments.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_cylinder expects (Float, Float, Int, Int)"))
+
+fn native_cone(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, height, radial_segments, height_segments] => Result::Ok(Geometry__cone(f32__from_kain_value(radius.clone())?, f32__from_kain_value(height.clone())?, usize__from_kain_value(radial_segments.clone())?, usize__from_kain_value(height_segments.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_cone expects (Float, Float, Int, Int)"))
+
+fn native_capsule(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, height, radial_segments, hemisphere_segments, body_segments] => Result::Ok(Geometry__capsule(f32__from_kain_value(radius.clone())?, f32__from_kain_value(height.clone())?, usize__from_kain_value(radial_segments.clone())?, usize__from_kain_value(hemisphere_segments.clone())?, usize__from_kain_value(body_segments.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_capsule expects (Float, Float, Int, Int, Int)"))
+
+fn native_torus(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [major_radius, minor_radius, major_segments, minor_segments] => Result::Ok(Geometry__torus(f32__from_kain_value(major_radius.clone())?, f32__from_kain_value(minor_radius.clone())?, usize__from_kain_value(major_segments.clone())?, usize__from_kain_value(minor_segments.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_torus expects (Float, Float, Int, Int)"))
+
+fn native_standard_material(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    let color = expect_single("__zen3d_standard_material", args)?
+    Result::Ok(Material__standard(color).to_kain_value())
+
+fn native_matte_material(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    let color = expect_single("__zen3d_matte_material", args)?
+    Result::Ok(Material__matte(color).to_kain_value())
+
+fn native_glossy_material(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    let color = expect_single("__zen3d_glossy_material", args)?
+    Result::Ok(Material__glossy(color).to_kain_value())
+
+fn native_orbit_camera(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [target, orbit_radius, orbit_height] => Result::Ok(Camera__orbit(Vec3__from_kain_value(target.clone())?, f32__from_kain_value(orbit_radius.clone())?, f32__from_kain_value(orbit_height.clone())?).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_orbit_camera expects (Vec3, Float, Float)"))
+
+fn native_radial_field(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [center, inner_radius, outer_radius] => Result::Ok(Field::Radial { center: Vec3__from_kain_value(center.clone())?, inner_radius: f32__from_kain_value(inner_radius.clone())?, outer_radius: f32__from_kain_value(outer_radius.clone())? }.to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_radial_field expects (Vec3, Float, Float)"))
+
+fn native_twist(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [axis, angle] => Result::Ok(Modifier::Twist { axis: Vec3__from_kain_value(axis.clone())?, angle_radians: f32__from_kain_value(angle.clone())?, field: none }.to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_twist expects (Vec3, Float)"))
+
+fn native_noise_displace(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [amplitude, frequency] => Result::Ok(Modifier::NoiseDisplace { amplitude: f32__from_kain_value(amplitude.clone())?, frequency: f32__from_kain_value(frequency.clone())?, along_normal: true, field: none }.to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_noise_displace expects (Float, Float)"))
+
+fn native_brush(_env: &mut kain_host::Env, args: Array<kain_host::Value>) -> kain_host::HostResult<kain_host::Value>:
+    match args.as_slice():
+        [radius, strength] => Result::Ok((Brush { radius: f32__from_kain_value(radius.clone())?, strength: f32__from_kain_value(strength.clone())?, spacing: 0.15, falloff: BrushFalloff__Smooth }).to_kain_value())
+        _ => Result::Err(KainError__runtime("__zen3d_brush expects (Float, Float)"))
+
+fn expect_single<T>(name: String, args: Array<kain_host::Value>) -> kain_host::HostResult<T>:
+    match args.as_slice():
+        [value] => T__from_kain_value(value.clone())
+        _ => Result::Err(KainError__runtime(f"{name} expects a single argument"))
+

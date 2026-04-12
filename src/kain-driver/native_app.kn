@@ -1,0 +1,1160 @@
+use std::ffi::OsStr
+
+use std::fs
+
+use std::path::Component
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use std::process::Command
+
+use std::time::SystemTime
+
+use std::time::UNIX_EPOCH
+
+use crate::compute_residency::write_compute_residency_sidecars
+
+use crate::compute_residency::COMPUTE_RESIDENCY_ENV_VAR
+
+use crate::compute_residency::COMPUTE_RESIDENCY_FILE_NAME
+
+use crate::apply_active_world_selection_to_runtime_contract
+
+use crate::resolve_root_component_name
+
+use crate::DriverSession
+
+use crate::RustBundleOutput
+
+use crate::ShaderArtifactBundleOutput
+
+use kain_core::error::KainError
+
+use kain_core::build_ui_output_from_source
+
+use kain_core::realtime_app_bundle_to_json
+
+use kain_core::runtime_contract_bundle_to_json
+
+use kain_core::CompileTarget
+
+use kain_core::RealtimeAppBundle
+
+use kain_core::RealtimeAssetBinding
+
+use kain_core::RuntimeCapability
+
+use kain_core::RuntimeCompatibilityMetadata
+
+use kain_core::RuntimeContractBundle
+
+use kain_core::RuntimePlatformAvailabilityMetadata
+
+use kain_core::RuntimeServiceBinding
+
+use kain_core::RuntimeVersionRecord
+
+use kain_ui::ui_runtime_bundle_from_output
+
+use kain_ui::ui_runtime_bundle_to_json
+
+use kain_ui::UiBuildOutput
+
+use kain_ui::UiRuntimeBundle
+
+use kain_ui::UiRuntimeMetadata
+
+const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: String = "native_app_bundle.json"
+
+const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: String = "kain_runtime_contract.json"
+
+const NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME: String = "kain_runtime_compatibility.json"
+
+const NATIVE_APP_REALTIME_BUNDLE_FILE_NAME: String = "kain_realtime_app_bundle.json"
+
+const NATIVE_APP_SHADER_BUNDLE_FILE_NAME: String = "kain_shader_bundle.json"
+
+const NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME: String = "kain_runtime_version.json"
+
+const NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME: String = "kain_reflection_payload.json"
+
+const NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME: String = "kain_c_host_bridges.json"
+
+const NATIVE_APP_CONFIG_DIR_NAME: String = "config"
+
+const NATIVE_APP_STATE_DIR_NAME: String = "state"
+
+const NATIVE_APP_MANIFEST_FILE_NAME: String = "app_manifest.json"
+
+const NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME: String = "runtime_snapshot.json"
+
+@derive(Debug, Clone)
+pub struct NativeAppBundleConfig:
+    app_name: Option<String>
+    window_title: Option<String>
+    root_component: Option<String>
+    source_file_name: Option<String>
+    source_root: Option<std::path::PathBuf>
+    initial_window_size: [f32; 2]
+    include_spirv: Bool
+
+impl Default for NativeAppBundleConfig:
+    fn default_() -> NativeAppBundleConfig:
+        NativeAppBundleConfig { app_name: none, window_title: none, root_component: none, source_file_name: Option::Some(("app.kn").to_string()), source_root: none, initial_window_size: [1440, 920], include_spirv: true }
+
+
+@doc(doc = " Runtime version metadata loaded from native_runtime.toml")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct RuntimeVersionMetadata:
+    runtime_major: u32
+    runtime_minor: u32
+    runtime_patch: u32
+    abi_major: u32
+    abi_minor: u32
+    abi_patch: u32
+    runtime_version_string: String
+    abi_version_string: String
+    compatibility_class: String
+    runtime_lane: String
+    target_platforms: Array<String>
+    active_platforms: Array<String>
+
+impl RuntimeVersionMetadata:
+    pub fn load_from_runtime_manifest() -> Result<RuntimeVersionMetadata, kain_core::error::KainError>:
+        let manifest_path = find_native_runtime_manifest().ok_or_else(fn(): KainError__runtime("Could not locate runtime/native_runtime.toml"))?
+        let manifest_source = std__fs__read_to_string(&manifest_path).map_err(fn(err): KainError__runtime(f"Failed to read runtime manifest {manifest_path.display()}: {err}"))?
+        @derive(serde__Deserialize)
+        struct VersionSection:
+            runtime_major: u32
+            runtime_minor: u32
+            runtime_patch: u32
+            abi_major: u32
+            abi_minor: u32
+            abi_patch: u32
+
+        @derive(serde__Deserialize)
+        struct MetadataSection:
+            compatibility_class: String
+            runtime_lane: String
+            target_platforms: Array<String>
+            active_platforms: Array<String>
+
+        @derive(serde__Deserialize)
+        struct RuntimeManifest:
+            version: VersionSection
+            metadata: MetadataSection
+
+        let manifest: RuntimeManifest = toml__from_str(&manifest_source).map_err(fn(err): KainError__runtime(f"Failed to parse runtime manifest {manifest_path.display()}: {err}"))?
+        let runtime_version_string = f"{manifest.version.runtime_major}.{manifest.version.runtime_minor}.{manifest.version.runtime_patch}"
+        let abi_version_string = f"{manifest.version.abi_major}.{manifest.version.abi_minor}.{manifest.version.abi_patch}"
+        Result::Ok(RuntimeVersionMetadata { runtime_major: manifest.version.runtime_major, runtime_minor: manifest.version.runtime_minor, runtime_patch: manifest.version.runtime_patch, abi_major: manifest.version.abi_major, abi_minor: manifest.version.abi_minor, abi_patch: manifest.version.abi_patch, runtime_version_string: runtime_version_string, abi_version_string: abi_version_string, compatibility_class: manifest.metadata.compatibility_class, runtime_lane: manifest.metadata.runtime_lane, target_platforms: manifest.metadata.target_platforms, active_platforms: manifest.metadata.active_platforms })
+
+
+fn find_native_runtime_manifest() -> Option<std::path::PathBuf>:
+    for env_var in ["KAIN_RUNTIME_MANIFEST_PATH", "KAIN_RUNTIME_MANIFEST"]:
+        match std__env__var_(env_var):
+            Ok(explicit_) =>
+                let candidate = PathBuf__from(explicit_)
+                if candidate.exists():
+                    return Option::Some(candidate)
+            _ => ()
+    ()
+    match std__env__current_dir():
+        Ok(mut dir) =>
+            for _ in range(0, 10):
+                let candidate = dir.join("runtime").join("native_runtime.toml")
+                if candidate.exists():
+                    return Option::Some(candidate)
+                match dir.parent():
+                    Some(parent) => dir = parent.to_path_buf()
+                    None => break
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_exe():
+        Ok(exe_path) =>
+            match exe_path.parent().map(fn(p): p.to_path_buf()):
+                Some(mut dir) =>
+                    loop:
+                        let candidate = dir.join("runtime").join("native_runtime.toml")
+                        if candidate.exists():
+                            return Option::Some(candidate)
+                        if (!dir.pop()):
+                            break
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    none
+
+@derive(Debug, Clone)
+pub struct NativeAppMetadata:
+    app_name: String
+    window_title: String
+    root_component: String
+    source_file_name: String
+    source_root: Option<std::path::PathBuf>
+    initial_window_size: [f32; 2]
+
+@derive(Debug, Clone)
+pub struct NativeAppBundle:
+    metadata: NativeAppMetadata
+    runtime_contract: kain_core::RuntimeContractBundle
+    realtime: kain_core::RealtimeAppBundle
+    shader_bundle: Option<ShaderArtifactBundleOutput>
+    ui: kain_ui::UiBuildOutput
+    ui_runtime_bundle: kain_ui::UiRuntimeBundle
+    rust: RustBundleOutput
+    runtime_version: Option<RuntimeVersionMetadata>
+
+pub enum NativeAppRuntimeDependency:
+    Path(std::path::PathBuf)
+    Version(String)
+
+@derive(Debug, Clone)
+pub struct NativeAppMaterializationConfig:
+    project_dir: std::path::PathBuf
+    runtime_crate_name: String
+    runtime_dependency: NativeAppRuntimeDependency
+    artifact_output_dir: std::path::PathBuf
+    build_executable: Bool
+    release: Bool
+    executable_output_dir: Option<std::path::PathBuf>
+    launcher_entrypoint: NativeAppLauncherEntrypoint
+    host_sidecars: Array<NativeAppHostSidecarBinding>
+
+@derive(Debug, Clone)
+pub struct NativeAppMaterializedPaths:
+    project_dir: std::path::PathBuf
+    manifest_path: std::path::PathBuf
+    main_rs_path: std::path::PathBuf
+    source_copy_path: std::path::PathBuf
+    artifact_paths: Array<std::path::PathBuf>
+    executable_path: Option<std::path::PathBuf>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppManifest:
+    app_id: String
+    name: String
+    version: String
+    window_title: String
+    root_component: String
+    active_world: Option<String>
+    layout_id: String
+    required_runtime_capabilities: Array<String>
+    target_outputs: Array<String>
+    manifests: NativeAppManifestPaths
+    runtime_sidecars: NativeAppRuntimeSidecars
+    launcher: NativeAppLauncherMetadata
+    hot_reload: NativeAppHotReloadMetadata
+    host_bridges: Array<kain_c_ffi::PackagedBridgeImport>
+    host_sidecars: Array<NativeAppManifestHostSidecar>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppManifestPaths:
+    host_bridges: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppRuntimeSidecars:
+    runtime_bundle: String
+    runtime_contract: String
+    runtime_compatibility: String
+    realtime_bundle: String
+    shader_bundle: Option<String>
+    runtime_snapshot: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppManifestHostSidecar:
+    packaged_file_name: String
+    env_var: Option<String>
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+struct NativeAppLauncherMetadata:
+    kind: String
+    function_name: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppHotReloadPolicy:
+    product_mode_default: Bool
+    devtools_opt_in: Bool
+    preserve_focus: Bool
+    preserve_selection: Bool
+    preserve_docking: Bool
+    preserve_overlays: Bool
+    preserve_motion_policy: Bool
+    preserve_animation_state: Bool
+    preserve_signal_values: Bool
+    preserve_session_state: Bool
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+struct NativeAppHotReloadIdentity:
+    app_id: String
+    name: String
+    window_title: String
+    root_component: String
+    active_world: Option<String>
+    layout_id: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppHotReloadArtifact:
+    role: String
+    path: String
+    fingerprint: String
+    byte_length: usize
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct NativeAppHotReloadMetadata:
+    summary: String
+    launcher: NativeAppLauncherMetadata
+    policy: NativeAppHotReloadPolicy
+    identity: NativeAppHotReloadIdentity
+    artifact_fingerprints: Array<NativeAppHotReloadArtifact>
+    materialization_fingerprint: String
+    previous_materialization_fingerprint: Option<String>
+    changed_artifact_roles: Array<String>
+    reload_compatible_with_previous: Bool
+
+@derive(Debug, Clone, serde__Deserialize)
+struct PreviousNativeAppManifestMetadata:
+    launcher: NativeAppLauncherMetadata
+    hot_reload: NativeAppHotReloadMetadata
+
+@derive(Debug, Clone)
+struct PackagedNativeAppHostSidecar:
+    packaged_file_name: String
+    env_var: Option<String>
+
+@derive(Debug, Clone)
+pub struct NativeAppHostSidecarBinding:
+    source_path: std::path::PathBuf
+    packaged_file_name: Option<String>
+    env_var: Option<String>
+
+pub enum NativeAppLauncherEntrypoint:
+    RunBundledAppJson { function_name: String }
+    RunNoArgFunction { function_name: String }
+
+impl Default for NativeAppLauncherEntrypoint:
+    fn default_() -> NativeAppLauncherEntrypoint:
+        NativeAppLauncherEntrypoint::RunBundledAppJson { function_name: ("run_bundled_app_json").to_string() }
+
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeSnapshot:
+    app_id: String
+    name: String
+    version: String
+    window_title: String
+    root_component: String
+    active_world: Option<String>
+    layout_id: String
+    required_runtime_capabilities: Array<String>
+    panels: Array<NativeAppRuntimePanel>
+    commands: Array<NativeAppRuntimeCommand>
+    providers: Array<NativeAppRuntimeProvider>
+    tools: Array<NativeAppRuntimeTool>
+    sessions: NativeAppRuntimeSessions
+    recent_sessions: Array<NativeAppRuntimeRecentSession>
+    workspaces: Array<NativeAppRuntimeWorkspace>
+    launcher: NativeAppLauncherMetadata
+    hot_reload: NativeAppHotReloadMetadata
+    updated_at: String
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimePanel:
+    id: String
+    title: String
+    dock: String
+    kind: String
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeCommand:
+    id: String
+    label: String
+    surface: String
+    intent: String
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeProvider:
+    id: String
+    label: String
+    transport: String
+    profile_kind: String
+    supports_tools: Bool
+    supports_streaming: Bool
+    active: Bool
+    profile_configured: Bool
+    profile_keys: Array<String>
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeTool:
+    id: String
+    label: String
+    capability: String
+    approval: String
+    decision: Option<String>
+    scope_decisions: Array<String>
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeSessions:
+    total_sessions: usize
+    active_provider: String
+    recent_session_id: String
+    recent_session_title: String
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeRecentSession:
+    id: String
+    title: String
+    provider_id: String
+    status: String
+    workspace_root: String
+    updated_at: String
+    message_count: usize
+    last_message_role: String
+    last_message_preview: String
+
+@derive(Debug, Clone, serde__Serialize)
+struct NativeAppRuntimeWorkspace:
+    root: String
+    session_count: usize
+    recent_session_title: String
+
+impl DriverSession:
+    pub fn compile_native_app_bundle(_self: &DriverSession, source: String, config: &NativeAppBundleConfig) -> Result<NativeAppBundle, kain_core::error::KainError>:
+        let source_file_name = normalized_source_file_name((*config).source_file_name)
+        let source_root = normalized_source_root((*config).source_root)
+        let source_name = source_file_name.as_str()
+        let root_component = (discover_native_app_root_component(source, (*config).root_component, source_name)?).ok_or_else(fn(): KainError__runtime(f"Native app bundle generation requires at least one component in {source_name}"))?
+        let base_name = source_stem(source_name)
+        let app_name = sanitize_cargo_name((*config).app_name.unwrap_or(&base_name))
+        let window_title = (*config).window_title.clone().filter(fn(value): (!value.trim().is_empty())).unwrap_or_else(fn(): root_component.clone())
+        let prepared_ui_source = prepare_c_ffi_source(source, kain_core__CompileTarget__Rust)?
+        let mut runtime_contract = (*_self).compile_runtime_contract_bundle(source, kain_core__CompileTarget__Rust)?
+        let realtime = ((*_self).compile_realtime_app_bundle(source, kain_core__CompileTarget__Rust, Option::Some(&root_component))?).bundle
+        apply_active_world_selection_to_runtime_contract(&mut runtime_contract, realtime.active_world.map(fn(world): world.name.as_str()))?
+        ()
+        let shader_bundle = (*_self).compile_shader_artifact_bundle(source).ok()
+        let ui = kain_core__build_ui_output_from_source(&prepared_ui_source, &root_component)?
+        let metadata = NativeAppMetadata { app_name: app_name, window_title: window_title, root_component: root_component, source_file_name: source_file_name, source_root: source_root, initial_window_size: (*config).initial_window_size }
+        let mut ui_runtime_metadata = UiRuntimeMetadata__default_()
+        ui_runtime_metadata.app_name = Option::Some(metadata.app_name.clone())
+        ()
+        ui_runtime_metadata.window_title = metadata.window_title.clone()
+        ()
+        ui_runtime_metadata.root_component = metadata.root_component.clone()
+        ()
+        ui_runtime_metadata.source_file_name = Option::Some(metadata.source_file_name.clone())
+        ()
+        ui_runtime_metadata.initial_window_size = metadata.initial_window_size
+        ()
+        let ui_runtime_bundle = kain_ui__ui_runtime_bundle_from_output(ui_runtime_metadata, ui.clone())
+        let rust = (*_self).compile_rust_artifact_bundle(source, (*config).include_spirv)?
+        let runtime_version = RuntimeVersionMetadata__load_from_runtime_manifest().ok()
+        match &runtime_version:
+            Some(runtime_version) =>
+                apply_runtime_compatibility_metadata(&mut runtime_contract.compatibility, runtime_version, &runtime_contract.target)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let imported_c_libraries = kain_c_ffi__detect_c_library_imports(source)
+        if (!imported_c_libraries.is_empty()):
+            ensure_native_c_ffi_runtime_contract_metadata(&mut runtime_contract, &imported_c_libraries)
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(NativeAppBundle { metadata: metadata, runtime_contract: runtime_contract, realtime: realtime, shader_bundle: shader_bundle, ui: ui, ui_runtime_bundle: ui_runtime_bundle, rust: rust, runtime_version: runtime_version })
+
+    pub fn materialize_native_app_bundle(_self: &DriverSession, source: String, bundle: &NativeAppBundle, config: &NativeAppMaterializationConfig) -> Result<NativeAppMaterializedPaths, kain_core::error::KainError>:
+        let project_dir = &(*config).project_dir
+        std__fs__create_dir_all(project_dir.join("src")).map_err(io_error("create native app source directory"))?
+        ()
+        let config_dir = project_dir.join(NATIVE_APP_CONFIG_DIR_NAME)
+        let state_dir = project_dir.join(NATIVE_APP_STATE_DIR_NAME)
+        std__fs__create_dir_all(&config_dir).map_err(io_error("create native app config directory"))?
+        ()
+        std__fs__create_dir_all(&state_dir).map_err(io_error("create native app state directory"))?
+        ()
+        let source_copy_path = project_dir.join(&(*bundle).metadata.source_file_name)
+        std__fs__write(&source_copy_path, source.as_bytes()).map_err(io_error("write embedded native app Kain source"))?
+        ()
+        let artifact_root = if (*config).artifact_output_dir.is_absolute():
+            (*config).artifact_output_dir.clone()
+        else:
+            project_dir.join(&(*config).artifact_output_dir)
+        std__fs__create_dir_all(&artifact_root).map_err(io_error("create native app artifact directory"))?
+        ()
+        let mut artifact_paths = Vec__new_()
+        let (materialized_realtime_bundle, packaged_realtime_asset_paths) = materialize_realtime_assets(&(*bundle).realtime, &artifact_root, (*bundle).metadata.source_root)?
+        artifact_paths.extend(packaged_realtime_asset_paths.iter().cloned())
+        ()
+        let runtime_bundle_path = artifact_root.join(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME)
+        let runtime_bundle_json = render_runtime_bundle_json(bundle)?
+        std__fs__write(&runtime_bundle_path, runtime_bundle_json.as_bytes()).map_err(io_error("write native app runtime bundle"))?
+        ()
+        artifact_paths.push(runtime_bundle_path.clone())
+        ()
+        let runtime_contract_path = artifact_root.join(NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME)
+        let runtime_contract_json = render_runtime_contract_json(bundle)?
+        std__fs__write(&runtime_contract_path, runtime_contract_json.as_bytes()).map_err(io_error("write native app runtime contract"))?
+        ()
+        artifact_paths.push(runtime_contract_path.clone())
+        ()
+        let runtime_compatibility_path = artifact_root.join(NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME)
+        let runtime_compatibility_json = render_runtime_compatibility_json(bundle)?
+        std__fs__write(&runtime_compatibility_path, runtime_compatibility_json.as_bytes()).map_err(io_error("write native app runtime compatibility"))?
+        ()
+        artifact_paths.push(runtime_compatibility_path.clone())
+        ()
+        let realtime_bundle_path = artifact_root.join(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME)
+        let realtime_bundle_json = render_realtime_bundle_json(&materialized_realtime_bundle)?
+        std__fs__write(&realtime_bundle_path, realtime_bundle_json.as_bytes()).map_err(io_error("write native app realtime bundle"))?
+        ()
+        artifact_paths.push(realtime_bundle_path.clone())
+        ()
+        let compute_residency_paths = compute_residency__write_compute_residency_sidecars(&(*bundle).realtime, &artifact_root)?
+        artifact_paths.extend(compute_residency_paths.iter().cloned())
+        ()
+        match (materialize_gpu_runtime_library(&artifact_root, (*config).release)?):
+            Some(runtime_dll_path) =>
+                artifact_paths.push(runtime_dll_path)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match &(*bundle).runtime_version:
+            Some(runtime_version) =>
+                let version_metadata_path = artifact_root.join(NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME)
+                let version_metadata_json = serde_json__to_string_pretty(runtime_version).map_err(fn(err): KainError__runtime(f"Failed to serialize runtime version metadata: {err}"))?
+                std__fs__write(&version_metadata_path, version_metadata_json.as_bytes()).map_err(io_error("write native runtime version metadata"))?
+                ()
+                artifact_paths.push(version_metadata_path)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match &(*bundle).runtime_contract.reflection_payload:
+            Some(reflection_payload) =>
+                let reflection_payload_path = artifact_root.join(NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME)
+                let reflection_payload_json = serde_json__to_string_pretty(reflection_payload).map_err(fn(err): KainError__runtime(f"Failed to serialize reflection payload: {err}"))?
+                std__fs__write(&reflection_payload_path, reflection_payload_json.as_bytes()).map_err(io_error("write native runtime reflection payload"))?
+                ()
+                artifact_paths.push(reflection_payload_path)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let (shader_bundle_path, shader_bundle_json) = match &(*bundle).shader_bundle:
+            Some(shader_bundle) =>
+                let path = artifact_root.join(NATIVE_APP_SHADER_BUNDLE_FILE_NAME)
+                let json = shader_bundle.bundle_json.clone()
+                std__fs__write(&path, json.as_bytes()).map_err(io_error("write native app shader bundle"))?
+                ()
+                artifact_paths.push(path.clone())
+                ()
+                (Option::Some(path), Option::Some(json))
+            _ => (none, none)
+        let (packaged_c_ffi_imports, packaged_c_ffi_manifest_path, c_ffi_artifact_paths) = materialize_c_ffi_bridge_sidecars(source, &artifact_root)?
+        artifact_paths.extend(c_ffi_artifact_paths.iter().cloned())
+        ()
+        let (packaged_host_sidecars, packaged_host_sidecar_paths) = materialize_host_sidecars(&(*config).host_sidecars, &artifact_root)?
+        artifact_paths.extend(packaged_host_sidecar_paths.iter().cloned())
+        ()
+        let primary_path = artifact_root.join(&(*bundle).rust.bundle.primary.suggested_file_name)
+        std__fs__write(&primary_path, (*bundle).rust.bundle.primary.contents.as_bytes()).map_err(io_error("write native app primary Rust artifact"))?
+        ()
+        artifact_paths.push(primary_path)
+        ()
+        for artifact in &(*bundle).rust.bundle.supplemental:
+            let path = artifact_root.join(&artifact.suggested_file_name)
+            std__fs__write(&path, artifact.contents.as_bytes()).map_err(io_error("write native app supplemental artifact"))?
+            ()
+            artifact_paths.push(path)
+            ()
+        ()
+        match &(*bundle).rust.spirv:
+            Some(spirv) =>
+                let spirv_path = artifact_root.join("kain_gpu.spv")
+                std__fs__write(&spirv_path, spirv).map_err(io_error("write native app SPIR-V artifact"))?
+                ()
+                artifact_paths.push(spirv_path)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let app_manifest_path = config_dir.join(NATIVE_APP_MANIFEST_FILE_NAME)
+        let runtime_snapshot_path = state_dir.join(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME)
+        let launcher_metadata = build_native_app_launcher_metadata(&(*config).launcher_entrypoint)
+        let previous_manifest_metadata = read_previous_native_app_manifest_metadata(&app_manifest_path)
+        let hot_reload = build_native_app_hot_reload_metadata(project_dir, &source_copy_path, source, bundle, &launcher_metadata, previous_manifest_metadata, &runtime_bundle_path, &runtime_bundle_json, &runtime_contract_path, &runtime_contract_json, &runtime_compatibility_path, &runtime_compatibility_json, &realtime_bundle_path, &realtime_bundle_json, shader_bundle_path, shader_bundle_json)
+        let app_manifest = build_native_app_manifest(bundle, &packaged_c_ffi_imports, &packaged_host_sidecars, packaged_c_ffi_manifest_path, &runtime_bundle_path, &runtime_contract_path, &runtime_compatibility_path, &realtime_bundle_path, shader_bundle_path, &runtime_snapshot_path, launcher_metadata, hot_reload.clone())
+        std__fs__write(&app_manifest_path, serde_json__to_string_pretty(&app_manifest).map_err(fn(err): KainError__runtime(f"Failed to serialize native app manifest: {err}"))?).map_err(io_error("write native app manifest"))?
+        ()
+        artifact_paths.push(app_manifest_path.clone())
+        ()
+        let runtime_snapshot = build_native_app_runtime_snapshot(bundle, &app_manifest, project_dir)
+        std__fs__write(&runtime_snapshot_path, serde_json__to_string_pretty(&runtime_snapshot).map_err(fn(err): KainError__runtime(f"Failed to serialize native app runtime snapshot: {err}"))?).map_err(io_error("write native app runtime snapshot"))?
+        ()
+        artifact_paths.push(runtime_snapshot_path.clone())
+        ()
+        let manifest_path = project_dir.join("Cargo.toml")
+        let manifest = render_manifest(&(*bundle).metadata.app_name, &(*config).runtime_crate_name, &(*config).runtime_dependency, packaged_c_ffi_manifest_path.is_some(), project_dir)
+        std__fs__write(&manifest_path, manifest.as_bytes()).map_err(io_error("write native app Cargo manifest"))?
+        ()
+        let main_rs_path = project_dir.join("src").join("main.rs")
+        let runtime_bundle_include_path = relative_path_from_directory(main_rs_path.parent().unwrap_or(project_dir), &runtime_bundle_path).unwrap_or_else(fn(): runtime_bundle_path.clone())
+        let runtime_bundle_file_name = runtime_bundle_path.file_name().and_then(OsStr__to_str).unwrap_or(NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME)
+        let realtime_bundle_file_name = realtime_bundle_path.file_name().and_then(OsStr__to_str).unwrap_or(NATIVE_APP_REALTIME_BUNDLE_FILE_NAME)
+        let compute_residency_file_name = compute_residency_paths.first().and_then(fn(path): path.file_name()).and_then(OsStr__to_str)
+        let shader_bundle_file_name = shader_bundle_path.and_then(fn(path): path.file_name().and_then(OsStr__to_str).map(ToOwned__to_owned))
+        let packaged_c_ffi_manifest_file_name = packaged_c_ffi_manifest_path.and_then(fn(path): path.file_name().and_then(OsStr__to_str).map(ToOwned__to_owned))
+        let main_rs = render_main_rs(&runtime_bundle_include_path, &(*config).runtime_crate_name, &(*config).launcher_entrypoint, runtime_bundle_file_name, realtime_bundle_file_name, compute_residency_file_name, shader_bundle_file_name, packaged_c_ffi_manifest_file_name, &packaged_host_sidecars, packaged_c_ffi_manifest_path.is_some())
+        std__fs__write(&main_rs_path, main_rs.as_bytes()).map_err(io_error("write native app entrypoint"))?
+        ()
+        let executable_path = if (*config).build_executable:
+            Option::Some(build_native_app_executable(project_dir, &(*bundle).metadata.app_name, (*config).release, (*config).executable_output_dir)?)
+        else:
+            none
+        match (executable_path, (*config).executable_output_dir):
+            (Some(executable_path), Some(output_dir)) =>
+                let mut runtime_sidecar_file_names = [NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME, NATIVE_APP_RUNTIME_COMPATIBILITY_FILE_NAME, NATIVE_APP_REALTIME_BUNDLE_FILE_NAME, compute_residency__COMPUTE_RESIDENCY_FILE_NAME, NATIVE_APP_SHADER_BUNDLE_FILE_NAME, NATIVE_RUNTIME_VERSION_METADATA_FILE_NAME, NATIVE_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME, gpu_runtime_library_file_name(), NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME]
+                runtime_sidecar_file_names.extend(compute_residency_paths.iter().filter_map(fn(path): path.file_name().and_then(OsStr__to_str)).filter(fn(file_name): ((*file_name) != compute_residency__COMPUTE_RESIDENCY_FILE_NAME)))
+                ()
+                runtime_sidecar_file_names.extend(packaged_realtime_asset_paths.iter().filter_map(fn(path): path.file_name().and_then(OsStr__to_str)).filter(fn(file_name): (!file_name.is_empty())))
+                ()
+                runtime_sidecar_file_names.extend(packaged_c_ffi_manifest_path.iter().chain(c_ffi_artifact_paths.iter()).filter_map(fn(path): path.file_name().and_then(OsStr__to_str)).filter(fn(file_name): (!file_name.is_empty())))
+                ()
+                runtime_sidecar_file_names.extend(packaged_host_sidecar_paths.iter().filter_map(fn(path): path.file_name().and_then(OsStr__to_str)).filter(fn(file_name): (!file_name.is_empty())))
+                ()
+                copy_runtime_sidecars_to_executable_dir(executable_path, output_dir, &artifact_paths, &runtime_sidecar_file_names)?
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(NativeAppMaterializedPaths { project_dir: project_dir.clone(), manifest_path: manifest_path, main_rs_path: main_rs_path, source_copy_path: source_copy_path, artifact_paths: artifact_paths, executable_path: executable_path })
+
+
+pub fn compile_native_app_bundle(source: String, config: &NativeAppBundleConfig) -> Result<NativeAppBundle, kain_core::error::KainError>:
+    DriverSession__default_().compile_native_app_bundle(source, config)
+
+pub fn materialize_native_app_bundle(source: String, bundle: &NativeAppBundle, config: &NativeAppMaterializationConfig) -> Result<NativeAppMaterializedPaths, kain_core::error::KainError>:
+    DriverSession__default_().materialize_native_app_bundle(source, bundle, config)
+
+pub fn discover_native_app_root_component(source: String, configured_root: Option<String>, source_name: String) -> Result<Option<String>, kain_core::error::KainError>:
+    let typed = DriverSession__default_().frontend_to_typed_program(source, kain_core__CompileTarget__Rust)?
+    resolve_root_component_name(&typed, kain_core__CompileTarget__Rust, configured_root).map_err(fn(error): KainError__runtime(f"Failed to discover native app root for {source_name}: {error}"))
+
+fn render_manifest(app_name: String, runtime_crate_name: String, runtime_dependency: &NativeAppRuntimeDependency, include_c_ffi_runtime: Bool, project_dir: &std::path::Path) -> String:
+    let dependency = match runtime_dependency:
+        NativeAppRuntimeDependency::Path(path) => "{ path = \"{path_for_toml(path)}\" }"
+        NativeAppRuntimeDependency::Version(version) => "{ version = \"{version}\" }"
+    let c_ffi_dependency = if include_c_ffi_runtime:
+        match resolve_workspace_crate_dependency(project_dir, "kain-c-ffi").ok().flatten():
+            Some(NativeAppRuntimeDependency::Path(path)) => "\nkain-c-ffi = { path = \"{path_for_toml(&path)}\" }"
+            Some(NativeAppRuntimeDependency::Version(version)) => "\nkain-c-ffi = { version = \"{version}\" }"
+            None => String__new_()
+    else:
+        String__new_()
+    f"[package]\nname = \"{app_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dependencies]\n{runtime_crate_name} = {dependency}{c_ffi_dependency}\n"
+
+fn render_main_rs(runtime_bundle_include_path: &std::path::Path, runtime_crate_name: String, launcher_entrypoint: &NativeAppLauncherEntrypoint, runtime_bundle_file_name: String, realtime_bundle_file_name: String, compute_residency_file_name: Option<String>, shader_bundle_file_name: Option<String>, c_ffi_manifest_file_name: Option<String>, host_sidecars: &[PackagedNativeAppHostSidecar], include_c_ffi_runtime: Bool) -> String:
+    let runtime_bundle_include_path = rust_string_literal(&path_for_toml(runtime_bundle_include_path))
+    let runtime_module_name = runtime_crate_name.replace("-", "_")
+    let runtime_bundle_file_name = rust_string_literal(runtime_bundle_file_name)
+    let realtime_bundle_file_name = rust_string_literal(realtime_bundle_file_name)
+    let compute_residency_env = compute_residency_file_name.map(rust_string_literal)
+    let shader_bundle_env = shader_bundle_file_name.map(rust_string_literal)
+    let c_ffi_manifest_env = c_ffi_manifest_file_name.map(rust_string_literal)
+    let host_sidecar_setters = host_sidecars.iter().filter_map(fn(sidecar): sidecar.env_var.map(fn(env_var): none)).collect()
+    let shader_bundle_setter = shader_bundle_env.map(fn(file_name): "    if let Some(path) = resolve_runtime_sidecar({file_name}) {\n        std::env::set_var(\"KAIN_UI_NATIVE_SHADER_BUNDLE\", &path);\n    }\n").unwrap_or_default()
+    let compute_residency_setter = compute_residency_env.map(fn(file_name): "    if let Some(path) = resolve_runtime_sidecar({file_name}) {\n        std::env::set_var(\"{compute_residency__COMPUTE_RESIDENCY_ENV_VAR}\", &path);\n    }\n").unwrap_or_default()
+    let c_ffi_loader = if include_c_ffi_runtime:
+        c_ffi_manifest_env.map(fn(file_name): "    if let Some(path) = resolve_runtime_sidecar({file_name}) {\n        kain_c_ffi::load_packaged_bridges_from_manifest(&path)?;\n    }\n").unwrap_or_default()
+    else:
+        String__new_()
+    let app_manifest_file_name = rust_string_literal("app_manifest.json")
+    let app_snapshot_file_name = rust_string_literal(NATIVE_APP_RUNTIME_SNAPSHOT_FILE_NAME)
+    let app_manifest_relative_path = rust_string_literal("../config/app_manifest.json")
+    let app_snapshot_relative_path = rust_string_literal("../state/runtime_snapshot.json")
+    let c_ffi_import = if include_c_ffi_runtime:
+        ("use kain_c_ffi;\n").to_string()
+    else:
+        String__new_()
+    let (entrypoint_import, runtime_bundle_constant, native_ui_env_setters, entrypoint_call) = match launcher_entrypoint:
+        NativeAppLauncherEntrypoint::RunBundledAppJson { function_name: function_name } =>
+            let function_name_literal = function_name.as_str()
+            (f"use {runtime_module_name}::{function_name_literal};\n", f"const KAIN_RUNTIME_BUNDLE: &str = include_str!({runtime_bundle_include_path});\n\n", "    if let Some(path) = resolve_runtime_sidecar({runtime_bundle_file_name}) {\n        std::env::set_var(\"KAIN_UI_NATIVE_RUNTIME_BUNDLE\", &path);\n    }\n    if let Some(path) = resolve_runtime_sidecar({realtime_bundle_file_name}) {\n        std::env::set_var(\"KAIN_UI_NATIVE_REALTIME_BUNDLE\", &path);\n    }\n{compute_residency_setter}{shader_bundle_setter}", f"{function_name_literal}(KAIN_RUNTIME_BUNDLE)")
+        NativeAppLauncherEntrypoint::RunNoArgFunction { function_name: function_name } =>
+            let function_name_literal = function_name.as_str()
+            (f"use {runtime_module_name}::{function_name_literal};\n", String__new_(), String__new_(), f"{function_name_literal}()")
+    "#![cfg_attr(all(target_os = \"windows\", not(debug_assertions)), windows_subsystem = \"windows\")]\n\nuse std::path::PathBuf;\n\n{c_ffi_import}{entrypoint_import}\n{runtime_bundle_constant}fn resolve_runtime_sidecar(file_name: &str) -> Option<PathBuf> {\n    if let Some(current_exe_candidate) = std::env::current_exe().ok().and_then(|exe| {\n        exe.parent().map(|dir| dir.join(file_name)).filter(|path| path.exists())\n    }) {\n        return Some(current_exe_candidate);\n    }\n    let manifest_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(\"generated\").join(file_name);\n    if manifest_candidate.exists() {\n        return Some(manifest_candidate);\n    }\n    None\n}\n\nfn resolve_project_sidecar(file_name: &str, relative_source_path: &str) -> Option<PathBuf> {\n    if let Some(runtime_sidecar) = resolve_runtime_sidecar(file_name) {\n        return Some(runtime_sidecar);\n    }\n    let project_candidate = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\")).join(relative_source_path);\n    if project_candidate.exists() {\n        return Some(project_candidate);\n    }\n    None\n}\n\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n{native_ui_env_setters}{host_sidecar_setters}{c_ffi_loader}    if let Some(path) = resolve_project_sidecar({app_manifest_file_name}, {app_manifest_relative_path}) {\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_MANIFEST\", &path);\n    }\n    if let Some(path) = resolve_project_sidecar({app_snapshot_file_name}, {app_snapshot_relative_path}) {\n        std::env::set_var(\"KAIN_UI_NATIVE_APP_SNAPSHOT\", &path);\n    }\n    {entrypoint_call}\n}\n"
+
+fn materialize_host_sidecars(host_sidecars: &[NativeAppHostSidecarBinding], artifact_root: &std::path::Path) -> Result<(Array<PackagedNativeAppHostSidecar>, Array<std::path::PathBuf>), kain_core::error::KainError>:
+    let mut packaged_sidecars = Vec__new_()
+    let mut packaged_paths = Vec__new_()
+    for binding in host_sidecars:
+        if (!binding.source_path.exists()):
+            return Result::Err(KainError__runtime(f"Native app host sidecar source '{binding.source_path.display()}' does not exist"))
+        let packaged_file_name = binding.packaged_file_name.clone().or_else(fn(): binding.source_path.file_name().and_then(OsStr__to_str).map(ToOwned__to_owned)).ok_or_else(fn(): KainError__runtime(f"Native app host sidecar '{binding.source_path.display()}' does not resolve to a file name"))?
+        let destination = artifact_root.join(&packaged_file_name)
+        if (binding.source_path != destination):
+            std__fs__copy(&binding.source_path, &destination).map_err(io_error("copy native app host sidecar"))?
+            ()
+            ()
+            ()
+            ()
+        packaged_paths.push(destination)
+        ()
+        packaged_sidecars.push(PackagedNativeAppHostSidecar { packaged_file_name: packaged_file_name, env_var: binding.env_var.clone() })
+        ()
+    ()
+    Result::Ok((packaged_sidecars, packaged_paths))
+
+fn materialize_realtime_assets(realtime_bundle: &kain_core::RealtimeAppBundle, artifact_root: &std::path::Path, source_root: Option<&std::path::Path>) -> Result<(kain_core::RealtimeAppBundle, Array<std::path::PathBuf>), kain_core::error::KainError>:
+    let mut materialized = realtime_bundle.clone()
+    let mut packaged_paths = Vec__new_()
+    for asset in &mut materialized.assets:
+        let source_path = resolve_realtime_asset_source_path(asset, source_root)
+        if (!source_path.exists()):
+            let source_root_context = source_root.map(fn(root): f" resolved relative to source root '{root.display()}'")
+            return Result::Err(KainError__runtime("Native app asset '{asset.key}' points to missing source '{asset.source}'{source_root_context.unwrap_or(\"\")}"))
+        let packaged_file_name = packaged_realtime_asset_file_name(asset)
+        let destination = artifact_root.join(&packaged_file_name)
+        if (source_path != destination):
+            std__fs__copy(&source_path, &destination).map_err(io_error("copy native app realtime asset"))?
+            ()
+            ()
+            ()
+            ()
+        asset.source = packaged_file_name
+        ()
+        packaged_paths.push(destination)
+        ()
+    ()
+    Result::Ok((materialized, packaged_paths))
+
+fn resolve_realtime_asset_source_path(asset: &kain_core::RealtimeAssetBinding, source_root: Option<&std::path::Path>) -> std::path::PathBuf:
+    let source_path = PathBuf__from(&(*asset).source)
+    if source_path.is_absolute():
+        return source_path
+    match source_root:
+        Some(root) => root.join(&source_path)
+        None => source_path
+
+fn packaged_realtime_asset_file_name(asset: &kain_core::RealtimeAssetBinding) -> String:
+    let extension = Path__new_(&(*asset).source).extension().and_then(OsStr__to_str).filter(fn(value): (!value.is_empty())).unwrap_or("bin")
+    let sanitized_key = (*asset).key.chars().map(fn(ch): if ch.is_ascii_alphanumeric(): ch.to_ascii_lowercase() else: "_").collect().trim_matches("_").to_string()
+    f"kain_asset_{sanitized_key}.{extension}"
+
+fn ensure_native_c_ffi_runtime_contract_metadata(runtime_contract: &mut kain_core::RuntimeContractBundle, imported_c_libraries: &[String]):
+    ensure_runtime_capability(&mut (*runtime_contract).required_capabilities, kain_core::RuntimeCapability { key: ("c.ffi").to_string(), source: ("kain-c-ffi").to_string(), detail: Option::Some(("Program imports C ABI libraries that must be packaged and loaded through the native host bridge.").to_string()) })
+    ()
+    ensure_runtime_capability(&mut (*runtime_contract).required_capabilities, kain_core::RuntimeCapability { key: ("host.bridge").to_string(), source: ("kain-c-ffi").to_string(), detail: Option::Some(("Native app materialization packages C bridge DLLs and shared libraries through the host bridge lane.").to_string()) })
+    ()
+    ensure_runtime_service_binding(&mut (*runtime_contract).service_bindings, kain_core::RuntimeServiceBinding { service: ("host.bridge").to_string(), provider: ("kain-c-ffi").to_string(), lane: ("rust-native").to_string() })
+    ()
+    for import_name in imported_c_libraries:
+        ensure_runtime_service_binding(&mut (*runtime_contract).service_bindings, kain_core::RuntimeServiceBinding { service: f"c.{import_name}.bridge", provider: ("kain-c-ffi").to_string(), lane: ("rust-native").to_string() })
+        ()
+    ()
+    (*runtime_contract).required_capabilities.sort_by(fn(left, right): left.key.cmp(&right.key))
+    ()
+    (*runtime_contract).service_bindings.sort_by(fn(left, right): left.service.cmp(&right.service))
+    ()
+
+fn ensure_runtime_capability(capabilities: &mut Array<kain_core::RuntimeCapability>, capability: kain_core::RuntimeCapability):
+    if capabilities.iter().any(fn(existing): (existing.key == capability.key)):
+        return
+    capabilities.push(capability)
+    ()
+
+fn ensure_runtime_service_binding(bindings: &mut Array<kain_core::RuntimeServiceBinding>, binding: kain_core::RuntimeServiceBinding):
+    if bindings.iter().any(fn(existing): (existing.service == binding.service)):
+        return
+    bindings.push(binding)
+    ()
+
+fn materialize_c_ffi_bridge_sidecars(source: String, artifact_root: &std::path::Path) -> Result<(Array<kain_c_ffi::PackagedBridgeImport>, Option<std::path::PathBuf>, Array<std::path::PathBuf>), kain_core::error::KainError>:
+    let prepare = kain_c_ffi::PrepareContext { current_dir: std__env__current_dir().ok(), manifest_path: none }
+    let outputs = kain_c_ffi__import_libraries_for_source(source, &kain_c_ffi::ImportCOptions { mode: kain_c_ffi__ArtifactMode__Both, ..ImportCOptions__default_() }, &prepare)?
+    if outputs.is_empty():
+        return Result::Ok((Vec__new_(), none, Vec__new_()))
+    let mut imports = Vec__new_()
+    let mut artifact_paths = Vec__new_()
+    for output in outputs:
+        let bridge_dylib_path = output.dylib_path.ok_or_else(fn(): KainError__runtime(f"C FFI import '{output.resolved.import_name}' did not produce a bridge library for native packaging"))?
+        let bridge_destination = artifact_root.join(&output.packaged_bridge_manifest.bridge_library.file_name)
+        std__fs__copy(bridge_dylib_path, &bridge_destination).map_err(io_error("copy packaged C FFI bridge library"))?
+        ()
+        artifact_paths.push(bridge_destination)
+        ()
+        let binding_manifest_destination = artifact_root.join(output.manifest_json_path.file_name().and_then(OsStr__to_str).unwrap_or("c_ffi_binding_manifest.json"))
+        std__fs__copy(&output.manifest_json_path, &binding_manifest_destination).map_err(io_error("copy packaged C FFI binding manifest"))?
+        ()
+        artifact_paths.push(binding_manifest_destination)
+        ()
+        let binding_report_destination = artifact_root.join(output.report_json_path.file_name().and_then(OsStr__to_str).unwrap_or("c_ffi_report.json"))
+        std__fs__copy(&output.report_json_path, &binding_report_destination).map_err(io_error("copy packaged C FFI binding report"))?
+        ()
+        artifact_paths.push(binding_report_destination)
+        ()
+        match output.packaged_bridge_manifest.shared_library:
+            Some(shared_library) =>
+                let shared_source = output.resolved.shared_lib_path.ok_or_else(fn(): KainError__runtime(f"C FFI import '{output.resolved.import_name}' is missing a resolved shared library path"))?
+                let shared_destination = artifact_root.join(&shared_library.file_name)
+                std__fs__copy(shared_source, &shared_destination).map_err(io_error("copy packaged C FFI shared library"))?
+                ()
+                artifact_paths.push(shared_destination)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        imports.push(output.packaged_bridge_manifest)
+        ()
+    ()
+    let packaged_manifest_path = artifact_root.join(NATIVE_APP_C_FFI_PACKAGE_MANIFEST_FILE_NAME)
+    let packaged_manifest = kain_c_ffi::PackagedBridgeManifest { schema_version: ("kain-c-ffi-runtime-v1").to_string(), lane: ("c").to_string(), imports: imports.clone() }
+    std__fs__write(&packaged_manifest_path, serde_json__to_string_pretty(&packaged_manifest).map_err(fn(err): KainError__runtime(f"Failed to serialize packaged C FFI manifest: {err}"))?).map_err(io_error("write packaged C FFI manifest"))?
+    ()
+    artifact_paths.push(packaged_manifest_path.clone())
+    ()
+    Result::Ok((imports, Option::Some(packaged_manifest_path), artifact_paths))
+
+fn build_native_app_manifest(bundle: &NativeAppBundle, packaged_c_ffi_imports: &[kain_c_ffi::PackagedBridgeImport], packaged_host_sidecars: &[PackagedNativeAppHostSidecar], packaged_c_ffi_manifest_path: Option<&std::path::Path>, runtime_bundle_path: &std::path::Path, runtime_contract_path: &std::path::Path, runtime_compatibility_path: &std::path::Path, realtime_bundle_path: &std::path::Path, shader_bundle_path: Option<&std::path::PathBuf>, runtime_snapshot_path: &std::path::Path, launcher: NativeAppLauncherMetadata, hot_reload: NativeAppHotReloadMetadata) -> NativeAppManifest:
+    let version = (*bundle).runtime_version.map(fn(value): value.runtime_version_string.clone()).unwrap_or_else(fn(): ("0.1.0").to_string())
+    let required_runtime_capabilities = (*bundle).runtime_contract.required_capabilities.iter().map(fn(capability): capability.key.clone()).collect()
+    NativeAppManifest { app_id: (*bundle).metadata.app_name.replace("-", "."), name: (*bundle).metadata.window_title.clone(), version: version, window_title: (*bundle).metadata.window_title.clone(), root_component: (*bundle).metadata.root_component.clone(), active_world: (*bundle).realtime.active_world.map(fn(world): world.name.clone()), layout_id: "{(*bundle).metadata.app_name.replace(\"-\", \"_\")}_shell", required_runtime_capabilities: required_runtime_capabilities, target_outputs: [("native-ui-bundle").to_string(), ("native-exe").to_string()], manifests: NativeAppManifestPaths { host_bridges: packaged_c_ffi_manifest_path.map(sidecar_file_name).unwrap_or_default() }, runtime_sidecars: NativeAppRuntimeSidecars { runtime_bundle: sidecar_file_name(runtime_bundle_path), runtime_contract: sidecar_file_name(runtime_contract_path), runtime_compatibility: sidecar_file_name(runtime_compatibility_path), realtime_bundle: sidecar_file_name(realtime_bundle_path), shader_bundle: shader_bundle_path.map(fn(path): sidecar_file_name(path)), runtime_snapshot: sidecar_file_name(runtime_snapshot_path) }, launcher: launcher, hot_reload: hot_reload, host_bridges: packaged_c_ffi_imports.to_vec(), host_sidecars: packaged_host_sidecars.iter().map(fn(sidecar): NativeAppManifestHostSidecar { packaged_file_name: sidecar.packaged_file_name.clone(), env_var: sidecar.env_var.clone() }).collect() }
+
+fn build_native_app_runtime_snapshot(bundle: &NativeAppBundle, app_manifest: &NativeAppManifest, project_dir: &std::path::Path) -> NativeAppRuntimeSnapshot:
+    let updated_at = current_timestamp_string()
+    let workspace_root = (*bundle).metadata.source_root.clone().unwrap_or_else(fn(): project_dir.to_path_buf()).display().to_string()
+    NativeAppRuntimeSnapshot { app_id: (*app_manifest).app_id.clone(), name: (*app_manifest).name.clone(), version: (*app_manifest).version.clone(), window_title: (*bundle).metadata.window_title.clone(), root_component: (*bundle).metadata.root_component.clone(), active_world: (*app_manifest).active_world.clone(), layout_id: (*app_manifest).layout_id.clone(), required_runtime_capabilities: (*app_manifest).required_runtime_capabilities.clone(), panels: [NativeAppRuntimePanel { id: ("runtime_surface").to_string(), title: (*bundle).metadata.window_title.clone(), dock: ("center").to_string(), kind: ("native-ui").to_string() }], commands: [NativeAppRuntimeCommand { id: ("runtime.reload").to_string(), label: ("Reload Runtime").to_string(), surface: ("titlebar").to_string(), intent: ("runtime.reload").to_string() }], providers: [NativeAppRuntimeProvider { id: ("native_runtime").to_string(), label: ("Native Runtime").to_string(), transport: ("in-process").to_string(), profile_kind: ("native-ui").to_string(), supports_tools: true, supports_streaming: false, active: true, profile_configured: true, profile_keys: [] }], tools: (*bundle).runtime_contract.required_capabilities.iter().map(fn(capability): NativeAppRuntimeTool { id: capability.key.replace(".", "_"), label: capability.key.clone(), capability: capability.key.clone(), approval: ("workspace").to_string(), decision: none, scope_decisions: [] }).collect(), sessions: NativeAppRuntimeSessions { total_sessions: 1, active_provider: ("native_runtime").to_string(), recent_session_id: ("native-app-session").to_string(), recent_session_title: (*bundle).metadata.window_title.clone() }, recent_sessions: [NativeAppRuntimeRecentSession { id: ("native-app-session").to_string(), title: (*bundle).metadata.window_title.clone(), provider_id: ("native_runtime").to_string(), status: ("active").to_string(), workspace_root: workspace_root.clone(), updated_at: updated_at.clone(), message_count: 1, last_message_role: ("system").to_string(), last_message_preview: ("Native app materialization snapshot").to_string() }], workspaces: [NativeAppRuntimeWorkspace { root: workspace_root, session_count: 1, recent_session_title: (*bundle).metadata.window_title.clone() }], launcher: (*app_manifest).launcher.clone(), hot_reload: (*app_manifest).hot_reload.clone(), updated_at: updated_at }
+
+fn build_native_app_launcher_metadata(launcher_entrypoint: &NativeAppLauncherEntrypoint) -> NativeAppLauncherMetadata:
+    match launcher_entrypoint:
+        NativeAppLauncherEntrypoint::RunBundledAppJson { function_name: function_name } => NativeAppLauncherMetadata { kind: ("run_bundled_app_json").to_string(), function_name: function_name.clone() }
+        NativeAppLauncherEntrypoint::RunNoArgFunction { function_name: function_name } => NativeAppLauncherMetadata { kind: ("run_no_arg_function").to_string(), function_name: function_name.clone() }
+
+fn build_native_app_hot_reload_metadata(project_dir: &std::path::Path, source_copy_path: &std::path::Path, source_text: String, bundle: &NativeAppBundle, launcher: &NativeAppLauncherMetadata, previous_manifest_metadata: Option<&PreviousNativeAppManifestMetadata>, runtime_bundle_path: &std::path::Path, runtime_bundle_json: String, runtime_contract_path: &std::path::Path, runtime_contract_json: String, runtime_compatibility_path: &std::path::Path, runtime_compatibility_json: String, realtime_bundle_path: &std::path::Path, realtime_bundle_json: String, shader_bundle_path: Option<&std::path::PathBuf>, shader_bundle_json: Option<String>) -> NativeAppHotReloadMetadata:
+    let hot_reload_plan = &(*bundle).ui.systems.hot_reload
+    let policy = NativeAppHotReloadPolicy { product_mode_default: true, devtools_opt_in: true, preserve_focus: hot_reload_plan.preserve_focus, preserve_selection: hot_reload_plan.preserve_selection, preserve_docking: hot_reload_plan.preserve_docking, preserve_overlays: hot_reload_plan.preserve_overlays, preserve_motion_policy: hot_reload_plan.preserve_motion_policy, preserve_animation_state: hot_reload_plan.preserve_animation_state, preserve_signal_values: hot_reload_plan.preserve_signal_values, preserve_session_state: hot_reload_plan.preserve_session_state }
+    let identity = NativeAppHotReloadIdentity { app_id: (*bundle).metadata.app_name.replace("-", "."), name: (*bundle).metadata.window_title.clone(), window_title: (*bundle).metadata.window_title.clone(), root_component: (*bundle).metadata.root_component.clone(), active_world: (*bundle).realtime.active_world.map(fn(world): world.name.clone()), layout_id: "{(*bundle).metadata.app_name.replace(\"-\", \"_\")}_shell" }
+    let mut artifact_fingerprints = [NativeAppHotReloadArtifact { role: ("source_input").to_string(), path: reload_path_string(project_dir, source_copy_path), fingerprint: fingerprint_text(source_text), byte_length: source_text.len() }, NativeAppHotReloadArtifact { role: ("runtime_bundle").to_string(), path: reload_path_string(project_dir, runtime_bundle_path), fingerprint: fingerprint_text(runtime_bundle_json), byte_length: runtime_bundle_json.len() }, NativeAppHotReloadArtifact { role: ("runtime_contract").to_string(), path: reload_path_string(project_dir, runtime_contract_path), fingerprint: fingerprint_text(runtime_contract_json), byte_length: runtime_contract_json.len() }, NativeAppHotReloadArtifact { role: ("runtime_compatibility").to_string(), path: reload_path_string(project_dir, runtime_compatibility_path), fingerprint: fingerprint_text(runtime_compatibility_json), byte_length: runtime_compatibility_json.len() }, NativeAppHotReloadArtifact { role: ("realtime_bundle").to_string(), path: reload_path_string(project_dir, realtime_bundle_path), fingerprint: fingerprint_text(realtime_bundle_json), byte_length: realtime_bundle_json.len() }]
+    match (shader_bundle_path, shader_bundle_json):
+        (Some(path), Some(json)) =>
+            artifact_fingerprints.push(NativeAppHotReloadArtifact { role: ("shader_bundle").to_string(), path: reload_path_string(project_dir, path), fingerprint: fingerprint_text(json), byte_length: json.len() })
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    let materialization_fingerprint = fingerprint_text(&artifact_fingerprints.iter().map(fn(artifact): f"{artifact.role}:{artifact.path}:{artifact.fingerprint}:{artifact.byte_length}").collect().join("|"))
+    let changed_artifact_roles = previous_manifest_metadata.map(fn(previous): artifact_fingerprints.iter().filter(fn(artifact): previous.hot_reload.artifact_fingerprints.iter().find(fn(previous_artifact): (previous_artifact.role == artifact.role)).map(fn(previous_artifact): (previous_artifact.fingerprint != artifact.fingerprint)).unwrap_or(true)).map(fn(artifact): artifact.role.clone()).collect()).unwrap_or_default()
+    let previous_materialization_fingerprint = previous_manifest_metadata.map(fn(previous): previous.hot_reload.materialization_fingerprint.clone())
+    let reload_compatible_with_previous = previous_manifest_metadata.map(fn(previous): ((previous.launcher == (*launcher)) && (previous.hot_reload.identity == identity))).unwrap_or(false)
+    let summary = if previous_manifest_metadata.is_some():
+        "Product mode stays default and devtools stay opt-in. Changed artifacts: {if changed_artifact_roles.is_empty(): (\"none\").to_string() else: changed_artifact_roles.join(\", \")}. State-preserving reload remains {if reload_compatible_with_previous: \"eligible\" else: \"gated\"} when launcher and authored identity still match."
+    else:
+        ("Product mode stays default and devtools stay opt-in. This is the first materialized reload baseline for the packaged app.").to_string()
+    NativeAppHotReloadMetadata { summary: summary, launcher: launcher.clone(), policy: policy, identity: identity, artifact_fingerprints: artifact_fingerprints, materialization_fingerprint: materialization_fingerprint, previous_materialization_fingerprint: previous_materialization_fingerprint, changed_artifact_roles: changed_artifact_roles, reload_compatible_with_previous: reload_compatible_with_previous }
+
+fn read_previous_native_app_manifest_metadata(app_manifest_path: &std::path::Path) -> Option<PreviousNativeAppManifestMetadata>:
+    let manifest_json = std__fs__read_to_string(app_manifest_path).ok()?
+    serde_json__from_str(&manifest_json).ok()
+
+fn reload_path_string(project_dir: &std::path::Path, path: &std::path::Path) -> String:
+    relative_path_from_directory(project_dir, path).unwrap_or_else(fn(): path.to_path_buf()).display().to_string()
+
+fn fingerprint_text(value: String) -> String:
+    let mut hash = 0
+    for byte in value.as_bytes():
+        hash = (hash ^ u64__from((*byte)))
+        ()
+        hash = hash.wrapping_mul(1099511628211)
+        ()
+    ()
+    hash
+
+fn current_timestamp_string() -> String:
+    let seconds = SystemTime__now().duration_since(std__time__UNIX_EPOCH).unwrap_or_default().as_secs()
+    f"unix:{seconds}"
+
+fn resolve_workspace_crate_dependency(project_dir: &std::path::Path, crate_name: String) -> Result<Option<NativeAppRuntimeDependency>, kain_core::error::KainError>:
+    let workspace_root = resolve_driver_workspace_root()?
+    let dependency_root = workspace_root.join("crates").join(crate_name)
+    if dependency_root.join("Cargo.toml").exists():
+        let path = relative_path_from_directory(project_dir, &dependency_root).unwrap_or(dependency_root)
+        return Result::Ok(Option::Some(NativeAppRuntimeDependency::Path(path)))
+    Result::Ok(none)
+
+fn resolve_driver_workspace_root() -> Result<std::path::PathBuf, kain_core::error::KainError>:
+    let driver_manifest_dir = PathBuf__from(env!("CARGO_MANIFEST_DIR"))
+    driver_manifest_dir.parent().and_then(Path__parent).map(Path__to_path_buf).ok_or_else(fn(): KainError__runtime("Failed to derive the Kain workspace root from the kain-driver crate path"))
+
+fn sidecar_file_name(path: &std::path::Path) -> String:
+    path.file_name().and_then(OsStr__to_str).unwrap_or_default().to_string()
+
+fn copy_runtime_sidecars_to_executable_dir(executable_path: &std::path::Path, output_dir: &std::path::Path, artifact_paths: &[std::path::PathBuf], file_names: &[String]) -> Result<(), kain_core::error::KainError>:
+    let Some(executable_dir) = executable_path.parent()
+    if (executable_dir != output_dir):
+        return Result::Ok(())
+    for file_name in file_names:
+        match artifact_paths.iter().find(fn(path): (path.file_name().and_then(OsStr__to_str) == Option::Some((*file_name)))):
+            Some(source) =>
+                let destination = executable_dir.join(file_name)
+                std__fs__copy(source, &destination).map_err(io_error("copy native app runtime sidecar"))?
+                ()
+            _ => ()
+    ()
+    Result::Ok(())
+
+fn materialize_gpu_runtime_library(artifact_root: &std::path::Path, release: Bool) -> Result<Option<std::path::PathBuf>, kain_core::error::KainError>:
+    let Some(workspace_root) = find_workspace_root_with_gpu_runtime()
+    let runtime_library_file_name = gpu_runtime_library_file_name()
+    let mut command = Command__new_("cargo")
+    command.arg("build").arg("-p").arg("kain-gpu-runtime")
+    ()
+    if release:
+        command.arg("--release")
+        ()
+        ()
+        ()
+        ()
+    command.current_dir(&workspace_root)
+    ()
+    let output = command.output().map_err(fn(err): KainError__runtime(f"Failed to invoke cargo to build kain-gpu-runtime at {workspace_root.display()}: {err}"))?
+    if (!output.status.success()):
+        return Result::Err(KainError__runtime(f"kain-gpu-runtime cargo build failed for {workspace_root.display()}:\n{String__from_utf8_lossy(&output.stdout)}\n{String__from_utf8_lossy(&output.stderr)}"))
+    let built_library = workspace_root.join("target").join(if release: "release" else: "debug").join(runtime_library_file_name)
+    if (!built_library.exists()):
+        return Result::Ok(none)
+    let destination = artifact_root.join(runtime_library_file_name)
+    std__fs__copy(&built_library, &destination).map_err(io_error("copy kain-gpu-runtime shared library"))?
+    ()
+    Result::Ok(Option::Some(destination))
+
+fn gpu_runtime_library_file_name() -> String:
+    if cfg!(windows):
+        "kain_gpu_runtime.dll"
+    elif cfg!(target_os = "macos"):
+        "libkain_gpu_runtime.dylib"
+    else:
+        "libkain_gpu_runtime.so"
+
+fn find_workspace_root_with_gpu_runtime() -> Option<std::path::PathBuf>:
+    let mut roots = Vec__new_()
+    match std__env__current_dir():
+        Ok(dir) =>
+            roots.push(dir)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_exe():
+        Ok(exe) =>
+            match exe.parent():
+                Some(dir) =>
+                    roots.push(dir.to_path_buf())
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    for dir in roots:
+        for _ in range(0, 12):
+            if dir.join("crates").join("kain-gpu-runtime").join("Cargo.toml").exists():
+                return Option::Some(dir)
+            if (!dir.pop()):
+                break
+    ()
+    none
+
+fn build_native_app_executable(project_dir: &std::path::Path, app_name: String, release: Bool, output_dir: Option<&std::path::Path>) -> Result<std::path::PathBuf, kain_core::error::KainError>:
+    let mut command = Command__new_("cargo")
+    command.arg("build")
+    ()
+    if release:
+        command.arg("--release")
+        ()
+        ()
+        ()
+        ()
+    command.current_dir(project_dir)
+    ()
+    let output = command.output().map_err(fn(err): KainError__runtime(f"Failed to invoke cargo to build native app at {project_dir.display()}: {err}"))?
+    if (!output.status.success()):
+        return Result::Err(KainError__runtime(f"Native app cargo build failed for {project_dir.display()}:\n{String__from_utf8_lossy(&output.stdout)}\n{String__from_utf8_lossy(&output.stderr)}"))
+    let built_executable = project_dir.join("target").join(if release: "release" else: "debug").join(binary_file_name(app_name))
+    if (!built_executable.exists()):
+        return Result::Err(KainError__runtime(f"Cargo reported success but no executable was found at {built_executable.display()}"))
+    match output_dir:
+        Some(output_dir) =>
+            std__fs__create_dir_all(output_dir).map_err(io_error("create native app executable output directory"))?
+            ()
+            let copied_executable = output_dir.join(binary_file_name(app_name))
+            std__fs__copy(&built_executable, &copied_executable).map_err(io_error("copy native app executable"))?
+            ()
+            return Result::Ok(copied_executable)
+        _ =>
+            ()
+            ()
+    Result::Ok(built_executable)
+
+fn binary_file_name(app_name: String) -> String:
+    if cfg!(windows):
+        f"{app_name}.exe"
+    else:
+        app_name.to_string()
+
+fn normalized_source_file_name(source_file_name: Option<String>) -> String:
+    source_file_name.and_then(fn(value): none).unwrap_or_else(fn(): ("app.kn").to_string())
+
+fn normalized_source_root(source_root: Option<&std::path::Path>) -> Option<std::path::PathBuf>:
+    source_root.and_then(fn(value): value.components().next().is_some().then(fn(): value.to_path_buf()))
+
+fn source_stem(source_name: String) -> String:
+    Path__new_(source_name).file_stem().and_then(OsStr__to_str).filter(fn(value): (!value.trim().is_empty())).unwrap_or("kain").to_string()
+
+fn sanitize_cargo_name(raw: String) -> String:
+    let mut sanitized = (fn(__kain_ctor_arg0): String__new_())(raw.len())
+    let mut last_was_dash = false
+    for ch in raw.chars():
+        let mapped = match ch:
+            _ => ch.to_ascii_lowercase()
+            _ => ch
+            _ => ch
+            _ => "-"
+        if (mapped == "-"):
+            if (!last_was_dash):
+                sanitized.push(mapped)
+                ()
+                last_was_dash = true
+                ()
+        else:
+            sanitized.push(mapped)
+            ()
+            last_was_dash = false
+            ()
+    ()
+    let trimmed = sanitized.trim_matches("-")
+    let mut result = if trimmed.is_empty():
+        ("kain-ui-app").to_string()
+    else:
+        trimmed.to_string()
+    if result.chars().next().is_some_and(fn(ch): (!ch.is_ascii_alphabetic())):
+        result.insert_str(0, "kain-ui-")
+        ()
+        ()
+        ()
+        ()
+    result
+
+fn rust_string_literal(value: String) -> String:
+    value
+
+fn render_runtime_bundle_json(bundle: &NativeAppBundle) -> Result<String, kain_core::error::KainError>:
+    kain_ui__ui_runtime_bundle_to_json(&(*bundle).ui_runtime_bundle).map_err(fn(err): KainError__runtime(f"Failed to serialize native app runtime bundle for {(*bundle).metadata.app_name}: {err}"))
+
+fn render_runtime_contract_json(bundle: &NativeAppBundle) -> Result<String, kain_core::error::KainError>:
+    kain_core__runtime_contract_bundle_to_json(&(*bundle).runtime_contract).map_err(fn(err): KainError__runtime(f"Failed to serialize runtime contract bundle for {(*bundle).metadata.app_name}: {err}"))
+
+fn render_runtime_compatibility_json(bundle: &NativeAppBundle) -> Result<String, kain_core::error::KainError>:
+    serde_json__to_string_pretty(&(*bundle).runtime_contract.compatibility).map_err(fn(err): KainError__runtime(f"Failed to serialize runtime compatibility bundle for {(*bundle).metadata.app_name}: {err}"))
+
+fn apply_runtime_compatibility_metadata(compatibility: &mut kain_core::RuntimeCompatibilityMetadata, runtime_version: &RuntimeVersionMetadata, runtime_target: String):
+    (*compatibility).runtime_lane = Option::Some((*runtime_version).runtime_lane.clone())
+    ()
+    (*compatibility).compatibility_class = Option::Some((*runtime_version).compatibility_class.clone())
+    ()
+    (*compatibility).runtime_version = Option::Some(RuntimeVersionRecord__new_((*runtime_version).runtime_major, (*runtime_version).runtime_minor, (*runtime_version).runtime_patch, (*runtime_version).runtime_version_string.clone()))
+    ()
+    (*compatibility).abi_version = Option::Some(RuntimeVersionRecord__new_((*runtime_version).abi_major, (*runtime_version).abi_minor, (*runtime_version).abi_patch, (*runtime_version).abi_version_string.clone()))
+    ()
+    (*compatibility).platform_availability = Option::Some(kain_core::RuntimePlatformAvailabilityMetadata { schema_version: 1, target_platforms: (*runtime_version).target_platforms.clone(), active_platforms: (*runtime_version).active_platforms.clone(), runtime_platform: Option::Some(std__env__consts__OS.to_string()), notes: ["Runtime manifest declares target platforms: {(*runtime_version).target_platforms.join(\", \")}.", "Runtime manifest declares active platforms: {(*runtime_version).active_platforms.join(\", \")}.", f"Materialization occurred on host platform '{std__env__consts__OS}'."] })
+    ()
+    if (*compatibility).migration_hints.iter().all(fn(hint): (!hint.contains("runtime manifest"))):
+        (*compatibility).migration_hints.push(f"Runtime manifest metadata from {runtime_target} should stay in sync with the emitted bundle.")
+        ()
+
+fn render_realtime_bundle_json(realtime_bundle: &kain_core::RealtimeAppBundle) -> Result<String, kain_core::error::KainError>:
+    kain_core__realtime_app_bundle_to_json(realtime_bundle).map_err(fn(err): KainError__runtime(f"Failed to serialize native app realtime bundle: {err}"))
+
+fn relative_path_from_directory(from_dir: &std::path::Path, to_path: &std::path::Path) -> Option<std::path::PathBuf>:
+    let from_components: Array<_> = from_dir.components().collect()
+    let to_components: Array<_> = to_path.components().collect()
+    if (from_components.is_empty() || to_components.is_empty()):
+        return none
+    if (!components_share_prefix(&from_components, &to_components)):
+        return none
+    let shared_prefix_len = from_components.iter().zip(&to_components).take_while(fn(__kain_closure_arg0): (__kain_closure_arg0.__kain_tuple_0 == __kain_closure_arg0.__kain_tuple_1)).count()
+    let mut relative = PathBuf__new_()
+    for _ in range(shared_prefix_len, from_components.len()):
+        relative.push("..")
+        ()
+    ()
+    for component_ in &to_components[shared_prefix_len..]:
+        relative.push(component_.as_os_str())
+        ()
+    ()
+    if relative.as_os_str().is_empty():
+        none
+    else:
+        Option::Some(relative)
+
+fn components_share_prefix(left: &[std::path::Component<_>], right: &[std::path::Component<_>]) -> Bool:
+    match (left.first(), right.first()):
+        (Some(std__path__Component::Prefix(left_prefix)), Some(std__path__Component::Prefix(right_prefix))) => (left_prefix.kind() == right_prefix.kind())
+        (Some(std__path__Component::RootDir), Some(std__path__Component::RootDir)) => true
+        (Some(std__path__Component::Normal(left_normal)), Some(std__path__Component::Normal(right_normal))) => (left_normal == right_normal)
+        (Some(std__path__Component::CurDir), Some(std__path__Component::CurDir)) => true
+        _ => false
+
+fn path_for_toml(path: &std::path::Path) -> String:
+    path.to_string_lossy().replace("\\", "/")
+
+fn io_error(context: String) -> impl Fn:
+    fn(err): KainError__runtime(f"Failed to {context}: {err}")
+

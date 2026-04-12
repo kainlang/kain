@@ -1,0 +1,14 @@
+use crate::NodeType
+
+use crate::PinDefinition
+
+use crate::PinType
+
+@doc(doc = " Create a basic execution node")
+pub fn create_exec_node(name: impl Into<String>) -> NodeType:
+    NodeType { name: name.into(), category: ("Flow Control").to_string(), inputs: [PinDefinition { name: ("Execute").to_string(), pin_type: PinType__Exec, is_array: false, default_value: none, tooltip: none }], outputs: [PinDefinition { name: ("Then").to_string(), pin_type: PinType__Exec, is_array: false, default_value: none, tooltip: none }], properties: Vec__new_(), color: Option::Some([1, 1, 1, 1]), icon: none, tooltip: none, execution_logic: none }
+
+@doc(doc = " Create a basic math node")
+pub fn create_math_node(name: impl Into<String>, operation: String) -> NodeType:
+    NodeType { name: name.into(), category: ("Math").to_string(), inputs: [PinDefinition { name: ("A").to_string(), pin_type: PinType__Float, is_array: false, default_value: Option::Some(("0.0").to_string()), tooltip: none }, PinDefinition { name: ("B").to_string(), pin_type: PinType__Float, is_array: false, default_value: Option::Some(("0.0").to_string()), tooltip: none }], outputs: [PinDefinition { name: ("Result").to_string(), pin_type: PinType__Float, is_array: false, default_value: none, tooltip: none }], properties: Vec__new_(), color: Option::Some([0, 1, 0, 1]), icon: none, tooltip: Option::Some(f"Performs {operation} operation"), execution_logic: Option::Some(f"Result = A {operation} B") }
+

@@ -1,0 +1,2376 @@
+use std::collections::BTreeMap
+
+use std::collections::BTreeSet
+
+use std::io::Error as IoError
+
+use std::io::ErrorKind
+
+use serde::Deserialize
+
+use serde::Serialize
+
+use runtime_execution::*
+
+@doc(doc = " Stable identifier for a node within a retained UI tree.")
+@derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde__Serialize, serde__Deserialize)
+@serde(transparent)
+pub struct UiNodeId:
+    field_0: u64
+
+@doc(doc = " Stable identifier for a reactive signal.")
+@derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde__Serialize, serde__Deserialize)
+@serde(transparent)
+pub struct UiSignalId:
+    field_0: u64
+
+pub enum UiRendererKind:
+    Native
+    Web
+    Slate
+    Debug
+
+pub enum UiLayoutEngineKind:
+    Auto
+    Native
+    Yoga
+    LegacyEgui
+
+impl Default for UiLayoutEngineKind:
+    pub fn default_() -> UiLayoutEngineKind:
+        UiLayoutEngineKind__Auto
+
+
+pub enum UiRenderEngineKind:
+    Auto
+    Native
+    Skia
+    Wgpu
+    Shader
+    Browser
+    LegacyEgui
+
+impl Default for UiRenderEngineKind:
+    pub fn default_() -> UiRenderEngineKind:
+        UiRenderEngineKind__Auto
+
+
+pub enum UiHostBackendKind:
+    Auto
+    Native
+    LegacyEgui
+    Imgui
+    RmlUi
+    Slint
+    Qt
+    Cef
+
+impl Default for UiHostBackendKind:
+    pub fn default_() -> UiHostBackendKind:
+        UiHostBackendKind__Auto
+
+
+@doc(doc = " Declarative backend capability profile.")
+@derive(Clone, Copy, Debug, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct UiBackendCapabilities:
+    renderer: UiRendererKind
+    supports_real_windowing: Bool
+    supports_dom_embedding: Bool
+    supports_gpu_viewports: Bool
+    supports_docking: Bool
+    supports_rich_text: Bool
+    supports_pointer_capture: Bool
+    supports_accessibility_tree: Bool
+
+pub const UI_BACKEND_CAPABILITIES: Array<UiBackendCapabilities> = [UiBackendCapabilities { renderer: UiRendererKind__Native, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: true }, UiBackendCapabilities { renderer: UiRendererKind__Web, supports_real_windowing: false, supports_dom_embedding: true, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: true }, UiBackendCapabilities { renderer: UiRendererKind__Slate, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: false }, UiBackendCapabilities { renderer: UiRendererKind__Debug, supports_real_windowing: false, supports_dom_embedding: false, supports_gpu_viewports: false, supports_docking: false, supports_rich_text: false, supports_pointer_capture: false, supports_accessibility_tree: false }]
+
+pub fn backend_capabilities(renderer: UiRendererKind) -> &static UiBackendCapabilities:
+    UI_BACKEND_CAPABILITIES.iter().find(fn(entry): (entry.renderer == renderer)).unwrap_or(&UI_BACKEND_CAPABILITIES[0])
+
+@doc(doc = " Role-specific host backend capability profile.")
+@derive(Clone, Copy, Debug, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct UiHostBackendCapabilities:
+    host_backend: UiHostBackendKind
+    layout_engine: UiLayoutEngineKind
+    render_engine: UiRenderEngineKind
+    supports_real_windowing: Bool
+    supports_dom_embedding: Bool
+    supports_gpu_viewports: Bool
+    supports_docking: Bool
+    supports_rich_text: Bool
+    supports_pointer_capture: Bool
+    supports_accessibility_tree: Bool
+
+pub const UI_HOST_BACKEND_CAPABILITIES: Array<UiHostBackendCapabilities> = [UiHostBackendCapabilities { host_backend: UiHostBackendKind__LegacyEgui, layout_engine: UiLayoutEngineKind__LegacyEgui, render_engine: UiRenderEngineKind__LegacyEgui, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: false }, UiHostBackendCapabilities { host_backend: UiHostBackendKind__Imgui, layout_engine: UiLayoutEngineKind__Yoga, render_engine: UiRenderEngineKind__Skia, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: false }, UiHostBackendCapabilities { host_backend: UiHostBackendKind__RmlUi, layout_engine: UiLayoutEngineKind__Yoga, render_engine: UiRenderEngineKind__Skia, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: false, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: false }, UiHostBackendCapabilities { host_backend: UiHostBackendKind__Slint, layout_engine: UiLayoutEngineKind__Yoga, render_engine: UiRenderEngineKind__Native, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: false, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: true }, UiHostBackendCapabilities { host_backend: UiHostBackendKind__Qt, layout_engine: UiLayoutEngineKind__Yoga, render_engine: UiRenderEngineKind__Skia, supports_real_windowing: true, supports_dom_embedding: false, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: true }, UiHostBackendCapabilities { host_backend: UiHostBackendKind__Cef, layout_engine: UiLayoutEngineKind__Auto, render_engine: UiRenderEngineKind__Browser, supports_real_windowing: false, supports_dom_embedding: true, supports_gpu_viewports: true, supports_docking: true, supports_rich_text: true, supports_pointer_capture: true, supports_accessibility_tree: true }]
+
+pub fn host_backend_capabilities(host_backend: UiHostBackendKind) -> &static UiHostBackendCapabilities:
+    UI_HOST_BACKEND_CAPABILITIES.iter().find(fn(entry): (entry.host_backend == host_backend)).unwrap_or(&UI_HOST_BACKEND_CAPABILITIES[0])
+
+pub enum UiValue:
+    Null
+    Bool(Bool)
+    Int(i64)
+    Float(f64)
+    String(String)
+
+impl UiValue:
+    pub fn as_str(_self: &UiValue) -> Option<String>:
+        match *_self:
+            UiValue::String(value) => Option::Some(value.as_str())
+            _ => none
+
+
+impl From<String> for UiValue:
+    fn from(value: String) -> UiValue:
+        UiValue::String(value.to_string())
+
+
+impl From<String> for UiValue:
+    fn from(value: String) -> UiValue:
+        UiValue::String(value)
+
+
+impl From<Bool> for UiValue:
+    fn from(value: Bool) -> UiValue:
+        UiValue::Bool(value)
+
+
+impl From<i64> for UiValue:
+    fn from(value: i64) -> UiValue:
+        UiValue::Int(value)
+
+
+impl From<f64> for UiValue:
+    fn from(value: f64) -> UiValue:
+        UiValue::Float(value)
+
+
+pub enum UiWidgetKind:
+    Element(String)
+    ComponentRef(String)
+    Text
+    Panel
+    Inspector
+    Graph
+    Timeline
+    Table
+    Tree
+    Viewport2D
+    Viewport3D
+    Overlay
+    Slot
+
+pub enum UiLayoutKind:
+    Flow
+    FlexRow
+    FlexColumn
+    Grid
+    Dock
+    Stack
+    Absolute
+
+pub enum UiLengthUnit:
+    Auto
+    Px
+    Percent
+    Fr
+
+@derive(Clone, Copy, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiLength:
+    value: f32
+    unit: UiLengthUnit
+
+pub enum UiLayoutAlignment:
+    Start
+    Center
+    End
+    Stretch
+    SpaceBetween
+
+pub enum UiOverflowBehavior:
+    Visible
+    Hidden
+    Scroll
+    Auto
+
+pub enum UiDockPlacement:
+    Center
+    Left
+    Right
+    Top
+    Bottom
+    Tab
+
+@doc(doc = " Semantic layout specification. Values remain data so backends can map them")
+@doc(doc = " to the host layout engine without changing authoring semantics.")
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiLayoutSpec:
+    kind: UiLayoutKind
+    gap: f32
+    padding: f32
+    min_width: Option<f32>
+    min_height: Option<f32>
+    width: Option<UiLength>
+    height: Option<UiLength>
+    max_width: Option<f32>
+    max_height: Option<f32>
+    flex_grow: f32
+    flex_shrink: f32
+    align_items: UiLayoutAlignment
+    justify_content: UiLayoutAlignment
+    overflow_x: UiOverflowBehavior
+    overflow_y: UiOverflowBehavior
+    dock: Option<UiDockPlacement>
+    split_ratio: Option<f32>
+    resizable: Bool
+    persistent_layout_id: Option<String>
+    tab_group_id: Option<String>
+    tab_label: Option<String>
+    tab_order: Option<i32>
+    tab_default_active: Bool
+    tab_closable: Bool
+
+impl Default for UiLayoutSpec:
+    fn default_() -> UiLayoutSpec:
+        UiLayoutSpec { kind: UiLayoutKind__Flow, gap: 0, padding: 0, min_width: none, min_height: none, width: none, height: none, max_width: none, max_height: none, flex_grow: 0, flex_shrink: 1, align_items: UiLayoutAlignment__Start, justify_content: UiLayoutAlignment__Start, overflow_x: UiOverflowBehavior__Visible, overflow_y: UiOverflowBehavior__Visible, dock: none, split_ratio: none, resizable: false, persistent_layout_id: none, tab_group_id: none, tab_label: none, tab_order: none, tab_default_active: false, tab_closable: false }
+
+
+pub enum UiSemanticWidget:
+    Panel
+    Inspector
+    Graph
+    Timeline
+    Table
+    Tree
+    Viewport2D
+    Viewport3D
+    Overlay
+    Slot
+
+@doc(doc = " Declarative tag-to-widget mapping for semantic authoring tags.")
+@derive(Clone, Copy, Debug, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct UiSemanticTagProfile:
+    tag: String
+    widget: UiSemanticWidget
+    default_layout: UiLayoutKind
+
+pub const UI_SEMANTIC_TAG_PROFILES: Array<UiSemanticTagProfile> = [UiSemanticTagProfile { tag: "panel", widget: UiSemanticWidget__Panel, default_layout: UiLayoutKind__FlexColumn }, UiSemanticTagProfile { tag: "inspector", widget: UiSemanticWidget__Inspector, default_layout: UiLayoutKind__FlexColumn }, UiSemanticTagProfile { tag: "graph", widget: UiSemanticWidget__Graph, default_layout: UiLayoutKind__Absolute }, UiSemanticTagProfile { tag: "timeline", widget: UiSemanticWidget__Timeline, default_layout: UiLayoutKind__FlexColumn }, UiSemanticTagProfile { tag: "table", widget: UiSemanticWidget__Table, default_layout: UiLayoutKind__Grid }, UiSemanticTagProfile { tag: "tree", widget: UiSemanticWidget__Tree, default_layout: UiLayoutKind__FlexColumn }, UiSemanticTagProfile { tag: "viewport2d", widget: UiSemanticWidget__Viewport2D, default_layout: UiLayoutKind__Absolute }, UiSemanticTagProfile { tag: "viewport3d", widget: UiSemanticWidget__Viewport3D, default_layout: UiLayoutKind__Absolute }, UiSemanticTagProfile { tag: "overlay", widget: UiSemanticWidget__Overlay, default_layout: UiLayoutKind__Stack }, UiSemanticTagProfile { tag: "slot", widget: UiSemanticWidget__Slot, default_layout: UiLayoutKind__Flow }]
+
+pub fn semantic_tag_profile(tag: String) -> Option<&static UiSemanticTagProfile>:
+    UI_SEMANTIC_TAG_PROFILES.iter().find(fn(profile): profile.tag.eq_ignore_ascii_case(tag))
+
+pub fn widget_kind_for_tag(tag: String) -> UiWidgetKind:
+    match semantic_tag_profile(tag):
+        Some(profile) =>
+            match profile.widget:
+                UiSemanticWidget::Panel => UiWidgetKind__Panel
+                UiSemanticWidget::Inspector => UiWidgetKind__Inspector
+                UiSemanticWidget::Graph => UiWidgetKind__Graph
+                UiSemanticWidget::Timeline => UiWidgetKind__Timeline
+                UiSemanticWidget::Table => UiWidgetKind__Table
+                UiSemanticWidget::Tree => UiWidgetKind__Tree
+                UiSemanticWidget::Viewport2D => UiWidgetKind__Viewport2D
+                UiSemanticWidget::Viewport3D => UiWidgetKind__Viewport3D
+                UiSemanticWidget::Overlay => UiWidgetKind__Overlay
+                UiSemanticWidget::Slot => UiWidgetKind__Slot
+        _ => UiWidgetKind::Element(tag.to_string())
+
+pub fn default_layout_for_tag(tag: String) -> UiLayoutSpec:
+    match semantic_tag_profile(tag):
+        Some(profile) => UiLayoutSpec { kind: profile.default_layout, ..UiLayoutSpec__default_() }
+        _ => UiLayoutSpec__default_()
+
+pub enum UiStyleState:
+    Hovered
+    Active
+    Focused
+    Disabled
+    Selected
+    Dragging
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiStyleSpec:
+    tokens: Array<String>
+    values: Map<String, UiValue>
+    classes: Array<String>
+    theme_scope: Option<String>
+    variant: Option<String>
+    states: Array<UiStyleState>
+
+impl Default for UiStyleSpec:
+    pub fn default_() -> UiStyleSpec:
+        UiStyleSpec { tokens: Vec__new_(), values: HashMap__new_(), classes: Vec__new_(), theme_scope: none, variant: none, states: Vec__new_() }
+
+
+@doc(doc = " Declarative node in the retained semantic tree.")
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiNode:
+    id: UiNodeId
+    identity_key: Option<String>
+    kind: UiWidgetKind
+    props: Map<String, UiValue>
+    children: Array<UiNodeId>
+    layout: UiLayoutSpec
+    style: UiStyleSpec
+    watches: Array<UiSignalId>
+    focus_scope: Option<String>
+    selection_scope: Option<String>
+
+impl UiNode:
+    pub fn new_(id: UiNodeId, kind: UiWidgetKind) -> UiNode:
+        UiNode { id: id, identity_key: none, kind: kind, props: BTreeMap__new_(), children: Vec__new_(), layout: UiLayoutSpec__default_(), style: UiStyleSpec__default_(), watches: Vec__new_(), focus_scope: none, selection_scope: none }
+
+
+@doc(doc = " Retained tree state. The runtime owns this graph and emits patches when it")
+@doc(doc = " changes instead of rebuilding a fresh virtual tree every update.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiTree:
+    root: Option<UiNodeId>
+    nodes: Map<UiNodeId, UiNode>
+
+impl Default for UiTree:
+    pub fn default_() -> UiTree:
+        UiTree { root: none, nodes: HashMap__new_() }
+
+
+impl UiTree:
+    pub fn root_node(_self: &UiTree) -> Option<&UiNode>:
+        (*_self).root.and_then(fn(id): (*_self).nodes.get(&id))
+
+    pub fn node(_self: &UiTree, id: UiNodeId) -> Option<&UiNode>:
+        (*_self).nodes.get(&id)
+
+    pub fn node_mut(_self: &mut UiTree, id: UiNodeId) -> Option<&mut UiNode>:
+        (*_self).nodes.get_mut(&id)
+
+
+pub enum UiPatch:
+    SetRoot { id: UiNodeId }
+    CreateNode { node: UiNode }
+    DestroyNode { id: UiNodeId }
+    ReplaceChildren { parent: UiNodeId, children: Array<UiNodeId> }
+    InsertChild { parent: UiNodeId, index: usize, child: UiNodeId }
+    RemoveChild { parent: UiNodeId, child: UiNodeId }
+    SetProp { id: UiNodeId, key: String, value: UiValue }
+    SetStyle { id: UiNodeId, style: UiStyleSpec }
+    SetLayout { id: UiNodeId, layout: UiLayoutSpec }
+
+@doc(doc = " Build result used when lowering authoring/runtime structures into a")
+@doc(doc = " retained `UiTree`.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiBuildOutput:
+    tree: UiTree
+    patches: Array<UiPatch>
+    systems: UiRuntimeSystems
+
+impl Default for UiBuildOutput:
+    pub fn default_() -> UiBuildOutput:
+        UiBuildOutput { tree: UiTree__default_(), patches: Vec__new_(), systems: UiRuntimeSystems__default_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiComputed:
+    id: String
+    label: String
+    depends_on: Array<UiSignalId>
+    writes_signal: Option<UiSignalId>
+    expr: Option<UiDerivedExpr>
+    invalidates_nodes: Array<UiNodeId>
+    scheduler_phase: UiSchedulerPhase
+
+pub enum UiDerivedExpr:
+    Literal(UiValue)
+    Signal(UiSignalId)
+    Not(Box<UiDerivedExpr>)
+    And(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Or(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Eq(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Add(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Sub(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Mul(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    Div(Box<UiDerivedExpr>, Box<UiDerivedExpr>)
+    ToString(Box<UiDerivedExpr>)
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiResource:
+    id: String
+    kind: String
+    owner: Option<UiNodeId>
+    state_: UiResourceState
+
+pub enum UiResourceState:
+    Idle
+    Loading
+    Ready
+    Failed
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiTransaction:
+    label: String
+    id: u64
+    patch_count: usize
+    touched_nodes: Array<UiNodeId>
+    changed_signals: Array<UiSignalId>
+    dispatched_commands: Array<String>
+
+impl UiTransaction:
+    pub fn default_runtime(id: u64) -> UiTransaction:
+        UiTransaction { label: String__new_(), id: id, patch_count: 0, touched_nodes: Vec__new_(), changed_signals: Vec__new_(), dispatched_commands: Vec__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiFocusGraph:
+    scopes: Array<String>
+    default_scope: Option<String>
+    focused: Map<String, UiNodeId>
+    traversal_edges: Array<UiFocusTraversalEdge>
+
+pub enum UiFocusTraversalKind:
+    TabForward
+    TabBackward
+    ArrowLeft
+    ArrowRight
+    ArrowUp
+    ArrowDown
+    Next
+    Prev
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiFocusTraversalEdge:
+    scope: String
+    kind: UiFocusTraversalKind
+    from: UiNodeId
+    to: UiNodeId
+
+pub enum UiEventPhase:
+    Bubble
+    Capture
+    Direct
+
+impl Default for UiEventPhase:
+    pub fn default_() -> UiEventPhase:
+        UiEventPhase__Bubble
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiEventRoute:
+    route_id: String
+    event: String
+    target: UiNodeId
+    phase: UiEventPhase
+    handler_id: Option<String>
+    dispatch_command: Option<String>
+    transaction_label: Option<String>
+
+pub enum UiAnimationTrigger:
+    Mount
+    Unmount
+    SignalChange
+    Hover
+    Focus
+    LayoutChange
+    Reload
+
+pub enum UiEasingKind:
+    Linear
+    EaseIn
+    EaseOut
+    EaseInOut
+    Spring
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiAnimationTrack:
+    id: String
+    target: UiNodeId
+    property: String
+    duration_ms: u32
+    trigger: UiAnimationTrigger
+    easing: UiEasingKind
+    preserve_on_reload: Bool
+
+pub enum UiMotionMode:
+    Full
+    Balanced
+    Reduced
+
+impl Default for UiMotionMode:
+    pub fn default_() -> UiMotionMode:
+        UiMotionMode__Full
+
+
+pub enum UiPerformanceTier:
+    Warp
+    Cruise
+    Safe
+
+impl Default for UiPerformanceTier:
+    pub fn default_() -> UiPerformanceTier:
+        UiPerformanceTier__Warp
+
+
+pub enum UiCapacitorState:
+    Charged
+    Priming
+    Discharged
+
+impl Default for UiCapacitorState:
+    pub fn default_() -> UiCapacitorState:
+        UiCapacitorState__Charged
+
+
+@doc(doc = " Runtime motion policy. This is intended to be stable, inspectable truth:")
+@doc(doc = " motion changes are not ad-hoc booleans on random widgets.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiMotionPolicy:
+    mode: UiMotionMode
+    performance_tier: UiPerformanceTier
+    is_resizing: Bool
+    is_pointer_active: Bool
+    capacitor: UiCapacitorState
+
+impl Default for UiMotionPolicy:
+    pub fn default_() -> UiMotionPolicy:
+        UiMotionPolicy { mode: UiMotionMode__default_(), performance_tier: UiPerformanceTier__default_(), is_resizing: false, is_pointer_active: false, capacitor: UiCapacitorState__default_() }
+
+
+impl UiMotionPolicy:
+    pub fn recompute_capacitor(_self: &mut UiMotionPolicy):
+        (*_self).capacitor = none
+        ()
+
+    pub fn should_animate(_self: &UiMotionPolicy) -> Bool:
+        ((((*_self).mode != UiMotionMode__Reduced) && ((*_self).performance_tier != UiPerformanceTier__Safe)) && (!(*_self).is_resizing))
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSurface:
+    id: String
+    kind: UiSurfaceKind
+    node: UiNodeId
+    title: Option<String>
+    renderer_preference: UiSurfaceRendererPreference
+    composition_mode: UiSurfaceCompositionMode
+    preferred_host_backend: UiHostBackendKind
+    preferred_layout_engine: UiLayoutEngineKind
+    preferred_render_engine: UiRenderEngineKind
+    gpu_backing_required: Bool
+    shader_: Option<UiSurfaceShaderBinding>
+
+pub enum UiSurfaceKind:
+    Canvas
+    Graph
+    Timeline
+    Table
+    Tree
+    Viewport2D
+    Viewport3D
+    Overlay
+    Custom(String)
+
+pub enum UiSurfaceRendererPreference:
+    Auto
+    Native
+    Dom
+    Wgpu
+    Shader
+
+impl Default for UiSurfaceRendererPreference:
+    pub fn default_() -> UiSurfaceRendererPreference:
+        UiSurfaceRendererPreference__Auto
+
+
+pub enum UiSurfaceCompositionMode:
+    Host
+    LayeredGpu
+    Viewport
+    ShaderCanvas
+
+impl Default for UiSurfaceCompositionMode:
+    pub fn default_() -> UiSurfaceCompositionMode:
+        UiSurfaceCompositionMode__Host
+
+
+@derive(Clone, Debug, Default, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiSurfaceShaderBinding:
+    shader_ref: String
+    entry_point: Option<String>
+    stage: Option<String>
+    derived_format: Option<String>
+
+impl Default for UiSurfaceShaderBinding:
+    pub fn default_() -> UiSurfaceShaderBinding:
+        UiSurfaceShaderBinding { shader_ref: String__new_(), entry_point: none, stage: none, derived_format: none }
+
+
+pub enum UiAnchorPlacement:
+    Auto
+    TopLeft
+    Top
+    TopRight
+    Right
+    BottomRight
+    Bottom
+    BottomLeft
+    Left
+    Center
+
+impl Default for UiAnchorPlacement:
+    pub fn default_() -> UiAnchorPlacement:
+        UiAnchorPlacement__Auto
+
+
+pub enum UiAnchorConstraint:
+    ClampToViewport
+    AllowOverflow
+
+impl Default for UiAnchorConstraint:
+    pub fn default_() -> UiAnchorConstraint:
+        UiAnchorConstraint__ClampToViewport
+
+
+@doc(doc = " Anchor definition for overlays/popovers/menus/tooltips.")
+@doc(doc = "")
+@doc(doc = " This is backend-neutral spatial intent. Backends can still choose the final")
+@doc(doc = " pixel placement, but the relationship must be inspectable and stable.")
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiAnchorSpec:
+    target: UiNodeId
+    placement: UiAnchorPlacement
+    offset_px: [f32; 2]
+    constraint: UiAnchorConstraint
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiOverlayEntry:
+    id: String
+    node: UiNodeId
+    order: i32
+    anchor: Option<UiAnchorSpec>
+    modal: Bool
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiOverlayStack:
+    entries: Array<UiOverlayEntry>
+
+impl Default for UiOverlayStack:
+    pub fn default_() -> UiOverlayStack:
+        UiOverlayStack { entries: Vec__new_() }
+
+
+pub enum UiSchedulerPhase:
+    Signals
+    Resources
+    Layout
+    Animation
+    Patches
+    Effects
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSchedulerEntry:
+    phase: UiSchedulerPhase
+    label: String
+    target_nodes: Array<UiNodeId>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiScheduler:
+    phases: Array<UiSchedulerPhase>
+    pending: Array<UiSchedulerEntry>
+
+impl Default for UiScheduler:
+    fn default_() -> UiScheduler:
+        UiScheduler { phases: [UiSchedulerPhase__Signals, UiSchedulerPhase__Resources, UiSchedulerPhase__Layout, UiSchedulerPhase__Animation, UiSchedulerPhase__Patches, UiSchedulerPhase__Effects], pending: Vec__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiSelectionModel:
+    scopes: Array<String>
+    active_scope: Option<String>
+    primary: Map<String, UiNodeId>
+    selected: Map<String, Set<UiNodeId>>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiCommand:
+    name: String
+    target: Option<UiNodeId>
+    payload: Map<String, UiValue>
+    transaction_label: Option<String>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiCommandRejection:
+    command_name: String
+    reason: String
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiCommandBuffer:
+    pending: Array<UiCommand>
+    executed: Array<UiCommand>
+    rejections: Array<UiCommandRejection>
+
+impl Default for UiCommandBuffer:
+    pub fn default_() -> UiCommandBuffer:
+        UiCommandBuffer { pending: Vec__new_(), executed: Vec__new_(), rejections: Vec__new_() }
+
+
+pub enum UiCommandEffectKind:
+    RuntimeMutation
+    ExternalEffect
+
+impl Default for UiCommandEffectKind:
+    fn default_() -> UiCommandEffectKind:
+        UiCommandEffectKind__RuntimeMutation
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiCommandDescriptor:
+    name: String
+    label: String
+    description: Option<String>
+    keywords: Array<String>
+    category: Option<String>
+    shortcut: Option<String>
+    effect: UiCommandEffectKind
+
+@doc(doc = " Data-driven command registry that survives authoring, bundling, runtime, and backend realization.")
+@doc(doc = "")
+@doc(doc = " Inspired by the explicit, source-owned registration model used in K_OS.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiCommandRegistry:
+    commands_by_source: Map<String, Array<UiCommandDescriptor>>
+    snapshot: Array<UiCommandDescriptor>
+
+impl Default for UiCommandRegistry:
+    pub fn default_() -> UiCommandRegistry:
+        UiCommandRegistry { commands_by_source: HashMap__new_(), snapshot: Vec__new_() }
+
+
+impl UiCommandRegistry:
+    pub fn rebuild_snapshot(_self: &mut UiCommandRegistry):
+        let mut all = Vec__new_()
+        for commands in (*_self).commands_by_source.values():
+            all.extend(commands.iter().cloned())
+            ()
+        ()
+        all.sort_by(fn(a, b): a.name.cmp(&b.name))
+        ()
+        (*_self).snapshot = all
+        ()
+
+
+pub fn ui_register_command_descriptors(registry: &mut UiCommandRegistry, source_id: String, commands: Array<UiCommandDescriptor>):
+    (*registry).commands_by_source.insert(source_id.to_string(), commands)
+    ()
+    registry.rebuild_snapshot()
+    ()
+
+pub fn ui_unregister_command_descriptors(registry: &mut UiCommandRegistry, source_id: String):
+    if (*registry).commands_by_source.remove(source_id).is_some():
+        registry.rebuild_snapshot()
+        ()
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiThemeToken:
+    name: String
+    category: String
+    value: UiValue
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiThemeVariant:
+    scope: String
+    name: String
+    tokens: Array<String>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiThemeScope:
+    name: String
+    selector: String
+    parent: Option<String>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiThemeRegistry:
+    active_theme: Option<String>
+    scopes: Array<UiThemeScope>
+    semantic_tokens: Array<UiThemeToken>
+    variants: Array<UiThemeVariant>
+    diff_keys: Array<String>
+
+impl Default for UiThemeRegistry:
+    fn default_() -> UiThemeRegistry:
+        UiThemeRegistry { active_theme: Option::Some(("default").to_string()), scopes: Vec__new_(), semantic_tokens: Vec__new_(), variants: Vec__new_(), diff_keys: Vec__new_() }
+
+
+impl UiThemeRegistry:
+    fn is_empty(_self: &UiThemeRegistry) -> Bool:
+        ((((*_self).scopes.is_empty() && (*_self).semantic_tokens.is_empty()) && (*_self).variants.is_empty()) && (*_self).diff_keys.is_empty())
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiDockNode:
+    id: String
+    node: UiNodeId
+    placement: UiDockPlacement
+    split_ratio: Option<f32>
+    children: Array<UiNodeId>
+    persistent_layout_id: Option<String>
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiWorkspaceLayout:
+    roots: Array<UiDockNode>
+    persistence_key: Option<String>
+    virtualization_enabled: Bool
+    active_tabs: Map<String, String>
+
+impl Default for UiWorkspaceLayout:
+    pub fn default_() -> UiWorkspaceLayout:
+        UiWorkspaceLayout { roots: Vec__new_(), persistence_key: none, virtualization_enabled: false, active_tabs: HashMap__new_() }
+
+
+impl UiWorkspaceLayout:
+    fn is_empty(_self: &UiWorkspaceLayout) -> Bool:
+        ((((*_self).roots.is_empty() && (*_self).persistence_key.is_none()) && (!(*_self).virtualization_enabled)) && (*_self).active_tabs.is_empty())
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiReloadIdentityAlias:
+    from: String
+    to: String
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiHotReloadNodeLink:
+    stable_identity: String
+    previous_node: Option<UiNodeId>
+    next_node: Option<UiNodeId>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiHotReloadSignalLink:
+    signal_key: String
+    previous_signal: Option<UiSignalId>
+    next_signal: Option<UiSignalId>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiHotReloadOverlayLink:
+    overlay_id: String
+    previous_node: Option<UiNodeId>
+    next_node: Option<UiNodeId>
+    previous_anchor_target: Option<UiNodeId>
+    next_anchor_target: Option<UiNodeId>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiHotReloadPlan:
+    preserve_focus: Bool
+    preserve_selection: Bool
+    preserve_docking: Bool
+    preserve_overlays: Bool
+    preserve_motion_policy: Bool
+    preserve_animation_state: Bool
+    preserve_signal_values: Bool
+    preserve_session_state: Bool
+    identity_aliases: Array<UiReloadIdentityAlias>
+
+impl Default for UiHotReloadPlan:
+    fn default_() -> UiHotReloadPlan:
+        UiHotReloadPlan { preserve_focus: true, preserve_selection: true, preserve_docking: true, preserve_overlays: true, preserve_motion_policy: true, preserve_animation_state: true, preserve_signal_values: true, preserve_session_state: true, identity_aliases: Vec__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiAnimationPlaybackState:
+    elapsed_ms: u32
+    progress: f32
+    eased_progress: f32
+    completed: Bool
+
+impl Default for UiAnimationPlaybackState:
+    fn default_() -> UiAnimationPlaybackState:
+        UiAnimationPlaybackState { elapsed_ms: 0, progress: 0, eased_progress: 0, completed: false }
+
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiRuntimeSystems:
+    computed: Array<UiComputed>
+    resources: Array<UiResource>
+    transactions: Array<UiTransaction>
+    focus_graph: UiFocusGraph
+    event_routes: Array<UiEventRoute>
+    animation_tracks: Array<UiAnimationTrack>
+    motion_policy: UiMotionPolicy
+    surfaces: Array<UiSurface>
+    overlay_stack: UiOverlayStack
+    scheduler: UiScheduler
+    selection_model: UiSelectionModel
+    command_buffer: UiCommandBuffer
+    command_registry: UiCommandRegistry
+    theme_registry: UiThemeRegistry
+    workspace_layout: UiWorkspaceLayout
+    hot_reload: UiHotReloadPlan
+    signal_values: Map<UiSignalId, UiValue>
+    animation_state: Map<String, UiAnimationPlaybackState>
+    session_state: Map<String, UiValue>
+
+impl Default for UiRuntimeSystems:
+    pub fn default_() -> UiRuntimeSystems:
+        UiRuntimeSystems { computed: Vec__new_(), resources: Vec__new_(), transactions: Vec__new_(), focus_graph: UiFocusGraph__default_(), event_routes: Vec__new_(), animation_tracks: Vec__new_(), motion_policy: UiMotionPolicy__default_(), surfaces: Vec__new_(), overlay_stack: UiOverlayStack__default_(), scheduler: UiScheduler__default_(), selection_model: UiSelectionModel__default_(), command_buffer: UiCommandBuffer__default_(), command_registry: UiCommandRegistry__default_(), theme_registry: UiThemeRegistry__default_(), workspace_layout: UiWorkspaceLayout__default_(), hot_reload: UiHotReloadPlan__default_(), signal_values: HashMap__new_(), animation_state: HashMap__new_(), session_state: HashMap__new_() }
+
+
+impl UiRuntimeSystems:
+    pub fn is_empty(_self: &UiRuntimeSystems) -> Bool:
+        (((((((((((((((((((((((((((*_self).computed.is_empty() && (*_self).resources.is_empty()) && (*_self).transactions.is_empty()) && (*_self).focus_graph.scopes.is_empty()) && (*_self).focus_graph.default_scope.is_none()) && (*_self).focus_graph.focused.is_empty()) && (*_self).event_routes.is_empty()) && (*_self).animation_tracks.is_empty()) && ((*_self).motion_policy == UiMotionPolicy__default_())) && (*_self).surfaces.is_empty()) && (*_self).overlay_stack.entries.is_empty()) && (*_self).scheduler.pending.is_empty()) && (*_self).selection_model.scopes.is_empty()) && (*_self).selection_model.active_scope.is_none()) && (*_self).selection_model.primary.is_empty()) && (*_self).selection_model.selected.is_empty()) && (*_self).command_buffer.pending.is_empty()) && (*_self).command_buffer.executed.is_empty()) && (*_self).command_buffer.rejections.is_empty()) && (*_self).command_registry.snapshot.is_empty()) && (*_self).command_registry.commands_by_source.is_empty()) && (*_self).theme_registry.is_empty()) && (*_self).workspace_layout.is_empty()) && ((*_self).hot_reload == UiHotReloadPlan__default_())) && (*_self).signal_values.is_empty()) && (*_self).animation_state.is_empty()) && (*_self).session_state.is_empty())
+
+
+impl Default for UiFocusGraph:
+    fn default_() -> UiFocusGraph:
+        UiFocusGraph { scopes: Vec__new_(), default_scope: none, focused: BTreeMap__new_(), traversal_edges: Vec__new_() }
+
+
+impl Default for UiSelectionModel:
+    fn default_() -> UiSelectionModel:
+        UiSelectionModel { scopes: Vec__new_(), active_scope: none, primary: BTreeMap__new_(), selected: BTreeMap__new_() }
+
+
+@doc(doc = " Flat raw-native projection of the semantic tree.")
+@doc(doc = "")
+@doc(doc = " Compatibility-only sidecar for legacy native/C consumers.")
+@doc(doc = " Keep this out of the canonical cross-backend ABI and do not")
+@doc(doc = " let new authoring paths depend on it.")
+@doc(doc = "")
+@doc(doc = " New UI semantics should be emitted through `UiRuntimeBundle` and")
+@doc(doc = " compiler-owned contract payloads, not promoted into this projection.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiNativeProjection:
+    root_id: Option<u64>
+    primary_panel_title: Option<String>
+    primary_viewport_title: Option<String>
+    primary_viewport_scene: Option<String>
+    tab_groups: Array<UiNativeProjectionTabGroup>
+    nodes: Array<UiNativeProjectionNode>
+
+impl Default for UiNativeProjection:
+    pub fn default_() -> UiNativeProjection:
+        UiNativeProjection { root_id: none, primary_panel_title: none, primary_viewport_title: none, primary_viewport_scene: none, tab_groups: Vec__new_(), nodes: Vec__new_() }
+
+
+impl UiNativeProjection:
+    pub fn is_empty(_self: &UiNativeProjection) -> Bool:
+        ((((((*_self).root_id.is_none() && (*_self).primary_panel_title.is_none()) && (*_self).primary_viewport_title.is_none()) && (*_self).primary_viewport_scene.is_none()) && (*_self).tab_groups.is_empty()) && (*_self).nodes.is_empty())
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiNativeProjectionNode:
+    id: u64
+    parent_id: Option<u64>
+    depth: u32
+    kind: UiNativeProjectionKind
+    title: Option<String>
+    text: Option<String>
+    tag: Option<String>
+    scene: Option<String>
+    layout_kind: UiLayoutKind
+    dock_placement: Option<UiDockPlacement>
+    split_ratio: Option<f32>
+    resizable: Bool
+    persistent_layout_id: Option<String>
+    tab_group_id: Option<String>
+    tab_label: Option<String>
+    tab_order: Option<i32>
+    tab_default_active: Bool
+    tab_closable: Bool
+    tab_is_active: Bool
+    child_count: usize
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiNativeProjectionTabGroup:
+    id: String
+    active_tab_layout_id: Option<String>
+    tab_count: usize
+
+pub enum UiNativeProjectionKind:
+    Element
+    ComponentRef
+    Text
+    Panel
+    Inspector
+    Graph
+    Timeline
+    Table
+    Tree
+    Viewport2D
+    Viewport3D
+    Overlay
+    Slot
+
+pub const UI_RUNTIME_BUNDLE_SCHEMA_VERSION: u32 = 1
+
+const UI_RUNTIME_FORCE_COMPATIBILITY_BACKFILL_KEY: String = "ui.runtime.force_compatibility_backfill"
+
+const UI_RUNTIME_COMPATIBILITY_FALLBACK_KEY: String = "ui.runtime.compatibility_fallback"
+
+const UI_RUNTIME_COMPATIBILITY_MODE_KEY: String = "ui.runtime.compatibility_mode"
+
+const UI_RUNTIME_NATIVE_PROJECTION_MODE_KEY: String = "ui.runtime.native_projection_mode"
+
+@doc(doc = " Backend-agnostic metadata for a compiled KAIN UI runtime bundle.")
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeMetadata:
+    app_name: Option<String>
+    window_title: String
+    root_component: String
+    source_file_name: Option<String>
+    initial_window_size: [f32; 2]
+    preferred_shell_host_backend: UiHostBackendKind
+    preferred_document_host_backend: UiHostBackendKind
+    preferred_devtools_host_backend: UiHostBackendKind
+    preferred_layout_engine: UiLayoutEngineKind
+    preferred_render_engine: UiRenderEngineKind
+    compatibility_host_backend: UiHostBackendKind
+    mixed_backend_session: Bool
+
+impl Default for UiRuntimeMetadata:
+    fn default_() -> UiRuntimeMetadata:
+        UiRuntimeMetadata { app_name: none, window_title: String__new_(), root_component: String__new_(), source_file_name: none, initial_window_size: [1440, 920], preferred_shell_host_backend: UiHostBackendKind__Qt, preferred_document_host_backend: UiHostBackendKind__RmlUi, preferred_devtools_host_backend: UiHostBackendKind__Imgui, preferred_layout_engine: UiLayoutEngineKind__Yoga, preferred_render_engine: UiRenderEngineKind__Wgpu, compatibility_host_backend: UiHostBackendKind__Qt, mixed_backend_session: true }
+
+
+@doc(doc = " Serialized ABI boundary between the KAIN compiler and host runtimes.")
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeBundle:
+    schema_version: u32
+    metadata: UiRuntimeMetadata
+    output: UiBuildOutput
+    native_projection: UiNativeProjection
+
+@doc(doc = " Canonical runtime bundle builder.")
+@doc(doc = "")
+@doc(doc = " This keeps the bundle centered on `output.tree` and `output.systems`")
+@doc(doc = " and leaves the compatibility projection empty unless a caller explicitly")
+@doc(doc = " opts into the legacy helper.")
+pub fn ui_runtime_bundle_from_output(metadata: UiRuntimeMetadata, output: UiBuildOutput) -> UiRuntimeBundle:
+    let mut output = output
+    if ui_runtime_bundle_requires_compatibility_backfill(&output):
+        output.systems = ui_runtime_systems_from_tree(&output.tree)
+        ()
+        output.systems.session_state.insert(UI_RUNTIME_COMPATIBILITY_FALLBACK_KEY.to_string(), UiValue::Bool(true))
+        ()
+        output.systems.session_state.insert(UI_RUNTIME_COMPATIBILITY_MODE_KEY.to_string(), UiValue::String(("tree_shape_backfill").to_string()))
+        ()
+        ()
+        ()
+        ()
+    UiRuntimeBundle { schema_version: UI_RUNTIME_BUNDLE_SCHEMA_VERSION, metadata: metadata, output: output, native_projection: UiNativeProjection__default_() }
+
+@doc(doc = " Compatibility-only bundle builder that explicitly materializes the raw-native")
+@doc(doc = " projection sidecar for legacy consumers.")
+pub fn ui_runtime_bundle_from_output_with_native_projection(metadata: UiRuntimeMetadata, output: UiBuildOutput) -> UiRuntimeBundle:
+    let mut bundle = ui_runtime_bundle_from_output(metadata, output)
+    bundle.output.systems.session_state.insert(UI_RUNTIME_NATIVE_PROJECTION_MODE_KEY.to_string(), UiValue::String(("compatibility_sidecar").to_string()))
+    ()
+    bundle.native_projection = build_compatibility_native_projection(&bundle.output)
+    ()
+    bundle
+
+fn ui_runtime_bundle_requires_compatibility_backfill(output: &UiBuildOutput) -> Bool:
+    (none || (*output).systems.is_empty())
+
+fn build_compatibility_native_projection(output: &UiBuildOutput) -> UiNativeProjection:
+    ui_native_projection_from_output(output)
+
+pub fn ui_runtime_bundle_to_json(bundle: &UiRuntimeBundle) -> Result<String, serde_json::Error>:
+    serde_json__to_string_pretty(bundle)
+
+pub fn ui_runtime_bundle_from_json(json: String) -> Result<UiRuntimeBundle, serde_json::Error>:
+    serde_json__from_str(json)
+
+pub fn validate_ui_runtime_bundle(bundle: &UiRuntimeBundle) -> Result<(), std::io::Error>:
+    if ((*bundle).schema_version != UI_RUNTIME_BUNDLE_SCHEMA_VERSION):
+        return Result::Err(Error__new_(std__io__ErrorKind__InvalidData, f"Unsupported KAIN UI runtime bundle schema version {(*bundle).schema_version} (expected {UI_RUNTIME_BUNDLE_SCHEMA_VERSION})"))
+    if (*bundle).output.tree.root.is_none():
+        return Result::Err(Error__new_(std__io__ErrorKind__InvalidData, "Compiled KAIN UI runtime bundle did not contain a root node"))
+    Result::Ok(())
+
+@doc(doc = " Legacy-only inference path that backfills runtime systems from tree shape.")
+@doc(doc = " New authored UI must emit runtime systems explicitly.")
+pub fn ui_runtime_systems_from_tree(tree: &UiTree) -> UiRuntimeSystems:
+    let mut systems = UiRuntimeSystems__default_()
+    let mut theme_scopes = BTreeSet__new_()
+    let mut focus_scopes = BTreeSet__new_()
+    let mut selection_scopes = BTreeSet__new_()
+    for node in (*tree).nodes.values():
+        if (!node.watches.is_empty()):
+            systems.computed.push(UiComputed { id: f"computed.node.{node.id.field_0}", label: f"node-{node.id.field_0}-dependencies", depends_on: node.watches.clone(), writes_signal: none, expr: none, invalidates_nodes: [node.id], scheduler_phase: UiSchedulerPhase__Signals })
+            ()
+            systems.scheduler.pending.push(UiSchedulerEntry { phase: UiSchedulerPhase__Signals, label: f"invalidate-node-{node.id.field_0}", target_nodes: [node.id] })
+            ()
+            ()
+            ()
+            ()
+        match node.style.theme_scope.clone():
+            Some(scope) =>
+                if theme_scopes.insert(scope.clone()):
+                    systems.theme_registry.scopes.push(UiThemeScope { name: scope.clone(), selector: f"scope:{scope}", parent: none })
+                    ()
+                    systems.theme_registry.diff_keys.push(scope)
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        match node.focus_scope.clone():
+            Some(scope) =>
+                if focus_scopes.insert(scope.clone()):
+                    systems.focus_graph.scopes.push(scope.clone())
+                    ()
+                    if systems.focus_graph.default_scope.is_none():
+                        systems.focus_graph.default_scope = Option::Some(scope)
+                        ()
+                        ()
+                        ()
+                        ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        match node.selection_scope.clone():
+            Some(scope) =>
+                if selection_scopes.insert(scope.clone()):
+                    systems.selection_model.scopes.push(scope.clone())
+                    ()
+                    if systems.selection_model.active_scope.is_none():
+                        systems.selection_model.active_scope = Option::Some(scope)
+                        ()
+                        ()
+                        ()
+                        ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        if (none):
+            systems.workspace_layout.roots.push(UiDockNode { id: f"dock.node.{node.id.field_0}", node: node.id, placement: node.layout.dock.unwrap_or(UiDockPlacement__Center), split_ratio: node.layout.split_ratio, children: node.children.clone(), persistent_layout_id: node.layout.persistent_layout_id.clone().or_else(fn(): node.identity_key.clone()) })
+            ()
+            systems.workspace_layout.virtualization_enabled = true
+            ()
+            if systems.workspace_layout.persistence_key.is_none():
+                systems.workspace_layout.persistence_key = node.layout.persistent_layout_id.clone().or_else(fn(): node.identity_key.clone())
+                ()
+                ()
+                ()
+                ()
+            systems.scheduler.pending.push(UiSchedulerEntry { phase: UiSchedulerPhase__Layout, label: f"layout-pass-node-{node.id.field_0}", target_nodes: [node.id] })
+            ()
+            ()
+            ()
+            ()
+        match ui_surface_for_node(node):
+            Some(surface) =>
+                systems.surfaces.push(surface)
+                ()
+                systems.animation_tracks.push(UiAnimationTrack { id: f"animation.node.{node.id.field_0}", target: node.id, property: ("surface.opacity").to_string(), duration_ms: 180, trigger: UiAnimationTrigger__Mount, easing: UiEasingKind__EaseOut, preserve_on_reload: true })
+                ()
+                systems.scheduler.pending.push(UiSchedulerEntry { phase: UiSchedulerPhase__Animation, label: f"animation-pass-node-{node.id.field_0}", target_nodes: [node.id] })
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match node.identity_key.clone():
+            Some(identity_key) =>
+                match node.layout.persistent_layout_id.clone():
+                    Some(layout_key) =>
+                        if (layout_key != identity_key):
+                            systems.hot_reload.identity_aliases.push(UiReloadIdentityAlias { from: identity_key.clone(), to: layout_key.clone() })
+                            ()
+                            systems.hot_reload.identity_aliases.push(UiReloadIdentityAlias { from: layout_key, to: identity_key })
+                            ()
+                            ()
+                            ()
+                            ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        if (none):
+            let order = node.props.get("overlay_order").and_then(fn(value): none).unwrap_or_else(fn(): (node.id.field_0.min(i32__MAX as u64)) as i32)
+            systems.overlay_stack.entries.push(UiOverlayEntry { id: f"overlay.node.{node.id.field_0}", node: node.id, order: order, anchor: none, modal: false })
+            ()
+    ()
+    systems.workspace_layout.active_tabs = resolve_workspace_active_tabs(tree, none)
+    ()
+    systems.motion_policy.recompute_capacitor()
+    ()
+    systems.overlay_stack.entries.sort_by(fn(a, b): ((a.order, a.id.clone())).cmp(&(b.order, b.id.clone())))
+    ()
+    if (!systems.theme_registry.scopes.is_empty()):
+        systems.theme_registry.variants.push(UiThemeVariant { scope: systems.theme_registry.scopes.first().map(fn(scope): scope.name.clone()).unwrap_or_else(fn(): ("default").to_string()), name: ("base").to_string(), tokens: [("surface.background").to_string(), ("text.default").to_string()] })
+        ()
+        systems.theme_registry.semantic_tokens.push(UiThemeToken { name: ("surface.background").to_string(), category: ("color").to_string(), value: UiValue::String(("theme.surface.background").to_string()) })
+        ()
+        systems.theme_registry.semantic_tokens.push(UiThemeToken { name: ("text.default").to_string(), category: ("color").to_string(), value: UiValue::String(("theme.text.default").to_string()) })
+        ()
+        ()
+        ()
+        ()
+    systems
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSignalUpdate:
+    signal: UiSignalId
+    value: UiValue
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiInvalidationResult:
+    changed_signals: Array<UiSignalId>
+    invalidated_nodes: Array<UiNodeId>
+    scheduled: Array<UiSchedulerEntry>
+    transaction: Option<UiTransaction>
+
+impl Default for UiInvalidationResult:
+    pub fn default_() -> UiInvalidationResult:
+        UiInvalidationResult { changed_signals: Vec__new_(), invalidated_nodes: Vec__new_(), scheduled: Vec__new_(), transaction: none }
+
+
+pub fn ui_execute_signal_updates(systems: &mut UiRuntimeSystems, updates: &[UiSignalUpdate]) -> UiInvalidationResult:
+    let mut result = UiInvalidationResult__default_()
+    let mut invalidated = BTreeSet__new_()
+    for update in updates:
+        let changed = ((*systems).signal_values.get(&update.signal) != Option::Some(&update.value))
+        if (!changed):
+            continue
+        (*systems).signal_values.insert(update.signal, update.value.clone())
+        ()
+        result.changed_signals.push(update.signal)
+        ()
+        for computed in &(*systems).computed:
+            if computed.depends_on.contains(&update.signal):
+                for node in &computed.invalidates_nodes:
+                    if invalidated.insert((*node)):
+                        result.invalidated_nodes.push((*node))
+                        ()
+                ()
+                let entry = UiSchedulerEntry { phase: computed.scheduler_phase, label: computed.label.clone(), target_nodes: computed.invalidates_nodes.clone() }
+                (*systems).scheduler.pending.push(entry.clone())
+                ()
+                result.scheduled.push(entry)
+                ()
+    ()
+    if (!result.changed_signals.is_empty()):
+        let transaction = UiTransaction { label: f"signals:{result.changed_signals.len()}", touched_nodes: result.invalidated_nodes.clone(), changed_signals: result.changed_signals.clone(), ..UiTransaction__default_runtime(0) }
+        (*systems).transactions.push(transaction.clone())
+        ()
+        result.transaction = Option::Some(transaction)
+        ()
+        ()
+        ()
+        ()
+    result
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiResolvedTheme:
+    active_theme: Option<String>
+    scope_chain: Array<String>
+    applied_tokens: Array<String>
+    values: Map<String, UiValue>
+
+impl Default for UiResolvedTheme:
+    pub fn default_() -> UiResolvedTheme:
+        UiResolvedTheme { active_theme: none, scope_chain: Vec__new_(), applied_tokens: Vec__new_(), values: HashMap__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiThemeDiffEntry:
+    key: String
+    before: Option<UiValue>
+    after: Option<UiValue>
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiThemeDiff:
+    changes: Array<UiThemeDiffEntry>
+
+impl Default for UiThemeDiff:
+    pub fn default_() -> UiThemeDiff:
+        UiThemeDiff { changes: Vec__new_() }
+
+
+impl UiThemeDiff:
+    pub fn is_empty(_self: &UiThemeDiff) -> Bool:
+        (*_self).changes.is_empty()
+
+
+pub fn ui_resolve_theme_for_node(node: &UiNode, registry: &UiThemeRegistry) -> UiResolvedTheme:
+    let mut resolved = UiResolvedTheme { active_theme: (*registry).active_theme.clone(), scope_chain: theme_scope_chain((*node).style.theme_scope, registry), ..UiResolvedTheme__default_() }
+    for token in &(*registry).semantic_tokens:
+        resolved.values.insert(token.name.clone(), token.value.clone())
+        ()
+        resolved.applied_tokens.push(token.name.clone())
+        ()
+    ()
+    for scope in &resolved.scope_chain:
+        for variant in (*registry).variants.iter().filter(fn(variant): ((variant.scope == (*scope)) && none)):
+            for token in &variant.tokens:
+                if (!resolved.applied_tokens.contains(token)):
+                    resolved.applied_tokens.push(token.clone())
+                    ()
+    ()
+    for token in &(*node).style.tokens:
+        if (!resolved.applied_tokens.contains(token)):
+            resolved.applied_tokens.push(token.clone())
+            ()
+    ()
+    for class_name in &(*node).style.classes:
+        resolved.values.insert(f"class:{class_name}", UiValue::Bool(true))
+        ()
+    ()
+    for state_ in &(*node).style.states:
+        resolved.values.insert((f"state:{state_}").to_ascii_lowercase(), UiValue::Bool(true))
+        ()
+    ()
+    for selfhost_for_item in &(*node).style.values:
+        let (key, value) = selfhost_for_item
+        resolved.values.insert(key.clone(), value.clone())
+        ()
+    ()
+    resolved
+
+pub fn ui_diff_resolved_theme(previous: &UiResolvedTheme, next: &UiResolvedTheme) -> UiThemeDiff:
+    let mut changes = Vec__new_()
+    let keys = (*previous).values.keys().chain((*next).values.keys()).cloned().collect()
+    for key in keys:
+        let before = (*previous).values.get(&key).cloned()
+        let after = (*next).values.get(&key).cloned()
+        if (before != after):
+            changes.push(UiThemeDiffEntry { key: key, before: before, after: after })
+            ()
+    ()
+    UiThemeDiff { changes: changes }
+
+fn theme_scope_chain(scope_name: Option<String>, registry: &UiThemeRegistry) -> Array<String>:
+    let mut chain = Vec__new_()
+    let mut current = scope_name.map(fn(value): value.to_string()).or_else(fn(): (*registry).scopes.first().map(fn(scope): scope.name.clone()))
+    loop:
+        match current:
+            Some(scope_name) =>
+                if chain.contains(&scope_name):
+                    break
+                chain.push(scope_name.clone())
+                ()
+                current = (*registry).scopes.iter().find(fn(scope): (scope.name == scope_name)).and_then(fn(scope): scope.parent.clone())
+                ()
+            _ => break
+    ()
+    chain
+
+@derive(Clone, Copy, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRect:
+    x: f32
+    y: f32
+    width: f32
+    height: f32
+
+impl Default for UiRect:
+    pub fn default_() -> UiRect:
+        UiRect { x: 0, y: 0, width: 0, height: 0 }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiResolvedLayoutNode:
+    node: UiNodeId
+    rect: UiRect
+    layout_kind: UiLayoutKind
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiResolvedLayout:
+    viewport: UiRect
+    nodes: Array<UiResolvedLayoutNode>
+
+impl Default for UiResolvedLayout:
+    pub fn default_() -> UiResolvedLayout:
+        UiResolvedLayout { viewport: UiRect__default_(), nodes: Vec__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiPersistedDockState:
+    placement: UiDockPlacement
+    split_ratio: Option<f32>
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiWorkspaceLayoutSnapshot:
+    persistence_key: Option<String>
+    active_tabs: Map<String, String>
+    nodes: Map<String, UiPersistedDockState>
+
+impl Default for UiWorkspaceLayoutSnapshot:
+    pub fn default_() -> UiWorkspaceLayoutSnapshot:
+        UiWorkspaceLayoutSnapshot { persistence_key: none, active_tabs: HashMap__new_(), nodes: HashMap__new_() }
+
+
+pub fn ui_solve_workspace_layout(tree: &UiTree, systems: &UiRuntimeSystems, viewport_size: [f32; 2]) -> UiResolvedLayout:
+    let viewport = UiRect { x: 0, y: 0, width: viewport_size[0].max(1), height: viewport_size[1].max(1) }
+    let mut resolved = UiResolvedLayout { viewport: viewport, nodes: Vec__new_() }
+    match (*tree).root:
+        Some(root) =>
+            solve_layout_node(tree, root, viewport, systems, &mut resolved)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    resolved
+
+pub fn ui_workspace_layout_snapshot(tree: &UiTree, systems: &UiRuntimeSystems) -> UiWorkspaceLayoutSnapshot:
+    let mut snapshot = UiWorkspaceLayoutSnapshot { persistence_key: (*systems).workspace_layout.persistence_key.clone(), active_tabs: (*systems).workspace_layout.active_tabs.clone(), nodes: BTreeMap__new_() }
+    for node in (*tree).nodes.values():
+        match node.layout.persistent_layout_id.or_(node.identity_key):
+            Some(layout_id) =>
+                snapshot.nodes.insert(layout_id.clone(), UiPersistedDockState { placement: node.layout.dock.unwrap_or(UiDockPlacement__Center), split_ratio: node.layout.split_ratio })
+                ()
+            _ => ()
+    ()
+    snapshot
+
+pub fn ui_apply_workspace_layout_snapshot(tree: &mut UiTree, systems: &mut UiRuntimeSystems, snapshot: &UiWorkspaceLayoutSnapshot) -> usize:
+    let mut applied = 0
+    (*systems).workspace_layout.persistence_key = (*snapshot).persistence_key.clone()
+    ()
+    (*systems).workspace_layout.active_tabs = (*snapshot).active_tabs.clone()
+    ()
+    for node in (*tree).nodes.values_mut():
+        let Some(layout_id) = node.layout.persistent_layout_id.clone().or_else(fn(): node.identity_key.clone())
+        let Some(saved) = (*snapshot).nodes.get(&layout_id)
+        node.layout.dock = Option::Some(saved.placement)
+        ()
+        node.layout.split_ratio = saved.split_ratio
+        ()
+        applied = (applied + 1)
+        ()
+    ()
+    let mut rebuilt = ui_runtime_systems_from_tree(tree).workspace_layout
+    rebuilt.persistence_key = (*snapshot).persistence_key.clone()
+    ()
+    rebuilt.active_tabs = resolve_workspace_active_tabs(tree, Option::Some(&(*snapshot).active_tabs))
+    ()
+    (*systems).workspace_layout = rebuilt
+    ()
+    applied
+
+fn solve_layout_node(tree: &UiTree, id: UiNodeId, rect: UiRect, systems: &UiRuntimeSystems, resolved: &mut UiResolvedLayout):
+    let Some(node) = tree.node(id)
+    (*resolved).nodes.push(UiResolvedLayoutNode { node: id, rect: rect, layout_kind: node.layout.kind })
+    ()
+    if node.children.is_empty():
+        return
+    match node.layout.kind:
+        UiLayoutKind::Dock => solve_dock_children(tree, node, rect, systems, resolved)
+        UiLayoutKind::FlexRow => solve_row_children(tree, node, rect, systems, resolved)
+        UiLayoutKind::FlexColumn => solve_column_children(tree, node, rect, systems, resolved)
+        UiLayoutKind::Flow => solve_column_children(tree, node, rect, systems, resolved)
+        UiLayoutKind::Stack =>
+            for child in &node.children:
+                solve_layout_node(tree, (*child), rect, systems, resolved)
+                ()
+        UiLayoutKind::Absolute =>
+            for child in &node.children:
+                solve_layout_node(tree, (*child), rect, systems, resolved)
+                ()
+        UiLayoutKind::Grid =>
+            for child in &node.children:
+                solve_layout_node(tree, (*child), rect, systems, resolved)
+                ()
+
+fn solve_dock_children(tree: &UiTree, node: &UiNode, rect: UiRect, systems: &UiRuntimeSystems, resolved: &mut UiResolvedLayout):
+    let mut remaining = rect
+    for child_id in &(*node).children:
+        let Some(child) = tree.node((*child_id))
+        let preferred_ratio = child.layout.split_ratio.or_else(fn(): persisted_split_ratio(child, systems)).unwrap_or(0.25).clamp(0.1, 0.9)
+        let dock_placement = child.layout.dock.unwrap_or(UiDockPlacement__Center)
+        if ((dock_placement == UiDockPlacement__Tab) && (!node_is_active_tab(tree, child, systems))):
+            continue
+        let child_rect = match dock_placement:
+            UiDockPlacement::Left =>
+                let width = (remaining.width * preferred_ratio)
+                let child_rect = UiRect { x: remaining.x, y: remaining.y, width: width, height: remaining.height }
+                remaining.x = (remaining.x + width)
+                ()
+                remaining.width = (remaining.width - width)
+                ()
+                child_rect
+            UiDockPlacement::Right =>
+                let width = (remaining.width * preferred_ratio)
+                let child_rect = UiRect { x: ((remaining.x + remaining.width) - width), y: remaining.y, width: width, height: remaining.height }
+                remaining.width = (remaining.width - width)
+                ()
+                child_rect
+            UiDockPlacement::Top =>
+                let height = (remaining.height * preferred_ratio)
+                let child_rect = UiRect { x: remaining.x, y: remaining.y, width: remaining.width, height: height }
+                remaining.y = (remaining.y + height)
+                ()
+                remaining.height = (remaining.height - height)
+                ()
+                child_rect
+            UiDockPlacement::Bottom =>
+                let height = (remaining.height * preferred_ratio)
+                let child_rect = UiRect { x: remaining.x, y: ((remaining.y + remaining.height) - height), width: remaining.width, height: height }
+                remaining.height = (remaining.height - height)
+                ()
+                child_rect
+            UiDockPlacement::Center => remaining
+            UiDockPlacement::Tab => remaining
+        solve_layout_node(tree, (*child_id), child_rect, systems, resolved)
+        ()
+
+fn solve_row_children(tree: &UiTree, node: &UiNode, rect: UiRect, systems: &UiRuntimeSystems, resolved: &mut UiResolvedLayout):
+    let total_gap = ((*node).layout.gap * (*node).children.len().saturating_sub(1) as f32)
+    let total_flex = (*node).children.iter().filter_map(fn(child_id): tree.node((*child_id))).map(fn(child): child.layout.flex_grow.max(1)).sum().max(1)
+    let mut cursor_x = rect.x
+    for child_id in &(*node).children:
+        let Some(child) = tree.node((*child_id))
+        let share = (child.layout.flex_grow.max(1) / total_flex)
+        let width = ((((rect.width - total_gap)).max(1)) * share)
+        let child_rect = UiRect { x: cursor_x, y: rect.y, width: width, height: rect.height }
+        cursor_x = (cursor_x + (width + (*node).layout.gap))
+        ()
+        solve_layout_node(tree, (*child_id), child_rect, systems, resolved)
+        ()
+
+fn solve_column_children(tree: &UiTree, node: &UiNode, rect: UiRect, systems: &UiRuntimeSystems, resolved: &mut UiResolvedLayout):
+    let total_gap = ((*node).layout.gap * (*node).children.len().saturating_sub(1) as f32)
+    let total_flex = (*node).children.iter().filter_map(fn(child_id): tree.node((*child_id))).map(fn(child): child.layout.flex_grow.max(1)).sum().max(1)
+    let mut cursor_y = rect.y
+    for child_id in &(*node).children:
+        let Some(child) = tree.node((*child_id))
+        let share = (child.layout.flex_grow.max(1) / total_flex)
+        let height = ((((rect.height - total_gap)).max(1)) * share)
+        let child_rect = UiRect { x: rect.x, y: cursor_y, width: rect.width, height: height }
+        cursor_y = (cursor_y + (height + (*node).layout.gap))
+        ()
+        solve_layout_node(tree, (*child_id), child_rect, systems, resolved)
+        ()
+
+fn persisted_split_ratio(node: &UiNode, systems: &UiRuntimeSystems) -> Option<f32>:
+    let persisted_id = (*node).layout.persistent_layout_id.or_((*node).identity_key)?
+    (*systems).workspace_layout.roots.iter().find(fn(entry): (entry.persistent_layout_id == Option::Some(persisted_id))).and_then(fn(entry): entry.split_ratio)
+
+fn node_layout_id(node: &UiNode) -> String:
+    (*node).layout.persistent_layout_id.clone().or_else(fn(): (*node).identity_key.clone()).unwrap_or_else(fn(): f"node-{(*node).id.field_0}")
+
+fn resolve_workspace_active_tabs(tree: &UiTree, persisted: Option<&Map<String, String>>) -> Map<String, String>:
+    let mut grouped_tabs = BTreeMap__new_()
+    let mut resolved = BTreeMap__new_()
+    for node in (*tree).nodes.values():
+        let Some(group_id) = node.layout.tab_group_id.clone()
+        grouped_tabs.entry(group_id).or_default().push((node, node_layout_id(node)))
+        ()
+    ()
+    for selfhost_for_item in grouped_tabs:
+        let (group_id, mut tabs) = selfhost_for_item
+        match persisted.and_then(fn(saved): saved.get(&group_id)):
+            Some(saved_layout_id) =>
+                if tabs.iter().any(fn(__kain_closure_arg0): (__kain_closure_arg0.__kain_tuple_1 == saved_layout_id)):
+                    resolved.insert(group_id, saved_layout_id.clone())
+                    ()
+                    continue
+                ()
+            _ =>
+                ()
+                ()
+        tabs.sort_by_key(fn(__kain_closure_arg1): (__kain_closure_arg1.__kain_tuple_0.layout.tab_order.unwrap_or(i32__MAX), __kain_closure_arg1.__kain_tuple_0.id.field_0))
+        ()
+        match tabs.iter().find(fn(__kain_closure_arg2): __kain_closure_arg2.__kain_tuple_0.layout.tab_default_active).or_else(fn(): tabs.first()).map(fn(__kain_closure_arg3): __kain_closure_arg3.__kain_tuple_1.clone()):
+            Some(layout_id) =>
+                resolved.insert(group_id, layout_id)
+                ()
+            _ => ()
+    ()
+    resolved
+
+fn node_is_active_tab(tree: &UiTree, node: &UiNode, systems: &UiRuntimeSystems) -> Bool:
+    let Some(group_id) = (*node).layout.tab_group_id
+    let active_tabs = if (*systems).workspace_layout.active_tabs.is_empty():
+        resolve_workspace_active_tabs(tree, none)
+    else:
+        (*systems).workspace_layout.active_tabs.clone()
+    active_tabs.get(group_id).map_or(true, fn(active_layout_id): (active_layout_id == &node_layout_id(node)))
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiAnimationFrame:
+    track_id: String
+    target: UiNodeId
+    property: String
+    progress: f32
+    eased_progress: f32
+    completed: Bool
+
+pub fn ui_step_animation_runtime(systems: &mut UiRuntimeSystems, delta_ms: u32) -> Array<UiAnimationFrame>:
+    let mut frames = Vec__new_()
+    for track in &(*systems).animation_tracks:
+        let state_ = (*systems).animation_state.entry(track.id.clone()).or_default()
+        if state_.completed:
+            continue
+        state_.elapsed_ms = state_.elapsed_ms.saturating_add(delta_ms)
+        ()
+        let duration = track.duration_ms.max(1)
+        state_.progress = ((state_.elapsed_ms as f32 / duration as f32)).clamp(0, 1)
+        ()
+        state_.eased_progress = ease_progress(track.easing, state_.progress)
+        ()
+        state_.completed = (state_.progress >= 1)
+        ()
+        frames.push(UiAnimationFrame { track_id: track.id.clone(), target: track.target, property: track.property.clone(), progress: state_.progress, eased_progress: state_.eased_progress, completed: state_.completed })
+        ()
+    ()
+    frames
+
+fn ease_progress(easing: UiEasingKind, progress: f32) -> f32:
+    match easing:
+        UiEasingKind::Linear => progress
+        UiEasingKind::EaseIn => (progress * progress)
+        UiEasingKind::EaseOut => (1 - (((1 - progress)) * ((1 - progress))))
+        UiEasingKind::EaseInOut => if (progress < 0.5): ((2 * progress) * progress) else: (1 - (((((-2) * progress) + 2)).powf(2) / 2))
+        UiEasingKind::Spring =>
+            let overshoot = 1.70158
+            let shifted = (progress - 1)
+            (1 + ((shifted * shifted) * (((((overshoot + 1)) * shifted) + overshoot))))
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiHotReloadTransferReport:
+    focus_transferred: Bool
+    focus_nodes_transferred: usize
+    focus_traversal_edges_transferred: usize
+    selection_transferred: Bool
+    selection_nodes_transferred: usize
+    docking_transferred: Bool
+    workspace_nodes_transferred: usize
+    overlay_transferred: Bool
+    overlay_entries_transferred: usize
+    motion_policy_transferred: Bool
+    animation_tracks_transferred: usize
+    signal_values_transferred: usize
+    session_values_transferred: usize
+    identity_links: Array<UiHotReloadNodeLink>
+    workspace_layout_links: Array<UiHotReloadNodeLink>
+    overlay_links: Array<UiHotReloadOverlayLink>
+    animation_track_links: Array<UiHotReloadNodeLink>
+    signal_links: Array<UiHotReloadSignalLink>
+    focus_scopes_preserved: Array<String>
+    focus_scopes_dropped: Array<String>
+    selection_scopes_preserved: Array<String>
+    selection_scopes_dropped: Array<String>
+    session_keys_preserved: Array<String>
+    session_keys_dropped: Array<String>
+    dropped_previous_nodes: Array<UiNodeId>
+    invalidated_nodes: Array<UiNodeId>
+
+impl Default for UiHotReloadTransferReport:
+    pub fn default_() -> UiHotReloadTransferReport:
+        UiHotReloadTransferReport { focus_transferred: false, focus_nodes_transferred: 0, focus_traversal_edges_transferred: 0, selection_transferred: false, selection_nodes_transferred: 0, docking_transferred: false, workspace_nodes_transferred: 0, overlay_transferred: false, overlay_entries_transferred: 0, motion_policy_transferred: false, animation_tracks_transferred: 0, signal_values_transferred: 0, session_values_transferred: 0, identity_links: Vec__new_(), workspace_layout_links: Vec__new_(), overlay_links: Vec__new_(), animation_track_links: Vec__new_(), signal_links: Vec__new_(), focus_scopes_preserved: Vec__new_(), focus_scopes_dropped: Vec__new_(), selection_scopes_preserved: Vec__new_(), selection_scopes_dropped: Vec__new_(), session_keys_preserved: Vec__new_(), session_keys_dropped: Vec__new_(), dropped_previous_nodes: Vec__new_(), invalidated_nodes: Vec__new_() }
+
+
+pub fn ui_transfer_hot_reload_state(previous: &UiBuildOutput, next: &mut UiBuildOutput) -> UiHotReloadTransferReport:
+    let mut report = UiHotReloadTransferReport__default_()
+    let previous_reload_identity_map = node_identity_map(&(*previous).tree)
+    let next_reload_identity_map = node_identity_map(&(*next).tree)
+    let previous_layout_identity_map = node_layout_identity_map(&(*previous).tree)
+    let next_layout_identity_map = node_layout_identity_map(&(*next).tree)
+    let aliases = (*next).systems.hot_reload.identity_aliases.iter().map(fn(alias): (alias.from.clone(), alias.to.clone())).collect()
+    report.identity_links = build_node_links(&previous_reload_identity_map, &next_reload_identity_map)
+    ()
+    report.workspace_layout_links = build_node_links(&previous_layout_identity_map, &next_layout_identity_map)
+    ()
+    report.dropped_previous_nodes = dropped_previous_nodes(&previous_reload_identity_map, &next_reload_identity_map)
+    ()
+    report.invalidated_nodes = Vec__new_()
+    ()
+    if (*next).systems.hot_reload.preserve_motion_policy:
+        (*next).systems.motion_policy = (*previous).systems.motion_policy.clone()
+        ()
+        (*next).systems.motion_policy.recompute_capacitor()
+        ()
+        report.motion_policy_transferred = true
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_docking:
+        let snapshot = ui_workspace_layout_snapshot(&(*previous).tree, &(*previous).systems)
+        let applied = ui_apply_workspace_layout_snapshot(&mut (*next).tree, &mut (*next).systems, &snapshot)
+        report.docking_transferred = (((applied > 0) || snapshot.persistence_key.is_some()) || (!snapshot.active_tabs.is_empty()))
+        ()
+        report.workspace_nodes_transferred = applied
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_focus:
+        let previous_scopes = (*previous).systems.focus_graph.scopes.iter().cloned().collect()
+        let next_scopes = (*next).systems.focus_graph.scopes.iter().cloned().collect()
+        report.focus_scopes_preserved = previous_scopes.intersection(&next_scopes).cloned().collect()
+        ()
+        report.focus_scopes_dropped = previous_scopes.difference(&next_scopes).cloned().collect()
+        ()
+        match (*previous).systems.focus_graph.default_scope.clone():
+            Some(default_scope) =>
+                if next_scopes.contains(&default_scope):
+                    (*next).systems.focus_graph.default_scope = Option::Some(default_scope)
+                    ()
+                    report.focus_transferred = true
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        let remapped_focus = remap_scoped_node_map(&(*previous).systems.focus_graph.focused, &next_scopes, &previous_reload_identity_map, &next_reload_identity_map, &aliases)
+        report.focus_nodes_transferred = remapped_focus.len()
+        ()
+        (*next).systems.focus_graph.focused = remapped_focus
+        ()
+        let mut traversal_edges = Vec__new_()
+        for edge in &(*previous).systems.focus_graph.traversal_edges:
+            if (!next_scopes.contains(&edge.scope)):
+                continue
+            let Some(from_identity) = previous_reload_identity_map.iter().find_map(fn(__kain_closure_arg4): if ((*__kain_closure_arg4.__kain_tuple_0) == edge.from): Option::Some(__kain_closure_arg4.__kain_tuple_1.clone()) else: none)
+            let Some(to_identity) = previous_reload_identity_map.iter().find_map(fn(__kain_closure_arg5): if ((*__kain_closure_arg5.__kain_tuple_0) == edge.to): Option::Some(__kain_closure_arg5.__kain_tuple_1.clone()) else: none)
+            let Some(from_node) = resolve_identity_to_node(&from_identity, &next_reload_identity_map, &aliases)
+            let Some(to_node) = resolve_identity_to_node(&to_identity, &next_reload_identity_map, &aliases)
+            traversal_edges.push(UiFocusTraversalEdge { scope: edge.scope.clone(), kind: edge.kind, from: from_node, to: to_node })
+            ()
+        ()
+        report.focus_traversal_edges_transferred = traversal_edges.len()
+        ()
+        if (!traversal_edges.is_empty()):
+            (*next).systems.focus_graph.traversal_edges = traversal_edges
+            ()
+            report.focus_transferred = true
+            ()
+            ()
+            ()
+            ()
+        ()
+    if (*next).systems.hot_reload.preserve_selection:
+        let previous_scopes = (*previous).systems.selection_model.scopes.iter().cloned().collect()
+        let next_scopes = (*next).systems.selection_model.scopes.iter().cloned().collect()
+        report.selection_scopes_preserved = previous_scopes.intersection(&next_scopes).cloned().collect()
+        ()
+        report.selection_scopes_dropped = previous_scopes.difference(&next_scopes).cloned().collect()
+        ()
+        match (*previous).systems.selection_model.active_scope.clone():
+            Some(active_scope) =>
+                if next_scopes.contains(&active_scope):
+                    (*next).systems.selection_model.active_scope = Option::Some(active_scope)
+                    ()
+                    report.selection_transferred = true
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        let remapped_primary = remap_scoped_node_map(&(*previous).systems.selection_model.primary, &next_scopes, &previous_reload_identity_map, &next_reload_identity_map, &aliases)
+        report.selection_nodes_transferred = (report.selection_nodes_transferred + remapped_primary.len())
+        ()
+        (*next).systems.selection_model.primary = remapped_primary
+        ()
+        let remapped_selected = remap_scoped_node_set_map(&(*previous).systems.selection_model.selected, &next_scopes, &previous_reload_identity_map, &next_reload_identity_map, &aliases)
+        report.selection_nodes_transferred = (report.selection_nodes_transferred + remapped_selected.values().map(BTreeSet__len).sum())
+        ()
+        (*next).systems.selection_model.selected = remapped_selected
+        ()
+        report.selection_transferred = (report.selection_transferred || (report.selection_nodes_transferred > 0))
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_overlays:
+        let mut remapped_entries = Vec__new_()
+        for overlay in &(*previous).systems.overlay_stack.entries:
+            let Some(previous_node_identity) = previous_reload_identity_map.iter().find_map(fn(__kain_closure_arg6): if ((*__kain_closure_arg6.__kain_tuple_0) == overlay.node): Option::Some(__kain_closure_arg6.__kain_tuple_1.clone()) else: none)
+            let Some(next_node) = resolve_identity_to_node(&previous_node_identity, &next_reload_identity_map, &aliases)
+            let previous_anchor_target = overlay.anchor.map(fn(anchor): anchor.target)
+            let next_anchor_target = overlay.anchor.and_then(fn(anchor): previous_reload_identity_map.iter().find_map(fn(__kain_closure_arg7): if ((*__kain_closure_arg7.__kain_tuple_0) == anchor.target): Option::Some(__kain_closure_arg7.__kain_tuple_1.clone()) else: none)).and_then(fn(identity): resolve_identity_to_node(&identity, &next_reload_identity_map, &aliases))
+            let remapped_anchor = overlay.anchor.and_then(fn(anchor): next_anchor_target.map(fn(target): UiAnchorSpec { target: target, placement: anchor.placement, offset_px: anchor.offset_px, constraint: anchor.constraint }))
+            if (overlay.anchor.is_some() && remapped_anchor.is_none()):
+                report.invalidated_nodes.push(next_node)
+                ()
+                ()
+                ()
+                ()
+            remapped_entries.push(UiOverlayEntry { id: overlay.id.clone(), node: next_node, order: overlay.order, anchor: remapped_anchor, modal: overlay.modal })
+            ()
+            report.overlay_links.push(UiHotReloadOverlayLink { overlay_id: overlay.id.clone(), previous_node: Option::Some(overlay.node), next_node: Option::Some(next_node), previous_anchor_target: previous_anchor_target, next_anchor_target: next_anchor_target })
+            ()
+        ()
+        remapped_entries.sort_by(fn(a, b): ((a.order, a.id.clone())).cmp(&(b.order, b.id.clone())))
+        ()
+        report.overlay_entries_transferred = remapped_entries.len()
+        ()
+        report.overlay_transferred = (report.overlay_entries_transferred > 0)
+        ()
+        (*next).systems.overlay_stack.entries = remapped_entries
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_signal_values:
+        let previous_signal_keys = build_signal_key_index(previous)
+        let next_signal_keys = build_signal_key_index(next)
+        let mut remapped_signals = Vec__new_()
+        let mut transferred_signal_ids = BTreeSet__new_()
+        for selfhost_for_item in previous_signal_keys:
+            let (signal_key, previous_signal) = selfhost_for_item
+            let Some(next_signal) = next_signal_keys.get(&signal_key).copied()
+            let Some(previous_value) = (*previous).systems.signal_values.get(&previous_signal).cloned()
+            (*next).systems.signal_values.insert(next_signal, previous_value)
+            ()
+            remapped_signals.push(UiHotReloadSignalLink { signal_key: signal_key.clone(), previous_signal: Option::Some(previous_signal), next_signal: Option::Some(next_signal) })
+            ()
+            transferred_signal_ids.insert(next_signal)
+            ()
+        ()
+        report.signal_values_transferred = remapped_signals.len()
+        ()
+        report.signal_links = remapped_signals
+        ()
+        report.invalidated_nodes.extend(transferred_signal_ids.into_iter().filter_map(fn(signal): signal_owner_node(&(*next).tree, &(*next).systems, signal)))
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_session_state:
+        let mut preserved = Vec__new_()
+        let mut dropped = Vec__new_()
+        for selfhost_for_item in &(*previous).systems.session_state:
+            let (key, value) = selfhost_for_item
+            if is_reload_transient_session_key(key):
+                dropped.push(key.clone())
+                ()
+                continue
+            (*next).systems.session_state.insert(key.clone(), value.clone())
+            ()
+            preserved.push(key.clone())
+            ()
+        ()
+        report.session_values_transferred = preserved.len()
+        ()
+        report.session_keys_preserved = preserved
+        ()
+        report.session_keys_dropped = dropped
+        ()
+        ()
+        ()
+        ()
+    if (*next).systems.hot_reload.preserve_animation_state:
+        let next_animation_identity_map = node_reload_identity_map(&(*next).tree)
+        let mut remapped_tracks = Vec__new_()
+        for track in &(*next).systems.animation_tracks:
+            if (!track.preserve_on_reload):
+                continue
+            let Some(target_identity) = next_animation_identity_map.get(&track.target)
+            let previous_identity = aliases.iter().find_map(fn(__kain_closure_arg8): if (__kain_closure_arg8.__kain_tuple_1 == target_identity): Option::Some(__kain_closure_arg8.__kain_tuple_0.clone()) else: none).unwrap_or_else(fn(): target_identity.clone())
+            let Some(previous_node) = previous_reload_identity_map.iter().find_map(fn(__kain_closure_arg9): if (__kain_closure_arg9.__kain_tuple_1 == &previous_identity): Option::Some((*__kain_closure_arg9.__kain_tuple_0)) else: none)
+            let Some(previous_track) = (*previous).systems.animation_tracks.iter().find(fn(candidate): ((candidate.target == previous_node) && (candidate.property == track.property)))
+            match (*previous).systems.animation_state.get(&previous_track.id):
+                Some(state_) =>
+                    (*next).systems.animation_state.insert(track.id.clone(), state_.clone())
+                    ()
+                    remapped_tracks.push(UiHotReloadNodeLink { stable_identity: track.id.clone(), previous_node: Option::Some(previous_node), next_node: Option::Some(track.target) })
+                    ()
+                    report.animation_tracks_transferred = (report.animation_tracks_transferred + 1)
+                    ()
+                _ => ()
+        ()
+        report.animation_track_links = remapped_tracks
+        ()
+        ()
+        ()
+        ()
+    report.invalidated_nodes.sort()
+    ()
+    report.invalidated_nodes.dedup()
+    ()
+    report.dropped_previous_nodes.sort()
+    ()
+    report.dropped_previous_nodes.dedup()
+    ()
+    report
+
+fn node_identity_map(tree: &UiTree) -> Map<UiNodeId, String>:
+    (*tree).nodes.values().filter_map(fn(node): node.identity_key.clone().or_else(fn(): node.layout.persistent_layout_id.clone()).map(fn(identity): (node.id, identity))).collect()
+
+fn node_reload_identity_map(tree: &UiTree) -> Map<UiNodeId, String>:
+    node_identity_map(tree)
+
+fn node_layout_identity_map(tree: &UiTree) -> Map<UiNodeId, String>:
+    (*tree).nodes.values().filter_map(fn(node): node.layout.persistent_layout_id.clone().or_else(fn(): node.identity_key.clone()).map(fn(identity): (node.id, identity))).collect()
+
+fn build_node_links(previous: &Map<UiNodeId, String>, next: &Map<UiNodeId, String>) -> Array<UiHotReloadNodeLink>:
+    let mut identities = BTreeSet__new_()
+    identities.extend(previous.values().cloned())
+    ()
+    identities.extend(next.values().cloned())
+    ()
+    identities.into_iter().map(fn(stable_identity): UiHotReloadNodeLink { previous_node: previous.iter().find_map(fn(__kain_closure_arg10): ((__kain_closure_arg10.__kain_tuple_1 == &stable_identity)).then_some((*__kain_closure_arg10.__kain_tuple_0))), next_node: next.iter().find_map(fn(__kain_closure_arg11): ((__kain_closure_arg11.__kain_tuple_1 == &stable_identity)).then_some((*__kain_closure_arg11.__kain_tuple_0))), stable_identity: stable_identity }).collect()
+
+fn dropped_previous_nodes(previous: &Map<UiNodeId, String>, next: &Map<UiNodeId, String>) -> Array<UiNodeId>:
+    let next_identities = next.values().cloned().collect()
+    previous.iter().filter_map(fn(__kain_closure_arg12): ((!next_identities.contains(__kain_closure_arg12.__kain_tuple_1))).then_some((*__kain_closure_arg12.__kain_tuple_0))).collect()
+
+fn resolve_identity_to_node(identity: String, next: &Map<UiNodeId, String>, aliases: &Map<String, String>) -> Option<UiNodeId>:
+    let mut visited = BTreeSet__new_()
+    let mut cursor = identity.to_string()
+    loop:
+        if (!visited.insert(cursor.clone())):
+            return none
+        match next.iter().find_map(fn(__kain_closure_arg13): ((__kain_closure_arg13.__kain_tuple_1 == &cursor)).then_some((*__kain_closure_arg13.__kain_tuple_0))):
+            Some(node) => return Option::Some(node)
+            _ =>
+                ()
+                ()
+        let Some(next_identity) = aliases.get(&cursor).cloned()
+        cursor = next_identity
+        ()
+
+fn remap_scoped_node_map(previous: &Map<String, UiNodeId>, next_scopes: &Set<String>, previous_identity_map: &Map<UiNodeId, String>, next_identity_map: &Map<UiNodeId, String>, aliases: &Map<String, String>) -> Map<String, UiNodeId>:
+    let mut remapped = BTreeMap__new_()
+    for selfhost_for_item in previous:
+        let (scope, node) = selfhost_for_item
+        if (!next_scopes.contains(scope)):
+            continue
+        let Some(identity) = previous_identity_map.get(node)
+        let Some(next_node) = resolve_identity_to_node(identity, next_identity_map, aliases)
+        remapped.insert(scope.clone(), next_node)
+        ()
+    ()
+    remapped
+
+fn remap_scoped_node_set_map(previous: &Map<String, Set<UiNodeId>>, next_scopes: &Set<String>, previous_identity_map: &Map<UiNodeId, String>, next_identity_map: &Map<UiNodeId, String>, aliases: &Map<String, String>) -> Map<String, Set<UiNodeId>>:
+    let mut remapped = BTreeMap__new_()
+    for selfhost_for_item in previous:
+        let (scope, nodes) = selfhost_for_item
+        if (!next_scopes.contains(scope)):
+            continue
+        let remapped_nodes = nodes.iter().filter_map(fn(node): previous_identity_map.get(node)).filter_map(fn(identity): resolve_identity_to_node(identity, next_identity_map, aliases)).collect()
+        if (!remapped_nodes.is_empty()):
+            remapped.insert(scope.clone(), remapped_nodes)
+            ()
+    ()
+    remapped
+
+fn build_signal_key_index(output: &UiBuildOutput) -> Map<String, UiSignalId>:
+    let mut index = BTreeMap__new_()
+    for selfhost_for_item in &(*output).systems.session_state:
+        let (key, value) = selfhost_for_item
+        let Some(raw_id) = key.strip_prefix("ui.signal.key.")
+        let Ok(parsed_id) = raw_id.parse()
+        let UiValue::String(signal_key) = value
+        index.insert(signal_key.clone(), UiSignalId(parsed_id))
+        ()
+    ()
+    index
+
+fn signal_owner_node(tree: &UiTree, systems: &UiRuntimeSystems, signal: UiSignalId) -> Option<UiNodeId>:
+    let signal_key = (*systems).session_state.get(&f"ui.signal.key.{signal.field_0}").and_then(fn(value): none)
+    (*tree).nodes.values().find_map(fn(node): none)
+
+fn is_reload_transient_session_key(key: String) -> Bool:
+    (((key.starts_with("ui.reload.") || key.starts_with("ui.runtime.")) || key.starts_with("ui.devtools.")) || key.ends_with(".transient"))
+
+pub fn ui_native_projection_from_output(output: &UiBuildOutput) -> UiNativeProjection:
+    let mut projection = UiNativeProjection { root_id: (*output).tree.root.map(fn(id): id.field_0), ..UiNativeProjection__default_() }
+    let active_tabs = if (*output).systems.workspace_layout.active_tabs.is_empty():
+        resolve_workspace_active_tabs(&(*output).tree, none)
+    else:
+        (*output).systems.workspace_layout.active_tabs.clone()
+    let Some(root_id) = (*output).tree.root
+    projection.tab_groups = build_native_projection_tab_groups(&(*output).tree, &active_tabs)
+    ()
+    collect_native_projection_nodes(&(*output).tree, root_id, none, 0, &active_tabs, &mut projection)
+    ()
+    projection
+
+fn ui_surface_for_node(node: &UiNode) -> Option<UiSurface>:
+    let kind = surface_kind_for_node(node)?
+    let shader_ = surface_shader_binding_for_node(node)
+    let renderer_preference = surface_renderer_preference_for_node(node, shader_, &kind)
+    let composition_mode = surface_composition_mode_for_node(node, shader_, &kind)
+    let preferred_host_backend = surface_host_backend_for_node(node, &kind)
+    let preferred_layout_engine = surface_layout_engine_for_node(node)
+    let preferred_render_engine = surface_render_engine_for_node(node, shader_, &kind, renderer_preference)
+    let gpu_backing_required = surface_gpu_backing_required(node, shader_, &kind, renderer_preference, composition_mode)
+    Option::Some(UiSurface { id: f"surface.node.{(*node).id.field_0}", kind: kind, node: (*node).id, title: node_prop_string(node, "title"), renderer_preference: renderer_preference, composition_mode: composition_mode, preferred_host_backend: preferred_host_backend, preferred_layout_engine: preferred_layout_engine, preferred_render_engine: preferred_render_engine, gpu_backing_required: gpu_backing_required, shader_: shader_ })
+
+fn surface_kind_for_node(node: &UiNode) -> Option<UiSurfaceKind>:
+    match (*node).kind:
+        UiWidgetKind::Element(tag) if is_canvas_surface_element(tag, node) => Option::Some(UiSurfaceKind__Canvas)
+        UiWidgetKind::Graph => Option::Some(UiSurfaceKind__Graph)
+        UiWidgetKind::Timeline => Option::Some(UiSurfaceKind__Timeline)
+        UiWidgetKind::Table => Option::Some(UiSurfaceKind__Table)
+        UiWidgetKind::Tree => Option::Some(UiSurfaceKind__Tree)
+        UiWidgetKind::Viewport2D => Option::Some(UiSurfaceKind__Viewport2D)
+        UiWidgetKind::Viewport3D => Option::Some(UiSurfaceKind__Viewport3D)
+        UiWidgetKind::Overlay => Option::Some(UiSurfaceKind__Overlay)
+        _ => none
+
+fn is_canvas_surface_element(tag: String, node: &UiNode) -> Bool:
+    (none || surface_shader_binding_for_node(node).is_some())
+
+fn surface_shader_binding_for_node(node: &UiNode) -> Option<UiSurfaceShaderBinding>:
+    let shader_ref = first_string_prop(node, &["shader_ref", "shader", "shader_bundle_ref", "shader_ref_key", "surface_shader"])?
+    Option::Some(UiSurfaceShaderBinding { shader_ref: shader_ref, entry_point: first_string_prop(node, &["shader_entry", "shader_entry_point", "surface_shader_entry"]), stage: first_string_prop(node, &["shader_stage", "surface_shader_stage"]), derived_format: first_string_prop(node, &["shader_format", "shader_payload", "surface_shader_format"]) })
+
+fn surface_renderer_preference_for_node(node: &UiNode, shader_: Option<&UiSurfaceShaderBinding>, kind: &UiSurfaceKind) -> UiSurfaceRendererPreference:
+    match first_string_prop(node, &["renderer", "surface_renderer", "gpu_renderer", "ui_renderer"]).and_then(parse_surface_renderer_preference):
+        Some(explicit_) => return explicit_
+        _ =>
+            ()
+            ()
+    if shader_.is_some():
+        return UiSurfaceRendererPreference__Shader
+    match kind:
+        UiSurfaceKind::Canvas => UiSurfaceRendererPreference__Wgpu
+        UiSurfaceKind::Viewport2D => UiSurfaceRendererPreference__Wgpu
+        UiSurfaceKind::Viewport3D => UiSurfaceRendererPreference__Wgpu
+        _ => UiSurfaceRendererPreference__Auto
+
+fn surface_composition_mode_for_node(node: &UiNode, shader_: Option<&UiSurfaceShaderBinding>, kind: &UiSurfaceKind) -> UiSurfaceCompositionMode:
+    match first_string_prop(node, &["composition", "surface_composition", "gpu_composition", "surface_mode"]).and_then(parse_surface_composition_mode):
+        Some(explicit_) => return explicit_
+        _ =>
+            ()
+            ()
+    if shader_.is_some():
+        return UiSurfaceCompositionMode__ShaderCanvas
+    match kind:
+        UiSurfaceKind::Canvas => UiSurfaceCompositionMode__ShaderCanvas
+        UiSurfaceKind::Viewport2D => UiSurfaceCompositionMode__Viewport
+        UiSurfaceKind::Viewport3D => UiSurfaceCompositionMode__Viewport
+        UiSurfaceKind::Graph => UiSurfaceCompositionMode__LayeredGpu
+        UiSurfaceKind::Timeline => UiSurfaceCompositionMode__LayeredGpu
+        UiSurfaceKind::Overlay => UiSurfaceCompositionMode__LayeredGpu
+        _ => UiSurfaceCompositionMode__Host
+
+fn surface_host_backend_for_node(node: &UiNode, kind: &UiSurfaceKind) -> UiHostBackendKind:
+    match first_string_prop(node, &["host_backend", "surface_backend", "ui_backend", "panel_backend"]).and_then(parse_surface_host_backend):
+        Some(explicit_) => return explicit_
+        _ =>
+            ()
+            ()
+    match kind:
+        UiSurfaceKind::Graph => UiHostBackendKind__Imgui
+        UiSurfaceKind::Timeline => UiHostBackendKind__Imgui
+        UiSurfaceKind::Overlay => UiHostBackendKind__Imgui
+        UiSurfaceKind::Canvas => UiHostBackendKind__Qt
+        UiSurfaceKind::Viewport2D => UiHostBackendKind__Qt
+        UiSurfaceKind::Viewport3D => UiHostBackendKind__Qt
+        _ => UiHostBackendKind__Auto
+
+fn surface_layout_engine_for_node(node: &UiNode) -> UiLayoutEngineKind:
+    first_string_prop(node, &["layout_engine", "surface_layout_engine", "ui_layout_engine"]).and_then(parse_surface_layout_engine).unwrap_or(UiLayoutEngineKind__Yoga)
+
+fn surface_render_engine_for_node(node: &UiNode, shader_: Option<&UiSurfaceShaderBinding>, kind: &UiSurfaceKind, renderer_preference: UiSurfaceRendererPreference) -> UiRenderEngineKind:
+    match first_string_prop(node, &["render_engine", "surface_render_engine", "paint_engine", "ui_render_engine"]).and_then(parse_surface_render_engine):
+        Some(explicit_) => return explicit_
+        _ =>
+            ()
+            ()
+    if shader_.is_some():
+        return UiRenderEngineKind__Shader
+    match renderer_preference:
+        UiSurfaceRendererPreference::Wgpu => UiRenderEngineKind__Wgpu
+        UiSurfaceRendererPreference::Shader => UiRenderEngineKind__Shader
+        UiSurfaceRendererPreference::Dom => UiRenderEngineKind__Browser
+        UiSurfaceRendererPreference::Native => UiRenderEngineKind__Native
+        UiSurfaceRendererPreference::Auto =>
+            match kind:
+                UiSurfaceKind::Graph => UiRenderEngineKind__Skia
+                UiSurfaceKind::Timeline => UiRenderEngineKind__Skia
+                UiSurfaceKind::Overlay => UiRenderEngineKind__Skia
+                _ => UiRenderEngineKind__Auto
+
+fn surface_gpu_backing_required(node: &UiNode, shader_: Option<&UiSurfaceShaderBinding>, kind: &UiSurfaceKind, renderer_preference: UiSurfaceRendererPreference, composition_mode: UiSurfaceCompositionMode) -> Bool:
+    match first_bool_prop(node, &["gpu", "gpu_backed", "surface_gpu"]):
+        Some(explicit_) => return explicit_
+        _ =>
+            ()
+            ()
+    (((shader_.is_some() || none) || none) || (!none))
+
+fn parse_surface_renderer_preference(value: String) -> Option<UiSurfaceRendererPreference>:
+    match value.trim().to_ascii_lowercase().as_str():
+        "auto" => Option::Some(UiSurfaceRendererPreference__Auto)
+        "native" => Option::Some(UiSurfaceRendererPreference__Native)
+        "host" => Option::Some(UiSurfaceRendererPreference__Native)
+        "dom" => Option::Some(UiSurfaceRendererPreference__Dom)
+        "web" => Option::Some(UiSurfaceRendererPreference__Dom)
+        "wgpu" => Option::Some(UiSurfaceRendererPreference__Wgpu)
+        "gpu" => Option::Some(UiSurfaceRendererPreference__Wgpu)
+        "shader" => Option::Some(UiSurfaceRendererPreference__Shader)
+        "shader_canvas" => Option::Some(UiSurfaceRendererPreference__Shader)
+        _ => none
+
+fn parse_surface_host_backend(value: String) -> Option<UiHostBackendKind>:
+    match value.trim().to_ascii_lowercase().as_str():
+        "auto" => Option::Some(UiHostBackendKind__Auto)
+        "native" => Option::Some(UiHostBackendKind__Native)
+        "host" => Option::Some(UiHostBackendKind__Native)
+        "legacy_egui" => Option::Some(UiHostBackendKind__LegacyEgui)
+        "legacy-egui" => Option::Some(UiHostBackendKind__LegacyEgui)
+        "egui" => Option::Some(UiHostBackendKind__LegacyEgui)
+        "imgui" => Option::Some(UiHostBackendKind__Imgui)
+        "rml" => Option::Some(UiHostBackendKind__RmlUi)
+        "rmlui" => Option::Some(UiHostBackendKind__RmlUi)
+        "slint" => Option::Some(UiHostBackendKind__Slint)
+        "qt" => Option::Some(UiHostBackendKind__Qt)
+        "cef" => Option::Some(UiHostBackendKind__Cef)
+        "browser" => Option::Some(UiHostBackendKind__Cef)
+        _ => none
+
+fn parse_surface_layout_engine(value: String) -> Option<UiLayoutEngineKind>:
+    match value.trim().to_ascii_lowercase().as_str():
+        "auto" => Option::Some(UiLayoutEngineKind__Auto)
+        "native" => Option::Some(UiLayoutEngineKind__Native)
+        "yoga" => Option::Some(UiLayoutEngineKind__Yoga)
+        "legacy_egui" => Option::Some(UiLayoutEngineKind__LegacyEgui)
+        "legacy-egui" => Option::Some(UiLayoutEngineKind__LegacyEgui)
+        "egui" => Option::Some(UiLayoutEngineKind__LegacyEgui)
+        _ => none
+
+fn parse_surface_render_engine(value: String) -> Option<UiRenderEngineKind>:
+    match value.trim().to_ascii_lowercase().as_str():
+        "auto" => Option::Some(UiRenderEngineKind__Auto)
+        "native" => Option::Some(UiRenderEngineKind__Native)
+        "skia" => Option::Some(UiRenderEngineKind__Skia)
+        "wgpu" => Option::Some(UiRenderEngineKind__Wgpu)
+        "gpu" => Option::Some(UiRenderEngineKind__Wgpu)
+        "shader" => Option::Some(UiRenderEngineKind__Shader)
+        "shader_canvas" => Option::Some(UiRenderEngineKind__Shader)
+        "browser" => Option::Some(UiRenderEngineKind__Browser)
+        "dom" => Option::Some(UiRenderEngineKind__Browser)
+        "web" => Option::Some(UiRenderEngineKind__Browser)
+        "legacy_egui" => Option::Some(UiRenderEngineKind__LegacyEgui)
+        "legacy-egui" => Option::Some(UiRenderEngineKind__LegacyEgui)
+        "egui" => Option::Some(UiRenderEngineKind__LegacyEgui)
+        _ => none
+
+fn parse_surface_composition_mode(value: String) -> Option<UiSurfaceCompositionMode>:
+    match value.trim().to_ascii_lowercase().as_str():
+        "host" => Option::Some(UiSurfaceCompositionMode__Host)
+        "retained" => Option::Some(UiSurfaceCompositionMode__Host)
+        "layered_gpu" => Option::Some(UiSurfaceCompositionMode__LayeredGpu)
+        "gpu_layer" => Option::Some(UiSurfaceCompositionMode__LayeredGpu)
+        "layered-gpu" => Option::Some(UiSurfaceCompositionMode__LayeredGpu)
+        "viewport" => Option::Some(UiSurfaceCompositionMode__Viewport)
+        "shader_canvas" => Option::Some(UiSurfaceCompositionMode__ShaderCanvas)
+        "shader-canvas" => Option::Some(UiSurfaceCompositionMode__ShaderCanvas)
+        "canvas" => Option::Some(UiSurfaceCompositionMode__ShaderCanvas)
+        _ => none
+
+fn collect_native_projection_nodes(tree: &UiTree, id: UiNodeId, parent_id: Option<UiNodeId>, depth: u32, active_tabs: &Map<String, String>, projection: &mut UiNativeProjection):
+    let Some(node) = tree.node(id)
+    let title = node_prop_string(node, "title")
+    let text = node_prop_string(node, "text")
+    let scene = node_prop_string(node, "scene")
+    let tag = node_prop_string(node, "tag")
+    let kind = UiNativeProjectionKind__from_widget_kind(&node.kind)
+    let persistent_layout_id = Option::Some(node_layout_id(node))
+    let tab_is_active = node.layout.tab_group_id.and_then(fn(group_id): active_tabs.get(group_id)).map_or(true, fn(active_layout_id): persistent_layout_id.is_some_and(fn(layout_id): (active_layout_id == layout_id)))
+    if ((*projection).primary_panel_title.is_none() && (kind == UiNativeProjectionKind__Panel)):
+        (*projection).primary_panel_title = title.clone()
+        ()
+        ()
+        ()
+        ()
+    if ((*projection).primary_viewport_title.is_none() && (kind == UiNativeProjectionKind__Viewport3D)):
+        (*projection).primary_viewport_title = title.clone()
+        ()
+        ()
+        ()
+        ()
+    if ((*projection).primary_viewport_scene.is_none() && (kind == UiNativeProjectionKind__Viewport3D)):
+        (*projection).primary_viewport_scene = scene.clone()
+        ()
+        ()
+        ()
+        ()
+    (*projection).nodes.push(UiNativeProjectionNode { id: id.field_0, parent_id: parent_id.map(fn(value): value.field_0), depth: depth, kind: kind, title: title.clone(), text: text, tag: tag, scene: scene, layout_kind: node.layout.kind, dock_placement: node.layout.dock, split_ratio: node.layout.split_ratio, resizable: node.layout.resizable, persistent_layout_id: persistent_layout_id, tab_group_id: node.layout.tab_group_id.clone(), tab_label: node.layout.tab_label.clone().or_else(fn(): title.clone()), tab_order: node.layout.tab_order, tab_default_active: node.layout.tab_default_active, tab_closable: node.layout.tab_closable, tab_is_active: tab_is_active, child_count: node.children.len() })
+    ()
+    for child in &node.children:
+        collect_native_projection_nodes(tree, (*child), Option::Some(id), (depth + 1), active_tabs, projection)
+        ()
+
+fn build_native_projection_tab_groups(tree: &UiTree, active_tabs: &Map<String, String>) -> Array<UiNativeProjectionTabGroup>:
+    let mut counts = BTreeMap__new_()
+    for node in (*tree).nodes.values():
+        match node.layout.tab_group_id.clone():
+            Some(group_id) =>
+                (*counts.entry(group_id).or_default()) = ((*counts.entry(group_id).or_default()) + 1)
+                ()
+            _ => ()
+    ()
+    counts.into_iter().map(fn(__kain_closure_arg14): UiNativeProjectionTabGroup { active_tab_layout_id: active_tabs.get(&__kain_closure_arg14.__kain_tuple_0).cloned(), id: __kain_closure_arg14.__kain_tuple_0, tab_count: __kain_closure_arg14.__kain_tuple_1 }).collect()
+
+fn node_prop_string(node: &UiNode, key: String) -> Option<String>:
+    (*node).props.get(key).and_then(fn(value): none)
+
+fn first_string_prop(node: &UiNode, keys: &[String]) -> Option<String>:
+    keys.iter().find_map(fn(key): node_prop_string(node, key))
+
+fn first_bool_prop(node: &UiNode, keys: &[String]) -> Option<Bool>:
+    keys.iter().find_map(fn(key): (*node).props.get((*key)).and_then(fn(value): none))
+
+impl UiNativeProjectionKind:
+    fn from_widget_kind(kind: &UiWidgetKind) -> UiNativeProjectionKind:
+        match kind:
+            UiWidgetKind::Element(_) => UiNativeProjectionKind__Element
+            UiWidgetKind::ComponentRef(_) => UiNativeProjectionKind__ComponentRef
+            UiWidgetKind::Text => UiNativeProjectionKind__Text
+            UiWidgetKind::Panel => UiNativeProjectionKind__Panel
+            UiWidgetKind::Inspector => UiNativeProjectionKind__Inspector
+            UiWidgetKind::Graph => UiNativeProjectionKind__Graph
+            UiWidgetKind::Timeline => UiNativeProjectionKind__Timeline
+            UiWidgetKind::Table => UiNativeProjectionKind__Table
+            UiWidgetKind::Tree => UiNativeProjectionKind__Tree
+            UiWidgetKind::Viewport2D => UiNativeProjectionKind__Viewport2D
+            UiWidgetKind::Viewport3D => UiNativeProjectionKind__Viewport3D
+            UiWidgetKind::Overlay => UiNativeProjectionKind__Overlay
+            UiWidgetKind::Slot => UiNativeProjectionKind__Slot
+
+
+@doc(doc = " Builder that assigns stable ids, retains nodes, and emits patch commands")
+@doc(doc = " while the semantic graph is constructed.")
+@derive(Clone, Debug, Default)
+pub struct UiTreeBuilder:
+    next_node_id: u64
+    tree: UiTree
+    patches: Array<UiPatch>
+
+impl Default for UiTreeBuilder:
+    pub fn default_() -> UiTreeBuilder:
+        UiTreeBuilder { next_node_id: 0, tree: UiTree__default_(), patches: Vec__new_() }
+
+
+impl UiTreeBuilder:
+    pub fn new_() -> UiTreeBuilder:
+        UiTreeBuilder__default_()
+
+    pub fn alloc_id(_self: &mut UiTreeBuilder) -> UiNodeId:
+        (*_self).next_node_id = ((*_self).next_node_id + 1)
+        ()
+        UiNodeId((*_self).next_node_id)
+
+    pub fn add_node(_self: &mut UiTreeBuilder, node: UiNode):
+        (*_self).tree.nodes.insert(node.id, node.clone())
+        ()
+        (*_self).patches.push(UiPatch::CreateNode { node: node })
+        ()
+
+    pub fn set_root(_self: &mut UiTreeBuilder, id: UiNodeId):
+        (*_self).tree.root = Option::Some(id)
+        ()
+        (*_self).patches.push(UiPatch::SetRoot { id: id })
+        ()
+
+    pub fn replace_children(_self: &mut UiTreeBuilder, parent: UiNodeId, children: Array<UiNodeId>):
+        match (*_self).tree.node_mut(parent):
+            Some(node) =>
+                node.children = children.clone()
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).patches.push(UiPatch::ReplaceChildren { parent: parent, children: children })
+        ()
+
+    pub fn set_prop(_self: &mut UiTreeBuilder, id: UiNodeId, key: impl Into<String>, value: UiValue):
+        let key = key.into()
+        match (*_self).tree.node_mut(id):
+            Some(node) =>
+                node.props.insert(key.clone(), value.clone())
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).patches.push(UiPatch::SetProp { id: id, key: key, value: value })
+        ()
+
+    pub fn set_layout(_self: &mut UiTreeBuilder, id: UiNodeId, layout: UiLayoutSpec):
+        match (*_self).tree.node_mut(id):
+            Some(node) =>
+                node.layout = layout.clone()
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).patches.push(UiPatch::SetLayout { id: id, layout: layout })
+        ()
+
+    pub fn set_style(_self: &mut UiTreeBuilder, id: UiNodeId, style: UiStyleSpec):
+        match (*_self).tree.node_mut(id):
+            Some(node) =>
+                node.style = style.clone()
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).patches.push(UiPatch::SetStyle { id: id, style: style })
+        ()
+
+    pub fn finish(_self: UiTreeBuilder) -> UiBuildOutput:
+        let systems = ui_runtime_systems_from_tree(&_self.tree)
+        UiBuildOutput { tree: _self.tree, patches: _self.patches, systems: systems }
+
+
+@doc(doc = " Debug helper for inspecting the semantic tree without a renderer.")
+pub fn render_debug_tree(tree: &UiTree) -> String:
+    let Some(root) = (*tree).root
+    let mut out_ = Vec__new_()
+    render_debug_tree_node(tree, root, 0, &mut out_)
+    ()
+    out_.join("\n")
+
+fn render_debug_tree_node(tree: &UiTree, id: UiNodeId, depth: usize, out_: &mut Array<String>):
+    let Some(node) = tree.node(id)
+    let props = if node.props.is_empty():
+        String__new_()
+    else:
+        let props = node.props.iter().map(fn(__kain_closure_arg15): f"{__kain_closure_arg15.__kain_tuple_0}={__kain_closure_arg15.__kain_tuple_1}").collect().join(", ")
+        " {{props}}"
+    out_.push("{(\"  \").repeat(depth)}{node.kind}#{node.id.field_0}{props}")
+    ()
+    for child in &node.children:
+        render_debug_tree_node(tree, (*child), (depth + 1), out_)
+        ()
+

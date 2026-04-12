@@ -1,0 +1,2894 @@
+use crate::c_runtime_shims::wasm_c_runtime_constant
+
+use crate::c_runtime_shims::wasm_c_runtime_shim
+
+use crate::c_runtime_shims::wasm_import_signature_types
+
+use crate::c_runtime_shims::WasmCRuntimeShimKind
+
+use kain_core::ast::BinaryOp
+
+use kain_core::ast::Block
+
+use kain_core::ast::CallArg
+
+use kain_core::ast::Expr
+
+use kain_core::ast::Stmt
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::types::ResolvedType
+
+use kain_core::types::TypedFunction
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedProgram
+
+use kain_core::lower_typed_program_memory_for_target
+
+use kain_core::CompileTarget
+
+use std::collections::HashMap
+
+use walrus::FunctionBuilder
+
+use walrus::InstrSeqBuilder
+
+use walrus::LocalId
+
+use walrus::Module
+
+use walrus::ModuleConfig
+
+use walrus::ValType
+
+pub fn generate(program: &kain_core::types::TypedProgram) -> Result<Array<u8>, KainError>:
+    let lowered = kain_core__lower_typed_program_memory_for_target(program, kain_core__CompileTarget__Wasm)?
+    let mut compiler = WasmCompiler__new_()
+    compiler.compile_program(&lowered)?
+    ()
+    Result::Ok(compiler.module.emit_wasm())
+
+struct WasmCompiler:
+    module: walrus::Module
+    functions: Map<String, walrus::FunctionId>
+    memory_id: Option<walrus::MemoryId>
+    heap_ptr_global: walrus::GlobalId
+    data_offset: u32
+    string_table: Map<String, u32>
+    struct_layouts: Map<String, (Map<String, u32>, u32)>
+    enum_layouts: Map<String, (Map<String, u32>, u32, Map<String, Map<String, u32>>)>
+    funcref_table: Option<walrus::TableId>
+    lambda_counter: u32
+    lambda_table: Map<u32, (u32, walrus::FunctionId)>
+
+struct CompilationContext<a>:
+    locals: Map<String, walrus::LocalId>
+    functions: &a Map<String, walrus::FunctionId>
+    string_table: &a Map<String, u32>
+    struct_layouts: &a Map<String, (Map<String, u32>, u32)>
+    enum_layouts: &a Map<String, (Map<String, u32>, u32, Map<String, Map<String, u32>>)>
+    memory_id: walrus::MemoryId
+    heap_ptr_global: walrus::GlobalId
+    tmp_i32: walrus::LocalId
+    tmp_i32_2: walrus::LocalId
+    tmp_i64: walrus::LocalId
+    funcref_table: Option<walrus::TableId>
+    lambda_table: &a Map<u32, (u32, walrus::FunctionId)>
+
+impl WasmCompiler:
+    fn compile_print_like_args(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, args: &[kain_core::ast::CallArg]) -> Result<(), KainError>:
+        for arg in args:
+            match &arg.value:
+                kain_core__ast__Expr::Int(_, _) =>
+                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                    ()
+                    match (*ctx).functions.get("print_i64"):
+                        Some(func_id) =>
+                            builder.call((*func_id))
+                            ()
+                        _ => ()
+                kain_core__ast__Expr::Float(_, _) =>
+                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                    ()
+                    match (*ctx).functions.get("print_f64"):
+                        Some(func_id) =>
+                            builder.call((*func_id))
+                            ()
+                        _ => ()
+                kain_core__ast__Expr::Bool(_, _) =>
+                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                    ()
+                    match (*ctx).functions.get("print_bool"):
+                        Some(func_id) =>
+                            builder.call((*func_id))
+                            ()
+                        _ => ()
+                kain_core__ast__Expr::String(s, _) =>
+                    match (*ctx).string_table.get(s):
+                        Some(offset) =>
+                            builder.i32_const(((offset + 4)) as i32)
+                            ()
+                            builder.i32_const(s.len() as i32)
+                            ()
+                            match (*ctx).functions.get("print_str"):
+                                Some(func_id) =>
+                                    builder.call((*func_id))
+                                    ()
+                                _ => ()
+                        _ => ()
+                _ =>
+                    let is_string = (*_self).is_string_expr(&arg.value)
+                    let is_i32_var = match &arg.value:
+                        kain_core__ast__Expr::Ident(name, _) => (*_self).is_i32_local(name, &(*ctx).locals)
+                        _ => (*_self).is_i32_expr(&arg.value)
+                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                    ()
+                    if is_string:
+                        builder.local_set((*ctx).tmp_i32)
+                        ()
+                        builder.local_get((*ctx).tmp_i32)
+                        ()
+                        builder.local_get((*ctx).tmp_i32)
+                        ()
+                        builder.i32_const(4)
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I32Sub)
+                        ()
+                        builder.load((*ctx).memory_id, walrus__ir__LoadKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                        ()
+                        match (*ctx).functions.get("print_str"):
+                            Some(func_id) =>
+                                builder.call((*func_id))
+                                ()
+                            _ => ()
+                    elif is_i32_var:
+                        builder.drop()
+                        ()
+                    else:
+                        match (*ctx).functions.get("print_i64"):
+                            Some(func_id) =>
+                                builder.call((*func_id))
+                                ()
+                            _ => ()
+        ()
+        Result::Ok(())
+
+    fn compile_expr_as_i32(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, expr: &kain_core::ast::Expr) -> Result<(), KainError>:
+        let already_i32 = (((*_self).is_string_expr(expr) || (*_self).is_i32_expr(expr)) || none)
+        (*_self).compile_expr(ctx, builder, expr)?
+        ()
+        if (!already_i32):
+            builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(())
+
+    fn compile_expr_as_i64(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, expr: &kain_core::ast::Expr) -> Result<(), KainError>:
+        let already_i32 = (((*_self).is_string_expr(expr) || (*_self).is_i32_expr(expr)) || none)
+        (*_self).compile_expr(ctx, builder, expr)?
+        ()
+        if already_i32:
+            builder.unop(walrus__ir__UnaryOp__I64ExtendSI32)
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(())
+
+    fn compile_c_runtime_call(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, func_name: String, args: &[kain_core::ast::CallArg]) -> Result<Bool, KainError>:
+        let Some(shim) = c_runtime_shims__wasm_c_runtime_shim(func_name)
+        match shim.kind:
+            WasmCRuntimeShimKind::Printf =>
+                let print_args: Array<kain_core::ast::CallArg> = args.iter().skip(1).cloned().collect()
+                (*_self).compile_print_like_args(ctx, builder, &print_args)?
+                ()
+                builder.i64_const(0)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fprintf =>
+                let print_args: Array<kain_core::ast::CallArg> = args.iter().skip(2).cloned().collect()
+                (*_self).compile_print_like_args(ctx, builder, &print_args)?
+                ()
+                builder.i64_const(0)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Puts =>
+                let print_args: Array<kain_core::ast::CallArg> = args.iter().take(1).cloned().collect()
+                (*_self).compile_print_like_args(ctx, builder, &print_args)?
+                ()
+                match (*ctx).string_table.get("\n"):
+                    Some(offset) =>
+                        builder.i32_const(((offset + 4)) as i32)
+                        ()
+                        builder.i32_const(1)
+                        ()
+                        match (*ctx).functions.get("print_str"):
+                            Some(func_id) =>
+                                builder.call((*func_id))
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                builder.i64_const(0)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Atoll =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &arg.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Sprintf =>
+                match args.first():
+                    Some(dst) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &dst.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match args.get(1):
+                    Some(fmt) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &fmt.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match args.get(2):
+                    Some(value) =>
+                        (*_self).compile_expr_as_i64(ctx, builder, &value.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                builder.unop(walrus__ir__UnaryOp__I64ExtendSI32)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Exit =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr(ctx, builder, &arg.value)?
+                        ()
+                        builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                builder.i64_const(0)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Free =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr(ctx, builder, &arg.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                builder.i64_const(0)
+                ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fopen =>
+                match args.first():
+                    Some(path) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &path.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match args.get(1):
+                    Some(mode) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &mode.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fseek =>
+                for idx in range(0, 3):
+                    match args.get(idx):
+                        Some(arg) =>
+                            (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                            ()
+                        _ =>
+                            builder.i64_const(0)
+                            ()
+                ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Ftell =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fclose =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fread =>
+                for idx in range(0, 4):
+                    match args.get(idx):
+                        Some(arg) =>
+                            (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                            ()
+                        _ =>
+                            builder.i64_const(0)
+                            ()
+                ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Fwrite =>
+                for idx in range(0, 4):
+                    match args.get(idx):
+                        Some(arg) =>
+                            (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                            ()
+                        _ =>
+                            builder.i64_const(0)
+                            ()
+                ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Strncpy =>
+                for idx in range(0, 3):
+                    match args.get(idx):
+                        Some(arg) =>
+                            (*_self).compile_expr_as_i64(ctx, builder, &arg.value)?
+                            ()
+                        _ =>
+                            builder.i64_const(0)
+                            ()
+                ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Strdup =>
+                match args.first():
+                    Some(arg) =>
+                        (*_self).compile_expr_as_i32(ctx, builder, &arg.value)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i32_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                match (*ctx).functions.get(func_name):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                Result::Ok(true)
+            WasmCRuntimeShimKind::Strlen => Result::Ok(false)
+            WasmCRuntimeShimKind::Strcmp => Result::Ok(false)
+            WasmCRuntimeShimKind::Strcpy => Result::Ok(false)
+            WasmCRuntimeShimKind::Strcat => Result::Ok(false)
+
+    fn new_() -> WasmCompiler:
+        let config = ModuleConfig__new_()
+        let mut module = Module__with_config(config)
+        let memory_id = module.memories.add_local(false, false, 1, none, none)
+        module.exports.add("memory", memory_id)
+        ()
+        let heap_ptr = 4096
+        let heap_ptr_global = module.globals.add_local(walrus__ValType__I32, true, false, walrus__ConstExpr::Value(walrus__ir__Value::I32(heap_ptr as i32)))
+        let mut functions = HashMap__new_()
+        let print_i64_type = module.types.add(&[walrus__ValType__I64], &[])
+        let (print_i64_func, _) = module.add_import_func("host", "print_i64", print_i64_type)
+        functions.insert(("print_i64").to_string(), print_i64_func)
+        ()
+        let print_f64_type = module.types.add(&[walrus__ValType__F64], &[])
+        let (print_f64_func, _) = module.add_import_func("host", "print_f64", print_f64_type)
+        functions.insert(("print_f64").to_string(), print_f64_func)
+        ()
+        let print_str_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32], &[])
+        let (print_str_func, _) = module.add_import_func("host", "print_str", print_str_type)
+        functions.insert(("print_str").to_string(), print_str_func)
+        ()
+        let print_bool_type = module.types.add(&[walrus__ValType__I32], &[])
+        let (print_bool_func, _) = module.add_import_func("host", "print_bool", print_bool_type)
+        functions.insert(("print_bool").to_string(), print_bool_func)
+        ()
+        let read_i64_type = module.types.add(&[], &[walrus__ValType__I64])
+        let (read_i64_func, _) = module.add_import_func("host", "read_i64", read_i64_type)
+        functions.insert(("read_i64").to_string(), read_i64_func)
+        ()
+        let int_to_str_type = module.types.add(&[walrus__ValType__I64], &[walrus__ValType__I32])
+        let (int_to_str_func, _) = module.add_import_func("host", "int_to_str", int_to_str_type)
+        functions.insert(("int_to_str").to_string(), int_to_str_func)
+        ()
+        let str_concat_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32], &[walrus__ValType__I32])
+        let (str_concat_func, _) = module.add_import_func("host", "str_concat", str_concat_type)
+        functions.insert(("str_concat").to_string(), str_concat_func)
+        ()
+        let time_now_type = module.types.add(&[], &[walrus__ValType__I64])
+        let (time_now_func, _) = module.add_import_func("host", "time_now", time_now_type)
+        functions.insert(("time_now").to_string(), time_now_func)
+        ()
+        for shim in c_runtime_shims__WASM_C_RUNTIME_SHIMS:
+            let Some(host_symbol) = shim.host_symbol
+            let Some(signature) = shim.signature
+            let (params, results) = c_runtime_shims__wasm_import_signature_types(signature)
+            let import_type = module.types.add(params, results)
+            let (func_id, _) = module.add_import_func("host", host_symbol, import_type)
+            functions.insert(shim.c_symbol.to_string(), func_id)
+            ()
+        ()
+        let dom_create_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32], &[walrus__ValType__I32])
+        let (dom_create_func, _) = module.add_import_func("host", "dom_create", dom_create_type)
+        functions.insert(("dom_create").to_string(), dom_create_func)
+        ()
+        let dom_append_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32], &[])
+        let (dom_append_func, _) = module.add_import_func("host", "dom_append", dom_append_type)
+        functions.insert(("dom_append").to_string(), dom_append_func)
+        ()
+        let dom_attr_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32, walrus__ValType__I32, walrus__ValType__I32, walrus__ValType__I32], &[])
+        let (dom_attr_func, _) = module.add_import_func("host", "dom_attr", dom_attr_type)
+        functions.insert(("dom_attr").to_string(), dom_attr_func)
+        ()
+        let dom_text_type = module.types.add(&[walrus__ValType__I32, walrus__ValType__I32], &[walrus__ValType__I32])
+        let (dom_text_func, _) = module.add_import_func("host", "dom_text", dom_text_type)
+        functions.insert(("dom_text").to_string(), dom_text_func)
+        ()
+        let funcref_table = module.tables.add_local(false, 16, Option::Some(256), walrus__RefType__Funcref)
+        WasmCompiler { module: module, functions: functions, memory_id: Option::Some(memory_id), heap_ptr_global: heap_ptr_global, data_offset: 0, string_table: HashMap__new_(), struct_layouts: HashMap__new_(), enum_layouts: HashMap__new_(), funcref_table: Option::Some(funcref_table), lambda_counter: 0, lambda_table: HashMap__new_() }
+
+    fn compile_program(_self: &mut WasmCompiler, program: &kain_core::types::TypedProgram) -> Result<(), KainError>:
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Struct(s) =>
+                    (*_self).compute_struct_layout(s)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match item:
+                kain_core__types__TypedItem::Component(c) =>
+                    (*_self).compute_component_layout(c)
+                    ()
+                _ => ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Enum(e) =>
+                    (*_self).compute_enum_layout(e)
+                    ()
+                _ => ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(f) =>
+                    (*_self).collect_strings_in_block(&f.ast.body)
+                    ()
+                _ => ()
+        ()
+        let mut all_lambdas = Vec__new_()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(f) =>
+                    (*_self).collect_lambdas_in_block(&f.ast.body, &mut all_lambdas)
+                    ()
+                _ => ()
+        ()
+        for selfhost_for_item in &all_lambdas:
+            let (id, params, body) = selfhost_for_item
+            (*_self).compile_lambda((*id), &params, &body)?
+            ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(f) =>
+                    (*_self).declare_function(f)?
+                    ()
+                _ => ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Function(f) =>
+                    (*_self).compile_function_body(f)?
+                    ()
+                _ => ()
+        ()
+        for item in &(*program).items:
+            match item:
+                kain_core__types__TypedItem::Component(c) =>
+                    (*_self).compile_component(c)?
+                    ()
+                _ => ()
+        ()
+        Result::Ok(())
+
+    fn compute_struct_layout(_self: &mut WasmCompiler, s: &kain_core::types::TypedStruct):
+        let mut offset = 0
+        let mut field_offsets = HashMap__new_()
+        for field in &(*s).ast.fields:
+            offset = (((offset + 3)) & (!3))
+            ()
+            field_offsets.insert(field.name.clone(), offset)
+            ()
+            let field_size = (*_self).type_size_of(&(*s).field_types.get(&field.name).cloned().unwrap_or(kain_core__types__ResolvedType::Int(kain_core__types__IntSize__I64)))
+            offset = (offset + field_size)
+            ()
+        ()
+        let total_size = (((offset + 3)) & (!3))
+        (*_self).struct_layouts.insert((*s).ast.name.clone(), (field_offsets, total_size))
+        ()
+
+    fn compute_component_layout(_self: &mut WasmCompiler, c: &kain_core::types::TypedComponent):
+        let mut offset = 0
+        let mut field_offsets = HashMap__new_()
+        for state_ in &(*c).ast.state_:
+            offset = (((offset + 3)) & (!3))
+            ()
+            field_offsets.insert(state_.name.clone(), offset)
+            ()
+            offset = (offset + 8)
+            ()
+        ()
+        let total_size = (((offset + 3)) & (!3))
+        (*_self).struct_layouts.insert((*c).ast.name.clone(), (field_offsets, total_size))
+        ()
+
+    fn compile_component(_self: &mut WasmCompiler, c: &kain_core::types::TypedComponent) -> Result<(), KainError>:
+        let render_name = f"{(*c).ast.name}_render"
+        let wasm_params = [walrus__ValType__I32]
+        let wasm_results = [walrus__ValType__I32]
+        let mut builder = FunctionBuilder__new_(&mut (*_self).module.types, &wasm_params, &wasm_results)
+        let self_local = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i32 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i32_2 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i64 = (*_self).module.locals.add(walrus__ValType__I64)
+        let mut locals_map = HashMap__new_()
+        locals_map.insert(("self").to_string(), self_local)
+        ()
+        let ctx = CompilationContext { locals: locals_map, functions: &(*_self).functions, string_table: &(*_self).string_table, struct_layouts: &(*_self).struct_layouts, enum_layouts: &(*_self).enum_layouts, memory_id: (*_self).memory_id.unwrap(), heap_ptr_global: (*_self).heap_ptr_global, tmp_i32: tmp_i32, tmp_i32_2: tmp_i32_2, tmp_i64: tmp_i64, funcref_table: (*_self).funcref_table, lambda_table: &(*_self).lambda_table }
+        let mut func_body = builder.func_body()
+        (*_self).compile_jsx_node(&ctx, &mut func_body, &(*c).ast.body)?
+        ()
+        let func_id = builder.finish([self_local], &mut (*_self).module.funcs)
+        (*_self).functions.insert(render_name.clone(), func_id)
+        ()
+        (*_self).module.exports.add(&render_name, func_id)
+        ()
+        Result::Ok(())
+
+    fn compute_enum_layout(_self: &mut WasmCompiler, e: &kain_core::types::TypedEnum):
+        let mut variant_tags = HashMap__new_()
+        let mut max_payload_size = 0
+        let mut variant_field_offsets = HashMap__new_()
+        for selfhost_for_item in (*e).ast.variants.iter().enumerate():
+            let (idx, variant) = selfhost_for_item
+            variant_tags.insert(variant.name.clone(), idx as u32)
+            ()
+            let mut field_offsets = HashMap__new_()
+            let mut payload_size = 0
+            match (*e).variant_payload_types.get(&variant.name):
+                Some(payload_types) =>
+                    let mut current_offset = 0
+                    match &variant.fields:
+                        kain_core__ast__VariantFields::Struct(fields) =>
+                            for selfhost_for_item in fields.iter().enumerate():
+                                let (i, field) = selfhost_for_item
+                                match payload_types.get(i):
+                                    Some(ty) =>
+                                        current_offset = (((current_offset + 3)) & (!3))
+                                        ()
+                                        field_offsets.insert(field.name.clone(), current_offset)
+                                        ()
+                                        let size = (*_self).type_size_of(ty)
+                                        current_offset = (current_offset + size)
+                                        ()
+                                    _ => ()
+                            ()
+                            ()
+                        kain_core__ast__VariantFields::Tuple(_) =>
+                            for selfhost_for_item in payload_types.iter().enumerate():
+                                let (i, ty) = selfhost_for_item
+                                current_offset = (((current_offset + 3)) & (!3))
+                                ()
+                                field_offsets.insert(i.to_string(), current_offset)
+                                ()
+                                current_offset = (current_offset + (*_self).type_size_of(ty))
+                                ()
+                            ()
+                            ()
+                        kain_core__ast__VariantFields::Unit => ()
+                    payload_size = (((current_offset + 3)) & (!3))
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            variant_field_offsets.insert(variant.name.clone(), field_offsets)
+            ()
+            max_payload_size = max_payload_size.max(payload_size)
+            ()
+        ()
+        (*_self).enum_layouts.insert((*e).ast.name.clone(), (variant_tags, max_payload_size, variant_field_offsets))
+        ()
+
+    fn type_size_of(_self: &WasmCompiler, ty: &kain_core::types::ResolvedType) -> u32:
+        match ty:
+            kain_core__types__ResolvedType::Unit => 0
+            kain_core__types__ResolvedType::Bool => 4
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::I8) => 1
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::U8) => 1
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::I16) => 2
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::U16) => 2
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::I32) => 4
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::U32) => 4
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::I64) => 8
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::U64) => 8
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::Isize) => 8
+            kain_core__types__ResolvedType::Int(kain_core__types__IntSize::Usize) => 8
+            kain_core__types__ResolvedType::Float(kain_core__types__FloatSize::F32) => 4
+            kain_core__types__ResolvedType::Float(kain_core__types__FloatSize::F64) => 8
+            kain_core__types__ResolvedType::String => 4
+            kain_core__types__ResolvedType::Char => 4
+            kain_core__types__ResolvedType::Array(_, len) => (4 + (((*len) as u32 * 8)))
+            kain_core__types__ResolvedType::Struct(_, _) => 4
+            _ => 8
+
+    fn emit_alloc(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, size: u32):
+        builder.global_get((*ctx).heap_ptr_global)
+        ()
+        builder.global_get((*ctx).heap_ptr_global)
+        ()
+        builder.i32_const(size as i32)
+        ()
+        builder.binop(walrus__ir__BinaryOp__I32Add)
+        ()
+        builder.i32_const(7)
+        ()
+        builder.binop(walrus__ir__BinaryOp__I32Add)
+        ()
+        builder.i32_const((-8))
+        ()
+        builder.binop(walrus__ir__BinaryOp__I32And)
+        ()
+        builder.global_set((*ctx).heap_ptr_global)
+        ()
+
+    fn collect_strings_in_block(_self: &mut WasmCompiler, block: &kain_core::ast::Block):
+        for stmt in &(*block).stmts:
+            (*_self).collect_strings_in_stmt(stmt)
+            ()
+
+    fn collect_strings_in_stmt(_self: &mut WasmCompiler, stmt: &kain_core::ast::Stmt):
+        match stmt:
+            kain_core__ast__Stmt::Expr(expr) => (*_self).collect_strings_in_expr(expr)
+            kain_core__ast__Stmt::Let { value: Some(expr) } => (*_self).collect_strings_in_expr(expr)
+            kain_core__ast__Stmt::Return(Some(expr), _) => (*_self).collect_strings_in_expr(expr)
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                (*_self).collect_strings_in_expr(condition)
+                ()
+                (*_self).collect_strings_in_block(body)
+                ()
+            _ => ()
+
+    fn collect_strings_in_expr(_self: &mut WasmCompiler, expr: &kain_core::ast::Expr):
+        match expr:
+            kain_core__ast__Expr::String(s, _) =>
+                (*_self).allocate_string(s)
+                ()
+            kain_core__ast__Expr::Binary { left: left, right: right } =>
+                (*_self).collect_strings_in_expr(left)
+                ()
+                (*_self).collect_strings_in_expr(right)
+                ()
+            kain_core__ast__Expr::Call { args: args } =>
+                for arg in args:
+                    (*_self).collect_strings_in_expr(&arg.value)
+                    ()
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                (*_self).collect_strings_in_expr(condition)
+                ()
+                (*_self).collect_strings_in_block(then_branch)
+                ()
+                match else_branch:
+                    Some(else_br) =>
+                        (*_self).collect_strings_in_else(else_br)
+                        ()
+                    _ => ()
+            kain_core__ast__Expr::JSX(node, _) =>
+                (*_self).collect_strings_in_jsx(node)
+                ()
+            _ => ()
+
+    fn collect_strings_in_jsx(_self: &mut WasmCompiler, node: &kain_core::ast::JSXNode):
+        match node:
+            kain_core__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>
+                (*_self).allocate_string(tag)
+                ()
+                for attr in attributes:
+                    (*_self).allocate_string(&attr.name)
+                    ()
+                    match &attr.value:
+                        kain_core__ast__JSXAttrValue::String(s) =>
+                            (*_self).allocate_string(s)
+                            ()
+                        kain_core__ast__JSXAttrValue::Expr(e) => (*_self).collect_strings_in_expr(e)
+                        _ => ()
+                ()
+                for child in children:
+                    (*_self).collect_strings_in_jsx(child)
+                    ()
+            kain_core__ast__JSXNode::Text(s, _) =>
+                (*_self).allocate_string(s)
+                ()
+            kain_core__ast__JSXNode::Expression(e) =>
+                (*_self).collect_strings_in_expr(e)
+                ()
+            kain_core__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>
+                (*_self).allocate_string(name)
+                ()
+                for attr in props:
+                    (*_self).allocate_string(&attr.name)
+                    ()
+                    match &attr.value:
+                        kain_core__ast__JSXAttrValue::String(s) =>
+                            (*_self).allocate_string(s)
+                            ()
+                        kain_core__ast__JSXAttrValue::Expr(e) => (*_self).collect_strings_in_expr(e)
+                        _ => ()
+                ()
+                for child in children:
+                    (*_self).collect_strings_in_jsx(child)
+                    ()
+            kain_core__ast__JSXNode::Fragment(children, _) =>
+                for child in children:
+                    (*_self).collect_strings_in_jsx(child)
+                    ()
+            kain_core__ast__JSXNode::For { iter: iter, body: body } =>
+                (*_self).collect_strings_in_expr(iter)
+                ()
+                (*_self).collect_strings_in_jsx(body)
+                ()
+            kain_core__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                (*_self).collect_strings_in_expr(condition)
+                ()
+                (*_self).collect_strings_in_jsx(then_branch)
+                ()
+                match else_branch:
+                    Some(else_br) =>
+                        (*_self).collect_strings_in_jsx(else_br)
+                        ()
+                    _ => ()
+
+    fn collect_strings_in_else(_self: &mut WasmCompiler, branch: &kain_core::ast::ElseBranch):
+        match branch:
+            kain_core__ast__ElseBranch::Else(block) => (*_self).collect_strings_in_block(block)
+            kain_core__ast__ElseBranch::ElseIf(cond, then, next) =>
+                (*_self).collect_strings_in_expr(cond)
+                ()
+                (*_self).collect_strings_in_block(then)
+                ()
+                match next:
+                    Some(next_br) =>
+                        (*_self).collect_strings_in_else(next_br)
+                        ()
+                    _ => ()
+
+    fn collect_lambdas_in_block(_self: &mut WasmCompiler, block: &kain_core::ast::Block, lambdas: &mut Array<(u32, Array<kain_core::ast::Param>, kain_core::ast::Expr)>):
+        for stmt in &(*block).stmts:
+            (*_self).collect_lambdas_in_stmt(stmt, lambdas)
+            ()
+
+    fn collect_lambdas_in_stmt(_self: &mut WasmCompiler, stmt: &kain_core::ast::Stmt, lambdas: &mut Array<(u32, Array<kain_core::ast::Param>, kain_core::ast::Expr)>):
+        match stmt:
+            kain_core__ast__Stmt::Expr(expr) => (*_self).collect_lambdas_in_expr(expr, lambdas)
+            kain_core__ast__Stmt::Let { value: Some(expr) } => (*_self).collect_lambdas_in_expr(expr, lambdas)
+            kain_core__ast__Stmt::Return(Some(expr), _) => (*_self).collect_lambdas_in_expr(expr, lambdas)
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                (*_self).collect_lambdas_in_expr(condition, lambdas)
+                ()
+                (*_self).collect_lambdas_in_block(body, lambdas)
+                ()
+            kain_core__ast__Stmt::For { iter: iter, body: body } =>
+                (*_self).collect_lambdas_in_expr(iter, lambdas)
+                ()
+                (*_self).collect_lambdas_in_block(body, lambdas)
+                ()
+            kain_core__ast__Stmt::Loop { body: body } =>
+                (*_self).collect_lambdas_in_block(body, lambdas)
+                ()
+            _ => ()
+
+    fn collect_lambdas_in_expr(_self: &mut WasmCompiler, expr: &kain_core::ast::Expr, lambdas: &mut Array<(u32, Array<kain_core::ast::Param>, kain_core::ast::Expr)>):
+        match expr:
+            kain_core__ast__Expr::Lambda { params: params, body: body } =>
+                let id = (*_self).lambda_counter
+                (*_self).lambda_counter = ((*_self).lambda_counter + 1)
+                ()
+                lambdas.push((id, params.clone(), ((*(*body))).clone()))
+                ()
+                (*_self).collect_lambdas_in_expr(body, lambdas)
+                ()
+            kain_core__ast__Expr::Binary { left: left, right: right } =>
+                (*_self).collect_lambdas_in_expr(left, lambdas)
+                ()
+                (*_self).collect_lambdas_in_expr(right, lambdas)
+                ()
+            kain_core__ast__Expr::Unary { operand: operand } =>
+                (*_self).collect_lambdas_in_expr(operand, lambdas)
+                ()
+            kain_core__ast__Expr::Call { callee: callee, args: args } =>
+                (*_self).collect_lambdas_in_expr(callee, lambdas)
+                ()
+                for arg in args:
+                    (*_self).collect_lambdas_in_expr(&arg.value, lambdas)
+                    ()
+            kain_core__ast__Expr::MethodCall { receiver: receiver, args: args } =>
+                (*_self).collect_lambdas_in_expr(receiver, lambdas)
+                ()
+                for arg in args:
+                    (*_self).collect_lambdas_in_expr(&arg.value, lambdas)
+                    ()
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                (*_self).collect_lambdas_in_expr(condition, lambdas)
+                ()
+                (*_self).collect_lambdas_in_block(then_branch, lambdas)
+                ()
+                match else_branch:
+                    Some(else_br) =>
+                        (*_self).collect_lambdas_in_else_branch(else_br, lambdas)
+                        ()
+                    _ => ()
+            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms } =>
+                (*_self).collect_lambdas_in_expr(scrutinee, lambdas)
+                ()
+                for arm in arms:
+                    (*_self).collect_lambdas_in_expr(&arm.body, lambdas)
+                    ()
+            kain_core__ast__Expr::Array(elements, _) =>
+                for e in elements:
+                    (*_self).collect_lambdas_in_expr(e, lambdas)
+                    ()
+            kain_core__ast__Expr::Tuple(elements, _) =>
+                for e in elements:
+                    (*_self).collect_lambdas_in_expr(e, lambdas)
+                    ()
+            kain_core__ast__Expr::Block(block, _) =>
+                (*_self).collect_lambdas_in_block(block, lambdas)
+                ()
+            _ => ()
+
+    fn collect_lambdas_in_else_branch(_self: &mut WasmCompiler, branch: &kain_core::ast::ElseBranch, lambdas: &mut Array<(u32, Array<kain_core::ast::Param>, kain_core::ast::Expr)>):
+        match branch:
+            kain_core__ast__ElseBranch::Else(block) => (*_self).collect_lambdas_in_block(block, lambdas)
+            kain_core__ast__ElseBranch::ElseIf(cond, then, next) =>
+                (*_self).collect_lambdas_in_expr(cond, lambdas)
+                ()
+                (*_self).collect_lambdas_in_block(then, lambdas)
+                ()
+                match next:
+                    Some(next_br) =>
+                        (*_self).collect_lambdas_in_else_branch(next_br, lambdas)
+                        ()
+                    _ => ()
+
+    fn compile_lambda(_self: &mut WasmCompiler, id: u32, params: &[kain_core::ast::Param], body: &kain_core::ast::Expr) -> Result<(), KainError>:
+        let wasm_params: Array<walrus::ValType> = params.iter().map(fn(_): walrus__ValType__I64).collect()
+        let wasm_results = [walrus__ValType__I64]
+        let mut builder = FunctionBuilder__new_(&mut (*_self).module.types, &wasm_params, &wasm_results)
+        let mut locals = HashMap__new_()
+        let mut param_local_ids = Vec__new_()
+        for selfhost_for_item in params.iter().enumerate():
+            let (i, param) = selfhost_for_item
+            let local_id = (*_self).module.locals.add(wasm_params[i])
+            locals.insert(param.name.clone(), local_id)
+            ()
+            param_local_ids.push(local_id)
+            ()
+        ()
+        let tmp_i32 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i32_2 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i64 = (*_self).module.locals.add(walrus__ValType__I64)
+        let ctx = CompilationContext { locals: locals, functions: &(*_self).functions, string_table: &(*_self).string_table, struct_layouts: &(*_self).struct_layouts, enum_layouts: &(*_self).enum_layouts, memory_id: (*_self).memory_id.unwrap(), heap_ptr_global: (*_self).heap_ptr_global, tmp_i32: tmp_i32, tmp_i32_2: tmp_i32_2, tmp_i64: tmp_i64, funcref_table: (*_self).funcref_table, lambda_table: &(*_self).lambda_table }
+        let mut func_body = builder.func_body()
+        (*_self).compile_expr(&ctx, &mut func_body, body)?
+        ()
+        let func_id = builder.finish(param_local_ids, &mut (*_self).module.funcs)
+        let table_index = id
+        match (*_self).funcref_table:
+            Some(table_id) =>
+                (*_self).module.elements.add(walrus__ElementKind::Active { table: table_id, offset: walrus__ConstExpr::Value(walrus__ir__Value::I32(table_index as i32)) }, walrus__ElementItems::Functions([func_id]))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).lambda_table.insert(id, (table_index, func_id))
+        ()
+        let lambda_name = f"__lambda_{id}"
+        (*_self).functions.insert(lambda_name, func_id)
+        ()
+        Result::Ok(())
+
+    fn declare_function(_self: &mut WasmCompiler, func: &kain_core::types::TypedFunction) -> Result<(), KainError>:
+        let (param_types, ret_type) = match &(*func).resolved_type:
+            kain_core__types__ResolvedType::Function { params: params, ret: ret } => (params, ret)
+            _ => return Result::Err(KainError__codegen("Expected function type", (*func).ast.span))
+        let wasm_params: Array<walrus::ValType> = param_types.iter().map(fn(t): (*_self).map_type(t)).collect()
+        let wasm_results = if ((*(*ret_type)) == kain_core__types__ResolvedType__Unit):
+            []
+        else:
+            [(*_self).map_type(ret_type)]
+        let builder = FunctionBuilder__new_(&mut (*_self).module.types, &wasm_params, &wasm_results)
+        let mut param_local_ids = Vec__new_()
+        for param_type in &wasm_params:
+            param_local_ids.push((*_self).module.locals.add(param_type))
+            ()
+        ()
+        let func_id = builder.finish(param_local_ids, &mut (*_self).module.funcs)
+        (*_self).functions.insert((*func).ast.name.clone(), func_id)
+        ()
+        if (none):
+            (*_self).module.exports.add(&(*func).ast.name, func_id)
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(())
+
+    fn compile_function_body(_self: &mut WasmCompiler, func: &kain_core::types::TypedFunction) -> Result<(), KainError>:
+        let func_id = (*(*_self).functions.get(&(*func).ast.name).unwrap())
+        let (param_types, ret_type) = match &(*func).resolved_type:
+            kain_core__types__ResolvedType::Function { params: params, ret: ret } => (params, ret)
+            _ => return Result::Ok(())
+        let wasm_params: Array<walrus::ValType> = param_types.iter().map(fn(t): (*_self).map_type(t)).collect()
+        let wasm_results = if ((*(*ret_type)) == kain_core__types__ResolvedType__Unit):
+            []
+        else:
+            [(*_self).map_type(ret_type)]
+        let mut builder = FunctionBuilder__new_(&mut (*_self).module.types, &wasm_params, &wasm_results)
+        let mut text_locals_map = HashMap__new_()
+        let mut param_local_ids = Vec__new_()
+        for selfhost_for_item in (*func).ast.params.iter().enumerate():
+            let (i, param) = selfhost_for_item
+            let local_id = (*_self).module.locals.add(wasm_params[i])
+            text_locals_map.insert(param.name.clone(), local_id)
+            ()
+            param_local_ids.push(local_id)
+            ()
+        ()
+        (*_self).preallocate_locals(&(*func).ast.body, &mut text_locals_map)
+        ()
+        let tmp_i32 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i32_2 = (*_self).module.locals.add(walrus__ValType__I32)
+        let tmp_i64 = (*_self).module.locals.add(walrus__ValType__I64)
+        let ctx = CompilationContext { locals: text_locals_map, functions: &(*_self).functions, string_table: &(*_self).string_table, struct_layouts: &(*_self).struct_layouts, enum_layouts: &(*_self).enum_layouts, memory_id: (*_self).memory_id.unwrap(), heap_ptr_global: (*_self).heap_ptr_global, tmp_i32: tmp_i32, tmp_i32_2: tmp_i32_2, tmp_i64: tmp_i64, funcref_table: (*_self).funcref_table, lambda_table: &(*_self).lambda_table }
+        let mut func_body = builder.func_body()
+        (*_self).compile_block(&ctx, &mut func_body, &(*func).ast.body)?
+        ()
+        if ((*func).ast.body.stmts.is_empty() && (!wasm_results.is_empty())):
+            match wasm_results[0]:
+                walrus__ValType::I64 =>
+                    func_body.i64_const(0)
+                    ()
+                    ()
+                    ()
+                walrus__ValType::I32 =>
+                    func_body.i32_const(0)
+                    ()
+                    ()
+                    ()
+                walrus__ValType::F64 =>
+                    func_body.f64_const(0)
+                    ()
+                    ()
+                    ()
+                walrus__ValType::F32 =>
+                    func_body.f32_const(0)
+                    ()
+                    ()
+                    ()
+                _ =>
+                    func_body.i64_const(0)
+                    ()
+                    ()
+                    ()
+            ()
+        let temp_func_id = builder.finish(param_local_ids, &mut (*_self).module.funcs)
+        let dummy_type = (*_self).module.types.add(&[], &[])
+        let (dummy_global_id, dummy_import_id) = (*_self).module.add_import_global("KAIN_internal", "dummy", walrus__ValType__I32, false, false)
+        let dummy_kind = walrus__FunctionKind::Import(walrus::ImportedFunction { import: dummy_import_id, ty: dummy_type })
+        let new_func = (*_self).module.funcs.get_mut(temp_func_id)
+        let new_kind = std__mem__replace(&mut new_func.kind, dummy_kind)
+        let old_func = (*_self).module.funcs.get_mut(func_id)
+        let old_kind = std__mem__replace(&mut old_func.kind, new_kind)
+        (*_self).module.funcs.delete_(temp_func_id)
+        ()
+        (*_self).module.imports.delete_(dummy_import_id)
+        ()
+        Result::Ok(())
+
+    fn preallocate_locals(_self: &mut WasmCompiler, block: &kain_core::ast::Block, locals: &mut Map<String, walrus::LocalId>):
+        for stmt in &(*block).stmts:
+            match stmt:
+                kain_core__ast__Stmt::Let { pattern: pattern, value: value } =>
+                    match pattern:
+                        kain_core__ast__Pattern::Binding { name: name } =>
+                            if (!locals.contains_key(name)):
+                                let val_type = match value:
+                                    Some(expr) => (*_self).infer_wasm_type(expr)
+                                    _ => walrus__ValType__I64
+                                let local = (*_self).module.locals.add(val_type)
+                                locals.insert(name.clone(), local)
+                                ()
+                        _ => ()
+                kain_core__ast__Stmt::While { body: body } =>
+                    (*_self).preallocate_locals(body, locals)
+                    ()
+                kain_core__ast__Stmt::For { binding: binding, body: body } =>
+                    match binding:
+                        kain_core__ast__Pattern::Binding { name: name } =>
+                            if (!locals.contains_key(name)):
+                                let local = (*_self).module.locals.add(walrus__ValType__I64)
+                                locals.insert(name.clone(), local)
+                                ()
+                                ()
+                                ()
+                                ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    (*_self).preallocate_locals(body, locals)
+                    ()
+                kain_core__ast__Stmt::Loop { body: body } =>
+                    (*_self).preallocate_locals(body, locals)
+                    ()
+                _ => ()
+
+    fn map_type(_self: &WasmCompiler, ty: &kain_core::types::ResolvedType) -> walrus::ValType:
+        match ty:
+            kain_core__types__ResolvedType::Int(_) => walrus__ValType__I64
+            kain_core__types__ResolvedType::Float(_) => walrus__ValType__F64
+            kain_core__types__ResolvedType::Bool => walrus__ValType__I32
+            kain_core__types__ResolvedType::String => walrus__ValType__I32
+            _ => walrus__ValType__I64
+
+    fn infer_wasm_type(_self: &WasmCompiler, expr: &kain_core::ast::Expr) -> walrus::ValType:
+        match expr:
+            kain_core__ast__Expr::Int(_, _) => walrus__ValType__I64
+            kain_core__ast__Expr::Float(_, _) => walrus__ValType__F64
+            kain_core__ast__Expr::Bool(_, _) => walrus__ValType__I32
+            kain_core__ast__Expr::String(_, _) => walrus__ValType__I32
+            kain_core__ast__Expr::JSX(_, _) => walrus__ValType__I32
+            kain_core__ast__Expr::Call { callee: callee } =>
+                match callee:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if name.chars().next().map(fn(c): c.is_uppercase()).unwrap_or(false):
+                            return walrus__ValType__I32
+                        if ((name == "to_string") || (name == "str_concat")):
+                            return walrus__ValType__I32
+                        if name.starts_with("dom_"):
+                            return walrus__ValType__I32
+                        ()
+                    _ =>
+                        ()
+                        ()
+                walrus__ValType__I64
+            kain_core__ast__Expr::Binary { op: op } =>
+                match op:
+                    kain_core__ast__BinaryOp::Eq => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Ne => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Lt => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Gt => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Le => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Ge => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::And => walrus__ValType__I32
+                    kain_core__ast__BinaryOp::Or => walrus__ValType__I32
+                    _ => walrus__ValType__I64
+            kain_core__ast__Expr::Unary { op: op } =>
+                match op:
+                    kain_core__ast__UnaryOp::Not => walrus__ValType__I32
+                    _ => walrus__ValType__I64
+            _ => walrus__ValType__I64
+
+    fn allocate_string(_self: &mut WasmCompiler, s: String) -> u32:
+        match (*_self).string_table.get(s):
+            Some(offset) => return offset
+            _ =>
+                ()
+                ()
+        let offset = (*_self).data_offset
+        let bytes = s.as_bytes()
+        let len = bytes.len() as u32
+        let mut data = (fn(__kain_ctor_arg0): Vec__new_())((4 + bytes.len()))
+        data.extend_from_slice(&len.to_le_bytes())
+        ()
+        data.extend_from_slice(bytes)
+        ()
+        match (*_self).memory_id:
+            Some(memory_id) =>
+                (*_self).module.data.add(walrus__DataKind::Active { memory: memory_id, offset: walrus__ConstExpr::Value(walrus__ir__Value::I32(offset as i32)) }, data)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        (*_self).data_offset = ((*_self).data_offset + (4 + len))
+        ()
+        (*_self).data_offset = ((((*_self).data_offset + 3)) & (!3))
+        ()
+        (*_self).string_table.insert(s.to_string(), offset)
+        ()
+        offset
+
+    fn compile_block(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, block: &kain_core::ast::Block) -> Result<(), KainError>:
+        for stmt in &(*block).stmts:
+            (*_self).compile_stmt(ctx, builder, stmt)?
+            ()
+        ()
+        Result::Ok(())
+
+    fn compile_stmt(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, stmt: &kain_core::ast::Stmt) -> Result<(), KainError>:
+        match stmt:
+            kain_core__ast__Stmt::Expr(expr) =>
+                (*_self).compile_expr(ctx, builder, expr)?
+                ()
+                builder.drop()
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::Let { value: value, pattern: pattern } =>
+                match value:
+                    Some(val_expr) =>
+                        (*_self).compile_expr(ctx, builder, val_expr)?
+                        ()
+                        match pattern:
+                            kain_core__ast__Pattern::Binding { name: name } =>
+                                match (*ctx).locals.get(name):
+                                    Some(local_id) =>
+                                        builder.local_set((*local_id))
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            kain_core__ast__Stmt::Return(opt_expr, _) =>
+                match opt_expr:
+                    Some(expr) =>
+                        (*_self).compile_expr(ctx, builder, expr)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                builder.return_()
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::While { condition: condition, body: body } =>
+                builder.block(none, fn(block_builder): none)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body, span: _ } =>
+                let loop_var = match binding:
+                    kain_core__ast__Pattern::Binding { name: name } => name.clone()
+                    _ => ("").to_string()
+                match iter:
+                    kain_core__ast__Expr::Range { start: start, end: end, inclusive: inclusive } =>
+                        let start_expr = start.map(fn(e): e)
+                        let end_expr = end.map(fn(e): e)
+                        match start_expr:
+                            Some(start_e) =>
+                                (*_self).compile_expr(ctx, builder, start_e)?
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                builder.i64_const(0)
+                                ()
+                                ()
+                                ()
+                                ()
+                        match (*ctx).locals.get(&loop_var):
+                            Some(local_id) =>
+                                builder.local_set((*local_id))
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        builder.block(none, fn(block_builder): none)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => ()
+                ()
+            kain_core__ast__Stmt::Loop { body: body, span: _ } =>
+                builder.block(none, fn(block_builder): none)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::Break(_, _) =>
+                builder.unreachable()
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Stmt::Continue(_) =>
+                builder.unreachable()
+                ()
+                ()
+                ()
+                ()
+            _ => ()
+        Result::Ok(())
+
+    fn is_string_expr(_self: &WasmCompiler, expr: &kain_core::ast::Expr) -> Bool:
+        match expr:
+            kain_core__ast__Expr::String(_, _) => true
+            kain_core__ast__Expr::Call { callee: callee } =>
+                match callee:
+                    kain_core__ast__Expr::Ident(name, _) => ((name == "to_string") || (name == "str_concat"))
+                    _ => false
+            kain_core__ast__Expr::Binary { op: op, left: left, right: right } =>
+                match op:
+                    kain_core__ast__BinaryOp::Add => ((*_self).is_string_expr(left) || (*_self).is_string_expr(right))
+                    _ => false
+            _ => false
+
+    fn is_i32_expr(_self: &WasmCompiler, expr: &kain_core::ast::Expr) -> Bool:
+        match expr:
+            kain_core__ast__Expr::JSX(_, _) => true
+            kain_core__ast__Expr::Bool(_, _) => true
+            kain_core__ast__Expr::String(_, _) => true
+            kain_core__ast__Expr::Call { callee: callee } =>
+                match callee:
+                    kain_core__ast__Expr::Ident(name, _) => (((name.chars().next().map(fn(c): c.is_uppercase()).unwrap_or(false) || name.starts_with("dom_")) || (name == "to_string")) || (name == "str_concat"))
+                    _ => false
+            kain_core__ast__Expr::Ident(_, _) => false
+            _ => false
+
+    fn is_i32_local(_self: &WasmCompiler, name: String, locals: &Map<String, walrus::LocalId>) -> Bool:
+        match locals.get(name):
+            Some(local_id) =>
+                let local = (*_self).module.locals.get((*local_id))
+                return (local.ty() == walrus__ValType__I32)
+            _ =>
+                ()
+                ()
+        false
+
+    fn expr_string_literal<a>(_self: &WasmCompiler, expr: &a kain_core::ast::Expr) -> Option<String>:
+        match expr:
+            kain_core__ast__Expr::String(value, _) => Option::Some(value.as_str())
+            _ => none
+
+    fn expr_int_literal(_self: &WasmCompiler, expr: &kain_core::ast::Expr) -> Option<i64>:
+        match expr:
+            kain_core__ast__Expr::Int(value, _) => Option::Some((*value))
+            _ => none
+
+    fn expr_bool_literal(_self: &WasmCompiler, expr: &kain_core::ast::Expr) -> Option<Bool>:
+        match expr:
+            kain_core__ast__Expr::Bool(value, _) => Option::Some((*value))
+            _ => none
+
+    fn emit_wasm_load_for_type_key(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, type_key: String, byte_size: i64):
+        match type_key:
+            "Float" if (byte_size <= 4) =>
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind__F32, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                builder.unop(walrus__ir__UnaryOp__F64PromoteF32)
+                ()
+            "Float" =>
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind__F64, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+            "Bool" =>
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I32_8 { kind: walrus__ir__ExtendedLoad__ZeroExtend }, walrus::ir::MemArg { align: 1, offset: 0 })
+                ()
+                builder.unop(walrus__ir__UnaryOp__I64ExtendUI32)
+                ()
+            "Char" =>
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I32_8 { kind: walrus__ir__ExtendedLoad__ZeroExtend }, walrus::ir::MemArg { align: 1, offset: 0 })
+                ()
+                builder.unop(walrus__ir__UnaryOp__I64ExtendUI32)
+                ()
+            _ =>
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+
+    fn emit_wasm_store_for_type_key(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, type_key: String, byte_size: i64):
+        match type_key:
+            "Float" if (byte_size <= 4) =>
+                builder.unop(walrus__ir__UnaryOp__F32DemoteF64)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind__F32, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+            "Float" =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind__F64, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+            "Bool" =>
+                builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32_8 { atomic: false }, walrus::ir::MemArg { align: 1, offset: 0 })
+                ()
+            "Char" =>
+                builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32_8 { atomic: false }, walrus::ir::MemArg { align: 1, offset: 0 })
+                ()
+            _ =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+
+    fn compile_low_level_helper_call(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, func_name: String, args: &[kain_core::ast::CallArg]) -> Result<Bool, KainError>:
+        match func_name:
+            "__kain_ptr_offset" if (args.len() >= 3) =>
+                (*_self).compile_expr_as_i32(ctx, builder, &args[0].value)?
+                ()
+                (*_self).compile_expr_as_i32(ctx, builder, &args[1].value)?
+                ()
+                (*_self).compile_expr_as_i32(ctx, builder, &args[2].value)?
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Mul)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                Result::Ok(true)
+            "__kain_mem_load" if (!args.is_empty()) =>
+                (*_self).compile_expr_as_i32(ctx, builder, &args[0].value)?
+                ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                Result::Ok(true)
+            "__kain_mem_store" if (args.len() >= 2) =>
+                (*_self).compile_expr_as_i32(ctx, builder, &args[0].value)?
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                (*_self).compile_expr_as_i64(ctx, builder, &args[1].value)?
+                ()
+                builder.local_set((*ctx).tmp_i64)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i64)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                builder.local_get((*ctx).tmp_i64)
+                ()
+                Result::Ok(true)
+            "__kain_alloc" if (args.len() >= 4) =>
+                builder.global_get((*ctx).heap_ptr_global)
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                (*_self).compile_expr_as_i32(ctx, builder, &args[0].value)?
+                ()
+                builder.local_set((*ctx).tmp_i32_2)
+                ()
+                builder.global_get((*ctx).heap_ptr_global)
+                ()
+                builder.local_get((*ctx).tmp_i32_2)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                builder.global_set((*ctx).heap_ptr_global)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                Result::Ok(true)
+            "__kain_realloc" if (args.len() >= 4) =>
+                (*_self).compile_expr_as_i32(ctx, builder, &args[0].value)?
+                ()
+                Result::Ok(true)
+            "__kain_union_wrap" if (args.len() >= 6) =>
+                let type_key = (*_self).expr_string_literal(&args[2].value).unwrap_or("Int")
+                let byte_size = (*_self).expr_int_literal(&args[3].value).unwrap_or(8)
+                (*_self).compile_expr(ctx, builder, &args[0].value)?
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                (*_self).compile_expr(ctx, builder, &args[5].value)?
+                ()
+                (*_self).emit_wasm_store_for_type_key(ctx, builder, type_key, byte_size)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                Result::Ok(true)
+            "__kain_union_get" if (args.len() >= 6) =>
+                let type_key = (*_self).expr_string_literal(&args[2].value).unwrap_or("Int")
+                let byte_size = (*_self).expr_int_literal(&args[3].value).unwrap_or(8)
+                (*_self).compile_expr(ctx, builder, &args[0].value)?
+                ()
+                (*_self).emit_wasm_load_for_type_key(ctx, builder, type_key, byte_size)
+                ()
+                Result::Ok(true)
+            "__kain_union_set" if (args.len() >= 6) =>
+                let type_key = (*_self).expr_string_literal(&args[2].value).unwrap_or("Int")
+                let byte_size = (*_self).expr_int_literal(&args[3].value).unwrap_or(8)
+                (*_self).compile_expr(ctx, builder, &args[0].value)?
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                (*_self).compile_expr(ctx, builder, &args[5].value)?
+                ()
+                (*_self).emit_wasm_store_for_type_key(ctx, builder, type_key, byte_size)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                (*_self).emit_wasm_load_for_type_key(ctx, builder, type_key, byte_size)
+                ()
+                Result::Ok(true)
+            "__kain_bitfield_get" if (args.len() >= 7) =>
+                let unit_offset = (*_self).expr_int_literal(&args[2].value).unwrap_or(0) as i32
+                let bit_offset = (*_self).expr_int_literal(&args[3].value).unwrap_or(0)
+                let width = (*_self).expr_int_literal(&args[4].value).unwrap_or(0)
+                let is_signed = (*_self).expr_bool_literal(&args[5].value).unwrap_or(false)
+                let mask = if (width <= 0):
+                    0
+                elif (width >= 63):
+                    i64__MAX
+                else:
+                    (((1 << width)) - 1)
+                let sign_bit = if ((width > 0) && (width < 63)):
+                    (1 << ((width - 1)))
+                else:
+                    0
+                (*_self).compile_expr(ctx, builder, &args[0].value)?
+                ()
+                if (unit_offset != 0):
+                    builder.i32_const(unit_offset)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                if (bit_offset > 0):
+                    builder.i64_const(bit_offset)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64ShrU)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.i64_const(mask)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I64And)
+                ()
+                if ((is_signed && (width > 0)) && (width < 63)):
+                    builder.local_set((*ctx).tmp_i64)
+                    ()
+                    builder.local_get((*ctx).tmp_i64)
+                    ()
+                    builder.i64_const(sign_bit)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64Xor)
+                    ()
+                    builder.i64_const(sign_bit)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64Sub)
+                    ()
+                    ()
+                    ()
+                    ()
+                Result::Ok(true)
+            "__kain_bitfield_set" if (args.len() >= 8) =>
+                let unit_offset = (*_self).expr_int_literal(&args[2].value).unwrap_or(0) as i32
+                let bit_offset = (*_self).expr_int_literal(&args[3].value).unwrap_or(0)
+                let width = (*_self).expr_int_literal(&args[4].value).unwrap_or(0)
+                let is_signed = (*_self).expr_bool_literal(&args[5].value).unwrap_or(false)
+                let mask = if (width <= 0):
+                    0
+                elif (width >= 63):
+                    i64__MAX
+                else:
+                    (((1 << width)) - 1)
+                let shifted_mask = if (bit_offset > 0):
+                    mask.checked_shl(bit_offset as u32).unwrap_or(0)
+                else:
+                    mask
+                (*_self).compile_expr(ctx, builder, &args[0].value)?
+                ()
+                if (unit_offset != 0):
+                    builder.i32_const(unit_offset)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                builder.local_set((*ctx).tmp_i64)
+                ()
+                builder.local_get((*ctx).tmp_i64)
+                ()
+                builder.i64_const((!shifted_mask))
+                ()
+                builder.binop(walrus__ir__BinaryOp__I64And)
+                ()
+                (*_self).compile_expr(ctx, builder, &args[7].value)?
+                ()
+                builder.i64_const(mask)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I64And)
+                ()
+                if (bit_offset > 0):
+                    builder.i64_const(bit_offset)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64Shl)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.binop(walrus__ir__BinaryOp__I64Or)
+                ()
+                builder.local_set((*ctx).tmp_i64)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i64)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                if (bit_offset > 0):
+                    builder.i64_const(bit_offset)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64ShrU)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.i64_const(mask)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I64And)
+                ()
+                if ((is_signed && (width > 0)) && (width < 63)):
+                    let sign_bit = (1 << ((width - 1)))
+                    builder.local_set((*ctx).tmp_i64)
+                    ()
+                    builder.local_get((*ctx).tmp_i64)
+                    ()
+                    builder.i64_const(sign_bit)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64Xor)
+                    ()
+                    builder.i64_const(sign_bit)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I64Sub)
+                    ()
+                    ()
+                    ()
+                    ()
+                Result::Ok(true)
+            _ => Result::Ok(false)
+
+    fn compile_expr(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, expr: &kain_core::ast::Expr) -> Result<(), KainError>:
+        match expr:
+            kain_core__ast__Expr::Int(n, _) =>
+                builder.i64_const((*n))
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Float(f, _) =>
+                builder.f64_const((*f))
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Bool(b, _) =>
+                builder.i32_const(if (*b): 1 else: 0)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::String(s, span) =>
+                match (*ctx).string_table.get(s):
+                    Some(offset) =>
+                        builder.i32_const(((offset + 4)) as i32)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen("String not found in table", (*span)))
+                ()
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+                (*_self).compile_expr(ctx, builder, left)?
+                ()
+                (*_self).compile_expr(ctx, builder, right)?
+                ()
+                match op:
+                    kain_core__ast__BinaryOp::Add =>
+                        if ((*_self).is_string_expr(left) || (*_self).is_string_expr(right)):
+                            match (*ctx).functions.get("str_concat"):
+                                Some(func_id) =>
+                                    builder.call((*func_id))
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+                            ()
+                        else:
+                            builder.binop(walrus__ir__BinaryOp__I64Add)
+                            ()
+                            ()
+                            ()
+                            ()
+                        ()
+                    kain_core__ast__BinaryOp::Sub =>
+                        builder.binop(walrus__ir__BinaryOp__I64Sub)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Mul =>
+                        builder.binop(walrus__ir__BinaryOp__I64Mul)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Div =>
+                        builder.binop(walrus__ir__BinaryOp__I64DivS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Mod =>
+                        builder.binop(walrus__ir__BinaryOp__I64RemS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Eq =>
+                        builder.binop(walrus__ir__BinaryOp__I64Eq)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Ne =>
+                        builder.binop(walrus__ir__BinaryOp__I64Ne)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Lt =>
+                        builder.binop(walrus__ir__BinaryOp__I64LtS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Gt =>
+                        builder.binop(walrus__ir__BinaryOp__I64GtS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Le =>
+                        builder.binop(walrus__ir__BinaryOp__I64LeS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Ge =>
+                        builder.binop(walrus__ir__BinaryOp__I64GeS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::And =>
+                        builder.binop(walrus__ir__BinaryOp__I64And)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Or =>
+                        builder.binop(walrus__ir__BinaryOp__I64Or)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::BitAnd =>
+                        builder.binop(walrus__ir__BinaryOp__I64And)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::BitOr =>
+                        builder.binop(walrus__ir__BinaryOp__I64Or)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::BitXor =>
+                        builder.binop(walrus__ir__BinaryOp__I64Xor)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Shl =>
+                        builder.binop(walrus__ir__BinaryOp__I64Shl)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__BinaryOp::Shr =>
+                        builder.binop(walrus__ir__BinaryOp__I64ShrS)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => ()
+                ()
+            kain_core__ast__Expr::Unary { op: op, operand: operand } =>
+                use kain_core::ast::UnaryOp
+
+                match op:
+                    kain_core__ast__UnaryOp::Neg =>
+                        builder.i64_const(0)
+                        ()
+                        (*_self).compile_expr(ctx, builder, operand)?
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I64Sub)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__UnaryOp::Not =>
+                        (*_self).compile_expr(ctx, builder, operand)?
+                        ()
+                        builder.unop(walrus__ir__UnaryOp__I64Eqz)
+                        ()
+                        ()
+                        ()
+                        ()
+                    kain_core__ast__UnaryOp::BitNot =>
+                        (*_self).compile_expr(ctx, builder, operand)?
+                        ()
+                        builder.i64_const((-1))
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I64Xor)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        (*_self).compile_expr(ctx, builder, operand)?
+                        ()
+                        ()
+                        ()
+                        ()
+                ()
+            kain_core__ast__Expr::Ident(name, span) =>
+                match (*ctx).locals.get(name):
+                    Some(local_id) =>
+                        builder.local_get((*local_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        match c_runtime_shims__wasm_c_runtime_constant(name):
+                            Some(value) =>
+                                builder.i64_const(value)
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ => return Result::Err(KainError__codegen(f"Variable '{name}' not found in locals", (*span)))
+                ()
+            kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+                (*_self).compile_expr(ctx, builder, condition)?
+                ()
+                builder.if_else(none, fn(then_builder): none, fn(else_builder): none)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::JSX(node, _) =>
+                (*_self).compile_jsx_node(ctx, builder, node)?
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Call { callee: callee, args: args, span: span } =>
+                match callee:
+                    kain_core__ast__Expr::Ident(func_name, _) =>
+                        if ((*_self).compile_low_level_helper_call(ctx, builder, func_name, args)?):
+                            return Result::Ok(())
+                        if ((*_self).compile_c_runtime_call(ctx, builder, func_name, args)?):
+                            return Result::Ok(())
+                        if (func_name == "print"):
+                            (*_self).compile_print_like_args(ctx, builder, args)?
+                            ()
+                            builder.i64_const(0)
+                            ()
+                            return Result::Ok(())
+                        if (func_name == "to_string"):
+                            match args.first():
+                                Some(arg) =>
+                                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                                    ()
+                                    match (*ctx).functions.get("int_to_str"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                            ()
+                                            ()
+                                            ()
+                                        _ =>
+                                            ()
+                                            ()
+                                    ()
+                                _ =>
+                                    builder.i32_const(0)
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                            return Result::Ok(())
+                        if (func_name == "now"):
+                            match (*ctx).functions.get("time_now"):
+                                Some(func_id) =>
+                                    builder.call((*func_id))
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+                            return Result::Ok(())
+                        match (*ctx).functions.get(func_name):
+                            Some(func_id) =>
+                                for arg in args:
+                                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                                    ()
+                                ()
+                                builder.call((*func_id))
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ => return Result::Err(KainError__codegen(f"Function '{func_name}' not found", (*span)))
+                        ()
+                    _ => return Result::Err(KainError__codegen("Only direct function calls supported in WASM", (*span)))
+                ()
+            kain_core__ast__Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields, span: span } =>
+                match (*ctx).enum_layouts.get(enum_name):
+                    Some((tags, max_payload, field_offsets_map)) =>
+                        let tag = (*tags.get(variant).ok_or_else(fn(): KainError__codegen("Variant tag not found", (*span)))?)
+                        let total_size = (4 + max_payload)
+                        (*_self).emit_alloc(ctx, builder, total_size)
+                        ()
+                        builder.drop()
+                        ()
+                        let aligned_size = (((total_size + 7)) & (!7))
+                        builder.global_get((*ctx).heap_ptr_global)
+                        ()
+                        builder.i32_const(aligned_size as i32)
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I32Sub)
+                        ()
+                        builder.i32_const(tag as i32)
+                        ()
+                        builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                        ()
+                        match fields:
+                            kain_core__ast__EnumVariantFields::Unit => ()
+                            kain_core__ast__EnumVariantFields::Tuple(exprs) =>
+                                let variant_offsets = field_offsets_map.get(variant).expect("Variant offsets missing")
+                                for selfhost_for_item in exprs.iter().enumerate():
+                                    let (i, expr) = selfhost_for_item
+                                    match variant_offsets.get(&i.to_string()):
+                                        Some(offset) =>
+                                            builder.global_get((*ctx).heap_ptr_global)
+                                            ()
+                                            builder.i32_const(aligned_size as i32)
+                                            ()
+                                            builder.binop(walrus__ir__BinaryOp__I32Sub)
+                                            ()
+                                            builder.i32_const(((4 + offset)) as i32)
+                                            ()
+                                            builder.binop(walrus__ir__BinaryOp__I32Add)
+                                            ()
+                                            (*_self).compile_expr(ctx, builder, expr)?
+                                            ()
+                                            (*_self).emit_store_for_expr(ctx, builder, expr, 0)
+                                            ()
+                                        _ => ()
+                                ()
+                                ()
+                            kain_core__ast__EnumVariantFields::Struct(named_fields) =>
+                                let variant_offsets = field_offsets_map.get(variant).expect("Variant offsets missing")
+                                for selfhost_for_item in named_fields:
+                                    let (name, expr) = selfhost_for_item
+                                    match variant_offsets.get(name):
+                                        Some(offset) =>
+                                            builder.global_get((*ctx).heap_ptr_global)
+                                            ()
+                                            builder.i32_const(aligned_size as i32)
+                                            ()
+                                            builder.binop(walrus__ir__BinaryOp__I32Sub)
+                                            ()
+                                            builder.i32_const(((4 + offset)) as i32)
+                                            ()
+                                            builder.binop(walrus__ir__BinaryOp__I32Add)
+                                            ()
+                                            (*_self).compile_expr(ctx, builder, expr)?
+                                            ()
+                                            (*_self).emit_store_for_expr(ctx, builder, expr, 0)
+                                            ()
+                                        _ => ()
+                                ()
+                                ()
+                        builder.global_get((*ctx).heap_ptr_global)
+                        ()
+                        builder.i32_const(aligned_size as i32)
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I32Sub)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen(f"Enum layout not found for {enum_name}", (*span)))
+                ()
+            kain_core__ast__Expr::Struct { name: name, fields: fields, rest: rest, span: span } =>
+                if rest.is_some():
+                    return Result::Err(KainError__codegen("Struct update syntax is not yet supported by WASM codegen", (*span)))
+                match (*ctx).struct_layouts.get(name).cloned():
+                    Some((field_offsets, total_size)) =>
+                        (*_self).emit_alloc(ctx, builder, total_size)
+                        ()
+                        for selfhost_for_item in fields:
+                            let (field_name, field_expr) = selfhost_for_item
+                            match field_offsets.get(field_name):
+                                Some(field_offset) =>
+                                    builder.global_get((*ctx).heap_ptr_global)
+                                    ()
+                                    let aligned_size = (((total_size + 7)) & (!7))
+                                    builder.i32_const(aligned_size as i32)
+                                    ()
+                                    builder.binop(walrus__ir__BinaryOp__I32Sub)
+                                    ()
+                                    builder.i32_const(field_offset as i32)
+                                    ()
+                                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                                    ()
+                                    (*_self).compile_expr(ctx, builder, field_expr)?
+                                    ()
+                                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                                    ()
+                                _ => ()
+                        ()
+                        let aligned_size = (((total_size + 7)) & (!7))
+                        builder.global_get((*ctx).heap_ptr_global)
+                        ()
+                        builder.i32_const(aligned_size as i32)
+                        ()
+                        builder.binop(walrus__ir__BinaryOp__I32Sub)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen(f"Struct '{name}' layout not found", (*span)))
+                ()
+            kain_core__ast__Expr::Field { object: object, field: field, span: _ } =>
+                (*_self).compile_expr(ctx, builder, object)?
+                ()
+                let mut field_offset = 0
+                let mut found = false
+                for selfhost_for_item in (*ctx).struct_layouts.iter():
+                    let (struct_name, (offsets, size_2)) = selfhost_for_item
+                    match offsets.get(field):
+                        Some(offset) =>
+                            field_offset = offset
+                            ()
+                            found = true
+                            ()
+                            break
+                        _ => ()
+                ()
+                if (found && (field_offset > 0)):
+                    builder.i32_const(field_offset as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    ()
+                    ()
+                    ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::MethodCall { receiver: receiver, method: method, args: args, span: span } =>
+                (*_self).compile_expr(ctx, builder, receiver)?
+                ()
+                for arg in args:
+                    (*_self).compile_expr(ctx, builder, &arg.value)?
+                    ()
+                ()
+                match (*ctx).functions.get(method):
+                    Some(func_id) =>
+                        builder.call((*func_id))
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => return Result::Err(KainError__codegen(f"Method '{method}' not found", (*span)))
+                ()
+            kain_core__ast__Expr::Array(elements, span_2) =>
+                let len = elements.len() as u32
+                let element_size = 8
+                let total_size = (4 + ((len * element_size)))
+                let aligned_size = (((total_size + 7)) & (!7))
+                (*_self).emit_alloc(ctx, builder, total_size)
+                ()
+                builder.drop()
+                ()
+                let get_base = fn(b: &mut walrus::InstrSeqBuilder, hp: walrus::GlobalId, sz: u32): none
+                get_base(builder, (*ctx).heap_ptr_global, aligned_size)
+                ()
+                builder.i32_const(len as i32)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                for selfhost_for_item in elements.iter().enumerate():
+                    let (i, elem) = selfhost_for_item
+                    get_base(builder, (*ctx).heap_ptr_global, aligned_size)
+                    ()
+                    builder.i32_const(((4 + (i as u32 * element_size))) as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    (*_self).compile_expr(ctx, builder, elem)?
+                    ()
+                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                    ()
+                ()
+                get_base(builder, (*ctx).heap_ptr_global, aligned_size)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Index { object: object, index: index, span: _ } =>
+                (*_self).compile_expr(ctx, builder, object)?
+                ()
+                builder.i32_const(4)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                (*_self).compile_expr(ctx, builder, index)?
+                ()
+                builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                ()
+                builder.i32_const(8)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Mul)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                builder.load((*ctx).memory_id, walrus__ir__LoadKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Tuple(elements, span_2) =>
+                let len = elements.len() as u32
+                let element_size = 8
+                let total_size = (len * element_size)
+                let aligned_size = (((total_size + 7)) & (!7))
+                (*_self).emit_alloc(ctx, builder, total_size)
+                ()
+                builder.drop()
+                ()
+                for selfhost_for_item in elements.iter().enumerate():
+                    let (i, elem) = selfhost_for_item
+                    builder.global_get((*ctx).heap_ptr_global)
+                    ()
+                    builder.i32_const(aligned_size as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Sub)
+                    ()
+                    builder.i32_const(((i as u32 * element_size)) as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    (*_self).compile_expr(ctx, builder, elem)?
+                    ()
+                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                    ()
+                ()
+                builder.global_get((*ctx).heap_ptr_global)
+                ()
+                builder.i32_const(aligned_size as i32)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Sub)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Match { scrutinee: scrutinee, arms: arms, span: _ } =>
+                (*_self).compile_expr(ctx, builder, scrutinee)?
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                for selfhost_for_item in arms.iter().enumerate():
+                    let (i, arm) = selfhost_for_item
+                    let is_last = (i == (arms.len() - 1))
+                    match &arm.pattern:
+                        kain_core__ast__Pattern::Wildcard(_) =>
+                            (*_self).compile_expr(ctx, builder, &arm.body)?
+                            ()
+                        kain_core__ast__Pattern::Literal(lit_expr) =>
+                            builder.local_get((*ctx).tmp_i32)
+                            ()
+                            (*_self).compile_expr(ctx, builder, lit_expr)?
+                            ()
+                            builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                            ()
+                            builder.binop(walrus__ir__BinaryOp__I32Eq)
+                            ()
+                            if is_last:
+                                builder.if_else(none, fn(then_b): none, fn(_else_b): ())
+                                ()
+                            else:
+                                builder.if_else(none, fn(then_b): none, fn(_else_b): ())
+                                ()
+                        kain_core__ast__Pattern::Binding { name: name } =>
+                            match (*ctx).locals.get(name):
+                                Some(local_id) =>
+                                    builder.local_get((*ctx).tmp_i32)
+                                    ()
+                                    builder.unop(walrus__ir__UnaryOp__I64ExtendSI32)
+                                    ()
+                                    builder.local_set((*local_id))
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+                            (*_self).compile_expr(ctx, builder, &arm.body)?
+                            ()
+                        kain_core__ast__Pattern::Variant { variant: variant } =>
+                            builder.local_get((*ctx).tmp_i32)
+                            ()
+                            builder.load((*ctx).memory_id, walrus__ir__LoadKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                            ()
+                            let tag = (variant.len() as i32 % 256)
+                            builder.i32_const(tag)
+                            ()
+                            builder.binop(walrus__ir__BinaryOp__I32Eq)
+                            ()
+                            builder.if_else(none, fn(then_b): none, fn(_else_b): ())
+                            ()
+                        _ =>
+                            (*_self).compile_expr(ctx, builder, &arm.body)?
+                            ()
+                ()
+                ()
+            kain_core__ast__Expr::MacroCall { name: name, args: args, span: _ } =>
+                match name.as_str():
+                    "println" =>
+                        for arg in args:
+                            match arg:
+                                kain_core__ast__Expr::Int(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::Float(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_f64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::Bool(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_bool"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::String(s, _) =>
+                                    match (*ctx).string_table.get(s):
+                                        Some(offset) =>
+                                            builder.i32_const(((offset + 4)) as i32)
+                                            ()
+                                            builder.i32_const(s.len() as i32)
+                                            ()
+                                            match (*ctx).functions.get("print_str"):
+                                                Some(func_id) =>
+                                                    builder.call((*func_id))
+                                                    ()
+                                                _ => ()
+                                        _ => ()
+                                kain_core__ast__Expr::Ident(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                _ =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                        ()
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                    "print" =>
+                        for arg in args:
+                            match arg:
+                                kain_core__ast__Expr::Int(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::Float(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_f64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::Bool(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_bool"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                kain_core__ast__Expr::String(s, _) =>
+                                    match (*ctx).string_table.get(s):
+                                        Some(offset) =>
+                                            builder.i32_const(((offset + 4)) as i32)
+                                            ()
+                                            builder.i32_const(s.len() as i32)
+                                            ()
+                                            match (*ctx).functions.get("print_str"):
+                                                Some(func_id) =>
+                                                    builder.call((*func_id))
+                                                    ()
+                                                _ => ()
+                                        _ => ()
+                                kain_core__ast__Expr::Ident(_, _) =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                                _ =>
+                                    (*_self).compile_expr(ctx, builder, arg)?
+                                    ()
+                                    match (*ctx).functions.get("print_i64"):
+                                        Some(func_id) =>
+                                            builder.call((*func_id))
+                                            ()
+                                        _ => ()
+                        ()
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                    "dbg" =>
+                        match args.first():
+                            Some(arg) =>
+                                (*_self).compile_expr(ctx, builder, arg)?
+                                ()
+                                match (*ctx).functions.get("print_i64"):
+                                    Some(func_id) =>
+                                        builder.call((*func_id))
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                ()
+            kain_core__ast__Expr::Range { start: start, end: _, inclusive: _, span: _ } =>
+                match start:
+                    Some(start_expr) =>
+                        (*_self).compile_expr(ctx, builder, start_expr)?
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        builder.i64_const(0)
+                        ()
+                        ()
+                        ()
+                        ()
+                ()
+            kain_core__ast__Expr::Lambda { params: params, return_type: _, body: _, span: _ } =>
+                let param_count = params.len() as u32
+                let mut found_index = 0
+                for selfhost_for_item in (*ctx).lambda_table.iter():
+                    let (id_2, (table_idx, func_id_2)) = selfhost_for_item
+                    found_index = (*table_idx) as i32
+                    ()
+                    break
+                ()
+                builder.i32_const(found_index)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__Expr::Block(block, span_2) =>
+                for selfhost_for_item in block.stmts.iter().enumerate():
+                    let (i, stmt) = selfhost_for_item
+                    if (i < (block.stmts.len() - 1)):
+                        (*_self).compile_stmt(ctx, builder, stmt)?
+                        ()
+                    else:
+                        match stmt:
+                            kain_core__ast__Stmt::Expr(expr) =>
+                                (*_self).compile_expr(ctx, builder, expr)?
+                                ()
+                            _ =>
+                                (*_self).compile_stmt(ctx, builder, stmt)?
+                                ()
+                                builder.i64_const(0)
+                                ()
+                ()
+                if block.stmts.is_empty():
+                    builder.i64_const(0)
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            _ => ()
+        Result::Ok(())
+
+    fn compile_else_branch(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, branch: &kain_core::ast::ElseBranch) -> Result<(), KainError>:
+        match branch:
+            kain_core__ast__ElseBranch::Else(block) =>
+                let _ = (*_self).compile_block(ctx, builder, block)
+                ()
+            kain_core__ast__ElseBranch::ElseIf(cond, then, next_else) =>
+                (*_self).compile_expr(ctx, builder, cond)?
+                ()
+                builder.if_else(none, fn(then_builder): none, fn(else_builder): none)
+                ()
+                ()
+                ()
+                ()
+        Result::Ok(())
+
+    fn compile_jsx_node(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, node: &kain_core::ast::JSXNode) -> Result<(), KainError>:
+        match node:
+            kain_core__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>
+                for child in children:
+                    (*_self).compile_jsx_node(ctx, builder, child)?
+                    ()
+                ()
+                let child_count = children.len() as u32
+                let children_size = (4 + ((child_count * 4)))
+                (*_self).emit_alloc(ctx, builder, children_size)
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                for i in (range(0, child_count)).rev():
+                    builder.local_set((*ctx).tmp_i32_2)
+                    ()
+                    builder.local_get((*ctx).tmp_i32)
+                    ()
+                    builder.i32_const(((4 + (i * 4))) as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    builder.local_get((*ctx).tmp_i32_2)
+                    ()
+                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                    ()
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(child_count as i32)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                let props_count = attributes.len() as u32
+                for attr in attributes:
+                    match (*ctx).string_table.get(&attr.name):
+                        Some(offset) =>
+                            builder.i32_const(((offset + 4)) as i32)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            builder.i32_const(0)
+                            ()
+                            ()
+                            ()
+                            ()
+                    match &attr.value:
+                        kain_core__ast__JSXAttrValue::String(s) =>
+                            match (*ctx).string_table.get(s):
+                                Some(offset) =>
+                                    builder.i32_const(((offset + 4)) as i32)
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    builder.i32_const(0)
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                            builder.unop(walrus__ir__UnaryOp__I64ExtendUI32)
+                            ()
+                        kain_core__ast__JSXAttrValue::Expr(e) =>
+                            (*_self).compile_expr(ctx, builder, e)?
+                            ()
+                        kain_core__ast__JSXAttrValue::Bool(b) =>
+                            builder.i64_const(if (*b): 1 else: 0)
+                            ()
+                ()
+                let props_item_size = 12
+                let props_size = (4 + ((props_count * props_item_size)))
+                (*_self).emit_alloc(ctx, builder, props_size)
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                for i in (range(0, props_count)).rev():
+                    builder.local_set((*ctx).tmp_i64)
+                    ()
+                    builder.local_set((*ctx).tmp_i32_2)
+                    ()
+                    builder.local_get((*ctx).tmp_i32)
+                    ()
+                    builder.i32_const(((4 + (i * props_item_size))) as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    builder.local_get((*ctx).tmp_i32_2)
+                    ()
+                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                    ()
+                    builder.local_get((*ctx).tmp_i32)
+                    ()
+                    builder.i32_const((((4 + (i * props_item_size)) + 4)) as i32)
+                    ()
+                    builder.binop(walrus__ir__BinaryOp__I32Add)
+                    ()
+                    builder.local_get((*ctx).tmp_i64)
+                    ()
+                    builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: 0 })
+                    ()
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(props_count as i32)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                (*_self).emit_alloc(ctx, builder, 16)
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                builder.local_set((*ctx).tmp_i32_2)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(8)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                builder.local_get((*ctx).tmp_i32_2)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                builder.local_set((*ctx).tmp_i32_2)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(12)
+                ()
+                builder.binop(walrus__ir__BinaryOp__I32Add)
+                ()
+                builder.local_get((*ctx).tmp_i32_2)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(1)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                let tag_ptr = match (*ctx).string_table.get(tag):
+                    Some(offset) => (offset + 4)
+                    _ => 0
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(tag_ptr as i32)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 4 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__JSXNode::Text(s, _) =>
+                (*_self).emit_alloc(ctx, builder, 16)
+                ()
+                builder.local_set((*ctx).tmp_i32)
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(0)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 0 })
+                ()
+                let text_ptr = match (*ctx).string_table.get(s):
+                    Some(offset) => (offset + 4)
+                    _ => 0
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                builder.i32_const(text_ptr as i32)
+                ()
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: 12 })
+                ()
+                builder.local_get((*ctx).tmp_i32)
+                ()
+                ()
+                ()
+                ()
+            kain_core__ast__JSXNode::Expression(e) =>
+                (*_self).compile_expr(ctx, builder, e)?
+                ()
+                builder.unop(walrus__ir__UnaryOp__I32WrapI64)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                builder.i32_const(0)
+                ()
+                ()
+                ()
+                ()
+        Result::Ok(())
+
+    fn emit_store_for_expr(_self: &WasmCompiler, ctx: &CompilationContext, builder: &mut walrus::InstrSeqBuilder, expr: &kain_core::ast::Expr, offset: u32):
+        match expr:
+            kain_core__ast__Expr::Int(_, _) =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: offset })
+                ()
+            kain_core__ast__Expr::Float(_, _) =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind__F64, walrus::ir::MemArg { align: 8, offset: offset })
+                ()
+            kain_core__ast__Expr::Bool(_, _) =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: offset })
+                ()
+            kain_core__ast__Expr::String(_, _) =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I32 { atomic: false }, walrus::ir::MemArg { align: 4, offset: offset })
+                ()
+            _ =>
+                builder.store((*ctx).memory_id, walrus__ir__StoreKind::I64 { atomic: false }, walrus::ir::MemArg { align: 8, offset: offset })
+                ()
+
+

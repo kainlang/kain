@@ -1,0 +1,200 @@
+use std::env
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use config::load_host_config
+
+use config::Fast3dHostAction
+
+use config::Fast3dHostConfig
+
+use config::ResolvedFast3dHostAction
+
+use extractor::extract_sm64_level_chunk_scene
+
+use extractor::extract_sm64_title_face_scene
+
+use host_documents::Fast3dGameplayStateDocument
+
+use host_documents::Fast3dShaderOverrideDocument
+
+use runtime::Fast3dRuntime
+
+use runtime::FreeCameraPose
+
+use runtime::OrbitControls
+
+use viewer::launch_viewer
+
+use viewer::write_snapshot_png
+
+use viewer::FreeFlyControls
+
+pub const KAIN_FAST3D_CONFIG_ENV: String = "KAIN_FAST3D_CONFIG"
+
+pub const KAIN_FAST3D_MANIFEST_ENV: String = "KAIN_FAST3D_MANIFEST"
+
+pub const KAIN_FAST3D_DEFAULT_MANIFEST: String = "scene_manifest.json"
+
+pub const KAIN_FAST3D_DEFAULT_TITLE_FACE_MANIFEST: String = "scene_manifest_title_face.json"
+
+pub fn run_fast3d_cli() -> Result<(), Box<impl Error>>:
+    let mut args = std__env__args().skip(1)
+    let Some(first_argument) = args.next()
+    if (first_argument == "--config"):
+        let config_path = args.next().map(PathBuf__from).ok_or("expected path after --config")?
+        match args.next():
+            Some(argument) => return Result::Err((f"unrecognized argument `{argument}` after --config").into())
+            _ =>
+                ()
+                ()
+        return execute_host_config_path(&config_path)
+    if (first_argument == "--extract-sm64-title-face"):
+        let sm64_root = args.next().map(PathBuf__from).ok_or("expected SM64 source root after --extract-sm64-title-face")?
+        let mut manifest_out = PathBuf__from(KAIN_FAST3D_DEFAULT_TITLE_FACE_MANIFEST)
+        loop:
+            match args.next():
+                Some(argument) =>
+                    match argument.as_str():
+                        "--manifest-out" =>
+                            let value = args.next().ok_or("expected path after --manifest-out")?
+                            manifest_out = PathBuf__from(value)
+                            ()
+                        other => return Result::Err((f"unrecognized extractor argument `{other}`").into())
+                _ => break
+        ()
+        extractor__extract_sm64_title_face_scene(&sm64_root, &manifest_out)?
+        ()
+        println(f"Wrote extracted SM64 title-face scene manifest to {manifest_out.display()}")
+        return Result::Ok(())
+    if (first_argument == "--extract-sm64-level-chunk"):
+        let sm64_root = args.next().map(PathBuf__from).ok_or("expected SM64 source root after --extract-sm64-level-chunk")?
+        let mut level_name = ("bob").to_string()
+        let mut area_id = 1
+        let mut manifest_out = PathBuf__from("scene_manifest_level_chunk.json")
+        loop:
+            match args.next():
+                Some(argument) =>
+                    match argument.as_str():
+                        "--level" =>
+                            level_name = args.next().ok_or("expected level name after --level")?
+                            ()
+                        "--area" =>
+                            let value = args.next().ok_or("expected area id after --area")?
+                            area_id = value.parse().map_err(fn(_): "area id must be a positive integer")?
+                            ()
+                        "--manifest-out" =>
+                            let value = args.next().ok_or("expected path after --manifest-out")?
+                            manifest_out = PathBuf__from(value)
+                            ()
+                        other => return Result::Err((f"unrecognized level-chunk extractor argument `{other}`").into())
+                _ => break
+        ()
+        extractor__extract_sm64_level_chunk_scene(&sm64_root, &level_name, area_id, &manifest_out)?
+        ()
+        println(f"Wrote extracted SM64 {level_name} area {area_id} level chunk manifest to {manifest_out.display()}")
+        return Result::Ok(())
+    let manifest_path = PathBuf__from(first_argument)
+    let mut snapshot_path = none
+    let mut snapshot_time_seconds = 0
+    loop:
+        match args.next():
+            Some(argument) =>
+                match argument.as_str():
+                    "--snapshot" =>
+                        let value = args.next().ok_or("expected path after --snapshot")?
+                        snapshot_path = Option::Some(PathBuf__from(value))
+                        ()
+                    "--time-seconds" =>
+                        let value = args.next().ok_or("expected value after --time-seconds")?
+                        snapshot_time_seconds = value.parse()?
+                        ()
+                    other => return Result::Err((f"unrecognized argument `{other}`").into())
+            _ => break
+    ()
+    let runtime = Fast3dRuntime__load_from_path(&manifest_path)?
+    match snapshot_path:
+        Some(snapshot_path) =>
+            let frame = runtime.render_frame(snapshot_time_seconds, &OrbitControls__default_(), none)?
+            viewer__write_snapshot_png(&snapshot_path, &frame)?
+            ()
+            println(f"Wrote Fast3D snapshot to {snapshot_path.display()} ({frame.width}x{frame.height})")
+            return Result::Ok(())
+        _ =>
+            ()
+            ()
+    viewer__launch_viewer(manifest_path, runtime, none, none)?
+    ()
+    Result::Ok(())
+
+fn resolve_default_manifest_path() -> std::path::PathBuf:
+    std__env__var_os(KAIN_FAST3D_MANIFEST_ENV).map(PathBuf__from).unwrap_or_else(fn(): PathBuf__from(KAIN_FAST3D_DEFAULT_MANIFEST))
+
+pub fn execute_host_config_path(config_path: &std::path::Path) -> Result<(), Box<impl Error>>:
+    let config = config__load_host_config(config_path)?
+    match (config.resolve(config_path)?):
+        config__ResolvedFast3dHostAction::Viewer { manifest_path: manifest_path, gameplay_state_path: gameplay_state_path, shader_overrides_path: shader_overrides_path } =>
+            let mut runtime = Fast3dRuntime__load_from_path(&manifest_path)?
+            let gameplay_state = gameplay_state_path.map(Fast3dGameplayStateDocument__load_from_path).transpose()?
+            let shader_overrides = shader_overrides_path.map(Fast3dShaderOverrideDocument__load_from_path).transpose()?
+            match shader_overrides:
+                Some(shader_overrides_document) =>
+                    runtime.apply_shader_overrides(shader_overrides_document)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            viewer__launch_viewer(manifest_path, runtime, gameplay_state, shader_overrides)?
+            ()
+            ()
+            ()
+            ()
+        config__ResolvedFast3dHostAction::Snapshot { manifest_path: manifest_path, output_path: output_path, time_seconds: time_seconds, gameplay_state_path: gameplay_state_path, shader_overrides_path: shader_overrides_path } =>
+            let mut runtime = Fast3dRuntime__load_from_path(&manifest_path)?
+            match gameplay_state_path:
+                Some(gameplay_state_path) =>
+                    let gameplay_state = Fast3dGameplayStateDocument__load_from_path(gameplay_state_path)?
+                    runtime.apply_gameplay_state(time_seconds, &gameplay_state)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match shader_overrides_path:
+                Some(shader_overrides_path) =>
+                    let shader_overrides = Fast3dShaderOverrideDocument__load_from_path(shader_overrides_path)?
+                    runtime.apply_shader_overrides(&shader_overrides)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            let frame = runtime.render_frame(time_seconds, &OrbitControls__default_(), none)?
+            viewer__write_snapshot_png(&output_path, &frame)?
+            ()
+            println(f"Wrote Fast3D snapshot to {output_path.display()} ({frame.width}x{frame.height})")
+            ()
+            ()
+        config__ResolvedFast3dHostAction::ExtractSm64TitleFace { sm64_source_root: sm64_source_root, manifest_output_path: manifest_output_path } =>
+            extractor__extract_sm64_title_face_scene(&sm64_source_root, &manifest_output_path)?
+            ()
+            println(f"Wrote extracted SM64 title-face scene manifest to {manifest_output_path.display()}")
+            ()
+            ()
+        config__ResolvedFast3dHostAction::ExtractSm64LevelChunk { sm64_source_root: sm64_source_root, level_name: level_name, area_id: area_id, manifest_output_path: manifest_output_path } =>
+            extractor__extract_sm64_level_chunk_scene(&sm64_source_root, &level_name, area_id, &manifest_output_path)?
+            ()
+            println(f"Wrote extracted SM64 {level_name} area {area_id} level chunk manifest to {manifest_output_path.display()}")
+            ()
+            ()
+    Result::Ok(())
+

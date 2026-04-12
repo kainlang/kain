@@ -1,0 +1,420 @@
+use crate::attribute_set_ir::AttributeIR
+
+use crate::attribute_set_ir::AttributeSetIR
+
+use crate::attribute_set_ir::DelegateIR
+
+use kain_core::error::KainResult
+
+@doc(doc = " Output structure for attribute set codegen")
+@derive(Debug, Clone)
+pub struct AttributeSetOutput:
+    header: String
+    source: String
+
+@doc(doc = " Generate complete C++ code for an attribute set")
+pub fn generate(ir: &AttributeSetIR, plugin_name: String) -> Result<AttributeSetOutput, KainError>:
+    let class_name = f"U{(*ir).name}"
+    let header = generate_header(ir, &class_name, plugin_name)?
+    let source = generate_source(ir, &class_name, plugin_name)?
+    Result::Ok(AttributeSetOutput { header: header, source: source })
+
+@doc(doc = " Generate header file (.h)")
+fn generate_header(ir: &AttributeSetIR, class_name: String, _plugin_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&"#pragma once\n\n")
+    ()
+    output.push_str("#include \"CoreMinimal.h\"\n")
+    ()
+    output.push_str("#include \"AttributeSet.h\"\n")
+    ()
+    output.push_str("#include \"AbilitySystemComponent.h\"\n")
+    ()
+    output.push_str(&f"#include \"{(*ir).name}.generated.h\"\n\n")
+    ()
+    for delegate in &(*ir).delegates:
+        output.push_str(&generate_delegate_declaration(&delegate)?)
+        ()
+    ()
+    if (!(*ir).delegates.is_empty()):
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    output.push_str(&"UCLASS(MinimalAPI, BlueprintType)\n")
+    ()
+    output.push_str(&f"class {class_name} : public UAttributeSet\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tGENERATED_BODY()\n\n")
+    ()
+    output.push_str("public:\n")
+    ()
+    output.push_str(&f"\t{class_name}();\n\n")
+    ()
+    for attr in &(*ir).attributes:
+        output.push_str(&f"\tATTRIBUTE_ACCESSORS({class_name}, {capitalize_first(&attr.name)});\n")
+        ()
+    ()
+    output.push_str("\n")
+    ()
+    if (*ir).attributes.iter().any(fn(a): a.replicated):
+        output.push_str("\tvirtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).delegates.is_empty()):
+        output.push_str("\t// Delegates\n")
+        ()
+        for delegate in &(*ir).delegates:
+            output.push_str(&f"\t{delegate.delegate_type} {capitalize_first(&delegate.name)};\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    output.push_str("protected:\n")
+    ()
+    for attr in &(*ir).attributes:
+        if attr.rep_notify:
+            output.push_str(&"\tUFUNCTION()\n")
+            ()
+            output.push_str(&f"\tvoid OnRep_{capitalize_first(&attr.name)}(const FGameplayAttributeData& OldValue);\n\n")
+            ()
+    ()
+    if (*ir).lifecycle_hooks.pre_gameplay_effect_execute.is_some():
+        output.push_str("\tvirtual bool PreGameplayEffectExecute(FGameplayEffectModCallbackData& Data) override;\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.post_gameplay_effect_execute.is_some():
+        output.push_str("\tvirtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.pre_attribute_change.is_some():
+        output.push_str("\tvirtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.post_attribute_change.is_some():
+        output.push_str("\tvirtual void PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;\n")
+        ()
+        ()
+        ()
+        ()
+    if ((((*ir).lifecycle_hooks.pre_gameplay_effect_execute.is_some() || (*ir).lifecycle_hooks.post_gameplay_effect_execute.is_some()) || (*ir).lifecycle_hooks.pre_attribute_change.is_some()) || (*ir).lifecycle_hooks.post_attribute_change.is_some()):
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    output.push_str("private:\n")
+    ()
+    for attr in &(*ir).attributes:
+        output.push_str(&generate_attribute_property(attr, class_name)?)
+        ()
+    ()
+    output.push_str("};\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate source file (.cpp)")
+fn generate_source(ir: &AttributeSetIR, class_name: String, _plugin_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"#include \"{(*ir).name}.h\"\n")
+    ()
+    output.push_str("#include \"Net/UnrealNetwork.h\"\n")
+    ()
+    output.push_str("#include \"GameplayEffectExtension.h\"\n\n")
+    ()
+    output.push_str(&generate_constructor(ir, class_name)?)
+    ()
+    output.push_str("\n")
+    ()
+    if (*ir).attributes.iter().any(fn(a): a.replicated):
+        output.push_str(&generate_replication_function(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    for attr in &(*ir).attributes:
+        if attr.rep_notify:
+            output.push_str(&generate_rep_notify_function(attr, class_name)?)
+            ()
+            output.push_str("\n")
+            ()
+    ()
+    match (*ir).lifecycle_hooks.pre_gameplay_effect_execute:
+        Some(hook) =>
+            output.push_str(&generate_pre_gameplay_effect_execute(ir, class_name, hook)?)
+            ()
+            output.push_str("\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match (*ir).lifecycle_hooks.post_gameplay_effect_execute:
+        Some(hook) =>
+            output.push_str(&generate_post_gameplay_effect_execute(ir, class_name, hook)?)
+            ()
+            output.push_str("\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match (*ir).lifecycle_hooks.pre_attribute_change:
+        Some(hook) =>
+            output.push_str(&generate_pre_attribute_change(ir, class_name, hook)?)
+            ()
+            output.push_str("\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match (*ir).lifecycle_hooks.post_attribute_change:
+        Some(hook) =>
+            output.push_str(&generate_post_attribute_change(ir, class_name, hook)?)
+            ()
+            output.push_str("\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(output)
+
+@doc(doc = " Generate delegate declaration")
+fn generate_delegate_declaration(delegate: &DelegateIR) -> Result<String, KainError>:
+    Result::Ok(f"DECLARE_DYNAMIC_MULTICAST_DELEGATE_SixParams({(*delegate).delegate_type}, AActor*, Instigator, AActor*, Causer, const FGameplayEffectSpec&, EffectSpec, float, Magnitude, float, OldValue, float, NewValue);\n")
+
+@doc(doc = " Generate UPROPERTY for an attribute")
+fn generate_attribute_property(attr: &AttributeIR, _class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    let mut specifiers = [("BlueprintReadOnly").to_string()]
+    if ((*attr).replicated && (*attr).rep_notify):
+        specifiers.push(f"ReplicatedUsing = OnRep_{capitalize_first(&(*attr).name)}")
+        ()
+        ()
+        ()
+        ()
+    specifiers.push(f"Category = \"{(*attr).category}\"")
+    ()
+    let mut meta_specs = [("AllowPrivateAccess = true").to_string()]
+    if (*attr).hide_from_modifiers:
+        meta_specs.push(("HideFromModifiers").to_string())
+        ()
+        ()
+        ()
+        ()
+    specifiers.push("Meta = ({meta_specs.join(\", \")})")
+    ()
+    output.push_str(&"\tUPROPERTY({specifiers.join(\", \")})\n")
+    ()
+    output.push_str(&f"\tFGameplayAttributeData {capitalize_first(&(*attr).name)};\n\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate constructor")
+fn generate_constructor(ir: &AttributeSetIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"{class_name}::{class_name}()\n")
+    ()
+    output.push_str("{\n")
+    ()
+    for attr in &(*ir).attributes:
+        match attr.default_value:
+            Some(default_val) =>
+                output.push_str(&f"\t{capitalize_first(&attr.name)} = {default_val}f;\n")
+                ()
+            _ => ()
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate GetLifetimeReplicatedProps")
+fn generate_replication_function(ir: &AttributeSetIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::GetLifetimeReplicatedProps(OutLifetimeProps);\n\n")
+    ()
+    for attr in &(*ir).attributes:
+        if attr.replicated:
+            if attr.rep_notify:
+                output.push_str(&f"\tDOREPLIFETIME_CONDITION_NOTIFY({class_name}, {capitalize_first(&attr.name)}, COND_None, REPNOTIFY_Always);\n")
+                ()
+            else:
+                output.push_str(&f"\tDOREPLIFETIME({class_name}, {capitalize_first(&attr.name)});\n")
+                ()
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate RepNotify function")
+fn generate_rep_notify_function(attr: &AttributeIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    let attr_name = capitalize_first(&(*attr).name)
+    output.push_str(&f"void {class_name}::OnRep_{attr_name}(const FGameplayAttributeData& OldValue)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str(&f"\tGAMEPLAYATTRIBUTE_REPNOTIFY({class_name}, {attr_name}, OldValue);\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate PreGameplayEffectExecute")
+fn generate_pre_gameplay_effect_execute(_ir: &AttributeSetIR, class_name: String, _hook: &attribute_set_ir::FunctionIR) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"bool {class_name}::PreGameplayEffectExecute(FGameplayEffectModCallbackData& Data)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tif (!Super::PreGameplayEffectExecute(Data))\n")
+    ()
+    output.push_str("\t{\n")
+    ()
+    output.push_str("\t\treturn false;\n")
+    ()
+    output.push_str("\t}\n\n")
+    ()
+    output.push_str("\t// TODO: Implement PreGameplayEffectExecute logic\n")
+    ()
+    output.push_str("\t// Generated from KAIN lifecycle hook\n\n")
+    ()
+    output.push_str("\treturn true;\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate PostGameplayEffectExecute")
+fn generate_post_gameplay_effect_execute(ir: &AttributeSetIR, class_name: String, _hook: &attribute_set_ir::FunctionIR) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::PostGameplayEffectExecute(Data);\n\n")
+    ()
+    let meta_attrs: Array<_> = (*ir).attributes.iter().filter(fn(a): a.is_meta).collect()
+    if (!meta_attrs.is_empty()):
+        for attr in meta_attrs:
+            let attr_name = capitalize_first(&attr.name)
+            output.push_str(&f"\tif (Data.EvaluatedData.Attribute == Get{attr_name}Attribute())\n")
+            ()
+            output.push_str("\t{\n")
+            ()
+            output.push_str(&f"\t\t// Handle {attr.name} meta attribute\n")
+            ()
+            output.push_str(&f"\t\tconst float {attr.name}Value = Get{attr_name}();\n")
+            ()
+            output.push_str(&f"\t\tSet{attr_name}(0.0f); // Reset meta attribute\n")
+            ()
+            output.push_str("\t\t// TODO: Apply effect based on meta attribute value\n")
+            ()
+            output.push_str("\t}\n\n")
+            ()
+        ()
+        ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate PreAttributeChange")
+fn generate_pre_attribute_change(ir: &AttributeSetIR, class_name: String, _hook: &attribute_set_ir::FunctionIR) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::PreAttributeChange(Attribute, NewValue);\n\n")
+    ()
+    for attr in &(*ir).attributes:
+        if (attr.clamp_min.is_some() || attr.clamp_max.is_some()):
+            let attr_name = capitalize_first(&attr.name)
+            output.push_str(&f"\tif (Attribute == Get{attr_name}Attribute())\n")
+            ()
+            output.push_str("\t{\n")
+            ()
+            match (attr.clamp_min, attr.clamp_max):
+                (Some(min), Some(max)) =>
+                    output.push_str(&f"\t\tNewValue = FMath::Clamp(NewValue, {min}f, {max}f);\n")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    match attr.clamp_min:
+                        Some(min) =>
+                            output.push_str(&f"\t\tNewValue = FMath::Max(NewValue, {min}f);\n")
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            match attr.clamp_max:
+                                Some(max) =>
+                                    output.push_str(&f"\t\tNewValue = FMath::Min(NewValue, {max}f);\n")
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+            output.push_str("\t}\n")
+            ()
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate PostAttributeChange")
+fn generate_post_attribute_change(_ir: &AttributeSetIR, class_name: String, _hook: &attribute_set_ir::FunctionIR) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::PostAttributeChange(Attribute, OldValue, NewValue);\n\n")
+    ()
+    output.push_str("\t// TODO: Implement PostAttributeChange logic\n")
+    ()
+    output.push_str("\t// Generated from KAIN lifecycle hook\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Capitalize first letter of a string and convert snake_case to PascalCase")
+fn capitalize_first(s: String) -> String:
+    s.split("_").map(fn(word): none).collect()
+

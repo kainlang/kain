@@ -1,0 +1,628 @@
+use crate::shader_knowledge::ShaderKnowledge
+
+use crate::type_mapping::TYPE_MAPPER
+
+use kain_core::ast::ShaderStage
+
+use kain_core::ast::Type
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedProgram
+
+use kain_core::types::TypedShader
+
+use kain_core::types::TypedStruct
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+pub enum UniformClass:
+    Scalar
+    Texture
+    UAV
+
+@doc(doc = " Classify a uniform type based on its resource binding semantics")
+@doc(doc = "")
+@doc(doc = " This function determines how the @N annotation should be interpreted:")
+@doc(doc = " - Scalar types: @N is an ordering index (no register binding)")
+@doc(doc = " - Texture types: @N is a t-register binding")
+@doc(doc = " - UAV types: @N is a u-register binding")
+@doc(doc = "")
+@doc(doc = " # Parameters")
+@doc(doc = " - `type_name`: The KAIN type name (e.g., \"Vec3\", \"Texture2D\", \"RWBuffer\")")
+@doc(doc = "")
+@doc(doc = " # Returns")
+@doc(doc = " The classification of the uniform type")
+@doc(doc = "")
+@doc(doc = " # Classification Rules")
+@doc(doc = "")
+@doc(doc = " **Scalar** (ordering index only):")
+@doc(doc = " - Primitive types: Float, Int, UInt, Bool")
+@doc(doc = " - Vector types: Vec2, Vec3, Vec4, IVec2, IVec3, IVec4, UVec2, UVec3, UVec4")
+@doc(doc = " - Matrix types: Mat2, Mat3, Mat4")
+@doc(doc = " - Lowercase HLSL variants: float, int, uint, bool, float2-4, int2-4, uint2-4")
+@doc(doc = " - User-defined structs (any type not matching Texture or UAV patterns)")
+@doc(doc = "")
+@doc(doc = " **Texture** (t-register binding, range 0-127):")
+@doc(doc = " - Texture types: Texture1D, Texture2D, Texture3D, TextureCube")
+@doc(doc = " - Texture arrays: Texture1DArray, Texture2DArray, TextureCubeArray")
+@doc(doc = " - Multisampled: Texture2DMS, Texture2DMSArray")
+@doc(doc = " - Sampler types: Sampler, SamplerState, SamplerComparisonState, Sampler1D, Sampler2D, Sampler3D, SamplerCube")
+@doc(doc = " - Buffer types: Buffer, StructuredBuffer, ByteAddressBuffer")
+@doc(doc = "")
+@doc(doc = " **UAV** (u-register binding, range 0-63):")
+@doc(doc = " - RW-prefixed types: RWBuffer, RWStructuredBuffer, RWByteAddressBuffer")
+@doc(doc = " - RW textures: RWTexture1D, RWTexture2D, RWTexture3D")
+@doc(doc = " - RW texture arrays: RWTexture1DArray, RWTexture2DArray")
+@doc(doc = " - Typed RW textures: RWTexture2D_Float, RWTexture2D_Float2, RWTexture2D_Float3, RWTexture2D_Int, RWTexture2D_UInt")
+pub fn classify_uniform_type(type_name: String) -> UniformClass:
+    if type_name.starts_with("RW"):
+        return UniformClass__UAV
+    if type_name.starts_with("Texture"):
+        return UniformClass__Texture
+    if type_name.contains("Sampler"):
+        return UniformClass__Texture
+    match type_name:
+        "Buffer" => return UniformClass__Texture
+        "StructuredBuffer" => return UniformClass__Texture
+        "ByteAddressBuffer" => return UniformClass__Texture
+        _ => ()
+    UniformClass__Scalar
+
+@doc(doc = " Shader validator - validates shaders against HLSL/UE5 rules")
+pub struct ShaderValidator:
+    hlsl_keywords: Set<String>
+    cpp_keywords: Set<String>
+    knowledge: ShaderKnowledge
+
+impl ShaderValidator:
+    pub fn new_() -> ShaderValidator:
+        let mut validator = ShaderValidator { hlsl_keywords: HashSet__new_(), cpp_keywords: HashSet__new_(), knowledge: ShaderKnowledge__new_() }
+        let _ = validator.load_shader_knowledge()
+        validator.load_cpp_keywords()
+        ()
+        validator
+
+    fn load_shader_knowledge(_self: &mut ShaderValidator) -> Result<(), String>:
+        let json_data = include_str!("../../../unreal/metadata/shader_knowledge.json")
+        match (*_self).knowledge.load(json_data):
+            Err(e) => ()
+            _ =>
+                ()
+                ()
+        match (*_self).load_hlsl_keywords(json_data):
+            Err(e) =>
+                (*_self).load_minimal_hlsl_keywords()
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+    fn load_minimal_hlsl_keywords(_self: &mut ShaderValidator):
+        let keywords = ["if", "else", "for", "while", "do", "switch", "case", "default", "break", "continue", "return", "discard", "const", "static", "uniform", "extern", "precise", "shared", "groupshared", "volatile", "row_major", "column_major", "in", "out", "inout", "nointerpolation", "linear", "centroid", "noperspective", "sample", "point", "line", "triangle", "vertex", "pixel", "geometry", "hull", "domain", "compute"]
+        for kw in keywords:
+            (*_self).hlsl_keywords.insert(kw.to_string())
+            ()
+
+    fn load_cpp_keywords(_self: &mut ShaderValidator):
+        let keywords = ["class", "namespace", "template", "typename", "using", "public", "private", "protected", "friend", "virtual", "explicit", "operator", "this", "new", "delete", "try", "catch", "throw", "nullptr", "auto", "decltype", "constexpr", "noexcept", "alignas", "alignof", "static_assert", "thread_local", "mutable", "std", "string", "vector", "map", "set", "list", "array", "pair", "tuple", "function", "bind"]
+        for kw in keywords:
+            (*_self).cpp_keywords.insert(kw.to_string())
+            ()
+        ()
+        let ue5_macros = ["UPROPERTY", "UFUNCTION", "UCLASS", "USTRUCT", "UENUM", "GENERATED_BODY", "GENERATED_UCLASS_BODY", "TEXT", "LOCTEXT", "NSLOCTEXT", "check", "checkf", "ensure", "verify"]
+        for macro_name in ue5_macros:
+            (*_self).cpp_keywords.insert(macro_name.to_string())
+            ()
+            (*_self).cpp_keywords.insert(macro_name.to_lowercase())
+            ()
+
+    fn load_hlsl_keywords(_self: &mut ShaderValidator, json_data: String) -> Result<(), String>:
+        let value: serde_json::Value = serde_json__from_str(json_data).map_err(fn(e): f"Failed to parse shader knowledge JSON: {e_2}")?
+        match value.get("hlsl_keywords"):
+            Some(keywords_obj) =>
+                match keywords_obj.get("control_flow").and_then(fn(v): v.as_array()):
+                    Some(control_flow) =>
+                        for kw in control_flow:
+                            match kw.as_str():
+                                Some(s) =>
+                                    (*_self).hlsl_keywords.insert(s.to_string())
+                                    ()
+                                _ => ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match keywords_obj.get("type_qualifiers").and_then(fn(v): v.as_array()):
+                    Some(type_quals) =>
+                        for kw in type_quals:
+                            match kw.as_str():
+                                Some(s) =>
+                                    (*_self).hlsl_keywords.insert(s.to_string())
+                                    ()
+                                _ => ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match keywords_obj.get("parameter_qualifiers").and_then(fn(v): v.as_array()):
+                    Some(param_quals) =>
+                        for kw in param_quals:
+                            match kw.as_str():
+                                Some(s) =>
+                                    (*_self).hlsl_keywords.insert(s.to_string())
+                                    ()
+                                _ => ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match keywords_obj.get("function_qualifiers").and_then(fn(v): v.as_array()):
+                    Some(func_quals) =>
+                        for kw in func_quals:
+                            match kw.as_str():
+                                Some(s) =>
+                                    (*_self).hlsl_keywords.insert(s.to_string())
+                                    ()
+                                _ => ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match keywords_obj.get("shader_stages").and_then(fn(v): v.as_array()):
+                    Some(stages) =>
+                        for kw in stages:
+                            match kw.as_str():
+                                Some(s) =>
+                                    (*_self).hlsl_keywords.insert(s.to_string())
+                                    ()
+                                _ => ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+    pub fn validate_shader(_self: &mut ShaderValidator, shader_: &kain_core::types::TypedShader, program: Option<&kain_core::types::TypedProgram>) -> Result<(), Array<String>>:
+        let mut errors = Vec__new_()
+        (*_self).validate_uniforms(shader_, program, &mut errors)
+        ()
+        (*_self).validate_pod_structs(shader_, program, &mut errors)
+        ()
+        (*_self).validate_hlsl_syntax(shader_, &mut errors)
+        ()
+        (*_self).validate_bindings(shader_, &mut errors)
+        ()
+        if errors.is_empty():
+            Result::Ok(())
+        else:
+            Result::Err(errors)
+
+    fn validate_uniforms(_self: &mut ShaderValidator, shader_: &kain_core::types::TypedShader, program: Option<&kain_core::types::TypedProgram>, errors: &mut Array<String>):
+        let shader_name = &(*shader_).ast.name
+        for uniform_ in &(*shader_).ast.uniforms:
+            let uniform_name = &uniform_.name
+            (*_self).validate_uniform_type(shader_name, uniform_name, &uniform_.ty, program, errors)
+            ()
+            (*_self).validate_binding_range(shader_name, uniform_name, &uniform_.ty, uniform_.binding, errors)
+            ()
+            (*_self).validate_permutation_naming(shader_name, uniform_name, &uniform_.ty, errors)
+            ()
+
+    fn validate_uniform_type(_self: &ShaderValidator, shader_name: String, uniform_name: String, ty: &kain_core::ast::Type, program: Option<&kain_core::types::TypedProgram>, errors: &mut Array<String>):
+        match ty:
+            kain_core__ast__Type::Named { name: name } =>
+                let type_name = name.as_str()
+                if ((type_name == "String") || (type_name == "string")):
+                    errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' has String type.\n\nProblem: String types cannot be passed to GPU shaders.\n  • Shaders run on GPU hardware which doesn't support dynamic strings\n  • HLSL has no string type - only numeric types, vectors, matrices, textures, buffers\n\nHow to fix:\n  1. Use numeric indices instead of strings\n     ❌ uniform texture_name: String @0\n     ✅ uniform texture_index: Int @0\n  \n  2. Use texture/sampler types directly\n     ❌ uniform albedo_path: String @0\n     ✅ uniform albedo_map: Sampler2D @1\n  \n  3. For text rendering, use texture atlases with character indices\n     ✅ uniform font_atlas: Texture2D @0\n     ✅ uniform char_index: Int @1\n  \n  4. For debug output, use numeric codes\n     ✅ uniform debug_mode: Int @0  # 0=off, 1=normals, 2=uvs\n\nValid shader uniform types:\n  • Scalars: Int, UInt, Float, Bool\n  • Vectors: Vec2, Vec3, Vec4 (and IVec*, UVec* variants)\n  • Matrices: Mat2, Mat3, Mat4\n  • Textures: Texture2D, Texture3D, TextureCube, Sampler2D\n  • Buffers: Buffer<T>, RWBuffer<T>, StructuredBuffer<T>\n  • User-defined POD structs (no strings inside)\n\nDocumentation: https://kain.dev/docs/shaders/types")
+                    ()
+                    return
+                if type_mapping__TYPE_MAPPER.can_map(type_name):
+                    return
+                let additional_hlsl_types = ["float", "float2", "float3", "float4", "int", "int2", "int3", "int4", "uint", "uint2", "uint3", "uint4", "bool", "bool2", "bool3", "bool4", "half", "half2", "half3", "half4", "double", "double2", "double3", "double4", "float2x2", "float3x3", "float4x4", "float3x4", "float4x3", "Texture1D", "Texture2D", "Texture3D", "TextureCube", "Texture1DArray", "Texture2DArray", "TextureCubeArray", "Texture2DMS", "Texture2DMSArray", "Sampler", "SamplerState", "SamplerComparisonState", "Sampler1D", "Buffer", "StructuredBuffer", "ByteAddressBuffer", "RWBuffer", "RWStructuredBuffer", "RWByteAddressBuffer", "RWTexture1D", "RWTexture1DArray", "RWTexture2DArray", "Image2D", "Image3D", "RWTexture2D_Float", "RWTexture2D_Float2", "RWTexture2D_Float3", "RWTexture2D_Int", "RWTexture2D_UInt"]
+                if additional_hlsl_types.contains(&type_name):
+                    return
+                let is_user_struct = program.map_or(false, fn(p): p.items.iter().any(fn(item): none))
+                if is_user_struct:
+                    return
+                let valid_kain_types = type_mapping__TYPE_MAPPER.valid_types()
+                let valid_types_list = valid_kain_types.join(", ")
+                errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' has invalid HLSL type '{type_name}'. Valid KAIN types: {valid_types_list}. Also supported: lowercase HLSL types (float, int, uint, etc.), texture types (Texture2D, etc.), sampler types (SamplerState, etc.), buffer types (RWBuffer, etc.), and user-defined structs.")
+                ()
+            _ =>
+                errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' has invalid type. Uniforms must be named types (scalars, vectors, textures, samplers, buffers).")
+                ()
+
+    fn validate_binding_range(_self: &ShaderValidator, shader_name: String, uniform_name: String, ty: &kain_core::ast::Type, binding: u32, errors: &mut Array<String>):
+        match ty:
+            kain_core__ast__Type::Named { name: name } =>
+                let type_name = name.as_str()
+                if (((type_name.starts_with("Texture") || (type_name == "Buffer")) || (type_name == "StructuredBuffer")) || (type_name == "ByteAddressBuffer")):
+                    if (binding > 127):
+                        errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' (texture/buffer) uses binding @{binding} which exceeds maximum texture slot t127")
+                        ()
+                        ()
+                        ()
+                        ()
+                    ()
+                if type_name.starts_with("RW"):
+                    if (binding > 63):
+                        errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' (UAV) uses binding @{binding} which exceeds maximum UAV slot u63")
+                        ()
+                        ()
+                        ()
+                        ()
+                    ()
+                if type_name.contains("Sampler"):
+                    if (binding > 15):
+                        errors.push(f"Shader '{shader_name}': Uniform '{uniform_name}' (sampler) uses binding @{binding} which exceeds maximum sampler slot s15")
+                        ()
+            _ => ()
+
+    fn validate_permutation_naming(_self: &ShaderValidator, shader_name: String, uniform_name: String, ty: &kain_core::ast::Type, errors: &mut Array<String>):
+        let is_permutation_name = (uniform_name.starts_with("CFG_") || uniform_name.starts_with("ENABLE_"))
+        let is_float_type = match ty:
+            kain_core__ast__Type::Named { name: name } => ((name == "Float") || (name == "float"))
+            _ => false
+        if is_permutation_name:
+            if (!is_float_type):
+                errors.push(f"Shader '{shader_name}': Permutation uniform '{uniform_name}' should have Float type (used as boolean flag). Found type: {ty}")
+                ()
+                ()
+                ()
+                ()
+            if (!uniform_name.chars().all(fn(c): ((c.is_uppercase() || c.is_numeric()) || (c == "_")))):
+                errors.push(f"Shader '{shader_name}': Permutation uniform '{uniform_name}' should be all uppercase with underscores (e.g., CFG_HIGH_QUALITY, ENABLE_SHADOWS)")
+                ()
+                ()
+                ()
+                ()
+            ()
+        if (is_float_type && (!is_permutation_name)):
+            let uppercase_name = uniform_name.to_uppercase()
+            if (((((uppercase_name.contains("CONFIG") || uppercase_name.contains("ENABLE")) || uppercase_name.contains("DISABLE")) || uppercase_name.contains("USE")) || uppercase_name.contains("FEATURE")) || uppercase_name.contains("QUALITY")):
+                errors.push("Shader '{shader_name}': Uniform '{uniform_name}' appears to be a configuration flag but doesn't follow permutation naming convention. Consider renaming to CFG_{uniform_name.to_uppercase().replace(\"CONFIG_\", \"\").replace(\"ENABLE_\", \"\")} or ENABLE_{uniform_name.to_uppercase().replace(\"CONFIG_\", \"\").replace(\"ENABLE_\", \"\")}")
+                ()
+
+    fn is_permutation_uniform(_self: &ShaderValidator, uniform_name: String) -> Bool:
+        (uniform_name.starts_with("CFG_") || uniform_name.starts_with("ENABLE_"))
+
+    fn validate_pod_structs(_self: &ShaderValidator, shader_: &kain_core::types::TypedShader, program: Option<&kain_core::types::TypedProgram>, errors: &mut Array<String>):
+        let shader_name = &(*shader_).ast.name
+        if program.is_none():
+            return
+        let program = program.unwrap()
+        let mut struct_defs: Map<String, &kain_core::types::TypedStruct> = HashMap__new_()
+        for item in &program.items:
+            match item:
+                kain_core__types__TypedItem::Struct(typed_struct) =>
+                    struct_defs.insert(typed_struct.ast.name.clone(), typed_struct)
+                    ()
+                _ => ()
+        ()
+        let mut referenced_structs: Set<String> = HashSet__new_()
+        for uniform_ in &(*shader_).ast.uniforms:
+            match &uniform_.ty:
+                kain_core__ast__Type::Named { name: name } =>
+                    if struct_defs.contains_key(name):
+                        referenced_structs.insert(name.clone())
+                        ()
+                _ => ()
+        ()
+        for struct_name in &referenced_structs:
+            match struct_defs.get(struct_name):
+                Some(typed_struct) =>
+                    (*_self).validate_pod_struct_definition(shader_name, typed_struct, errors)
+                    ()
+                _ => ()
+        ()
+        (*_self).check_pod_struct_redefinitions(shader_name, &referenced_structs, errors)
+        ()
+
+    fn validate_pod_struct_definition(_self: &ShaderValidator, shader_name: String, typed_struct: &kain_core::types::TypedStruct, errors: &mut Array<String>):
+        let struct_name = &(*typed_struct).ast.name
+        let mut total_size = 0
+        for field in &(*typed_struct).ast.fields:
+            let field_name = &field.name
+            let field_type = &field.ty
+            if (!(*_self).is_hlsl_compatible_type(field_type)):
+                errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' field '{field_name}' has non-HLSL-compatible type '{field_type}'. POD structs must only contain HLSL-compatible types (scalars, vectors, matrices).")
+                ()
+                ()
+                ()
+                ()
+            let field_size = (*_self).get_hlsl_type_size(field_type)
+            total_size = (total_size + field_size)
+            ()
+            match field_type:
+                kain_core__ast__Type::Named { name: name } =>
+                    let type_name = name.as_str()
+                    if ((type_name == "String") || (type_name == "string")):
+                        errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' field '{field_name}' has String type. Strings are not supported in shader POD structs.")
+                        ()
+                        ()
+                        ()
+                        ()
+                    if type_name.ends_with("*"):
+                        errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' field '{field_name}' has pointer type. Pointers are not supported in shader POD structs.")
+                        ()
+                kain_core__ast__Type::Array(_) =>
+                    errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' field '{field_name}' has array type. Arrays in POD structs must have explicit size and be HLSL-compatible.")
+                    ()
+                kain_core__ast__Type::Ref {  } =>
+                    errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' field '{field_name}' has reference type. References are not supported in shader POD structs.")
+                    ()
+                _ => ()
+        ()
+        if ((total_size % 16) != 0):
+            let padding_needed = (16 - ((total_size % 16)))
+            errors.push(f"Shader '{shader_name}': POD struct '{struct_name}' has size {total_size} bytes which is not 16-byte aligned. Constant buffer structs must be 16-byte aligned. Add {padding_needed} bytes of padding.")
+            ()
+
+    fn is_hlsl_compatible_type(_self: &ShaderValidator, ty: &kain_core::ast::Type) -> Bool:
+        match ty:
+            kain_core__ast__Type::Named { name: name } =>
+                let type_name = name.as_str()
+                if type_mapping__TYPE_MAPPER.can_map(type_name):
+                    return true
+                let additional_hlsl_types = ["float", "float2", "float3", "float4", "int", "int2", "int3", "int4", "uint", "uint2", "uint3", "uint4", "bool", "bool2", "bool3", "bool4", "half", "half2", "half3", "half4", "double", "double2", "double3", "double4", "float2x2", "float3x3", "float4x4", "float3x4", "float4x3", "matrix", "Matrix"]
+                additional_hlsl_types.contains(&type_name)
+            _ => false
+
+    fn get_hlsl_type_size(_self: &ShaderValidator, ty: &kain_core::ast::Type) -> usize:
+        match ty:
+            kain_core__ast__Type::Named { name: name } =>
+                let type_name = name.as_str()
+                match type_name:
+                    "float" => 4
+                    "Float" => 4
+                    "int" => 4
+                    "Int" => 4
+                    "uint" => 4
+                    "Uint" => 4
+                    "UInt" => 4
+                    "bool" => 4
+                    "Bool" => 4
+                    "half" => 2
+                    "Half" => 2
+                    "double" => 8
+                    "Double" => 8
+                    "float2" => 8
+                    "Float2" => 8
+                    "Vec2" => 8
+                    "float3" => 12
+                    "Float3" => 12
+                    "Vec3" => 12
+                    "float4" => 16
+                    "Float4" => 16
+                    "Vec4" => 16
+                    "int2" => 8
+                    "Int2" => 8
+                    "IVec2" => 8
+                    "int3" => 12
+                    "Int3" => 12
+                    "IVec3" => 12
+                    "int4" => 16
+                    "Int4" => 16
+                    "IVec4" => 16
+                    "uint2" => 8
+                    "Uint2" => 8
+                    "UVec2" => 8
+                    "uint3" => 12
+                    "Uint3" => 12
+                    "UVec3" => 12
+                    "uint4" => 16
+                    "Uint4" => 16
+                    "UVec4" => 16
+                    "bool2" => 8
+                    "Bool2" => 8
+                    "bool3" => 12
+                    "Bool3" => 12
+                    "bool4" => 16
+                    "Bool4" => 16
+                    "half2" => 4
+                    "Half2" => 4
+                    "half3" => 6
+                    "Half3" => 6
+                    "half4" => 8
+                    "Half4" => 8
+                    "double2" => 16
+                    "Double2" => 16
+                    "double3" => 24
+                    "Double3" => 24
+                    "double4" => 32
+                    "Double4" => 32
+                    "float2x2" => 16
+                    "Mat2" => 16
+                    "float3x3" => 36
+                    "Mat3" => 36
+                    "float4x4" => 64
+                    "Mat4" => 64
+                    "float3x4" => 48
+                    "float4x3" => 48
+                    _ => 4
+            _ => 4
+
+    fn check_pod_struct_redefinitions(_self: &ShaderValidator, shader_name: String, referenced_structs: &Set<String>, errors: &mut Array<String>):
+        let common_generated_names = ["ShaderParams", "MaterialParams", "ComputeParams"]
+        for generated_name in &common_generated_names:
+            if referenced_structs.contains((*generated_name)):
+                errors.push(f"Shader '{shader_name}': Struct '{generated_name}' may conflict with auto-generated shader parameter struct. Consider using a different name to avoid redefinition.")
+                ()
+
+    fn validate_hlsl_syntax(_self: &ShaderValidator, shader_: &kain_core::types::TypedShader, errors: &mut Array<String>):
+        let shader_name = &(*shader_).ast.name
+        if (*_self).hlsl_keywords.contains(&(*shader_).ast.name.to_lowercase()):
+            errors.push(f"Shader '{shader_name}': Shader name conflicts with HLSL reserved keyword")
+            ()
+            ()
+            ()
+            ()
+        if (*_self).cpp_keywords.contains(&(*shader_).ast.name.to_lowercase()):
+            errors.push(f"Shader '{shader_name}': Shader name conflicts with C++ keyword '{(*shader_).ast.name}'. This will cause issues in generated C++ shader binding code. Consider renaming to '{(*shader_).ast.name}_Shader' or 'Shader_{(*shader_).ast.name}'")
+            ()
+            ()
+            ()
+            ()
+        for uniform_ in &(*shader_).ast.uniforms:
+            if (*_self).hlsl_keywords.contains(&uniform_.name.to_lowercase()):
+                errors.push(f"Shader '{shader_name}': Uniform '{uniform_.name}' conflicts with HLSL reserved keyword")
+                ()
+                ()
+                ()
+                ()
+            if (*_self).cpp_keywords.contains(&uniform_.name.to_lowercase()):
+                errors.push(f"Shader '{shader_name}': Uniform '{uniform_.name}' conflicts with C++ keyword. This will cause issues in generated C++ shader parameter struct. Consider renaming to '{uniform_.name}_param' or 'shader_{uniform_.name}'")
+                ()
+                ()
+                ()
+                ()
+            (*_self).validate_hlsl_type_compatibility(shader_name, &f"uniform '{uniform_.name}'", &uniform_.ty, errors)
+            ()
+        ()
+        for input in &(*shader_).ast.inputs:
+            if (*_self).hlsl_keywords.contains(&input.name.to_lowercase()):
+                errors.push(f"Shader '{shader_name}': Input parameter '{input.name}' conflicts with HLSL reserved keyword")
+                ()
+                ()
+                ()
+                ()
+            if (*_self).cpp_keywords.contains(&input.name.to_lowercase()):
+                errors.push(f"Shader '{shader_name}': Input parameter '{input.name}' conflicts with C++ keyword. This will cause issues in generated C++ code. Consider renaming to '{input.name}_input' or 'in_{input.name}'")
+                ()
+                ()
+                ()
+                ()
+            (*_self).validate_hlsl_type_compatibility(shader_name, &f"input parameter '{input.name}'", &input.ty, errors)
+            ()
+        ()
+        (*_self).validate_hlsl_type_compatibility(shader_name, "return type", &(*shader_).ast.outputs, errors)
+        ()
+        (*_self).validate_shader_stage_signature(shader_, errors)
+        ()
+
+    fn validate_hlsl_type_compatibility(_self: &ShaderValidator, shader_name: String, context: String, ty: &kain_core::ast::Type, errors: &mut Array<String>):
+        match ty:
+            kain_core__ast__Type::Named { name: name } =>
+                let type_name = name.as_str()
+                let invalid_types = ["String", "string", "Array", "Map", "Set"]
+                if invalid_types.contains(&type_name):
+                    errors.push(f"Shader '{shader_name}': {context} has invalid HLSL type '{type_name}'. This type is not supported in HLSL shaders.")
+                    ()
+                    return
+                if type_mapping__TYPE_MAPPER.can_map(type_name):
+                    return
+                let additional_hlsl_types = ["float", "float2", "float3", "float4", "int", "int2", "int3", "int4", "uint", "uint2", "uint3", "uint4", "bool", "bool2", "bool3", "bool4", "half", "half2", "half3", "half4", "double", "double2", "double3", "double4", "float2x2", "float3x3", "float4x4", "float3x4", "float4x3", "matrix", "Matrix", "Texture1D", "Texture2D", "Texture3D", "TextureCube", "Texture1DArray", "Texture2DArray", "TextureCubeArray", "Texture2DMS", "Texture2DMSArray", "Sampler", "SamplerState", "SamplerComparisonState", "Sampler1D", "Buffer", "StructuredBuffer", "ByteAddressBuffer", "RWBuffer", "RWStructuredBuffer", "RWByteAddressBuffer", "RWTexture1D", "RWTexture1DArray", "RWTexture2DArray", "SurfaceOutput", "void"]
+                if additional_hlsl_types.contains(&type_name):
+                    return
+                if type_name.chars().next().map_or(false, fn(c): c.is_uppercase()):
+                    return
+                let valid_kain_types = type_mapping__TYPE_MAPPER.valid_types()
+                let valid_types_list = valid_kain_types.join(", ")
+                errors.push(f"Shader '{shader_name}': {context} has invalid HLSL type '{type_name}'. Valid KAIN types: {valid_types_list}. Also supported: lowercase HLSL types (float, int, uint, etc.), texture types (Texture2D, etc.), sampler types (SamplerState, etc.), buffer types (RWBuffer, etc.), and user-defined structs.")
+                ()
+            kain_core__ast__Type::Array(_) =>
+                errors.push(f"Shader '{shader_name}': {context} uses array type. Arrays in HLSL function signatures must be passed as buffer types (StructuredBuffer, etc.).")
+                ()
+            kain_core__ast__Type::Ref {  } =>
+                errors.push(f"Shader '{shader_name}': {context} uses reference type. References are not supported in HLSL.")
+                ()
+            _ => ()
+
+    fn validate_shader_stage_signature(_self: &ShaderValidator, shader_: &kain_core::types::TypedShader, errors: &mut Array<String>):
+        let shader_name = &(*shader_).ast.name
+        let stage = (*shader_).ast.stage
+        match stage:
+            kain_core__ast__ShaderStage::Fragment =>
+                if (*shader_).ast.inputs.is_empty():
+                    errors.push(f"Shader '{shader_name}': Fragment shader should have at least one input parameter (typically UV coordinates)")
+                    ()
+            kain_core__ast__ShaderStage::Compute => ()
+            kain_core__ast__ShaderStage::Vertex =>
+                if (*shader_).ast.inputs.is_empty():
+                    errors.push(f"Shader '{shader_name}': Vertex shader should have input parameters (position, normal, etc.)")
+                    ()
+            kain_core__ast__ShaderStage::Surface =>
+                if (*shader_).ast.inputs.is_empty():
+                    errors.push(f"Shader '{shader_name}': Surface shader should have at least one input parameter (typically UV coordinates)")
+                    ()
+
+    fn validate_bindings(_self: &ShaderValidator, shader_: &kain_core::types::TypedShader, errors: &mut Array<String>):
+        let shader_name = &(*shader_).ast.name
+        let mut texture_bindings: Map<u32, String> = HashMap__new_()
+        let mut uav_bindings: Map<u32, String> = HashMap__new_()
+        let mut scalar_ordering: Map<u32, String> = HashMap__new_()
+        for uniform_ in &(*shader_).ast.uniforms:
+            if (*_self).is_permutation_uniform(&uniform_.name):
+                continue
+            let binding = uniform_.binding
+            let uniform_name = &uniform_.name
+            match &uniform_.ty:
+                kain_core__ast__Type::Named { name: name } =>
+                    let type_name = name.as_str()
+                    match classify_uniform_type(type_name):
+                        UniformClass::Scalar =>
+                            match scalar_ordering.get(&binding):
+                                Some(existing) =>
+                                    errors.push(f"Shader '{shader_name}': Scalar parameter '{uniform_name}' uses ordering index @{binding} which is already used by parameter '{existing}'. Each scalar parameter should have a unique ordering index.")
+                                    ()
+                                _ =>
+                                    scalar_ordering.insert(binding, uniform_name.clone())
+                                    ()
+                        UniformClass::Texture =>
+                            match texture_bindings.get(&binding):
+                                Some(existing) =>
+                                    errors.push(f"Shader '{shader_name}': Texture uniform '{uniform_name}' uses binding @{binding} (t{binding}) which is already used by texture '{existing}'")
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    texture_bindings.insert(binding, uniform_name.clone())
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                            if (binding > 127):
+                                errors.push(f"Shader '{shader_name}': Texture uniform '{uniform_name}' uses binding @{binding} which exceeds D3D11 texture register limit (t0-t127)")
+                                ()
+                        UniformClass::UAV =>
+                            match uav_bindings.get(&binding):
+                                Some(existing) =>
+                                    errors.push(f"Shader '{shader_name}': UAV uniform '{uniform_name}' uses binding @{binding} (u{binding}) which is already used by UAV '{existing}'")
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    uav_bindings.insert(binding, uniform_name.clone())
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                            if (binding > 63):
+                                errors.push(f"Shader '{shader_name}': UAV uniform '{uniform_name}' uses binding @{binding} which exceeds D3D11 UAV register limit (u0-u63)")
+                                ()
+                _ => ()
+
+
+impl Default for ShaderValidator:
+    fn default_() -> ShaderValidator:
+        ShaderValidator__new_()
+
+

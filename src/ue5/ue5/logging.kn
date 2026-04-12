@@ -1,0 +1,34 @@
+use kain_core::ast::Expr
+
+@doc(doc = " Get proper UE_LOG format specifier and argument for an expression")
+@doc(doc = " Returns (format_spec, argument_code)")
+pub fn get_ue_log_format_spec(expr: &kain_core::ast::Expr, expr_code: String) -> (String, String):
+    match expr:
+        kain_core__ast__Expr::Int(_, _) => (("%lld").to_string(), expr_code.to_string())
+        kain_core__ast__Expr::Float(_, _) => (("%f").to_string(), expr_code.to_string())
+        kain_core__ast__Expr::Bool(_, _) => (("%s").to_string(), f"({expr_code} ? TEXT(\"true\") : TEXT(\"false\"))")
+        kain_core__ast__Expr::String(_, _) => (("%s").to_string(), f"*FString({expr_code})")
+        kain_core__ast__Expr::Ident(name, _) =>
+            if (((name.contains("count") || name.contains("index")) || name.contains("id")) || name.ends_with("_i")):
+                (("%lld").to_string(), expr_code.to_string())
+            elif (((name.contains("scale") || name.contains("speed")) || name.contains("intensity")) || name.contains("phase")):
+                (("%f").to_string(), expr_code.to_string())
+            elif ((name.starts_with("is_") || name.starts_with("has_")) || name.starts_with("can_")):
+                (("%s").to_string(), f"({expr_code} ? TEXT(\"true\") : TEXT(\"false\"))")
+            else:
+                (("%s").to_string(), f"*LexToString({expr_code})")
+        _ => (("%s").to_string(), f"*LexToString({expr_code})")
+
+@doc(doc = " Escape string for C++ TEXT() macro")
+pub fn escape_string(s: String) -> String:
+    let mut result = String__new_()
+    for c in s.chars():
+        match c:
+            "\n" => result.push_str("\\n")
+            "\t" => result.push_str("\\t")
+            "\\" => result.push_str("\\\\")
+            "\"" => result.push_str("\\\"")
+            _ => result.push(c)
+    ()
+    result
+

@@ -1,0 +1,26 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use crate::blockers::BlockerBucket
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct ArtifactExpectation:
+    path: String
+    exists: Option<Bool>
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct ArtifactContract:
+    lane_id: String
+    required_artifacts: Array<ArtifactExpectation>
+    produced_artifacts: Array<ArtifactExpectation>
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct FrontErrorRecord:
+    code: Option<String>
+    text: String
+    file: Option<String>
+    line_: Option<u64>
+    col: Option<u64>
+    bucket: BlockerBucket
+

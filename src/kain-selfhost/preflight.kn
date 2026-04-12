@@ -1,0 +1,24 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use crate::blockers::BlockerBucket
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct PreflightFailure:
+    rule_id: String
+    bucket: BlockerBucket
+    file: String
+    line_: Option<u64>
+    message: String
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize, Default)
+pub struct StructuralPreflightReport:
+    checks: Array<String>
+    failures: Array<PreflightFailure>
+
+impl Default for StructuralPreflightReport:
+    pub fn default_() -> StructuralPreflightReport:
+        StructuralPreflightReport { checks: Vec__new_(), failures: Vec__new_() }
+
+

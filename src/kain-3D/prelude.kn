@@ -1,0 +1,74 @@
+use kain_reflect::FieldSchema
+
+use kain_reflect::PrimitiveType
+
+use kain_reflect::TypeKind
+
+use kain_reflect::TypeRef
+
+use kain_reflect::TypeRegistry
+
+use kain_reflect::TypeSchema
+
+use kain_reflect::VariantSchema
+
+use kain_reflect::VariantShape
+
+pub fn reflected_type_registry() -> kain_reflect::TypeRegistry:
+    let mut registry = TypeRegistry__new_()
+    registry.register_schema(struct_schema("Vec2", [field("x", primitive(kain_reflect__PrimitiveType__Float)), field("y", primitive(kain_reflect__PrimitiveType__Float))]))
+    ()
+    registry.register_schema(struct_schema("Vec3", [field("x", primitive(kain_reflect__PrimitiveType__Float)), field("y", primitive(kain_reflect__PrimitiveType__Float)), field("z", primitive(kain_reflect__PrimitiveType__Float))]))
+    ()
+    registry.register_schema(struct_schema("ColorRgb", [field("r", primitive(kain_reflect__PrimitiveType__Float)), field("g", primitive(kain_reflect__PrimitiveType__Float)), field("b", primitive(kain_reflect__PrimitiveType__Float))]))
+    ()
+    registry.register_schema(struct_schema("Transform", [field("translation", named("Vec3")), field("rotation_radians", named("Vec3")), field("scale", named("Vec3"))]))
+    ()
+    registry.register_schema(enum_schema("GeometryTopology", [unit_variant("Triangles"), unit_variant("Lines"), unit_variant("Points")]))
+    ()
+    registry.register_schema(struct_schema("Geometry", [field("positions", array(named("Vec3"))), field("normals", array(named("Vec3"))), field("uvs", array(named("Vec2"))), field("colors", array(named("ColorRgb"))), field("indices", array(primitive(kain_reflect__PrimitiveType__Int))), field("topology", named("GeometryTopology"))]))
+    ()
+    registry.register_schema(struct_schema("Material", [field("base_color", named("ColorRgb")), field("specular_color", named("ColorRgb")), field("ambient_strength", primitive(kain_reflect__PrimitiveType__Float)), field("diffuse_strength", primitive(kain_reflect__PrimitiveType__Float)), field("specular_strength", primitive(kain_reflect__PrimitiveType__Float)), field("shininess", primitive(kain_reflect__PrimitiveType__Float))]))
+    ()
+    registry.register_schema(struct_schema("Camera", [field("target", named("Vec3")), field("up", named("Vec3")), field("orbit_radius", primitive(kain_reflect__PrimitiveType__Float)), field("orbit_height", primitive(kain_reflect__PrimitiveType__Float)), field("orbit_speed_radians_per_second", primitive(kain_reflect__PrimitiveType__Float)), field("fov_y_degrees", primitive(kain_reflect__PrimitiveType__Float)), field("near_plane", primitive(kain_reflect__PrimitiveType__Float)), field("far_plane", primitive(kain_reflect__PrimitiveType__Float))]))
+    ()
+    registry.register_schema(enum_schema("Field", [tuple_variant("Constant", [field("value", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("Linear", [field("axis", named("Vec3")), field("start", primitive(kain_reflect__PrimitiveType__Float)), field("end", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("Radial", [field("center", named("Vec3")), field("inner_radius", primitive(kain_reflect__PrimitiveType__Float)), field("outer_radius", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("Noise", [field("frequency", primitive(kain_reflect__PrimitiveType__Float)), field("offset", named("Vec3"))])]))
+    ()
+    registry.register_schema(enum_schema("Modifier", [tuple_variant("Translate", [field("offset", named("Vec3"))]), tuple_variant("Scale", [field("factor", named("Vec3"))]), tuple_variant("Inflate", [field("amount", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("Twist", [field("axis", named("Vec3")), field("angle_radians", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("NoiseDisplace", [field("amplitude", primitive(kain_reflect__PrimitiveType__Float)), field("frequency", primitive(kain_reflect__PrimitiveType__Float))]), tuple_variant("Spherify", [field("factor", primitive(kain_reflect__PrimitiveType__Float))])]))
+    ()
+    registry.register_schema(enum_schema("BrushFalloff", [unit_variant("Constant"), unit_variant("Linear"), unit_variant("Smooth"), unit_variant("Sphere")]))
+    ()
+    registry.register_schema(struct_schema("Brush", [field("radius", primitive(kain_reflect__PrimitiveType__Float)), field("strength", primitive(kain_reflect__PrimitiveType__Float)), field("spacing", primitive(kain_reflect__PrimitiveType__Float)), field("falloff", named("BrushFalloff"))]))
+    ()
+    registry
+
+pub fn emit_kain_prelude() -> String:
+    let mut prelude = reflected_type_registry().render_kain_prelude()
+    prelude.push_str("\nmod zen3d:\n    fn vec2(x: Float, y: Float) -> Vec2:\n        return Vec2 { x: x, y: y }\n\n    fn vec3(x: Float, y: Float, z: Float) -> Vec3:\n        return Vec3 { x: x, y: y, z: z }\n\n    fn rgb(r: Float, g: Float, b: Float) -> ColorRgb:\n        return ColorRgb { r: r, g: g, b: b }\n\n    @extern fn __zen3d_box_geometry(size: Vec3) -> Geometry\n\n    @extern fn __zen3d_plane_geometry(size: Vec2) -> Geometry\n\n    @extern fn __zen3d_uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry\n\n    @extern fn __zen3d_quad_sphere(radius: Float, resolution: Int) -> Geometry\n\n    @extern fn __zen3d_cylinder(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry\n\n    @extern fn __zen3d_cone(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry\n\n    @extern fn __zen3d_capsule(radius: Float, height: Float, radial_segments: Int, hemisphere_segments: Int, body_segments: Int) -> Geometry\n\n    @extern fn __zen3d_torus(major_radius: Float, minor_radius: Float, major_segments: Int, minor_segments: Int) -> Geometry\n\n    @extern fn __zen3d_standard_material(base_color: ColorRgb) -> Material\n\n    @extern fn __zen3d_matte_material(base_color: ColorRgb) -> Material\n\n    @extern fn __zen3d_glossy_material(base_color: ColorRgb) -> Material\n\n    @extern fn __zen3d_orbit_camera(target: Vec3, orbit_radius: Float, orbit_height: Float) -> Camera\n\n    @extern fn __zen3d_radial_field(center: Vec3, inner_radius: Float, outer_radius: Float) -> Field\n\n    @extern fn __zen3d_twist(axis: Vec3, angle_radians: Float) -> Modifier\n\n    @extern fn __zen3d_noise_displace(amplitude: Float, frequency: Float) -> Modifier\n\n    @extern fn __zen3d_brush(radius: Float, strength: Float) -> Brush\n\n    fn box_geometry(size: Vec3) -> Geometry:\n        return __zen3d_box_geometry(size)\n\n    fn plane_geometry(size: Vec2) -> Geometry:\n        return __zen3d_plane_geometry(size)\n\n    fn uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry:\n        return __zen3d_uv_sphere(radius, latitude_segments, longitude_segments)\n\n    fn quad_sphere(radius: Float, resolution: Int) -> Geometry:\n        return __zen3d_quad_sphere(radius, resolution)\n\n    fn cylinder(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry:\n        return __zen3d_cylinder(radius, height, radial_segments, height_segments)\n\n    fn cone(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry:\n        return __zen3d_cone(radius, height, radial_segments, height_segments)\n\n    fn capsule(radius: Float, height: Float, radial_segments: Int, hemisphere_segments: Int, body_segments: Int) -> Geometry:\n        return __zen3d_capsule(radius, height, radial_segments, hemisphere_segments, body_segments)\n\n    fn torus(major_radius: Float, minor_radius: Float, major_segments: Int, minor_segments: Int) -> Geometry:\n        return __zen3d_torus(major_radius, minor_radius, major_segments, minor_segments)\n\n    fn standard_material(base_color: ColorRgb) -> Material:\n        return __zen3d_standard_material(base_color)\n\n    fn matte_material(base_color: ColorRgb) -> Material:\n        return __zen3d_matte_material(base_color)\n\n    fn glossy_material(base_color: ColorRgb) -> Material:\n        return __zen3d_glossy_material(base_color)\n\n    fn orbit_camera(target: Vec3, orbit_radius: Float, orbit_height: Float) -> Camera:\n        return __zen3d_orbit_camera(target, orbit_radius, orbit_height)\n\n    fn radial_field(center: Vec3, inner_radius: Float, outer_radius: Float) -> Field:\n        return __zen3d_radial_field(center, inner_radius, outer_radius)\n\n    fn twist(axis: Vec3, angle_radians: Float) -> Modifier:\n        return __zen3d_twist(axis, angle_radians)\n\n    fn noise_displace(amplitude: Float, frequency: Float) -> Modifier:\n        return __zen3d_noise_displace(amplitude, frequency)\n\n    fn brush(radius: Float, strength: Float) -> Brush:\n        return __zen3d_brush(radius, strength)\n\nuse zen3d::*\n")
+    ()
+    prelude
+
+fn primitive(value: kain_reflect::PrimitiveType) -> kain_reflect::TypeRef:
+    kain_reflect__TypeRef::Primitive(value)
+
+fn named(value: String) -> kain_reflect::TypeRef:
+    kain_reflect__TypeRef::Named(value.to_string())
+
+fn array(value: kain_reflect::TypeRef) -> kain_reflect::TypeRef:
+    kain_reflect__TypeRef::Array(Box__new_(value))
+
+fn field(name: String, ty: kain_reflect::TypeRef) -> kain_reflect::FieldSchema:
+    FieldSchema__new_(name, ty)
+
+fn struct_schema(name: String, fields: Array<kain_reflect::FieldSchema>) -> kain_reflect::TypeSchema:
+    TypeSchema__new_(name, name, kain_reflect__TypeKind::Struct { fields: fields })
+
+fn enum_schema(name: String, variants: Array<kain_reflect::VariantSchema>) -> kain_reflect::TypeSchema:
+    TypeSchema__new_(name, name, kain_reflect__TypeKind::Enum { variants: variants })
+
+fn unit_variant(name: String) -> kain_reflect::VariantSchema:
+    VariantSchema__new_(name, kain_reflect__VariantShape__Unit, Vec__new_())
+
+fn tuple_variant(name: String, fields: Array<kain_reflect::FieldSchema>) -> kain_reflect::VariantSchema:
+    VariantSchema__new_(name, kain_reflect__VariantShape__Tuple, fields)
+

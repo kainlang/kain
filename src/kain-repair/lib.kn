@@ -1,0 +1,203 @@
+use std::borrow::Cow
+
+use registry::RepairRule
+
+use registry::RuleMetadata
+
+use registry::RuleSafety
+
+use registry::RuleScope
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct RepairInput<a>:
+    text: std::borrow::Cow<a, String>
+    profile: RepairProfile
+    mode: RepairMode
+
+impl<a> RepairInput<a>:
+    pub fn new_(text: impl Into<std::borrow::Cow<a, String>>) -> RepairInput<a>:
+        RepairInput { text: text.into(), profile: RepairProfile__default_(), mode: RepairMode__ApplySafe }
+
+    pub fn with_profile(_self: RepairInput<a>, profile: RepairProfile) -> RepairInput<a>:
+        _self.profile = profile
+        ()
+        _self
+
+    pub fn with_mode(_self: RepairInput<a>, mode: RepairMode) -> RepairInput<a>:
+        _self.mode = mode
+        ()
+        _self
+
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct RepairProfile:
+    trim_trailing_whitespace: Bool
+    ensure_final_newline: Bool
+    collapse_extra_blank_lines: Bool
+    normalize_line_endings: Bool
+    fix_unterminated_block_comments: Bool
+    normalize_indentation: Bool
+    normalize_declaration_headers: Bool
+    flatten_nested_declarations: Bool
+    rewrite_reserved_identifiers: Bool
+    normalize_self_constructor_syntax: Bool
+    rewrite_inline_initializers: Bool
+    normalize_namespace_paths: Bool
+    reconstruct_parser_safe_blocks: Bool
+
+impl Default for RepairProfile:
+    fn default_() -> RepairProfile:
+        RepairProfile { trim_trailing_whitespace: true, ensure_final_newline: true, collapse_extra_blank_lines: true, normalize_line_endings: true, fix_unterminated_block_comments: true, normalize_indentation: true, normalize_declaration_headers: true, flatten_nested_declarations: true, rewrite_reserved_identifiers: true, normalize_self_constructor_syntax: true, rewrite_inline_initializers: true, normalize_namespace_paths: true, reconstruct_parser_safe_blocks: true }
+
+
+pub enum RepairMode:
+    Check
+    Suggest
+    ApplySafe
+    ApplyAggressive
+
+impl RepairMode:
+    pub fn writes(_self: RepairMode) -> Bool:
+        match _self:
+            RepairMode::ApplySafe => true
+            RepairMode::ApplyAggressive => true
+            _ => false
+
+
+pub enum FixKind:
+    NormalizeLineEndings
+    TrimTrailingWhitespace
+    EnsureFinalNewline
+    CollapseExtraBlankLines
+    CloseUnterminatedBlockComment
+    InsertMissingBlockCommentCloser
+    NormalizeIndentation
+    NormalizeDeclarationHeader
+    FlattenNestedDeclarationPlacement
+    NormalizeImplTypeToken
+    RewriteReservedIdentifier
+    NormalizeSelfConstructorSyntax
+    RewriteInlineInitialization
+    NormalizeNamespacePath
+    ReconstructParserSafeBlock
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct AppliedFix:
+    kind: FixKind
+    start: usize
+    end: usize
+    replacement: String
+    note: Option<String>
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct RepairResult:
+    original: String
+    repaired: String
+    changed: Bool
+    fixes: Array<AppliedFix>
+
+impl RepairResult:
+    pub fn unchanged(original: impl Into<String>) -> RepairResult:
+        let original = original.into()
+        RepairResult { repaired: original.clone(), original: original, changed: false, fixes: Vec__new_() }
+
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct ParseValidation:
+    passed: Bool
+    detail: Option<String>
+
+pub enum RepairSafetyClass:
+    Safe
+    Aggressive
+
+pub enum RepairRiskLevel:
+    Low
+    Elevated
+    Unknown
+
+pub enum ParserProofStatus:
+    Passed
+    Failed
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct RepairReport:
+    original: String
+    repaired: String
+    changed: Bool
+    fixes: Array<AppliedFix>
+    fixes_applied: usize
+    safety_class: RepairSafetyClass
+    remaining_unknown_risk: RepairRiskLevel
+    post_repair_parse: Option<ParseValidation>
+
+impl From<RepairResult> for RepairReport:
+    fn from(value: RepairResult) -> RepairReport:
+        let fixes_applied = value.fixes.len()
+        let has_aggressive_fix = value.fixes.iter().any(fn(fix): none)
+        let safety_class = if has_aggressive_fix:
+            RepairSafetyClass__Aggressive
+        else:
+            RepairSafetyClass__Safe
+        let remaining_unknown_risk = if (fixes_applied == 0):
+            RepairRiskLevel__Unknown
+        elif has_aggressive_fix:
+            RepairRiskLevel__Elevated
+        else:
+            RepairRiskLevel__Low
+        RepairReport { original: value.original, repaired: value.repaired, changed: value.changed, fixes: value.fixes, fixes_applied: fixes_applied, safety_class: safety_class, remaining_unknown_risk: remaining_unknown_risk, post_repair_parse: none }
+
+
+impl RepairReport:
+    pub fn changed(_self: &RepairReport) -> Bool:
+        (*_self).changed
+
+    pub fn parser_proof_status(_self: &RepairReport) -> Option<ParserProofStatus>:
+        (*_self).post_repair_parse.map(fn(validation): if validation.passed: ParserProofStatus__Passed else: ParserProofStatus__Failed)
+
+    pub fn with_post_repair_parse(_self: RepairReport, validation: ParseValidation) -> RepairReport:
+        _self.post_repair_parse = Option::Some(validation)
+        ()
+        _self
+
+
+pub fn repair_text(text: impl AsRef<String>) -> RepairResult:
+    repair_text_with_input(&RepairInput__new_(text.to_owned()))
+
+pub fn repair_text_with_input(input: &RepairInput<_>) -> RepairResult:
+    let mut text = (*input).text.to_string()
+    let mut fixes = Vec__new_()
+    for rule in registry__selected_rules(&(*input).profile, (*input).mode):
+        match rule.apply(&text, (*input).mode):
+            Some((next, fix)) =>
+                text = next
+                ()
+                fixes.push(fix)
+                ()
+            _ => ()
+    ()
+    if (*input).profile.ensure_final_newline:
+        apply_ensure_final_newline(&mut text, &mut fixes)
+        ()
+        ()
+        ()
+        ()
+    RepairResult { changed: (text != (*input).text), original: (*input).text.to_string(), repaired: text, fixes: fixes }
+
+pub fn repair_source(text: String, mode: RepairMode) -> RepairReport:
+    repair_source_with_profile(text, RepairProfile__default_(), mode)
+
+pub fn repair_source_with_profile(text: String, profile: RepairProfile, mode: RepairMode) -> RepairReport:
+    repair_text_with_input(&RepairInput { text: std__borrow__Cow::Borrowed(text), profile: profile, mode: mode }).into()
+
+pub fn suggest_fixes(text: impl AsRef<String>) -> Array<AppliedFix>:
+    repair_text_with_input(&RepairInput { text: std__borrow__Cow::Borrowed(text), profile: RepairProfile__default_(), mode: RepairMode__Suggest }).fixes
+
+fn apply_ensure_final_newline(text: String, fixes: &mut Array<AppliedFix>):
+    if (!text.ends_with("\n")):
+        let pos = text.len()
+        text.push("\n")
+        ()
+        fixes.push(AppliedFix { kind: FixKind__EnsureFinalNewline, start: pos, end: pos, replacement: ("\n").into(), note: Option::Some(("added missing final newline").into()) })
+        ()
+

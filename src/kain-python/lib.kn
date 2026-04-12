@@ -1,0 +1,2136 @@
+use std::collections::HashMap
+
+use std::sync::Arc
+
+use std::sync::Once
+
+use std::sync::RwLock
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::runtime::register_env_extension
+
+use kain_core::runtime::Env
+
+use kain_core::runtime::Value
+
+use kain_core::stdlib::register_stdlib_extension
+
+use kain_core::stdlib::BuiltinFn
+
+use kain_core::stdlib::StdLib
+
+use kain_interop::shared_buffer_value
+
+use kain_interop::shared_image_value
+
+use kain_interop::KainSharedBuffer
+
+use kain_interop::KainSharedImage
+
+use kain_interop::SharedBufferMetadata
+
+use kain_interop::SharedImageMetadata
+
+use pyo3::prelude::*
+
+use pyo3::types::PyByteArray
+
+use pyo3::types::PyBytes
+
+use pyo3::types::PyDict
+
+use pyo3::types::PyList
+
+use pyo3::types::PyTuple
+
+const PYTHON_EXTENSION_KEY: String = "kain.python.scope"
+
+const REGISTER: std::sync::Once = Once__new_()
+
+const IMAGE_CHANNEL_COUNTS: Array<i64> = [1, 2, 3, 4]
+
+struct PythonScopeState:
+    scope: std::sync::RwLock<PyObject>
+
+@derive(Clone)
+struct PythonObjectRef:
+    object: PyObject
+
+@derive(Clone)
+struct PythonImageView:
+    object: PyObject
+    layout: String
+    batch: i64
+    width: i64
+    height: i64
+    channels: i64
+
+@derive(Clone)
+struct PythonTensorView:
+    object: PyObject
+    metadata: PythonPayloadMetadata
+
+@derive(Clone)
+struct PythonGeometryView:
+    vertices: PyObject
+    indices: Option<PyObject>
+    vertex_metadata: PythonPayloadMetadata
+    index_metadata: Option<PythonPayloadMetadata>
+    components: i64
+    face_size: i64
+
+enum SharedScalarKind:
+    Bool
+    Int
+    Float
+
+enum MaterializationMode:
+    Auto
+    Shared
+    Owned
+
+@derive(Clone)
+struct SharedPythonBuffer:
+    owner: PyObject
+    flat: PyObject
+    backend: String
+    kind: SharedScalarKind
+    len: usize
+
+enum NativeScalarBuffer:
+    Bool(std::sync::Arc<std::sync::RwLock<Array<Bool>>>)
+    Int(std::sync::Arc<std::sync::RwLock<Array<i64>>>)
+    Float(std::sync::Arc<std::sync::RwLock<Array<f64>>>)
+    Shared(std::sync::Arc<SharedPythonBuffer>)
+
+@derive(Clone)
+struct KainNativeImage:
+    dtype: String
+    shape: Array<i64>
+    layout: String
+    batch: i64
+    width: i64
+    height: i64
+    channels: i64
+    data: NativeScalarBuffer
+    source: Option<PyObject>
+
+@derive(Clone)
+struct KainNativeTensor:
+    dtype: String
+    shape: Array<i64>
+    data: NativeScalarBuffer
+    source: Option<PyObject>
+
+@derive(Clone)
+struct KainNativeGeometry:
+    vertex_dtype: String
+    vertex_shape: Array<i64>
+    components: i64
+    vertices: NativeScalarBuffer
+    index_dtype: Option<String>
+    index_shape: Array<i64>
+    face_size: i64
+    indices: Option<NativeScalarBuffer>
+    source: Option<PyObject>
+
+pub fn register_():
+    REGISTER.call_once(fn(): none)
+    ()
+
+fn register_python_stdlib(stdlib: &mut kain_core::stdlib::StdLib):
+    for builtin in [kain_core::stdlib::BuiltinFn { name: "py_eval", params: [("code", "String")], return_type: "Any", doc: "Evaluate Python expression" }, kain_core::stdlib::BuiltinFn { name: "py_eval_raw", params: [("code", "String")], return_type: "Any", doc: "Evaluate Python expression and keep the raw Python object" }, kain_core::stdlib::BuiltinFn { name: "py_exec", params: [("code", "String")], return_type: "Unit", doc: "Execute Python code" }, kain_core::stdlib::BuiltinFn { name: "py_import", params: [("module", "String")], return_type: "Any", doc: "Import Python module" }, kain_core::stdlib::BuiltinFn { name: "py_call", params: [("target", "Any"), ("args", "Any")], return_type: "Any", doc: "Call a Python callable or method with optional kwargs" }, kain_core::stdlib::BuiltinFn { name: "py_call_raw", params: [("target", "Any"), ("args", "Any")], return_type: "Any", doc: "Call a Python callable or method and keep the raw Python object" }, kain_core::stdlib::BuiltinFn { name: "py_getattr", params: [("target", "Any"), ("name", "String")], return_type: "Any", doc: "Read a Python attribute" }, kain_core::stdlib::BuiltinFn { name: "py_getattr_raw", params: [("target", "Any"), ("name", "String")], return_type: "Any", doc: "Read a Python attribute and keep the raw Python object" }, kain_core::stdlib::BuiltinFn { name: "py_setattr", params: [("target", "Any"), ("name", "String"), ("value", "Any")], return_type: "Unit", doc: "Set a Python attribute" }, kain_core::stdlib::BuiltinFn { name: "py_hasattr", params: [("target", "Any"), ("name", "String")], return_type: "Bool", doc: "Check whether a Python attribute exists" }, kain_core::stdlib::BuiltinFn { name: "py_buffer", params: [("target", "Any")], return_type: "Any", doc: "Create a raw Python memoryview for a buffer-capable object" }, kain_core::stdlib::BuiltinFn { name: "py_buffer_info", params: [("target", "Any")], return_type: "Any", doc: "Inspect shape, dtype, strides, contiguity, and byte size for a Python buffer" }, kain_core::stdlib::BuiltinFn { name: "py_buffer_bytes", params: [("target", "Any")], return_type: "Any", doc: "Snapshot a Python buffer as a flat byte array" }, kain_core::stdlib::BuiltinFn { name: "py_tensor_info", params: [("target", "Any")], return_type: "Any", doc: "Inspect a tensor or typed numeric payload across NumPy and PyTorch" }, kain_core::stdlib::BuiltinFn { name: "py_tensor_bytes", params: [("target", "Any")], return_type: "Any", doc: "Snapshot a tensor payload as flat bytes across NumPy and PyTorch" }, kain_core::stdlib::BuiltinFn { name: "py_image_info", params: [("target", "Any")], return_type: "Any", doc: "Infer width, height, channels, layout, and storage info for an image payload" }, kain_core::stdlib::BuiltinFn { name: "py_image_view", params: [("target", "Any")], return_type: "Any", doc: "Create a read-only typed image view over a Python image payload" }, kain_core::stdlib::BuiltinFn { name: "py_image_pixel", params: [("view", "Any"), ("x", "Int"), ("y", "Int")], return_type: "Any", doc: "Read a pixel from a typed Python image view without flattening the whole payload" }, kain_core::stdlib::BuiltinFn { name: "py_image_set_pixel", params: [("view", "Any"), ("x", "Int"), ("y", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write a pixel into a live Python image view" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_info", params: [("target", "Any")], return_type: "Any", doc: "Infer vertex/index layout for array-backed geometry or mesh objects" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_view", params: [("target", "Any")], return_type: "Any", doc: "Create a read-only typed geometry view over Python mesh or point-cloud data" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_vertex", params: [("view", "Any"), ("index", "Int")], return_type: "Any", doc: "Read one vertex from a typed Python geometry view" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_face", params: [("view", "Any"), ("index", "Int")], return_type: "Any", doc: "Read one face from a typed Python geometry view" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_set_vertex", params: [("view", "Any"), ("index", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write one vertex into a live Python geometry view" }, kain_core::stdlib::BuiltinFn { name: "py_geometry_set_face", params: [("view", "Any"), ("index", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write one face into a live Python geometry view" }, kain_core::stdlib::BuiltinFn { name: "py_tensor_view", params: [("target", "Any")], return_type: "Any", doc: "Create a read-only typed tensor view over a Python tensor payload" }, kain_core::stdlib::BuiltinFn { name: "py_tensor_get", params: [("view", "Any"), ("indices", "Any")], return_type: "Any", doc: "Read one tensor element or sub-value from a typed Python tensor view" }, kain_core::stdlib::BuiltinFn { name: "py_tensor_set", params: [("view", "Any"), ("indices", "Any"), ("value", "Any")], return_type: "Unit", doc: "Write one tensor element or sub-value into a live Python tensor view" }, kain_core::stdlib::BuiltinFn { name: "kain_image_from_py", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python image payload into a Kain-owned typed image buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_image_from_py_shared", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python image payload with required shared backing; errors if zero-copy is unavailable" }, kain_core::stdlib::BuiltinFn { name: "kain_image_from_py_owned", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python image payload into an owned Kain buffer without shared backing" }, kain_core::stdlib::BuiltinFn { name: "kain_image_info", params: [("image", "Any")], return_type: "Any", doc: "Inspect a Kain-owned typed image buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_image_pixel", params: [("image", "Any"), ("x", "Int"), ("y", "Int")], return_type: "Any", doc: "Read one pixel from a Kain-owned typed image buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_image_set_pixel", params: [("image", "Any"), ("x", "Int"), ("y", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write one pixel into a Kain-owned typed image buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_image_to_py", params: [("image", "Any"), ("backend", "String")], return_type: "Any", doc: "Export a Kain-owned typed image buffer back into a Python object such as a NumPy array or torch tensor" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_from_py", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python tensor payload into a Kain-owned typed tensor buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_from_py_shared", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python tensor payload with required shared backing; errors if zero-copy is unavailable" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_from_py_owned", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python tensor payload into an owned Kain buffer without shared backing" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_info", params: [("tensor", "Any")], return_type: "Any", doc: "Inspect a Kain-owned typed tensor buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_get", params: [("tensor", "Any"), ("indices", "Any")], return_type: "Any", doc: "Read one tensor element from a Kain-owned typed tensor buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_set", params: [("tensor", "Any"), ("indices", "Any"), ("value", "Any")], return_type: "Unit", doc: "Write one tensor element into a Kain-owned typed tensor buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_tensor_to_py", params: [("tensor", "Any"), ("backend", "String")], return_type: "Any", doc: "Export a Kain-owned typed tensor buffer back into a Python object such as a NumPy array or torch tensor" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_from_py", params: [("target", "Any")], return_type: "Any", doc: "Materialize Python geometry into a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_from_py_shared", params: [("target", "Any")], return_type: "Any", doc: "Materialize Python geometry with required shared backing; errors if zero-copy is unavailable" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_from_py_owned", params: [("target", "Any")], return_type: "Any", doc: "Materialize Python geometry into owned Kain buffers without shared backing" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_info", params: [("geometry", "Any")], return_type: "Any", doc: "Inspect a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_vertex", params: [("geometry", "Any"), ("index", "Int")], return_type: "Any", doc: "Read one vertex from a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_set_vertex", params: [("geometry", "Any"), ("index", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write one vertex into a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_face", params: [("geometry", "Any"), ("index", "Int")], return_type: "Any", doc: "Read one face from a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_set_face", params: [("geometry", "Any"), ("index", "Int"), ("value", "Any")], return_type: "Unit", doc: "Write one face into a Kain-owned typed geometry buffer" }, kain_core::stdlib::BuiltinFn { name: "kain_geometry_to_py", params: [("geometry", "Any"), ("backend", "String")], return_type: "Any", doc: "Export a Kain-owned typed geometry buffer back into Python arrays, dict payloads, or trimesh objects" }, kain_core::stdlib::BuiltinFn { name: "kain_shared_buffer_from_py", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python buffer-capable payload into the neutral Kain shared buffer contract" }, kain_core::stdlib::BuiltinFn { name: "kain_shared_image_from_py", params: [("target", "Any")], return_type: "Any", doc: "Materialize a Python uint8 image payload into the neutral Kain shared image contract" }]:
+        (*stdlib).functions.insert(builtin.name.to_string(), builtin)
+        ()
+
+fn register_python_env(env: &mut kain_core::runtime::Env):
+    if env.get_extension_state(PYTHON_EXTENSION_KEY).is_none():
+        Python__with_gil(fn(py): none)
+        ()
+        ()
+        ()
+        ()
+    env.register_native_fn("py_eval", py_eval_native)
+    ()
+    env.register_native_fn("py_eval_raw", py_eval_raw_native)
+    ()
+    env.register_native_fn("py_exec", py_exec_native)
+    ()
+    env.register_native_fn("py_import", py_import_native)
+    ()
+    env.register_native_fn("py_call", py_call_native)
+    ()
+    env.register_native_fn("py_call_raw", py_call_raw_native)
+    ()
+    env.register_native_fn("py_getattr", py_getattr_native)
+    ()
+    env.register_native_fn("py_getattr_raw", py_getattr_raw_native)
+    ()
+    env.register_native_fn("py_setattr", py_setattr_native)
+    ()
+    env.register_native_fn("py_hasattr", py_hasattr_native)
+    ()
+    env.register_native_fn("py_buffer", py_buffer_native)
+    ()
+    env.register_native_fn("py_buffer_info", py_buffer_info_native)
+    ()
+    env.register_native_fn("py_buffer_bytes", py_buffer_bytes_native)
+    ()
+    env.register_native_fn("py_tensor_info", py_tensor_info_native)
+    ()
+    env.register_native_fn("py_tensor_bytes", py_tensor_bytes_native)
+    ()
+    env.register_native_fn("py_image_info", py_image_info_native)
+    ()
+    env.register_native_fn("py_image_view", py_image_view_native)
+    ()
+    env.register_native_fn("py_image_pixel", py_image_pixel_native)
+    ()
+    env.register_native_fn("py_image_set_pixel", py_image_set_pixel_native)
+    ()
+    env.register_native_fn("py_geometry_info", py_geometry_info_native)
+    ()
+    env.register_native_fn("py_geometry_view", py_geometry_view_native)
+    ()
+    env.register_native_fn("py_geometry_vertex", py_geometry_vertex_native)
+    ()
+    env.register_native_fn("py_geometry_face", py_geometry_face_native)
+    ()
+    env.register_native_fn("py_geometry_set_vertex", py_geometry_set_vertex_native)
+    ()
+    env.register_native_fn("py_geometry_set_face", py_geometry_set_face_native)
+    ()
+    env.register_native_fn("py_tensor_view", py_tensor_view_native)
+    ()
+    env.register_native_fn("py_tensor_get", py_tensor_get_native)
+    ()
+    env.register_native_fn("py_tensor_set", py_tensor_set_native)
+    ()
+    env.register_native_fn("kain_image_from_py", kain_image_from_py_native)
+    ()
+    env.register_native_fn("kain_image_from_py_shared", kain_image_from_py_shared_native)
+    ()
+    env.register_native_fn("kain_image_from_py_owned", kain_image_from_py_owned_native)
+    ()
+    env.register_native_fn("kain_image_info", kain_image_info_native)
+    ()
+    env.register_native_fn("kain_image_pixel", kain_image_pixel_native)
+    ()
+    env.register_native_fn("kain_image_set_pixel", kain_image_set_pixel_native)
+    ()
+    env.register_native_fn("kain_image_to_py", kain_image_to_py_native)
+    ()
+    env.register_native_fn("kain_tensor_from_py", kain_tensor_from_py_native)
+    ()
+    env.register_native_fn("kain_tensor_from_py_shared", kain_tensor_from_py_shared_native)
+    ()
+    env.register_native_fn("kain_tensor_from_py_owned", kain_tensor_from_py_owned_native)
+    ()
+    env.register_native_fn("kain_tensor_info", kain_tensor_info_native)
+    ()
+    env.register_native_fn("kain_tensor_get", kain_tensor_get_native)
+    ()
+    env.register_native_fn("kain_tensor_set", kain_tensor_set_native)
+    ()
+    env.register_native_fn("kain_tensor_to_py", kain_tensor_to_py_native)
+    ()
+    env.register_native_fn("kain_geometry_from_py", kain_geometry_from_py_native)
+    ()
+    env.register_native_fn("kain_geometry_from_py_shared", kain_geometry_from_py_shared_native)
+    ()
+    env.register_native_fn("kain_geometry_from_py_owned", kain_geometry_from_py_owned_native)
+    ()
+    env.register_native_fn("kain_geometry_info", kain_geometry_info_native)
+    ()
+    env.register_native_fn("kain_geometry_vertex", kain_geometry_vertex_native)
+    ()
+    env.register_native_fn("kain_geometry_set_vertex", kain_geometry_set_vertex_native)
+    ()
+    env.register_native_fn("kain_geometry_face", kain_geometry_face_native)
+    ()
+    env.register_native_fn("kain_geometry_set_face", kain_geometry_set_face_native)
+    ()
+    env.register_native_fn("kain_geometry_to_py", kain_geometry_to_py_native)
+    ()
+    env.register_native_fn("kain_shared_buffer_from_py", kain_shared_buffer_from_py_native)
+    ()
+    env.register_native_fn("kain_shared_image_from_py", kain_shared_image_from_py_native)
+    ()
+
+fn py_eval_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_eval: expected 1 argument (code)"))
+    let code = match &args[0]:
+        kain_core__runtime__Value::String(s) => s
+        _ => return Result::Err(KainError__runtime("py_eval: expected string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_eval_raw_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_eval_raw: expected 1 argument (code)"))
+    let code = match &args[0]:
+        kain_core__runtime__Value::String(s) => s
+        _ => return Result::Err(KainError__runtime("py_eval_raw: expected string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_exec_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_exec: expected 1 argument"))
+    let code = match &args[0]:
+        kain_core__runtime__Value::String(s) => s
+        _ => return Result::Err(KainError__runtime("py_exec: expected string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_import_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_import: expected 1 argument"))
+    let module_name = match &args[0]:
+        kain_core__runtime__Value::String(s) => s
+        _ => return Result::Err(KainError__runtime("py_import: argument must be string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_call_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    py_call_with_mode(env, args, false)
+
+fn py_call_raw_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    py_call_with_mode(env, args, true)
+
+fn py_call_with_mode(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>, raw_result: Bool) -> Result<kain_core::runtime::Value, KainError>:
+    let state_ = python_scope_state(env)?
+    let call_spec = parse_python_call(&args)?
+    Python__with_gil(fn(py): none)
+
+fn py_getattr_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    py_getattr_with_mode(env, args, false)
+
+fn py_getattr_raw_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    py_getattr_with_mode(env, args, true)
+
+fn py_getattr_with_mode(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>, raw_result: Bool) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("py_getattr: expected 2 arguments (target, name)"))
+    let attr_name = match &args[1]:
+        kain_core__runtime__Value::String(name) => name.clone()
+        _ => return Result::Err(KainError__runtime("py_getattr: attribute name must be string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_setattr_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("py_setattr: expected 3 arguments (target, name, value)"))
+    let attr_name = match &args[1]:
+        kain_core__runtime__Value::String(name) => name.clone()
+        _ => return Result::Err(KainError__runtime("py_setattr: attribute name must be string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_hasattr_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("py_hasattr: expected 2 arguments (target, name)"))
+    let attr_name = match &args[1]:
+        kain_core__runtime__Value::String(name) => name.clone()
+        _ => return Result::Err(KainError__runtime("py_hasattr: attribute name must be string"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_buffer_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_buffer: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_buffer_info_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_buffer_info: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_buffer_bytes_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_buffer_bytes: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_tensor_info_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_tensor_info: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_tensor_bytes_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_tensor_bytes: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_image_info_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_image_info: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_info_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.is_empty() || (args.len() > 2)):
+        return Result::Err(KainError__runtime("py_geometry_info: expected (target) or (vertices, indices)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_image_view_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_image_view: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_image_pixel_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let (view, batch, x, y) = match args.as_slice():
+        [view, x, y] => (extract_image_view(view)?, 0, value_to_int_arg("py_image_pixel", "x", x)?, value_to_int_arg("py_image_pixel", "y", y)?)
+        [view, batch, x, y] => (extract_image_view(view)?, value_to_int_arg("py_image_pixel", "batch", batch)?, value_to_int_arg("py_image_pixel", "x", x)?, value_to_int_arg("py_image_pixel", "y", y)?)
+        _ => return Result::Err(KainError__runtime("py_image_pixel: expected (view, x, y) or (view, batch, x, y)"))
+    Python__with_gil(fn(py): none)
+
+fn py_image_set_pixel_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let (view, batch, x, y, value) = match args.as_slice():
+        [view, x, y, value] => (extract_image_view(view)?, 0, value_to_int_arg("py_image_set_pixel", "x", x)?, value_to_int_arg("py_image_set_pixel", "y", y)?, value)
+        [view, batch, x, y, value] => (extract_image_view(view)?, value_to_int_arg("py_image_set_pixel", "batch", batch)?, value_to_int_arg("py_image_set_pixel", "x", x)?, value_to_int_arg("py_image_set_pixel", "y", y)?, value)
+        _ => return Result::Err(KainError__runtime("py_image_set_pixel: expected (view, x, y, value) or (view, batch, x, y, value)"))
+    validate_pixel_value("py_image_set_pixel", value, view.channels)?
+    ()
+    Python__with_gil(fn(py): none)
+
+fn py_tensor_view_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("py_tensor_view: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_tensor_get_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("py_tensor_get: expected (view, indices)"))
+    let view = extract_tensor_view(&args[0])?
+    let indices = parse_index_values("py_tensor_get", &args[1])?
+    Python__with_gil(fn(py): none)
+
+fn py_tensor_set_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("py_tensor_set: expected (view, indices, value)"))
+    let view = extract_tensor_view(&args[0])?
+    let indices = parse_index_values("py_tensor_set", &args[1])?
+    validate_rank("py_tensor_set", &view.metadata.shape, indices.len(), "tensor rank")?
+    ()
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_view_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.is_empty() || (args.len() > 2)):
+        return Result::Err(KainError__runtime("py_geometry_view: expected (target) or (vertices, indices)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_vertex_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("py_geometry_vertex: expected (view, index)"))
+    let view = extract_geometry_view(&args[0])?
+    let index = value_to_int_arg("py_geometry_vertex", "index", &args[1])?
+    validate_axis_index("py_geometry_vertex", index, view.vertex_metadata.shape.first().copied().unwrap_or(0))?
+    ()
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_face_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("py_geometry_face: expected (view, index)"))
+    let view = extract_geometry_view(&args[0])?
+    let Some(indices) = view.indices
+    let index = value_to_int_arg("py_geometry_face", "index", &args[1])?
+    let face_count = view.index_metadata.and_then(fn(metadata): metadata.shape.first().copied()).unwrap_or(0)
+    validate_axis_index("py_geometry_face", index, face_count)?
+    ()
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_set_vertex_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("py_geometry_set_vertex: expected (view, index, value)"))
+    let view = extract_geometry_view(&args[0])?
+    let index = value_to_int_arg("py_geometry_set_vertex", "index", &args[1])?
+    validate_axis_index("py_geometry_set_vertex", index, view.vertex_metadata.shape.first().copied().unwrap_or(0))?
+    ()
+    validate_vector_value("py_geometry_set_vertex", &args[2], view.components)?
+    ()
+    Python__with_gil(fn(py): none)
+
+fn py_geometry_set_face_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("py_geometry_set_face: expected (view, index, value)"))
+    let view = extract_geometry_view(&args[0])?
+    let Some(indices) = view.indices
+    let index = value_to_int_arg("py_geometry_set_face", "index", &args[1])?
+    let face_count = view.index_metadata.and_then(fn(metadata): metadata.shape.first().copied()).unwrap_or(0)
+    validate_axis_index("py_geometry_set_face", index, face_count)?
+    ()
+    if (view.face_size > 0):
+        validate_vector_value("py_geometry_set_face", &args[2], view.face_size)?
+        ()
+        ()
+        ()
+        ()
+    Python__with_gil(fn(py): none)
+
+fn kain_image_from_py_impl(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn kain_image_from_py_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_image_from_py_impl(env, args, MaterializationMode__Auto, "kain_image_from_py")
+
+fn kain_image_from_py_shared_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_image_from_py_impl(env, args, MaterializationMode__Shared, "kain_image_from_py_shared")
+
+fn kain_image_from_py_owned_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_image_from_py_impl(env, args, MaterializationMode__Owned, "kain_image_from_py_owned")
+
+fn kain_image_info_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("kain_image_info: expected 1 argument (image)"))
+    let image = extract_native_image(&args[0])?
+    Result::Ok(native_image_info_value(&image))
+
+fn kain_image_pixel_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let (image, batch, x, y) = match args.as_slice():
+        [image, x, y] => (extract_native_image(image)?, 0, value_to_int_arg("kain_image_pixel", "x", x)?, value_to_int_arg("kain_image_pixel", "y", y)?)
+        [image, batch, x, y] => (extract_native_image(image)?, value_to_int_arg("kain_image_pixel", "batch", batch)?, value_to_int_arg("kain_image_pixel", "x", x)?, value_to_int_arg("kain_image_pixel", "y", y)?)
+        _ => return Result::Err(KainError__runtime("kain_image_pixel: expected (image, x, y) or (image, batch, x, y)"))
+    native_image_pixel(&image, batch, x, y)
+
+fn kain_image_set_pixel_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let (image, batch, x, y, value) = match args.as_slice():
+        [image, x, y, value] => (extract_native_image(image)?, 0, value_to_int_arg("kain_image_set_pixel", "x", x)?, value_to_int_arg("kain_image_set_pixel", "y", y)?, value)
+        [image, batch, x, y, value] => (extract_native_image(image)?, value_to_int_arg("kain_image_set_pixel", "batch", batch)?, value_to_int_arg("kain_image_set_pixel", "x", x)?, value_to_int_arg("kain_image_set_pixel", "y", y)?, value)
+        _ => return Result::Err(KainError__runtime("kain_image_set_pixel: expected (image, x, y, value) or (image, batch, x, y, value)"))
+    native_image_set_pixel(&image, batch, x, y, value)?
+    ()
+    Result::Ok(kain_core__runtime__Value__Unit)
+
+fn kain_tensor_from_py_impl(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn kain_tensor_from_py_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_tensor_from_py_impl(env, args, MaterializationMode__Auto, "kain_tensor_from_py")
+
+fn kain_tensor_from_py_shared_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_tensor_from_py_impl(env, args, MaterializationMode__Shared, "kain_tensor_from_py_shared")
+
+fn kain_tensor_from_py_owned_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_tensor_from_py_impl(env, args, MaterializationMode__Owned, "kain_tensor_from_py_owned")
+
+fn kain_tensor_info_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("kain_tensor_info: expected 1 argument (tensor)"))
+    let tensor = extract_native_tensor(&args[0])?
+    Result::Ok(native_tensor_info_value(&tensor))
+
+fn kain_tensor_get_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("kain_tensor_get: expected (tensor, indices)"))
+    let tensor = extract_native_tensor(&args[0])?
+    let indices = parse_index_values("kain_tensor_get", &args[1])?
+    native_tensor_get(&tensor, &indices)
+
+fn kain_tensor_set_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("kain_tensor_set: expected (tensor, indices, value)"))
+    let tensor = extract_native_tensor(&args[0])?
+    let indices = parse_index_values("kain_tensor_set", &args[1])?
+    native_tensor_set(&tensor, &indices, &args[2])?
+    ()
+    Result::Ok(kain_core__runtime__Value__Unit)
+
+fn kain_geometry_from_py_impl(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.is_empty() || (args.len() > 2)):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected (target) or (vertices, indices)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn kain_geometry_from_py_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_geometry_from_py_impl(env, args, MaterializationMode__Auto, "kain_geometry_from_py")
+
+fn kain_geometry_from_py_shared_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_geometry_from_py_impl(env, args, MaterializationMode__Shared, "kain_geometry_from_py_shared")
+
+fn kain_geometry_from_py_owned_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    kain_geometry_from_py_impl(env, args, MaterializationMode__Owned, "kain_geometry_from_py_owned")
+
+fn shared_buffer_to_python_object(py: Python<_>, buffer: &kain_interop::KainSharedBuffer) -> Result<PyObject, KainError>:
+    let dict = PyDict__new_(py)
+    dict.set_item("contract", "kain.shared.buffer").map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("byte_length", buffer.byte_length() as i64).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("element_type", (*buffer).metadata.element_type.clone()).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("element_size", (*buffer).metadata.element_size).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("shape", PyList__new_(py, (*buffer).metadata.shape.iter().copied())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("strides", PyList__new_(py, (*buffer).metadata.strides.iter().copied())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("format", (*buffer).metadata.format.clone().map(fn(value): value.into_py(py)).unwrap_or_else(fn(): py.None())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("mime_type", (*buffer).metadata.mime_type.clone().map(fn(value): value.into_py(py)).unwrap_or_else(fn(): py.None())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("source_runtime", (*buffer).metadata.source_runtime.clone()).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("source_backend", (*buffer).metadata.source_backend.clone().map(fn(value): value.into_py(py)).unwrap_or_else(fn(): py.None())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("ownership", (*buffer).metadata.ownership.clone()).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("labels", PyList__new_(py, (*buffer).metadata.labels.iter())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    dict.set_item("bytes", PyByteArray__new_(py, &buffer.bytes())).map_err(fn(err): KainError__runtime(f"shared buffer export error: {err}"))?
+    ()
+    Result::Ok(dict.into())
+
+fn shared_image_to_python_object(py: Python<_>, image: &kain_interop::KainSharedImage) -> Result<PyObject, KainError>:
+    let dict = PyDict__new_(py)
+    dict.set_item("contract", "kain.shared.image").map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("byte_length", (*image).buffer.byte_length() as i64).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("representation", (*image).metadata.representation.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("width", (*image).metadata.width).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("height", (*image).metadata.height).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("channels", (*image).metadata.channels).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("layout", (*image).metadata.layout.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("pixel_format", (*image).metadata.pixel_format.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("mime_type", (*image).metadata.mime_type.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("row_stride", (*image).metadata.row_stride).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("color_space", (*image).metadata.color_space.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("alpha_mode", (*image).metadata.alpha_mode.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("source_runtime", (*image).metadata.source_runtime.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("source_backend", (*image).metadata.source_backend.clone().map(fn(value): value.into_py(py)).unwrap_or_else(fn(): py.None())).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("ownership", (*image).metadata.ownership.clone()).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("labels", PyList__new_(py, (*image).metadata.labels.iter())).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    dict.set_item("bytes", PyByteArray__new_(py, &image.bytes())).map_err(fn(err): KainError__runtime(f"shared image export error: {err}"))?
+    ()
+    Result::Ok(dict.into())
+
+fn python_contract_field<py>(target: &py PyAny, name: String) -> Option<&py PyAny>:
+    match target.downcast():
+        Ok(dict) => return dict.get_item(name).ok().flatten()
+        _ =>
+            ()
+            ()
+    target.getattr(name).ok()
+
+fn python_contract_string(target: &PyAny, name: String) -> Result<Option<String>, KainError>:
+    let Some(value) = python_contract_field(target, name)
+    if value.is_none():
+        return Result::Ok(none)
+    value.extract().map(fn(__kain_closure_arg0): Option::Some(__kain_closure_arg0)).map_err(fn(err): KainError__runtime(f"shared contract field '{name}' must be a string: {err}"))
+
+fn python_contract_int(target: &PyAny, name: String) -> Result<Option<i64>, KainError>:
+    let Some(value) = python_contract_field(target, name)
+    if value.is_none():
+        return Result::Ok(none)
+    value.extract().map(fn(__kain_closure_arg1): Option::Some(__kain_closure_arg1)).map_err(fn(err): KainError__runtime(f"shared contract field '{name}' must be an int: {err}"))
+
+fn python_contract_int_list(target: &PyAny, name: String) -> Result<Option<Array<i64>>, KainError>:
+    let Some(value) = python_contract_field(target, name)
+    if value.is_none():
+        return Result::Ok(none)
+    value.extract().map(fn(__kain_closure_arg2): Option::Some(__kain_closure_arg2)).map_err(fn(err): KainError__runtime(f"shared contract field '{name}' must be a list of ints: {err}"))
+
+fn python_contract_string_list(target: &PyAny, name: String) -> Result<Option<Array<String>>, KainError>:
+    let Some(value) = python_contract_field(target, name)
+    if value.is_none():
+        return Result::Ok(none)
+    value.extract().map(fn(__kain_closure_arg3): Option::Some(__kain_closure_arg3)).map_err(fn(err): KainError__runtime(f"shared contract field '{name}' must be a list of strings: {err}"))
+
+fn python_contract_bytes(target: &PyAny, fn_name: String) -> Result<Array<u8>, KainError>:
+    let value = python_contract_field(target, "bytes").ok_or_else(fn(): KainError__runtime(f"{fn_name}: shared contract object is missing bytes"))?
+    python_bytes_to_vec(value)
+
+fn shared_buffer_from_python_contract(target: &PyAny) -> Result<Option<std::sync::Arc<kain_interop::KainSharedBuffer>>, KainError>:
+    let Some(contract) = python_contract_string(target, "contract")?
+    if (contract != "kain.shared.buffer"):
+        return Result::Ok(none)
+    let bytes = python_contract_bytes(target, "kain_shared_buffer_from_py")?
+    let element_type = (python_contract_string(target, "element_type")?).unwrap_or_else(fn(): ("u8").to_string())
+    let element_size = (python_contract_int(target, "element_size")?).unwrap_or(1)
+    let shape = (python_contract_int_list(target, "shape")?).unwrap_or_else(fn(): [bytes.len() as i64])
+    let strides = (python_contract_int_list(target, "strides")?).unwrap_or_else(fn(): [element_size.max(1)])
+    Result::Ok(Option::Some(KainSharedBuffer__owned(kain_interop::SharedBufferMetadata { element_type: element_type, element_size: element_size.max(1), shape: shape, strides: strides, format: python_contract_string(target, "format")?, mime_type: python_contract_string(target, "mime_type")?, source_runtime: (python_contract_string(target, "source_runtime")?).unwrap_or_else(fn(): ("python").to_string()), source_backend: python_contract_string(target, "source_backend")?, ownership: (python_contract_string(target, "ownership")?).unwrap_or_else(fn(): ("owned").to_string()), labels: (python_contract_string_list(target, "labels")?).unwrap_or_default() }, bytes)))
+
+fn shared_image_from_python_contract(target: &PyAny) -> Result<Option<std::sync::Arc<kain_interop::KainSharedImage>>, KainError>:
+    let Some(contract) = python_contract_string(target, "contract")?
+    if (contract != "kain.shared.image"):
+        return Result::Ok(none)
+    let bytes = python_contract_bytes(target, "kain_shared_image_from_py")?
+    Result::Ok(Option::Some(KainSharedImage__owned(kain_interop::SharedImageMetadata { representation: (python_contract_string(target, "representation")?).unwrap_or_else(fn(): ("encoded").to_string()), width: (python_contract_int(target, "width")?).unwrap_or(0), height: (python_contract_int(target, "height")?).unwrap_or(0), channels: (python_contract_int(target, "channels")?).unwrap_or(0), layout: (python_contract_string(target, "layout")?).unwrap_or_default(), pixel_format: (python_contract_string(target, "pixel_format")?).unwrap_or_else(fn(): ("encoded").to_string()), mime_type: (python_contract_string(target, "mime_type")?).unwrap_or_else(fn(): ("application/octet-stream").to_string()), row_stride: (python_contract_int(target, "row_stride")?).unwrap_or(0), color_space: (python_contract_string(target, "color_space")?).unwrap_or_else(fn(): ("srgb").to_string()), alpha_mode: (python_contract_string(target, "alpha_mode")?).unwrap_or_else(fn(): ("opaque").to_string()), source_runtime: (python_contract_string(target, "source_runtime")?).unwrap_or_else(fn(): ("python").to_string()), source_backend: python_contract_string(target, "source_backend")?, ownership: (python_contract_string(target, "ownership")?).unwrap_or_else(fn(): ("owned").to_string()), labels: (python_contract_string_list(target, "labels")?).unwrap_or_default() }, bytes)?))
+
+fn kain_shared_buffer_from_py_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("kain_shared_buffer_from_py: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn kain_shared_image_from_py_native(env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("kain_shared_image_from_py: expected 1 argument (target)"))
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn kain_geometry_info_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime("kain_geometry_info: expected 1 argument (geometry)"))
+    let geometry = extract_native_geometry(&args[0])?
+    Result::Ok(native_geometry_info_value(&geometry))
+
+fn kain_geometry_vertex_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("kain_geometry_vertex: expected (geometry, index)"))
+    let geometry = extract_native_geometry(&args[0])?
+    let index = value_to_int_arg("kain_geometry_vertex", "index", &args[1])?
+    native_geometry_vertex(&geometry, index)
+
+fn kain_geometry_set_vertex_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("kain_geometry_set_vertex: expected (geometry, index, value)"))
+    let geometry = extract_native_geometry(&args[0])?
+    let index = value_to_int_arg("kain_geometry_set_vertex", "index", &args[1])?
+    native_geometry_set_vertex(&geometry, index, &args[2])?
+    ()
+    Result::Ok(kain_core__runtime__Value__Unit)
+
+fn kain_geometry_face_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 2):
+        return Result::Err(KainError__runtime("kain_geometry_face: expected (geometry, index)"))
+    let geometry = extract_native_geometry(&args[0])?
+    let index = value_to_int_arg("kain_geometry_face", "index", &args[1])?
+    native_geometry_face(&geometry, index)
+
+fn kain_geometry_set_face_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    if (args.len() != 3):
+        return Result::Err(KainError__runtime("kain_geometry_set_face: expected (geometry, index, value)"))
+    let geometry = extract_native_geometry(&args[0])?
+    let index = value_to_int_arg("kain_geometry_set_face", "index", &args[1])?
+    native_geometry_set_face(&geometry, index, &args[2])?
+    ()
+    Result::Ok(kain_core__runtime__Value__Unit)
+
+fn kain_image_to_py_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let image = match args.as_slice():
+        [image] => extract_native_image(image)?
+        [image, kain_core__runtime__Value::String(_)] => extract_native_image(image)?
+        _ => return Result::Err(KainError__runtime("kain_image_to_py: expected (image) or (image, backend)"))
+    let backend = parse_optional_backend_arg("kain_image_to_py", &args, "numpy")?
+    Python__with_gil(fn(py): wrap_python_object((export_native_image_pyobject(py, image, &backend)?).as_ref(py)))
+
+fn kain_tensor_to_py_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let tensor = match args.as_slice():
+        [tensor] => extract_native_tensor(tensor)?
+        [tensor, kain_core__runtime__Value::String(_)] => extract_native_tensor(tensor)?
+        _ => return Result::Err(KainError__runtime("kain_tensor_to_py: expected (tensor) or (tensor, backend)"))
+    let backend = parse_optional_backend_arg("kain_tensor_to_py", &args, "numpy")?
+    Python__with_gil(fn(py): wrap_python_object((export_native_tensor_pyobject(py, tensor, &backend)?).as_ref(py)))
+
+fn kain_geometry_to_py_native(_env: &mut kain_core::runtime::Env, args: Array<kain_core::runtime::Value>) -> Result<kain_core::runtime::Value, KainError>:
+    let geometry = match args.as_slice():
+        [geometry] => extract_native_geometry(geometry)?
+        [geometry, kain_core__runtime__Value::String(_)] => extract_native_geometry(geometry)?
+        _ => return Result::Err(KainError__runtime("kain_geometry_to_py: expected (geometry) or (geometry, backend)"))
+    let backend = parse_optional_backend_arg("kain_geometry_to_py", &args, "dict")?
+    Python__with_gil(fn(py): wrap_python_object((export_native_geometry_pyobject(py, geometry, &backend)?).as_ref(py)))
+
+fn parse_optional_backend_arg(fn_name: String, args: &[kain_core::runtime::Value], default_: String) -> Result<String, KainError>:
+    match args:
+        [_] => Result::Ok(default_.to_string())
+        [_, kain_core__runtime__Value::String(backend)] => Result::Ok(backend.clone())
+        [_, other] => Result::Err(KainError__runtime(f"{fn_name}: expected backend to be a String, got {other}"))
+        _ => Result::Err(KainError__runtime(f"{fn_name}: invalid argument shape for backend parsing"))
+
+@derive(Debug, Clone)
+struct PythonPayloadMetadata:
+    backend: String
+    kind: String
+    label: String
+    dtype: String
+    format: Option<String>
+    shape: Array<i64>
+    strides: Array<i64>
+    ndim: i64
+    nbytes: i64
+    item_size: i64
+    readonly: Bool
+    contiguous: Bool
+    c_contiguous: Bool
+    f_contiguous: Bool
+    device: Option<String>
+    requires_grad: Option<Bool>
+
+struct PythonCallSpec<a>:
+    target: &a kain_core::runtime::Value
+    attr_name: Option<String>
+    positional_args: &a kain_core::runtime::Value
+    keyword_args: Option<&a kain_core::runtime::Value>
+
+fn parse_python_call(args: &[kain_core::runtime::Value]) -> Result<PythonCallSpec<_>, KainError>:
+    match args:
+        [target, positional_args] => Result::Ok(PythonCallSpec { target: target, attr_name: none, positional_args: positional_args, keyword_args: none })
+        [target, second, third] =>
+            match second:
+                kain_core__runtime__Value::String(attr_name) => Result::Ok(PythonCallSpec { target: target, attr_name: Option::Some(attr_name.clone()), positional_args: third, keyword_args: none })
+                _ => Result::Ok(PythonCallSpec { target: target, attr_name: none, positional_args: second, keyword_args: Option::Some(third) })
+        [target, kain_core__runtime__Value::String(attr_name), positional_args, keyword_args] => Result::Ok(PythonCallSpec { target: target, attr_name: Option::Some(attr_name.clone()), positional_args: positional_args, keyword_args: Option::Some(keyword_args) })
+        _ => Result::Err(KainError__runtime("py_call: expected (target, args), (target, args, kwargs), (target, attr, args), or (target, attr, args, kwargs)"))
+
+fn positional_args_to_tuple<py>(py: Python<py>, value: &kain_core::runtime::Value) -> Result<&py pyo3::types::PyTuple, KainError>:
+    let items = match value:
+        kain_core__runtime__Value::Array(values) => values.read().unwrap().clone()
+        kain_core__runtime__Value::Tuple(values) => values.clone()
+        kain_core__runtime__Value::None => Vec__new_()
+        kain_core__runtime__Value::Unit => Vec__new_()
+        _ => return Result::Err(KainError__runtime("py_call: positional args must be an array, tuple, none, or unit"))
+    let mut py_values = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+    for item in &items:
+        py_values.push(value_to_pyobject(py, item)?)
+        ()
+    ()
+    Result::Ok(PyTuple__new_(py, py_values))
+
+fn keyword_args_to_dict<py>(py: Python<py>, value: Option<&kain_core::runtime::Value>) -> Result<Option<&py pyo3::types::PyDict>, KainError>:
+    let Some(value) = value
+    match value:
+        kain_core__runtime__Value::None => Result::Ok(none)
+        kain_core__runtime__Value::Unit => Result::Ok(none)
+        kain_core__runtime__Value::Struct(_, fields) =>
+            let dict = PyDict__new_(py)
+            let guard = fields.read().unwrap()
+            for selfhost_for_item in guard.iter():
+                let (key, value) = selfhost_for_item
+                dict.set_item(key, value_to_pyobject(py, value)?).map_err(fn(err): KainError__runtime(f"Python kwargs error: {err}"))?
+                ()
+            ()
+            Result::Ok(Option::Some(dict))
+        _ => Result::Err(KainError__runtime("py_call: keyword args must be a struct/dict-like value, none, or unit"))
+
+fn resolve_python_target<py>(py: Python<py>, scope: &py pyo3::types::PyDict, value: &kain_core::runtime::Value) -> Result<PyObject, KainError>:
+    match value:
+        kain_core__runtime__Value::HostObject(_, _) => extract_python_object(value, py)
+        kain_core__runtime__Value::String(expr) => py.eval(expr, Option::Some(scope), Option::Some(scope)).map(fn(result): result.into_py(py)).map_err(fn(err): KainError__runtime(f"Python resolution error: {err}"))
+        _ => value_to_pyobject(py, value)
+
+fn create_memoryview(py: Python<_>, target: &PyAny) -> Result<PyObject, KainError>:
+    let builtins = py.import("builtins").map_err(fn(err): KainError__runtime(f"Python import error: {err}"))?
+    builtins.getattr("memoryview").and_then(fn(callable): callable.call1((target))).map(fn(view): view.into_py(py)).map_err(fn(err): KainError__runtime(f"Python buffer error: {err}"))
+
+fn resolve_payload_metadata(py: Python<_>, target: &PyAny) -> Result<PythonPayloadMetadata, KainError>:
+    if is_torch_tensor(target):
+        return build_torch_tensor_metadata(py, target)
+    let view = create_memoryview(py, target)?
+    build_memoryview_metadata(target, view.as_ref(py))
+
+fn build_memoryview_metadata(target: &PyAny, view: &PyAny) -> Result<PythonPayloadMetadata, KainError>:
+    Result::Ok(PythonPayloadMetadata { backend: detect_backend(target), kind: python_type_path(target), label: python_object_label(target), dtype: dtype_name_from_target_or_view(target, view)?, format: py_optional_string_attr_value(view, "format")?, shape: py_index_sequence_attr_values(view, "shape")?, strides: py_index_sequence_attr_values_or_default(view, "strides")?, ndim: py_int_attr_value(view, "ndim")?, nbytes: py_int_attr_value(view, "nbytes")?, item_size: py_int_attr_value(view, "itemsize")?, readonly: py_bool_attr_value(view, "readonly")?, contiguous: py_bool_attr_value(view, "contiguous")?, c_contiguous: py_bool_attr_value(view, "c_contiguous")?, f_contiguous: py_bool_attr_value(view, "f_contiguous")?, device: py_optional_string_attr_value(target, "device")?, requires_grad: py_optional_bool_attr_value(target, "requires_grad")? })
+
+fn build_torch_tensor_metadata(py: Python<_>, target: &PyAny) -> Result<PythonPayloadMetadata, KainError>:
+    let detached = target.call_method0("detach").map_err(fn(err): KainError__runtime(f"PyTorch detach error: {err}"))?
+    let cpu_tensor = detached.call_method0("cpu").map_err(fn(err): KainError__runtime(f"PyTorch cpu() error: {err}"))?
+    let contiguous_tensor = cpu_tensor.call_method0("contiguous").map_err(fn(err): KainError__runtime(f"PyTorch contiguous() error: {err}"))?
+    let numpy_array = contiguous_tensor.call_method0("numpy").map_err(fn(err): KainError__runtime(f"PyTorch numpy() error: {err}"))?
+    let view = create_memoryview(py, numpy_array)?
+    Result::Ok(PythonPayloadMetadata { backend: ("torch").to_string(), kind: python_type_path(target), label: python_object_label(target), dtype: torch_dtype_name(target)?, format: py_optional_string_attr_value(view.as_ref(py), "format")?, shape: py_index_sequence_values_from_object(target, "shape")?, strides: torch_stride_values(target)?, ndim: py_int_attr_value(target, "ndim")?, nbytes: torch_nbytes(target)?, item_size: torch_item_size(target)?, readonly: false, contiguous: torch_is_contiguous(target)?, c_contiguous: torch_is_contiguous(target)?, f_contiguous: false, device: py_optional_string_attr_value(target, "device")?, requires_grad: py_optional_bool_attr_value(target, "requires_grad")? })
+
+fn build_buffer_info(target: &PyAny, view: &PyAny) -> Result<kain_core::runtime::Value, KainError>:
+    let metadata = build_memoryview_metadata(target, view)?
+    Result::Ok(metadata_to_value("PyBufferInfo", &metadata))
+
+fn dtype_name_from_target_or_view(target: &PyAny, view: &PyAny) -> Result<String, KainError>:
+    for candidate in [Option::Some(target), target.getattr("obj").ok(), view.getattr("obj").ok()]:
+        let Some(candidate) = candidate
+        match candidate.getattr("dtype"):
+            Ok(dtype) =>
+                match dtype.getattr("name").and_then(fn(value): value.extract()):
+                    Ok(name) => return Result::Ok(name)
+                    _ =>
+                        ()
+                        ()
+                match dtype.str().and_then(fn(value): value.extract()):
+                    Ok(name) => return Result::Ok(name)
+                    _ => ()
+            _ => ()
+    ()
+    Result::Ok((py_optional_string_attr_value(view, "format")?).unwrap_or_else(fn(): ("unknown").to_string()))
+
+fn export_payload_bytes(py: Python<_>, target: &PyAny) -> Result<PyObject, KainError>:
+    if is_torch_tensor(target):
+        let contiguous_tensor = target.call_method0("detach").and_then(fn(value): value.call_method0("cpu")).and_then(fn(value): value.call_method0("contiguous")).map_err(fn(err): KainError__runtime(f"PyTorch tensor export error: {err}"))?
+        return contiguous_tensor.call_method0("numpy").and_then(fn(value): value.call_method0("tobytes")).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"PyTorch bytes export error: {err}"))
+    let view = create_memoryview(py, target)?
+    view.as_ref(py).call_method0("tobytes").map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"Python buffer export error: {err}"))
+
+fn python_bytes_to_vec(value: &PyAny) -> Result<Array<u8>, KainError>:
+    match value.downcast():
+        Ok(bytes) => return Result::Ok(bytes.as_bytes().to_vec())
+        _ =>
+            ()
+            ()
+    match value.downcast():
+        Ok(bytes) => return Result::Ok(bytes.to_vec())
+        _ =>
+            ()
+            ()
+    value.extract().map_err(fn(err): KainError__runtime(f"Python bytes conversion error: {err}"))
+
+fn shared_element_type_from_python_dtype(dtype: String) -> Result<String, KainError>:
+    Result::Ok((none).to_string())
+
+fn infer_python_pixel_format(channels: i64, dtype: String) -> String:
+    let suffix = match dtype:
+        "uint8" => "8"
+        "ubyte" => "8"
+        "uint16" => "16"
+        _ => "x"
+    match channels:
+        1 => f"r{suffix}"
+        2 => f"rg{suffix}"
+        3 => f"rgb{suffix}"
+        4 => f"rgba{suffix}"
+        _ => f"channels-{channels}-{dtype}"
+
+fn metadata_to_value(name: String, metadata: &PythonPayloadMetadata) -> kain_core::runtime::Value:
+    let mut fields = HashMap__new_()
+    fields.insert(("backend").to_string(), kain_core__runtime__Value::String((*metadata).backend.clone()))
+    ()
+    fields.insert(("kind").to_string(), kain_core__runtime__Value::String((*metadata).kind.clone()))
+    ()
+    fields.insert(("label").to_string(), kain_core__runtime__Value::String((*metadata).label.clone()))
+    ()
+    fields.insert(("dtype").to_string(), kain_core__runtime__Value::String((*metadata).dtype.clone()))
+    ()
+    fields.insert(("format").to_string(), optional_string_to_value((*metadata).format.clone()))
+    ()
+    fields.insert(("shape").to_string(), int_list_to_value(&(*metadata).shape))
+    ()
+    fields.insert(("strides").to_string(), int_list_to_value(&(*metadata).strides))
+    ()
+    fields.insert(("ndim").to_string(), kain_core__runtime__Value::Int((*metadata).ndim))
+    ()
+    fields.insert(("nbytes").to_string(), kain_core__runtime__Value::Int((*metadata).nbytes))
+    ()
+    fields.insert(("item_size").to_string(), kain_core__runtime__Value::Int((*metadata).item_size))
+    ()
+    fields.insert(("readonly").to_string(), kain_core__runtime__Value::Bool((*metadata).readonly))
+    ()
+    fields.insert(("contiguous").to_string(), kain_core__runtime__Value::Bool((*metadata).contiguous))
+    ()
+    fields.insert(("c_contiguous").to_string(), kain_core__runtime__Value::Bool((*metadata).c_contiguous))
+    ()
+    fields.insert(("f_contiguous").to_string(), kain_core__runtime__Value::Bool((*metadata).f_contiguous))
+    ()
+    fields.insert(("device").to_string(), optional_string_to_value((*metadata).device.clone()))
+    ()
+    fields.insert(("requires_grad").to_string(), optional_bool_to_value((*metadata).requires_grad))
+    ()
+    kain_core__runtime__Value::Struct(name.to_string(), Arc__new_(RwLock__new_(fields)))
+
+fn build_image_info(metadata: &PythonPayloadMetadata) -> Result<kain_core::runtime::Value, KainError>:
+    let dims = &(*metadata).shape
+    let (layout, batch, height, width, channels) = match dims.as_slice():
+        [height, width] => (("HW").to_string(), 1, (*height), (*width), 1)
+        [height, width, channels] if IMAGE_CHANNEL_COUNTS.contains(channels) => (("HWC").to_string(), 1, (*height), (*width), (*channels))
+        [channels, height, width] if IMAGE_CHANNEL_COUNTS.contains(channels) => (("CHW").to_string(), 1, (*height), (*width), (*channels))
+        [batch, height, width, channels] if IMAGE_CHANNEL_COUNTS.contains(channels) => (("NHWC").to_string(), (*batch), (*height), (*width), (*channels))
+        [batch, channels, height, width] if IMAGE_CHANNEL_COUNTS.contains(channels) => (("NCHW").to_string(), (*batch), (*height), (*width), (*channels))
+        _ => return Result::Err(KainError__runtime(f"py_image_info: cannot infer image layout from shape {dims}"))
+    let mut fields = struct_fields_from_value(metadata_to_value("PyImageInfo", metadata))
+    fields.insert(("layout").to_string(), kain_core__runtime__Value::String(layout))
+    ()
+    fields.insert(("batch").to_string(), kain_core__runtime__Value::Int(batch))
+    ()
+    fields.insert(("height").to_string(), kain_core__runtime__Value::Int(height))
+    ()
+    fields.insert(("width").to_string(), kain_core__runtime__Value::Int(width))
+    ()
+    fields.insert(("channels").to_string(), kain_core__runtime__Value::Int(channels))
+    ()
+    fields.insert(("pixel_count").to_string(), kain_core__runtime__Value::Int(height.saturating_mul(width).saturating_mul(batch)))
+    ()
+    fields.insert(("channel_last").to_string(), kain_core__runtime__Value::Bool(((none || none) || none)))
+    ()
+    Result::Ok(kain_core__runtime__Value::Struct(("PyImageInfo").to_string(), Arc__new_(RwLock__new_(fields))))
+
+fn build_image_view(target: PyObject, metadata: &PythonPayloadMetadata) -> Result<kain_core::runtime::Value, KainError>:
+    let info = build_image_info(metadata)?
+    let fields = struct_fields_from_value(info)
+    let layout = struct_string_field(&fields, "layout")?
+    let batch = struct_int_field(&fields, "batch")?
+    let width = struct_int_field(&fields, "width")?
+    let height = struct_int_field(&fields, "height")?
+    let channels = struct_int_field(&fields, "channels")?
+    Result::Ok(Value__host_object("python:view:image", Arc__new_(PythonImageView { object: target, layout: layout, batch: batch, width: width, height: height, channels: channels })))
+
+fn build_geometry_info(vertices: &PythonPayloadMetadata, indices: Option<&PythonPayloadMetadata>) -> Result<kain_core::runtime::Value, KainError>:
+    let vertex_shape = (*vertices).shape.as_slice()
+    let (vertex_count, components) = match vertex_shape:
+        [count, components] if (range(2, (4 + 1))).contains(components) => ((*count), (*components))
+        _ => return Result::Err(KainError__runtime(f"py_geometry_info: expected vertex shape [N, 2|3|4], found {(*vertices).shape}"))
+    let (index_count, face_count, face_size) = match indices:
+        Some(indices) =>
+            match indices.shape.as_slice():
+                [count] => ((*count), (*count), 1)
+                [count, face_size] if (range(2, (4 + 1))).contains(face_size) => (count.saturating_mul((*face_size)), (*count), (*face_size))
+                _ => return Result::Err(KainError__runtime(f"py_geometry_info: expected index shape [M] or [M, 2|3|4], found {indices.shape}"))
+        None => (0, 0, 0)
+    let mut fields = HashMap__new_()
+    fields.insert(("backend").to_string(), kain_core__runtime__Value::String((*vertices).backend.clone()))
+    ()
+    fields.insert(("vertex_dtype").to_string(), kain_core__runtime__Value::String((*vertices).dtype.clone()))
+    ()
+    fields.insert(("vertex_count").to_string(), kain_core__runtime__Value::Int(vertex_count))
+    ()
+    fields.insert(("components").to_string(), kain_core__runtime__Value::Int(components))
+    ()
+    fields.insert(("vertex_shape").to_string(), int_list_to_value(&(*vertices).shape))
+    ()
+    fields.insert(("vertex_stride").to_string(), kain_core__runtime__Value::Int((*vertices).strides.last().copied().unwrap_or((*vertices).item_size)))
+    ()
+    fields.insert(("indexed").to_string(), kain_core__runtime__Value::Bool(indices.is_some()))
+    ()
+    fields.insert(("index_count").to_string(), kain_core__runtime__Value::Int(index_count))
+    ()
+    fields.insert(("face_count").to_string(), kain_core__runtime__Value::Int(face_count))
+    ()
+    fields.insert(("face_size").to_string(), kain_core__runtime__Value::Int(face_size))
+    ()
+    fields.insert(("primitive").to_string(), kain_core__runtime__Value::String(if indices.is_some(): ("mesh").to_string() else: ("point_cloud").to_string()))
+    ()
+    match indices:
+        Some(indices) =>
+            fields.insert(("index_dtype").to_string(), kain_core__runtime__Value::String(indices.dtype.clone()))
+            ()
+            fields.insert(("index_shape").to_string(), int_list_to_value(&indices.shape))
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            fields.insert(("index_dtype").to_string(), kain_core__runtime__Value__None)
+            ()
+            fields.insert(("index_shape").to_string(), kain_core__runtime__Value__None)
+            ()
+            ()
+            ()
+            ()
+    Result::Ok(kain_core__runtime__Value::Struct(("PyGeometryInfo").to_string(), Arc__new_(RwLock__new_(fields))))
+
+fn build_geometry_view(vertices: PyObject, indices: Option<PyObject>, vertex_metadata: PythonPayloadMetadata, index_metadata: Option<PythonPayloadMetadata>) -> Result<kain_core::runtime::Value, KainError>:
+    let info = build_geometry_info(&vertex_metadata, none)?
+    let fields = struct_fields_from_value(info)
+    let components = struct_int_field(&fields, "components")?
+    let face_size = struct_int_field(&fields, "face_size")?
+    Result::Ok(Value__host_object("python:view:geometry", Arc__new_(PythonGeometryView { vertices: vertices, indices: indices, vertex_metadata: vertex_metadata, index_metadata: index_metadata, components: components, face_size: face_size })))
+
+fn resolve_geometry_targets<py>(py: Python<py>, scope: &py pyo3::types::PyDict, args: &[kain_core::runtime::Value]) -> Result<(PyObject, Option<PyObject>), KainError>:
+    if (args.len() == 1):
+        match args[0].downcast_host_object():
+            Some(view) => return Result::Ok((view.vertices.clone_ref(py), view.indices.map(fn(value): value.clone_ref(py))))
+            _ =>
+                ()
+                ()
+        ()
+    if (args.len() == 2):
+        let vertices = resolve_python_target(py, scope, &args[0])?
+        let indices = resolve_python_target(py, scope, &args[1])?
+        return Result::Ok((vertices, Option::Some(indices)))
+    let target = resolve_python_target(py, scope, &args[0])?
+    let target_ref = target.as_ref(py)
+    match target_ref.getattr("vertices"):
+        Ok(vertices) =>
+            let indices = target_ref.getattr("faces").ok().map(fn(value): value.into_py(py))
+            return Result::Ok((vertices.into_py(py), indices))
+        _ =>
+            ()
+            ()
+    Result::Ok((target, none))
+
+fn py_optional_string_attr_value(target: &PyAny, name: String) -> Result<Option<String>, KainError>:
+    match target.getattr(name):
+        Ok(value) if value.is_none() => Result::Ok(none)
+        Ok(value) =>
+            match value.extract():
+                Ok(text) => Result::Ok(Option::Some(text))
+                Err(_) => value.str().and_then(fn(text): text.extract()).map(fn(__kain_closure_arg4): Option::Some(__kain_closure_arg4)).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))
+        Err(_) => Result::Ok(none)
+
+fn py_optional_bool_attr_value(target: &PyAny, name: String) -> Result<Option<Bool>, KainError>:
+    match target.getattr(name):
+        Ok(value) if value.is_none() => Result::Ok(none)
+        Ok(value) => value.extract().map(fn(__kain_closure_arg5): Option::Some(__kain_closure_arg5)).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))
+        Err(_) => Result::Ok(none)
+
+fn py_int_attr_value(target: &PyAny, name: String) -> Result<i64, KainError>:
+    target.getattr(name).and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))
+
+fn py_bool_attr_value(target: &PyAny, name: String) -> Result<Bool, KainError>:
+    target.getattr(name).and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))
+
+fn py_index_sequence_attr_values(target: &PyAny, name: String) -> Result<Array<i64>, KainError>:
+    let value = target.getattr(name).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))?
+    py_index_sequence_values(value, name)
+
+fn py_index_sequence_values_from_object(target: &PyAny, name: String) -> Result<Array<i64>, KainError>:
+    let value = target.getattr(name).map_err(fn(err): KainError__runtime(f"Python attribute error ({name}): {err}"))?
+    py_index_sequence_values(value, name)
+
+fn py_index_sequence_attr_values_or_default(target: &PyAny, name: String) -> Result<Array<i64>, KainError>:
+    match target.getattr(name):
+        Ok(value) if value.is_none() => Result::Ok(Vec__new_())
+        Ok(value) => py_index_sequence_values(value, name)
+        Err(_) => Result::Ok(Vec__new_())
+
+fn py_index_sequence_values(value: &PyAny, name: String) -> Result<Array<i64>, KainError>:
+    if value.is_none():
+        return Result::Ok(Vec__new_())
+    match value.downcast():
+        Ok(tuple) => return tuple.iter().map(fn(item): item.extract().map_err(fn(err): KainError__runtime(f"Python sequence conversion error ({name}): {err}"))).collect()
+        _ =>
+            ()
+            ()
+    match value.downcast():
+        Ok(list) => return list.iter().map(fn(item): item.extract().map_err(fn(err): KainError__runtime(f"Python sequence conversion error ({name}): {err}"))).collect()
+        _ =>
+            ()
+            ()
+    Result::Ok([value.extract().map_err(fn(err): KainError__runtime(f"Python sequence conversion error ({name}): {err}"))?])
+
+fn int_list_to_value(values: &[i64]) -> kain_core::runtime::Value:
+    kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values.iter().copied().map(kain_core__runtime__Value__Int).collect())))
+
+fn optional_string_to_value(value: Option<String>) -> kain_core::runtime::Value:
+    value.map(kain_core__runtime__Value__String).unwrap_or(kain_core__runtime__Value__None)
+
+fn optional_bool_to_value(value: Option<Bool>) -> kain_core::runtime::Value:
+    value.map(kain_core__runtime__Value__Bool).unwrap_or(kain_core__runtime__Value__None)
+
+fn struct_fields_from_value(value: kain_core::runtime::Value) -> Map<String, kain_core::runtime::Value>:
+    match value:
+        kain_core__runtime__Value::Struct(_, fields) => fields.read().unwrap().clone()
+        _ => HashMap__new_()
+
+fn struct_string_field(fields: &Map<String, kain_core::runtime::Value>, name: String) -> Result<String, KainError>:
+    match fields.get(name):
+        Some(kain_core__runtime__Value::String(value)) => Result::Ok(value.clone())
+        Some(other) => Result::Err(KainError__runtime(f"Expected struct field {name} to be String, got {other}"))
+        None => Result::Err(KainError__runtime(f"Missing struct field {name} in typed Python view info"))
+
+fn struct_int_field(fields: &Map<String, kain_core::runtime::Value>, name: String) -> Result<i64, KainError>:
+    match fields.get(name):
+        Some(kain_core__runtime__Value::Int(value)) => Result::Ok((*value))
+        Some(other) => Result::Err(KainError__runtime(f"Expected struct field {name} to be Int, got {other}"))
+        None => Result::Err(KainError__runtime(f"Missing struct field {name} in typed Python view info"))
+
+fn value_to_int_arg(fn_name: String, arg_name: String, value: &kain_core::runtime::Value) -> Result<i64, KainError>:
+    match value:
+        kain_core__runtime__Value::Int(value) => Result::Ok((*value))
+        other => Result::Err(KainError__runtime(f"{fn_name}: expected integer {arg_name}, got {other}"))
+
+fn parse_index_values(fn_name: String, value: &kain_core::runtime::Value) -> Result<Array<i64>, KainError>:
+    match value:
+        kain_core__runtime__Value::Int(value) => Result::Ok([(*value)])
+        kain_core__runtime__Value::Array(values) => values.read().unwrap().iter().map(fn(item): value_to_int_arg(fn_name, "indices", item)).collect()
+        kain_core__runtime__Value::Tuple(values) => values.iter().map(fn(item): value_to_int_arg(fn_name, "indices", item)).collect()
+        other => Result::Err(KainError__runtime(f"{fn_name}: expected integer index or index tuple/array, got {other}"))
+
+fn validate_rank(fn_name: String, shape: &[i64], index_count: usize, label: String) -> Result<(), KainError>:
+    if ((!shape.is_empty()) && (index_count > shape.len())):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected at most {shape.len()} indices for {label}, got {index_count}"))
+    Result::Ok(())
+
+fn validate_axis_index(fn_name: String, index: i64, len: i64) -> Result<(), KainError>:
+    if ((index < 0) || (index >= len)):
+        return Result::Err(KainError__runtime(f"{fn_name}: index {index} is outside 0..{len.saturating_sub(1)}"))
+    Result::Ok(())
+
+fn normalize_vector_value(value: kain_core::runtime::Value) -> kain_core::runtime::Value:
+    match value:
+        kain_core__runtime__Value::Array(_) => value
+        kain_core__runtime__Value::Tuple(items) => kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(items)))
+        other => kain_core__runtime__Value::Array(Arc__new_(RwLock__new_([other])))
+
+fn validate_vector_length(fn_name: String, value: &kain_core::runtime::Value, expected_len: i64) -> Result<(), KainError>:
+    if (expected_len <= 0):
+        return Result::Ok(())
+    let actual_len = match value:
+        kain_core__runtime__Value::Array(values) => values.read().unwrap().len() as i64
+        kain_core__runtime__Value::Tuple(values) => values.len() as i64
+        _ => 1
+    if (actual_len != expected_len):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected vector length {expected_len}, got {actual_len}"))
+    Result::Ok(())
+
+fn extract_image_view(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<PythonImageView>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected typed Python image view, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn extract_tensor_view(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<PythonTensorView>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected typed Python tensor view, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn extract_geometry_view(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<PythonGeometryView>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected typed Python geometry view, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn image_pixel_indices(py: Python<_>, view: &PythonImageView, batch: i64, x: i64, y: i64) -> Result<Array<PyObject>, KainError>:
+    if ((batch < 0) || (batch >= (*view).batch)):
+        return Result::Err(KainError__runtime(f"py_image_pixel: batch index {batch} is outside 0..{(*view).batch.saturating_sub(1)}"))
+    if ((x < 0) || (x >= (*view).width)):
+        return Result::Err(KainError__runtime(f"py_image_pixel: x index {x} is outside 0..{(*view).width.saturating_sub(1)}"))
+    if ((y < 0) || (y >= (*view).height)):
+        return Result::Err(KainError__runtime(f"py_image_pixel: y index {y} is outside 0..{(*view).height.saturating_sub(1)}"))
+    let full = python_full_slice(py)?
+    let indices = match (*view).layout.as_str():
+        "HW" => [y.into_py(py), x.into_py(py)]
+        "HWC" => [y.into_py(py), x.into_py(py)]
+        "CHW" => [full, y.into_py(py), x.into_py(py)]
+        "NHWC" => [batch.into_py(py), y.into_py(py), x.into_py(py)]
+        "NCHW" => [batch.into_py(py), full, y.into_py(py), x.into_py(py)]
+        other => return Result::Err(KainError__runtime(f"py_image_pixel: unsupported image layout {other}"))
+    Result::Ok(indices)
+
+fn python_full_slice(py: Python<_>) -> Result<PyObject, KainError>:
+    let builtins = py.import("builtins").map_err(fn(err): KainError__runtime(f"Python import error: {err}"))?
+    builtins.getattr("slice").and_then(fn(callable): callable.call1((py.None()))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"Python slice error: {err}"))
+
+fn get_python_item(py: Python<_>, target: &PyAny, indices: &[PyObject]) -> Result<PyObject, KainError>:
+    if (indices.len() == 1):
+        return target.get_item(indices[0].clone_ref(py)).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"Python indexing error: {err}"))
+    let index_tuple = PyTuple__new_(py, indices.iter().map(fn(value): value.clone_ref(py)))
+    target.get_item(index_tuple).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"Python indexing error: {err}"))
+
+fn set_python_item(py: Python<_>, target: &PyAny, indices: &[PyObject], value: PyObject) -> Result<(), KainError>:
+    if (indices.len() == 1):
+        return target.set_item(indices[0].clone_ref(py), value).map_err(fn(err): KainError__runtime(f"Python assignment error: {err}"))
+    let index_tuple = PyTuple__new_(py, indices.iter().map(fn(index): index.clone_ref(py)))
+    target.set_item(index_tuple, value).map_err(fn(err): KainError__runtime(f"Python assignment error: {err}"))
+
+impl NativeScalarBuffer:
+    fn scalar_kind(_self: &NativeScalarBuffer) -> String:
+        match *_self:
+            NativeScalarBuffer::Bool(_) => "bool"
+            NativeScalarBuffer::Int(_) => "int"
+            NativeScalarBuffer::Float(_) => "float"
+            NativeScalarBuffer::Shared(shared_) =>
+                match shared_.kind:
+                    SharedScalarKind::Bool => "bool"
+                    SharedScalarKind::Int => "int"
+                    SharedScalarKind::Float => "float"
+
+    fn len(_self: &NativeScalarBuffer) -> usize:
+        match *_self:
+            NativeScalarBuffer::Bool(values) => values.read().unwrap().len()
+            NativeScalarBuffer::Int(values) => values.read().unwrap().len()
+            NativeScalarBuffer::Float(values) => values.read().unwrap().len()
+            NativeScalarBuffer::Shared(shared_) => shared_.len
+
+    fn get_value(_self: &NativeScalarBuffer, index: usize) -> Result<kain_core::runtime::Value, KainError>:
+        match *_self:
+            NativeScalarBuffer::Bool(values) => values.read().unwrap().get(index).copied().map(kain_core__runtime__Value__Bool).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))
+            NativeScalarBuffer::Int(values) => values.read().unwrap().get(index).copied().map(kain_core__runtime__Value__Int).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))
+            NativeScalarBuffer::Float(values) => values.read().unwrap().get(index).copied().map(kain_core__runtime__Value__Float).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))
+            NativeScalarBuffer::Shared(shared_) => shared_buffer_get_value(shared_, index)
+
+    fn set_value(_self: &NativeScalarBuffer, index: usize, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+        match *_self:
+            NativeScalarBuffer::Bool(values) =>
+                let converted = match value:
+                    kain_core__runtime__Value::Bool(value) => (*value)
+                    kain_core__runtime__Value::Int(value) => ((*value) != 0)
+                    other => return Result::Err(KainError__runtime(f"Expected bool-compatible value, got {other}"))
+                let mut values = values.write().unwrap()
+                let slot = values.get_mut(index).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))?
+                (*slot) = converted
+                ()
+                Result::Ok(())
+            NativeScalarBuffer::Int(values) =>
+                let converted = match value:
+                    kain_core__runtime__Value::Int(value) => (*value)
+                    kain_core__runtime__Value::Bool(value) => i64__from((*value))
+                    other => return Result::Err(KainError__runtime(f"Expected int-compatible value, got {other}"))
+                let mut values = values.write().unwrap()
+                let slot = values.get_mut(index).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))?
+                (*slot) = converted
+                ()
+                Result::Ok(())
+            NativeScalarBuffer::Float(values) =>
+                let converted = match value:
+                    kain_core__runtime__Value::Float(value) => (*value)
+                    kain_core__runtime__Value::Int(value) => (*value) as f64
+                    kain_core__runtime__Value::Bool(value) => if (*value): 1 else: 0
+                    other => return Result::Err(KainError__runtime(f"Expected float-compatible value, got {other}"))
+                let mut values = values.write().unwrap()
+                let slot = values.get_mut(index).ok_or_else(fn(): KainError__runtime(f"native buffer index {index} is out of bounds"))?
+                (*slot) = converted
+                ()
+                Result::Ok(())
+            NativeScalarBuffer::Shared(shared_) => shared_buffer_set_value(shared_, index, value)
+
+    fn is_shared(_self: &NativeScalarBuffer) -> Bool:
+        match *_self:
+            NativeScalarBuffer::Shared(_) => true
+            _ => false
+
+    fn shared_owner(_self: &NativeScalarBuffer, py: Python<_>) -> Option<PyObject>:
+        match *_self:
+            NativeScalarBuffer::Shared(shared_) => Option::Some(shared_.owner.clone_ref(py))
+            _ => none
+
+    fn shared_backend(_self: &NativeScalarBuffer) -> Option<String>:
+        match *_self:
+            NativeScalarBuffer::Shared(shared_) => Option::Some(shared_.backend.as_str())
+            _ => none
+
+
+fn try_build_shared_native_scalar_buffer(py: Python<_>, target: &PyAny, metadata: &PythonPayloadMetadata) -> Result<Option<NativeScalarBuffer>, KainError>:
+    if ((!(*metadata).c_contiguous) || (*metadata).readonly):
+        return Result::Ok(none)
+    let Some(kind) = shared_scalar_kind_for_dtype(&(*metadata).dtype)
+    let len = checked_element_count(&(*metadata).shape)?
+    match (*metadata).backend.as_str():
+        "numpy" =>
+            let flat = target.call_method1("reshape", ((-1))).map_err(fn(err): KainError__runtime(f"NumPy shared reshape error: {err}"))?
+            Result::Ok(Option::Some(NativeScalarBuffer::Shared(Arc__new_(SharedPythonBuffer { owner: target.into_py(py), flat: flat.into_py(py), backend: ("numpy").to_string(), kind: kind, len: len }))))
+        "torch" =>
+            let device = (*metadata).device.unwrap_or("cpu")
+            if (device != "cpu"):
+                return Result::Ok(none)
+            let detached = target.call_method0("detach").map_err(fn(err): KainError__runtime(f"PyTorch shared detach error: {err}"))?
+            let flat = detached.call_method1("reshape", ((-1))).map_err(fn(err): KainError__runtime(f"PyTorch shared reshape error: {err}"))?
+            Result::Ok(Option::Some(NativeScalarBuffer::Shared(Arc__new_(SharedPythonBuffer { owner: target.into_py(py), flat: flat.into_py(py), backend: ("torch").to_string(), kind: kind, len: len }))))
+        _ => Result::Ok(none)
+
+fn shared_scalar_kind_for_dtype(dtype: String) -> Option<SharedScalarKind>:
+    match dtype:
+        "bool" => Option::Some(SharedScalarKind__Bool)
+        "bool_" => Option::Some(SharedScalarKind__Bool)
+        "uint8" => Option::Some(SharedScalarKind__Int)
+        "ubyte" => Option::Some(SharedScalarKind__Int)
+        "int8" => Option::Some(SharedScalarKind__Int)
+        "byte" => Option::Some(SharedScalarKind__Int)
+        "uint16" => Option::Some(SharedScalarKind__Int)
+        "int16" => Option::Some(SharedScalarKind__Int)
+        "uint32" => Option::Some(SharedScalarKind__Int)
+        "int32" => Option::Some(SharedScalarKind__Int)
+        "uint64" => Option::Some(SharedScalarKind__Int)
+        "int64" => Option::Some(SharedScalarKind__Int)
+        "float32" => Option::Some(SharedScalarKind__Float)
+        "float64" => Option::Some(SharedScalarKind__Float)
+        "double" => Option::Some(SharedScalarKind__Float)
+        _ => none
+
+fn shared_buffer_get_value(shared_: &SharedPythonBuffer, index: usize) -> Result<kain_core::runtime::Value, KainError>:
+    if (index >= shared_.len):
+        return Result::Err(KainError__runtime(f"native buffer index {index} is out of bounds"))
+    Python__with_gil(fn(py): none)
+
+fn shared_buffer_set_value(shared_: &SharedPythonBuffer, index: usize, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    if (index >= shared_.len):
+        return Result::Err(KainError__runtime(f"native buffer index {index} is out of bounds"))
+    Python__with_gil(fn(py): none)
+
+fn resolve_native_scalar_buffer(py: Python<_>, target: &PyAny, metadata: &PythonPayloadMetadata, mode: MaterializationMode, fn_name: String) -> Result<NativeScalarBuffer, KainError>:
+    match mode:
+        MaterializationMode::Auto => Result::Ok((try_build_shared_native_scalar_buffer(py, target, metadata)?).unwrap_or(decode_native_scalar_buffer((export_payload_bytes(py, target)?).as_ref(py), &(*metadata).dtype)?))
+        MaterializationMode::Shared => (try_build_shared_native_scalar_buffer(py, target, metadata)?).ok_or_else(fn(): KainError__runtime(f"{fn_name}: shared backing is unavailable for {(*metadata).kind} {(*metadata).label} (backend={(*metadata).backend}, dtype={(*metadata).dtype}, shape={(*metadata).shape})"))
+        MaterializationMode::Owned => Result::Ok(decode_native_scalar_buffer((export_payload_bytes(py, target)?).as_ref(py), &(*metadata).dtype)?)
+
+fn build_native_image(target: &PyAny, metadata: &PythonPayloadMetadata, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    let info = build_image_info(metadata)?
+    let fields = struct_fields_from_value(info)
+    let layout = struct_string_field(&fields, "layout")?
+    let batch = struct_int_field(&fields, "batch")?
+    let width = struct_int_field(&fields, "width")?
+    let height = struct_int_field(&fields, "height")?
+    let channels = struct_int_field(&fields, "channels")?
+    let data = resolve_native_scalar_buffer(target.py(), target, metadata, mode, fn_name)?
+    let expected_len = checked_element_count(&(*metadata).shape)?
+    if (data.len() != expected_len):
+        return Result::Err(KainError__runtime(f"{fn_name}: decoded {data.len()} values but expected {expected_len}"))
+    Result::Ok(Value__host_object("kain:image", Arc__new_(KainNativeImage { dtype: (*metadata).dtype.clone(), shape: (*metadata).shape.clone(), layout: layout, batch: batch, width: width, height: height, channels: channels, data: data, source: Option::Some(target.into_py(target.py())) })))
+
+fn build_native_tensor(target: &PyAny, metadata: &PythonPayloadMetadata, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    let data = resolve_native_scalar_buffer(target.py(), target, metadata, mode, fn_name)?
+    let expected_len = checked_element_count(&(*metadata).shape)?
+    if (data.len() != expected_len):
+        return Result::Err(KainError__runtime(f"{fn_name}: decoded {data.len()} values but expected {expected_len}"))
+    Result::Ok(Value__host_object("kain:tensor", Arc__new_(KainNativeTensor { dtype: (*metadata).dtype.clone(), shape: (*metadata).shape.clone(), data: data, source: Option::Some(target.into_py(target.py())) })))
+
+fn build_native_geometry(vertices: &PyAny, indices: Option<&PyAny>, vertex_metadata: &PythonPayloadMetadata, index_metadata: Option<&PythonPayloadMetadata>, source: Option<&PyAny>, mode: MaterializationMode, fn_name: String) -> Result<kain_core::runtime::Value, KainError>:
+    let info = build_geometry_info(vertex_metadata, index_metadata)?
+    let fields = struct_fields_from_value(info)
+    let components = struct_int_field(&fields, "components")?
+    let face_size = struct_int_field(&fields, "face_size")?
+    let vertex_buffer = resolve_native_scalar_buffer(vertices.py(), vertices, vertex_metadata, mode, fn_name)?
+    let expected_vertex_len = checked_element_count(&(*vertex_metadata).shape)?
+    if (vertex_buffer.len() != expected_vertex_len):
+        return Result::Err(KainError__runtime(f"{fn_name}: decoded {vertex_buffer.len()} vertex values but expected {expected_vertex_len}"))
+    let index_buffer = match (indices, index_metadata):
+        (Some(indices), Some(metadata)) =>
+            let buffer = resolve_native_scalar_buffer(indices.py(), indices, metadata, mode, fn_name)?
+            let expected_index_len = checked_element_count(&metadata.shape)?
+            if (buffer.len() != expected_index_len):
+                return Result::Err(KainError__runtime(f"{fn_name}: decoded {buffer.len()} index values but expected {expected_index_len}"))
+            Option::Some(buffer)
+        _ => none
+    Result::Ok(Value__host_object("kain:geometry", Arc__new_(KainNativeGeometry { vertex_dtype: (*vertex_metadata).dtype.clone(), vertex_shape: (*vertex_metadata).shape.clone(), components: components, vertices: vertex_buffer, index_dtype: index_metadata.map(fn(metadata): metadata.dtype.clone()), index_shape: index_metadata.map(fn(metadata): metadata.shape.clone()).unwrap_or_default(), face_size: face_size, indices: index_buffer, source: source.map(fn(value): value.into_py(value.py())) })))
+
+fn native_image_info_value(image: &KainNativeImage) -> kain_core::runtime::Value:
+    let mut fields = HashMap__new_()
+    fields.insert(("dtype").to_string(), kain_core__runtime__Value::String((*image).dtype.clone()))
+    ()
+    fields.insert(("shape").to_string(), int_list_to_value(&(*image).shape))
+    ()
+    fields.insert(("layout").to_string(), kain_core__runtime__Value::String((*image).layout.clone()))
+    ()
+    fields.insert(("batch").to_string(), kain_core__runtime__Value::Int((*image).batch))
+    ()
+    fields.insert(("width").to_string(), kain_core__runtime__Value::Int((*image).width))
+    ()
+    fields.insert(("height").to_string(), kain_core__runtime__Value::Int((*image).height))
+    ()
+    fields.insert(("channels").to_string(), kain_core__runtime__Value::Int((*image).channels))
+    ()
+    fields.insert(("storage").to_string(), kain_core__runtime__Value::String((*image).data.scalar_kind().to_string()))
+    ()
+    fields.insert(("ownership").to_string(), kain_core__runtime__Value::String(if (*image).data.is_shared(): ("shared").to_string() else: ("owned").to_string()))
+    ()
+    fields.insert(("zero_copy").to_string(), kain_core__runtime__Value::Bool((*image).data.is_shared()))
+    ()
+    fields.insert(("source_backend").to_string(), (*image).data.shared_backend().map(fn(value): kain_core__runtime__Value::String(value.to_string())).unwrap_or(kain_core__runtime__Value__None))
+    ()
+    fields.insert(("pixel_count").to_string(), kain_core__runtime__Value::Int((((*image).width * (*image).height) * (*image).batch)))
+    ()
+    kain_core__runtime__Value::Struct(("KainImageInfo").to_string(), Arc__new_(RwLock__new_(fields)))
+
+fn native_tensor_info_value(tensor: &KainNativeTensor) -> kain_core::runtime::Value:
+    let mut fields = HashMap__new_()
+    fields.insert(("dtype").to_string(), kain_core__runtime__Value::String((*tensor).dtype.clone()))
+    ()
+    fields.insert(("shape").to_string(), int_list_to_value(&(*tensor).shape))
+    ()
+    fields.insert(("storage").to_string(), kain_core__runtime__Value::String((*tensor).data.scalar_kind().to_string()))
+    ()
+    fields.insert(("ownership").to_string(), kain_core__runtime__Value::String(if (*tensor).data.is_shared(): ("shared").to_string() else: ("owned").to_string()))
+    ()
+    fields.insert(("zero_copy").to_string(), kain_core__runtime__Value::Bool((*tensor).data.is_shared()))
+    ()
+    fields.insert(("source_backend").to_string(), (*tensor).data.shared_backend().map(fn(value): kain_core__runtime__Value::String(value.to_string())).unwrap_or(kain_core__runtime__Value__None))
+    ()
+    fields.insert(("length").to_string(), kain_core__runtime__Value::Int((*tensor).data.len() as i64))
+    ()
+    kain_core__runtime__Value::Struct(("KainTensorInfo").to_string(), Arc__new_(RwLock__new_(fields)))
+
+fn native_geometry_info_value(geometry: &KainNativeGeometry) -> kain_core::runtime::Value:
+    let mut fields = HashMap__new_()
+    let vertex_count = (*geometry).vertex_shape.first().copied().unwrap_or(0)
+    let face_count = (*geometry).index_shape.first().copied().unwrap_or(0)
+    fields.insert(("vertex_dtype").to_string(), kain_core__runtime__Value::String((*geometry).vertex_dtype.clone()))
+    ()
+    fields.insert(("vertex_shape").to_string(), int_list_to_value(&(*geometry).vertex_shape))
+    ()
+    fields.insert(("vertex_count").to_string(), kain_core__runtime__Value::Int(vertex_count))
+    ()
+    fields.insert(("components").to_string(), kain_core__runtime__Value::Int((*geometry).components))
+    ()
+    fields.insert(("face_count").to_string(), kain_core__runtime__Value::Int(face_count))
+    ()
+    fields.insert(("face_size").to_string(), kain_core__runtime__Value::Int((*geometry).face_size))
+    ()
+    fields.insert(("indexed").to_string(), kain_core__runtime__Value::Bool((*geometry).indices.is_some()))
+    ()
+    fields.insert(("shared_vertices").to_string(), kain_core__runtime__Value::Bool((*geometry).vertices.is_shared()))
+    ()
+    fields.insert(("vertex_ownership").to_string(), kain_core__runtime__Value::String(if (*geometry).vertices.is_shared(): ("shared").to_string() else: ("owned").to_string()))
+    ()
+    fields.insert(("shared_indices").to_string(), kain_core__runtime__Value::Bool((*geometry).indices.map(fn(value): value.is_shared()).unwrap_or(false)))
+    ()
+    fields.insert(("index_ownership").to_string(), kain_core__runtime__Value::String(if (*geometry).indices.map(fn(value): value.is_shared()).unwrap_or(false): ("shared").to_string() else: ("owned").to_string()))
+    ()
+    fields.insert(("index_dtype").to_string(), (*geometry).index_dtype.cloned().map(kain_core__runtime__Value__String).unwrap_or(kain_core__runtime__Value__None))
+    ()
+    fields.insert(("index_shape").to_string(), if (*geometry).index_shape.is_empty(): kain_core__runtime__Value__None else: int_list_to_value(&(*geometry).index_shape))
+    ()
+    kain_core__runtime__Value::Struct(("KainGeometryInfo").to_string(), Arc__new_(RwLock__new_(fields)))
+
+fn native_image_pixel(image: &KainNativeImage, batch: i64, x: i64, y: i64) -> Result<kain_core::runtime::Value, KainError>:
+    let indices = native_image_channel_indices(image, batch, x, y)?
+    let mut values = (fn(__kain_ctor_arg0): Vec__new_())(indices.len())
+    for index in indices:
+        values.push((*image).data.get_value(index)?)
+        ()
+    ()
+    Result::Ok(kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values))))
+
+fn native_image_set_pixel(image: &KainNativeImage, batch: i64, x: i64, y: i64, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    validate_pixel_value("kain_image_set_pixel", value, (*image).channels)?
+    ()
+    let indices = native_image_channel_indices(image, batch, x, y)?
+    let values = collect_vector_values(value, (*image).channels)?
+    for selfhost_for_item in indices.iter().zip(values.iter()):
+        let (slot, value) = selfhost_for_item
+        (*image).data.set_value((*slot), value)?
+        ()
+    ()
+    Result::Ok(())
+
+fn native_tensor_get(tensor: &KainNativeTensor, indices: &[i64]) -> Result<kain_core::runtime::Value, KainError>:
+    let index = flatten_row_major_index("kain_tensor_get", &(*tensor).shape, indices)?
+    (*tensor).data.get_value(index)
+
+fn native_tensor_set(tensor: &KainNativeTensor, indices: &[i64], value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    let index = flatten_row_major_index("kain_tensor_set", &(*tensor).shape, indices)?
+    (*tensor).data.set_value(index, value)
+
+fn native_geometry_vertex(geometry: &KainNativeGeometry, index: i64) -> Result<kain_core::runtime::Value, KainError>:
+    let vertex_count = (*geometry).vertex_shape.first().copied().unwrap_or(0)
+    validate_axis_index("kain_geometry_vertex", index, vertex_count)?
+    ()
+    let start = (usize__try_from(index).map_err(fn(_): KainError__runtime(f"kain_geometry_vertex: invalid index {index}"))? * usize__try_from((*geometry).components).map_err(fn(_): KainError__runtime(f"kain_geometry_vertex: invalid component count {(*geometry).components}"))?)
+    native_vector_from_buffer(&(*geometry).vertices, start, (*geometry).components)
+
+fn native_geometry_set_vertex(geometry: &KainNativeGeometry, index: i64, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    let vertex_count = (*geometry).vertex_shape.first().copied().unwrap_or(0)
+    validate_axis_index("kain_geometry_set_vertex", index, vertex_count)?
+    ()
+    validate_vector_value("kain_geometry_set_vertex", value, (*geometry).components)?
+    ()
+    let start = (usize__try_from(index).map_err(fn(_): KainError__runtime(f"kain_geometry_set_vertex: invalid index {index}"))? * usize__try_from((*geometry).components).map_err(fn(_): KainError__runtime(f"kain_geometry_set_vertex: invalid component count {(*geometry).components}"))?)
+    native_vector_write(&(*geometry).vertices, start, (*geometry).components, value)
+
+fn native_geometry_face(geometry: &KainNativeGeometry, index: i64) -> Result<kain_core::runtime::Value, KainError>:
+    let Some(indices) = (*geometry).indices
+    let face_count = (*geometry).index_shape.first().copied().unwrap_or(0)
+    validate_axis_index("kain_geometry_face", index, face_count)?
+    ()
+    let start = (usize__try_from(index).map_err(fn(_): KainError__runtime(f"kain_geometry_face: invalid index {index}"))? * usize__try_from((*geometry).face_size).map_err(fn(_): KainError__runtime(f"kain_geometry_face: invalid face size {(*geometry).face_size}"))?)
+    native_vector_from_buffer(indices, start, (*geometry).face_size)
+
+fn native_geometry_set_face(geometry: &KainNativeGeometry, index: i64, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    let Some(indices) = (*geometry).indices
+    let face_count = (*geometry).index_shape.first().copied().unwrap_or(0)
+    validate_axis_index("kain_geometry_set_face", index, face_count)?
+    ()
+    validate_vector_value("kain_geometry_set_face", value, (*geometry).face_size)?
+    ()
+    let start = (usize__try_from(index).map_err(fn(_): KainError__runtime(f"kain_geometry_set_face: invalid index {index}"))? * usize__try_from((*geometry).face_size).map_err(fn(_): KainError__runtime(f"kain_geometry_set_face: invalid face size {(*geometry).face_size}"))?)
+    native_vector_write(indices, start, (*geometry).face_size, value)
+
+fn native_vector_from_buffer(buffer: &NativeScalarBuffer, start: usize, count: i64) -> Result<kain_core::runtime::Value, KainError>:
+    let count = usize__try_from(count).map_err(fn(_): KainError__runtime(f"Invalid vector length {count}"))?
+    let mut values = (fn(__kain_ctor_arg0): Vec__new_())(count)
+    for offset in range(0, count):
+        values.push(buffer.get_value((start + offset))?)
+        ()
+    ()
+    Result::Ok(kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values))))
+
+fn native_vector_write(buffer: &NativeScalarBuffer, start: usize, count: i64, value: &kain_core::runtime::Value) -> Result<(), KainError>:
+    let values = collect_vector_values(value, count)?
+    for selfhost_for_item in values.iter().enumerate():
+        let (offset, value) = selfhost_for_item
+        buffer.set_value((start + offset), value)?
+        ()
+    ()
+    Result::Ok(())
+
+fn export_native_image_pyobject(py: Python<_>, image: &KainNativeImage, backend: String) -> Result<PyObject, KainError>:
+    if (*image).data.is_shared():
+        match &(*image).source:
+            Some(source) =>
+                if (none && native_source_matches_backend(source.as_ref(py), backend)):
+                    return Result::Ok(source.clone_ref(py))
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    match (*image).data.shared_owner(py):
+        Some(owner) =>
+            if ((*image).data.shared_backend() == Option::Some(backend)):
+                return Result::Ok(owner)
+            ()
+        _ =>
+            ()
+            ()
+    match backend:
+        "numpy" => native_numpy_array(py, &(*image).data, &(*image).dtype, &(*image).shape)
+        "torch" =>
+            let array = native_numpy_array(py, &(*image).data, &(*image).dtype, &(*image).shape)?
+            let torch = py.import("torch").map_err(fn(err): KainError__runtime(f"kain_image_to_py: torch import error: {err}"))?
+            torch.getattr("from_numpy").and_then(fn(callable): callable.call1((array.as_ref(py)))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"kain_image_to_py: torch export error: {err}"))
+        other => Result::Err(KainError__runtime(f"kain_image_to_py: unsupported backend {other}; expected numpy or torch"))
+
+fn export_native_tensor_pyobject(py: Python<_>, tensor: &KainNativeTensor, backend: String) -> Result<PyObject, KainError>:
+    if (*tensor).data.is_shared():
+        match &(*tensor).source:
+            Some(source) =>
+                if (none && native_source_matches_backend(source.as_ref(py), backend)):
+                    return Result::Ok(source.clone_ref(py))
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    match (*tensor).data.shared_owner(py):
+        Some(owner) =>
+            if ((*tensor).data.shared_backend() == Option::Some(backend)):
+                return Result::Ok(owner)
+            ()
+        _ =>
+            ()
+            ()
+    match backend:
+        "numpy" => native_numpy_array(py, &(*tensor).data, &(*tensor).dtype, &(*tensor).shape)
+        "torch" =>
+            let array = native_numpy_array(py, &(*tensor).data, &(*tensor).dtype, &(*tensor).shape)?
+            let torch = py.import("torch").map_err(fn(err): KainError__runtime(f"kain_tensor_to_py: torch import error: {err}"))?
+            torch.getattr("from_numpy").and_then(fn(callable): callable.call1((array.as_ref(py)))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"kain_tensor_to_py: torch export error: {err}"))
+        other => Result::Err(KainError__runtime(f"kain_tensor_to_py: unsupported backend {other}; expected numpy or torch"))
+
+fn export_native_geometry_pyobject(py: Python<_>, geometry: &KainNativeGeometry, backend: String) -> Result<PyObject, KainError>:
+    if ((backend == "trimesh") && (*geometry).vertices.is_shared()):
+        match &(*geometry).source:
+            Some(source) =>
+                if python_type_path(source.as_ref(py)).starts_with("trimesh."):
+                    return Result::Ok(source.clone_ref(py))
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    let vertices = native_numpy_array(py, &(*geometry).vertices, &(*geometry).vertex_dtype, &(*geometry).vertex_shape)?
+    let faces = match (&(*geometry).indices, (*geometry).index_dtype):
+        (Some(indices), Some(dtype)) => Option::Some(native_numpy_array(py, indices, dtype, &(*geometry).index_shape)?)
+        _ => none
+    match backend:
+        "dict" =>
+            let dict = PyDict__new_(py)
+            dict.set_item("vertices", vertices.as_ref(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: dict export error: {err}"))?
+            ()
+            match &faces:
+                Some(value) =>
+                    dict.set_item("faces", value.as_ref(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: dict export error: {err}"))?
+                    ()
+                None =>
+                    dict.set_item("faces", py.None()).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: dict export error: {err}"))?
+                    ()
+            Result::Ok(dict.into())
+        "tuple" => Result::Ok(PyTuple__new_(py, [vertices.clone_ref(py), faces.map(fn(value): value.clone_ref(py)).unwrap_or_else(fn(): py.None())]).into())
+        "trimesh" =>
+            let trimesh = py.import("trimesh").map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh import error: {err}"))?
+            match faces:
+                Some(faces) =>
+                    let kwargs = PyDict__new_(py)
+                    kwargs.set_item("vertices", vertices.as_ref(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh kwargs error: {err}"))?
+                    ()
+                    kwargs.set_item("faces", faces.as_ref(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh kwargs error: {err}"))?
+                    ()
+                    kwargs.set_item("process", false).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh kwargs error: {err}"))?
+                    ()
+                    trimesh.getattr("Trimesh").and_then(fn(callable): callable.call((), Option::Some(kwargs))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh export error: {err}"))
+                _ =>
+                    let points = trimesh.getattr("points").map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: trimesh points error: {err}"))?
+                    points.getattr("PointCloud").and_then(fn(callable): callable.call1((vertices.as_ref(py)))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"kain_geometry_to_py: point cloud export error: {err}"))
+        other => Result::Err(KainError__runtime(f"kain_geometry_to_py: unsupported backend {other}; expected dict, tuple, or trimesh"))
+
+fn reshape_python_array(py: Python<_>, array: &PyAny, shape: &[i64], context: String) -> Result<PyObject, KainError>:
+    if shape.is_empty():
+        return array.call_method1("reshape", (PyTuple__empty(py))).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"{context} error: {err}"))
+    let shape_tuple = PyTuple__new_(py, shape.iter().copied())
+    array.call_method1("reshape", (shape_tuple)).map(fn(value): value.into_py(py)).map_err(fn(err): KainError__runtime(f"{context} error: {err}"))
+
+fn native_source_matches_backend(source: &PyAny, backend: String) -> Bool:
+    match backend:
+        "numpy" => (detect_backend(source) == "numpy")
+        "torch" => (detect_backend(source) == "torch")
+        _ => false
+
+fn native_numpy_array(py: Python<_>, buffer: &NativeScalarBuffer, dtype: String, shape: &[i64]) -> Result<PyObject, KainError>:
+    match buffer.shared_owner(py):
+        Some(owner) =>
+            if (buffer.shared_backend() == Option::Some("numpy")):
+                return reshape_python_array(py, owner.as_ref(py), shape, "NumPy shared reshape")
+            if (buffer.shared_backend() == Option::Some("torch")):
+                let numpy_view = owner.as_ref(py).call_method0("detach").and_then(fn(value): value.call_method0("numpy")).map_err(fn(err): KainError__runtime(f"PyTorch shared numpy export error: {err}"))?
+                return reshape_python_array(py, numpy_view, shape, "PyTorch shared numpy reshape")
+            ()
+        _ =>
+            ()
+            ()
+    let numpy = py.import("numpy").map_err(fn(err): KainError__runtime(f"NumPy import error: {err}"))?
+    let dtype_object = numpy.getattr("dtype").and_then(fn(callable): callable.call1((dtype))).map_err(fn(err): KainError__runtime(f"NumPy dtype error for {dtype}: {err}"))?
+    let bytes = native_scalar_buffer_bytes(buffer, dtype)?
+    let bytearray = PyByteArray__new_(py, &bytes)
+    let array = numpy.getattr("frombuffer").and_then(fn(callable): callable.call1((bytearray, dtype_object))).map_err(fn(err): KainError__runtime(f"NumPy frombuffer export error: {err}"))?
+    reshape_python_array(py, array, shape, "NumPy reshape export")
+
+fn native_scalar_buffer_bytes(buffer: &NativeScalarBuffer, dtype: String) -> Result<Array<u8>, KainError>:
+    match buffer:
+        NativeScalarBuffer::Shared(shared_) => return Python__with_gil(fn(py): none)
+        _ =>
+            ()
+            ()
+    match dtype:
+        "bool" =>
+            match buffer:
+                NativeScalarBuffer::Bool(values) => Result::Ok(values.read().unwrap().iter().map(fn(value): if (*value): 1 else: 0).collect())
+                _ => Result::Err(KainError__runtime(f"Native buffer storage mismatch: dtype {dtype} requires bool storage"))
+        "bool_" =>
+            match buffer:
+                NativeScalarBuffer::Bool(values) => Result::Ok(values.read().unwrap().iter().map(fn(value): if (*value): 1 else: 0).collect())
+                _ => Result::Err(KainError__runtime(f"Native buffer storage mismatch: dtype {dtype} requires bool storage"))
+        "uint8" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "ubyte" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "int8" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "byte" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "uint16" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "int16" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "uint32" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "int32" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "uint64" => encode_native_int_bytes(buffer, dtype, fn(value): none)
+        "int64" => encode_native_int_bytes(buffer, dtype, fn(value): Result::Ok(value.to_le_bytes().to_vec()))
+        "float32" => encode_native_float_bytes(buffer, dtype, fn(value): Result::Ok((value as f32).to_le_bytes().to_vec()))
+        "float64" => encode_native_float_bytes(buffer, dtype, fn(value): Result::Ok(value.to_le_bytes().to_vec()))
+        "double" => encode_native_float_bytes(buffer, dtype, fn(value): Result::Ok(value.to_le_bytes().to_vec()))
+        other => Result::Err(KainError__runtime(f"Unsupported dtype for native Python export: {other}"))
+
+fn encode_native_int_bytes<F>(buffer: &NativeScalarBuffer, dtype: String, encode: F) -> Result<Array<u8>, KainError>:
+    let NativeScalarBuffer::Int(values) = buffer
+    let values = values.read().unwrap()
+    let mut bytes = Vec__new_()
+    for value in values.iter().copied():
+        bytes.extend(encode(value)?)
+        ()
+    ()
+    Result::Ok(bytes)
+
+fn encode_native_float_bytes<F>(buffer: &NativeScalarBuffer, dtype: String, encode: F) -> Result<Array<u8>, KainError>:
+    let NativeScalarBuffer::Float(values) = buffer
+    let values = values.read().unwrap()
+    let mut bytes = Vec__new_()
+    for value in values.iter().copied():
+        bytes.extend(encode(value)?)
+        ()
+    ()
+    Result::Ok(bytes)
+
+fn native_image_channel_indices(image: &KainNativeImage, batch: i64, x: i64, y: i64) -> Result<Array<usize>, KainError>:
+    if ((batch < 0) || (batch >= (*image).batch)):
+        return Result::Err(KainError__runtime(f"image batch index {batch} is outside 0..{(*image).batch.saturating_sub(1)}"))
+    if ((x < 0) || (x >= (*image).width)):
+        return Result::Err(KainError__runtime(f"image x index {x} is outside 0..{(*image).width.saturating_sub(1)}"))
+    if ((y < 0) || (y >= (*image).height)):
+        return Result::Err(KainError__runtime(f"image y index {y} is outside 0..{(*image).height.saturating_sub(1)}"))
+    let width = usize__try_from((*image).width).map_err(fn(_): KainError__runtime(f"Invalid image width {(*image).width}"))?
+    let height = usize__try_from((*image).height).map_err(fn(_): KainError__runtime(f"Invalid image height {(*image).height}"))?
+    let channels = usize__try_from((*image).channels).map_err(fn(_): KainError__runtime(f"Invalid image channels {(*image).channels}"))?
+    let batch = usize__try_from(batch).map_err(fn(_): KainError__runtime(f"Invalid image batch {batch}"))?
+    let x = usize__try_from(x).map_err(fn(_): KainError__runtime(f"Invalid image x {x}"))?
+    let y = usize__try_from(y).map_err(fn(_): KainError__runtime(f"Invalid image y {y}"))?
+    let indices = match (*image).layout.as_str():
+        "HW" => [((y * width) + x)]
+        "HWC" =>
+            let base = ((((y * width) + x)) * channels)
+            (range(0, channels)).map(fn(channel): (base + channel)).collect()
+        "CHW" =>
+            let plane = (height * width)
+            (range(0, channels)).map(fn(channel): (((channel * plane) + (y * width)) + x)).collect()
+        "NHWC" =>
+            let batch_stride = ((height * width) * channels)
+            let base = ((batch * batch_stride) + ((((y * width) + x)) * channels))
+            (range(0, channels)).map(fn(channel): (base + channel)).collect()
+        "NCHW" =>
+            let batch_stride = ((channels * height) * width)
+            let plane = (height * width)
+            let batch_base = (batch * batch_stride)
+            (range(0, channels)).map(fn(channel): (((batch_base + (channel * plane)) + (y * width)) + x)).collect()
+        other => return Result::Err(KainError__runtime(f"Unsupported native image layout {other}"))
+    Result::Ok(indices)
+
+fn flatten_row_major_index(fn_name: String, shape: &[i64], indices: &[i64]) -> Result<usize, KainError>:
+    if (shape.len() != indices.len()):
+        return Result::Err(KainError__runtime(f"{fn_name}: expected {shape.len()} indices, got {indices.len()}"))
+    let mut index = 0
+    let mut stride = 1
+    for selfhost_for_item in shape.iter().rev().zip(indices.iter().rev()):
+        let (dimension, coord) = selfhost_for_item
+        if (((*coord) < 0) || ((*coord) >= (*dimension))):
+            return Result::Err(KainError__runtime(f"{fn_name}: index {coord} is outside 0..{dimension.saturating_sub(1)}"))
+        let coord = usize__try_from((*coord)).map_err(fn(_): KainError__runtime(f"{fn_name}: invalid index {coord}"))?
+        index = index.saturating_add(coord.saturating_mul(stride))
+        ()
+        stride = stride.saturating_mul(usize__try_from((*dimension)).map_err(fn(_): KainError__runtime(f"{fn_name}: invalid shape {shape}"))?)
+        ()
+    ()
+    Result::Ok(index)
+
+fn checked_element_count(shape: &[i64]) -> Result<usize, KainError>:
+    if shape.is_empty():
+        return Result::Ok(1)
+    let mut count = 1
+    for dim in shape:
+        if ((*dim) < 0):
+            return Result::Err(KainError__runtime(f"Invalid negative dimension in shape {shape}"))
+        count = count.saturating_mul(usize__try_from((*dim)).map_err(fn(_): KainError__runtime(f"Invalid dimension {dim} in shape {shape}"))?)
+        ()
+    ()
+    Result::Ok(count)
+
+fn collect_vector_values(value: &kain_core::runtime::Value, expected_len: i64) -> Result<Array<kain_core::runtime::Value>, KainError>:
+    match value:
+        kain_core__runtime__Value::Array(values) =>
+            let values = values.read().unwrap().clone()
+            if (values.len() as i64 != expected_len):
+                return Result::Err(KainError__runtime(f"Expected vector length {expected_len}, got {values.len()}"))
+            Result::Ok(values)
+        kain_core__runtime__Value::Tuple(values) =>
+            if (values.len() as i64 != expected_len):
+                return Result::Err(KainError__runtime(f"Expected vector length {expected_len}, got {values.len()}"))
+            Result::Ok(values.clone())
+        other if (expected_len == 1) => Result::Ok([other.clone()])
+        other => Result::Err(KainError__runtime(f"Expected vector of length {expected_len}, got {other}"))
+
+fn validate_vector_value(fn_name: String, value: &kain_core::runtime::Value, expected_len: i64) -> Result<(), KainError>:
+    let _ = collect_vector_values(value, expected_len).map_err(fn(err): KainError__runtime(f"{fn_name}: {err}"))?
+    Result::Ok(())
+
+fn validate_pixel_value(fn_name: String, value: &kain_core::runtime::Value, channels: i64) -> Result<(), KainError>:
+    validate_vector_value(fn_name, value, channels)
+
+fn python_pixel_value(py: Python<_>, value: &kain_core::runtime::Value, channels: i64) -> Result<PyObject, KainError>:
+    if (channels == 1):
+        return none
+    value_to_pyobject(py, value)
+
+fn decode_native_scalar_buffer(bytes: &PyAny, dtype: String) -> Result<NativeScalarBuffer, KainError>:
+    let bytes = bytes.downcast().map_err(fn(_): KainError__runtime("Expected Python bytes payload for native buffer decode"))?
+    let bytes = bytes.as_bytes()
+    let int_buffer = fn(values: Array<i64>): NativeScalarBuffer::Int(Arc__new_(RwLock__new_(values)))
+    let float_buffer = fn(values: Array<f64>): NativeScalarBuffer::Float(Arc__new_(RwLock__new_(values)))
+    let bool_buffer = fn(values: Array<Bool>): NativeScalarBuffer::Bool(Arc__new_(RwLock__new_(values)))
+    match dtype:
+        "bool" => Result::Ok(bool_buffer(bytes.iter().map(fn(value): ((*value) != 0)).collect()))
+        "bool_" => Result::Ok(bool_buffer(bytes.iter().map(fn(value): ((*value) != 0)).collect()))
+        "uint8" => Result::Ok(int_buffer(bytes.iter().map(fn(value): i64__from((*value))).collect()))
+        "ubyte" => Result::Ok(int_buffer(bytes.iter().map(fn(value): i64__from((*value))).collect()))
+        "int8" => Result::Ok(int_buffer(bytes.iter().map(fn(value): i64__from((*value) as i8)).collect()))
+        "byte" => Result::Ok(int_buffer(bytes.iter().map(fn(value): i64__from((*value) as i8)).collect()))
+        "uint16" => Result::Ok(int_buffer(bytes.chunks_exact(2).map(fn(chunk): i64__from(u16__from_le_bytes([chunk[0], chunk[1]]))).collect()))
+        "int16" => Result::Ok(int_buffer(bytes.chunks_exact(2).map(fn(chunk): i64__from(i16__from_le_bytes([chunk[0], chunk[1]]))).collect()))
+        "uint32" => Result::Ok(int_buffer(bytes.chunks_exact(4).map(fn(chunk): i64__from(u32__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))).collect()))
+        "int32" => Result::Ok(int_buffer(bytes.chunks_exact(4).map(fn(chunk): i64__from(i32__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))).collect()))
+        "uint64" =>
+            let mut values = (fn(__kain_ctor_arg0): Vec__new_())((bytes.len() / 8))
+            for chunk in bytes.chunks_exact(8):
+                let raw = u64__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]])
+                let value = i64__try_from(raw).map_err(fn(_): KainError__runtime(f"Cannot materialize uint64 value {raw} into Kain Int"))?
+                values.push(value)
+                ()
+            ()
+            Result::Ok(int_buffer(values))
+        "int64" => Result::Ok(int_buffer(bytes.chunks_exact(8).map(fn(chunk): i64__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]])).collect()))
+        "float32" => Result::Ok(float_buffer(bytes.chunks_exact(4).map(fn(chunk): f32__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64).collect()))
+        "float64" => Result::Ok(float_buffer(bytes.chunks_exact(8).map(fn(chunk): f64__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]])).collect()))
+        "double" => Result::Ok(float_buffer(bytes.chunks_exact(8).map(fn(chunk): f64__from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]])).collect()))
+        other => Result::Err(KainError__runtime(f"Unsupported dtype for native Kain buffer materialization: {other}"))
+
+fn extract_native_image(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<KainNativeImage>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected Kain native image, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn extract_native_tensor(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<KainNativeTensor>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected Kain native tensor, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn extract_native_geometry(value: &kain_core::runtime::Value) -> Result<std::sync::Arc<KainNativeGeometry>, KainError>:
+    value.downcast_host_object().ok_or_else(fn(): KainError__runtime("Expected Kain native geometry, got {value.host_object_label().unwrap_or(\"value\")}"))
+
+fn detect_backend(target: &PyAny) -> String:
+    let kind = python_type_path(target)
+    if kind.starts_with("numpy."):
+        ("numpy").to_string()
+    elif kind.starts_with("torch."):
+        ("torch").to_string()
+    elif is_numpy_array_like(target):
+        ("numpy").to_string()
+    else:
+        ("python").to_string()
+
+fn is_numpy_array_like(target: &PyAny) -> Bool:
+    (target.hasattr("__array_interface__").unwrap_or(false) || target.hasattr("__array__").unwrap_or(false))
+
+fn is_torch_tensor(target: &PyAny) -> Bool:
+    let type_name = python_type_path(target)
+    (type_name == "torch.Tensor")
+
+fn torch_dtype_name(target: &PyAny) -> Result<String, KainError>:
+    let dtype = target.getattr("dtype").map_err(fn(err): KainError__runtime(f"PyTorch dtype error: {err}"))?
+    let name = dtype.str().and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"PyTorch dtype string error: {err}"))?
+    Result::Ok(name.trim_start_matches("torch.").to_string())
+
+fn torch_item_size(target: &PyAny) -> Result<i64, KainError>:
+    target.call_method0("element_size").and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"PyTorch element_size error: {err}"))
+
+fn torch_nbytes(target: &PyAny) -> Result<i64, KainError>:
+    let element_size = torch_item_size(target)?
+    let numel = target.call_method0("numel").and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"PyTorch numel error: {err}"))?
+    Result::Ok(element_size.saturating_mul(numel))
+
+fn torch_is_contiguous(target: &PyAny) -> Result<Bool, KainError>:
+    target.call_method0("is_contiguous").and_then(fn(value): value.extract()).map_err(fn(err): KainError__runtime(f"PyTorch is_contiguous error: {err}"))
+
+fn torch_stride_values(target: &PyAny) -> Result<Array<i64>, KainError>:
+    target.call_method0("stride").map_err(fn(err): KainError__runtime(f"PyTorch stride error: {err}")).and_then(fn(value): py_index_sequence_values(value, "stride"))
+
+fn python_type_path(obj: &PyAny) -> String:
+    let type_name = obj.get_type().name().map(fn(name): name.to_string()).unwrap_or_else(fn(_): ("object").to_string())
+    let module_name = obj.get_type().getattr("__module__").and_then(fn(value): value.extract()).unwrap_or_else(fn(_): ("builtins").to_string())
+    f"{module_name}.{type_name}"
+
+fn extract_python_object(value: &kain_core::runtime::Value, py: Python<_>) -> Result<PyObject, KainError>:
+    match value.downcast_host_object():
+        Some(object) => return Result::Ok(object.object.clone_ref(py))
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(view) => return Result::Ok(view.object.clone_ref(py))
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(view) => return Result::Ok(view.object.clone_ref(py))
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(buffer) => return shared_buffer_to_python_object(py, buffer)
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(image) => return shared_image_to_python_object(py, image)
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(image) => return export_native_image_pyobject(py, image, "numpy")
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(tensor) => return export_native_tensor_pyobject(py, tensor, "numpy")
+        _ =>
+            ()
+            ()
+    match value.downcast_host_object():
+        Some(geometry) => return export_native_geometry_pyobject(py, geometry, "dict")
+        _ =>
+            ()
+            ()
+    Result::Err(KainError__runtime("Expected Python object handle, got {value.host_object_label().unwrap_or(\"host object\")}"))
+
+pub fn value_to_pyobject(py: Python<_>, value: &kain_core::runtime::Value) -> Result<PyObject, KainError>:
+    match value:
+        kain_core__runtime__Value::Unit => Result::Ok(py.None())
+        kain_core__runtime__Value::None => Result::Ok(py.None())
+        kain_core__runtime__Value::Bool(value) => Result::Ok(value.into_py(py))
+        kain_core__runtime__Value::Int(value) => Result::Ok(value.into_py(py))
+        kain_core__runtime__Value::Float(value) => Result::Ok(value.into_py(py))
+        kain_core__runtime__Value::String(value) => Result::Ok(value.into_py(py))
+        kain_core__runtime__Value::Array(values) =>
+            let items = values.read().unwrap()
+            let mut py_values = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+            for item in items.iter():
+                py_values.push(value_to_pyobject(py, item)?)
+                ()
+            ()
+            Result::Ok(PyList__new_(py, py_values).into())
+        kain_core__runtime__Value::Tuple(values) =>
+            let mut py_values = (fn(__kain_ctor_arg0): Vec__new_())(values.len())
+            for value in values:
+                py_values.push(value_to_pyobject(py, value)?)
+                ()
+            ()
+            Result::Ok(PyTuple__new_(py, py_values).into())
+        kain_core__runtime__Value::Struct(_, fields) =>
+            let dict = PyDict__new_(py)
+            let guard = fields.read().unwrap()
+            for selfhost_for_item in guard.iter():
+                let (key, value) = selfhost_for_item
+                dict.set_item(key, value_to_pyobject(py, value)?).map_err(fn(err): KainError__runtime(f"Python dict conversion error: {err}"))?
+                ()
+            ()
+            Result::Ok(dict.into())
+        kain_core__runtime__Value::HostObject(_, _) => extract_python_object(value, py)
+        other => Result::Err(KainError__runtime(f"Cannot convert Kain value to Python object: {other}"))
+
+pub fn py_to_value(obj: &PyAny) -> Result<kain_core::runtime::Value, KainError>:
+    if obj.is_none():
+        return Result::Ok(kain_core__runtime__Value__None)
+    match obj.extract():
+        Ok(value) => return Result::Ok(kain_core__runtime__Value::Bool(value))
+        _ =>
+            ()
+            ()
+    match obj.extract():
+        Ok(value) => return Result::Ok(kain_core__runtime__Value::Int(value))
+        _ =>
+            ()
+            ()
+    match obj.extract():
+        Ok(value) => return Result::Ok(kain_core__runtime__Value::Float(value))
+        _ =>
+            ()
+            ()
+    match obj.extract():
+        Ok(value) => return Result::Ok(kain_core__runtime__Value::String(value))
+        _ =>
+            ()
+            ()
+    match obj.downcast():
+        Ok(bytes) =>
+            let items = bytes.as_bytes().iter().map(fn(value): kain_core__runtime__Value::Int(i64__from((*value)))).collect()
+            return Result::Ok(kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(items))))
+        _ =>
+            ()
+            ()
+    match obj.downcast():
+        Ok(bytes) =>
+            let items = bytes.to_vec().iter().map(fn(value): kain_core__runtime__Value::Int(i64__from((*value)))).collect()
+            return Result::Ok(kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(items))))
+        _ =>
+            ()
+            ()
+    match obj.downcast():
+        Ok(list) =>
+            let mut values = (fn(__kain_ctor_arg0): Vec__new_())(list.len())
+            for item in list.iter():
+                values.push(py_to_value(item)?)
+                ()
+            ()
+            return Result::Ok(kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values))))
+        _ =>
+            ()
+            ()
+    match obj.downcast():
+        Ok(tuple) =>
+            let mut values = (fn(__kain_ctor_arg0): Vec__new_())(tuple.len())
+            for item in tuple.iter():
+                values.push(py_to_value(item)?)
+                ()
+            ()
+            return Result::Ok(kain_core__runtime__Value::Tuple(values))
+        _ =>
+            ()
+            ()
+    match obj.downcast():
+        Ok(dict) =>
+            let mut values = (fn(__kain_ctor_arg0): std__collections__HashMap__new_())(dict.len())
+            for selfhost_for_item in dict.iter():
+                let (key, value) = selfhost_for_item
+                let Ok(key) = key.extract()
+                values.insert(key, py_to_value(value)?)
+                ()
+            ()
+            return Result::Ok(kain_core__runtime__Value::Struct(("PyDict").to_string(), Arc__new_(RwLock__new_(values))))
+        _ =>
+            ()
+            ()
+    match (try_array_like_to_value(obj)?):
+        Some(value) => return Result::Ok(value)
+        _ =>
+            ()
+            ()
+    wrap_python_object(obj)
+
+fn py_any_to_value(obj: &PyAny) -> Result<kain_core::runtime::Value, KainError>:
+    if is_torch_tensor(obj):
+        let ndim = py_int_attr_value(obj, "ndim")?
+        if (ndim == 0):
+            let scalar = obj.call_method0("item").map_err(fn(err): KainError__runtime(f"PyTorch scalar item error: {err}"))?
+            return py_to_value(scalar)
+        ()
+    py_to_value(obj)
+
+fn try_array_like_to_value(obj: &PyAny) -> Result<Option<kain_core::runtime::Value>, KainError>:
+    if is_torch_tensor(obj):
+        return Result::Ok(none)
+    let module_name = obj.get_type().getattr("__module__").and_then(fn(value): value.extract()).unwrap_or_default()
+    let type_name = obj.get_type().name().map(fn(name): name.to_string()).unwrap_or_default()
+    let is_numpy_array = (module_name.starts_with("numpy") && (type_name == "ndarray"))
+    let is_array_like = (obj.hasattr("tolist").unwrap_or(false) && ((obj.hasattr("shape").unwrap_or(false) || obj.hasattr("__array_interface__").unwrap_or(false))))
+    if ((!is_numpy_array) && (!is_array_like)):
+        return Result::Ok(none)
+    let list_value = obj.call_method0("tolist").map_err(fn(err): KainError__runtime(f"Python array conversion error: {err}"))?
+    Result::Ok(Option::Some(py_to_value(list_value)?))
+
+pub fn wrap_python_object(obj: &PyAny) -> Result<kain_core::runtime::Value, KainError>:
+    let label = python_object_label(obj)
+    Result::Ok(Value__host_object(label, Arc__new_(PythonObjectRef { object: obj.into_py(obj.py()) })))
+
+fn python_object_label(obj: &PyAny) -> String:
+    let type_name = obj.get_type().name().map(fn(name): name.to_string()).unwrap_or_else(fn(_): ("object").to_string())
+    match obj.getattr("__module__").and_then(fn(value): value.extract()):
+        Ok(module_name) =>
+            match obj.getattr("__qualname__").and_then(fn(value): value.extract()):
+                Ok(qual_name) => return f"python:{module_name}.{qual_name}"
+                _ =>
+                    ()
+                    ()
+            match obj.getattr("__name__").and_then(fn(value): value.extract()):
+                Ok(name) => return f"python:{module_name}.{name}"
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    match obj.repr().and_then(fn(value): value.extract()):
+        Ok(repr) =>
+            let trimmed = repr.chars().take(48).collect()
+            return f"python:{type_name}:{trimmed}"
+        _ =>
+            ()
+            ()
+    f"python:{type_name}"
+
+pub fn execute_python_source(env: &kain_core::runtime::Env, source: String) -> Result<Option<kain_core::runtime::Value>, KainError>:
+    let state_ = python_scope_state(env)?
+    Python__with_gil(fn(py): none)
+
+fn python_scope_state(env: &kain_core::runtime::Env) -> Result<std::sync::Arc<PythonScopeState>, KainError>:
+    env.get_extension_state(PYTHON_EXTENSION_KEY).ok_or_else(fn(): KainError__runtime("Python runtime is not registered for this environment"))
+
+fn scope_dict_from_guard<py>(py: Python<py>, scope: &py PyObject) -> Result<&py pyo3::types::PyDict, KainError>:
+    scope.as_ref(py).downcast().map_err(fn(err): KainError__runtime(f"Python scope error: {err}"))
+

@@ -1,0 +1,284 @@
+use crate::network_sync_ir::NetworkSyncIR
+
+use crate::network_sync_ir::ReplicationModeIR
+
+@doc(doc = " Output from network sync code generation")
+@derive(Debug, Clone)
+pub struct NetworkSyncCodegenOutput:
+    header_declarations: String
+    constructor_body: String
+    tick_body: String
+    replication_body: String
+    includes: Array<String>
+
+@doc(doc = " Generate network synchronization code from IR")
+pub fn generate_network_sync_code(ir: &NetworkSyncIR, class_name: String) -> NetworkSyncCodegenOutput:
+    let mut output = NetworkSyncCodegenOutput { header_declarations: String__new_(), constructor_body: String__new_(), tick_body: String__new_(), replication_body: String__new_(), includes: [("Net/UnrealNetwork.h").to_string()] }
+    generate_state_buffers(ir, &mut output)
+    ()
+    generate_constructor_init(ir, &mut output)
+    ()
+    generate_tick_logic(ir, class_name, &mut output)
+    ()
+    generate_replication_setup(ir, class_name, &mut output)
+    ()
+    output
+
+@doc(doc = " Generate state buffer structures for interpolated properties")
+fn generate_state_buffers(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegenOutput):
+    let mut has_interpolated = false
+    for prop in &(*ir).replicated_properties:
+        if (none):
+            has_interpolated = true
+            ()
+            break
+    ()
+    if (!has_interpolated):
+        return
+    (*output).header_declarations.push_str("\n    // Network synchronization state buffer\n")
+    ()
+    (*output).header_declarations.push_str("    USTRUCT()\n")
+    ()
+    (*output).header_declarations.push_str("    struct FNetworkState\n")
+    ()
+    (*output).header_declarations.push_str("    {\n")
+    ()
+    (*output).header_declarations.push_str("        GENERATED_BODY()\n\n")
+    ()
+    (*output).header_declarations.push_str("        UPROPERTY()\n")
+    ()
+    (*output).header_declarations.push_str("        float Timestamp;\n\n")
+    ()
+    for prop in &(*ir).replicated_properties:
+        if (none):
+            (*output).header_declarations.push_str(&"        UPROPERTY()\n")
+            ()
+            (*output).header_declarations.push_str(&f"        {prop.cpp_type} {prop.name};\n\n")
+            ()
+    ()
+    (*output).header_declarations.push_str("        FNetworkState() : Timestamp(0.0f) {}\n")
+    ()
+    (*output).header_declarations.push_str("    };\n\n")
+    ()
+    (*output).header_declarations.push_str("    // State buffer for interpolation\n")
+    ()
+    (*output).header_declarations.push_str("    UPROPERTY(Transient)\n")
+    ()
+    (*output).header_declarations.push_str("    TArray<FNetworkState> StateBuffer;\n\n")
+    ()
+    (*output).header_declarations.push_str("    // Current interpolation time offset\n")
+    ()
+    (*output).header_declarations.push_str("    UPROPERTY(Transient)\n")
+    ()
+    (*output).header_declarations.push_str("    float InterpolationBackTime;\n\n")
+    ()
+
+@doc(doc = " Generate constructor initialization code")
+fn generate_constructor_init(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegenOutput):
+    for prop in &(*ir).replicated_properties:
+        match prop.mode:
+            ReplicationModeIR::Interpolated { back_time: back_time, buffer_size: buffer_size } =>
+                (*output).constructor_body.push_str(&f"    InterpolationBackTime = {back_time}f;\n")
+                ()
+                (*output).constructor_body.push_str(&f"    StateBuffer.Reserve({buffer_size});\n")
+                ()
+                break
+            _ => ()
+    ()
+    (*output).constructor_body.push_str("    SetIsReplicatedByDefault(true);\n")
+    ()
+
+@doc(doc = " Generate tick method logic for interpolation and extrapolation")
+fn generate_tick_logic(ir: &NetworkSyncIR, _class_name: String, output: &mut NetworkSyncCodegenOutput):
+    let mut has_interpolated = false
+    let mut has_extrapolated = false
+    let mut has_compressed = false
+    for prop in &(*ir).replicated_properties:
+        match prop.mode:
+            ReplicationModeIR::Interpolated {  } => has_interpolated = true
+            ReplicationModeIR::Extrapolated {  } => has_extrapolated = true
+            ReplicationModeIR::Compressed {  } => has_compressed = true
+            _ => ()
+    ()
+    if (((!has_interpolated) && (!has_extrapolated)) && (!has_compressed)):
+        return
+    (*output).tick_body.push_str("    // Network synchronization logic\n")
+    ()
+    (*output).tick_body.push_str("    if (GetOwnerRole() != ROLE_Authority)\n")
+    ()
+    (*output).tick_body.push_str("    {\n")
+    ()
+    if has_interpolated:
+        generate_interpolation_logic(ir, output)
+        ()
+        ()
+        ()
+        ()
+    if has_extrapolated:
+        generate_extrapolation_logic(ir, output)
+        ()
+        ()
+        ()
+        ()
+    if ((*ir).config.snap_threshold > 0):
+        generate_snap_threshold_checks(ir, output)
+        ()
+        ()
+        ()
+        ()
+    (*output).tick_body.push_str("    }\n\n")
+    ()
+
+@doc(doc = " Generate interpolation logic for interpolated properties")
+fn generate_interpolation_logic(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegenOutput):
+    (*output).tick_body.push_str("        // Interpolation logic\n")
+    ()
+    (*output).tick_body.push_str("        if (StateBuffer.Num() >= 2)\n")
+    ()
+    (*output).tick_body.push_str("        {\n")
+    ()
+    (*output).tick_body.push_str("            float CurrentTime = GetWorld()->GetTimeSeconds();\n")
+    ()
+    (*output).tick_body.push_str("            float TargetTime = CurrentTime - InterpolationBackTime;\n\n")
+    ()
+    (*output).tick_body.push_str("            // Find the two states to interpolate between\n")
+    ()
+    (*output).tick_body.push_str("            int32 FromIndex = -1;\n")
+    ()
+    (*output).tick_body.push_str("            int32 ToIndex = -1;\n\n")
+    ()
+    (*output).tick_body.push_str("            for (int32 i = 0; i < StateBuffer.Num() - 1; ++i)\n")
+    ()
+    (*output).tick_body.push_str("            {\n")
+    ()
+    (*output).tick_body.push_str("                if (StateBuffer[i].Timestamp <= TargetTime && StateBuffer[i + 1].Timestamp >= TargetTime)\n")
+    ()
+    (*output).tick_body.push_str("                {\n")
+    ()
+    (*output).tick_body.push_str("                    FromIndex = i;\n")
+    ()
+    (*output).tick_body.push_str("                    ToIndex = i + 1;\n")
+    ()
+    (*output).tick_body.push_str("                    break;\n")
+    ()
+    (*output).tick_body.push_str("                }\n")
+    ()
+    (*output).tick_body.push_str("            }\n\n")
+    ()
+    (*output).tick_body.push_str("            if (FromIndex >= 0 && ToIndex >= 0)\n")
+    ()
+    (*output).tick_body.push_str("            {\n")
+    ()
+    (*output).tick_body.push_str("                const FNetworkState& FromState = StateBuffer[FromIndex];\n")
+    ()
+    (*output).tick_body.push_str("                const FNetworkState& ToState = StateBuffer[ToIndex];\n")
+    ()
+    (*output).tick_body.push_str("                float Alpha = (TargetTime - FromState.Timestamp) / (ToState.Timestamp - FromState.Timestamp);\n")
+    ()
+    (*output).tick_body.push_str("                Alpha = FMath::Clamp(Alpha, 0.0f, 1.0f);\n\n")
+    ()
+    for prop in &(*ir).replicated_properties:
+        if (none):
+            (*output).tick_body.push_str(&f"                // Interpolate {prop.name}\n")
+            ()
+            if (prop.cpp_type.contains("Vector") || prop.cpp_type.contains("FVector")):
+                (*output).tick_body.push_str(&f"                {prop.name} = FMath::Lerp(FromState.{prop.name}, ToState.{prop.name}, Alpha);\n")
+                ()
+            elif (prop.cpp_type.contains("Rotator") || prop.cpp_type.contains("FRotator")):
+                (*output).tick_body.push_str(&f"                {prop.name} = FMath::Lerp(FromState.{prop.name}, ToState.{prop.name}, Alpha);\n")
+                ()
+            elif (prop.cpp_type.contains("Quat") || prop.cpp_type.contains("FQuat")):
+                (*output).tick_body.push_str(&f"                {prop.name} = FQuat::Slerp(FromState.{prop.name}, ToState.{prop.name}, Alpha);\n")
+                ()
+            else:
+                (*output).tick_body.push_str(&f"                {prop.name} = FMath::Lerp(FromState.{prop.name}, ToState.{prop.name}, Alpha);\n")
+                ()
+    ()
+    (*output).tick_body.push_str("            }\n\n")
+    ()
+    (*output).tick_body.push_str("            // Remove old states\n")
+    ()
+    (*output).tick_body.push_str("            while (StateBuffer.Num() > 0 && StateBuffer[0].Timestamp < TargetTime - 1.0f)\n")
+    ()
+    (*output).tick_body.push_str("            {\n")
+    ()
+    (*output).tick_body.push_str("                StateBuffer.RemoveAt(0);\n")
+    ()
+    (*output).tick_body.push_str("            }\n")
+    ()
+    (*output).tick_body.push_str("        }\n\n")
+    ()
+
+@doc(doc = " Generate extrapolation logic for predicted movement")
+fn generate_extrapolation_logic(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegenOutput):
+    (*output).tick_body.push_str("        // Extrapolation logic\n")
+    ()
+    for prop in &(*ir).replicated_properties:
+        match prop.mode:
+            ReplicationModeIR::Extrapolated { limit: limit } =>
+                (*output).tick_body.push_str(&f"        // Extrapolate {prop.name} with limit {limit}\n")
+                ()
+                if (prop.name.contains("velocity") || prop.name.contains("Velocity")):
+                    (*output).tick_body.push_str(&f"        {prop.name} = FMath::Clamp({prop.name}, -{limit}, {limit});\n")
+                    ()
+                elif prop.cpp_type.contains("Vector"):
+                    (*output).tick_body.push_str(&f"        // Extrapolate {prop.name} (limited to {limit} units)\n")
+                    ()
+            _ => ()
+    ()
+    (*output).tick_body.push_str("\n")
+    ()
+
+@doc(doc = " Generate snap threshold checks for teleportation detection")
+fn generate_snap_threshold_checks(ir: &NetworkSyncIR, output: &mut NetworkSyncCodegenOutput):
+    (*output).tick_body.push_str(&f"        // Snap threshold check (threshold: {(*ir).config.snap_threshold})\n")
+    ()
+    for prop in &(*ir).replicated_properties:
+        if (((((prop.name.contains("position") || prop.name.contains("Position")) || prop.name.contains("location")) || prop.name.contains("Location"))) && ((prop.cpp_type.contains("Vector") || prop.cpp_type.contains("FVector")))):
+            (*output).tick_body.push_str("        if (StateBuffer.Num() >= 2)\n")
+            ()
+            (*output).tick_body.push_str("        {\n")
+            ()
+            (*output).tick_body.push_str(&f"            float Distance = FVector::Dist(StateBuffer[StateBuffer.Num() - 1].{prop.name}, StateBuffer[StateBuffer.Num() - 2].{prop.name});\n")
+            ()
+            (*output).tick_body.push_str(&f"            if (Distance > {(*ir).config.snap_threshold}f)\n")
+            ()
+            (*output).tick_body.push_str("            {\n")
+            ()
+            (*output).tick_body.push_str("                // Teleportation detected - snap to latest state\n")
+            ()
+            (*output).tick_body.push_str(&f"                {prop.name} = StateBuffer[StateBuffer.Num() - 1].{prop.name};\n")
+            ()
+            (*output).tick_body.push_str("                StateBuffer.Empty();\n")
+            ()
+            (*output).tick_body.push_str("            }\n")
+            ()
+            (*output).tick_body.push_str("        }\n\n")
+            ()
+            break
+
+@doc(doc = " Generate GetLifetimeReplicatedProps implementation")
+fn generate_replication_setup(ir: &NetworkSyncIR, class_name: String, output: &mut NetworkSyncCodegenOutput):
+    (*output).replication_body.push_str("    Super::GetLifetimeReplicatedProps(OutLifetimeProps);\n\n")
+    ()
+    for prop in &(*ir).replicated_properties:
+        match &prop.mode:
+            ReplicationModeIR::Simple =>
+                (*output).replication_body.push_str(&f"    DOREPLIFETIME({class_name}, {prop.name});\n")
+                ()
+            ReplicationModeIR::Interpolated {  } =>
+                (*output).replication_body.push_str(&f"    DOREPLIFETIME_CONDITION({class_name}, {prop.name}, COND_SimulatedOnly);\n")
+                ()
+            ReplicationModeIR::Extrapolated {  } =>
+                (*output).replication_body.push_str(&f"    DOREPLIFETIME_CONDITION({class_name}, {prop.name}, COND_SimulatedOnly);\n")
+                ()
+            ReplicationModeIR::Compressed { threshold: threshold, use_half_float: use_half_float } =>
+                if (*use_half_float):
+                    (*output).replication_body.push_str(&f"    DOREPLIFETIME_CONDITION({class_name}, {prop.name}, COND_SimulatedOnly);\n")
+                    ()
+                    (*output).replication_body.push_str(&f"    // TODO: Implement half-float compression for {prop.name} (threshold: {threshold})\n")
+                    ()
+                else:
+                    (*output).replication_body.push_str(&f"    DOREPLIFETIME_CONDITION({class_name}, {prop.name}, COND_SimulatedOnly);\n")
+                    ()
+

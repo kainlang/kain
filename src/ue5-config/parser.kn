@@ -1,0 +1,169 @@
+use crate::config_ir::ConfigCategory
+
+use crate::config_ir::ConfigField
+
+use crate::config_ir::ConfigStruct
+
+use anyhow::anyhow
+
+use anyhow::Result
+
+use kain_core::ast::Attribute
+
+use kain_core::ast::Expr
+
+use kain_core::ast::Field
+
+use kain_core::ast::Struct
+
+@doc(doc = " Parse @config attribute from a struct")
+@doc(doc = "")
+@doc(doc = " Expected format:")
+@doc(doc = " ```kain")
+@doc(doc = " @config(category: \"Game\", file: \"DefaultGame.ini\", section: \"MyPlugin\", display_name: \"My Settings\")")
+@doc(doc = " struct MySettings:")
+@doc(doc = "     ...")
+@doc(doc = " ```")
+pub fn parse_config_attribute(struct_def: &kain_core::ast::Struct) -> Result<Option<ConfigStruct>, Error>:
+    let config_attr = (*struct_def).attributes.iter().find(fn(attr): (attr.name == "config"))
+    let Some(config_attr) = config_attr
+    let category = extract_string_param(&config_attr.args, "category").ok_or_else(fn(): anyhow!("@config requires 'category' parameter (Game, Engine, Editor, EditorPerProjectUserSettings)"))?
+    let category = ConfigCategory__from_str(&category).ok_or_else(fn(): anyhow!("Invalid config category '{}'. Valid values: Game, Engine, Editor, EditorPerProjectUserSettings", category))?
+    let ini_file = extract_string_param(&config_attr.args, "file")
+    let ini_section = extract_string_param(&config_attr.args, "section")
+    let display_name = extract_string_param(&config_attr.args, "display_name")
+    let mut config_fields = Vec__new_()
+    for field in &(*struct_def).fields:
+        match (parse_setting_attribute(field)?):
+            Some(config_field) =>
+                config_fields.push(config_field)
+                ()
+            _ => ()
+    ()
+    Result::Ok(Option::Some(ConfigStruct { name: (*struct_def).name.clone(), category: category, ini_file: ini_file, ini_section: ini_section, display_name: display_name, fields: config_fields, original_struct: struct_def.clone(), span: (*struct_def).span }))
+
+@doc(doc = " Parse @setting attribute from a field")
+@doc(doc = "")
+@doc(doc = " Expected format:")
+@doc(doc = " ```kain")
+@doc(doc = " @setting(")
+@doc(doc = "     display_name: \"Chunk Size\",")
+@doc(doc = "     tooltip: \"Size of voxel chunks in world units\",")
+@doc(doc = "     cvar: \"voxel.ChunkSize\",")
+@doc(doc = "     blueprint: true,")
+@doc(doc = "     min: 10.0,")
+@doc(doc = "     max: 1000.0,")
+@doc(doc = "     writable: false")
+@doc(doc = " )")
+@doc(doc = " chunk_size: Float = 100.0")
+@doc(doc = " ```")
+pub fn parse_setting_attribute(field: &kain_core::ast::Field) -> Result<Option<ConfigField>, Error>:
+    let setting_attr = (*field).attributes.iter().find(fn(attr): (attr.name == "setting"))
+    let Some(setting_attr) = setting_attr
+    let display_name = extract_string_param(&setting_attr.args, "display_name")
+    let tooltip = extract_string_param(&setting_attr.args, "tooltip")
+    let cvar = extract_string_param(&setting_attr.args, "cvar")
+    let blueprint = extract_bool_param(&setting_attr.args, "blueprint").unwrap_or(false)
+    let min = extract_float_param(&setting_attr.args, "min")
+    let max = extract_float_param(&setting_attr.args, "max")
+    let writable = extract_bool_param(&setting_attr.args, "writable").unwrap_or(false)
+    Result::Ok(Option::Some(ConfigField { name: (*field).name.clone(), ty: (*field).ty.clone(), default_: (*field).default_.clone(), display_name: display_name, tooltip: tooltip, cvar: cvar, blueprint: blueprint, min: min, max: max, writable: writable, original_field: field.clone(), span: (*field).span }))
+
+@doc(doc = " Extract a string parameter from attribute arguments")
+@doc(doc = "")
+@doc(doc = " Looks for named arguments like `name: \"value\"` or positional string literals")
+fn extract_string_param(args: &[kain_core::ast::Expr], param_name: String) -> Option<String>:
+    for arg in args:
+        match arg:
+            kain_core__ast__Expr::Tuple(elems, _) if (elems.len() == 2) =>
+                match &elems[0]:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &elems[1]:
+                                kain_core__ast__Expr::String(value, _) => return Option::Some(value.clone())
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } if none =>
+                match &(*(*left)):
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &(*(*right)):
+                                kain_core__ast__Expr::String(value, _) => return Option::Some(value.clone())
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Struct { fields: fields } =>
+                for selfhost_for_item in fields:
+                    let (field_name, field_value) = selfhost_for_item
+                    if (field_name == param_name):
+                        match field_value:
+                            kain_core__ast__Expr::String(value, _) => return Option::Some(value.clone())
+                            _ => ()
+            _ => ()
+    ()
+    none
+
+@doc(doc = " Extract a boolean parameter from attribute arguments")
+fn extract_bool_param(args: &[kain_core::ast::Expr], param_name: String) -> Option<Bool>:
+    for arg in args:
+        match arg:
+            kain_core__ast__Expr::Tuple(elems, _) if (elems.len() == 2) =>
+                match &elems[0]:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &elems[1]:
+                                kain_core__ast__Expr::Bool(value, _) => return Option::Some((*value))
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } if none =>
+                match &(*(*left)):
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &(*(*right)):
+                                kain_core__ast__Expr::Bool(value, _) => return Option::Some((*value))
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Struct { fields: fields } =>
+                for selfhost_for_item in fields:
+                    let (field_name, field_value) = selfhost_for_item
+                    if (field_name == param_name):
+                        match field_value:
+                            kain_core__ast__Expr::Bool(value, _) => return Option::Some((*value))
+                            _ => ()
+            _ => ()
+    ()
+    none
+
+@doc(doc = " Extract a float parameter from attribute arguments")
+fn extract_float_param(args: &[kain_core::ast::Expr], param_name: String) -> Option<f64>:
+    for arg in args:
+        match arg:
+            kain_core__ast__Expr::Tuple(elems, _) if (elems.len() == 2) =>
+                match &elems[0]:
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &elems[1]:
+                                kain_core__ast__Expr::Float(value, _) => return Option::Some((*value))
+                                kain_core__ast__Expr::Int(value, _) => return Option::Some((*value) as f64)
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Binary { left: left, op: op, right: right } if none =>
+                match &(*(*left)):
+                    kain_core__ast__Expr::Ident(name, _) =>
+                        if (name == param_name):
+                            match &(*(*right)):
+                                kain_core__ast__Expr::Float(value, _) => return Option::Some((*value))
+                                kain_core__ast__Expr::Int(value, _) => return Option::Some((*value) as f64)
+                                _ => ()
+                    _ => ()
+            kain_core__ast__Expr::Struct { fields: fields } =>
+                for selfhost_for_item in fields:
+                    let (field_name, field_value) = selfhost_for_item
+                    if (field_name == param_name):
+                        match field_value:
+                            kain_core__ast__Expr::Float(value, _) => return Option::Some((*value))
+                            kain_core__ast__Expr::Int(value, _) => return Option::Some((*value) as f64)
+                            _ => ()
+            _ => ()
+    ()
+    none
+

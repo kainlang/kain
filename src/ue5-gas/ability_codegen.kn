@@ -1,0 +1,443 @@
+use crate::ability_ir::GameplayAbilityIR
+
+use crate::ability_ir::InstancingPolicy
+
+use crate::ability_ir::NetExecutionPolicy
+
+use crate::ability_ir::ReplicationPolicy
+
+use kain_core::error::KainResult
+
+@doc(doc = " Output structure for ability codegen")
+@derive(Debug, Clone)
+pub struct AbilityOutput:
+    header: String
+    source: String
+
+@doc(doc = " Generate complete C++ code for a gameplay ability")
+pub fn generate(ir: &GameplayAbilityIR, plugin_name: String) -> Result<AbilityOutput, KainError>:
+    let class_name = f"U{(*ir).name}"
+    let header = generate_header(ir, &class_name, plugin_name)?
+    let source = generate_source(ir, &class_name, plugin_name)?
+    Result::Ok(AbilityOutput { header: header, source: source })
+
+@doc(doc = " Generate header file (.h)")
+fn generate_header(ir: &GameplayAbilityIR, class_name: String, _plugin_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str("#pragma once\n\n")
+    ()
+    output.push_str("#include \"CoreMinimal.h\"\n")
+    ()
+    output.push_str("#include \"Abilities/GameplayAbility.h\"\n")
+    ()
+    output.push_str(&f"#include \"{(*ir).name}.generated.h\"\n\n")
+    ()
+    output.push_str("UCLASS(MinimalAPI, Blueprintable)\n")
+    ()
+    output.push_str(&f"class {class_name} : public UGameplayAbility\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tGENERATED_BODY()\n\n")
+    ()
+    output.push_str("public:\n")
+    ()
+    output.push_str(&f"\t{class_name}();\n\n")
+    ()
+    output.push_str("protected:\n")
+    ()
+    if (*ir).lifecycle_hooks.can_activate_ability.is_some():
+        output.push_str("\tvirtual bool CanActivateAbility(const FGameplayAbilitySpecHandle Handle,\n")
+        ()
+        output.push_str("\t                                 const FGameplayAbilityActorInfo* ActorInfo,\n")
+        ()
+        output.push_str("\t                                 const FGameplayTagContainer* SourceTags = nullptr,\n")
+        ()
+        output.push_str("\t                                 const FGameplayTagContainer* TargetTags = nullptr,\n")
+        ()
+        output.push_str("\t                                 OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.activate_ability.is_some():
+        output.push_str("\tvirtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,\n")
+        ()
+        output.push_str("\t                              const FGameplayAbilityActorInfo* ActorInfo,\n")
+        ()
+        output.push_str("\t                              const FGameplayAbilityActivationInfo ActivationInfo,\n")
+        ()
+        output.push_str("\t                              const FGameplayEventData* TriggerEventData) override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.end_ability.is_some():
+        output.push_str("\tvirtual void EndAbility(const FGameplayAbilitySpecHandle Handle,\n")
+        ()
+        output.push_str("\t                         const FGameplayAbilityActorInfo* ActorInfo,\n")
+        ()
+        output.push_str("\t                         const FGameplayAbilityActivationInfo ActivationInfo,\n")
+        ()
+        output.push_str("\t                         bool bReplicateEndAbility,\n")
+        ()
+        output.push_str("\t                         bool bWasCancelled) override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.input_pressed.is_some():
+        output.push_str("\tvirtual void InputPressed(const FGameplayAbilitySpecHandle Handle,\n")
+        ()
+        output.push_str("\t                           const FGameplayAbilityActorInfo* ActorInfo,\n")
+        ()
+        output.push_str("\t                           const FGameplayAbilityActivationInfo ActivationInfo) override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.input_released.is_some():
+        output.push_str("\tvirtual void InputReleased(const FGameplayAbilitySpecHandle Handle,\n")
+        ()
+        output.push_str("\t                            const FGameplayAbilityActorInfo* ActorInfo,\n")
+        ()
+        output.push_str("\t                            const FGameplayAbilityActivationInfo ActivationInfo) override;\n\n")
+        ()
+        ()
+        ()
+        ()
+    output.push_str("};\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate source file (.cpp)")
+fn generate_source(ir: &GameplayAbilityIR, class_name: String, _plugin_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"#include \"Abilities/{(*ir).name}.h\"\n")
+    ()
+    match (*ir).cost_effect:
+        Some(cost) =>
+            output.push_str(&f"#include \"Effects/{cost}.h\"\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match (*ir).cooldown_effect:
+        Some(cooldown) =>
+            output.push_str(&f"#include \"Effects/{cooldown}.h\"\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    output.push_str("#include \"GameplayTags.h\"\n\n")
+    ()
+    output.push_str(&generate_constructor(ir, class_name)?)
+    ()
+    output.push_str("\n")
+    ()
+    if (*ir).lifecycle_hooks.can_activate_ability.is_some():
+        output.push_str(&generate_can_activate_ability(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.activate_ability.is_some():
+        output.push_str(&generate_activate_ability(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.end_ability.is_some():
+        output.push_str(&generate_end_ability(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.input_pressed.is_some():
+        output.push_str(&generate_input_pressed(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (*ir).lifecycle_hooks.input_released.is_some():
+        output.push_str(&generate_input_released(ir, class_name)?)
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    Result::Ok(output)
+
+@doc(doc = " Generate constructor with policy and tag initialization")
+fn generate_constructor(ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"{class_name}::{class_name}()\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str(&f"\tInstancingPolicy = {instancing_policy_to_cpp(&(*ir).instancing_policy)};\n")
+    ()
+    output.push_str(&f"\tReplicationPolicy = {replication_policy_to_cpp(&(*ir).replication_policy)};\n")
+    ()
+    output.push_str(&f"\tNetExecutionPolicy = {net_execution_policy_to_cpp(&(*ir).net_execution_policy)};\n")
+    ()
+    output.push_str("\n")
+    ()
+    if (!(*ir).ability_tags.is_empty()):
+        output.push_str("\t// Ability tags\n")
+        ()
+        for tag in &(*ir).ability_tags:
+            output.push_str(&f"\tAbilityTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).activation_required_tags.is_empty()):
+        output.push_str("\t// Activation required tags\n")
+        ()
+        for tag in &(*ir).activation_required_tags:
+            output.push_str(&f"\tActivationRequiredTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).activation_blocked_tags.is_empty()):
+        output.push_str("\t// Activation blocked tags\n")
+        ()
+        for tag in &(*ir).activation_blocked_tags:
+            output.push_str(&f"\tActivationBlockedTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).activation_owned_tags.is_empty()):
+        output.push_str("\t// Activation owned tags\n")
+        ()
+        for tag in &(*ir).activation_owned_tags:
+            output.push_str(&f"\tActivationOwnedTags.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).cancel_abilities_with_tag.is_empty()):
+        output.push_str("\t// Cancel abilities with tag\n")
+        ()
+        for tag in &(*ir).cancel_abilities_with_tag:
+            output.push_str(&f"\tCancelAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    if (!(*ir).block_abilities_with_tag.is_empty()):
+        output.push_str("\t// Block abilities with tag\n")
+        ()
+        for tag in &(*ir).block_abilities_with_tag:
+            output.push_str(&f"\tBlockAbilitiesWithTag.AddTag(FGameplayTag::RequestGameplayTag(FName(\"{tag}\")));\n")
+            ()
+        ()
+        output.push_str("\n")
+        ()
+        ()
+        ()
+        ()
+    match (*ir).cost_effect:
+        Some(cost) =>
+            output.push_str("\t// Cost effect\n")
+            ()
+            output.push_str(&f"\tCostGameplayEffectClass = U{cost}::StaticClass();\n\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match (*ir).cooldown_effect:
+        Some(cooldown) =>
+            output.push_str("\t// Cooldown effect\n")
+            ()
+            output.push_str(&f"\tCooldownGameplayEffectClass = U{cooldown}::StaticClass();\n\n")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate CanActivateAbility implementation")
+fn generate_can_activate_ability(_ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"bool {class_name}::CanActivateAbility(const FGameplayAbilitySpecHandle Handle,\n")
+    ()
+    output.push_str("                                     const FGameplayAbilityActorInfo* ActorInfo,\n")
+    ()
+    output.push_str("                                     const FGameplayTagContainer* SourceTags,\n")
+    ()
+    output.push_str("                                     const FGameplayTagContainer* TargetTags,\n")
+    ()
+    output.push_str("                                     FGameplayTagContainer* OptionalRelevantTags) const\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tif (!Super::CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, OptionalRelevantTags))\n")
+    ()
+    output.push_str("\t{\n")
+    ()
+    output.push_str("\t\treturn false;\n")
+    ()
+    output.push_str("\t}\n\n")
+    ()
+    output.push_str("\t// TODO: User-defined logic\n\n")
+    ()
+    output.push_str("\treturn true;\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate ActivateAbility implementation")
+fn generate_activate_ability(_ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::ActivateAbility(const FGameplayAbilitySpecHandle Handle,\n")
+    ()
+    output.push_str("                                  const FGameplayAbilityActorInfo* ActorInfo,\n")
+    ()
+    output.push_str("                                  const FGameplayAbilityActivationInfo ActivationInfo,\n")
+    ()
+    output.push_str("                                  const FGameplayEventData* TriggerEventData)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);\n\n")
+    ()
+    output.push_str("\tif (!CommitAbility(Handle, ActorInfo, ActivationInfo))\n")
+    ()
+    output.push_str("\t{\n")
+    ()
+    output.push_str("\t\tEndAbility(Handle, ActorInfo, ActivationInfo, true, true);\n")
+    ()
+    output.push_str("\t\treturn;\n")
+    ()
+    output.push_str("\t}\n\n")
+    ()
+    output.push_str("\t// TODO: User-defined logic\n\n")
+    ()
+    output.push_str("\tEndAbility(Handle, ActorInfo, ActivationInfo, true, false);\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate EndAbility implementation")
+fn generate_end_ability(_ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::EndAbility(const FGameplayAbilitySpecHandle Handle,\n")
+    ()
+    output.push_str("                         const FGameplayAbilityActorInfo* ActorInfo,\n")
+    ()
+    output.push_str("                         const FGameplayAbilityActivationInfo ActivationInfo,\n")
+    ()
+    output.push_str("                         bool bReplicateEndAbility,\n")
+    ()
+    output.push_str("                         bool bWasCancelled)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);\n\n")
+    ()
+    output.push_str("\t// TODO: User-defined cleanup logic\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate InputPressed implementation")
+fn generate_input_pressed(_ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::InputPressed(const FGameplayAbilitySpecHandle Handle,\n")
+    ()
+    output.push_str("                           const FGameplayAbilityActorInfo* ActorInfo,\n")
+    ()
+    output.push_str("                           const FGameplayAbilityActivationInfo ActivationInfo)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::InputPressed(Handle, ActorInfo, ActivationInfo);\n\n")
+    ()
+    output.push_str("\t// TODO: User-defined input pressed logic\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+@doc(doc = " Generate InputReleased implementation")
+fn generate_input_released(_ir: &GameplayAbilityIR, class_name: String) -> Result<String, KainError>:
+    let mut output = String__new_()
+    output.push_str(&f"void {class_name}::InputReleased(const FGameplayAbilitySpecHandle Handle,\n")
+    ()
+    output.push_str("                            const FGameplayAbilityActorInfo* ActorInfo,\n")
+    ()
+    output.push_str("                            const FGameplayAbilityActivationInfo ActivationInfo)\n")
+    ()
+    output.push_str("{\n")
+    ()
+    output.push_str("\tSuper::InputReleased(Handle, ActorInfo, ActivationInfo);\n\n")
+    ()
+    output.push_str("\t// TODO: User-defined input released logic\n")
+    ()
+    output.push_str("}\n")
+    ()
+    Result::Ok(output)
+
+fn instancing_policy_to_cpp(policy: &InstancingPolicy) -> String:
+    match policy:
+        InstancingPolicy::InstancedPerExecution => "EGameplayAbilityInstancingPolicy::InstancedPerExecution"
+        InstancingPolicy::InstancedPerActor => "EGameplayAbilityInstancingPolicy::InstancedPerActor"
+        InstancingPolicy::NonInstanced => "EGameplayAbilityInstancingPolicy::NonInstanced"
+
+fn replication_policy_to_cpp(policy: &ReplicationPolicy) -> String:
+    match policy:
+        ReplicationPolicy::ReplicateNo => "EGameplayAbilityReplicationPolicy::ReplicateNo"
+        ReplicationPolicy::ReplicateYes => "EGameplayAbilityReplicationPolicy::ReplicateYes"
+
+fn net_execution_policy_to_cpp(policy: &NetExecutionPolicy) -> String:
+    match policy:
+        NetExecutionPolicy::LocalPredicted => "EGameplayAbilityNetExecutionPolicy::LocalPredicted"
+        NetExecutionPolicy::LocalOnly => "EGameplayAbilityNetExecutionPolicy::LocalOnly"
+        NetExecutionPolicy::ServerInitiated => "EGameplayAbilityNetExecutionPolicy::ServerInitiated"
+        NetExecutionPolicy::ServerOnly => "EGameplayAbilityNetExecutionPolicy::ServerOnly"
+

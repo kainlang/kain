@@ -1,0 +1,235 @@
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use std::collections::HashSet
+
+use std::sync::OnceLock
+
+@doc(doc = " Data-driven reserved engine names — loaded once from JSON.")
+@doc(doc = " UHT rejects types whose \"engine name\" (name without A/U/F/E/I prefix)")
+@doc(doc = " matches a built-in engine class, interface, struct, or enum.")
+@derive(Debug, Default, serde__Deserialize)
+struct ReservedEngineNames:
+    reserved_component_names: Array<String>
+    reserved_actor_names: Array<String>
+    reserved_struct_names: Array<String>
+    reserved_enum_names: Array<String>
+    reserved_interface_names: Array<String>
+
+impl Default for ReservedEngineNames:
+    pub fn default_() -> ReservedEngineNames:
+        ReservedEngineNames { reserved_component_names: Vec__new_(), reserved_actor_names: Vec__new_(), reserved_struct_names: Vec__new_(), reserved_enum_names: Vec__new_(), reserved_interface_names: Vec__new_() }
+
+
+const RESERVED_NAMES: std::sync::OnceLock<Set<String>> = OnceLock__new_()
+
+const NAMING_POLICY: std::sync::OnceLock<NamingPolicy> = OnceLock__new_()
+
+@doc(doc = " Data-driven naming policy loaded from environment with safe defaults.")
+@derive(Debug, Clone)
+struct NamingPolicy:
+    collision_prefix: String
+
+impl Default for NamingPolicy:
+    fn default_() -> NamingPolicy:
+        let collision_prefix = std__env__var_("KAIN_UE5_NAME_PREFIX").ok().map(fn(value): value.trim().to_string()).filter(fn(value): (!value.is_empty())).unwrap_or_else(fn(): ("Kain").to_string())
+        NamingPolicy { collision_prefix: collision_prefix }
+
+
+fn naming_policy() -> &static NamingPolicy:
+    NAMING_POLICY.get_or_init(NamingPolicy__default_)
+
+@doc(doc = " Load the reserved engine names set (all categories merged into one HashSet).")
+fn reserved_engine_names() -> &static Set<String>:
+    RESERVED_NAMES.get_or_init(fn(): none)
+
+fn find_metadata_file(relative: &path::Path) -> Option<path::PathBuf>:
+    let from_env = std__env__var_("KAIN_ROOT").ok().map(fn(root): PathBuf__from(root).join(relative)).filter(fn(p): p.exists())
+    let from_walk = none
+    from_env.or_(from_walk)
+
+fn extend_names_from_engine_knowledge(set: &mut Set<String>, json: &serde_json::Value):
+    for key in ["classes", "structs", "enums"]:
+        let Some(entries) = json.get(key).and_then(fn(value): value.as_array())
+        for entry in entries:
+            match entry.get("name").and_then(fn(value): value.as_str()):
+                Some(name) =>
+                    set.insert(strip_any_ue_prefix(name).to_string())
+                    ()
+                _ => ()
+    ()
+    match json.get("type_aliases").and_then(fn(value): value.as_array()):
+        Some(entries) =>
+            for entry in entries:
+                match entry.get("ue5_name").and_then(fn(value): value.as_str()):
+                    Some(name) =>
+                        set.insert(strip_any_ue_prefix(name).to_string())
+                        ()
+                    _ => ()
+        _ => ()
+
+@doc(doc = " Check if a name (engine name, i.e. without prefix) clashes with a UE5 built-in.")
+@doc(doc = " Returns Err with a helpful message if it does.")
+pub fn check_engine_name_collision(engine_name: String, kain_name: String) -> Result<(), KainError>:
+    let reserved = reserved_engine_names()
+    if reserved.contains(engine_name):
+        Result::Err(KainError__validation_error(f"Name '{kain_name}' (engine name '{engine_name}') collides with a built-in UE5 type. UHT will reject this. Consider renaming to 'Kain{kain_name}' or '{kain_name}_Custom'."))
+    else:
+        Result::Ok(())
+
+fn strip_prefixed_engine_name<a>(name: String, prefix: Char) -> String:
+    if (name.starts_with(prefix) && name.chars().nth(1).map_or(false, fn(c): c.is_uppercase())):
+        &name[1..]
+    else:
+        name
+
+fn strip_any_ue_prefix(name: String) -> String:
+    match name.chars().next():
+        Some(first) =>
+            if (none && name.chars().nth(1).map_or(false, fn(c): c.is_uppercase())):
+                return &name[1..]
+            ()
+        _ =>
+            ()
+            ()
+    name
+
+fn remap_engine_name(engine_name: String) -> String:
+    let reserved = reserved_engine_names()
+    if (!reserved.contains(engine_name)):
+        return engine_name.to_string()
+    let prefix = &naming_policy().collision_prefix
+    let mut candidate = f"{prefix}{engine_name}"
+    let mut counter = 2
+    while reserved.contains(&candidate):
+        candidate = f"{prefix}{engine_name}{counter}"
+        ()
+        counter = (counter + 1)
+        ()
+    ()
+    candidate
+
+fn format_prefixed_name(name: String, prefix: Char, check_collision: Bool) -> Result<String, KainError>:
+    validate_identifier(name)?
+    ()
+    let engine_name = strip_prefixed_engine_name(name, prefix)
+    let resolved_engine_name = if check_collision:
+        remap_engine_name(engine_name)
+    else:
+        engine_name.to_string()
+    validate_identifier(&resolved_engine_name)?
+    ()
+    Result::Ok(f"{prefix}{resolved_engine_name}")
+
+const CPP_KEYWORDS: Array<String> = ["alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break", "case", "catch", "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept", "const", "consteval", "constexpr", "constinit", "const_cast", "continue", "co_await", "co_return", "co_yield", "decltype", "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit", "export", "extern", "false", "float", "for", "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept", "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "register", "reinterpret_cast", "requires", "return", "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct", "switch", "template", "this", "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"]
+
+const UE5_MACROS: Array<String> = ["UCLASS", "USTRUCT", "UENUM", "UFUNCTION", "UPROPERTY", "UMETA", "GENERATED_BODY", "GENERATED_USTRUCT_BODY", "GENERATED_UCLASS_BODY", "UPARAM", "UDELEGATE", "TEXT", "LOCTEXT", "NSLOCTEXT"]
+
+@doc(doc = " Validate that a name is a valid C++ identifier")
+@doc(doc = " Returns error if name starts with number or contains special characters")
+fn validate_identifier(name: String) -> Result<(), KainError>:
+    if name.is_empty():
+        return Result::Err(KainError__validation_error("Identifier cannot be empty"))
+    if name.chars().next().unwrap().is_numeric():
+        return Result::Err(KainError__validation_error(f"Invalid identifier '{name}': cannot start with a number. Use a letter or underscore instead."))
+    for selfhost_for_item in name.chars().enumerate():
+        let (i, ch) = selfhost_for_item
+        if ((!ch.is_alphanumeric()) && (ch != "_")):
+            return Result::Err(KainError__validation_error(f"Invalid identifier '{name}': contains special character '{ch}' at position {i}. Only letters, numbers, and underscores are allowed."))
+    ()
+    let lower = name.to_lowercase()
+    if CPP_KEYWORDS.contains(&lower.as_str()):
+        return Result::Err(KainError__validation_error(f"Invalid identifier '{name}': this is a C++ keyword. Consider using a different name like 'My{name}' or '{name}Type'."))
+    let upper = name.to_uppercase()
+    if UE5_MACROS.contains(&upper.as_str()):
+        return Result::Err(KainError__validation_error(f"Invalid identifier '{name}': this is a UE5 macro name. Consider using a different name."))
+    Result::Ok(())
+
+@doc(doc = " Actor names get 'A' prefix: Player -> APlayer")
+@doc(doc = " Returns error if name is invalid")
+pub fn to_actor_name_checked(name: String) -> Result<String, KainError>:
+    format_prefixed_name(name, "A", true)
+
+@doc(doc = " Actor names get 'A' prefix: Player -> APlayer")
+@doc(doc = " Panics if name is invalid (use to_actor_name_checked for error handling)")
+pub fn to_actor_name(name: String) -> String:
+    to_actor_name_checked(name).unwrap_or_else(fn(e): panic(f"Invalid actor name '{name}': {e}"))
+
+@doc(doc = " Struct names get 'F' prefix: Transform -> FTransform")
+@doc(doc = " Returns error if name is invalid")
+pub fn to_struct_name_checked(name: String) -> Result<String, KainError>:
+    format_prefixed_name(name, "F", true)
+
+@doc(doc = " Struct names get 'F' prefix: Transform -> FTransform")
+@doc(doc = " Panics if name is invalid (use to_struct_name_checked for error handling)")
+pub fn to_struct_name(name: String) -> String:
+    to_struct_name_checked(name).unwrap_or_else(fn(e): panic(f"Invalid struct name '{name}': {e}"))
+
+@doc(doc = " Enum names get 'E' prefix: Direction -> EDirection")
+@doc(doc = " Returns error if name is invalid")
+pub fn to_enum_name_checked(name: String) -> Result<String, KainError>:
+    format_prefixed_name(name, "E", true)
+
+@doc(doc = " Enum names get 'E' prefix: Direction -> EDirection")
+@doc(doc = " Panics if name is invalid (use to_enum_name_checked for error handling)")
+pub fn to_enum_name(name: String) -> String:
+    to_enum_name_checked(name).unwrap_or_else(fn(e): panic(f"Invalid enum name '{name}': {e}"))
+
+@doc(doc = " UObject names get 'U' prefix: Component -> UComponent")
+@doc(doc = " Returns error if name is invalid")
+pub fn to_uobject_name_checked(name: String) -> Result<String, KainError>:
+    format_prefixed_name(name, "U", true)
+
+@doc(doc = " UObject names get 'U' prefix: Component -> UComponent")
+@doc(doc = " Panics if name is invalid (use to_uobject_name_checked for error handling)")
+pub fn to_uobject_name(name: String) -> String:
+    to_uobject_name_checked(name).unwrap_or_else(fn(e): panic(f"Invalid UObject name '{name}': {e}"))
+
+@doc(doc = " Component names get 'U' prefix: Health -> UHealthComponent")
+@doc(doc = " Note: Components are UObjects, so they follow UObject naming")
+@doc(doc = " Returns error if name is invalid")
+pub fn to_component_name_checked(name: String) -> Result<String, KainError>:
+    if name.ends_with("Component"):
+        return to_uobject_name_checked(name)
+    to_uobject_name_checked(name)
+
+@doc(doc = " Component names get 'U' prefix: Health -> UHealthComponent")
+@doc(doc = " Note: Components are UObjects, so they follow UObject naming")
+@doc(doc = " Panics if name is invalid (use to_component_name_checked for error handling)")
+pub fn to_component_name(name: String) -> String:
+    to_component_name_checked(name).unwrap_or_else(fn(e): panic(f"Invalid component name '{name}': {e}"))
+
+@doc(doc = " Subsystem names get 'U' prefix and 'Subsystem' suffix: TickOptimizer -> UTickOptimizerSubsystem")
+@doc(doc = " If name already ends with \"Subsystem\", just add U prefix.")
+pub fn to_subsystem_name(name: String) -> String:
+    let raw_name = if (name.starts_with("U") && name.chars().nth(1).map_or(false, fn(c): c.is_uppercase())):
+        strip_prefixed_engine_name(name, "U").to_string()
+    else:
+        name.to_string()
+    let subsystem_base = if raw_name.ends_with("Subsystem"):
+        raw_name
+    else:
+        f"{raw_name}Subsystem"
+    let resolved = remap_engine_name(&subsystem_base)
+    f"U{resolved}"
+
+@doc(doc = " Generate module API macro from plugin name: \"UltimateVFX\" -> \"ULTIMATEVFX_API\"")
+pub fn to_module_api(plugin_name: String) -> String:
+    f"{plugin_name.to_uppercase()}_API"
+
+use heck::ToPascalCase
+
+use heck::ToSnakeCase
+
+@doc(doc = " Convert any case to PascalCase: \"my_variable\" -> \"MyVariable\", \"GpuID\" -> \"GpuId\"")
+@doc(doc = " Preserves numbers in correct position: \"Player2\" -> \"Player2\"")
+pub fn to_pascal_case(name: String) -> String:
+    name.to_pascal_case()
+
+@doc(doc = " Convert any case to snake_case: \"MyVariable\" -> \"my_variable\"")
+@doc(doc = " Handles consecutive capitals correctly: \"HTTPServer\" -> \"http_server\"")
+@doc(doc = " Preserves numbers in correct position: \"Player2\" -> \"player2\"")
+pub fn to_snake_case(name: String) -> String:
+    name.to_snake_case()
+

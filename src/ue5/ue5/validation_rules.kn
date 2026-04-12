@@ -1,0 +1,169 @@
+use kain_core::error::ErrorContext
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use serde::Deserialize
+
+use serde::Serialize
+
+use std::collections::HashMap
+
+use std::fs
+
+use std::path::Path
+
+pub enum RuleCategory:
+    Naming
+    TypeCompatibility
+    AttributeCombination
+    Replication
+    Blueprint
+    Shader
+    Editor
+
+pub enum Severity:
+    Error
+    Warning
+    Info
+
+pub enum RuleCondition:
+    TypeCollision { type_names: Array<String> }
+    IncompatibleAttributes { attributes: Array<(String, String)> }
+    InvalidRpcNaming { pattern: String }
+    NestedContainer { outer: Array<String>, inner: Array<String> }
+    InvalidNaming { pattern: String, applies_to: Array<String> }
+    MissingAttribute { required_attribute: String, when_attribute: String }
+    ForbiddenType { forbidden_types: Array<String>, context: String }
+
+@doc(doc = " A single validation rule")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ValidationRule:
+    id: String
+    category: RuleCategory
+    severity: Severity
+    condition: RuleCondition
+    message: String
+    suggestion: Option<String>
+    disabled: Bool
+
+@doc(doc = " Container for all validation rules")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ValidationRules:
+    version: String
+    rules: Array<ValidationRule>
+
+impl ValidationRules:
+    pub fn load<P>(path: P) -> Result<ValidationRules, KainError>:
+        let path = path
+        if (!path.exists()):
+            return Result::Ok(ValidationRules { version: ("1.0.0").to_string(), rules: Vec__new_() })
+        let content = std__fs__read_to_string(path).map_err(fn(e): KainError__io_error(f"Failed to read validation rules: {e}")).with_file(path.to_path_buf()).with_context("Reading validation_rules.json")?
+        let rules: ValidationRules = serde_json__from_str(&content).map_err(fn(e): KainError__config_error(f"Failed to parse validation rules: {e}")).with_file(path.to_path_buf()).with_context("Parsing validation_rules.json").with_suggestion("Check JSON syntax and ensure it matches the schema")?
+        rules.validate_schema()?
+        ()
+        Result::Ok(rules)
+
+    fn validate_schema(_self: &ValidationRules) -> Result<(), KainError>:
+        if (!(*_self).version.contains(".")):
+            return Result::Err(KainError__config_error("Invalid version format. Expected format: X.Y.Z"))
+        let mut seen_ids = HashMap__new_()
+        for rule in &(*_self).rules:
+            match seen_ids.insert(&rule.id, rule):
+                Some(first_occurrence) => return Result::Err(KainError__config_error(f"Duplicate rule ID '{rule.id}' found in validation rules"))
+                _ => ()
+        ()
+        for rule in &(*_self).rules:
+            rule.validate()?
+            ()
+        ()
+        Result::Ok(())
+
+    pub fn enabled_rules(_self: &ValidationRules) -> Array<&ValidationRule>:
+        (*_self).rules.iter().filter(fn(r): (!r.disabled)).collect()
+
+    pub fn rules_by_category(_self: &ValidationRules, category: RuleCategory) -> Array<&ValidationRule>:
+        (*_self).rules.iter().filter(fn(r): ((!r.disabled) && (r.category == category))).collect()
+
+    pub fn get_rule(_self: &ValidationRules, id: String) -> Option<&ValidationRule>:
+        (*_self).rules.iter().find(fn(r): (r.id == id))
+
+    pub fn detect_conflicts(_self: &ValidationRules) -> Array<(String, String, String)>:
+        let mut conflicts = Vec__new_()
+        for i in range(0, (*_self).rules.len()):
+            for j in range(((i + 1)), (*_self).rules.len()):
+                let rule1 = &(*_self).rules[i]
+                let rule2 = &(*_self).rules[j]
+                if (rule1.disabled || rule2.disabled):
+                    continue
+                match ValidationRules__check_conflict(rule1, rule2):
+                    Some(reason) =>
+                        conflicts.push((rule1.id.clone(), rule2.id.clone(), reason))
+                        ()
+                    _ => ()
+        ()
+        conflicts
+
+    fn check_conflict(rule1: &ValidationRule, rule2: &ValidationRule) -> Option<String>:
+        match (&(*rule1).condition, &(*rule2).condition):
+            (RuleCondition::TypeCollision { type_names: names1 }, RuleCondition::TypeCollision { type_names: names2 }) =>
+                let overlap: Array<_> = names1.iter().filter(fn(n): names2.contains(n)).collect()
+                if ((!overlap.is_empty()) && ((*rule1).severity != (*rule2).severity)):
+                    return Option::Some(f"Both rules check type collision for {overlap} but have different severities")
+                ()
+            _ =>
+                ()
+                ()
+        match (&(*rule1).condition, &(*rule2).condition):
+            (RuleCondition::IncompatibleAttributes { attributes: attrs1 }, RuleCondition::IncompatibleAttributes { attributes: attrs2 }) =>
+                let overlap: Array<_> = attrs1.iter().filter(fn(a): attrs2.contains(a)).collect()
+                if ((!overlap.is_empty()) && ((*rule1).severity != (*rule2).severity)):
+                    return Option::Some(f"Both rules check incompatible attributes {overlap} but have different severities")
+                ()
+            _ =>
+                ()
+                ()
+        none
+
+
+impl ValidationRule:
+    fn validate(_self: &ValidationRule) -> Result<(), KainError>:
+        if (!(*_self).id.chars().all(fn(c): ((c.is_ascii_lowercase() || (c == "_")) || c.is_ascii_digit()))):
+            return Result::Err(KainError__config_error(f"Invalid rule ID '{(*_self).id}'. Must be lowercase with underscores only"))
+        match &(*_self).condition:
+            RuleCondition::TypeCollision { type_names: type_names } =>
+                if type_names.is_empty():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': TypeCollision must have at least one type name"))
+                ()
+            RuleCondition::IncompatibleAttributes { attributes: attributes } =>
+                if attributes.is_empty():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': IncompatibleAttributes must have at least one attribute pair"))
+                ()
+            RuleCondition::InvalidRpcNaming { pattern: pattern } =>
+                if Regex__new_(pattern).is_err():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': Invalid regex pattern '{pattern}'"))
+                ()
+            RuleCondition::NestedContainer { outer: outer, inner: inner } =>
+                if (outer.is_empty() || inner.is_empty()):
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': NestedContainer must have both outer and inner types"))
+                ()
+            RuleCondition::InvalidNaming { pattern: pattern, applies_to: applies_to } =>
+                if Regex__new_(pattern).is_err():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': Invalid regex pattern '{pattern}'"))
+                if applies_to.is_empty():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': InvalidNaming must specify what it applies to"))
+                ()
+            RuleCondition::MissingAttribute { required_attribute: required_attribute, when_attribute: when_attribute } =>
+                if (required_attribute.is_empty() || when_attribute.is_empty()):
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': MissingAttribute must specify both attributes"))
+                ()
+            RuleCondition::ForbiddenType { forbidden_types: forbidden_types, context: context } =>
+                if forbidden_types.is_empty():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': ForbiddenType must have at least one forbidden type"))
+                if context.is_empty():
+                    return Result::Err(KainError__config_error(f"Rule '{(*_self).id}': ForbiddenType must specify a context"))
+                ()
+        Result::Ok(())
+
+

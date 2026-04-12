@@ -252,6 +252,7 @@ Typical commands:
 - `kain selfhost phase2` for the bounded self-host repair lane
 - `kain selfhost phase2 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false` for mirror-only validation without forcing the roundtrip/build lane
 - `kain selfhost phase2 --force` to keep partial selfhost artifacts even when one crate trips the current phase2 blockers
+- `kain selfhost phase2 --all-crates --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force` to mirror every discovered `crates/*/Cargo.toml` workspace crate into repo-root `src/` and preserve the full forced artifact graph
 - `kain omni build`
 - `kain fabric init --template polyglot`
 - `kain fabric validate`

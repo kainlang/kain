@@ -1,0 +1,173 @@
+use std::collections::HashMap
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use std::sync::Arc
+
+use std::sync::Mutex
+
+use std::time::Duration
+
+use std::time::SystemTime
+
+use crate::ue5::engine_knowledge::EngineKnowledge
+
+use crate::ue5::metadata_validation::MetadataValidator
+
+@doc(doc = " Metadata file watcher that tracks modification times")
+pub struct MetadataWatcher:
+    metadata_dir: std::path::PathBuf
+    file_mtimes: Map<std::path::PathBuf, std::time::SystemTime>
+    validator: MetadataValidator
+    enabled: Bool
+
+impl MetadataWatcher:
+    pub fn new_(metadata_dir: impl AsRef<std::path::Path>) -> MetadataWatcher:
+        MetadataWatcher { metadata_dir: metadata_dir.to_path_buf(), file_mtimes: HashMap__new_(), validator: MetadataValidator__new_(), enabled: true }
+
+    pub fn set_enabled(_self: &mut MetadataWatcher, enabled: Bool):
+        (*_self).enabled = enabled
+        ()
+
+    pub fn is_enabled(_self: &MetadataWatcher) -> Bool:
+        (*_self).enabled
+
+    pub fn initialize(_self: &mut MetadataWatcher) -> Result<(), String>:
+        if (!(*_self).metadata_dir.exists()):
+            return Result::Err(f"Metadata directory not found: {(*_self).metadata_dir}")
+        let entries = std__fs__read_dir(&(*_self).metadata_dir).map_err(fn(e): f"Failed to read metadata directory: {e}")?
+        for entry in entries:
+            let entry = entry.map_err(fn(e): f"Failed to read directory entry: {e}")?
+            let path = entry.path()
+            if (path.extension().and_then(fn(s): s.to_str()) == Option::Some("json")):
+                match std__fs__metadata(&path):
+                    Ok(metadata) =>
+                        match metadata.modified():
+                            Ok(mtime) =>
+                                (*_self).file_mtimes.insert(path, mtime)
+                                ()
+                            _ => ()
+                    _ => ()
+        ()
+        Result::Ok(())
+
+    pub fn check_for_changes(_self: &mut MetadataWatcher) -> Result<Array<std::path::PathBuf>, String>:
+        if (!(*_self).enabled):
+            return Result::Ok(Vec__new_())
+        let mut changed_files = Vec__new_()
+        for selfhost_for_item in &(*_self).file_mtimes:
+            let (path, old_mtime) = selfhost_for_item
+            match std__fs__metadata(path):
+                Ok(metadata) =>
+                    match metadata.modified():
+                        Ok(new_mtime) =>
+                            if (new_mtime > (*old_mtime)):
+                                changed_files.push(path.clone())
+                                ()
+                        _ => ()
+                _ => ()
+        ()
+        let entries = std__fs__read_dir(&(*_self).metadata_dir).map_err(fn(e): f"Failed to read metadata directory: {e}")?
+        for entry in entries:
+            let entry = entry.map_err(fn(e): f"Failed to read directory entry: {e}")?
+            let path = entry.path()
+            if (path.extension().and_then(fn(s): s.to_str()) == Option::Some("json")):
+                if (!(*_self).file_mtimes.contains_key(&path)):
+                    changed_files.push(path.clone())
+                    ()
+        ()
+        Result::Ok(changed_files)
+
+    fn update_mtime(_self: &mut MetadataWatcher, path: &std::path::Path) -> Result<(), String>:
+        match std__fs__metadata(path):
+            Ok(metadata) =>
+                match metadata.modified():
+                    Ok(mtime) =>
+                        (*_self).file_mtimes.insert(path.to_path_buf(), mtime)
+                        ()
+                        return Result::Ok(())
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Err(f"Failed to get modification time for {path}")
+
+    pub fn validate_file(_self: &MetadataWatcher, path: &std::path::Path) -> Result<(), String>:
+        let content = std__fs__read_to_string(path).map_err(fn(e): f"Failed to read file {path}: {e}")?
+        (*_self).validator.validate_file(path, &content).map_err(fn(e): f"Validation failed for {path}: {e}")?
+        ()
+        Result::Ok(())
+
+    pub fn reload_file(_self: &mut MetadataWatcher, path: &std::path::Path, knowledge: &mut EngineKnowledge) -> Result<(), String>:
+        (*_self).validate_file(path)?
+        ()
+        let content = std__fs__read_to_string(path).map_err(fn(e): f"Failed to read file {path}: {e}")?
+        let filename = path.file_name().and_then(fn(s): s.to_str()).ok_or_else(fn(): f"Invalid filename: {path}")?
+        if (filename.starts_with("engine_") && filename.ends_with("_scanned.json")):
+            knowledge.load_metadata_validated(path, &content)?
+            ()
+            ()
+            ()
+            ()
+        elif (filename == "engine_knowledge.json"):
+            knowledge.load_metadata_validated(path, &content)?
+            ()
+            ()
+            ()
+            ()
+        else:
+            return Result::Ok(())
+        (*_self).update_mtime(path)?
+        ()
+        Result::Ok(())
+
+    pub fn check_and_reload(_self: &mut MetadataWatcher, knowledge: &mut EngineKnowledge) -> Result<Array<std::path::PathBuf>, String>:
+        let changed_files = (*_self).check_for_changes()?
+        if changed_files.is_empty():
+            return Result::Ok(Vec__new_())
+        let mut reloaded = Vec__new_()
+        for path in &changed_files:
+            match (*_self).reload_file(path, knowledge):
+                Ok(()) =>
+                    reloaded.push(path.clone())
+                    ()
+                Err(e_2) => ()
+        ()
+        Result::Ok(reloaded)
+
+
+@doc(doc = " Hot-reload manager that can be shared across threads")
+pub struct HotReloadManager:
+    watcher: std::sync::Arc<std::sync::Mutex<MetadataWatcher>>
+    knowledge: std::sync::Arc<std::sync::Mutex<EngineKnowledge>>
+
+impl HotReloadManager:
+    pub fn new_(metadata_dir: impl AsRef<std::path::Path>, knowledge: std::sync::Arc<std::sync::Mutex<EngineKnowledge>>) -> Result<HotReloadManager, String>:
+        let mut watcher = MetadataWatcher__new_(metadata_dir)
+        watcher.initialize()?
+        ()
+        Result::Ok(HotReloadManager { watcher: Arc__new_(Mutex__new_(watcher)), knowledge: knowledge })
+
+    pub fn set_enabled(_self: &HotReloadManager, enabled: Bool):
+        match (*_self).watcher.lock():
+            Ok(mut watcher) =>
+                watcher.set_enabled(enabled)
+                ()
+            _ => ()
+
+    pub fn check_and_reload(_self: &HotReloadManager) -> Result<Array<std::path::PathBuf>, String>:
+        let mut watcher = (*_self).watcher.lock().map_err(fn(e): f"Failed to lock watcher: {e}")?
+        let mut knowledge = (*_self).knowledge.lock().map_err(fn(e): f"Failed to lock knowledge: {e}")?
+        watcher.check_and_reload(&mut knowledge)
+
+    pub fn start_background_watcher(_self: HotReloadManager, interval: std::time::Duration) -> thread::JoinHandle<()>:
+        std__thread__spawn_(fn(): none)
+
+

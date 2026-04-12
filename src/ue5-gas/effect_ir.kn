@@ -1,0 +1,150 @@
+use kain_core::ast::GameplayEffectDef
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::span::Span
+
+@doc(doc = " Intermediate representation of a gameplay effect")
+@derive(Debug, Clone)
+pub struct GameplayEffectIR:
+    name: String
+    duration_policy: DurationPolicy
+    duration_magnitude: Option<f32>
+    period: Option<f32>
+    execute_on_application: Bool
+    modifiers: Array<ModifierIR>
+    stacking: Option<StackingIR>
+    owned_tags: Array<String>
+    granted_tags: Array<String>
+    application_tag_requirements: TagRequirementsIR
+    ongoing_tag_requirements: TagRequirementsIR
+    removal_tag_requirements: TagRequirementsIR
+
+pub enum DurationPolicy:
+    Instant
+    Infinite
+    HasDuration
+
+impl Default for DurationPolicy:
+    fn default_() -> DurationPolicy:
+        DurationPolicy__Instant
+
+
+@doc(doc = " Modifier intermediate representation")
+@derive(Debug, Clone)
+pub struct ModifierIR:
+    attribute: String
+    operation: ModifierOp
+    magnitude: f32
+
+pub enum ModifierOp:
+    Add
+    Multiply
+    Divide
+    Override
+
+@doc(doc = " Stacking configuration")
+@derive(Debug, Clone)
+pub struct StackingIR:
+    stacking_type: StackingType
+    limit: i32
+
+pub enum StackingType:
+    None
+    AggregateBySource
+    AggregateByTarget
+
+@doc(doc = " Tag requirements for effect application/ongoing/removal")
+@derive(Debug, Clone, Default)
+pub struct TagRequirementsIR:
+    require: Array<String>
+    ignore: Array<String>
+
+impl Default for TagRequirementsIR:
+    pub fn default_() -> TagRequirementsIR:
+        TagRequirementsIR { require: Vec__new_(), ignore: Vec__new_() }
+
+
+impl GameplayEffectIR:
+    pub fn from_ast(effect: &kain_core::ast::GameplayEffectDef) -> Result<GameplayEffectIR, KainError>:
+        if (!(*effect).attributes.iter().any(fn(a): (a.name == "gameplay_effect"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*effect).name}' must have @gameplay_effect attribute", (*effect).span))
+        let duration_policy = GameplayEffectIR__parse_duration_policy(effect)?
+        if ((duration_policy == DurationPolicy__HasDuration) && (*effect).duration_magnitude.is_none()):
+            return Result::Err(KainError__codegen(f"Effect '{(*effect).name}' has HasDuration policy but no duration magnitude specified", (*effect).span))
+        let modifiers = GameplayEffectIR__parse_modifiers(effect)?
+        let stacking = GameplayEffectIR__parse_stacking(effect)?
+        GameplayEffectIR__validate_tags(&(*effect).owned_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).granted_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).application_required_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).application_ignored_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).ongoing_required_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).ongoing_ignored_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).removal_required_tags, (*effect).span)?
+        ()
+        GameplayEffectIR__validate_tags(&(*effect).removal_ignored_tags, (*effect).span)?
+        ()
+        Result::Ok(GameplayEffectIR { name: (*effect).name.clone(), duration_policy: duration_policy, duration_magnitude: (*effect).duration_magnitude, period: (*effect).period, execute_on_application: (*effect).execute_on_application, modifiers: modifiers, stacking: stacking, owned_tags: (*effect).owned_tags.clone(), granted_tags: (*effect).granted_tags.clone(), application_tag_requirements: TagRequirementsIR { require: (*effect).application_required_tags.clone(), ignore: (*effect).application_ignored_tags.clone() }, ongoing_tag_requirements: TagRequirementsIR { require: (*effect).ongoing_required_tags.clone(), ignore: (*effect).ongoing_ignored_tags.clone() }, removal_tag_requirements: TagRequirementsIR { require: (*effect).removal_required_tags.clone(), ignore: (*effect).removal_ignored_tags.clone() } })
+
+    fn parse_duration_policy(effect: &kain_core::ast::GameplayEffectDef) -> Result<DurationPolicy, KainError>:
+        match &(*effect).duration_policy:
+            Some(policy_str) =>
+                match policy_str.as_str():
+                    "Instant" => Result::Ok(DurationPolicy__Instant)
+                    "Infinite" => Result::Ok(DurationPolicy__Infinite)
+                    "HasDuration" => Result::Ok(DurationPolicy__HasDuration)
+                    _ => Result::Err(KainError__codegen(f"Invalid duration policy: {policy_str}. Valid values: Instant, Infinite, HasDuration", (*effect).span))
+            _ => Result::Ok(DurationPolicy__default_())
+
+    fn parse_modifiers(effect: &kain_core::ast::GameplayEffectDef) -> Result<Array<ModifierIR>, KainError>:
+        let mut modifiers = Vec__new_()
+        for modifier in &(*effect).modifiers:
+            let operation = match modifier.operation.as_str():
+                "Add" => ModifierOp__Add
+                "Multiply" => ModifierOp__Multiply
+                "Divide" => ModifierOp__Divide
+                "Override" => ModifierOp__Override
+                _ => return Result::Err(KainError__codegen(f"Invalid modifier operation: {modifier.operation}. Valid values: Add, Multiply, Divide, Override", modifier.span))
+            modifiers.push(ModifierIR { attribute: modifier.attribute.clone(), operation: operation, magnitude: modifier.magnitude })
+            ()
+        ()
+        Result::Ok(modifiers)
+
+    fn parse_stacking(effect: &kain_core::ast::GameplayEffectDef) -> Result<Option<StackingIR>, KainError>:
+        match &(*effect).stacking_type:
+            Some(stacking_type_str) =>
+                let stacking_type = match stacking_type_str.as_str():
+                    "None" => StackingType__None
+                    "AggregateBySource" => StackingType__AggregateBySource
+                    "AggregateByTarget" => StackingType__AggregateByTarget
+                    _ => return Result::Err(KainError__codegen(f"Invalid stacking type: {stacking_type_str}. Valid values: None, AggregateBySource, AggregateByTarget", (*effect).span))
+                let limit = (*effect).stacking_limit.unwrap_or(1)
+                if (limit < 1):
+                    return Result::Err(KainError__codegen(f"Stacking limit must be at least 1, got {limit}", (*effect).span))
+                Result::Ok(Option::Some(StackingIR { stacking_type: stacking_type, limit: limit }))
+            _ => Result::Ok(none)
+
+    fn validate_tags(tags: &[String], span: kain_core::span::Span) -> Result<(), KainError>:
+        for tag in tags:
+            if tag.is_empty():
+                return Result::Err(KainError__codegen(("Tag cannot be empty").to_string(), span))
+            for part in tag.split("."):
+                if part.is_empty():
+                    return Result::Err(KainError__codegen(f"Invalid tag '{tag}': empty component", span))
+                if (!part.chars().next().unwrap().is_alphabetic()):
+                    return Result::Err(KainError__codegen(f"Invalid tag '{tag}': component '{part}' must start with a letter", span))
+                for ch in part.chars():
+                    if ((!ch.is_alphanumeric()) && (ch != "_")):
+                        return Result::Err(KainError__codegen(f"Invalid tag '{tag}': component '{part}' contains invalid character '{ch}'", span))
+        ()
+        Result::Ok(())
+
+

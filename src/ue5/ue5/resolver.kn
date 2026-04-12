@@ -1,0 +1,93 @@
+use std::collections::HashMap
+
+@derive(Debug, Clone)
+pub struct StdLibResolver:
+    function_map: Map<String, String>
+
+impl StdLibResolver:
+    pub fn new_() -> StdLibResolver:
+        let mut resolver = StdLibResolver { function_map: HashMap__new_() }
+        resolver.add("println", "UE_LOG(LogTemp, Warning, TEXT(\"%s\"), *$0)")
+        ()
+        resolver.add("print", "UE_LOG(LogTemp, Warning, TEXT(\"%s\"), *$0)")
+        ()
+        resolver
+
+    pub fn load_from_metadata(_self: &mut StdLibResolver, json_data: String) -> Result<(), String>:
+        let v: serde_json::Value = serde_json__from_str(json_data).map_err(fn(e): e.to_string())?
+        match v.as_array():
+            Some(files) =>
+                for file in files:
+                    match file.get("content"):
+                        Some(content) =>
+                            match content.get("functions").and_then(fn(f): f.as_array()):
+                                Some(funcs) =>
+                                    for func in funcs:
+                                        let name = func.get("name").and_then(fn(n): n.as_str()).unwrap_or("")
+                                        if name.is_empty():
+                                            continue
+                                        let mut template_ = f"$0->{name}()"
+                                        match func.get("params").and_then(fn(p): p.as_array()):
+                                            Some(params) =>
+                                                if (!params.is_empty()):
+                                                    let mut p_placeholders = Vec__new_()
+                                                    for i in range(1, (params.len() + 1)):
+                                                        p_placeholders.push(f"${i}")
+                                                        ()
+                                                    ()
+                                                    template_ = "$0->{name}({p_placeholders.join(\", \")})"
+                                                    ()
+                                                    ()
+                                                    ()
+                                                    ()
+                                                ()
+                                            _ =>
+                                                ()
+                                                ()
+                                        (*_self).add(name, &template_)
+                                        ()
+                                    ()
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+                            match content.get("properties").and_then(fn(p): p.as_array()):
+                                Some(props) =>
+                                    for prop in props:
+                                        let name = prop.get("name").and_then(fn(n): n.as_str()).unwrap_or("")
+                                        if name.is_empty():
+                                            continue
+                                        (*_self).add(&f"get_{name}", &f"$0->{name}")
+                                        ()
+                                        (*_self).add(&f"set_{name}", &f"$0->{name} = $1")
+                                        ()
+                                _ => ()
+                        _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+    fn add(_self: &mut StdLibResolver, name: String, template_: String):
+        (*_self).function_map.insert(name.to_string(), template_.to_string())
+        ()
+
+    pub fn resolve(_self: &StdLibResolver, name: String, args: &[String]) -> Option<String>:
+        let template_ = (*_self).function_map.get(name)?
+        let mut result = template_.clone()
+        for selfhost_for_item in args.iter().enumerate():
+            let (i, arg) = selfhost_for_item
+            let placeholder = f"${i}"
+            result = result.replace(&placeholder, arg)
+            ()
+        ()
+        Option::Some(result)
+
+
+impl Default for StdLibResolver:
+    fn default_() -> StdLibResolver:
+        StdLibResolver__new_()
+
+

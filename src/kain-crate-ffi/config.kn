@@ -1,0 +1,34 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use std::path::PathBuf
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize, Default, PartialEq, Eq)
+pub struct RustFfiConfig:
+    manifest_path: Option<std::path::PathBuf>
+    path_crates: Array<RustFfiPathCrate>
+    registry_crates: Array<RustFfiRegistryCrate>
+
+impl Default for RustFfiConfig:
+    pub fn default_() -> RustFfiConfig:
+        RustFfiConfig { manifest_path: none, path_crates: Vec__new_(), registry_crates: Vec__new_() }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize, PartialEq, Eq)
+pub struct RustFfiPathCrate:
+    name: String
+    path: std::path::PathBuf
+    package: Option<String>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize, PartialEq, Eq)
+pub struct RustFfiRegistryCrate:
+    name: String
+    version: String
+    package: Option<String>
+    features: Array<String>
+    default_features: Bool
+
+fn default_true() -> Bool:
+    true
+

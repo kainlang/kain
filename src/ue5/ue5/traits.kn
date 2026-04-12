@@ -1,0 +1,109 @@
+use kain_core::ast::Function
+
+use kain_core::ast::Impl
+
+use kain_core::ast::Trait
+
+use std::collections::HashMap
+
+@doc(doc = " Generate UE5 dual-class interface header from a KAIN trait")
+pub fn generate_trait_header(trait_def: &kain_core::ast::Trait, module_api: String) -> String:
+    let trait_name = &(*trait_def).name
+    let u_class_name = f"U{trait_name}"
+    let i_interface_name = f"I{trait_name}"
+    let mut output = String__new_()
+    output.push_str(&f"// UInterface class for {trait_name}\n")
+    ()
+    output.push_str("UINTERFACE(MinimalAPI, Blueprintable)\n")
+    ()
+    output.push_str(&"class {u_class_name} : public UInterface {\n")
+    ()
+    output.push_str("    GENERATED_BODY()\n")
+    ()
+    output.push_str("};\n\n")
+    ()
+    output.push_str(&f"// Native interface for {trait_name}\n")
+    ()
+    output.push_str(&"class {module_api} {i_interface_name} {\n")
+    ()
+    output.push_str("    GENERATED_BODY()\n\n")
+    ()
+    output.push_str("public:\n")
+    ()
+    for method in &(*trait_def).methods:
+        let method_sig = generate_trait_method_signature(method, trait_name)
+        output.push_str(&f"    {method_sig}\n")
+        ()
+        let default_impl = generate_trait_method_default_impl(method)
+        output.push_str(&f"    {default_impl}\n\n")
+        ()
+    ()
+    output.push_str("};\n")
+    ()
+    output
+
+fn generate_trait_method_signature(method: &kain_core::ast::TraitMethod, trait_name: String) -> String:
+    let method_name = to_pascal_case(&(*method).name)
+    let return_type = (*method).return_type.map(fn(t): map_type_to_cpp(t)).unwrap_or_else(fn(): ("void").to_string())
+    let params = (*method).params.iter().filter(fn(p): (p.name != "self")).map(fn(p): f"{map_type_to_cpp(&p.ty)} {to_pascal_case(&p.name)}").collect().join(", ")
+    f"UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category=\"{trait_name}\")\n    virtual {return_type} {method_name}({params});"
+
+fn generate_trait_method_default_impl(method: &kain_core::ast::TraitMethod) -> String:
+    let method_name = to_pascal_case(&(*method).name)
+    let return_type = (*method).return_type.map(fn(t): map_type_to_cpp(t)).unwrap_or_else(fn(): ("void").to_string())
+    let params = (*method).params.iter().filter(fn(p): (p.name != "self")).map(fn(p): f"{map_type_to_cpp(&p.ty)} {to_pascal_case(&p.name)}").collect().join(", ")
+    let default_return = if (return_type == "void"):
+        String__new_()
+    elif (return_type == "bool"):
+        (" return false;").to_string()
+    elif (return_type.starts_with("int") || return_type.starts_with("float")):
+        (" return 0;").to_string()
+    else:
+        f" return {return_type}();"
+    "virtual {return_type} {method_name}_Implementation({params}) {{default_return} }"
+
+pub fn generate_trait_impl_methods(impl_block: &kain_core::ast::Impl, trait_def: &kain_core::ast::Trait, class_name: String) -> String:
+    let mut output = String__new_()
+    for method in &(*impl_block).methods:
+        let trait_method = (*trait_def).methods.iter().find(fn(tm): (tm.name == method.name))
+        match trait_method:
+            Some(tm_2) =>
+                let method_impl = generate_method_impl(method, class_name)
+                output.push_str(&method_impl)
+                ()
+                output.push_str("\n\n")
+                ()
+            _ => ()
+    ()
+    output
+
+fn generate_method_impl(method: &kain_core::ast::Function, class_name: String) -> String:
+    let method_name = to_pascal_case(&(*method).name)
+    let return_type = (*method).return_type.map(fn(t): map_type_to_cpp(t)).unwrap_or_else(fn(): ("void").to_string())
+    let params = (*method).params.iter().filter(fn(p): (p.name != "self")).map(fn(p): f"{map_type_to_cpp(&p.ty)} {to_pascal_case(&p.name)}").collect().join(", ")
+    "{return_type} {class_name}::{method_name}_Implementation({params}) {\n    // TODO: Implement\n    return {};\n}"
+
+pub fn generate_class_interface_list(impls: &[&kain_core::ast::Impl], _all_traits: &Map<String, &kain_core::ast::Trait>) -> String:
+    let interfaces: Array<String> = impls.iter().filter_map(fn(impl_block): impl_block.trait_name.map(fn(trait_name): f", public I{trait_name}")).collect()
+    interfaces.join("")
+
+fn to_pascal_case(s: String) -> String:
+    s.split("_").map(fn(word): none).collect()
+
+fn map_type_to_cpp(ty: &kain_core::ast::Type) -> String:
+    use kain_core::ast::Type
+
+    match ty:
+        kain_core__ast__Type::Named { name: name } =>
+            match name.as_str():
+                "Bool" => ("bool").to_string()
+                "Int" => ("int32").to_string()
+                "Float" => ("float").to_string()
+                "String" => ("FString").to_string()
+                "Vec2" => ("FVector2D").to_string()
+                "Vec3" => ("FVector").to_string()
+                "Vec4" => ("FVector4").to_string()
+                other => f"F{other}"
+        kain_core__ast__Type::Unit(_) => ("void").to_string()
+        _ => ("void").to_string()
+

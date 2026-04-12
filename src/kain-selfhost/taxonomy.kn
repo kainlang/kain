@@ -1,0 +1,21 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct TaxonomyBucket:
+    id: String
+    description: String
+    severity: String
+    regexes: Array<String>
+    candidate_rule_ids: Array<String>
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize, Default)
+pub struct Taxonomy:
+    buckets: Array<TaxonomyBucket>
+
+impl Default for Taxonomy:
+    pub fn default_() -> Taxonomy:
+        Taxonomy { buckets: Vec__new_() }
+
+

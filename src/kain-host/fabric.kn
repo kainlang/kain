@@ -1,0 +1,1102 @@
+use std::collections::BTreeMap
+
+use std::collections::HashMap
+
+use std::fs
+
+use std::io::Write
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use std::sync::Arc
+
+use std::sync::RwLock
+
+use crate::bridge::struct_value
+
+use kain_c_ffi::import_library
+
+use kain_c_ffi::ArtifactMode as CArtifactMode
+
+use kain_c_ffi::ImportCOptions
+
+use kain_c_ffi::PrepareContext as CPrepareContext
+
+use kain_core::diagnostics::SpanMapper
+
+use kain_core::runtime
+
+use kain_core::runtime::Env
+
+use kain_core::runtime::Value
+
+use kain_core::CompileTarget
+
+use kain_core::ComputeMetadata
+
+use kain_core::ComputeStreamPlan
+
+use kain_core::ComputeTensorPlan
+
+use kain_core::Item
+
+use kain_core::Lexer
+
+use kain_core::Parser
+
+use kain_core::ShaderStage
+
+use kain_core::EffectSet
+
+use kain_core::IntSize
+
+use kain_core::ResolvedType
+
+use kain_crate_ffi::import_crate
+
+use kain_crate_ffi::ArtifactMode as RustArtifactMode
+
+use kain_crate_ffi::ImportCrateOptions
+
+use kain_crate_ffi::PrepareContext as RustPrepareContext
+
+use kain_gpu_runtime::VulkanComputeExecutor
+
+use kain_interop::extract_shared_buffer
+
+use kain_interop::extract_shared_image
+
+use kain_interop::shared_buffer_value
+
+use kain_interop::shared_image_value
+
+use kain_interop::KainSharedBuffer
+
+use kain_interop::SharedBufferMetadata
+
+use kain_omni::fabric::resolve_fabric_path
+
+use kain_omni::fabric::topological_step_order
+
+use kain_omni::fabric::unix_timestamp_ms
+
+use kain_omni::fabric::write_fabric_json
+
+use kain_omni::fabric::FabricComputeDispatchSnapshot
+
+use kain_omni::fabric::FabricContractKind
+
+use kain_omni::fabric::FabricEventRecord
+
+use kain_omni::fabric::FabricExecutionResult
+
+use kain_omni::fabric::FabricFailureReason
+
+use kain_omni::fabric::FabricManifest
+
+use kain_omni::fabric::FabricOutputPayloadSnapshot
+
+use kain_omni::fabric::FabricProducedOutput
+
+use kain_omni::fabric::FabricResolvedInputRecord
+
+use kain_omni::fabric::FabricRuntimeKind
+
+use kain_omni::fabric::FabricSessionStatus
+
+use kain_omni::fabric::FabricSharedBufferSnapshot
+
+use kain_omni::fabric::FabricSharedImageSnapshot
+
+use kain_omni::fabric::FabricStep
+
+use kain_omni::fabric::FabricStepExecution
+
+use kain_omni::fabric::FabricStepStatus
+
+use kain_omni::fabric::FabricValidationResult
+
+use kain_omni::fabric::FabricValueSnapshot
+
+use kain_omni::OmniError
+
+use kain_omni::OmniResult
+
+use serde_json::json
+
+use serde_json::Value as JsonValue
+
+pub struct FabricSession:
+    manifest_path: std::path::PathBuf
+    manifest_root: std::path::PathBuf
+    manifest: kain_omni::fabric::FabricManifest
+    validation: kain_omni::fabric::FabricValidationResult
+    session_id: String
+    workspace_root: std::path::PathBuf
+    session_directory: std::path::PathBuf
+    report_path: std::path::PathBuf
+    lock_path: std::path::PathBuf
+    events_path: Option<std::path::PathBuf>
+    started_unix_ms: u128
+    event_writer: FabricEventWriter
+
+impl FabricSession:
+    pub fn new_(manifest_path: &std::path::Path, manifest: kain_omni::fabric::FabricManifest) -> kain_omni::OmniResult<FabricSession>:
+        let validation = kain_omni__fabric__validate_fabric_manifest(manifest_path, &manifest)?
+        let manifest_root = manifest_path.parent().map(Path__to_path_buf).unwrap_or_else(fn(): PathBuf__from("."))
+        let workspace_root = kain_omni__fabric__resolve_fabric_path(&manifest_root, &manifest.workspace.root)
+        let report_root = kain_omni__fabric__resolve_fabric_path(&workspace_root, &manifest.reports.directory)
+        std__fs__create_dir_all(&report_root)?
+        ()
+        let started_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+        let session_id = f"session-{started_unix_ms}-{std__process__id()}"
+        let session_directory = report_root.join(&session_id)
+        std__fs__create_dir_all(&session_directory)?
+        ()
+        let report_path = session_directory.join("report.json")
+        let lock_path = session_directory.join("session.lock.json")
+        let events_path = manifest.reports.emit_jsonl_events.then(fn(): session_directory.join("events.jsonl"))
+        let mut event_writer = FabricEventWriter__new_(events_path)?
+        event_writer.write(&kain_omni::fabric::FabricEventRecord { timestamp_unix_ms: started_unix_ms, kind: ("session_started").to_string(), step_id: none, runtime: none, status: none, message: f"Executing Fabric manifest {manifest_path.display()}", details: Option::Some(json!()) })?
+        ()
+        Result::Ok(FabricSession { manifest_path: manifest_path.to_path_buf(), manifest_root: manifest_root, manifest: manifest, validation: validation, session_id: session_id, workspace_root: workspace_root, session_directory: session_directory, report_path: report_path, lock_path: lock_path, events_path: events_path, started_unix_ms: started_unix_ms, event_writer: event_writer })
+
+    pub fn log_event(_self: &mut FabricSession, kind: String, step: Option<&kain_omni::fabric::FabricStep>, message: impl Into<String>, details: Option<serde_json::Value>) -> kain_omni::OmniResult<()>:
+        let timestamp_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+        (*_self).event_writer.write(&kain_omni::fabric::FabricEventRecord { timestamp_unix_ms: timestamp_unix_ms, kind: kind.to_string(), step_id: step.map(fn(s): s.id.clone()), runtime: step.map(fn(s): s.runtime.clone()), status: none, message: message.into(), details: details })
+
+    pub fn log_step_event(_self: &mut FabricSession, kind: String, step: &kain_omni::fabric::FabricStep, status: kain_omni::fabric::FabricStepStatus, message: impl Into<String>, details: Option<serde_json::Value>) -> kain_omni::OmniResult<()>:
+        let timestamp_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+        (*_self).event_writer.write(&kain_omni::fabric::FabricEventRecord { timestamp_unix_ms: timestamp_unix_ms, kind: kind.to_string(), step_id: Option::Some((*step).id.clone()), runtime: Option::Some((*step).runtime.clone()), status: Option::Some(status), message: message.into(), details: details })
+
+    pub fn finish(_self: FabricSession, step_results: Array<kain_omni::fabric::FabricStepExecution>) -> kain_omni::OmniResult<kain_omni::fabric::FabricExecutionResult>:
+        let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+        let status = if step_results.iter().all(fn(result): (result.status == kain_omni__fabric__FabricStepStatus__Succeeded)):
+            kain_omni__fabric__FabricSessionStatus__Succeeded
+        else:
+            kain_omni__fabric__FabricSessionStatus__Failed
+        let result = kain_omni::fabric::FabricExecutionResult { manifest_path: _self.manifest_path.clone(), validation: _self.validation.clone(), session_id: _self.session_id.clone(), workspace_root: _self.workspace_root.clone(), session_directory: _self.session_directory.clone(), report_path: _self.report_path.clone(), lock_path: _self.lock_path.clone(), events_path: _self.events_path.clone(), status: status, started_unix_ms: _self.started_unix_ms, finished_unix_ms: finished_unix_ms, step_results: step_results }
+        _self.log_event("session_finished", none, f"Fabric session finished with status {result.status}", Option::Some(json!()))?
+        ()
+        kain_omni__fabric__write_fabric_json(&_self.report_path, &result)?
+        ()
+        kain_omni__fabric__write_fabric_json(&_self.lock_path, &result)?
+        ()
+        Result::Ok(result)
+
+
+pub struct FabricExecutor:
+    adapters: Array<Box<impl FabricRuntimeAdapter>>
+
+impl FabricExecutor:
+    pub fn new_() -> FabricExecutor:
+        FabricExecutor { adapters: [Box__new_(KainAdapter), Box__new_(PythonAdapter), Box__new_(RustCrateAdapter), Box__new_(CAbiAdapter), Box__new_(NodeAdapter), Box__new_(GpuComputeAdapter)] }
+
+    pub fn execute(_self: &FabricExecutor, session: FabricSession) -> kain_omni::OmniResult<kain_omni::fabric::FabricExecutionResult>:
+        let execution_order = kain_omni__fabric__topological_step_order(&session.manifest.steps)?
+        let steps_by_id = session.manifest.steps.iter().cloned().map(fn(step): (step.id.clone(), step)).collect()
+        let mut step_results = session.manifest.steps.iter().map(fn(step): none).collect()
+        let mut produced_outputs = BTreeMap__new_()
+        for step_id in &execution_order:
+            let step = steps_by_id.get(step_id).ok_or_else(fn(): kain_omni__OmniError::Config(f"Fabric execution lost step definition for '{step_id}'"))?
+            let blocked_by = step.depends_on.iter().filter(fn(dep): step_results.get((*dep)).is_some_and(fn(res): (res.status != kain_omni__fabric__FabricStepStatus__Succeeded))).cloned().collect()
+            let step_result = step_results.get_mut(step_id).ok_or_else(fn(): kain_omni__OmniError::Config(f"Fabric execution lost step state for '{step_id}'"))?
+            if (!blocked_by.is_empty()):
+                let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                let failure = fabric_failure("blocked_dependencies", "Blocked by incomplete dependencies: {blocked_by.join(\", \")}")
+                step_result.status = kain_omni__fabric__FabricStepStatus__Blocked
+                ()
+                step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                ()
+                step_result.error = Option::Some(failure.clone())
+                ()
+                session.log_step_event("step_blocked", step, kain_omni__fabric__FabricStepStatus__Blocked, failure.message, failure.details)?
+                ()
+                continue
+            let (fabric_inputs, resolved_inputs) = match resolve_dependency_inputs(step, &steps_by_id, &produced_outputs):
+                Ok(value) => value
+                Err(failure) =>
+                    let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                    step_result.status = kain_omni__fabric__FabricStepStatus__Failed
+                    ()
+                    step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                    ()
+                    step_result.error = Option::Some(failure.clone())
+                    ()
+                    session.log_step_event("step_failed", step, kain_omni__fabric__FabricStepStatus__Failed, failure.message, failure.details)?
+                    ()
+                    continue
+            step_result.resolved_inputs = resolved_inputs.clone()
+            ()
+            let step_started_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+            step_result.started_unix_ms = Option::Some(step_started_unix_ms)
+            ()
+            session.log_step_event("step_started", step, kain_omni__fabric__FabricStepStatus__Pending, f"Executing Fabric step '{step.id}'", Option::Some(json!()))?
+            ()
+            let adapter = (*_self).adapters.iter().find(fn(a): a.supports(&step.runtime))
+            match adapter:
+                Some(adapter) =>
+                    step_result.adapter = Option::Some(adapter.label().to_string())
+                    ()
+                    let context = FabricAdapterContext { manifest_path: &session.manifest_path, manifest_root: &session.manifest_root, workspace_root: &session.workspace_root, session_directory: &session.session_directory, step: step, fabric_inputs: fabric_inputs, resolved_inputs: &resolved_inputs }
+                    match adapter.execute(&context):
+                        Ok(raw_value) =>
+                            match map_declared_outputs(step, raw_value):
+                                Ok(mapped_outputs) =>
+                                    let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                                    let public_outputs = mapped_outputs.iter().map(fn(output): output.public_()).collect()
+                                    step_result.status = kain_omni__fabric__FabricStepStatus__Succeeded
+                                    ()
+                                    step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                                    ()
+                                    step_result.outputs = public_outputs
+                                    ()
+                                    produced_outputs.insert(step.id.clone(), mapped_outputs.into_iter().map(fn(output): (output.name.clone(), output)).collect())
+                                    ()
+                                    session.log_step_event("step_succeeded", step, kain_omni__fabric__FabricStepStatus__Succeeded, f"Step '{step.id}' completed", Option::Some(json!()))?
+                                    ()
+                                Err(failure) =>
+                                    let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                                    step_result.status = kain_omni__fabric__FabricStepStatus__Failed
+                                    ()
+                                    step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                                    ()
+                                    step_result.error = Option::Some(failure.clone())
+                                    ()
+                                    session.log_step_event("step_failed", step, kain_omni__fabric__FabricStepStatus__Failed, failure.message, failure.details)?
+                                    ()
+                        Err(failure) =>
+                            let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                            step_result.status = kain_omni__fabric__FabricStepStatus__Failed
+                            ()
+                            step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                            ()
+                            step_result.error = Option::Some(failure.clone())
+                            ()
+                            session.log_step_event("step_failed", step, kain_omni__fabric__FabricStepStatus__Failed, failure.message, failure.details)?
+                            ()
+                None =>
+                    let finished_unix_ms = kain_omni__fabric__unix_timestamp_ms()
+                    let failure = fabric_failure("unsupported_runtime", f"No adapter found for runtime '{step.runtime.display_name()}'")
+                    step_result.status = kain_omni__fabric__FabricStepStatus__Failed
+                    ()
+                    step_result.finished_unix_ms = Option::Some(finished_unix_ms)
+                    ()
+                    step_result.error = Option::Some(failure.clone())
+                    ()
+                    session.log_step_event("step_failed", step, kain_omni__fabric__FabricStepStatus__Failed, failure.message, failure.details)?
+                    ()
+        ()
+        let ordered_step_results = execution_order.into_iter().map(fn(id): step_results.remove(&id).unwrap()).collect()
+        session.finish(ordered_step_results)
+
+
+trait FabricRuntimeAdapter:
+    fn label(_self: &Self_) -> String:
+        let __selfhost_empty = none
+    fn supports(_self: &Self_, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        let __selfhost_empty = none
+    fn execute(_self: &Self_, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let __selfhost_empty = none
+
+struct FabricAdapterContext<a>:
+    manifest_path: &a std::path::Path
+    manifest_root: &a std::path::Path
+    workspace_root: &a std::path::Path
+    session_directory: &a std::path::Path
+    step: &a kain_omni::fabric::FabricStep
+    fabric_inputs: kain_core::runtime::Value
+    resolved_inputs: &a [kain_omni::fabric::FabricResolvedInputRecord]
+
+@derive(Clone)
+struct FabricStoredOutput:
+    name: String
+    declared_kind: kain_omni::fabric::FabricContractKind
+    runtime_value: kain_core::runtime::Value
+    payload: kain_omni::fabric::FabricOutputPayloadSnapshot
+
+impl FabricStoredOutput:
+    fn public_(_self: &FabricStoredOutput) -> kain_omni::fabric::FabricProducedOutput:
+        kain_omni::fabric::FabricProducedOutput { name: (*_self).name.clone(), declared_kind: (*_self).declared_kind, payload: (*_self).payload.clone() }
+
+
+struct FabricEventWriter:
+    file: Option<std::fs::File>
+
+impl FabricEventWriter:
+    fn new_(path: Option<&std::path::Path>) -> kain_omni::OmniResult<FabricEventWriter>:
+        let file = match path:
+            Some(path) => Option::Some(File__create(path)?)
+            None => none
+        Result::Ok(FabricEventWriter { file: file })
+
+    fn write(_self: &mut FabricEventWriter, event: &kain_omni::fabric::FabricEventRecord) -> kain_omni::OmniResult<()>:
+        match &mut (*_self).file:
+            Some(file) =>
+                let encoded = serde_json__to_string(event).map_err(fn(err): kain_omni__OmniError::Config(f"Failed to serialize Fabric event: {err}"))?
+                __kain_writeln_fmt!(file, encoded)?
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+
+pub fn execute_fabric_manifest_path(path: &std::path::Path) -> kain_omni::OmniResult<kain_omni::fabric::FabricExecutionResult>:
+    let manifest = kain_omni__fabric__load_fabric_manifest(path)?
+    let session = FabricSession__new_(path, manifest)?
+    let executor = FabricExecutor__new_()
+    executor.execute(session)
+
+pub struct KainAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for KainAdapter:
+    fn label(_self: &KainAdapter) -> String:
+        "kain-host"
+
+    fn supports(_self: &KainAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::Kain => true
+            _ => false
+
+    fn execute(_self: &KainAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let entry = (*context).step.entry.ok_or_else(fn(): fabric_failure("missing_entry", f"Fabric step '{(*context).step.id}' is missing an entry path for runtime 'kain'"))?
+        let resolved_entry = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, entry)
+        let source = read_step_source(&resolved_entry, (*context).step, "Kain")?
+        interpret_fabric_kain_source(context, &source)
+
+
+pub struct PythonAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for PythonAdapter:
+    fn label(_self: &PythonAdapter) -> String:
+        "python-bridge"
+
+    fn supports(_self: &PythonAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::Python => true
+            _ => false
+
+    fn execute(_self: &PythonAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let source = render_python_harness(context)?
+        interpret_fabric_kain_source(context, &source)
+
+
+pub struct RustCrateAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for RustCrateAdapter:
+    fn label(_self: &RustCrateAdapter) -> String:
+        "rust-crate-ffi"
+
+    fn supports(_self: &RustCrateAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::RustCrate => true
+            _ => false
+
+    fn execute(_self: &RustCrateAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let crate_name = (*context).step.crate_name.ok_or_else(fn(): fabric_failure("missing_crate_name", f"Fabric step '{(*context).step.id}' is missing crate_name for runtime 'rust_crate'"))?
+        let entry_path = (*context).step.entry.ok_or_else(fn(): fabric_failure("missing_entry", f"Fabric step '{(*context).step.id}' must declare entry for runtime 'rust_crate'"))?
+        let resolved_entry = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, entry_path)
+        let entry_source = read_step_source(&resolved_entry, (*context).step, "Rust crate glue")?
+        let resolved_manifest_path = resolve_runtime_manifest_path((*context).manifest_root, (*context).step).ok_or_else(fn(): fabric_failure("missing_manifest_path", f"Fabric step '{(*context).step.id}' with runtime 'rust_crate' requires manifest_path or a Cargo.toml beside the Fabric manifest"))?
+        let imported = kain_crate_ffi__import_crate(crate_name, &kain_crate_ffi::ImportCrateOptions { manifest_path: Option::Some(resolved_manifest_path.clone()), mode: kain_crate_ffi__ArtifactMode__Both, ..ImportCrateOptions__default_() }, &kain_crate_ffi::PrepareContext { current_dir: Option::Some((*context).workspace_root.to_path_buf()), manifest_path: Option::Some(resolved_manifest_path) }).map_err(fn(err): runtime_bridge_failure((*context).step, "rust_crate_import_failed", err))?
+        let fabric_entry_source = strip_runtime_module_import(&entry_source, "rust", crate_name.as_str())
+        let source = f"{imported.canonical_module_source}\n{fabric_entry_source}"
+        interpret_fabric_kain_source(context, &source)
+
+
+pub struct CAbiAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for CAbiAdapter:
+    fn label(_self: &CAbiAdapter) -> String:
+        "c-abi-ffi"
+
+    fn supports(_self: &CAbiAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::CAbi => true
+            _ => false
+
+    fn execute(_self: &CAbiAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let entry_path = (*context).step.entry.ok_or_else(fn(): fabric_failure("missing_entry", f"Fabric step '{(*context).step.id}' must declare entry for runtime 'c_abi'"))?
+        let resolved_entry = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, entry_path)
+        let entry_source = read_step_source(&resolved_entry, (*context).step, "C ABI glue")?
+        let resolved_manifest_path = resolve_runtime_manifest_path((*context).manifest_root, (*context).step).ok_or_else(fn(): fabric_failure("missing_manifest_path", f"Fabric step '{(*context).step.id}' with runtime 'c_abi' requires manifest_path or a KAIN.toml beside the Fabric manifest"))?
+        let import_name = (*context).step.module.clone().or_else(fn(): (*context).step.library.and_then(fn(library): library.file_stem()).and_then(fn(value): value.to_str()).map(str__to_string)).ok_or_else(fn(): fabric_failure("missing_import_name", f"Fabric step '{(*context).step.id}' with runtime 'c_abi' needs module or a library file stem so kain-host can resolve the C import name"))?
+        let imported = kain_c_ffi__import_library(&import_name, &kain_c_ffi::ImportCOptions { mode: kain_c_ffi__ArtifactMode__Both, ..ImportCOptions__default_() }, &kain_c_ffi::PrepareContext { current_dir: Option::Some((*context).workspace_root.to_path_buf()), manifest_path: Option::Some(resolved_manifest_path) }).map_err(fn(err): runtime_bridge_failure((*context).step, "c_abi_import_failed", err))?
+        validate_c_library_alignment((*context).step, &imported.resolved.shared_lib_path)?
+        ()
+        let fabric_entry_source = strip_runtime_module_import(&entry_source, "c", &import_name)
+        let source = f"{imported.canonical_module_source}\n{fabric_entry_source}"
+        interpret_fabric_kain_source(context, &source)
+
+
+pub struct NodeAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for NodeAdapter:
+    fn label(_self: &NodeAdapter) -> String:
+        "node-bridge"
+
+    fn supports(_self: &NodeAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::Node => true
+            _ => false
+
+    fn execute(_self: &NodeAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let source = render_node_harness(context)?
+        interpret_fabric_kain_source(context, &source)
+
+
+pub struct GpuComputeAdapter:
+    __selfhost_placeholder: Bool = false
+
+impl FabricRuntimeAdapter for GpuComputeAdapter:
+    fn label(_self: &GpuComputeAdapter) -> String:
+        "gpu-compute-vulkan"
+
+    fn supports(_self: &GpuComputeAdapter, kind: &kain_omni::fabric::FabricRuntimeKind) -> Bool:
+        match kind:
+            kain_omni__fabric__FabricRuntimeKind::GpuCompute => true
+            _ => false
+
+    fn execute(_self: &GpuComputeAdapter, context: &FabricAdapterContext) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+        let shader_source = (*context).step.shader_source.ok_or_else(fn(): fabric_failure("missing_shader_source", f"Fabric step '{(*context).step.id}' with runtime 'gpu_compute' must declare 'shader_source'"))?
+        let compute_key = (*context).step.compute_key.ok_or_else(fn(): fabric_failure("missing_compute_key", f"Fabric step '{(*context).step.id}' with runtime 'gpu_compute' must declare 'compute_key'"))?
+        let resolved_shader = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, shader_source)
+        let shader_text = std__fs__read_to_string(&resolved_shader).map_err(fn(err): fabric_failure("shader_read_failed", f"Fabric step '{(*context).step.id}': failed to read shader source '{resolved_shader.display()}': {err}"))?
+        let session = DriverSession__default_()
+        let artifact_output = session.compile_shader_artifact_bundle(&shader_text).map_err(fn(err): runtime_bridge_failure((*context).step, "shader_compile_failed", err))?
+        let shader_bundle_path = (*context).session_directory.join(f"{(*context).step.id}_shader_bundle.json")
+        std__fs__write(&shader_bundle_path, &artifact_output.bundle_json).map_err(fn(err): fabric_failure("shader_bundle_write_failed", f"Fabric step '{(*context).step.id}': {err}"))?
+        ()
+        let compute_metadata = parse_compute_metadata_for_shader(&shader_text, compute_key)?
+        let residency = build_compute_residency_from_artifact(context, compute_key, &artifact_output.bundle, compute_metadata)?
+        let residency_json = serde_json__to_string_pretty(&residency).map_err(fn(err): fabric_failure("residency_serialize_failed", f"Fabric step '{(*context).step.id}': {err}"))?
+        let residency_path = (*context).session_directory.join(f"{(*context).step.id}_compute_residency.json")
+        std__fs__write(&residency_path, &residency_json).map_err(fn(err): fabric_failure("residency_write_failed", f"Fabric step '{(*context).step.id}': {err}"))?
+        ()
+        let residency_root = residency_path.parent().unwrap_or(Path__new_("."))
+        write_residency_payload_files(context, &residency, residency_root)?
+        ()
+        let executor = VulkanComputeExecutor__try_new().map_err(fn(err): fabric_failure("vulkan_init_failed", f"Fabric step '{(*context).step.id}': Vulkan compute executor init failed: {err}"))?
+        let dispatch_result = executor.dispatch_from_sidecars(&shader_bundle_path, &residency_path, compute_key).map_err(fn(err): fabric_failure("compute_dispatch_failed", f"Fabric step '{(*context).step.id}': dispatch failed: {err}"))?
+        let output_buffers = dispatch_result.output_bindings.iter().map(fn(__kain_closure_arg0): none).collect()
+        let dispatch_snapshot = kain_omni::fabric::FabricComputeDispatchSnapshot { compute_key: compute_key.clone(), dispatch_invocations: dispatch_result.dispatch_invocations, tensor_binding_count: dispatch_result.tensor_binding_count, stream_binding_count: dispatch_result.stream_binding_count, neural_node_count: dispatch_result.neural_node_count, output_binding_count: dispatch_result.output_bindings.len(), total_output_bytes: dispatch_result.output_bindings.iter().map(fn(__kain_closure_arg1): __kain_closure_arg1.__kain_tuple_1.len()).sum() }
+        if ((output_buffers.len() == 1) && ((*context).step.outputs.len() == 1)):
+            Result::Ok(output_buffers.into_iter().next().unwrap().field_1)
+        elif output_buffers.is_empty():
+            Result::Ok(kain_core__runtime__Value::String(f"gpu-compute:{compute_key}:invocations={dispatch_snapshot.dispatch_invocations}:tensors={dispatch_snapshot.tensor_binding_count}:outputs=0"))
+        else:
+            let mut fields = HashMap__new_()
+            for selfhost_for_item in output_buffers:
+                let (key, value) = selfhost_for_item
+                fields.insert(key, value)
+                ()
+            ()
+            Result::Ok(kain_core__runtime__Value::Struct(("GpuComputeOutputs").to_string(), Arc__new_(RwLock__new_(fields))))
+
+
+@doc(doc = " Internal compute residency model for sidecar generation.")
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct FabricComputeResidency:
+    target: String
+    compute_shaders: Array<FabricComputeResidencyEntry>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct FabricComputeResidencyEntry:
+    key: String
+    module_name: String
+    entry_point: String
+    workgroup_size: Option<[u32; 3]>
+    dispatch_size: Option<[u32; 3]>
+    tensor_binding_count: usize
+    stream_binding_count: usize
+    neural_node_count: usize
+    bindings: Array<FabricComputeResidencyBinding>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+struct FabricComputeResidencyBinding:
+    key: String
+    contract: String
+    descriptor_kind: String
+    element_type: String
+    shape: Array<i64>
+    strides: Array<i64>
+    access_mode: String
+    slot: u32
+    payload_file: String
+
+@doc(doc = " Build compute residency from a compiled ShaderArtifactBundle.")
+@doc(doc = "")
+@doc(doc = " Uses the bundle's `entry_points` to locate the compute entry matching `compute_key`,")
+@doc(doc = " and the `resource_layouts` to fill binding descriptors.")
+fn build_compute_residency_from_artifact(context: &FabricAdapterContext, compute_key: String, bundle: &kain_core::ShaderArtifactBundle, compute_metadata: Option<&kain_core::ComputeMetadata>) -> Result<FabricComputeResidency, kain_omni::fabric::FabricFailureReason>:
+    let entry = (*bundle).entry_points.iter().find(fn(ep): ((ep.stage == "compute") && ((((ep.shader_ == compute_key) || (ep.entry_point == compute_key)) || (f"shader::{ep.shader_}::compute" == compute_key))))).ok_or_else(fn(): fabric_failure("compute_key_not_found", "Fabric step '{(*context).step.id}': compute_key '{compute_key}' was not found in shader bundle entry_points: [{(*bundle).entry_points.iter().map(fn(ep): f\"{ep.shader_}:{ep.entry_point}\").collect().join(\", \")}]"))?
+    let layouts: Array<_> = (*bundle).resource_layouts.iter().filter(fn(layout): (layout.shader_ == entry.shader_)).collect()
+    let workgroup_size = compute_metadata.and_then(fn(metadata): metadata.workgroup_size).unwrap_or([8, 1, 1])
+    let dispatch_size = compute_metadata.map(fn(metadata): metadata.dispatch_size).unwrap_or([1, 1, 1])
+    let stream_plans = compute_metadata.and_then(fn(metadata): metadata.stream_plans)
+    let mut bindings = Vec__new_()
+    for layout in &layouts:
+        let descriptor_kind = match layout.kind.as_str():
+            "storage_buffer" => "storage_buffer"
+            "read_write" => "storage_buffer"
+            _ => "uniform_buffer"
+        let access_mode = infer_compute_binding_access_mode(compute_metadata, stream_plans, &layout.name, layout.kind.as_str())
+        let payload_file = f"{(*context).step.id}_binding_{layout.binding}.bin"
+        let element_type = infer_element_type_from_layout(&layout.ty)
+        let inferred_shape = resolve_upstream_binding_shape(context, &layout.name, &element_type).or_else(fn(): compute_metadata.and_then(fn(metadata): metadata.tensor_plans.iter().find(fn(plan): (plan.key == layout.name)).map(resolve_tensor_plan_shape))).unwrap_or_else(fn(): [1])
+        bindings.push(FabricComputeResidencyBinding { key: layout.name.clone(), contract: ("kain.shared.buffer").to_string(), descriptor_kind: descriptor_kind.to_string(), element_type: element_type, shape: inferred_shape, strides: [1], access_mode: access_mode.to_string(), slot: layout.binding, payload_file: payload_file })
+        ()
+    ()
+    Result::Ok(FabricComputeResidency { target: ("spirv").to_string(), compute_shaders: [FabricComputeResidencyEntry { key: compute_key.to_string(), module_name: entry.module_name.clone(), entry_point: entry.entry_point.clone(), workgroup_size: Option::Some(workgroup_size), dispatch_size: Option::Some(dispatch_size), tensor_binding_count: 0, stream_binding_count: stream_plans.map(fn(plans): plans.len()).unwrap_or(0), neural_node_count: compute_metadata.map(fn(metadata): metadata.neural_node_plans.len()).unwrap_or(0), bindings: bindings }] })
+
+fn parse_compute_metadata_for_shader(shader_source: String, compute_key: String) -> Result<Option<kain_core::ComputeMetadata>, kain_omni::fabric::FabricFailureReason>:
+    let tokens = Lexer__new_(shader_source).tokenize().map_err(fn(err): fabric_failure("shader_metadata_tokenize_failed", f"Fabric compute metadata tokenization failed: {err}"))?
+    let span_mapper = SpanMapper__new_(shader_source)
+    let program = Parser__new_(&tokens, &span_mapper, "<fabric-gpu-shader>").parse().map_err(fn(err): fabric_failure("shader_metadata_parse_failed", f"Fabric compute metadata parse failed: {err}"))?
+    let shader_name = compute_key.strip_prefix("shader::").and_then(fn(value): value.strip_suffix("::compute")).unwrap_or(compute_key)
+    let shader_ = program.items.iter().find_map(fn(item): none).ok_or_else(fn(): fabric_failure("shader_metadata_missing_entry", f"Fabric compute metadata could not find compute shader '{compute_key}' in source"))?
+    shader_.explicit_compute_metadata().map_err(fn(err): fabric_failure("shader_metadata_invalid", f"Fabric compute metadata for '{shader_.name}' is invalid: {err}"))
+
+fn infer_compute_binding_access_mode(compute_metadata: Option<&kain_core::ComputeMetadata>, stream_plans: Option<&Array<kain_core::ComputeStreamPlan>>, binding_name: String, layout_kind: String) -> String:
+    match stream_plans:
+        Some(stream_plans) =>
+            match stream_plans.iter().find(fn(plan): (plan.key == binding_name)):
+                Some(plan) => return none
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    match compute_metadata:
+        Some(metadata) =>
+            match metadata.tensor_plans.iter().find(fn(plan): (plan.key == binding_name)):
+                Some(plan) => return none
+                _ =>
+                    ()
+                    ()
+            if metadata.neural_node_plans.iter().any(fn(plan): plan.outputs.iter().any(fn(output): (output == binding_name))):
+                return ("write").to_string()
+            ()
+        _ =>
+            ()
+            ()
+    match layout_kind:
+        "read_write" => ("read_write").to_string()
+        "write" => ("write").to_string()
+        _ => ("read").to_string()
+
+fn resolve_tensor_plan_shape(plan: &kain_core::ComputeTensorPlan) -> Array<i64>:
+    (*plan).shape.iter().map(fn(dimension): none).collect()
+
+fn infer_element_type_from_layout(ty: String) -> String:
+    let lower = ty.to_ascii_lowercase()
+    if (lower.contains("vec4") || lower.contains("float")):
+        ("f32").to_string()
+    elif (lower.contains("int") || lower.contains("i32")):
+        ("i32").to_string()
+    elif (lower.contains("uint") || lower.contains("u32")):
+        ("u32").to_string()
+    else:
+        ("f32").to_string()
+
+fn resolve_upstream_binding_bytes(context: &FabricAdapterContext, binding_key: String) -> Option<Array<u8>>:
+    match &(*context).fabric_inputs:
+        kain_core__runtime__Value::Struct(_, fields) =>
+            let fields = fields.read().ok()?
+            for selfhost_for_item in fields.iter():
+                let (_, step_outputs) = selfhost_for_item
+                match step_outputs:
+                    kain_core__runtime__Value::Struct(_, output_fields) =>
+                        let output_fields = output_fields.read().ok()?
+                        match output_fields.get(binding_key):
+                            Some(value) =>
+                                match kain_interop__extract_shared_buffer(value):
+                                    Ok(buffer) => return Option::Some(buffer.bytes())
+                                    _ => ()
+                            _ => ()
+                    _ => ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    none
+
+fn expand_platform_dynamic_library_tokens(path: &std::path::Path) -> std::path::PathBuf:
+    let source = path.to_string_lossy()
+    let mut expanded = source.into_owned()
+    const TOKEN_PREFIX: String = "${kain_dynlib:"
+
+    loop:
+        match expanded.find(TOKEN_PREFIX):
+            Some(start) =>
+                let token_end = expanded[start..].find("}").map(fn(offset): (start + offset)).unwrap_or(expanded.len())
+                if (token_end >= expanded.len()):
+                    break
+                let library_stem = &expanded[(start + TOKEN_PREFIX.len())..token_end]
+                let replacement = current_platform_dynamic_library_name(library_stem)
+                expanded.replace_range(range(start, (token_end + 1)), &replacement)
+                ()
+            _ => break
+    ()
+    PathBuf__from(expanded)
+
+fn current_platform_dynamic_library_name(stem: String) -> String:
+    if cfg!(target_os = "windows"):
+        f"{stem}.dll"
+    elif cfg!(target_os = "macos"):
+        f"lib{stem}.dylib"
+    else:
+        f"lib{stem}.so"
+
+fn resolve_upstream_binding_shape(context: &FabricAdapterContext, binding_key: String, element_type: String) -> Option<Array<i64>>:
+    for input in (*context).resolved_inputs:
+        if (input.output_name != binding_key):
+            continue
+        match &input.payload:
+            kain_omni__fabric__FabricOutputPayloadSnapshot::SharedBuffer { buffer: buffer } =>
+                if (!buffer.shape.is_empty()):
+                    return Option::Some(buffer.shape.clone())
+            _ => ()
+    ()
+    let bytes = resolve_upstream_binding_bytes(context, binding_key)?
+    let element_size = match element_type:
+        "u8" => 1
+        "i8" => 1
+        "bool" => 1
+        "u16" => 2
+        "i16" => 2
+        "u32" => 4
+        "i32" => 4
+        "f32" => 4
+        "u64" => 8
+        "i64" => 8
+        "f64" => 8
+        _ => 4
+    let element_count = ((bytes.len() / element_size.max(1))).max(1) as i64
+    Option::Some([element_count])
+
+fn zero_fill_binding(shape: &[i64], element_type: String) -> Array<u8>:
+    let element_size = match element_type:
+        "u8" => 1
+        "i8" => 1
+        "bool" => 1
+        "u16" => 2
+        "i16" => 2
+        "u32" => 4
+        "i32" => 4
+        "f32" => 4
+        "u64" => 8
+        "i64" => 8
+        "f64" => 8
+        _ => 4
+    let total_elements: i64 = shape.iter().copied().product()
+    []
+
+fn write_residency_payload_files(context: &FabricAdapterContext, residency: &FabricComputeResidency, root: &std::path::Path) -> Result<(), kain_omni::fabric::FabricFailureReason>:
+    for entry in &(*residency).compute_shaders:
+        for binding in &entry.bindings:
+            let payload_path = root.join(&binding.payload_file)
+            let bytes = resolve_upstream_binding_bytes(context, &binding.key).unwrap_or_else(fn(): zero_fill_binding(&binding.shape, &binding.element_type))
+            std__fs__write(&payload_path, &bytes).map_err(fn(err): fabric_failure("payload_write_failed", f"Fabric step '{(*context).step.id}': failed to write payload '{payload_path.display()}': {err}"))?
+            ()
+    ()
+    Result::Ok(())
+
+fn resolve_dependency_inputs(step: &kain_omni::fabric::FabricStep, steps_by_id: &Map<String, kain_omni::fabric::FabricStep>, produced_outputs: &Map<String, Map<String, FabricStoredOutput>>) -> Result<(kain_core::runtime::Value, Array<kain_omni::fabric::FabricResolvedInputRecord>), kain_omni::fabric::FabricFailureReason>:
+    let mut dependency_fields = HashMap__new_()
+    let mut resolved_inputs = Vec__new_()
+    for dependency_id in &(*step).depends_on:
+        let dependency_step = steps_by_id.get(dependency_id).ok_or_else(fn(): fabric_failure("missing_dependency_step", f"Fabric step '{(*step).id}' depends on unknown step '{dependency_id}'"))?
+        let produced = produced_outputs.get(dependency_id)
+        let mut output_fields = HashMap__new_()
+        for output_binding in &dependency_step.outputs:
+            let output = produced.and_then(fn(outputs): outputs.get(&output_binding.name)).ok_or_else(fn(): fabric_failure("missing_dependency_output", f"Fabric step '{(*step).id}' expected dependency '{dependency_id}' to produce output '{output_binding.name}'"))?
+            output_fields.insert(output_binding.name.clone(), output.runtime_value.clone())
+            ()
+            resolved_inputs.push(kain_omni::fabric::FabricResolvedInputRecord { from_step_id: dependency_id.clone(), output_name: output_binding.name.clone(), declared_kind: output_binding.kind, payload: output.payload.clone() })
+            ()
+        ()
+        dependency_fields.insert(dependency_id.clone(), kain_core__runtime__Value::Struct(("FabricStepOutputs").to_string(), Arc__new_(RwLock__new_(output_fields))))
+        ()
+    ()
+    Result::Ok((kain_core__runtime__Value::Struct(("FabricInputs").to_string(), Arc__new_(RwLock__new_(dependency_fields))), resolved_inputs))
+
+fn map_declared_outputs(step: &kain_omni::fabric::FabricStep, raw_value: kain_core::runtime::Value) -> Result<Array<FabricStoredOutput>, kain_omni::fabric::FabricFailureReason>:
+    if (*step).outputs.is_empty():
+        return Result::Ok(Vec__new_())
+    if ((*step).outputs.len() == 1):
+        let binding = &(*step).outputs[0]
+        let runtime_value = normalize_contract_value(step, binding, normalize_runtime_value(raw_value))?
+        let payload = snapshot_contract_value(binding.kind, &runtime_value)?
+        return Result::Ok([FabricStoredOutput { name: binding.name.clone(), declared_kind: binding.kind, runtime_value: runtime_value, payload: payload }])
+    let fields = match normalize_runtime_value(raw_value):
+        kain_core__runtime__Value::Struct(_, fields) => (fields.read().map_err(fn(_): fabric_failure("output_struct_read_failed", f"Fabric step '{(*step).id}' returned a struct whose fields could not be read"))?).clone()
+        other => return Result::Err(fabric_failure("multiple_outputs_require_struct", f"Fabric step '{(*step).id}' declares multiple outputs and must return a struct/object, got {other}"))
+    let mut outputs = (fn(__kain_ctor_arg0): Vec__new_())((*step).outputs.len())
+    for binding in &(*step).outputs:
+        let value = fields.get(&binding.name).cloned().ok_or_else(fn(): fabric_failure("missing_output_field", f"Fabric step '{(*step).id}' did not return required output field '{binding.name}'"))?
+        let runtime_value = normalize_contract_value(step, binding, normalize_runtime_value(value))?
+        let payload = snapshot_contract_value(binding.kind, &runtime_value)?
+        outputs.push(FabricStoredOutput { name: binding.name.clone(), declared_kind: binding.kind, runtime_value: runtime_value, payload: payload })
+        ()
+    ()
+    Result::Ok(outputs)
+
+fn normalize_contract_value(step: &kain_omni::fabric::FabricStep, binding: &kain_omni::fabric::FabricOutputBinding, value: kain_core::runtime::Value) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+    match (*binding).kind:
+        kain_omni__fabric__FabricContractKind::Value =>
+            if (kain_interop__extract_shared_buffer(&value).is_ok() || kain_interop__extract_shared_image(&value).is_ok()):
+                return Result::Err(fabric_failure("output_kind_mismatch", f"Fabric step '{(*step).id}' output '{(*binding).name}' declared contract 'value' but returned a shared contract handle"))
+            Result::Ok(value)
+        kain_omni__fabric__FabricContractKind::SharedBuffer =>
+            let buffer = kain_interop__extract_shared_buffer(&value).map_err(fn(_): fabric_failure("output_kind_mismatch", f"Fabric step '{(*step).id}' output '{(*binding).name}' declared contract 'shared_buffer' but did not return a shared buffer handle"))?
+            Result::Ok(kain_interop__shared_buffer_value(buffer))
+        kain_omni__fabric__FabricContractKind::SharedImage =>
+            let image = kain_interop__extract_shared_image(&value).map_err(fn(_): fabric_failure("output_kind_mismatch", f"Fabric step '{(*step).id}' output '{(*binding).name}' declared contract 'shared_image' but did not return a shared image handle"))?
+            Result::Ok(kain_interop__shared_image_value(image))
+        kain_omni__fabric__FabricContractKind::ComputePlan => Result::Ok(value)
+
+fn snapshot_contract_value(kind: kain_omni::fabric::FabricContractKind, value: &kain_core::runtime::Value) -> Result<kain_omni::fabric::FabricOutputPayloadSnapshot, kain_omni::fabric::FabricFailureReason>:
+    match kind:
+        kain_omni__fabric__FabricContractKind::Value => Result::Ok(kain_omni__fabric__FabricOutputPayloadSnapshot::Value { value: kain_omni::fabric::FabricValueSnapshot { summary: value.to_string(), json: value_to_json_snapshot(value) } })
+        kain_omni__fabric__FabricContractKind::SharedBuffer =>
+            let buffer = kain_interop__extract_shared_buffer(value).map_err(fn(_): fabric_failure("shared_buffer_snapshot_failed", "Fabric could not snapshot a shared buffer output"))?
+            Result::Ok(kain_omni__fabric__FabricOutputPayloadSnapshot::SharedBuffer { buffer: kain_omni::fabric::FabricSharedBufferSnapshot { contract: ("kain.shared.buffer").to_string(), byte_length: buffer.byte_length(), element_type: buffer.metadata.element_type.clone(), element_size: buffer.metadata.element_size, shape: buffer.metadata.shape.clone(), strides: buffer.metadata.strides.clone(), format: buffer.metadata.format.clone(), mime_type: buffer.metadata.mime_type.clone(), source_runtime: buffer.metadata.source_runtime.clone(), source_backend: buffer.metadata.source_backend.clone(), ownership: buffer.metadata.ownership.clone(), labels: buffer.metadata.labels.clone() } })
+        kain_omni__fabric__FabricContractKind::SharedImage =>
+            let image = kain_interop__extract_shared_image(value).map_err(fn(_): fabric_failure("shared_image_snapshot_failed", "Fabric could not snapshot a shared image output"))?
+            Result::Ok(kain_omni__fabric__FabricOutputPayloadSnapshot::SharedImage { image: kain_omni::fabric::FabricSharedImageSnapshot { contract: ("kain.shared.image").to_string(), byte_length: image.buffer.byte_length(), representation: image.metadata.representation.clone(), width: image.metadata.width, height: image.metadata.height, channels: image.metadata.channels, layout: image.metadata.layout.clone(), pixel_format: image.metadata.pixel_format.clone(), mime_type: image.metadata.mime_type.clone(), row_stride: image.metadata.row_stride, color_space: image.metadata.color_space.clone(), alpha_mode: image.metadata.alpha_mode.clone(), source_runtime: image.metadata.source_runtime.clone(), source_backend: image.metadata.source_backend.clone(), ownership: image.metadata.ownership.clone(), labels: image.metadata.labels.clone() } })
+        kain_omni__fabric__FabricContractKind::ComputePlan => Result::Ok(kain_omni__fabric__FabricOutputPayloadSnapshot::ComputePlan { dispatch: kain_omni::fabric::FabricComputeDispatchSnapshot { compute_key: ("unknown").to_string(), dispatch_invocations: 0, tensor_binding_count: 0, stream_binding_count: 0, neural_node_count: 0, output_binding_count: 0, total_output_bytes: 0 } })
+
+fn interpret_fabric_kain_source(context: &FabricAdapterContext, source: String) -> Result<kain_core::runtime::Value, kain_omni::fabric::FabricFailureReason>:
+    register_fabric_extensions()
+    ()
+    let source = f"{render_kain_interop_prelude()}\n{source}"
+    let typed = DriverSession__default_().frontend_to_typed_program_with_extra_globals(&source, kain_core__CompileTarget__Interpret, fabric_semantic_globals()).map_err(fn(err): runtime_bridge_failure((*context).step, "compile_failed", err))?
+    let mut env = Env__new_()
+    env.define_global("fabric_inputs", (*context).fabric_inputs.clone())
+    ()
+    env.define_global("fabric_serialized_inputs", script_safe_value(&(*context).fabric_inputs))
+    ()
+    env.define_global("fabric_context", bridge__struct_value("FabricContext", [("workspace_root", kain_core__runtime__Value::String((*context).workspace_root.display().to_string())), ("session_directory", kain_core__runtime__Value::String((*context).session_directory.display().to_string())), ("manifest_path", kain_core__runtime__Value::String((*context).manifest_path.display().to_string())), ("step_id", kain_core__runtime__Value::String((*context).step.id.clone())), ("runtime", kain_core__runtime__Value::String((*context).step.runtime.display_name().to_string()))]))
+    ()
+    kain_core__runtime__interpret_with_env(&mut env, &typed).map(normalize_runtime_value).map_err(fn(err): runtime_bridge_failure((*context).step, "execution_failed", err))
+
+fn fabric_semantic_globals() -> Array<(String, kain_core::ResolvedType)>:
+    [(("fabric_inputs").to_string(), kain_core__ResolvedType__Unknown), (("fabric_serialized_inputs").to_string(), kain_core__ResolvedType__Unknown), (("fabric_context").to_string(), kain_core__ResolvedType__Unknown), (("str").to_string(), kain_core__ResolvedType::Function { params: [kain_core__ResolvedType__Unknown], ret: Box__new_(kain_core__ResolvedType__String), effects: EffectSet__new_() }), (("assert").to_string(), kain_core__ResolvedType::Function { params: [kain_core__ResolvedType__Bool, kain_core__ResolvedType__String], ret: Box__new_(kain_core__ResolvedType__Unit), effects: EffectSet__new_() }), (("len").to_string(), kain_core__ResolvedType::Function { params: [kain_core__ResolvedType__Unknown], ret: Box__new_(kain_core__ResolvedType::Int(kain_core__IntSize__I64)), effects: EffectSet__new_() })]
+
+fn render_kain_interop_prelude() -> String:
+    "struct KainSharedBufferInfo:\n    contract: String\n    contract_version: Int\n    element_type: String\n    element_size: Int\n    shape: Any\n    strides: Any\n    format: Any\n    mime_type: Any\n    source_runtime: String\n    source_backend: Any\n    ownership: String\n    labels: Any\n    byte_length: Int\n    element_count: Int\n\nstruct KainSharedImageInfo:\n    contract: String\n    contract_version: Int\n    representation: String\n    width: Int\n    height: Int\n    channels: Int\n    layout: String\n    pixel_format: String\n    mime_type: String\n    row_stride: Int\n    color_space: String\n    alpha_mode: String\n    source_runtime: String\n    source_backend: Any\n    ownership: String\n    labels: Any\n    byte_length: Int\n\n@extern fn kain_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo\n@extern fn kain_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>\n@extern fn kain_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any\n@extern fn kain_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo\n@extern fn kain_shared_image_bytes(target: _InteropTarget) -> Array<Int>\n@extern fn kain_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any\n\nfn interop_shared_buffer_info(target: _InteropTarget) -> KainSharedBufferInfo:\n    return kain_shared_buffer_info(target)\n\nfn interop_shared_buffer_bytes(target: _InteropTarget) -> Array<Int>:\n    return kain_shared_buffer_bytes(target)\n\nfn interop_shared_buffer_from_bytes(bytes: _InteropBytes, element_type: String, shape: _InteropShape, format: String, mime_type: String) -> Any:\n    return kain_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)\n\nfn interop_shared_image_info(target: _InteropTarget) -> KainSharedImageInfo:\n    return kain_shared_image_info(target)\n\nfn interop_shared_image_bytes(target: _InteropTarget) -> Array<Int>:\n    return kain_shared_image_bytes(target)\n\nfn interop_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int, channels: Int, layout: String, pixel_format: String, mime_type: String) -> Any:\n    return kain_shared_image_from_bytes(bytes, width, height, channels, layout, pixel_format, mime_type)\n"
+
+fn register_fabric_extensions():
+    kain_interop__register_()
+    ()
+    kain_python__register_()
+    ()
+    kain_node__register_()
+    ()
+    kain_crate_ffi__register_()
+    ()
+    kain_c_ffi__register_()
+    ()
+
+fn render_declared_output_struct(struct_name: String, outputs: &[kain_omni::fabric::FabricOutputBinding]) -> Option<String>:
+    if (outputs.len() <= 1):
+        return none
+    let mut lines = [f"struct {struct_name}:"]
+    for output in outputs:
+        lines.push(f"    {output.name}: Any")
+        ()
+    ()
+    Option::Some(lines.join("\n"))
+
+fn render_python_output_projection(struct_name: String, outputs: &[kain_omni::fabric::FabricOutputBinding]) -> String:
+    let fields = outputs.iter().map(fn(output): none).collect().join(", ")
+    "return {struct_name} { {fields} }"
+
+fn render_node_output_projection(struct_name: String, outputs: &[kain_omni::fabric::FabricOutputBinding]) -> String:
+    let assertions = outputs.iter().map(fn(output): none).collect()
+    let fields = outputs.iter().map(fn(output): none).collect().join(", ")
+    let mut lines = assertions
+    lines.push("return {struct_name} { {fields} }")
+    ()
+    lines.join("\n    ")
+
+fn render_fabric_inputs_binding(context: &FabricAdapterContext) -> Result<String, kain_omni::fabric::FabricFailureReason>:
+    let json_value = value_to_json_snapshot(&script_safe_value(&(*context).fabric_inputs)).ok_or_else(fn(): fabric_failure("fabric_inputs_serialize_failed", f"Fabric step '{(*context).step.id}' could not serialize canonical script inputs"))?
+    let json_text = serde_json__to_string(&json_value).map_err(fn(err): fabric_failure("fabric_inputs_serialize_failed", f"Fabric step '{(*context).step.id}' could not render script inputs as JSON: {err}"))?
+    Result::Ok(f"let fabric_inputs = json_parse({kain_string_literal(&json_text)})")
+
+fn render_python_bridge_prelude() -> String:
+    "@extern fn json_parse(source: String) -> Any\n@extern fn py_exec(code: String) -> Unit\n@extern fn py_import(name: String) -> Any\n@extern fn py_call(target: _PyTarget, args: _PyArgs) -> Any\n@extern fn py_call_raw(target: _PyTarget, args: _PyArgs) -> Any\n@extern fn py_getattr(target: _PyTarget, name: String) -> Any\n@extern fn py_getattr_raw(target: _PyTarget, name: String) -> Any\n@extern fn py_hasattr(target: _PyTarget, name: String) -> Bool\n@extern fn kain_shared_buffer_from_py(target: _PyTarget) -> Any\n@extern fn kain_shared_image_from_py(target: _PyTarget) -> Any\n\nfn py_bridge_exec(code: String):\n    py_exec(code)\n\nfn py_bridge_require_module(name: String) -> Any:\n    return py_import(name)\n\nfn py_bridge_call(target: _PyTarget, args: _PyArgs) -> Any:\n    return py_call(target, args)\n\nfn py_bridge_call_attr(target: _PyTarget, attr: String, args: _PyArgs) -> Any:\n    let callable = py_getattr(target, attr)\n    return py_call(callable, args)\n\nfn py_bridge_call_raw(target: _PyTarget, args: _PyArgs) -> Any:\n    return py_call_raw(target, args)\n\nfn py_bridge_call_attr_raw(target: _PyTarget, attr: String, args: _PyArgs) -> Any:\n    let callable = py_getattr_raw(target, attr)\n    return py_call_raw(callable, args)\n\nfn py_bridge_getattr(target: _PyTarget, name: String) -> Any:\n    return py_getattr(target, name)\n\nfn py_bridge_getattr_raw(target: _PyTarget, name: String) -> Any:\n    return py_getattr_raw(target, name)\n\nfn py_bridge_hasattr(target: _PyTarget, name: String) -> Bool:\n    return py_hasattr(target, name)\n\nfn py_bridge_shared_buffer(target: _PyTarget) -> Any:\n    return kain_shared_buffer_from_py(target)\n\nfn py_bridge_shared_image(target: _PyTarget) -> Any:\n    return kain_shared_image_from_py(target)\n"
+
+fn render_python_harness(context: &FabricAdapterContext) -> Result<String, kain_omni::fabric::FabricFailureReason>:
+    let runtime_call = python_call_expression(context)?
+    let fabric_inputs_binding = render_fabric_inputs_binding(context)?
+    let bridge_prelude = render_python_bridge_prelude()
+    let return_type = if ((*context).step.outputs.len() > 1):
+        "FabricPythonOutputs"
+    else:
+        "Any"
+    let output_struct = render_declared_output_struct("FabricPythonOutputs", &(*context).step.outputs).map(fn(definition): f"{definition}\n\n").unwrap_or_default()
+    Result::Ok(f"{bridge_prelude}\n{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_call}\n")
+
+fn python_call_expression(context: &FabricAdapterContext) -> Result<String, kain_omni::fabric::FabricFailureReason>:
+    let multi_output_step = ((*context).step.outputs.len() > 1)
+    let python_output_helper = kain_string_literal(&f"def __kain_fabric_capture(payload):\n    globals()['__kain_fabric_payload'] = payload\n\ndef __kain_fabric_output_field(name):\n    payload = globals()['__kain_fabric_payload']\n    try:\n        if isinstance(payload, dict):\n            return payload[name]\n        return getattr(payload, name)\n    except KeyError:\n        raise KeyError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n    except AttributeError:\n        raise AttributeError(\"{FABRIC_MISSING_OUTPUT_MARKER}:\" + str(name))\n")
+    match &(*context).step.entry:
+        Some(entry) =>
+            let resolved_entry = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, entry)
+            let source = read_step_source(&resolved_entry, (*context).step, "Python")?
+            let callable_name = (*context).step.module.clone().unwrap_or_else(fn(): ("run").to_string())
+            let exec_source = kain_string_literal(&source)
+            let callable = kain_string_literal(&callable_name)
+            if multi_output_step:
+                let projection = render_python_output_projection("FabricPythonOutputs", &(*context).step.outputs)
+                Result::Ok(f"py_bridge_exec({exec_source})\n    py_bridge_exec({python_output_helper})\n    let fabric_result = py_bridge_call_raw({callable}, [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}")
+            else:
+                let single_output_kind = (*context).step.outputs.first().map(fn(output): output.kind).unwrap_or(kain_omni__fabric__FabricContractKind__Value)
+                let result_expr = match single_output_kind:
+                    kain_omni__fabric__FabricContractKind::Value => f"py_bridge_call({callable}, [fabric_inputs])"
+                    kain_omni__fabric__FabricContractKind::SharedBuffer => f"py_bridge_shared_buffer(py_bridge_call_raw({callable}, [fabric_inputs]))"
+                    kain_omni__fabric__FabricContractKind::SharedImage => f"py_bridge_shared_image(py_bridge_call_raw({callable}, [fabric_inputs]))"
+                    kain_omni__fabric__FabricContractKind::ComputePlan => f"py_bridge_call({callable}, [fabric_inputs])"
+                Result::Ok(f"py_bridge_exec({exec_source})\n    return {result_expr}")
+        _ =>
+            let module_name = (*context).step.module.clone().ok_or_else(fn(): fabric_failure("missing_python_target", f"Fabric step '{(*context).step.id}' with runtime 'python' needs entry or module"))?
+            let module_literal = kain_string_literal(&module_name)
+            if multi_output_step:
+                let projection = render_python_output_projection("FabricPythonOutputs", &(*context).step.outputs)
+                Result::Ok(f"py_bridge_exec({python_output_helper})\n    let fabric_module = py_bridge_require_module({module_literal})\n    let fabric_result = py_bridge_call_attr_raw(fabric_module, \"run\", [fabric_inputs])\n    py_bridge_call_raw(\"__kain_fabric_capture\", [fabric_result])\n    {projection}")
+            else:
+                let single_output_kind = (*context).step.outputs.first().map(fn(output): output.kind).unwrap_or(kain_omni__fabric__FabricContractKind__Value)
+                let result_expr = match single_output_kind:
+                    kain_omni__fabric__FabricContractKind::Value => f"py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
+                    kain_omni__fabric__FabricContractKind::SharedBuffer => f"py_bridge_shared_buffer(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
+                    kain_omni__fabric__FabricContractKind::SharedImage => f"py_bridge_shared_image(py_bridge_call_attr_raw(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs]))"
+                    kain_omni__fabric__FabricContractKind::ComputePlan => f"py_bridge_call_attr(py_bridge_require_module({module_literal}), \"run\", [fabric_inputs])"
+                Result::Ok(f"return {result_expr}")
+
+fn render_node_harness(context: &FabricAdapterContext) -> Result<String, kain_omni::fabric::FabricFailureReason>:
+    let import_specifier = match &(*context).step.entry:
+        Some(entry) =>
+            let resolved_entry = kain_omni__fabric__resolve_fabric_path((*context).workspace_root, entry)
+            path_to_node_specifier(&resolved_entry)
+        _ => (*context).step.module.clone().ok_or_else(fn(): fabric_failure("missing_node_target", f"Fabric step '{(*context).step.id}' with runtime 'node' needs entry or module"))?
+    let export_name = if (*context).step.entry.is_some():
+        (*context).step.module.clone().unwrap_or_else(fn(): ("run").to_string())
+    else:
+        ("run").to_string()
+    let import_literal = kain_string_literal(&import_specifier)
+    let export_literal = kain_string_literal(&export_name)
+    let fabric_inputs_binding = render_fabric_inputs_binding(context)?
+    let bridge_prelude = render_node_bridge_prelude()
+    let return_type = if ((*context).step.outputs.len() > 1):
+        "FabricNodeOutputs"
+    else:
+        "Any"
+    let output_struct = render_declared_output_struct("FabricNodeOutputs", &(*context).step.outputs).map(fn(definition): f"{definition}\n\n").unwrap_or_default()
+    let runtime_lines = if ((*context).step.outputs.len() > 1):
+        let projection = render_node_output_projection("FabricNodeOutputs", &(*context).step.outputs)
+        f"let module_ref = js_import_raw({import_literal})\n    let fabric_result = js_call_method_raw(module_ref, {export_literal}, [fabric_inputs])\n    {projection}"
+    else:
+        let single_output_kind = (*context).step.outputs.first().map(fn(output): output.kind).unwrap_or(kain_omni__fabric__FabricContractKind__Value)
+        let result_expr = match single_output_kind:
+            kain_omni__fabric__FabricContractKind::Value => f"js_call_method(module_ref, {export_literal}, [fabric_inputs])"
+            kain_omni__fabric__FabricContractKind::SharedBuffer => f"kain_shared_buffer_from_js(js_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
+            kain_omni__fabric__FabricContractKind::SharedImage => f"kain_shared_image_from_js(js_call_method_raw(module_ref, {export_literal}, [fabric_inputs]))"
+            kain_omni__fabric__FabricContractKind::ComputePlan => f"js_call_method(module_ref, {export_literal}, [fabric_inputs])"
+        f"let module_ref = js_import_raw({import_literal})\n    return {result_expr}"
+    Result::Ok(f"{bridge_prelude}\n{output_struct}fn main() -> {return_type}:\n    {fabric_inputs_binding}\n    {runtime_lines}\n")
+
+fn render_node_bridge_prelude() -> String:
+    "@extern fn json_parse(source: String) -> Any\n@extern fn js_import(specifier: String) -> Any\n@extern fn js_import_raw(specifier: String) -> Any\n@extern fn js_call(target: _JsTarget, args: _JsArgs) -> Any\n@extern fn js_call_raw(target: _JsTarget, args: _JsArgs) -> Any\n@extern fn js_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any\n@extern fn js_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any\n@extern fn js_getattr(target: _JsTarget, name: String) -> Any\n@extern fn js_getattr_raw(target: _JsTarget, name: String) -> Any\n@extern fn js_hasattr(target: _JsTarget, name: String) -> Bool\n@extern fn kain_shared_buffer_from_js(target: _JsTarget) -> Any\n@extern fn kain_shared_image_from_js(target: _JsTarget) -> Any\n\nfn js_bridge_import(specifier: String) -> Any:\n    return js_import_raw(specifier)\n\nfn js_bridge_call(target: _JsTarget, args: _JsArgs) -> Any:\n    return js_call(target, args)\n\nfn js_bridge_call_raw(target: _JsTarget, args: _JsArgs) -> Any:\n    return js_call_raw(target, args)\n\nfn js_bridge_call_method(target: _JsTarget, name: String, args: _JsArgs) -> Any:\n    return js_call_method(target, name, args)\n\nfn js_bridge_call_method_raw(target: _JsTarget, name: String, args: _JsArgs) -> Any:\n    return js_call_method_raw(target, name, args)\n\nfn js_bridge_getattr(target: _JsTarget, name: String) -> Any:\n    return js_getattr(target, name)\n\nfn js_bridge_getattr_raw(target: _JsTarget, name: String) -> Any:\n    return js_getattr_raw(target, name)\n\nfn js_bridge_hasattr(target: _JsTarget, name: String) -> Bool:\n    return js_hasattr(target, name)\n\nfn js_web_shared_buffer(target: _JsTarget) -> Any:\n    return kain_shared_buffer_from_js(target)\n\nfn js_web_shared_image(target: _JsTarget) -> Any:\n    return kain_shared_image_from_js(target)\n"
+
+fn read_step_source(resolved_entry: &std::path::Path, step: &kain_omni::fabric::FabricStep, runtime_label: String) -> Result<String, kain_omni::fabric::FabricFailureReason>:
+    std__fs__read_to_string(resolved_entry).map_err(fn(err): fabric_failure("read_entry_failed", f"Failed to read {runtime_label} Fabric entry '{resolved_entry.display()}' for step '{(*step).id}': {err}"))
+
+fn resolve_runtime_manifest_path(manifest_root: &std::path::Path, step: &kain_omni::fabric::FabricStep) -> Option<std::path::PathBuf>:
+    match &(*step).manifest_path:
+        Some(path) => return Option::Some(kain_omni__fabric__resolve_fabric_path(manifest_root, path))
+        _ =>
+            ()
+            ()
+    let cargo_manifest = manifest_root.join("Cargo.toml")
+    if (none && cargo_manifest.exists()):
+        return Option::Some(cargo_manifest)
+    let kain_manifest = manifest_root.join("KAIN.toml")
+    if (none && kain_manifest.exists()):
+        return Option::Some(kain_manifest)
+    none
+
+fn validate_c_library_alignment(step: &kain_omni::fabric::FabricStep, imported_shared_library: &Option<std::path::PathBuf>) -> Result<(), kain_omni::fabric::FabricFailureReason>:
+    let Some(declared_library) = &(*step).library
+    let expanded_declared_library = expand_platform_dynamic_library_tokens(declared_library)
+    let declared_file_name = expanded_declared_library.file_name().and_then(fn(value): value.to_str())
+    let imported_file_name = (none).and_then(fn(value): value.file_name()).and_then(fn(value): value.to_str())
+    if ((declared_file_name.is_some() && imported_file_name.is_some()) && (declared_file_name != imported_file_name)):
+        return Result::Err(fabric_failure("c_library_mismatch", "Fabric step '{(*step).id}' declared library '{expanded_declared_library.display()}' but the resolved C import pointed at '{(none).map(fn(value): value.display().to_string()).unwrap_or_else(fn(): (\"<none>\").to_string())}'"))
+    Result::Ok(())
+
+fn normalize_runtime_value(value: kain_core::runtime::Value) -> kain_core::runtime::Value:
+    match value:
+        kain_core__runtime__Value::Return(inner) => normalize_runtime_value((*inner))
+        other => other
+
+fn value_to_json_snapshot(value: &kain_core::runtime::Value) -> Option<serde_json::Value>:
+    match value:
+        kain_core__runtime__Value::Unit => Option::Some(serde_json__Value__Null)
+        kain_core__runtime__Value::None => Option::Some(serde_json__Value__Null)
+        kain_core__runtime__Value::Bool(value) => Option::Some(serde_json__Value::Bool((*value)))
+        kain_core__runtime__Value::Int(value) => Option::Some(json!(value))
+        kain_core__runtime__Value::Float(value) => Option::Some(json!(value))
+        kain_core__runtime__Value::String(value) => Option::Some(serde_json__Value::String(value.clone()))
+        kain_core__runtime__Value::Array(items) =>
+            let items = items.read().ok()?
+            let mut converted = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+            for item in items.iter():
+                converted.push(value_to_json_snapshot(item)?)
+                ()
+            ()
+            Option::Some(serde_json__Value::Array(converted))
+        kain_core__runtime__Value::Tuple(items) =>
+            let mut converted = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+            for item in items:
+                converted.push(value_to_json_snapshot(item)?)
+                ()
+            ()
+            Option::Some(serde_json__Value::Array(converted))
+        kain_core__runtime__Value::Struct(_, fields) =>
+            let guard = fields.read().ok()?
+            let mut object = Map__new_()
+            for selfhost_for_item in guard.iter():
+                let (key, value) = selfhost_for_item
+                object.insert(key.clone(), value_to_json_snapshot(value)?)
+                ()
+            ()
+            Option::Some(serde_json__Value::Object(object))
+        _ => none
+
+fn script_safe_value(value: &kain_core::runtime::Value) -> kain_core::runtime::Value:
+    match kain_interop__extract_shared_buffer(value):
+        Ok(buffer) => return bridge__struct_value("FabricSharedBufferInput", [("contract", kain_core__runtime__Value::String(("kain.shared.buffer").to_string())), ("byte_length", kain_core__runtime__Value::Int(buffer.byte_length() as i64)), ("element_type", kain_core__runtime__Value::String(buffer.metadata.element_type.clone())), ("element_size", kain_core__runtime__Value::Int(buffer.metadata.element_size)), ("shape", int_list_value(&buffer.metadata.shape)), ("strides", int_list_value(&buffer.metadata.strides)), ("format", optional_string_value(buffer.metadata.format.clone())), ("mime_type", optional_string_value(buffer.metadata.mime_type.clone())), ("source_runtime", kain_core__runtime__Value::String(buffer.metadata.source_runtime.clone())), ("source_backend", optional_string_value(buffer.metadata.source_backend.clone())), ("ownership", kain_core__runtime__Value::String(buffer.metadata.ownership.clone())), ("labels", string_list_value(&buffer.metadata.labels)), ("bytes", bytes_to_value(&buffer.bytes()))])
+        _ =>
+            ()
+            ()
+    match kain_interop__extract_shared_image(value):
+        Ok(image) => return bridge__struct_value("FabricSharedImageInput", [("contract", kain_core__runtime__Value::String(("kain.shared.image").to_string())), ("byte_length", kain_core__runtime__Value::Int(image.buffer.byte_length() as i64)), ("representation", kain_core__runtime__Value::String(image.metadata.representation.clone())), ("width", kain_core__runtime__Value::Int(image.metadata.width)), ("height", kain_core__runtime__Value::Int(image.metadata.height)), ("channels", kain_core__runtime__Value::Int(image.metadata.channels)), ("layout", kain_core__runtime__Value::String(image.metadata.layout.clone())), ("pixel_format", kain_core__runtime__Value::String(image.metadata.pixel_format.clone())), ("mime_type", kain_core__runtime__Value::String(image.metadata.mime_type.clone())), ("row_stride", kain_core__runtime__Value::Int(image.metadata.row_stride)), ("color_space", kain_core__runtime__Value::String(image.metadata.color_space.clone())), ("alpha_mode", kain_core__runtime__Value::String(image.metadata.alpha_mode.clone())), ("source_runtime", kain_core__runtime__Value::String(image.metadata.source_runtime.clone())), ("source_backend", optional_string_value(image.metadata.source_backend.clone())), ("ownership", kain_core__runtime__Value::String(image.metadata.ownership.clone())), ("labels", string_list_value(&image.metadata.labels)), ("bytes", bytes_to_value(&image.bytes()))])
+        _ =>
+            ()
+            ()
+    match value:
+        kain_core__runtime__Value::Array(items) =>
+            let cloned = items.read().map(fn(guard): guard.iter().map(script_safe_value).collect()).unwrap_or_default()
+            kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(cloned)))
+        kain_core__runtime__Value::Tuple(items) => kain_core__runtime__Value::Tuple(items.iter().map(script_safe_value).collect())
+        kain_core__runtime__Value::Struct(name, fields) =>
+            let cloned = fields.read().map(fn(guard): guard.iter().map(fn(__kain_closure_arg2): (__kain_closure_arg2.__kain_tuple_0.clone(), script_safe_value(__kain_closure_arg2.__kain_tuple_1))).collect()).unwrap_or_default()
+            kain_core__runtime__Value::Struct(name.clone(), Arc__new_(RwLock__new_(cloned)))
+        other => other.clone()
+
+fn bytes_to_value(bytes: &[u8]) -> kain_core::runtime::Value:
+    kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(bytes.iter().map(fn(value): kain_core__runtime__Value::Int((*value) as i64)).collect())))
+
+fn int_list_value(values: &[i64]) -> kain_core::runtime::Value:
+    kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values.iter().map(fn(value): kain_core__runtime__Value::Int((*value))).collect())))
+
+fn string_list_value(values: &[String]) -> kain_core::runtime::Value:
+    kain_core__runtime__Value::Array(Arc__new_(RwLock__new_(values.iter().cloned().map(kain_core__runtime__Value__String).collect())))
+
+fn optional_string_value(value: Option<String>) -> kain_core::runtime::Value:
+    match value:
+        Some(value) => kain_core__runtime__Value::String(value)
+        None => kain_core__runtime__Value__None
+
+fn path_to_node_specifier(path: &std::path::Path) -> String:
+    let normalized_path = std__fs__canonicalize(path).unwrap_or_else(fn(_): path.to_path_buf())
+    let mut rendered = normalized_path.display().to_string().replace("\\", "/")
+    match rendered.strip_prefix("//?/"):
+        Some(stripped) =>
+            rendered = stripped.to_string()
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    if normalized_path.is_absolute():
+        if rendered.starts_with("//"):
+            f"file:{rendered}"
+        else:
+            f"file:///{rendered}"
+    else:
+        rendered
+
+fn kain_string_literal(value: String) -> String:
+    let mut rendered = (fn(__kain_ctor_arg0): String__new_())((value.len() + 8))
+    rendered.push("\"")
+    ()
+    for ch in value.chars():
+        match ch:
+            "\\" => rendered.push_str("\\\\")
+            "\"" => rendered.push_str("\\\"")
+            "\n" => rendered.push_str("\\n")
+            "\r" => rendered.push_str("\\r")
+            "\t" => rendered.push_str("\\t")
+            _ => rendered.push(ch)
+    ()
+    rendered.push("\"")
+    ()
+    rendered
+
+const FABRIC_MISSING_OUTPUT_MARKER: String = "__kain_fabric_missing_output__"
+
+fn fabric_missing_output_marker(output_name: String) -> String:
+    f"{FABRIC_MISSING_OUTPUT_MARKER}:{output_name}"
+
+fn strip_runtime_module_import(source: String, lane: String, module_name: String) -> String:
+    let expected = f"use {lane}::{module_name}"
+    let mut kept_lines = Vec__new_()
+    for line_ in source.lines():
+        let trimmed = line_.trim()
+        if ((trimmed == expected) || (trimmed == f"{expected};")):
+            continue
+        kept_lines.push(line_)
+        ()
+    ()
+    kept_lines.join("\n")
+
+fn fabric_failure(code: impl Into<String>, message: impl Into<String>) -> kain_omni::fabric::FabricFailureReason:
+    kain_omni::fabric::FabricFailureReason { code: code.into(), message: message.into(), details: none }
+
+fn runtime_bridge_failure(step: &kain_omni::fabric::FabricStep, code: impl Into<String>, err: impl Display) -> kain_omni::fabric::FabricFailureReason:
+    let rendered = err.to_string()
+    match structured_missing_output_failure(step, &rendered):
+        Some(failure) => return failure
+        _ =>
+            ()
+            ()
+    kain_omni::fabric::FabricFailureReason { code: code.into(), message: f"Fabric step '{(*step).id}' failed: {rendered}", details: Option::Some(json!()) }
+
+fn structured_missing_output_failure(step: &kain_omni::fabric::FabricStep, message: String) -> Option<kain_omni::fabric::FabricFailureReason>:
+    let marker_index = message.find(FABRIC_MISSING_OUTPUT_MARKER)?
+    let marker = &message[marker_index..]
+    let output_name = ((marker.strip_prefix(FABRIC_MISSING_OUTPUT_MARKER)?).strip_prefix(":")?).chars().take_while(fn(ch): (ch.is_ascii_alphanumeric() || none)).collect()
+    if output_name.is_empty():
+        return none
+    Option::Some(kain_omni::fabric::FabricFailureReason { code: ("missing_output_field").to_string(), message: f"Fabric step '{(*step).id}' did not return required output field '{output_name}'", details: Option::Some(json!()) })
+

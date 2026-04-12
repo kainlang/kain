@@ -1,0 +1,165 @@
+use kain_build
+
+use kain_build::EngineModuleBuild
+
+use kain_build::EngineModuleBuildConfig
+
+use kain_build::EngineModuleBuildResult
+
+use kain_host
+
+use kain_host::reflect
+
+use kain_host::bridge
+
+use kain_host::CompileTarget
+
+use kain_host::EngineModuleExport
+
+use kain_host::EngineModuleExportConfig
+
+use kain_host::Env
+
+use kain_host::FromKainValue
+
+use kain_host::HostPreludeConfig
+
+use kain_host::HostResult
+
+use kain_host::HostSession
+
+use kain_host::HostType
+
+use kain_host::KainError
+
+use kain_host::KainReflect
+
+use kain_host::NativeFn
+
+use kain_host::NativeFunction
+
+use kain_host::NativeParam
+
+use kain_host::StaticTypeRef
+
+use kain_host::ToKainValue
+
+use kain_host::TypeRegistry
+
+use kain_host::TypeSchema
+
+use kain_host::TypedProgram
+
+use kain_host::Value
+
+pub struct KainEngine:
+    host: kain_host::HostSession
+
+impl KainEngine:
+    pub fn new_() -> KainEngine:
+        KainEngine { host: HostSession__new_() }
+
+    pub fn host(_self: &KainEngine) -> &kain_host::HostSession:
+        &(*_self).host
+
+    pub fn host_mut(_self: &mut KainEngine) -> &mut kain_host::HostSession:
+        &mut (*_self).host
+
+    pub fn register_type<T>(_self: &mut KainEngine) -> &mut KainEngine:
+        (*_self).host.register_type()
+        ()
+        *_self
+
+    pub fn register_native_fn(_self: &mut KainEngine, name: impl Into<String>, params: Array<kain_host::NativeParam>, return_type: kain_host::HostType, func: kain_host::NativeFn) -> &mut KainEngine:
+        (*_self).host.register_native_fn(name, params, return_type, func)
+        ()
+        *_self
+
+    pub fn declare_native_fn(_self: &mut KainEngine, name: impl Into<String>, params: Array<kain_host::NativeParam>, return_type: kain_host::HostType) -> &mut KainEngine:
+        (*_self).host.declare_native_fn(name, params, return_type)
+        ()
+        *_self
+
+    pub fn load_source(_self: &mut KainEngine, source: String) -> kain_host::HostResult<&mut KainEngine>:
+        (*_self).host.load_source(source)?
+        ()
+        Result::Ok(*_self)
+
+    pub fn call<R>(_self: &mut KainEngine, function_name: String, args: Array<kain_host::Value>) -> kain_host::HostResult<R>:
+        (*_self).host.call(function_name, args)
+
+    pub fn run_main<R>(_self: &mut KainEngine) -> kain_host::HostResult<R>:
+        (*_self).host.run_main()
+
+    pub fn emit_type_prelude(_self: &KainEngine) -> String:
+        (*_self).host.emit_type_prelude()
+
+    pub fn emit_engine_prelude(_self: &KainEngine) -> String:
+        (*_self).host.emit_engine_prelude()
+
+    pub fn emit_engine_module_source(_self: &KainEngine) -> String:
+        (*_self).host.emit_engine_module_source()
+
+    pub fn emit_engine_import_source(_self: &KainEngine) -> String:
+        (*_self).host.emit_engine_import_source()
+
+    pub fn export_engine_module(_self: &KainEngine, config: &kain_host::EngineModuleExportConfig) -> kain_host::HostResult<kain_host::EngineModuleExport>:
+        (*_self).host.export_engine_module(config)
+
+    pub fn set_prelude_module_name(_self: &mut KainEngine, module_name: impl Into<String>) -> &mut KainEngine:
+        (*_self).host.set_prelude_module_name(module_name)
+        ()
+        *_self
+
+    pub fn set_auto_use_prelude(_self: &mut KainEngine, enabled: Bool) -> &mut KainEngine:
+        (*_self).host.set_auto_use_prelude(enabled)
+        ()
+        *_self
+
+
+impl Default for KainEngine:
+    fn default_() -> KainEngine:
+        KainEngine__new_()
+
+
+pub struct KainEngineBuilder:
+    host: kain_host::HostSession
+
+impl KainEngineBuilder:
+    pub fn new_() -> KainEngineBuilder:
+        KainEngineBuilder { host: HostSession__new_() }
+
+    pub fn register_type<T>(_self: KainEngineBuilder) -> KainEngineBuilder:
+        _self.host.register_type()
+        ()
+        _self
+
+    pub fn register_native_fn(_self: KainEngineBuilder, name: impl Into<String>, params: Array<kain_host::NativeParam>, return_type: kain_host::HostType, func: kain_host::NativeFn) -> KainEngineBuilder:
+        _self.host.register_native_fn(name, params, return_type, func)
+        ()
+        _self
+
+    pub fn declare_native_fn(_self: KainEngineBuilder, name: impl Into<String>, params: Array<kain_host::NativeParam>, return_type: kain_host::HostType) -> KainEngineBuilder:
+        _self.host.declare_native_fn(name, params, return_type)
+        ()
+        _self
+
+    pub fn prelude_module_name(_self: KainEngineBuilder, module_name: impl Into<String>) -> KainEngineBuilder:
+        _self.host.set_prelude_module_name(module_name)
+        ()
+        _self
+
+    pub fn auto_use_prelude(_self: KainEngineBuilder, enabled: Bool) -> KainEngineBuilder:
+        _self.host.set_auto_use_prelude(enabled)
+        ()
+        _self
+
+    pub fn build(_self: KainEngineBuilder) -> KainEngine:
+        KainEngine { host: _self.host }
+
+
+impl Default for KainEngineBuilder:
+    fn default_() -> KainEngineBuilder:
+        KainEngineBuilder__new_()
+
+

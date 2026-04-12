@@ -1,0 +1,354 @@
+use serde::Deserialize
+
+use serde::Serialize
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct UhtRulesData:
+    meta: UhtMeta
+    validation_rules: Array<UhtValidationRule>
+    specifiers: Array<UhtSpecifier>
+    property_types: Array<UhtPropertyType>
+    incompatible_combos: Array<UhtIncompatibleCombo>
+    kain_rules: Map<String, Array<UhtValidationRule>>
+    replication_rules: Option<ReplicationRules>
+    attribute_compatibility_matrix: Option<AttributeCompatibilityMatrix>
+    kain_specific_rules: Option<KainSpecificRules>
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct UhtMeta:
+    generator: String
+    source: String
+    total_rules: usize
+    total_specifiers: usize
+    total_property_types: usize
+    total_incompatible_combos: usize
+
+impl Default for UhtMeta:
+    pub fn default_() -> UhtMeta:
+        UhtMeta { generator: String__new_(), source: String__new_(), total_rules: 0, total_specifiers: 0, total_property_types: 0, total_incompatible_combos: 0 }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct UhtValidationRule:
+    severity: String
+    message: String
+    message_raw: String
+    source_file: String
+    line_: usize
+    context: UhtRuleContext
+    category: String
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct UhtRuleContext:
+    method: String
+    class_: String
+    specifier_type: String
+
+impl Default for UhtRuleContext:
+    pub fn default_() -> UhtRuleContext:
+        UhtRuleContext { method: String__new_(), class_: String__new_(), specifier_type: String__new_() }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct UhtSpecifier:
+    name: String
+    applies_to: String
+    value_type: String
+    source_file: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct UhtPropertyType:
+    uht_class: String
+    type_name: String
+    engine_class_name: String
+    is_container: Bool
+    constraints: Array<String>
+    source_file: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct UhtIncompatibleCombo:
+    specifier_a: String
+    specifier_b: Option<String>
+    message: String
+    category: String
+    severity: String
+    constraint: Option<String>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct ReplicationRules:
+    property_replication: PropertyReplication
+    rpc_validation: RpcValidation
+    lifetime_replication: LifetimeReplication
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct PropertyReplication:
+    allowed_types: Array<String>
+    disallowed_types: Array<String>
+    constraints: Array<String>
+
+impl Default for PropertyReplication:
+    pub fn default_() -> PropertyReplication:
+        PropertyReplication { allowed_types: Vec__new_(), disallowed_types: Vec__new_(), constraints: Vec__new_() }
+
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct RpcValidation:
+    naming_conventions: Map<String, String>
+    required_specifiers: Array<String>
+    constraints: Array<String>
+
+impl Default for RpcValidation:
+    pub fn default_() -> RpcValidation:
+        RpcValidation { naming_conventions: HashMap__new_(), required_specifiers: Vec__new_(), constraints: Vec__new_() }
+
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct LifetimeReplication:
+    required_includes: Array<String>
+    required_macros: Array<String>
+    function_signature: String
+
+impl Default for LifetimeReplication:
+    pub fn default_() -> LifetimeReplication:
+        LifetimeReplication { required_includes: Vec__new_(), required_macros: Vec__new_(), function_signature: String__new_() }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct AttributeCompatibilityMatrix:
+    property_attributes: Map<String, AttributeCompatibility>
+    function_attributes: Map<String, AttributeCompatibility>
+    class_attributes: Map<String, AttributeCompatibility>
+
+@derive(Debug, Clone, Default, serde__Serialize, serde__Deserialize)
+pub struct AttributeCompatibility:
+    compatible_with: Array<String>
+    incompatible_with: Array<String>
+    requires_one_of: Option<Array<String>>
+    implies: Option<Array<String>>
+
+impl Default for AttributeCompatibility:
+    pub fn default_() -> AttributeCompatibility:
+        AttributeCompatibility { compatible_with: Vec__new_(), incompatible_with: Vec__new_(), requires_one_of: none, implies: none }
+
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct KainSpecificRules:
+    actor_rules: Array<String>
+    struct_rules: Array<String>
+    enum_rules: Array<String>
+    component_rules: Array<String>
+    delegate_rules: Array<String>
+
+@derive(Debug, Default, Clone)
+pub struct UhtRules:
+    rules_by_category: Map<String, Array<UhtValidationRule>>
+    specifiers_by_type: Map<String, Set<String>>
+    all_specifier_names: Set<String>
+    property_constraints: Map<String, Array<String>>
+    container_types: Set<String>
+    incompatible: Array<UhtIncompatibleCombo>
+    kain_rules: Map<String, Array<UhtValidationRule>>
+    replication_rules: Option<ReplicationRules>
+    attribute_compatibility: Option<AttributeCompatibilityMatrix>
+    kain_specific_rules: Option<KainSpecificRules>
+    total_rules: usize
+    total_specifiers: usize
+
+impl Default for UhtRules:
+    pub fn default_() -> UhtRules:
+        UhtRules { rules_by_category: HashMap__new_(), specifiers_by_type: HashMap__new_(), all_specifier_names: HashSet__new_(), property_constraints: HashMap__new_(), container_types: HashSet__new_(), incompatible: Vec__new_(), kain_rules: HashMap__new_(), replication_rules: none, attribute_compatibility: none, kain_specific_rules: none, total_rules: 0, total_specifiers: 0 }
+
+
+impl UhtRules:
+    pub fn new_() -> UhtRules:
+        UhtRules__default_()
+
+    pub fn load(_self: &mut UhtRules, json_data: String) -> Result<(), String>:
+        let data: UhtRulesData = serde_json__from_str(json_data).map_err(fn(e): f"Failed to parse uht_rules.json: {e}")?
+        for rule in &data.validation_rules:
+            (*_self).rules_by_category.entry(rule.category.clone()).or_default().push(rule.clone())
+            ()
+        ()
+        for spec in &data.specifiers:
+            (*_self).specifiers_by_type.entry(spec.applies_to.clone()).or_default().insert(spec.name.clone())
+            ()
+            (*_self).all_specifier_names.insert(spec.name.to_lowercase())
+            ()
+        ()
+        for pt in &data.property_types:
+            if (!pt.constraints.is_empty()):
+                (*_self).property_constraints.insert(pt.type_name.clone(), pt.constraints.clone())
+                ()
+                ()
+                ()
+                ()
+            if pt.is_container:
+                (*_self).container_types.insert(pt.type_name.clone())
+                ()
+        ()
+        (*_self).incompatible = data.incompatible_combos
+        ()
+        (*_self).kain_rules = data.kain_rules
+        ()
+        (*_self).replication_rules = data.replication_rules
+        ()
+        (*_self).attribute_compatibility = data.attribute_compatibility_matrix
+        ()
+        (*_self).kain_specific_rules = data.kain_specific_rules
+        ()
+        (*_self).total_rules = data.validation_rules.len()
+        ()
+        (*_self).total_specifiers = data.specifiers.len()
+        ()
+        Result::Ok(())
+
+    pub fn is_valid_specifier(_self: &UhtRules, name: String, applies_to: String) -> Bool:
+        match (*_self).specifiers_by_type.get(applies_to):
+            Some(specs) => specs.contains(name)
+            _ => false
+
+    pub fn is_known_specifier(_self: &UhtRules, name: String) -> Bool:
+        (*_self).all_specifier_names.contains(&name.to_lowercase())
+
+    pub fn specifiers_for(_self: &UhtRules, applies_to: String) -> Array<String>:
+        match (*_self).specifiers_by_type.get(applies_to):
+            Some(specs) => specs.iter().map(fn(s): s.as_str()).collect()
+            _ => Vec__new_()
+
+    pub fn are_incompatible(_self: &UhtRules, spec_a: String, spec_b: String) -> Option<String>:
+        let a_lower = spec_a.to_lowercase()
+        let b_lower = spec_b.to_lowercase()
+        for combo in &(*_self).incompatible:
+            let ca = combo.specifier_a.to_lowercase()
+            let cb = combo.specifier_b.map(fn(s): s.to_lowercase()).unwrap_or_default()
+            if ((((ca == a_lower) && (cb == b_lower))) || (((ca == b_lower) && (cb == a_lower)))):
+                return Option::Some(&combo.message)
+        ()
+        none
+
+    pub fn incompatible_with(_self: &UhtRules, specifier: String) -> Array<(String, String)>:
+        let s_lower = specifier.to_lowercase()
+        let mut results = Vec__new_()
+        for combo in &(*_self).incompatible:
+            let ca = combo.specifier_a.to_lowercase()
+            let cb = combo.specifier_b.map(fn(s): s.to_lowercase()).unwrap_or_default()
+            if (ca == s_lower):
+                results.push((combo.specifier_b.unwrap_or(""), combo.message.as_str()))
+                ()
+            elif (cb == s_lower):
+                results.push((combo.specifier_a.as_str(), combo.message.as_str()))
+                ()
+        ()
+        results
+
+    pub fn is_container_type(_self: &UhtRules, type_name: String) -> Bool:
+        (*_self).container_types.contains(type_name)
+
+    pub fn property_type_constraints(_self: &UhtRules, type_name: String) -> &[String]:
+        (*_self).property_constraints.get(type_name).map(fn(v): v.as_slice()).unwrap_or(&[])
+
+    pub fn rules_for_kain_construct(_self: &UhtRules, construct: String) -> &[UhtValidationRule]:
+        (*_self).kain_rules.get(construct).map(fn(v): v.as_slice()).unwrap_or(&[])
+
+    pub fn search_rules(_self: &UhtRules, query: String) -> Array<&UhtValidationRule>:
+        let q_lower = query.to_lowercase()
+        let mut results = Vec__new_()
+        for rules in (*_self).rules_by_category.values():
+            for rule in rules:
+                if rule.message.to_lowercase().contains(&q_lower):
+                    results.push(rule)
+                    ()
+        ()
+        results
+
+    pub fn stats(_self: &UhtRules) -> (usize, usize):
+        ((*_self).total_rules, (*_self).total_specifiers)
+
+    pub fn is_loaded(_self: &UhtRules) -> Bool:
+        ((*_self).total_rules > 0)
+
+    pub fn is_replicable_type(_self: &UhtRules, type_name: String) -> Bool:
+        match &(*_self).replication_rules:
+            Some(rules) => rules.property_replication.allowed_types.iter().any(fn(t): t.eq_ignore_ascii_case(type_name))
+            _ => false
+
+    pub fn is_non_replicable_type(_self: &UhtRules, type_name: String) -> Bool:
+        match &(*_self).replication_rules:
+            Some(rules) => rules.property_replication.disallowed_types.iter().any(fn(t): t.eq_ignore_ascii_case(type_name))
+            _ => false
+
+    pub fn replication_constraints(_self: &UhtRules) -> &[String]:
+        match &(*_self).replication_rules:
+            Some(rules) => &rules.property_replication.constraints
+            _ => &[]
+
+    pub fn rpc_naming_convention(_self: &UhtRules, rpc_type: String) -> Option<String>:
+        (*_self).replication_rules.and_then(fn(r): r.rpc_validation.naming_conventions.get(rpc_type)).map(fn(s): s.as_str())
+
+    pub fn rpc_constraints(_self: &UhtRules) -> &[String]:
+        match &(*_self).replication_rules:
+            Some(rules) => &rules.rpc_validation.constraints
+            _ => &[]
+
+    pub fn lifetime_replication_signature(_self: &UhtRules) -> Option<String>:
+        (*_self).replication_rules.map(fn(r): r.lifetime_replication.function_signature.as_str())
+
+    pub fn replication_includes(_self: &UhtRules) -> &[String]:
+        match &(*_self).replication_rules:
+            Some(rules) => &rules.lifetime_replication.required_includes
+            _ => &[]
+
+    pub fn are_property_attributes_compatible(_self: &UhtRules, attr1: String, attr2: String) -> Bool:
+        match &(*_self).attribute_compatibility:
+            Some(matrix_) =>
+                match matrix_.property_attributes.get(attr1):
+                    Some(compat) => (!compat.incompatible_with.iter().any(fn(a): a.eq_ignore_ascii_case(attr2)))
+                    _ => true
+            _ => true
+
+    pub fn are_function_attributes_compatible(_self: &UhtRules, attr1: String, attr2: String) -> Bool:
+        match &(*_self).attribute_compatibility:
+            Some(matrix_) =>
+                match matrix_.function_attributes.get(attr1):
+                    Some(compat) => (!compat.incompatible_with.iter().any(fn(a): a.eq_ignore_ascii_case(attr2)))
+                    _ => true
+            _ => true
+
+    pub fn required_attributes_for(_self: &UhtRules, attr: String, attr_type: String) -> Option<&[String]>:
+        let matrix_ = (*_self).attribute_compatibility?
+        let compat = match attr_type:
+            "property" => matrix_.property_attributes.get(attr)?
+            "function" => matrix_.function_attributes.get(attr)?
+            "class" => matrix_.class_attributes.get(attr)?
+            _ => return none
+        compat.requires_one_of.map(fn(v): v.as_slice())
+
+    pub fn implied_attributes(_self: &UhtRules, attr: String, attr_type: String) -> Option<&[String]>:
+        let matrix_ = (*_self).attribute_compatibility?
+        let compat = match attr_type:
+            "property" => matrix_.property_attributes.get(attr)?
+            "function" => matrix_.function_attributes.get(attr)?
+            "class" => matrix_.class_attributes.get(attr)?
+            _ => return none
+        compat.implies.map(fn(v): v.as_slice())
+
+    pub fn kain_actor_rules(_self: &UhtRules) -> &[String]:
+        (*_self).kain_specific_rules.map(fn(r): r.actor_rules.as_slice()).unwrap_or(&[])
+
+    pub fn kain_struct_rules(_self: &UhtRules) -> &[String]:
+        (*_self).kain_specific_rules.map(fn(r): r.struct_rules.as_slice()).unwrap_or(&[])
+
+    pub fn kain_enum_rules(_self: &UhtRules) -> &[String]:
+        (*_self).kain_specific_rules.map(fn(r): r.enum_rules.as_slice()).unwrap_or(&[])
+
+    pub fn kain_component_rules(_self: &UhtRules) -> &[String]:
+        (*_self).kain_specific_rules.map(fn(r): r.component_rules.as_slice()).unwrap_or(&[])
+
+    pub fn kain_delegate_rules(_self: &UhtRules) -> &[String]:
+        (*_self).kain_specific_rules.map(fn(r): r.delegate_rules.as_slice()).unwrap_or(&[])
+
+

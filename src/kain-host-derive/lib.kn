@@ -1,0 +1,285 @@
+use proc_macro::TokenStream
+
+use quote::format_ident
+
+use quote::quote
+
+use syn::parse_macro_input
+
+use syn::parse_quote
+
+use syn::Attribute
+
+use syn::Data
+
+use syn::DataEnum
+
+use syn::DataStruct
+
+use syn::DeriveInput
+
+use syn::Expr
+
+use syn::ExprLit
+
+use syn::Fields
+
+use syn::Generics
+
+use syn::Lit
+
+use syn::Meta
+
+use syn::Path
+
+@proc_macro_derive(ToKainValue, attributes(kain))
+pub fn derive_to_kain_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream:
+    expand_to_kain_value(parse_macro_input!(input as syn::DeriveInput)).unwrap_or_else(Error__into_compile_error).into()
+
+@proc_macro_derive(FromKainValue, attributes(kain))
+pub fn derive_from_kain_value(input: proc_macro::TokenStream) -> proc_macro::TokenStream:
+    expand_from_kain_value(parse_macro_input!(input as syn::DeriveInput)).unwrap_or_else(Error__into_compile_error).into()
+
+@proc_macro_derive(KainReflect, attributes(kain))
+pub fn derive_kain_reflect(input: proc_macro::TokenStream) -> proc_macro::TokenStream:
+    expand_kain_reflect(parse_macro_input!(input as syn::DeriveInput)).unwrap_or_else(Error__into_compile_error).into()
+
+@derive(Debug, Default, Clone)
+struct KainAttrs:
+    rename: Option<String>
+    transparent: Bool
+    version: Option<String>
+
+impl Default for KainAttrs:
+    pub fn default_() -> KainAttrs:
+        KainAttrs { rename: none, transparent: false, version: none }
+
+
+fn expand_to_kain_value(input: syn::DeriveInput) -> Result<proc_macro2::TokenStream, Error>:
+    let attrs = parse_kain_attrs(&input.attrs)?
+    let ident = input.ident
+    let type_name = attrs.rename.clone().unwrap_or_else(fn(): ident.to_string())
+    let generics = add_trait_bound(input.generics, parse_quote!(kain_host__ToKainValue))
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl()
+    let body = match input.data:
+        syn__Data::Struct(data) => derive_struct_to_body(&ident, &type_name, &attrs, &data)?
+        syn__Data::Enum(data) =>
+            if attrs.transparent:
+                return Result::Err(Error__new_spanned(ident, "#[kain(transparent)] is only supported on structs"))
+            derive_enum_to_body(&type_name, &data)?
+        syn__Data::Union(data) => return Result::Err(Error__new_spanned(data.union_token, "ToKainValue cannot be derived for unions"))
+    Result::Ok(quote!())
+
+fn expand_from_kain_value(input: syn::DeriveInput) -> Result<proc_macro2::TokenStream, Error>:
+    let attrs = parse_kain_attrs(&input.attrs)?
+    let ident = input.ident
+    let type_name = attrs.rename.clone().unwrap_or_else(fn(): ident.to_string())
+    let generics = add_trait_bound(input.generics, parse_quote!(kain_host__FromKainValue))
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl()
+    let body = match input.data:
+        syn__Data::Struct(data) => derive_struct_from_body(&ident, &type_name, &attrs, &data)?
+        syn__Data::Enum(data) =>
+            if attrs.transparent:
+                return Result::Err(Error__new_spanned(ident, "#[kain(transparent)] is only supported on structs"))
+            derive_enum_from_body(&type_name, &data)?
+        syn__Data::Union(data) => return Result::Err(Error__new_spanned(data.union_token, "FromKainValue cannot be derived for unions"))
+    Result::Ok(quote!())
+
+fn expand_kain_reflect(input: syn::DeriveInput) -> Result<proc_macro2::TokenStream, Error>:
+    let attrs = parse_kain_attrs(&input.attrs)?
+    let ident = input.ident
+    let type_name = attrs.rename.clone().unwrap_or_else(fn(): ident.to_string())
+    let rust_name = ident.to_string()
+    let generics = add_trait_bound(input.generics, parse_quote!(kain_host__StaticTypeRef))
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl()
+    let schema = match input.data:
+        syn__Data::Struct(data) => derive_struct_schema(&ident, &type_name, &rust_name, &attrs, &data)?
+        syn__Data::Enum(data) =>
+            if attrs.transparent:
+                return Result::Err(Error__new_spanned(ident, "#[kain(transparent)] is only supported on structs"))
+            derive_enum_schema(&ident, &type_name, &rust_name, &attrs, &data)?
+        syn__Data::Union(data) => return Result::Err(Error__new_spanned(data.union_token, "KainReflect cannot be derived for unions"))
+    Result::Ok(quote!())
+
+fn derive_struct_to_body(ident: &syn::Ident, type_name: String, attrs: &KainAttrs, data: &syn::DataStruct) -> Result<proc_macro2::TokenStream, Error>:
+    if (*attrs).transparent:
+        return derive_transparent_struct_to_body(ident, data)
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            let field_entries = fields.named.iter().map(fn(field): none)
+            Result::Ok(quote!())
+        syn__Fields::Unit => Result::Ok(quote!())
+        syn__Fields::Unnamed(fields) => Result::Err(Error__new_spanned(&fields.unnamed, "ToKainValue derive does not support tuple structs unless #[kain(transparent)] is used"))
+
+fn derive_struct_from_body(ident: &syn::Ident, type_name: String, attrs: &KainAttrs, data: &syn::DataStruct) -> Result<proc_macro2::TokenStream, Error>:
+    if (*attrs).transparent:
+        return derive_transparent_struct_from_body(ident, data)
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            let field_extracts = fields.named.iter().map(fn(field): none)
+            Result::Ok(quote!())
+        syn__Fields::Unit => Result::Ok(quote!())
+        syn__Fields::Unnamed(fields) => Result::Err(Error__new_spanned(&fields.unnamed, "FromKainValue derive does not support tuple structs unless #[kain(transparent)] is used"))
+
+fn derive_enum_to_body(type_name: String, data: &syn::DataEnum) -> Result<proc_macro2::TokenStream, Error>:
+    let arms = (*data).variants.iter().map(fn(variant) -> Result<proc_macro2::TokenStream, Error>: none).collect()?
+    Result::Ok(quote!())
+
+fn derive_enum_from_body(type_name: String, data: &syn::DataEnum) -> Result<proc_macro2::TokenStream, Error>:
+    let arms = (*data).variants.iter().map(fn(variant) -> Result<proc_macro2::TokenStream, Error>: none).collect()?
+    Result::Ok(quote!())
+
+fn derive_struct_schema(_ident: &syn::Ident, type_name: String, rust_name: String, attrs: &KainAttrs, data: &syn::DataStruct) -> Result<proc_macro2::TokenStream, Error>:
+    if (*attrs).transparent:
+        let field_ty = transparent_field_ty(data)?
+        let inner = quote!()
+        return Result::Ok(apply_schema_attrs(attrs, quote!()))
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            let field_schemas = fields.named.iter().map(fn(field): derive_named_field_schema(field)).collect()?
+            Result::Ok(apply_schema_attrs(attrs, quote!()))
+        syn__Fields::Unit => Result::Ok(apply_schema_attrs(attrs, quote!()))
+        syn__Fields::Unnamed(fields) => Result::Err(Error__new_spanned(&fields.unnamed, "KainReflect derive does not support tuple structs unless #[kain(transparent)] is used"))
+
+fn derive_enum_schema(_ident: &syn::Ident, type_name: String, rust_name: String, attrs: &KainAttrs, data: &syn::DataEnum) -> Result<proc_macro2::TokenStream, Error>:
+    let variants = (*data).variants.iter().map(fn(variant): derive_variant_schema(variant)).collect()?
+    Result::Ok(apply_schema_attrs(attrs, quote!()))
+
+fn derive_variant_schema(variant: &syn::Variant) -> Result<proc_macro2::TokenStream, Error>:
+    let attrs = parse_kain_attrs(&(*variant).attrs)?
+    let variant_ident = &(*variant).ident
+    let variant_name = attrs.rename.clone().unwrap_or_else(fn(): variant_ident.to_string())
+    let (shape, fields) = match &(*variant).fields:
+        syn__Fields::Unit => (quote!(kain_host__reflect__VariantShape__Unit), Vec__new_())
+        syn__Fields::Unnamed(fields) =>
+            let fields = fields.unnamed.iter().enumerate().map(fn(__kain_closure_arg1): derive_indexed_field_schema(__kain_closure_arg1.__kain_tuple_0, __kain_closure_arg1.__kain_tuple_1)).collect()?
+            (quote!(kain_host__reflect__VariantShape__Tuple), fields)
+        syn__Fields::Named(fields) =>
+            let fields = fields.named.iter().map(fn(field): derive_named_field_schema(field)).collect()?
+            (quote!(kain_host__reflect__VariantShape__Named), fields)
+    Result::Ok(apply_variant_attrs(&attrs, quote!()))
+
+fn derive_named_field_schema(field: &syn::Field) -> Result<proc_macro2::TokenStream, Error>:
+    let field_ident = (*field).ident.expect("named field")
+    let attrs = parse_kain_attrs(&(*field).attrs)?
+    let field_name = attrs.rename.clone().unwrap_or_else(fn(): field_ident.to_string())
+    let field_ty = &(*field).ty
+    let rust_name = field_ident.to_string()
+    Result::Ok(apply_field_attrs(&attrs, (rust_name != field_name), &rust_name, quote!()))
+
+fn derive_indexed_field_schema(index: usize, field: &syn::Field) -> Result<proc_macro2::TokenStream, Error>:
+    let attrs = parse_kain_attrs(&(*field).attrs)?
+    let default_name = f"field_{index}"
+    let field_name = attrs.rename.clone().unwrap_or(default_name.clone())
+    let field_ty = &(*field).ty
+    Result::Ok(apply_field_attrs(&attrs, (default_name != field_name), &default_name, quote!()))
+
+fn derive_transparent_struct_to_body(ident: &syn::Ident, data: &syn::DataStruct) -> Result<proc_macro2::TokenStream, Error>:
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            if (fields.named.len() != 1):
+                return Result::Err(Error__new_spanned(ident, "#[kain(transparent)] requires exactly one field"))
+            let field_ident = fields.named.first().and_then(fn(field): field.ident).unwrap()
+            Result::Ok(quote!())
+        syn__Fields::Unnamed(fields) =>
+            if (fields.unnamed.len() != 1):
+                return Result::Err(Error__new_spanned(ident, "#[kain(transparent)] requires exactly one field"))
+            Result::Ok(quote!())
+        syn__Fields::Unit => Result::Err(Error__new_spanned(ident, "#[kain(transparent)] cannot be used on unit structs"))
+
+fn derive_transparent_struct_from_body(ident: &syn::Ident, data: &syn::DataStruct) -> Result<proc_macro2::TokenStream, Error>:
+    let field_ty = transparent_field_ty(data)?
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            let field_ident = fields.named.first().and_then(fn(field): field.ident).unwrap()
+            Result::Ok(quote!())
+        syn__Fields::Unnamed(_) => Result::Ok(quote!())
+        syn__Fields::Unit => Result::Err(Error__new_spanned(ident, "#[kain(transparent)] cannot be used on unit structs"))
+
+fn transparent_field_ty(data: &syn::DataStruct) -> Result<&syn::Type, Error>:
+    match &(*data).fields:
+        syn__Fields::Named(fields) =>
+            if (fields.named.len() != 1):
+                return Result::Err(Error__new_spanned(&fields.named, "#[kain(transparent)] requires exactly one field"))
+            Result::Ok(&fields.named.first().unwrap().ty)
+        syn__Fields::Unnamed(fields) =>
+            if (fields.unnamed.len() != 1):
+                return Result::Err(Error__new_spanned(&fields.unnamed, "#[kain(transparent)] requires exactly one field"))
+            Result::Ok(&fields.unnamed.first().unwrap().ty)
+        syn__Fields::Unit => Result::Err(Error__new_spanned(&(*data).fields, "#[kain(transparent)] cannot be used on unit structs"))
+
+fn parse_kain_attrs(attrs: &[syn::Attribute]) -> Result<KainAttrs, Error>:
+    let mut out_ = KainAttrs__default_()
+    for attr in attrs:
+        if (!attr.path().is_ident("kain")):
+            continue
+        match &attr.meta:
+            syn__Meta::List(_) =>
+                attr.parse_nested_meta(fn(meta): none)?
+                ()
+            _ => return Result::Err(Error__new_spanned(attr, "#[kain(...)] expects a list of options"))
+    ()
+    Result::Ok(out_)
+
+fn parse_string_expr(expr: &syn::Expr) -> Result<String, Error>:
+    match expr:
+        syn__Expr::Lit(syn::ExprLit { lit: syn__Lit::Str(value) }) => Result::Ok(value.value())
+        _ => Result::Err(Error__new_spanned(expr, "expected a string literal"))
+
+fn add_trait_bound(generics: syn::Generics, bound: syn::Path) -> syn::Generics:
+    let type_params = generics.type_params().map(fn(param): param.ident.clone()).collect()
+    let where_clause = generics.make_where_clause()
+    for ident in type_params:
+        where_clause.predicates.push(parse_quote!())
+        ()
+    ()
+    generics
+
+fn apply_schema_attrs(attrs: &KainAttrs, base: proc_macro2::TokenStream) -> proc_macro2::TokenStream:
+    let mut out_ = base
+    match &(*attrs).version:
+        Some(version) =>
+            out_ = quote!()
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    out_
+
+fn apply_variant_attrs(attrs: &KainAttrs, base: proc_macro2::TokenStream) -> proc_macro2::TokenStream:
+    let mut out_ = base
+    match &(*attrs).version:
+        Some(version) =>
+            out_ = quote!()
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    out_
+
+fn apply_field_attrs(attrs: &KainAttrs, renamed: Bool, rust_name: String, base: proc_macro2::TokenStream) -> proc_macro2::TokenStream:
+    let mut out_ = base
+    if renamed:
+        out_ = quote!()
+        ()
+        ()
+        ()
+        ()
+    match &(*attrs).version:
+        Some(version) =>
+            out_ = quote!()
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    out_
+

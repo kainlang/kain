@@ -1,0 +1,66 @@
+use std::io::Cursor
+
+use unreal_asset::types::PackageIndex
+
+use unreal_asset::Asset
+
+use unreal_asset::Import
+
+@doc(doc = " Stateless utility for building and deduplicating imports in an `Asset`.")
+@doc(doc = "")
+@doc(doc = " All methods are associated functions taking `&mut Asset` — no instance state")
+@doc(doc = " needed, keeping the API composable.")
+pub struct ImportBuilder:
+    __selfhost_placeholder: Bool = false
+
+impl ImportBuilder:
+    pub fn find_import_by_name(asset: &unreal_asset::Asset<std::io::Cursor<Array<u8>>>, name: String) -> Option<unreal_asset::types::PackageIndex>:
+        for selfhost_for_item in (*asset).imports.iter().enumerate():
+            let (i, imp) = selfhost_for_item
+            let matches = imp.object_name.get_content(fn(n): (n == name))
+            if matches:
+                return Option::Some(PackageIndex__new_((-(((i + 1)) as i32))))
+        ()
+        none
+
+    pub fn get_or_add_import(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, class_package: String, class_name: String, outer: unreal_asset::types::PackageIndex, object_name: String) -> unreal_asset::types::PackageIndex:
+        match ImportBuilder__find_import_by_name(asset, object_name):
+            Some(existing) => return existing
+            _ =>
+                ()
+                ()
+        let cp = asset.add_fname(class_package)
+        let cn = asset.add_fname(class_name)
+        let on = asset.add_fname(object_name)
+        (*asset).imports.push(unreal_asset::Import { class_package: cp, class_name: cn, outer_index: outer, object_name: on, optional: false })
+        ()
+        PackageIndex__new_((-((*asset).imports.len() as i32)))
+
+    pub fn get_or_add_package(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, package_path: String) -> unreal_asset::types::PackageIndex:
+        ImportBuilder__get_or_add_import(asset, "/Script/CoreUObject", "Package", PackageIndex__new_(0), package_path)
+
+    pub fn get_or_add_class(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, class_name: String, outer_package: unreal_asset::types::PackageIndex) -> unreal_asset::types::PackageIndex:
+        ImportBuilder__get_or_add_import(asset, "/Script/CoreUObject", "Class", outer_package, class_name)
+
+    pub fn parse_class_path(path: String) -> (String, String):
+        match path.rfind("."):
+            Some(dot_pos) => (path[..dot_pos].to_string(), path[(dot_pos + 1)..].to_string())
+            _ => (("/Script/Engine").to_string(), path.to_string())
+
+    pub fn resolve_object_import(asset: &mut unreal_asset::Asset<std::io::Cursor<Array<u8>>>, path: String) -> unreal_asset::types::PackageIndex:
+        if path.is_empty():
+            return PackageIndex__new_(0)
+        let (pkg_path, obj_name) = ImportBuilder__parse_class_path(path)
+        match ImportBuilder__find_import_by_name(asset, &obj_name):
+            Some(existing) => return existing
+            _ =>
+                ()
+                ()
+        let pkg_import = ImportBuilder__get_or_add_package(asset, &pkg_path)
+        let (class_pkg, class_name) = if pkg_path.starts_with("/Script/"):
+            ("/Script/CoreUObject", "Class")
+        else:
+            ("/Script/CoreUObject", "Object")
+        ImportBuilder__get_or_add_import(asset, class_pkg, class_name, pkg_import, &obj_name)
+
+

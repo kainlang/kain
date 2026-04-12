@@ -1,0 +1,390 @@
+use std::collections::HashMap
+
+use std::fs
+
+use std::path::Path
+
+use glam::Vec4Swizzles
+
+use crate::combiner::CombinerState
+
+use crate::host_documents::ActorAnimationDefinition
+
+use crate::host_documents::Fast3dGameplayStateDocument
+
+use crate::host_documents::Fast3dShaderOverrideDocument
+
+use crate::math::camera_forward
+
+use crate::math::matrix_from_rows
+
+use crate::math::orbit_camera_position
+
+use crate::math::vec2_from_array
+
+use crate::math::vec3_from_array
+
+use crate::math::vec4_from_rgba8
+
+use crate::math::Float4
+
+use crate::math::Matrix4
+
+use crate::model::CombineMode
+
+use crate::model::DisplayListCommand
+
+use crate::model::DisplayListDefinition
+
+use crate::model::Fast3dSmokeManifest
+
+use crate::model::Fast3dVertex
+
+use crate::model::LightGroupDefinition
+
+use crate::model::SegmentBindingKind
+
+use crate::rasterizer::Framebuffer
+
+use crate::rasterizer::RenderFrame
+
+use crate::rasterizer::RenderStats
+
+use crate::rasterizer::ScreenVertex
+
+use crate::texture::build_texture_catalog
+
+use crate::texture::TextureImage
+
+@doc(doc = " First-person or free-fly camera pose for direct injection via `render_frame_with_pose`.")
+@doc(doc = " Decouples the camera from the manifest's orbit model entirely.")
+@derive(Clone, Copy, Debug)
+pub struct FreeCameraPose:
+    position: [f32; 3]
+    yaw_radians: f32
+    pitch_radians: f32
+    fov_y_degrees: f32
+    near_plane: f32
+    far_plane: f32
+
+const FAST3D_VERTEX_CACHE_CAPACITY: usize = 64
+
+@derive(Clone, Copy, Debug)
+pub struct OrbitControls:
+    yaw_radians: f32
+    pitch_radians: f32
+    zoom_delta: f32
+
+impl Default for OrbitControls:
+    fn default_() -> OrbitControls:
+        OrbitControls { yaw_radians: 0, pitch_radians: 0.15, zoom_delta: 0 }
+
+
+@derive(Clone, Debug)
+pub struct Fast3dRuntime:
+    manifest: Fast3dSmokeManifest
+    display_lists_by_id: Map<String, DisplayListDefinition>
+    textures_by_id: Map<String, TextureImage>
+    light_groups_by_id: Map<String, LightGroupState>
+    texture_segments: Map<u8, String>
+    display_list_segments: Map<u8, String>
+    actor_override_transforms: Map<String, Matrix4>
+    display_list_material_overrides: Map<String, DisplayListMaterialOverride>
+
+impl Fast3dRuntime:
+    pub fn load_from_path(path: &std::path::Path) -> Result<Fast3dRuntime, Box<impl Error>>:
+        let manifest_text = std__fs__read_to_string(path)?
+        let manifest: Fast3dSmokeManifest = serde_json__from_str(&manifest_text)?
+        let display_lists_by_id = manifest.display_lists.iter().map(fn(display_list): (display_list.id.clone(), display_list.clone())).collect()
+        let textures_by_id = texture__build_texture_catalog(&manifest.textures)?
+        let light_groups_by_id = manifest.light_groups.iter().map(fn(light_group): (light_group.id.clone(), LightGroupState__from_definition(light_group))).collect()
+        let mut texture_segments = HashMap__new_()
+        let mut display_list_segments = HashMap__new_()
+        for binding in &manifest.segment_bindings:
+            match binding.kind:
+                SegmentBindingKind::Texture =>
+                    texture_segments.insert(binding.segment_id, binding.target_id.clone())
+                    ()
+                SegmentBindingKind::DisplayList =>
+                    display_list_segments.insert(binding.segment_id, binding.target_id.clone())
+                    ()
+        ()
+        Result::Ok(Fast3dRuntime { manifest: manifest, display_lists_by_id: display_lists_by_id, textures_by_id: textures_by_id, light_groups_by_id: light_groups_by_id, texture_segments: texture_segments, display_list_segments: display_list_segments, actor_override_transforms: HashMap__new_(), display_list_material_overrides: HashMap__new_() })
+
+    pub fn set_actor_transform(_self: &mut Fast3dRuntime, display_list_id: String, transform: [[f32; 4]; 4]):
+        (*_self).actor_override_transforms.insert(display_list_id.to_string(), math__matrix_from_rows(transform))
+        ()
+
+    pub fn clear_actor_transform(_self: &mut Fast3dRuntime, display_list_id: String):
+        (*_self).actor_override_transforms.remove(display_list_id)
+        ()
+
+    pub fn clear_actor_transforms(_self: &mut Fast3dRuntime):
+        (*_self).actor_override_transforms.clear()
+        ()
+
+    pub fn apply_gameplay_state(_self: &mut Fast3dRuntime, time_seconds: f32, gameplay: &Fast3dGameplayStateDocument):
+        (*_self).clear_actor_transforms()
+        ()
+        for binding in &(*gameplay).actor_bindings:
+            let transform = match binding.animation:
+                ActorAnimationDefinition::None => Matrix4__IDENTITY
+                ActorAnimationDefinition::SpinY { degrees_per_second: degrees_per_second } => Matrix4__from_rotation_y(((degrees_per_second * time_seconds)).to_radians())
+                ActorAnimationDefinition::BobY { amplitude: amplitude, cycles_per_second: cycles_per_second, base_height: base_height } =>
+                    let offset = (base_height + (amplitude * (((time_seconds * cycles_per_second) * std__f32__consts__TAU)).sin()))
+                    Matrix4__from_translation(Vec3__new_(0, offset, 0))
+            (*_self).actor_override_transforms.insert(binding.display_list_id.clone(), transform)
+            ()
+
+    pub fn apply_shader_overrides(_self: &mut Fast3dRuntime, overrides: &Fast3dShaderOverrideDocument):
+        (*_self).display_list_material_overrides.clear()
+        ()
+        for override_entry in &(*overrides).display_list_overrides:
+            (*_self).display_list_material_overrides.insert(override_entry.display_list_id.clone(), DisplayListMaterialOverride { combine_mode: override_entry.combine_mode, primitive_color: override_entry.primitive_color.map(math__vec4_from_rgba8), env_color: override_entry.env_color.map(math__vec4_from_rgba8) })
+            ()
+
+    pub fn render_frame_with_pose(_self: &Fast3dRuntime, pose: &FreeCameraPose, combine_override: Option<CombineMode>) -> Result<RenderFrame, String>:
+        let resolution = (*_self).manifest.resolution
+        let mut framebuffer = Framebuffer__new_(resolution.width, resolution.height, (*_self).manifest.clear_color)
+        let mut stats = RenderStats__default_()
+        let view_projection = build_free_camera_view_projection(pose, (resolution.width as f32 / resolution.height as f32))
+        let mut execution = ExecutionState__new_()
+        (*_self).execute_display_list(&(*_self).manifest.root_display_list, &view_projection, combine_override, &mut execution, &mut framebuffer, &mut stats)?
+        ()
+        Result::Ok(framebuffer.finish(stats))
+
+    pub fn render_frame(_self: &Fast3dRuntime, time_seconds: f32, orbit_controls: &OrbitControls, combine_override: Option<CombineMode>) -> Result<RenderFrame, String>:
+        let resolution = (*_self).manifest.resolution
+        let mut framebuffer = Framebuffer__new_(resolution.width, resolution.height, (*_self).manifest.clear_color)
+        let mut stats = RenderStats__default_()
+        let view_projection = (*_self).build_view_projection(time_seconds, orbit_controls)
+        let mut execution = ExecutionState__new_()
+        (*_self).execute_display_list(&(*_self).manifest.root_display_list, &view_projection, combine_override, &mut execution, &mut framebuffer, &mut stats)?
+        ()
+        Result::Ok(framebuffer.finish(stats))
+
+    fn build_view_projection(_self: &Fast3dRuntime, time_seconds: f32, orbit_controls: &OrbitControls) -> Matrix4:
+        let camera = (*_self).manifest.camera
+        let yaw = ((camera.initial_yaw_radians + (time_seconds * (*_self).manifest.auto_rotation_radians_per_second)) + (*orbit_controls).yaw_radians)
+        let radius = ((camera.orbit_radius + (*orbit_controls).zoom_delta)).max(1.25)
+        let target = math__vec3_from_array(camera.target)
+        let position = math__orbit_camera_position(target, radius, camera.orbit_height, yaw, (camera.initial_pitch_radians + (*orbit_controls).pitch_radians))
+        let view = Matrix4__look_at_rh(position, target, glam__Vec3__Y)
+        let aspect_ratio = ((*_self).manifest.resolution.width as f32 / (*_self).manifest.resolution.height as f32)
+        let projection = Matrix4__perspective_rh(camera.fov_y_degrees.to_radians(), aspect_ratio, camera.near_plane, camera.far_plane)
+        (projection * view)
+
+    fn execute_display_list(_self: &Fast3dRuntime, display_list_id: String, view_projection: &Matrix4, combine_override: Option<CombineMode>, execution: &mut ExecutionState, framebuffer: &mut Framebuffer, stats: &mut RenderStats) -> Result<(), String>:
+        let display_list = (*_self).display_lists_by_id.get(display_list_id).ok_or_else(fn(): f"missing display list `{display_list_id}`")?
+        let saved_material_state = execution.save_material_state()
+        match (*_self).display_list_material_overrides.get(display_list_id):
+            Some(material_override) =>
+                material_override.apply(execution)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for command in &display_list.commands:
+            match command:
+                DisplayListCommand::PushMatrix { matrix_: matrix_ } =>
+                    let local = math__matrix_from_rows((*matrix_))
+                    let parent = (*(*execution).matrix_stack.last().ok_or("matrix stack unexpectedly empty")?)
+                    (*execution).matrix_stack.push((parent * local))
+                    ()
+                DisplayListCommand::PopMatrix =>
+                    if ((*execution).matrix_stack.len() > 1):
+                        (*execution).matrix_stack.pop()
+                        ()
+                DisplayListCommand::LoadVertices { slot: slot, vertices: vertices } =>
+                    execution.load_vertices((*slot), vertices)?
+                    ()
+                DisplayListCommand::DrawTriangles { triangles: triangles } =>
+                    for triangle in triangles:
+                        let loaded = triangle.map(fn(index): (*execution).vertex_cache.get(index as usize).and_then(fn(vertex_): (*vertex_)).ok_or_else(fn(): f"vertex slot {index} is not loaded"))
+                        let [left, middle, right] = loaded
+                        let left = left?
+                        let middle = middle?
+                        let right = right?
+                        let current_model = (*(*execution).matrix_stack.last().ok_or("matrix stack unexpectedly empty")?)
+                        let screen_vertices = [(*_self).project_vertex(left, (*execution).current_light_group, current_model, view_projection, framebuffer)?, (*_self).project_vertex(middle, (*execution).current_light_group, current_model, view_projection, framebuffer)?, (*_self).project_vertex(right, (*execution).current_light_group, current_model, view_projection, framebuffer)?]
+                        let texture = (*execution).bound_texture.and_then(fn(texture_id): (*_self).textures_by_id.get(texture_id))
+                        let combine_mode = combine_override.unwrap_or((*execution).combine_mode)
+                        framebuffer.draw_triangle(screen_vertices, texture, CombinerState { mode: combine_mode, primitive_color: (*execution).primitive_color, env_color: (*execution).env_color }, stats)
+                        ()
+                DisplayListCommand::BindTexture { texture_id: texture_id } =>
+                    if (!(*_self).textures_by_id.contains_key(texture_id)):
+                        return Result::Err(f"missing texture `{texture_id}`")
+                    (*execution).bound_texture = Option::Some(texture_id.clone())
+                    ()
+                DisplayListCommand::BindTextureSegment { segment_id: segment_id } =>
+                    let texture_id = (*_self).texture_segments.get(segment_id).ok_or_else(fn(): f"missing texture segment {segment_id}")?
+                    (*execution).bound_texture = Option::Some(texture_id.clone())
+                    ()
+                DisplayListCommand::CallDisplayList { display_list_id: display_list_id } =>
+                    match (*_self).actor_override_transforms.get(display_list_id):
+                        Some(override_matrix) =>
+                            let parent = (*(*execution).matrix_stack.last().ok_or("matrix stack unexpectedly empty")?)
+                            (*execution).matrix_stack.push((parent * override_matrix))
+                            ()
+                            (*_self).execute_display_list(display_list_id, view_projection, combine_override, execution, framebuffer, stats)?
+                            ()
+                            (*execution).matrix_stack.pop()
+                            ()
+                        _ =>
+                            (*_self).execute_display_list(display_list_id, view_projection, combine_override, execution, framebuffer, stats)?
+                            ()
+                DisplayListCommand::CallDisplayListSegment { segment_id: segment_id } =>
+                    let target = ((*_self).display_list_segments.get(segment_id).ok_or_else(fn(): f"missing display-list segment {segment_id}")?).clone()
+                    (*_self).execute_display_list(&target, view_projection, combine_override, execution, framebuffer, stats)?
+                    ()
+                DisplayListCommand::SetCombineMode { mode: mode } =>
+                    (*execution).combine_mode = (*mode)
+                    ()
+                DisplayListCommand::SetPrimitiveColor { color: color } =>
+                    (*execution).primitive_color = math__vec4_from_rgba8((*color))
+                    ()
+                DisplayListCommand::SetEnvColor { color: color } =>
+                    (*execution).env_color = math__vec4_from_rgba8((*color))
+                    ()
+                DisplayListCommand::SetLightGroup { light_group_id: light_group_id } =>
+                    let light_group = (*_self).light_groups_by_id.get(light_group_id).copied().ok_or_else(fn(): f"missing light group `{light_group_id}`")?
+                    (*execution).current_light_group = Option::Some(light_group)
+                    ()
+        ()
+        execution.restore_material_state(saved_material_state)
+        ()
+        Result::Ok(())
+
+    fn project_vertex(_self: &Fast3dRuntime, vertex_: LoadedVertex, current_light_group: Option<LightGroupState>, model_matrix: Matrix4, view_projection: &Matrix4, framebuffer: &Framebuffer) -> Result<ScreenVertex, String>:
+        let world = (model_matrix * vertex_.position.extend(1))
+        let clip = ((*view_projection) * world)
+        if (clip.w.abs() <= f32__EPSILON):
+            return Result::Err(("encountered clip-space vertex with zero w").to_string())
+        let ndc = (clip.xyz() / clip.w)
+        let x = ((((ndc.x * 0.5) + 0.5)) * (*framebuffer).width as f32)
+        let y = (((1 - (((ndc.y * 0.5) + 0.5)))) * (*framebuffer).height as f32)
+        let inv_w = (1 / clip.w)
+        let color = vertex_.normal.zip(current_light_group).map(fn(__kain_closure_arg0): none).unwrap_or(vertex_.base_color)
+        Result::Ok(ScreenVertex { x: x, y: y, depth: ndc.z, inv_w: inv_w, uv_over_w: (vertex_.uv * inv_w), color_over_w: (color * inv_w) })
+
+
+@derive(Clone, Copy, Debug)
+struct LoadedVertex:
+    position: glam::Vec3
+    uv: glam::Vec2
+    base_color: Float4
+    normal: Option<glam::Vec3>
+
+@derive(Clone, Debug)
+struct ExecutionState:
+    matrix_stack: Array<Matrix4>
+    vertex_cache: Array<Option<LoadedVertex>>
+    bound_texture: Option<String>
+    combine_mode: CombineMode
+    primitive_color: Float4
+    env_color: Float4
+    current_light_group: Option<LightGroupState>
+
+impl ExecutionState:
+    fn new_() -> ExecutionState:
+        ExecutionState { matrix_stack: [Matrix4__IDENTITY], vertex_cache: [], bound_texture: none, combine_mode: CombineMode__TextureVertex, primitive_color: math__vec4_from_rgba8([255, 255, 255, 255]), env_color: math__vec4_from_rgba8([255, 255, 255, 255]), current_light_group: none }
+
+    fn load_vertices(_self: &mut ExecutionState, slot: u16, vertices: &[Fast3dVertex]) -> Result<(), String>:
+        let start = slot as usize
+        let end = (start + vertices.len())
+        if (end > (*_self).vertex_cache.len()):
+            return Result::Err(f"vertex load [{start}..{end}) exceeds cache capacity {(*_self).vertex_cache.len()}")
+        for selfhost_for_item in vertices.iter().enumerate():
+            let (index, vertex_) = selfhost_for_item
+            (*_self).vertex_cache[(start + index)] = Option::Some(LoadedVertex { position: math__vec3_from_array(vertex_.position), uv: math__vec2_from_array(vertex_.uv), base_color: math__vec4_from_rgba8(vertex_.color), normal: vertex_.normal.map(math__vec3_from_array) })
+            ()
+        ()
+        Result::Ok(())
+
+    fn save_material_state(_self: &ExecutionState) -> SavedMaterialState:
+        SavedMaterialState { combine_mode: (*_self).combine_mode, primitive_color: (*_self).primitive_color, env_color: (*_self).env_color }
+
+    fn restore_material_state(_self: &mut ExecutionState, saved: SavedMaterialState):
+        (*_self).combine_mode = saved.combine_mode
+        ()
+        (*_self).primitive_color = saved.primitive_color
+        ()
+        (*_self).env_color = saved.env_color
+        ()
+
+
+@derive(Clone, Copy, Debug)
+struct SavedMaterialState:
+    combine_mode: CombineMode
+    primitive_color: Float4
+    env_color: Float4
+
+@derive(Clone, Copy, Debug, Default)
+struct DisplayListMaterialOverride:
+    combine_mode: Option<CombineMode>
+    primitive_color: Option<Float4>
+    env_color: Option<Float4>
+
+impl Default for DisplayListMaterialOverride:
+    pub fn default_() -> DisplayListMaterialOverride:
+        DisplayListMaterialOverride { combine_mode: none, primitive_color: none, env_color: none }
+
+
+impl DisplayListMaterialOverride:
+    fn apply(_self: &DisplayListMaterialOverride, execution: &mut ExecutionState):
+        match (*_self).combine_mode:
+            Some(combine_mode) =>
+                (*execution).combine_mode = combine_mode
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).primitive_color:
+            Some(primitive_color) =>
+                (*execution).primitive_color = primitive_color
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match (*_self).env_color:
+            Some(env_color) =>
+                (*execution).env_color = env_color
+                ()
+            _ => ()
+
+
+@derive(Clone, Copy, Debug)
+struct LightGroupState:
+    ambient_color: Float4
+    diffuse_color: Float4
+    direction: glam::Vec3
+
+impl LightGroupState:
+    fn from_definition(definition: &LightGroupDefinition) -> LightGroupState:
+        LightGroupState { ambient_color: math__vec4_from_rgba8((*definition).ambient_color), diffuse_color: math__vec4_from_rgba8((*definition).diffuse_color), direction: math__vec3_from_array((*definition).direction).normalize_or_zero() }
+
+    fn shade_world_normal(_self: &LightGroupState, normal: glam::Vec3, alpha: f32) -> Float4:
+        let normal = normal.normalize_or_zero()
+        let diffuse_strength = normal.dot((*_self).direction).max(0)
+        let shaded_rgb = ((*_self).ambient_color.truncate() + ((*_self).diffuse_color.truncate() * diffuse_strength))
+        Vec4__new_(shaded_rgb.x.clamp(0, 1), shaded_rgb.y.clamp(0, 1), shaded_rgb.z.clamp(0, 1), alpha)
+
+
+@doc(doc = " Build a view-projection matrix from a free-fly camera pose.")
+@doc(doc = " Uses yaw/pitch to compute a look-at forward vector; does not orbit around a target.")
+fn build_free_camera_view_projection(pose: &FreeCameraPose, aspect_ratio: f32) -> Matrix4:
+    let position = math__vec3_from_array((*pose).position)
+    let forward = math__camera_forward((*pose).yaw_radians, (*pose).pitch_radians)
+    let view = Matrix4__look_at_rh(position, (position + forward), glam__Vec3__Y)
+    let projection = Matrix4__perspective_rh((*pose).fov_y_degrees.to_radians(), aspect_ratio, (*pose).near_plane, (*pose).far_plane)
+    (projection * view)
+

@@ -1,0 +1,55 @@
+use kain_core::ast::AbilityTaskDef
+
+use kain_core::ast::TaskDelegateDef
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+@doc(doc = " Intermediate representation of an ability task")
+@derive(Debug, Clone)
+pub struct AbilityTaskIR:
+    name: String
+    delegates: Array<DelegateIR>
+    state_fields: Array<StateFieldIR>
+    activate_body: Option<String>
+    on_destroy_body: Option<String>
+    custom_methods: Array<MethodIR>
+
+@doc(doc = " Delegate IR")
+@derive(Debug, Clone)
+pub struct DelegateIR:
+    name: String
+    delegate_type: DelegateTypeIR
+
+pub enum DelegateTypeIR:
+    AttributeChange
+    TaskCancelled
+    TargetDataReady
+    GameplayEvent
+    Custom(String)
+
+@doc(doc = " State field IR")
+@derive(Debug, Clone)
+pub struct StateFieldIR:
+    name: String
+    field_type: String
+
+@doc(doc = " Method IR")
+@derive(Debug, Clone)
+pub struct MethodIR:
+    name: String
+    body: String
+
+impl AbilityTaskIR:
+    pub fn from_ast(task: &kain_core::ast::AbilityTaskDef) -> Result<AbilityTaskIR, KainError>:
+        if (!(*task).attributes.iter().any(fn(a): (a.name == "ability_task"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*task).name}' must have @ability_task attribute", (*task).span))
+        let delegates = (*task).delegates.iter().map(fn(d): none).collect()
+        let state_fields = (*task).state_fields.iter().map(fn(f): StateFieldIR { name: f.name.clone(), field_type: f.ty }).collect()
+        let activate_body = (*task).activate_method.map(fn(_): ("// TODO: Implement activate codegen").to_string())
+        let on_destroy_body = (*task).on_destroy_method.map(fn(_): ("// TODO: Implement on_destroy codegen").to_string())
+        let custom_methods = (*task).custom_methods.iter().map(fn(m): MethodIR { name: m.name.clone(), body: ("// TODO: Implement method codegen").to_string() }).collect()
+        Result::Ok(AbilityTaskIR { name: (*task).name.clone(), delegates: delegates, state_fields: state_fields, activate_body: activate_body, on_destroy_body: on_destroy_body, custom_methods: custom_methods })
+
+

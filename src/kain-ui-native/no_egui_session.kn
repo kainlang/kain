@@ -1,0 +1,211 @@
+use std::time::SystemTime
+
+use std::time::UNIX_EPOCH
+
+use serde::Serialize
+
+use crate::no_egui::KainUiNativeBackendPlan
+
+use kain_ui::UiHostBackendKind
+
+use kain_ui::UiRenderEngineKind
+
+use kain_ui::UiRuntimeBundle
+
+use kain_ui::UiSurface
+
+use kain_ui::UiSurfaceCompositionMode
+
+use kain_ui::UiSurfaceKind
+
+@derive(Clone, Debug, serde__Serialize)
+pub struct QtQuickSessionManifest:
+    generated_epoch_ms: u128
+    app_name: Option<String>
+    window_title: String
+    root_component: String
+    initial_window_size: [f32; 2]
+    shell_backend: String
+    document_backend: String
+    devtools_backend: String
+    layout_engine: String
+    render_engine: String
+    mixed_backend_session: Bool
+    summary_lines: Array<String>
+    document_panes: Array<QtQuickPane>
+    viewport_panes: Array<QtQuickPane>
+    browser_panes: Array<QtQuickPane>
+    shader_panes: Array<QtQuickPane>
+    devtools_panes: Array<QtQuickPane>
+    fallback_panes: Array<QtQuickPane>
+
+@derive(Clone, Debug, serde__Serialize)
+pub struct QtQuickPane:
+    id: String
+    title: String
+    role: String
+    adapter_state: String
+    adapter_state_label: String
+    summary: String
+    detail_lines: Array<String>
+
+enum SessionPaneRole:
+    Document
+    Viewport
+    Browser
+    Shader
+    Devtools
+    Fallback
+
+pub fn build_qt_quick_session_manifest(bundle: &kain_ui::UiRuntimeBundle, backend_plan: &KainUiNativeBackendPlan) -> QtQuickSessionManifest:
+    let mut document_panes = Vec__new_()
+    let mut viewport_panes = Vec__new_()
+    let mut browser_panes = Vec__new_()
+    let mut shader_panes = Vec__new_()
+    let mut devtools_panes = Vec__new_()
+    let mut fallback_panes = Vec__new_()
+    for surface in &(*bundle).output.systems.surfaces:
+        let pane = pane_from_surface(surface)
+        match classify_surface_role(surface):
+            SessionPaneRole::Document => document_panes.push(pane)
+            SessionPaneRole::Viewport => viewport_panes.push(pane)
+            SessionPaneRole::Browser => browser_panes.push(pane)
+            SessionPaneRole::Shader => shader_panes.push(pane)
+            SessionPaneRole::Devtools => devtools_panes.push(pane)
+            SessionPaneRole::Fallback => fallback_panes.push(pane)
+    ()
+    if document_panes.is_empty():
+        document_panes.push(placeholder_pane("document-placeholder", "Document Surface", "No document-class surfaces were emitted by this bundle.", "qt-qml-panel-placeholder"))
+        ()
+        ()
+        ()
+        ()
+    if viewport_panes.is_empty():
+        viewport_panes.push(placeholder_pane("viewport-placeholder", "Viewport Surface", "No viewport-class surfaces were emitted by this bundle.", "qt-viewport-slot"))
+        ()
+        ()
+        ()
+        ()
+    if browser_panes.is_empty():
+        browser_panes.push(placeholder_pane("browser-placeholder", "Browser Surface", "No browser-class surfaces were emitted by this bundle.", "qt-webengine-slot"))
+        ()
+        ()
+        ()
+        ()
+    if shader_panes.is_empty():
+        shader_panes.push(placeholder_pane("shader-placeholder", "Shader Surface", "No shader-backed surfaces were emitted by this bundle.", "qt-shader-effect-slot"))
+        ()
+        ()
+        ()
+        ()
+    if devtools_panes.is_empty():
+        devtools_panes.push(placeholder_pane("devtools-placeholder", "Devtools Surface", "No devtools-class surfaces were emitted by this bundle.", "imgui-devtools-slot"))
+        ()
+        ()
+        ()
+        ()
+    let summary_lines = [f"shell={host_backend_label((*backend_plan).shell_host_backend)} document={host_backend_label((*backend_plan).document_host_backend)} devtools={host_backend_label((*backend_plan).devtools_host_backend)}", f"layout={layout_engine_label(backend_plan)} render={render_engine_label((*backend_plan).render_engine)} mixed_session={(*backend_plan).mixed_backend_session}", f"document_panes={document_panes.len()} viewport_panes={viewport_panes.len()} browser_panes={browser_panes.len()} shader_panes={shader_panes.len()} devtools_panes={devtools_panes.len()} fallback_panes={fallback_panes.len()}"]
+    QtQuickSessionManifest { generated_epoch_ms: SystemTime__now().duration_since(std__time__UNIX_EPOCH).unwrap_or_default().as_millis(), app_name: (*bundle).metadata.app_name.clone(), window_title: (*bundle).metadata.window_title.clone(), root_component: (*bundle).metadata.root_component.clone(), initial_window_size: (*bundle).metadata.initial_window_size, shell_backend: host_backend_label((*backend_plan).shell_host_backend).to_string(), document_backend: host_backend_label((*backend_plan).document_host_backend).to_string(), devtools_backend: host_backend_label((*backend_plan).devtools_host_backend).to_string(), layout_engine: layout_engine_label(backend_plan).to_string(), render_engine: render_engine_label((*backend_plan).render_engine).to_string(), mixed_backend_session: (*backend_plan).mixed_backend_session, summary_lines: summary_lines, document_panes: document_panes, viewport_panes: viewport_panes, browser_panes: browser_panes, shader_panes: shader_panes, devtools_panes: devtools_panes, fallback_panes: fallback_panes }
+
+fn pane_from_surface(surface: &kain_ui::UiSurface) -> QtQuickPane:
+    let role = classify_surface_role(surface)
+    let adapter_state = adapter_state_for_surface(surface, role)
+    let kind_label = surface_kind_label(&(*surface).kind)
+    let title = (*surface).title.clone().unwrap_or_else(fn(): f"{kind_label} {(*surface).id}")
+    let summary = f"{kind_label} via {host_backend_label((*surface).preferred_host_backend)} / {render_engine_label((*surface).preferred_render_engine)}"
+    let detail_lines = [f"surface_id={(*surface).id}", f"composition={composition_label((*surface).composition_mode)}", f"gpu_backing_required={(*surface).gpu_backing_required}", f"renderer_preference={renderer_preference_label((*surface).preferred_render_engine, surface)}", f"adapter_note={adapter_summary_for_surface(surface, role)}"]
+    QtQuickPane { id: (*surface).id.clone(), title: title, role: role_label(role).to_string(), adapter_state: adapter_state.to_string(), adapter_state_label: adapter_summary_for_surface(surface, role).to_string(), summary: summary, detail_lines: detail_lines }
+
+fn placeholder_pane(id: String, title: String, summary: String, adapter_state: String) -> QtQuickPane:
+    QtQuickPane { id: id.to_string(), title: title.to_string(), role: ("placeholder").to_string(), adapter_state: adapter_state.to_string(), adapter_state_label: summary.to_string(), summary: summary.to_string(), detail_lines: [summary.to_string()] }
+
+fn classify_surface_role(surface: &kain_ui::UiSurface) -> SessionPaneRole:
+    if ((*surface).shader_.is_some() || ((*surface).composition_mode == kain_ui__UiSurfaceCompositionMode__ShaderCanvas)):
+        return SessionPaneRole__Shader
+    if (none || ((*surface).composition_mode == kain_ui__UiSurfaceCompositionMode__Viewport)):
+        return SessionPaneRole__Viewport
+    if (((*surface).preferred_host_backend == kain_ui__UiHostBackendKind__Cef) || none):
+        return SessionPaneRole__Browser
+    if (((*surface).preferred_host_backend == kain_ui__UiHostBackendKind__Imgui) || none):
+        return SessionPaneRole__Devtools
+    if ((*surface).preferred_host_backend == kain_ui__UiHostBackendKind__Cef):
+        return SessionPaneRole__Fallback
+    SessionPaneRole__Document
+
+fn role_label(role: SessionPaneRole) -> String:
+    match role:
+        SessionPaneRole::Document => "document"
+        SessionPaneRole::Viewport => "viewport"
+        SessionPaneRole::Browser => "browser"
+        SessionPaneRole::Shader => "shader"
+        SessionPaneRole::Devtools => "devtools"
+        SessionPaneRole::Fallback => "fallback"
+
+fn adapter_state_for_surface(surface: &kain_ui::UiSurface, role: SessionPaneRole) -> String:
+    match role:
+        SessionPaneRole::Document => if ((*surface).preferred_host_backend == kain_ui__UiHostBackendKind__Qt): "qt-qml-backed" else: "qt-qml-adapter-pending"
+        SessionPaneRole::Viewport => "kain-3d-preview-pending"
+        SessionPaneRole::Browser => "qt-webengine-backed"
+        SessionPaneRole::Shader => "qt-graphical-effects-backed"
+        SessionPaneRole::Devtools => "imgui-devtools-handoff-pending"
+        SessionPaneRole::Fallback => "staged-backend-placeholder"
+
+fn adapter_summary_for_surface(surface: &kain_ui::UiSurface, role: SessionPaneRole) -> String:
+    match role:
+        SessionPaneRole::Document => if ((*surface).preferred_host_backend == kain_ui__UiHostBackendKind__Qt): "Qt Quick panel shell is live; semantic surface rendering is still a metadata-first panel adapter." else: "Surface is routed into the Qt session as a document lane, but its dedicated adapter is not live yet."
+        SessionPaneRole::Viewport => if ((*surface).preferred_render_engine == kain_ui__UiRenderEngineKind__Wgpu): "Kain 3D software preview is embedded in the Qt session; the native bgfx handoff remains the next adapter cut." else: "Viewport slot is reserved inside the Qt session; in-process bgfx embedding is the next adapter cut."
+        SessionPaneRole::Browser => "Qt WebEngine is presenting a live browser panel inside the workstation shell."
+        SessionPaneRole::Shader => "Qt GraphicalEffects is rendering a real shader-backed surface inside the shell."
+        SessionPaneRole::Devtools => "Devtools rail is represented in the Qt session, but the ImGui pane bridge is still pending."
+        SessionPaneRole::Fallback => "Requested backend remains staged, so the Qt host renders a deliberate placeholder instead of failing startup."
+
+fn host_backend_label(backend: kain_ui::UiHostBackendKind) -> String:
+    match backend:
+        kain_ui__UiHostBackendKind::Auto => "auto"
+        kain_ui__UiHostBackendKind::Native => "native"
+        kain_ui__UiHostBackendKind::LegacyEgui => "legacy-egui"
+        kain_ui__UiHostBackendKind::Imgui => "imgui"
+        kain_ui__UiHostBackendKind::RmlUi => "rmlui"
+        kain_ui__UiHostBackendKind::Slint => "slint"
+        kain_ui__UiHostBackendKind::Qt => "qt"
+        kain_ui__UiHostBackendKind::Cef => "cef"
+
+fn layout_engine_label(backend_plan: &KainUiNativeBackendPlan) -> String:
+    match (*backend_plan).layout_engine:
+        kain_ui__UiLayoutEngineKind::Auto => "auto"
+        kain_ui__UiLayoutEngineKind::Native => "native"
+        kain_ui__UiLayoutEngineKind::Yoga => "yoga"
+        kain_ui__UiLayoutEngineKind::LegacyEgui => "legacy-egui"
+
+fn render_engine_label(render_engine: kain_ui::UiRenderEngineKind) -> String:
+    match render_engine:
+        kain_ui__UiRenderEngineKind::Auto => "auto"
+        kain_ui__UiRenderEngineKind::Native => "native"
+        kain_ui__UiRenderEngineKind::Skia => "skia"
+        kain_ui__UiRenderEngineKind::Wgpu => "wgpu"
+        kain_ui__UiRenderEngineKind::Shader => "shader"
+        kain_ui__UiRenderEngineKind::Browser => "browser"
+        kain_ui__UiRenderEngineKind::LegacyEgui => "legacy-egui"
+
+fn surface_kind_label(kind: &kain_ui::UiSurfaceKind) -> String:
+    match kind:
+        kain_ui__UiSurfaceKind::Canvas => ("canvas").to_string()
+        kain_ui__UiSurfaceKind::Graph => ("graph").to_string()
+        kain_ui__UiSurfaceKind::Timeline => ("timeline").to_string()
+        kain_ui__UiSurfaceKind::Table => ("table").to_string()
+        kain_ui__UiSurfaceKind::Tree => ("tree").to_string()
+        kain_ui__UiSurfaceKind::Viewport2D => ("viewport2d").to_string()
+        kain_ui__UiSurfaceKind::Viewport3D => ("viewport3d").to_string()
+        kain_ui__UiSurfaceKind::Overlay => ("overlay").to_string()
+        kain_ui__UiSurfaceKind::Custom(value) => value.clone()
+
+fn composition_label(mode: kain_ui::UiSurfaceCompositionMode) -> String:
+    match mode:
+        kain_ui__UiSurfaceCompositionMode::Host => "host"
+        kain_ui__UiSurfaceCompositionMode::LayeredGpu => "layered_gpu"
+        kain_ui__UiSurfaceCompositionMode::Viewport => "viewport"
+        kain_ui__UiSurfaceCompositionMode::ShaderCanvas => "shader_canvas"
+
+fn renderer_preference_label(render_engine: kain_ui::UiRenderEngineKind, surface: &kain_ui::UiSurface) -> String:
+    f"{render_engine_label(render_engine)} / preferred_host={host_backend_label((*surface).preferred_host_backend)}"
+

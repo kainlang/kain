@@ -1,0 +1,31 @@
+use std::collections::BTreeMap
+
+use serde::Deserialize
+
+use serde::Serialize
+
+use crate::artifacts::ArtifactExpectation
+
+use crate::blockers::BlockerBucket
+
+@derive(Debug, Clone, PartialEq, Eq, serde__Serialize, serde__Deserialize)
+pub struct StepExecutionSummary:
+    id: String
+    command: String
+    returncode: i32
+    success: Bool
+    log_path: String
+    expected_artifacts: Array<ArtifactExpectation>
+
+@derive(Debug, Clone, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct SelfHostLaneSummary:
+    lane_id: String
+    success: Bool
+    executed_lanes: Array<String>
+    required_artifacts: Array<ArtifactExpectation>
+    steps: Array<StepExecutionSummary>
+    blocker_bucket_counts: Map<BlockerBucket, u64>
+    stage2_binary_path: Option<String>
+    repaired_root: Option<String>
+    generated_at: String
+

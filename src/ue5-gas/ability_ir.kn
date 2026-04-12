@@ -1,0 +1,171 @@
+use kain_core::ast::Function
+
+use kain_core::ast::GameplayAbilityDef
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+use kain_core::span::Span
+
+@doc(doc = " Intermediate representation of a gameplay ability")
+@derive(Debug, Clone)
+pub struct GameplayAbilityIR:
+    name: String
+    instancing_policy: InstancingPolicy
+    replication_policy: ReplicationPolicy
+    net_execution_policy: NetExecutionPolicy
+    ability_tags: Array<String>
+    activation_required_tags: Array<String>
+    activation_blocked_tags: Array<String>
+    activation_owned_tags: Array<String>
+    cancel_abilities_with_tag: Array<String>
+    block_abilities_with_tag: Array<String>
+    cost_effect: Option<String>
+    cooldown_effect: Option<String>
+    lifecycle_hooks: AbilityLifecycleHooksIR
+
+pub enum InstancingPolicy:
+    InstancedPerExecution
+    InstancedPerActor
+    NonInstanced
+
+impl Default for InstancingPolicy:
+    fn default_() -> InstancingPolicy:
+        InstancingPolicy__InstancedPerExecution
+
+
+pub enum ReplicationPolicy:
+    ReplicateNo
+    ReplicateYes
+
+impl Default for ReplicationPolicy:
+    fn default_() -> ReplicationPolicy:
+        ReplicationPolicy__ReplicateYes
+
+
+pub enum NetExecutionPolicy:
+    LocalPredicted
+    LocalOnly
+    ServerInitiated
+    ServerOnly
+
+impl Default for NetExecutionPolicy:
+    fn default_() -> NetExecutionPolicy:
+        NetExecutionPolicy__LocalPredicted
+
+
+@doc(doc = " Lifecycle hooks for gameplay abilities")
+@derive(Debug, Clone, Default)
+pub struct AbilityLifecycleHooksIR:
+    can_activate_ability: Option<FunctionIR>
+    activate_ability: Option<FunctionIR>
+    end_ability: Option<FunctionIR>
+    cancel_ability: Option<FunctionIR>
+    commit_ability: Option<FunctionIR>
+    input_pressed: Option<FunctionIR>
+    input_released: Option<FunctionIR>
+
+impl Default for AbilityLifecycleHooksIR:
+    pub fn default_() -> AbilityLifecycleHooksIR:
+        AbilityLifecycleHooksIR { can_activate_ability: none, activate_ability: none, end_ability: none, cancel_ability: none, commit_ability: none, input_pressed: none, input_released: none }
+
+
+@doc(doc = " Simplified function IR for lifecycle hooks")
+@derive(Debug, Clone)
+pub struct FunctionIR:
+    name: String
+    body: String
+
+impl GameplayAbilityIR:
+    pub fn from_ast(ability: &kain_core::ast::GameplayAbilityDef) -> Result<GameplayAbilityIR, KainError>:
+        if (!(*ability).attributes.iter().any(fn(a): (a.name == "ability"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*ability).name}' must have @ability attribute", (*ability).span))
+        let instancing_policy = GameplayAbilityIR__parse_instancing_policy(ability)?
+        let replication_policy = GameplayAbilityIR__parse_replication_policy(ability)?
+        let net_execution_policy = GameplayAbilityIR__parse_net_execution_policy(ability)?
+        let ability_tags = (*ability).ability_tags.clone()
+        let activation_required_tags = (*ability).activation_required_tags.clone()
+        let activation_blocked_tags = (*ability).activation_blocked_tags.clone()
+        let activation_owned_tags = (*ability).activation_owned_tags.clone()
+        let cancel_abilities_with_tag = (*ability).cancel_abilities_with_tag.clone()
+        let block_abilities_with_tag = (*ability).block_abilities_with_tag.clone()
+        GameplayAbilityIR__validate_tags(&ability_tags, (*ability).span)?
+        ()
+        GameplayAbilityIR__validate_tags(&activation_required_tags, (*ability).span)?
+        ()
+        GameplayAbilityIR__validate_tags(&activation_blocked_tags, (*ability).span)?
+        ()
+        GameplayAbilityIR__validate_tags(&activation_owned_tags, (*ability).span)?
+        ()
+        GameplayAbilityIR__validate_tags(&cancel_abilities_with_tag, (*ability).span)?
+        ()
+        GameplayAbilityIR__validate_tags(&block_abilities_with_tag, (*ability).span)?
+        ()
+        let cost_effect = (*ability).cost_effect.clone()
+        let cooldown_effect = (*ability).cooldown_effect.clone()
+        let lifecycle_hooks = GameplayAbilityIR__parse_lifecycle_hooks(&(*ability).methods)?
+        Result::Ok(GameplayAbilityIR { name: (*ability).name.clone(), instancing_policy: instancing_policy, replication_policy: replication_policy, net_execution_policy: net_execution_policy, ability_tags: ability_tags, activation_required_tags: activation_required_tags, activation_blocked_tags: activation_blocked_tags, activation_owned_tags: activation_owned_tags, cancel_abilities_with_tag: cancel_abilities_with_tag, block_abilities_with_tag: block_abilities_with_tag, cost_effect: cost_effect, cooldown_effect: cooldown_effect, lifecycle_hooks: lifecycle_hooks })
+
+    fn parse_instancing_policy(ability: &kain_core::ast::GameplayAbilityDef) -> Result<InstancingPolicy, KainError>:
+        match &(*ability).instancing_policy:
+            Some(policy_str) =>
+                match policy_str.as_str():
+                    "InstancedPerExecution" => Result::Ok(InstancingPolicy__InstancedPerExecution)
+                    "InstancedPerActor" => Result::Ok(InstancingPolicy__InstancedPerActor)
+                    "NonInstanced" => Result::Ok(InstancingPolicy__NonInstanced)
+                    _ => Result::Err(KainError__codegen(f"Invalid instancing policy: {policy_str}. Valid values: InstancedPerExecution, InstancedPerActor, NonInstanced", (*ability).span))
+            _ => Result::Ok(InstancingPolicy__default_())
+
+    fn parse_replication_policy(ability: &kain_core::ast::GameplayAbilityDef) -> Result<ReplicationPolicy, KainError>:
+        match &(*ability).replication_policy:
+            Some(policy_str) =>
+                match policy_str.as_str():
+                    "ReplicateNo" => Result::Ok(ReplicationPolicy__ReplicateNo)
+                    "ReplicateYes" => Result::Ok(ReplicationPolicy__ReplicateYes)
+                    _ => Result::Err(KainError__codegen(f"Invalid replication policy: {policy_str}. Valid values: ReplicateNo, ReplicateYes", (*ability).span))
+            _ => Result::Ok(ReplicationPolicy__default_())
+
+    fn parse_net_execution_policy(ability: &kain_core::ast::GameplayAbilityDef) -> Result<NetExecutionPolicy, KainError>:
+        match &(*ability).net_execution_policy:
+            Some(policy_str) =>
+                match policy_str.as_str():
+                    "LocalPredicted" => Result::Ok(NetExecutionPolicy__LocalPredicted)
+                    "LocalOnly" => Result::Ok(NetExecutionPolicy__LocalOnly)
+                    "ServerInitiated" => Result::Ok(NetExecutionPolicy__ServerInitiated)
+                    "ServerOnly" => Result::Ok(NetExecutionPolicy__ServerOnly)
+                    _ => Result::Err(KainError__codegen(f"Invalid net execution policy: {policy_str}. Valid values: LocalPredicted, LocalOnly, ServerInitiated, ServerOnly", (*ability).span))
+            _ => Result::Ok(NetExecutionPolicy__default_())
+
+    fn validate_tags(tags: &[String], span: kain_core::span::Span) -> Result<(), KainError>:
+        for tag in tags:
+            if tag.is_empty():
+                return Result::Err(KainError__codegen(("Tag cannot be empty").to_string(), span))
+            for part in tag.split("."):
+                if part.is_empty():
+                    return Result::Err(KainError__codegen(f"Invalid tag '{tag}': empty component", span))
+                if (!part.chars().next().unwrap().is_alphabetic()):
+                    return Result::Err(KainError__codegen(f"Invalid tag '{tag}': component '{part}' must start with a letter", span))
+                for ch in part.chars():
+                    if ((!ch.is_alphanumeric()) && (ch != "_")):
+                        return Result::Err(KainError__codegen(f"Invalid tag '{tag}': component '{part}' contains invalid character '{ch}'", span))
+        ()
+        Result::Ok(())
+
+    fn parse_lifecycle_hooks(methods: &[kain_core::ast::Function]) -> Result<AbilityLifecycleHooksIR, KainError>:
+        let mut hooks = AbilityLifecycleHooksIR__default_()
+        for method in methods:
+            let func_ir = FunctionIR { name: method.name.clone(), body: method.body }
+            match method.name.as_str():
+                "can_activate_ability" => hooks.can_activate_ability = Option::Some(func_ir)
+                "activate_ability" => hooks.activate_ability = Option::Some(func_ir)
+                "end_ability" => hooks.end_ability = Option::Some(func_ir)
+                "cancel_ability" => hooks.cancel_ability = Option::Some(func_ir)
+                "commit_ability" => hooks.commit_ability = Option::Some(func_ir)
+                "input_pressed" => hooks.input_pressed = Option::Some(func_ir)
+                "input_released" => hooks.input_released = Option::Some(func_ir)
+                _ => ()
+        ()
+        Result::Ok(hooks)
+
+

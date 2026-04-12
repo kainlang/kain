@@ -1,0 +1,522 @@
+use std::collections::BTreeMap
+
+use crate::BlackHole
+
+use crate::CameraPose
+
+use crate::ColorRgb
+
+use crate::ManipulatorMode
+
+use crate::Mat4
+
+use crate::ParticleEmitter
+
+use crate::PickingHit
+
+use crate::SceneCatalog
+
+use crate::SceneDescription
+
+use crate::Transform
+
+use crate::Vec3
+
+use crate::DirectionalLight
+
+use crate::LightingRig
+
+use crate::Material
+
+use crate::PointLight
+
+@derive(Clone, Copy, Debug, PartialEq, Eq)
+pub struct RenderResolution:
+    width: usize
+    height: usize
+
+impl RenderResolution:
+    pub fn new_(width: usize, height: usize) -> RenderResolution:
+        RenderResolution { width: width.max(1), height: height.max(1) }
+
+
+@derive(Clone, Copy, Debug, PartialEq)
+pub struct SoftwareRendererConfig:
+    wireframe_overlay: Bool
+    rim_light_strength: f32
+
+impl Default for SoftwareRendererConfig:
+    fn default_() -> SoftwareRendererConfig:
+        SoftwareRendererConfig { wireframe_overlay: false, rim_light_strength: 0.18 }
+
+
+@derive(Clone, Debug, Default, PartialEq)
+pub struct RenderViewSettings:
+    camera: Option<CameraPose>
+    selected_instance_id: Option<String>
+    manipulator_mode: Option<ManipulatorMode>
+    fog_density: Option<f32>
+    instance_transform_overrides: Map<String, Transform>
+
+impl Default for RenderViewSettings:
+    pub fn default_() -> RenderViewSettings:
+        RenderViewSettings { camera: none, selected_instance_id: none, manipulator_mode: none, fog_density: none, instance_transform_overrides: HashMap__new_() }
+
+
+@derive(Clone, Debug, Default, PartialEq, Eq)
+pub struct RenderStats:
+    triangles_submitted: usize
+    triangles_rasterized: usize
+    pixels_shaded: usize
+    particles_submitted: usize
+    particles_shaded: usize
+
+impl Default for RenderStats:
+    pub fn default_() -> RenderStats:
+        RenderStats { triangles_submitted: 0, triangles_rasterized: 0, pixels_shaded: 0, particles_submitted: 0, particles_shaded: 0 }
+
+
+@derive(Clone, Debug, PartialEq, Eq)
+pub struct RenderFrame:
+    width: usize
+    height: usize
+    rgba: Array<u8>
+    stats: RenderStats
+
+pub enum RenderError:
+    MissingMesh(String)
+    MissingMaterial(String)
+    MissingScene(String)
+    BackendFailure(String)
+
+impl fmt::Display for RenderError:
+    fn fmt(_self: &RenderError, f: &mut fmt::Formatter<_>) -> Result<(), Error>:
+        match *_self:
+            RenderError::MissingMesh(name) => __kain_write_fmt!(f, f"scene references missing mesh `{name}`")
+            RenderError::MissingMaterial(name) => __kain_write_fmt!(f, f"scene references missing material `{name}`")
+            RenderError::MissingScene(name) => __kain_write_fmt!(f, f"scene `{name}` was not found in the catalog")
+            RenderError::BackendFailure(message) => f.write_str(message)
+
+
+impl error::Error for RenderError:
+    fn __selfhost_empty_impl__():
+        let __selfhost_empty = none
+
+pub trait RenderBackend:
+    fn backend_name(_self: &Self_) -> String:
+        let __selfhost_empty = none
+    fn render_catalog_scene(_self: &mut Self_, catalog: &SceneCatalog, scene_name: String, time_seconds: f32, resolution: RenderResolution) -> Result<RenderFrame, RenderError>:
+        _self.render_catalog_scene_with_view(catalog, scene_name, time_seconds, resolution, &RenderViewSettings__default_())
+    fn render_catalog_scene_with_view(_self: &mut Self_, catalog: &SceneCatalog, scene_name: String, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        let __selfhost_empty = none
+    fn render_scene(_self: &mut Self_, scene: &SceneDescription, time_seconds: f32, resolution: RenderResolution) -> Result<RenderFrame, RenderError>:
+        _self.render_scene_with_view(scene, time_seconds, resolution, &RenderViewSettings__default_())
+    fn render_scene_with_view(_self: &mut Self_, scene: &SceneDescription, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        let __selfhost_empty = none
+    fn pick_catalog_scene_at(_self: &mut Self_, _catalog: &SceneCatalog, _scene_name: String, _time_seconds: f32, _resolution: RenderResolution, _view: &RenderViewSettings, _pixel_x: f32, _pixel_y: f32) -> Result<Option<PickingHit>, RenderError>:
+        Result::Ok(none)
+    fn pick_scene_at(_self: &mut Self_, _scene: &SceneDescription, _time_seconds: f32, _resolution: RenderResolution, _view: &RenderViewSettings, _pixel_x: f32, _pixel_y: f32) -> Result<Option<PickingHit>, RenderError>:
+        Result::Ok(none)
+
+@derive(Clone, Debug)
+pub struct SoftwareRenderer:
+    config: SoftwareRendererConfig
+    scratch_rgba: Array<u8>
+    scratch_depth: Array<f32>
+
+impl Default for SoftwareRenderer:
+    fn default_() -> SoftwareRenderer:
+        SoftwareRenderer { config: SoftwareRendererConfig__default_(), scratch_rgba: Vec__new_(), scratch_depth: Vec__new_() }
+
+
+impl SoftwareRenderer:
+    pub fn render_catalog_scene(_self: &mut SoftwareRenderer, catalog: &SceneCatalog, scene_name: String, time_seconds: f32, resolution: RenderResolution) -> Result<RenderFrame, RenderError>:
+        (*_self).render_catalog_scene_with_view(catalog, scene_name, time_seconds, resolution, &RenderViewSettings__default_())
+
+    pub fn render_catalog_scene_with_view(_self: &mut SoftwareRenderer, catalog: &SceneCatalog, scene_name: String, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        let scene = catalog.scene(scene_name).ok_or_else(fn(): RenderError::MissingScene(scene_name.to_string()))?
+        (*_self).render_scene_with_view(scene, time_seconds, resolution, view)
+
+    pub fn render_scene(_self: &mut SoftwareRenderer, scene: &SceneDescription, time_seconds: f32, resolution: RenderResolution) -> Result<RenderFrame, RenderError>:
+        (*_self).render_scene_with_view(scene, time_seconds, resolution, &RenderViewSettings__default_())
+
+    pub fn render_scene_with_view(_self: &mut SoftwareRenderer, scene: &SceneDescription, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        (*_self).ensure_framebuffers(resolution)
+        ()
+        let config = (*_self).config
+        let rgba = &mut (*_self).scratch_rgba
+        let depth = &mut (*_self).scratch_depth
+        let mut stats = RenderStats__default_()
+        fill_background(rgba, resolution, (*scene).background.top, (*scene).background.bottom)
+        ()
+        depth.fill(f32__INFINITY)
+        ()
+        let aspect_ratio = (resolution.width as f32 / resolution.height as f32)
+        let default_camera_pose
+        let camera = match (*view).camera:
+            Some(camera) => camera
+            _ =>
+                default_camera_pose = (*scene).camera.pose_at(time_seconds)
+                ()
+                &default_camera_pose
+        let view_matrix = Mat4__look_at(camera.position, camera.target, camera.up)
+        let projection = Mat4__perspective(camera.fov_y_degrees.to_radians(), aspect_ratio, camera.near_plane, camera.far_plane)
+        let view_projection = projection.mul_mat4(view_matrix)
+        for instance in scene.animated_instances_with_overrides(time_seconds, &(*view).instance_transform_overrides):
+            let mesh = scene.resolved_mesh(&instance.mesh, time_seconds).ok_or_else(fn(): RenderError::MissingMesh(instance.mesh.clone()))?
+            let mesh = mesh
+            let material = (*scene).materials.get(&instance.material).ok_or_else(fn(): RenderError::MissingMaterial(instance.material.clone()))?
+            let model = instance.transform.matrix_()
+            let normal_matrix = Mat4__rotation_xyz(instance.transform.rotation_radians)
+            for triangle in &mesh.triangles:
+                stats.triangles_submitted = (stats.triangles_submitted + 1)
+                ()
+                let transformed = triangle.map(fn(index): none)
+                if transformed.iter().any(fn(vertex_): (vertex_.clip_position[3] <= 0.001)):
+                    continue
+                let screen = transformed.map(fn(vertex_): project_vertex(vertex_.clip_position, resolution))
+                if is_backface(screen[0], screen[1], screen[2]):
+                    continue
+                stats.triangles_rasterized = (stats.triangles_rasterized + 1)
+                ()
+                rasterize_triangle(rgba, depth, resolution, &mut stats, material, &(*scene).lighting, camera.position, (*scene).background.bottom, (*view).fog_density, screen, transformed, config)
+                ()
+        ()
+        render_particles(rgba, depth, resolution, &mut stats, &(*scene).particle_emitters, time_seconds, camera, view_projection)
+        ()
+        match (*scene).black_hole:
+            Some(black_hole) =>
+                render_black_hole_overlay(rgba, resolution, camera, black_hole, view_projection)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(RenderFrame { width: resolution.width, height: resolution.height, rgba: rgba.clone(), stats: stats })
+
+    fn ensure_framebuffers(_self: &mut SoftwareRenderer, resolution: RenderResolution):
+        let pixel_count = (resolution.width * resolution.height)
+        let rgba_len = (pixel_count * 4)
+        if ((*_self).scratch_rgba.len() != rgba_len):
+            (*_self).scratch_rgba.resize(rgba_len, 0)
+            ()
+            ()
+            ()
+            ()
+        if ((*_self).scratch_depth.len() != pixel_count):
+            (*_self).scratch_depth.resize(pixel_count, f32__INFINITY)
+            ()
+
+
+impl RenderBackend for SoftwareRenderer:
+    fn backend_name(_self: &SoftwareRenderer) -> String:
+        "software"
+
+    fn render_catalog_scene_with_view(_self: &mut SoftwareRenderer, catalog: &SceneCatalog, scene_name: String, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        SoftwareRenderer__render_catalog_scene_with_view(*_self, catalog, scene_name, time_seconds, resolution, view)
+
+    fn render_scene_with_view(_self: &mut SoftwareRenderer, scene: &SceneDescription, time_seconds: f32, resolution: RenderResolution, view: &RenderViewSettings) -> Result<RenderFrame, RenderError>:
+        SoftwareRenderer__render_scene_with_view(*_self, scene, time_seconds, resolution, view)
+
+
+@derive(Clone, Copy, Debug)
+struct RasterVertex:
+    world_position: Vec3
+    world_normal: Vec3
+    clip_position: [f32; 4]
+
+@derive(Clone, Copy, Debug)
+struct ScreenVertex:
+    x: f32
+    y: f32
+    depth: f32
+
+@derive(Clone, Copy, Debug)
+struct ParticleSample:
+    world_position: Vec3
+    color: ColorRgb
+    radius: f32
+    softness: f32
+    emissive_strength: f32
+    depth_test: Bool
+
+fn fill_background(rgba: &mut [u8], resolution: RenderResolution, top: ColorRgb, bottom: ColorRgb):
+    for y in range(0, resolution.height):
+        let t = if (resolution.height <= 1):
+            0
+        else:
+            (y as f32 / ((resolution.height - 1)) as f32)
+        let color = ((top * ((1 - t))) + (bottom * t))
+        let pixel = color.to_rgba8()
+        for x in range(0, resolution.width):
+            let index = ((((y * resolution.width) + x)) * 4)
+            rgba[index..(index + 4)].copy_from_slice(&pixel)
+            ()
+
+fn project_vertex(clip: [f32; 4], resolution: RenderResolution) -> ScreenVertex:
+    let inv_w = (1 / clip[3])
+    let ndc_x = (clip[0] * inv_w)
+    let ndc_y = (clip[1] * inv_w)
+    let ndc_z = (clip[2] * inv_w)
+    ScreenVertex { x: ((((ndc_x * 0.5) + 0.5)) * ((resolution.width as f32 - 1))), y: (((1 - (((ndc_y * 0.5) + 0.5)))) * ((resolution.height as f32 - 1))), depth: ((ndc_z * 0.5) + 0.5) }
+
+fn is_backface(a: ScreenVertex, b: ScreenVertex, c: ScreenVertex) -> Bool:
+    let signed_area = ((((b.x - a.x)) * ((c.y - a.y))) - (((b.y - a.y)) * ((c.x - a.x))))
+    (signed_area <= 0)
+
+@allow(clippy__too_many_arguments)
+fn rasterize_triangle(rgba: &mut [u8], depth: &mut [f32], resolution: RenderResolution, stats: &mut RenderStats, material: &Material, lighting: &LightingRig, camera_position: Vec3, fog_color: ColorRgb, fog_density: Option<f32>, screen: [ScreenVertex; 3], transformed: [RasterVertex; 3], config: SoftwareRendererConfig):
+    let min_x = screen.iter().map(fn(vertex_): vertex_.x).fold(f32__INFINITY, f32__min).floor().clamp(0, (resolution.width as f32 - 1)) as usize
+    let max_x = screen.iter().map(fn(vertex_): vertex_.x).fold(f32__NEG_INFINITY, f32__max).ceil().clamp(0, (resolution.width as f32 - 1)) as usize
+    let min_y = screen.iter().map(fn(vertex_): vertex_.y).fold(f32__INFINITY, f32__min).floor().clamp(0, (resolution.height as f32 - 1)) as usize
+    let max_y = screen.iter().map(fn(vertex_): vertex_.y).fold(f32__NEG_INFINITY, f32__max).ceil().clamp(0, (resolution.height as f32 - 1)) as usize
+    let denominator = edge_function(screen[0], screen[1], screen[2].x, screen[2].y)
+    if (denominator.abs() <= f32__EPSILON):
+        return
+    for y in range(min_y, (max_y + 1)):
+        for x in range(min_x, (max_x + 1)):
+            let sample_x = (x as f32 + 0.5)
+            let sample_y = (y as f32 + 0.5)
+            let w0 = (edge_function(screen[1], screen[2], sample_x, sample_y) / denominator)
+            let w1 = (edge_function(screen[2], screen[0], sample_x, sample_y) / denominator)
+            let w2 = ((1 - w0) - w1)
+            if (((w0 < 0) || (w1 < 0)) || (w2 < 0)):
+                continue
+            let pixel_index = ((y * resolution.width) + x)
+            let depth_value = (((screen[0].depth * w0) + (screen[1].depth * w1)) + (screen[2].depth * w2))
+            if ((!(range(0, (1 + 1))).contains(&depth_value)) || (depth_value >= depth[pixel_index])):
+                continue
+            depth[pixel_index] = depth_value
+            ()
+            (*stats).pixels_shaded = ((*stats).pixels_shaded + 1)
+            ()
+            let world_position = (((transformed[0].world_position * w0) + (transformed[1].world_position * w1)) + (transformed[2].world_position * w2))
+            let world_normal = ((((transformed[0].world_normal * w0) + (transformed[1].world_normal * w1)) + (transformed[2].world_normal * w2))).normalize()
+            let shaded = shade_pixel(material, lighting, world_position, world_normal, camera_position, config)
+            let pixel = apply_distance_fog(shaded, fog_color, fog_density.unwrap_or(0), camera_position.distance(world_position)).to_rgba8()
+            let rgba_index = (pixel_index * 4)
+            rgba[rgba_index..(rgba_index + 4)].copy_from_slice(&pixel)
+            ()
+    ()
+    if config.wireframe_overlay:
+        draw_line(rgba, resolution, screen[0], screen[1], [76, 214, 255, 255])
+        ()
+        draw_line(rgba, resolution, screen[1], screen[2], [76, 214, 255, 255])
+        ()
+        draw_line(rgba, resolution, screen[2], screen[0], [76, 214, 255, 255])
+        ()
+
+fn render_particles(rgba: &mut [u8], depth: &mut [f32], resolution: RenderResolution, stats: &mut RenderStats, emitters: &[ParticleEmitter], time_seconds: f32, camera: &CameraPose, view_projection: Mat4):
+    for emitter in emitters:
+        let axis = emitter.axis_or_up()
+        let (basis_u, basis_v) = orthonormal_basis(axis)
+        for index in range(0, emitter.particle_count):
+            (*stats).particles_submitted = ((*stats).particles_submitted + 1)
+            ()
+            let sample = sample_particle(emitter, index, time_seconds, axis, basis_u, basis_v)
+            let clip_position = view_projection.transform_point(sample.world_position)
+            if (clip_position[3] <= 0.001):
+                continue
+            let screen = project_vertex(clip_position, resolution)
+            if (!(range(0, (1 + 1))).contains(&screen.depth)):
+                continue
+            draw_particle(rgba, depth, resolution, stats, camera, screen, clip_position[3], sample)
+            ()
+
+fn render_black_hole_overlay(rgba: &mut [u8], resolution: RenderResolution, camera: &CameraPose, black_hole: &BlackHole, view_projection: Mat4):
+    let clip_position = view_projection.transform_point((*black_hole).center)
+    if (clip_position[3] <= 0.001):
+        return
+    let screen = project_vertex(clip_position, resolution)
+    let distance = (((*black_hole).center - (*camera).position)).length().max(0.001)
+    let horizon_radius = (((((*black_hole).radius * resolution.height as f32) / distance) * 0.34)).clamp(6, 96)
+    let lens_radius = (((((*black_hole).lens_radius * resolution.height as f32) / distance) * 0.34)).clamp((horizon_radius + 4), 132)
+    draw_glow_ring(rgba, resolution, screen.x, screen.y, lens_radius, (*black_hole).lens_color, 0.32)
+    ()
+    draw_glow_ring(rgba, resolution, screen.x, screen.y, (lens_radius * 0.82), (*black_hole).disk_color, 0.18)
+    ()
+    draw_solid_disc(rgba, resolution, screen.x, screen.y, horizon_radius, (*black_hole).inner_color)
+    ()
+
+fn sample_particle(emitter: &ParticleEmitter, index: usize, time_seconds: f32, axis: Vec3, basis_u: Vec3, basis_v: Vec3) -> ParticleSample:
+    let seed = (index as f32 + 1)
+    let phase = (hash01((seed * 0.73)) * std__f32__consts__TAU)
+    let radius = lerp((*emitter).radial_range[0], (*emitter).radial_range[1], hash01((seed * 1.31)))
+    let vertical_extent = lerp((*emitter).vertical_range[0], (*emitter).vertical_range[1], hash01((seed * 2.17)))
+    let size = lerp((*emitter).particle_size_range[0], (*emitter).particle_size_range[1], hash01((seed * 2.81)))
+    let color_mix = hash01((seed * 3.61))
+    let color = (((*emitter).color_start * ((1 - color_mix))) + ((*emitter).color_end * color_mix))
+    let angular_velocity = ((*emitter).orbit_radians_per_second * ((1 + ((*emitter).swirl * (((hash01((seed * 4.73)) * 2) - 1))))))
+    let angle = (phase + (time_seconds * angular_velocity))
+    let vertical_wave = (vertical_extent * (((time_seconds * ((0.55 + hash01((seed * 5.11))))) + phase)).sin())
+    let drift_cycle = (hash01((seed * 6.07)) + (time_seconds * ((0.08 + ((*emitter).orbit_radians_per_second.abs() * 0.025)))))
+    let drift_t = ((fract01(drift_cycle) * 2) - 1)
+    ParticleSample { world_position: (((((*emitter).center + ((basis_u * angle.cos()) * radius)) + ((basis_v * angle.sin()) * radius)) + (axis * vertical_wave)) + ((*emitter).drift * drift_t)), color: color, radius: size, softness: (*emitter).softness.max(0.8), emissive_strength: (*emitter).emissive_strength.max(0), depth_test: (*emitter).depth_test }
+
+@allow(clippy__too_many_arguments)
+fn draw_particle(rgba: &mut [u8], depth: &[f32], resolution: RenderResolution, stats: &mut RenderStats, camera: &CameraPose, screen: ScreenVertex, clip_w: f32, particle: ParticleSample):
+    let distance = ((particle.world_position - (*camera).position)).length().max(0.001)
+    let perspective_scale = (((resolution.height as f32 / clip_w.max(0.001))) * 0.22)
+    let particle_radius = (((particle.radius * perspective_scale) * ((1 + (0.05 / distance))))).clamp(1, (resolution.height as f32 * 0.16))
+    let min_x = ((screen.x - particle_radius)).floor().clamp(0, (resolution.width as f32 - 1)) as usize
+    let max_x = ((screen.x + particle_radius)).ceil().clamp(0, (resolution.width as f32 - 1)) as usize
+    let min_y = ((screen.y - particle_radius)).floor().clamp(0, (resolution.height as f32 - 1)) as usize
+    let max_y = ((screen.y + particle_radius)).ceil().clamp(0, (resolution.height as f32 - 1)) as usize
+    let inverse_radius = (1 / particle_radius.max(1))
+    for y in range(min_y, (max_y + 1)):
+        for x in range(min_x, (max_x + 1)):
+            let dx = ((((x as f32 + 0.5) - screen.x)) * inverse_radius)
+            let dy = ((((y as f32 + 0.5) - screen.y)) * inverse_radius)
+            let radial = ((dx * dx) + (dy * dy))
+            if (radial >= 1):
+                continue
+            let pixel_index = ((y * resolution.width) + x)
+            if (particle.depth_test && (screen.depth >= depth[pixel_index])):
+                continue
+            let intensity = (((1 - radial)).powf(particle.softness) * particle.emissive_strength)
+            if (intensity <= 0.002):
+                continue
+            blend_additive(rgba, pixel_index, (particle.color * intensity))
+            ()
+            (*stats).particles_shaded = ((*stats).particles_shaded + 1)
+            ()
+
+fn draw_solid_disc(rgba: &mut [u8], resolution: RenderResolution, center_x: f32, center_y: f32, radius: f32, color: ColorRgb):
+    let min_x = ((center_x - radius)).floor().clamp(0, (resolution.width as f32 - 1)) as usize
+    let max_x = ((center_x + radius)).ceil().clamp(0, (resolution.width as f32 - 1)) as usize
+    let min_y = ((center_y - radius)).floor().clamp(0, (resolution.height as f32 - 1)) as usize
+    let max_y = ((center_y + radius)).ceil().clamp(0, (resolution.height as f32 - 1)) as usize
+    let radius_sq = (radius * radius)
+    let pixel = color.to_rgba8()
+    for y in range(min_y, (max_y + 1)):
+        for x in range(min_x, (max_x + 1)):
+            let dx = ((x as f32 + 0.5) - center_x)
+            let dy = ((y as f32 + 0.5) - center_y)
+            if (((dx * dx) + (dy * dy)) > radius_sq):
+                continue
+            let rgba_index = ((((y * resolution.width) + x)) * 4)
+            rgba[rgba_index..(rgba_index + 4)].copy_from_slice(&pixel)
+            ()
+
+fn draw_glow_ring(rgba: &mut [u8], resolution: RenderResolution, center_x: f32, center_y: f32, radius: f32, color: ColorRgb, intensity: f32):
+    let ring_width = ((radius * 0.22)).max(3)
+    let outer = (radius + ring_width)
+    let min_x = ((center_x - outer)).floor().clamp(0, (resolution.width as f32 - 1)) as usize
+    let max_x = ((center_x + outer)).ceil().clamp(0, (resolution.width as f32 - 1)) as usize
+    let min_y = ((center_y - outer)).floor().clamp(0, (resolution.height as f32 - 1)) as usize
+    let max_y = ((center_y + outer)).ceil().clamp(0, (resolution.height as f32 - 1)) as usize
+    for y in range(min_y, (max_y + 1)):
+        for x in range(min_x, (max_x + 1)):
+            let dx = ((x as f32 + 0.5) - center_x)
+            let dy = ((y as f32 + 0.5) - center_y)
+            let distance = (((dx * dx) + (dy * dy))).sqrt()
+            let falloff = (1 - ((((distance - radius)).abs() / ring_width)))
+            if (falloff <= 0):
+                continue
+            blend_additive(rgba, ((y * resolution.width) + x), (color * (((falloff * falloff) * intensity))))
+            ()
+
+fn shade_pixel(material: &Material, lighting: &LightingRig, world_position: Vec3, world_normal: Vec3, camera_position: Vec3, config: SoftwareRendererConfig) -> ColorRgb:
+    let view_direction = ((camera_position - world_position)).normalize()
+    let ambient = (((*lighting).ambient_color.to_vec3() * (*lighting).ambient_intensity) * (*material).ambient_strength)
+    let mut color = (*material).base_color.to_vec3().component_mul(ambient)
+    color = (color + shade_hemisphere_fill(material, lighting, world_normal))
+    ()
+    for light in &(*lighting).directional_lights:
+        color = (color + shade_directional(material, world_normal, view_direction, light))
+        ()
+    ()
+    for light in &(*lighting).point_lights:
+        color = (color + shade_point(material, world_position, world_normal, view_direction, light))
+        ()
+    ()
+    let fresnel = ((1 - world_normal.dot(view_direction).max(0))).powf(4.5)
+    color = (color + (((*material).specular_color.to_vec3() * fresnel) * ((0.035 + ((*material).specular_strength * 0.14)))))
+    ()
+    let rim = (((1 - world_normal.dot(view_direction).max(0))).powf(2) * config.rim_light_strength)
+    color = (color + Vec3__new_(rim, rim, (rim * 1.25)))
+    ()
+    ColorRgb__from_vec3(color)
+
+fn apply_distance_fog(shaded: ColorRgb, fog_color: ColorRgb, fog_density: f32, distance: f32) -> ColorRgb:
+    if (fog_density <= f32__EPSILON):
+        return shaded
+    let fog_factor = ((1 - (((-distance) * fog_density)).exp())).clamp(0, 1)
+    ((shaded * ((1 - fog_factor))) + (fog_color * fog_factor))
+
+fn shade_directional(material: &Material, world_normal: Vec3, view_direction: Vec3, light: &DirectionalLight) -> Vec3:
+    let light_direction = (((*light).direction * (-1))).normalize()
+    let diffuse = world_normal.dot(light_direction).max(0)
+    let halfway = ((light_direction + view_direction)).normalize()
+    let specular = (world_normal.dot(halfway).max(0).powf((*material).shininess.max(1)) * ((0.35 + (0.65 * diffuse))))
+    (((((*material).base_color.to_vec3().component_mul((*light).color.to_vec3()) * diffuse) * (*light).intensity) * (*material).diffuse_strength) + ((((*material).specular_color.to_vec3().component_mul((*light).color.to_vec3()) * specular) * (*light).intensity) * (*material).specular_strength))
+
+fn shade_point(material: &Material, world_position: Vec3, world_normal: Vec3, view_direction: Vec3, light: &PointLight) -> Vec3:
+    let to_light = ((*light).position - world_position)
+    let distance = to_light.length()
+    if ((distance <= f32__EPSILON) || (distance > (*light).range)):
+        return Vec3__ZERO
+    let light_direction = (to_light / distance)
+    let attenuation = ((1 - ((distance / (*light).range)))).powi(2)
+    let diffuse = world_normal.dot(light_direction).max(0)
+    let halfway = ((light_direction + view_direction)).normalize()
+    let specular = (halfway.dot(world_normal).max(0).powf((*material).shininess.max(1)) * ((0.35 + (0.65 * diffuse))))
+    ((((((*material).base_color.to_vec3().component_mul((*light).color.to_vec3()) * diffuse) * attenuation) * (*light).intensity) * (*material).diffuse_strength) + (((((*material).specular_color.to_vec3().component_mul((*light).color.to_vec3()) * specular) * attenuation) * (*light).intensity) * (*material).specular_strength))
+
+fn shade_hemisphere_fill(material: &Material, lighting: &LightingRig, world_normal: Vec3) -> Vec3:
+    let up_mix = (((world_normal.y * 0.5) + 0.5)).clamp(0, 1)
+    let sky_color = ((*lighting).ambient_color.to_vec3() * ((((*lighting).ambient_intensity * 0.75) + 0.12)))
+    let ground_color = (Vec3__new_(0.05, 0.05, 0.06) + ((*material).base_color.to_vec3() * 0.06))
+    let fill_color = ((ground_color * ((1 - up_mix))) + (sky_color * up_mix))
+    (fill_color.component_mul((*material).base_color.to_vec3()) * ((((0.1 + ((*lighting).ambient_intensity * 0.22))) * ((0.45 + ((*material).diffuse_strength * 0.55))))))
+
+fn draw_line(rgba: &mut [u8], resolution: RenderResolution, start: ScreenVertex, end: ScreenVertex, color: [u8; 4]):
+    let dx = (end.x - start.x)
+    let dy = (end.y - start.y)
+    let steps = dx.abs().max(dy.abs()).max(1) as usize
+    for step in range(0, (steps + 1)):
+        let t = (step as f32 / steps as f32)
+        let x = (start.x + (dx * t))
+        let y = (start.y + (dy * t))
+        let xi = x.round() as isize
+        let yi = y.round() as isize
+        if ((((xi < 0) || (yi < 0)) || (xi >= resolution.width as isize)) || (yi >= resolution.height as isize)):
+            continue
+        let index = ((((yi as usize * resolution.width) + xi as usize)) * 4)
+        rgba[index..(index + 4)].copy_from_slice(&color)
+        ()
+
+fn edge_function(a: ScreenVertex, b: ScreenVertex, x: f32, y: f32) -> f32:
+    ((((x - a.x)) * ((b.y - a.y))) - (((y - a.y)) * ((b.x - a.x))))
+
+fn orthonormal_basis(axis: Vec3) -> (Vec3, Vec3):
+    let helper = if (axis.y.abs() > 0.92):
+        Vec3__new_(1, 0, 0)
+    else:
+        Vec3__UP
+    let basis_u = axis.cross(helper).normalize()
+    let basis_v = axis.cross(basis_u).normalize()
+    (basis_u, basis_v)
+
+fn blend_additive(rgba: &mut [u8], pixel_index: usize, color: ColorRgb):
+    let rgba_index = (pixel_index * 4)
+    let existing = Vec3__new_((rgba[rgba_index] as f32 / 255), (rgba[(rgba_index + 1)] as f32 / 255), (rgba[(rgba_index + 2)] as f32 / 255))
+    let blended = (existing + color.to_vec3())
+    let pixel = ColorRgb__from_vec3(blended).to_rgba8()
+    rgba[rgba_index..(rgba_index + 4)].copy_from_slice(&pixel)
+    ()
+
+fn hash01(seed: f32) -> f32:
+    fract01((((seed * 12.9898)).sin() * 43758.547))
+
+fn fract01(value: f32) -> f32:
+    (value - value.floor())
+
+fn lerp(start: f32, end: f32, t: f32) -> f32:
+    (start + (((end - start)) * t))
+
+fn to_vec3(point: [f32; 4]) -> Vec3:
+    Vec3__new_(point[0], point[1], point[2])
+

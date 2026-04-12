@@ -1,0 +1,55 @@
+use kain_core::ast::TargetActorDef
+
+use kain_core::ast::TargetFilter
+
+use kain_core::ast::TraceType
+
+use kain_core::error::KainError
+
+use kain_core::error::KainResult
+
+@derive(Debug, Clone)
+pub struct TargetActorIR:
+    name: String
+    trace_type: TraceTypeIR
+    max_range: Option<f64>
+    trace_channel: Option<String>
+    filter: Option<TargetFilterIR>
+    reticle_class: Option<String>
+    custom_methods: Array<MethodIR>
+
+pub enum TraceTypeIR:
+    Line
+    Sphere
+    Cone
+    Box
+    Cylinder
+
+@derive(Debug, Clone)
+pub struct TargetFilterIR:
+    self_filter: Option<String>
+    required_actor_class: Option<String>
+    require_tags: Array<String>
+    ignore_tags: Array<String>
+    custom_filter_body: Option<String>
+
+@derive(Debug, Clone)
+pub struct MethodIR:
+    name: String
+    body: String
+
+impl TargetActorIR:
+    pub fn from_ast(target: &kain_core::ast::TargetActorDef) -> Result<TargetActorIR, KainError>:
+        if (!(*target).attributes.iter().any(fn(a): (a.name == "target_actor"))):
+            return Result::Err(KainError__codegen(f"Struct '{(*target).name}' must have @target_actor attribute", (*target).span))
+        let trace_type = match (*target).trace_type:
+            kain_core__ast__TraceType::Line => TraceTypeIR__Line
+            kain_core__ast__TraceType::Sphere => TraceTypeIR__Sphere
+            kain_core__ast__TraceType::Cone => TraceTypeIR__Cone
+            kain_core__ast__TraceType::Box => TraceTypeIR__Box
+            kain_core__ast__TraceType::Cylinder => TraceTypeIR__Cylinder
+        let filter = (*target).filter.map(fn(f): TargetFilterIR { self_filter: f.self_filter.clone(), required_actor_class: f.required_actor_class.clone(), require_tags: f.require_tags.clone(), ignore_tags: f.ignore_tags.clone(), custom_filter_body: f.custom_filter_method.map(fn(_): ("// TODO: Implement custom filter codegen").to_string()) })
+        let custom_methods = (*target).custom_methods.iter().map(fn(m): MethodIR { name: m.name.clone(), body: ("// TODO: Implement method codegen").to_string() }).collect()
+        Result::Ok(TargetActorIR { name: (*target).name.clone(), trace_type: trace_type, max_range: (*target).max_range, trace_channel: (*target).trace_channel.clone(), filter: filter, reticle_class: (*target).reticle_class.clone(), custom_methods: custom_methods })
+
+

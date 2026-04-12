@@ -1,0 +1,1020 @@
+use std::collections::BTreeMap
+
+use std::collections::BTreeSet
+
+use serde::Deserialize
+
+use serde::Serialize
+
+use crate::ui_solve_workspace_layout
+
+use crate::ui_step_animation_runtime
+
+use crate::ui_transfer_hot_reload_state
+
+use crate::UiAnimationFrame
+
+use crate::UiBuildOutput
+
+use crate::UiCommand
+
+use crate::UiCommandRejection
+
+use crate::UiComputed
+
+use crate::UiDerivedExpr
+
+use crate::UiEventPhase
+
+use crate::UiHotReloadTransferReport
+
+use crate::UiInvalidationResult
+
+use crate::UiLayoutKind
+
+use crate::UiNodeId
+
+use crate::UiOverflowBehavior
+
+use crate::UiPatch
+
+use crate::UiRect
+
+use crate::UiResolvedLayout
+
+use crate::UiSchedulerEntry
+
+use crate::UiSchedulerPhase
+
+use crate::UiSignalId
+
+use crate::UiSignalUpdate
+
+use crate::UiTransaction
+
+use crate::UiTree
+
+use crate::UiValue
+
+use crate::UiWorkspaceLayout
+
+@doc(doc = " Runtime entrypoint that owns:")
+@doc(doc = " - retained semantic graph (`UiTree`)")
+@doc(doc = " - runtime-owned state/systems (`UiRuntimeSystems` via fields on `UiRuntimeBundle.output.systems`)")
+@doc(doc = " - exact invalidation and scheduler decisions")
+@doc(doc = " - transaction-aware mutation + patch authority")
+@doc(doc = "")
+@doc(doc = " This is the object that backends should treat as \"the UI runtime\" rather")
+@doc(doc = " than scattering state across host-local widget instances.")
+@derive(Clone, Debug)
+pub struct UiRuntime:
+    tree: UiTree
+    systems: UiRuntimeSystems
+    indexes: UiRuntimeIndexes
+    next_transaction_id: u64
+
+impl UiRuntime:
+    pub fn new_(tree: UiTree, systems: UiRuntimeSystems) -> UiRuntime:
+        let mut runtime = UiRuntime { tree: tree, systems: systems, indexes: UiRuntimeIndexes__default_(), next_transaction_id: 1 }
+        runtime.rebuild_indexes()
+        ()
+        runtime
+
+    pub fn rebuild_indexes(_self: &mut UiRuntime):
+        (*_self).indexes = UiRuntimeIndexes__build(&(*_self).tree, &(*_self).systems.computed)
+        ()
+
+    pub fn reload(_self: &mut UiRuntime, next: UiBuildOutput) -> UiRuntimeReloadOutput:
+        let previous_output = UiBuildOutput { tree: (*_self).tree.clone(), patches: Vec__new_(), systems: (*_self).systems.clone() }
+        let pre_active_tabs = (*_self).systems.workspace_layout.active_tabs.clone()
+        let pre_focus = (*_self).systems.focus_graph.focused.clone()
+        let pre_selection_primary = (*_self).systems.selection_model.primary.clone()
+        let report = ui_transfer_hot_reload_state(&previous_output, &mut next)
+        (*_self).tree = next.tree
+        ()
+        (*_self).systems = next.systems
+        ()
+        (*_self).rebuild_indexes()
+        ()
+        let mut output = UiRuntimeReloadOutput { report: report.clone(), ..UiRuntimeReloadOutput__default_() }
+        output.system_patches.push(UiRuntimeSystemPatch::HotReloadApplied { report: report.clone() })
+        ()
+        output.system_patches.extend(runtime_state_delta_patches(&pre_active_tabs, &pre_focus, &pre_selection_primary, &(*_self).systems.workspace_layout.active_tabs, &(*_self).systems.focus_graph.focused, &(*_self).systems.selection_model.primary))
+        ()
+        if (!report.invalidated_nodes.is_empty()):
+            let scheduler_entry = UiSchedulerEntry { phase: UiSchedulerPhase__Layout, label: ("hot_reload").to_string(), target_nodes: report.invalidated_nodes.clone() }
+            (*_self).systems.scheduler.pending.push(scheduler_entry.clone())
+            ()
+            let transaction = UiTransaction { label: ("hot_reload").to_string(), touched_nodes: report.invalidated_nodes.clone(), ..UiTransaction__default_runtime((*_self).next_transaction_id) }
+            (*_self).next_transaction_id = (*_self).next_transaction_id.saturating_add(1)
+            ()
+            (*_self).systems.transactions.push(transaction.clone())
+            ()
+            let invalidation = UiInvalidationResult { changed_signals: Vec__new_(), invalidated_nodes: report.invalidated_nodes.clone(), scheduled: [scheduler_entry], transaction: Option::Some(transaction) }
+            output.invalidation = Option::Some(invalidation)
+            ()
+            output.system_patches.push(UiRuntimeSystemPatch::HotReloadInvalidated { invalidated_nodes: report.invalidated_nodes.clone() })
+            ()
+            ()
+            ()
+            ()
+        output.scheduler = Option::Some(ui_coalesce_scheduler_entries(&mut (*_self).systems.scheduler.pending))
+        ()
+        output
+
+    pub fn step(_self: &mut UiRuntime, input: &UiRuntimeStepInput) -> UiRuntimeStepOutput:
+        let mut output = UiRuntimeStepOutput__default_()
+        for event in &(*input).events:
+            let routed = (*_self).route_event_to_commands(event)
+            for command in routed:
+                output.system_patches.push(UiRuntimeSystemPatch::CommandQueued { command: command.clone() })
+                ()
+                (*_self).systems.command_buffer.pending.push(command)
+                ()
+        ()
+        let mut command_exec = UiCommandExecutionOutput__default_()
+        for command in std__mem__take(&mut (*_self).systems.command_buffer.pending):
+            let exec_one = (*_self).execute_command(command.clone())
+            let applied = exec_one.rejections.is_empty()
+            command_exec.merge(exec_one)
+            ()
+            output.system_patches.push(UiRuntimeSystemPatch::CommandExecuted { command: command, applied: applied })
+            ()
+        ()
+        (*_self).systems.command_buffer.executed.extend(command_exec.executed)
+        ()
+        (*_self).systems.command_buffer.rejections.extend(command_exec.rejections)
+        ()
+        output.tree_patches.extend(command_exec.tree_patches)
+        ()
+        output.system_patches.extend(command_exec.system_patches)
+        ()
+        if (!(*input).signal_updates.is_empty()):
+            let invalidation = (*_self).apply_signal_updates(&(*input).signal_updates, (*input).transaction_label)
+            output.invalidation = Option::Some(invalidation.clone())
+            ()
+            output.system_patches.push(UiRuntimeSystemPatch::SignalsUpdated { changed_signals: invalidation.changed_signals.clone(), invalidated_nodes: invalidation.invalidated_nodes.clone() })
+            ()
+            ()
+            ()
+            ()
+        if ((*input).delta_ms > 0):
+            (*_self).systems.motion_policy.recompute_capacitor()
+            ()
+            if (*_self).systems.motion_policy.should_animate():
+                let frames = ui_step_animation_runtime(&mut (*_self).systems, (*input).delta_ms)
+                if (!frames.is_empty()):
+                    output.animation_frames = frames.clone()
+                    ()
+                    output.system_patches.push(UiRuntimeSystemPatch::AnimationAdvanced { frames: frames })
+                    ()
+                    ()
+                    ()
+                    ()
+                ()
+            ()
+        output.scheduler = Option::Some(ui_coalesce_scheduler_entries(&mut (*_self).systems.scheduler.pending))
+        ()
+        output
+
+    pub fn apply_signal_updates(_self: &mut UiRuntime, updates: &[UiSignalUpdate], transaction_label: Option<String>) -> UiInvalidationResult:
+        let mut result = UiInvalidationResult__default_()
+        let mut invalidated = BTreeSet__new_()
+        let mut changed = BTreeSet__new_()
+        let mut worklist = Vec__new_()
+        let mut scheduled = BTreeSet__new_()
+        for update in updates:
+            let changed_value = ((*_self).systems.signal_values.get(&update.signal) != Option::Some(&update.value))
+            if (!changed_value):
+                continue
+            (*_self).systems.signal_values.insert(update.signal, update.value.clone())
+            ()
+            if changed.insert(update.signal):
+                result.changed_signals.push(update.signal)
+                ()
+                worklist.push(update.signal)
+                ()
+        ()
+        let mut steps = 0
+        loop:
+            match worklist.pop():
+                Some(signal) =>
+                    steps = (steps + 1)
+                    ()
+                    if (steps > 10000):
+                        break
+                    match (*_self).indexes.signal_watchers.get(&signal):
+                        Some(nodes) =>
+                            for node in nodes:
+                                if invalidated.insert((*node)):
+                                    result.invalidated_nodes.push((*node))
+                                    ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    match (*_self).indexes.signal_to_computed.get(&signal):
+                        Some(computed_indices) =>
+                            for idx in computed_indices:
+                                let Some(computed) = (*_self).systems.computed.get((*idx)).cloned()
+                                match (computed.writes_signal, computed.expr.clone()):
+                                    (Some(out_signal), Some(expr)) =>
+                                        let next_value = ui_eval_derived_expr(&expr, &(*_self).systems.signal_values)
+                                        let changed_value = ((*_self).systems.signal_values.get(&out_signal) != Option::Some(&next_value))
+                                        if changed_value:
+                                            (*_self).systems.signal_values.insert(out_signal, next_value)
+                                            ()
+                                            if changed.insert(out_signal):
+                                                result.changed_signals.push(out_signal)
+                                                ()
+                                                worklist.push(out_signal)
+                                                ()
+                                                ()
+                                                ()
+                                                ()
+                                            for node in &computed.invalidates_nodes:
+                                                if invalidated.insert((*node)):
+                                                    result.invalidated_nodes.push((*node))
+                                                    ()
+                                            ()
+                                            let entry = UiSchedulerEntry { phase: computed.scheduler_phase, label: computed.label.clone(), target_nodes: computed.invalidates_nodes.clone() }
+                                            let key = f"computed:{computed.id}:{entry.phase}"
+                                            if scheduled.insert(key):
+                                                (*_self).systems.scheduler.pending.push(entry.clone())
+                                                ()
+                                                result.scheduled.push(entry)
+                                                ()
+                                                ()
+                                                ()
+                                                ()
+                                            ()
+                                        continue
+                                    _ =>
+                                        ()
+                                        ()
+                                for node in &computed.invalidates_nodes:
+                                    if invalidated.insert((*node)):
+                                        result.invalidated_nodes.push((*node))
+                                        ()
+                                ()
+                                let entry = UiSchedulerEntry { phase: computed.scheduler_phase, label: computed.label.clone(), target_nodes: computed.invalidates_nodes.clone() }
+                                let key = f"computed:{computed.id}:{entry.phase}"
+                                if scheduled.insert(key):
+                                    (*_self).systems.scheduler.pending.push(entry.clone())
+                                    ()
+                                    result.scheduled.push(entry)
+                                    ()
+                        _ => ()
+                _ => break
+        ()
+        if (!result.changed_signals.is_empty()):
+            let transaction = UiTransaction { label: transaction_label.map(fn(label): label.to_string()).unwrap_or_else(fn(): f"signals:{result.changed_signals.len()}"), touched_nodes: result.invalidated_nodes.clone(), changed_signals: result.changed_signals.clone(), ..UiTransaction__default_runtime((*_self).next_transaction_id) }
+            (*_self).next_transaction_id = (*_self).next_transaction_id.saturating_add(1)
+            ()
+            (*_self).systems.transactions.push(transaction.clone())
+            ()
+            result.transaction = Option::Some(transaction)
+            ()
+            ()
+            ()
+            ()
+        result
+
+    fn route_event_to_commands(_self: &UiRuntime, event: &UiRuntimeEvent) -> Array<UiCommand>:
+        let mut commands = Vec__new_()
+        for route in &(*_self).systems.event_routes:
+            if (route.event != (*event).event):
+                continue
+            if (route.target != (*event).target):
+                continue
+            if (route.phase != (*event).phase):
+                continue
+            match route.dispatch_command:
+                Some(command_name) =>
+                    commands.push(UiCommand { name: command_name.to_string(), target: Option::Some((*event).target), payload: (*event).payload.clone(), transaction_label: route.transaction_label.clone() })
+                    ()
+                _ =>
+                    match route.handler_id:
+                        Some(handler_id) =>
+                            commands.push(UiCommand { name: handler_id.to_string(), target: Option::Some((*event).target), payload: (*event).payload.clone(), transaction_label: route.transaction_label.clone() })
+                            ()
+                        _ => ()
+        ()
+        commands
+
+    fn execute_command(_self: &mut UiRuntime, command: UiCommand) -> UiCommandExecutionOutput:
+        let mut output = UiCommandExecutionOutput__default_()
+        let mut tx = UiTransaction { label: command.transaction_label.clone().unwrap_or_else(fn(): f"cmd:{command.name}"), ..UiTransaction__default_runtime((*_self).next_transaction_id) }
+        (*_self).next_transaction_id = (*_self).next_transaction_id.saturating_add(1)
+        ()
+        match (*_self).systems.command_registry.snapshot.iter().find(fn(desc): (desc.name == command.name)):
+            Some(desc) =>
+                if (desc.effect == UiCommandEffectKind__ExternalEffect):
+                    tx.dispatched_commands.push(command.name.clone())
+                    ()
+                    output.executed.push(command.clone())
+                    ()
+                    output.system_patches.push(UiRuntimeSystemPatch::ExternalCommandDispatched { command: command.name.clone() })
+                    ()
+                    (*_self).systems.transactions.push(tx)
+                    ()
+                    return output
+                ()
+            _ =>
+                ()
+                ()
+        let pre_active_tabs = (*_self).systems.workspace_layout.active_tabs.clone()
+        let pre_focus = (*_self).systems.focus_graph.focused.clone()
+        let pre_selection_primary = (*_self).systems.selection_model.primary.clone()
+        let mut mutator = UiTreeMutator__new_(&mut (*_self).tree)
+        let applied = ui_apply_builtin_command(&mut mutator, &mut (*_self).systems, &command, &mut tx)
+        let (patches, touched_nodes) = mutator.finish()
+        tx.touched_nodes = touched_nodes
+        ()
+        tx.patch_count = patches.len()
+        ()
+        if applied:
+            output.executed.push(command)
+            ()
+            output.tree_patches.extend(patches)
+            ()
+            for selfhost_for_item in &(*_self).systems.workspace_layout.active_tabs:
+                let (group_id, layout_id) = selfhost_for_item
+                if (pre_active_tabs.get(group_id) != Option::Some(layout_id)):
+                    output.system_patches.push(UiRuntimeSystemPatch::WorkspaceActiveTabChanged { group_id: group_id.clone(), active_layout_id: layout_id.clone() })
+                    ()
+            ()
+            for selfhost_for_item in &(*_self).systems.focus_graph.focused:
+                let (scope, focused) = selfhost_for_item
+                if (pre_focus.get(scope) != Option::Some(focused)):
+                    output.system_patches.push(UiRuntimeSystemPatch::FocusChanged { scope: scope.clone(), focused: Option::Some((*focused)) })
+                    ()
+            ()
+            for scope in pre_focus.keys():
+                if (!(*_self).systems.focus_graph.focused.contains_key(scope)):
+                    output.system_patches.push(UiRuntimeSystemPatch::FocusChanged { scope: scope.clone(), focused: none })
+                    ()
+            ()
+            for selfhost_for_item in &(*_self).systems.selection_model.primary:
+                let (scope, primary) = selfhost_for_item
+                if (pre_selection_primary.get(scope) != Option::Some(primary)):
+                    output.system_patches.push(UiRuntimeSystemPatch::SelectionChanged { scope: scope.clone(), primary: Option::Some((*primary)) })
+                    ()
+            ()
+            for scope in pre_selection_primary.keys():
+                if (!(*_self).systems.selection_model.primary.contains_key(scope)):
+                    output.system_patches.push(UiRuntimeSystemPatch::SelectionChanged { scope: scope.clone(), primary: none })
+                    ()
+            ()
+            ()
+        else:
+            output.rejections.push(UiCommandRejection { command_name: command.name.clone(), reason: ("unsupported_command_or_invalid_payload").to_string() })
+            ()
+            ()
+            ()
+            ()
+        (*_self).systems.transactions.push(tx)
+        ()
+        output
+
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeStepInput:
+    transaction_label: Option<String>
+    delta_ms: u32
+    events: Array<UiRuntimeEvent>
+    signal_updates: Array<UiSignalUpdate>
+
+impl Default for UiRuntimeStepInput:
+    pub fn default_() -> UiRuntimeStepInput:
+        UiRuntimeStepInput { transaction_label: none, delta_ms: 0, events: Vec__new_(), signal_updates: Vec__new_() }
+
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeStepOutput:
+    tree_patches: Array<UiPatch>
+    system_patches: Array<UiRuntimeSystemPatch>
+    invalidation: Option<UiInvalidationResult>
+    scheduler: Option<UiSchedulerCoalesceReport>
+    animation_frames: Array<UiAnimationFrame>
+
+impl Default for UiRuntimeStepOutput:
+    pub fn default_() -> UiRuntimeStepOutput:
+        UiRuntimeStepOutput { tree_patches: Vec__new_(), system_patches: Vec__new_(), invalidation: none, scheduler: none, animation_frames: Vec__new_() }
+
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeReloadOutput:
+    report: UiHotReloadTransferReport
+    system_patches: Array<UiRuntimeSystemPatch>
+    invalidation: Option<UiInvalidationResult>
+    scheduler: Option<UiSchedulerCoalesceReport>
+
+impl Default for UiRuntimeReloadOutput:
+    pub fn default_() -> UiRuntimeReloadOutput:
+        UiRuntimeReloadOutput { report: UiHotReloadTransferReport__default_(), system_patches: Vec__new_(), invalidation: none, scheduler: none }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiRuntimeEvent:
+    event: String
+    target: UiNodeId
+    phase: UiEventPhase
+    payload: Map<String, UiValue>
+
+pub enum UiRuntimeSystemPatch:
+    SignalsUpdated { changed_signals: Array<UiSignalId>, invalidated_nodes: Array<UiNodeId> }
+    CommandQueued { command: UiCommand }
+    CommandExecuted { command: UiCommand, applied: Bool }
+    WorkspaceActiveTabChanged { group_id: String, active_layout_id: String }
+    SelectionChanged { scope: String, primary: Option<UiNodeId> }
+    FocusChanged { scope: String, focused: Option<UiNodeId> }
+    AnimationAdvanced { frames: Array<UiAnimationFrame> }
+    ExternalCommandDispatched { command: String }
+    HotReloadApplied { report: UiHotReloadTransferReport }
+    HotReloadInvalidated { invalidated_nodes: Array<UiNodeId> }
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiCommandExecutionOutput:
+    executed: Array<UiCommand>
+    tree_patches: Array<UiPatch>
+    system_patches: Array<UiRuntimeSystemPatch>
+    rejections: Array<UiCommandRejection>
+
+impl Default for UiCommandExecutionOutput:
+    pub fn default_() -> UiCommandExecutionOutput:
+        UiCommandExecutionOutput { executed: Vec__new_(), tree_patches: Vec__new_(), system_patches: Vec__new_(), rejections: Vec__new_() }
+
+
+impl UiCommandExecutionOutput:
+    fn merge(_self: &mut UiCommandExecutionOutput, other: UiCommandExecutionOutput):
+        (*_self).executed.extend(other.executed)
+        ()
+        (*_self).tree_patches.extend(other.tree_patches)
+        ()
+        (*_self).system_patches.extend(other.system_patches)
+        ()
+        (*_self).rejections.extend(other.rejections)
+        ()
+
+
+fn runtime_state_delta_patches(previous_active_tabs: &Map<String, String>, previous_focus: &Map<String, UiNodeId>, previous_selection_primary: &Map<String, UiNodeId>, next_active_tabs: &Map<String, String>, next_focus: &Map<String, UiNodeId>, next_selection_primary: &Map<String, UiNodeId>) -> Array<UiRuntimeSystemPatch>:
+    let mut patches = Vec__new_()
+    for selfhost_for_item in next_active_tabs:
+        let (group_id, layout_id) = selfhost_for_item
+        if (previous_active_tabs.get(group_id) != Option::Some(layout_id)):
+            patches.push(UiRuntimeSystemPatch::WorkspaceActiveTabChanged { group_id: group_id.clone(), active_layout_id: layout_id.clone() })
+            ()
+    ()
+    for selfhost_for_item in next_focus:
+        let (scope, focused) = selfhost_for_item
+        if (previous_focus.get(scope) != Option::Some(focused)):
+            patches.push(UiRuntimeSystemPatch::FocusChanged { scope: scope.clone(), focused: Option::Some((*focused)) })
+            ()
+    ()
+    for scope in previous_focus.keys():
+        if (!next_focus.contains_key(scope)):
+            patches.push(UiRuntimeSystemPatch::FocusChanged { scope: scope.clone(), focused: none })
+            ()
+    ()
+    for selfhost_for_item in next_selection_primary:
+        let (scope, primary) = selfhost_for_item
+        if (previous_selection_primary.get(scope) != Option::Some(primary)):
+            patches.push(UiRuntimeSystemPatch::SelectionChanged { scope: scope.clone(), primary: Option::Some((*primary)) })
+            ()
+    ()
+    for scope in previous_selection_primary.keys():
+        if (!next_selection_primary.contains_key(scope)):
+            patches.push(UiRuntimeSystemPatch::SelectionChanged { scope: scope.clone(), primary: none })
+            ()
+    ()
+    patches
+
+@derive(Debug)
+struct UiTreeMutator<a>:
+    tree: &mut a UiTree
+    patches: Array<UiPatch>
+    touched_nodes: Set<UiNodeId>
+
+impl<a> UiTreeMutator<a>:
+    fn new_(tree: &mut a UiTree) -> UiTreeMutator<a>:
+        UiTreeMutator { tree: tree, patches: Vec__new_(), touched_nodes: BTreeSet__new_() }
+
+    fn set_prop(_self: &mut UiTreeMutator<a>, id: UiNodeId, key: String, value: UiValue) -> Bool:
+        let Some(node) = (*_self).tree.node_mut(id)
+        let changed = (node.props.get(&key) != Option::Some(&value))
+        if (!changed):
+            return true
+        node.props.insert(key.clone(), value.clone())
+        ()
+        (*_self).patches.push(UiPatch::SetProp { id: id, key: key, value: value })
+        ()
+        (*_self).touched_nodes.insert(id)
+        ()
+        true
+
+    fn set_layout(_self: &mut UiTreeMutator<a>, id: UiNodeId, layout: UiLayoutSpec) -> Bool:
+        let Some(node) = (*_self).tree.node_mut(id)
+        if (node.layout == layout):
+            return true
+        node.layout = layout.clone()
+        ()
+        (*_self).patches.push(UiPatch::SetLayout { id: id, layout: layout })
+        ()
+        (*_self).touched_nodes.insert(id)
+        ()
+        true
+
+    fn finish(_self: UiTreeMutator<a>) -> (Array<UiPatch>, Array<UiNodeId>):
+        (_self.patches, _self.touched_nodes.into_iter().collect())
+
+
+@derive(Clone, Debug, Default)
+struct UiRuntimeIndexes:
+    signal_watchers: Map<UiSignalId, Array<UiNodeId>>
+    signal_to_computed: Map<UiSignalId, Array<usize>>
+
+impl Default for UiRuntimeIndexes:
+    pub fn default_() -> UiRuntimeIndexes:
+        UiRuntimeIndexes { signal_watchers: HashMap__new_(), signal_to_computed: HashMap__new_() }
+
+
+impl UiRuntimeIndexes:
+    fn build(tree: &UiTree, computed: &[UiComputed]) -> UiRuntimeIndexes:
+        let mut indexes = UiRuntimeIndexes__default_()
+        for node in (*tree).nodes.values():
+            for signal in &node.watches:
+                indexes.signal_watchers.entry((*signal)).or_default().push(node.id)
+                ()
+        ()
+        for selfhost_for_item in computed.iter().enumerate():
+            let (idx, computed) = selfhost_for_item
+            for signal in &(*computed).depends_on:
+                indexes.signal_to_computed.entry((*signal)).or_default().push(idx)
+                ()
+        ()
+        for watchers in indexes.signal_watchers.values_mut():
+            watchers.sort()
+            ()
+            watchers.dedup()
+            ()
+        ()
+        for deps in indexes.signal_to_computed.values_mut():
+            deps.sort()
+            ()
+            deps.dedup()
+            ()
+        ()
+        indexes
+
+
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSchedulerCoalesceReport:
+    original_count: usize
+    coalesced_count: usize
+    entries: Array<UiSchedulerEntry>
+
+impl Default for UiSchedulerCoalesceReport:
+    pub fn default_() -> UiSchedulerCoalesceReport:
+        UiSchedulerCoalesceReport { original_count: 0, coalesced_count: 0, entries: Vec__new_() }
+
+
+fn ui_coalesce_scheduler_entries(pending: &mut Array<UiSchedulerEntry>) -> UiSchedulerCoalesceReport:
+    let original_count = pending.len()
+    if pending.is_empty():
+        return UiSchedulerCoalesceReport { original_count: original_count, coalesced_count: 0, entries: Vec__new_() }
+    let mut seen = BTreeSet__new_()
+    let mut coalesced = Vec__new_()
+    for entry in pending.drain(range(0, 0)):
+        let mut key = f"{entry.phase}|{entry.label}"
+        for node in &entry.target_nodes:
+            key.push("|")
+            ()
+            key.push_str(&node.field_0.to_string())
+            ()
+        ()
+        if seen.insert(key):
+            coalesced.push(entry)
+            ()
+    ()
+    coalesced.sort_by_key(fn(entry): (phase_sort_key(entry.phase), entry.label.clone()))
+    ()
+    let coalesced_count = coalesced.len()
+    UiSchedulerCoalesceReport { original_count: original_count, coalesced_count: coalesced_count, entries: coalesced }
+
+fn phase_sort_key(phase: UiSchedulerPhase) -> u32:
+    match phase:
+        UiSchedulerPhase::Signals => 0
+        UiSchedulerPhase::Resources => 1
+        UiSchedulerPhase::Layout => 2
+        UiSchedulerPhase::Animation => 3
+        UiSchedulerPhase::Patches => 4
+        UiSchedulerPhase::Effects => 5
+
+@doc(doc = " Spatial snapshot for \"layout correctness\" queries.")
+@doc(doc = "")
+@doc(doc = " This is intentionally tool/LLM-friendly: it makes ownership, containment,")
+@doc(doc = " overlay order, anchors, and focus traversal inspectable without host-specific")
+@doc(doc = " assumptions.")
+@derive(Clone, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSpatialSnapshot:
+    viewport: UiRect
+    active_tabs: Map<String, String>
+    nodes: Array<UiSpatialNodeSnapshot>
+    overlays: Array<UiOverlayResolved>
+    containment_violations: Array<UiContainmentViolation>
+    focus_traversal: Array<UiFocusTraversalSnapshot>
+
+impl Default for UiSpatialSnapshot:
+    pub fn default_() -> UiSpatialSnapshot:
+        UiSpatialSnapshot { viewport: UiRect__default_(), active_tabs: HashMap__new_(), nodes: Vec__new_(), overlays: Vec__new_(), containment_violations: Vec__new_(), focus_traversal: Vec__new_() }
+
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiSpatialNodeSnapshot:
+    node: UiNodeId
+    parent: Option<UiNodeId>
+    rect: UiRect
+    layout_kind: UiLayoutKind
+    owner_panel: Option<UiNodeId>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiOverlayResolved:
+    id: String
+    node: UiNodeId
+    order: i32
+    rect: Option<UiRect>
+    anchor_target: Option<UiNodeId>
+    anchor_target_rect: Option<UiRect>
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiContainmentViolation:
+    parent: UiNodeId
+    child: UiNodeId
+    parent_rect: UiRect
+    child_rect: UiRect
+    reason: String
+
+@derive(Clone, Debug, PartialEq, serde__Serialize, serde__Deserialize)
+pub struct UiFocusTraversalSnapshot:
+    scope: String
+    order: Array<UiNodeId>
+
+pub fn ui_compute_spatial_snapshot(tree: &UiTree, systems: &UiRuntimeSystems, viewport_size: [f32; 2]) -> UiSpatialSnapshot:
+    let resolved = ui_solve_workspace_layout(tree, systems, viewport_size)
+    ui_spatial_snapshot_from_layout(tree, systems, &resolved)
+
+pub fn ui_spatial_snapshot_from_layout(tree: &UiTree, systems: &UiRuntimeSystems, resolved: &UiResolvedLayout) -> UiSpatialSnapshot:
+    let parent_index = ui_build_parent_index(tree)
+    let mut rect_index = BTreeMap__new_()
+    let mut kind_index = BTreeMap__new_()
+    for entry in &(*resolved).nodes:
+        rect_index.insert(entry.node, entry.rect)
+        ()
+        kind_index.insert(entry.node, entry.layout_kind)
+        ()
+    ()
+    let mut snapshot = UiSpatialSnapshot { viewport: (*resolved).viewport, active_tabs: (*systems).workspace_layout.active_tabs.clone(), ..UiSpatialSnapshot__default_() }
+    for entry in &(*resolved).nodes:
+        let parent = parent_index.get(&entry.node).copied()
+        snapshot.nodes.push(UiSpatialNodeSnapshot { node: entry.node, parent: parent, rect: entry.rect, layout_kind: entry.layout_kind, owner_panel: ui_find_owner_panel(tree, &parent_index, entry.node) })
+        ()
+    ()
+    for overlay in &(*systems).overlay_stack.entries:
+        let rect = rect_index.get(&overlay.node).copied()
+        let (anchor_target, anchor_target_rect) = overlay.anchor.and_then(fn(anchor): rect_index.get(&anchor.target).copied().map(fn(r): (anchor.target, r))).map(fn(__kain_closure_arg0): (Option::Some(__kain_closure_arg0.__kain_tuple_0), Option::Some(__kain_closure_arg0.__kain_tuple_1))).unwrap_or((none, none))
+        snapshot.overlays.push(UiOverlayResolved { id: overlay.id.clone(), node: overlay.node, order: overlay.order, rect: rect, anchor_target: anchor_target, anchor_target_rect: anchor_target_rect })
+        ()
+    ()
+    snapshot.overlays.sort_by(fn(a, b): ((a.order, a.id.clone())).cmp(&(b.order, b.id.clone())))
+    ()
+    for selfhost_for_item in &parent_index:
+        let (child, parent) = selfhost_for_item
+        let Some(child_rect) = rect_index.get(child).copied()
+        let Some(parent_rect) = rect_index.get(parent).copied()
+        let Some(parent_node) = tree.node((*parent))
+        let overflow_x = parent_node.layout.overflow_x
+        let overflow_y = parent_node.layout.overflow_y
+        if ((overflow_x == UiOverflowBehavior__Visible) && (overflow_y == UiOverflowBehavior__Visible)):
+            continue
+        if ((overflow_x != UiOverflowBehavior__Visible) && (((child_rect.x < parent_rect.x) || ((child_rect.x + child_rect.width) > (parent_rect.x + parent_rect.width))))):
+            snapshot.containment_violations.push(UiContainmentViolation { parent: (*parent), child: (*child), parent_rect: parent_rect, child_rect: child_rect, reason: ("overflow_x").to_string() })
+            ()
+            ()
+            ()
+            ()
+        if ((overflow_y != UiOverflowBehavior__Visible) && (((child_rect.y < parent_rect.y) || ((child_rect.y + child_rect.height) > (parent_rect.y + parent_rect.height))))):
+            snapshot.containment_violations.push(UiContainmentViolation { parent: (*parent), child: (*child), parent_rect: parent_rect, child_rect: child_rect, reason: ("overflow_y").to_string() })
+            ()
+    ()
+    let mut scopes = BTreeSet__new_()
+    scopes.extend((*systems).focus_graph.scopes.iter().cloned())
+    ()
+    for node in (*tree).nodes.values():
+        match node.focus_scope:
+            Some(scope) =>
+                scopes.insert(scope.to_string())
+                ()
+            _ => ()
+    ()
+    for scope in scopes:
+        let order = ui_derive_focus_traversal_order(tree, systems, &scope)
+        snapshot.focus_traversal.push(UiFocusTraversalSnapshot { scope: scope, order: order })
+        ()
+    ()
+    snapshot
+
+fn ui_build_parent_index(tree: &UiTree) -> Map<UiNodeId, UiNodeId>:
+    let mut parents = BTreeMap__new_()
+    for node in (*tree).nodes.values():
+        for child in &node.children:
+            parents.insert((*child), node.id)
+            ()
+    ()
+    parents
+
+fn ui_find_owner_panel(tree: &UiTree, parent_index: &Map<UiNodeId, UiNodeId>, node: UiNodeId) -> Option<UiNodeId>:
+    let mut cursor = Option::Some(node)
+    loop:
+        match cursor:
+            Some(id) =>
+                let Some(entry) = tree.node(id)
+                if (none):
+                    return Option::Some(id)
+                cursor = parent_index.get(&id).copied()
+                ()
+            _ => break
+    ()
+    none
+
+fn ui_derive_focus_traversal_order(tree: &UiTree, systems: &UiRuntimeSystems, scope: String) -> Array<UiNodeId>:
+    if (!(*systems).focus_graph.traversal_edges.is_empty()):
+        let mut nodes: Set<UiNodeId> = BTreeSet__new_()
+        for edge in &(*systems).focus_graph.traversal_edges:
+            if (edge.scope == scope):
+                nodes.insert(edge.from)
+                ()
+                nodes.insert(edge.to)
+                ()
+        ()
+        return nodes.into_iter().collect()
+    let mut order = Vec__new_()
+    match (*tree).root:
+        Some(root) =>
+            ui_collect_focusable_preorder(tree, root, scope, &mut order)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    order
+
+fn ui_collect_focusable_preorder(tree: &UiTree, node: UiNodeId, scope: String, out_: &mut Array<UiNodeId>):
+    let Some(entry) = tree.node(node)
+    if (entry.focus_scope == Option::Some(scope)):
+        out_.push(node)
+        ()
+        ()
+        ()
+        ()
+    for child in &entry.children:
+        ui_collect_focusable_preorder(tree, (*child), scope, out_)
+        ()
+
+pub enum UiResizeDirection:
+    Horizontal
+    Vertical
+
+impl Default for UiResizeDirection:
+    pub fn default_() -> UiResizeDirection:
+        UiResizeDirection__Horizontal
+
+
+@derive(Clone, Copy, Debug, Default, PartialEq, serde__Serialize, serde__Deserialize)
+@serde(default_)
+pub struct UiResizeConstraints:
+    min_px: f32
+    max_px: f32
+
+impl Default for UiResizeConstraints:
+    pub fn default_() -> UiResizeConstraints:
+        UiResizeConstraints { min_px: 0, max_px: 0 }
+
+
+@doc(doc = " Pure resize math: size is always derived from drag-start, never accumulated.")
+@doc(doc = "")
+@doc(doc = " This mirrors the verified contract from the older K_OS shell: it prevents")
+@doc(doc = " \"flying panels\" caused by incorrectly accumulating deltas.")
+pub fn ui_resize_size_from_drag_start(initial_px: f32, delta_px_from_start: f32, direction_sign: f32, constraints: UiResizeConstraints) -> f32:
+    let unconstrained = (initial_px + (delta_px_from_start * direction_sign))
+    unconstrained.max(constraints.min_px).min(constraints.max_px.max(constraints.min_px))
+
+fn ui_eval_derived_expr(expr: &UiDerivedExpr, signals: &Map<UiSignalId, UiValue>) -> UiValue:
+    match expr:
+        UiDerivedExpr::Literal(value) => value.clone()
+        UiDerivedExpr::Signal(id) => signals.get(id).cloned().unwrap_or(UiValue__Null)
+        UiDerivedExpr::Not(inner) => UiValue::Bool((!ui_value_truthy(&ui_eval_derived_expr(inner, signals))))
+        UiDerivedExpr::And(a, b) => UiValue::Bool((ui_value_truthy(&ui_eval_derived_expr(a, signals)) && ui_value_truthy(&ui_eval_derived_expr(b, signals))))
+        UiDerivedExpr::Or(a, b) => UiValue::Bool((ui_value_truthy(&ui_eval_derived_expr(a, signals)) || ui_value_truthy(&ui_eval_derived_expr(b, signals))))
+        UiDerivedExpr::Eq(a, b) => UiValue::Bool((ui_eval_derived_expr(a, signals) == ui_eval_derived_expr(b, signals)))
+        UiDerivedExpr::Add(a, b) => ui_value_binary_numeric_op(a, b, signals, fn(x, y): (x + y))
+        UiDerivedExpr::Sub(a, b) => ui_value_binary_numeric_op(a, b, signals, fn(x, y): (x - y))
+        UiDerivedExpr::Mul(a, b) => ui_value_binary_numeric_op(a, b, signals, fn(x, y): (x * y))
+        UiDerivedExpr::Div(a, b) =>
+            let rhs = ui_eval_derived_expr(b, signals)
+            match rhs:
+                UiValue::Int(0) => UiValue__Null
+                UiValue::Float(v) if (v.abs() <= f64__EPSILON) => UiValue__Null
+                _ => ui_value_binary_numeric_op(a, b, signals, fn(x, y): (x / y))
+        UiDerivedExpr::ToString(inner) => UiValue::String(ui_value_to_string(&ui_eval_derived_expr(inner, signals)))
+
+fn ui_value_truthy(value: &UiValue) -> Bool:
+    match value:
+        UiValue::Null => false
+        UiValue::Bool(v) => (*v)
+        UiValue::Int(v) => ((*v) != 0)
+        UiValue::Float(v) => (v.abs() > f64__EPSILON)
+        UiValue::String(v) =>
+            match v.trim().to_ascii_lowercase().as_str():
+                "" => false
+                "0" => false
+                "false" => false
+                "no" => false
+                "off" => false
+                "null" => false
+                _ => true
+
+fn ui_value_to_string(value: &UiValue) -> String:
+    match value:
+        UiValue::Null => ("null").to_string()
+        UiValue::Bool(v) => v.to_string()
+        UiValue::Int(v) => v.to_string()
+        UiValue::Float(v) => v.to_string()
+        UiValue::String(v) => v.clone()
+
+fn ui_value_binary_numeric_op(a: &UiDerivedExpr, b: &UiDerivedExpr, signals: &Map<UiSignalId, UiValue>, op: fn(f64, f64) -> f64) -> UiValue:
+    let left = ui_eval_derived_expr(a, signals)
+    let right = ui_eval_derived_expr(b, signals)
+    let (l, l_is_int) = match left:
+        UiValue::Int(v) => (v as f64, true)
+        UiValue::Float(v) => (v, false)
+        UiValue::String(v) =>
+            match v.parse():
+                Ok(parsed) => (parsed, false)
+                Err(_) => return UiValue__Null
+        _ => return UiValue__Null
+    let (r, r_is_int) = match right:
+        UiValue::Int(v) => (v as f64, true)
+        UiValue::Float(v) => (v, false)
+        UiValue::String(v) =>
+            match v.parse():
+                Ok(parsed) => (parsed, false)
+                Err(_) => return UiValue__Null
+        _ => return UiValue__Null
+    let result = op(l, r)
+    if (((l_is_int && r_is_int) && result.is_finite()) && (result.fract().abs() <= f64__EPSILON)):
+        UiValue::Int(result as i64)
+    else:
+        UiValue::Float(result)
+
+fn ui_apply_builtin_command(mutator: &mut UiTreeMutator<_>, systems: &mut UiRuntimeSystems, command: &UiCommand, transaction: &mut UiTransaction) -> Bool:
+    match (*command).name.as_str():
+        "ui.tab.activate" =>
+            let group_id = match (*command).payload.get("group_id"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            let layout_id = match (*command).payload.get("layout_id"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            if ((*systems).workspace_layout.active_tabs.get(&group_id) == Option::Some(&layout_id)):
+                return true
+            (*systems).workspace_layout.active_tabs.insert(group_id, layout_id)
+            ()
+            (*transaction).touched_nodes.clear()
+            ()
+            true
+        "ui.node.set_prop" =>
+            let node_id = match (*command).payload.get("node_id"):
+                Some(UiValue::Int(value)) if ((*value) >= 0) => UiNodeId((*value) as u64)
+                Some(UiValue::String(value)) =>
+                    match value.parse():
+                        Ok(parsed) => UiNodeId(parsed)
+                        Err(_) => return false
+                _ => return false
+            let key = match (*command).payload.get("key"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            let value = match (*command).payload.get("value"):
+                Some(value) => value.clone()
+                None => return false
+            mutator.set_prop(node_id, key, value)
+        "ui.node.set_dock" =>
+            let node_id = match (*command).payload.get("node_id"):
+                Some(UiValue::Int(value)) if ((*value) >= 0) => UiNodeId((*value) as u64)
+                Some(UiValue::String(value)) =>
+                    match value.parse():
+                        Ok(parsed) => UiNodeId(parsed)
+                        Err(_) => return false
+                _ => return false
+            let placement = match (*command).payload.get("placement"):
+                Some(UiValue::String(value)) => value.as_str()
+                _ => return false
+            let mut layout = match (*mutator).tree.node(node_id):
+                Some(node) => node.layout.clone()
+                None => return false
+            layout.dock = Option::Some(none)
+            ()
+            match (*command).payload.get("split_ratio"):
+                Some(UiValue::Float(ratio)) =>
+                    layout.split_ratio = Option::Some((*ratio) as f32)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            mutator.set_layout(node_id, layout)
+        "ui.focus.set" =>
+            let scope = match (*command).payload.get("scope"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            let node_id = match (*command).payload.get("node_id"):
+                Some(UiValue::Int(value)) if ((*value) >= 0) => Option::Some(UiNodeId((*value) as u64))
+                Some(UiValue::String(value)) => value.parse().ok().map(UiNodeId)
+                _ => none
+            match node_id:
+                Some(node_id) =>
+                    (*systems).focus_graph.focused.insert(scope, node_id)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    (*systems).focus_graph.focused.remove(&scope)
+                    ()
+                    ()
+                    ()
+                    ()
+            true
+        "ui.selection.set_primary" =>
+            let scope = match (*command).payload.get("scope"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            let node_id = match (*command).payload.get("node_id"):
+                Some(UiValue::Int(value)) if ((*value) >= 0) => Option::Some(UiNodeId((*value) as u64))
+                Some(UiValue::String(value)) => value.parse().ok().map(UiNodeId)
+                _ => none
+            match node_id:
+                Some(node_id) =>
+                    (*systems).selection_model.primary.insert(scope.clone(), node_id)
+                    ()
+                    (*systems).selection_model.selected.entry(scope).or_default().insert(node_id)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    (*systems).selection_model.primary.remove(&scope)
+                    ()
+                    ()
+                    ()
+                    ()
+            true
+        "ui.resource.set_state" =>
+            let resource_id = match (*command).payload.get("id"):
+                Some(UiValue::String(value)) => value.clone()
+                _ => return false
+            let state_ = match (*command).payload.get("state"):
+                Some(UiValue::String(value)) => value.as_str()
+                _ => return false
+            let state_ = match state_:
+                "idle" => UiResourceState__Idle
+                "loading" => UiResourceState__Loading
+                "ready" => UiResourceState__Ready
+                "failed" => UiResourceState__Failed
+                _ => return false
+            match (*systems).resources.iter_mut().find(fn(res): (res.id == resource_id)):
+                Some(resource) =>
+                    resource.state_ = state_
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    (*systems).resources.push(UiResource { id: resource_id, kind: ("unknown").to_string(), owner: none, state_: state_ })
+                    ()
+                    ()
+                    ()
+                    ()
+            true
+        _ => false
+
+impl UiWorkspaceLayout:
+    pub fn active_tab(_self: &UiWorkspaceLayout, group_id: String) -> Option<String>:
+        (*_self).active_tabs.get(group_id).map(fn(s): s.as_str())
+
+

@@ -1,0 +1,184 @@
+@doc(doc = " Builder for UPROPERTY macro")
+@derive(Debug, Clone, Default)
+pub struct PropertyBuilder:
+    specifiers: Array<String>
+    meta_tags: Array<String>
+    category: Option<String>
+
+impl Default for PropertyBuilder:
+    pub fn default_() -> PropertyBuilder:
+        PropertyBuilder { specifiers: Vec__new_(), meta_tags: Vec__new_(), category: none }
+
+
+impl PropertyBuilder:
+    pub fn new_() -> PropertyBuilder:
+        PropertyBuilder__default_()
+
+    pub fn edit_anywhere(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("EditAnywhere").to_string())
+        ()
+        _self
+
+    pub fn edit_defaults_only(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("EditDefaultsOnly").to_string())
+        ()
+        _self
+
+    pub fn visible_anywhere(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("VisibleAnywhere").to_string())
+        ()
+        _self
+
+    pub fn blueprint_read_write(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("BlueprintReadWrite").to_string())
+        ()
+        _self
+
+    pub fn blueprint_read_only(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("BlueprintReadOnly").to_string())
+        ()
+        _self
+
+    pub fn replicated(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("Replicated").to_string())
+        ()
+        _self
+
+    pub fn transient(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("Transient").to_string())
+        ()
+        _self
+
+    pub fn savegame(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("SaveGame").to_string())
+        ()
+        _self
+
+    pub fn blueprint_assignable(_self: PropertyBuilder) -> PropertyBuilder:
+        _self.specifiers.push(("BlueprintAssignable").to_string())
+        ()
+        _self
+
+    pub fn category(_self: PropertyBuilder, cat: impl Into<String>) -> PropertyBuilder:
+        _self.category = Option::Some(cat.into())
+        ()
+        _self
+
+    pub fn display_name(_self: PropertyBuilder, name: impl Into<String>) -> PropertyBuilder:
+        _self.meta_tags.push(f"DisplayName = \"{name.into()}\"")
+        ()
+        _self
+
+    pub fn tooltip(_self: PropertyBuilder, tip: impl Into<String>) -> PropertyBuilder:
+        _self.meta_tags.push(f"ToolTip = \"{tip.into()}\"")
+        ()
+        _self
+
+    pub fn clamp_min(_self: PropertyBuilder, min: impl Display) -> PropertyBuilder:
+        _self.meta_tags.push(f"ClampMin = \"{min}\"")
+        ()
+        _self
+
+    pub fn clamp_max(_self: PropertyBuilder, max: impl Display) -> PropertyBuilder:
+        _self.meta_tags.push(f"ClampMax = \"{max}\"")
+        ()
+        _self
+
+    pub fn units(_self: PropertyBuilder, unit: impl Into<String>) -> PropertyBuilder:
+        _self.meta_tags.push(f"Units = \"{unit.into()}\"")
+        ()
+        _self
+
+    pub fn build(_self: PropertyBuilder) -> String:
+        let mut parts = _self.specifiers
+        match _self.category:
+            Some(cat) =>
+                parts.push(f"Category = \"{cat}\"")
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        if (!_self.meta_tags.is_empty()):
+            parts.push("meta = ({_self.meta_tags.join(\", \")})")
+            ()
+            ()
+            ()
+            ()
+        "UPROPERTY({parts.join(\", \")})"
+
+
+@doc(doc = " Builder for UFUNCTION macro")
+@derive(Debug, Clone, Default)
+pub struct FunctionBuilder:
+    specifiers: Array<String>
+    category: Option<String>
+    meta_tags: Array<String>
+
+impl Default for FunctionBuilder:
+    pub fn default_() -> FunctionBuilder:
+        FunctionBuilder { specifiers: Vec__new_(), category: none, meta_tags: Vec__new_() }
+
+
+impl FunctionBuilder:
+    pub fn new_() -> FunctionBuilder:
+        FunctionBuilder__default_()
+
+    pub fn blueprint_callable(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("BlueprintCallable").to_string())
+        ()
+        _self
+
+    pub fn blueprint_pure(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("BlueprintPure").to_string())
+        ()
+        _self
+
+    pub fn server(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("Server").to_string())
+        ()
+        _self
+
+    pub fn client(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("Client").to_string())
+        ()
+        _self
+
+    pub fn net_multicast(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("NetMulticast").to_string())
+        ()
+        _self
+
+    pub fn reliable(_self: FunctionBuilder) -> FunctionBuilder:
+        _self.specifiers.push(("Reliable").to_string())
+        ()
+        _self
+
+    pub fn category(_self: FunctionBuilder, cat: impl Into<String>) -> FunctionBuilder:
+        _self.category = Option::Some(cat.into())
+        ()
+        _self
+
+    pub fn build(_self: FunctionBuilder) -> String:
+        let mut parts = _self.specifiers
+        match _self.category:
+            Some(cat) =>
+                parts.push(f"Category = \"{cat}\"")
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        if (!_self.meta_tags.is_empty()):
+            parts.push("meta = ({_self.meta_tags.join(\", \")})")
+            ()
+            ()
+            ()
+            ()
+        "UFUNCTION({parts.join(\", \")})"
+
+
