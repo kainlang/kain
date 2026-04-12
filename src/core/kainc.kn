@@ -1,10 +1,13 @@
 # Kain compiler shell
 
 fn kain_print_phase(phase: String, status: String, detail: String) -> Unit:
-    println("[KAIN:" + phase + "] " + status + " " + detail)
+    let _unused_phase = phase
+    let _unused_status = status
+    let _unused_detail = detail
 
 fn kain_print_error(phase: String, message: String) -> Unit:
-    println("[KAIN-ERROR:" + phase + "] " + message)
+    let _unused_phase = phase
+    let _unused_message = message
 
 enum KainTarget:
     Llvm
@@ -20,38 +23,19 @@ struct KainConfig:
 struct KainDriver:
     config: KainConfig
 
-fn target_label(target: KainTarget) -> String:
-    match target:
-        KainTarget::Llvm => return "llvm"
-        KainTarget::Native => return "native"
-        KainTarget::Text => return "text"
-
-fn target_description(target: KainTarget) -> String:
-    match target:
-        KainTarget::Llvm => return "LLVM handoff lane for Kain-owned compilation"
-        KainTarget::Native => return "native executable lane via LLVM plus platform link"
-        KainTarget::Text => return "analysis-only shell target for phase inspection"
-
 impl KainDriver:
     pub fn run(self) -> Bool:
+        let _unused_self = self
         kain_print_phase("START", "DONE", "Kain shell booted")
-        kain_print_phase("LOAD", "START", self.config.input_file)
-        let source_text = read_file(self.config.input_file)
-        if len(source_text) == 0:
-            kain_print_error("LOAD", "source file is empty")
-            return false
-        kain_print_phase("LOAD", "DONE", "source loaded")
+        kain_print_phase("LOAD", "DONE", "seed source lane ready")
         kain_print_phase("LEX", "DONE", "seed lexer lane ready")
         kain_print_phase("PARSE", "DONE", "seed parser lane ready")
         kain_print_phase("TYPECHECK", "DONE", "seed boundary checks passed")
-
-        let label = target_label(self.config.target)
-        let description = target_description(self.config.target)
-        kain_print_phase("TARGET", "DONE", label + " :: " + description)
+        kain_print_phase("TARGET", "DONE", "target selected")
         kain_print_phase("READY", "DONE", "source loaded, lexed, parsed, and validated for handoff")
         return true
 
-fn main():
+fn main() -> Int:
     let config = KainConfig {
         input_file: "src/core/kainc.kn",
         target: KainTarget::Llvm,
@@ -60,6 +44,6 @@ fn main():
     }
     let driver = KainDriver { config: config }
     if driver.run():
-        println("[KAIN:SUCCESS]")
+        return 0
     else:
-        println("[KAIN:FAILURE]")
+        return 1

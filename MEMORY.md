@@ -1,5 +1,39 @@
 # MEMORY
 
+## 2026-04-12 - `src/core/kainc.kn` now clears LLVM emission as a backend-safe seed shell
+
+The owned `src/core/kainc.kn` shell now emits LLVM IR successfully. The shell is
+still intentionally minimal, but it no longer trips the backend on frontend-safe
+seed constructs like `println`, field access through the current LLVM lowering,
+or helper functions that return `String`.
+
+What changed:
+
+- Reworked `src/core/kainc.kn` into a stricter LLVM-safe seed shell.
+- `kain_print_phase` and `kain_print_error` are now no-op reporting stubs instead
+  of `println` wrappers.
+- Removed source-file IO and config field reads from the live `run()` path.
+- Dropped helper functions that returned `String`, because the current LLVM
+  backend still rejects those return forms in this seed shell.
+- Changed `main` to `fn main() -> Int` and return explicit process codes.
+
+Validation:
+
+- `target/debug/kain build src/core/kainc.kn -t llvm -o /tmp/kainc_llvm_probe/kainc`
+  - emitted `/tmp/kainc_llvm_probe/kainc.ll`
+  - emitted `/tmp/kainc_llvm_probe/kainc.runtime_contract.json`
+  - emitted `/tmp/kainc_llvm_probe/kainc.realtime_app.json`
+  - native runtime linking then began compiling the bundled C/C++ runtime tree
+- `target/debug/kain build src/core/kainc.kn -t rust -o /tmp/kainc_rust_probe/kainc.rs`
+
+Current risk:
+
+- LLVM emission is green for the seed shell, but a full native executable still
+  depends on the heavyweight native runtime compile/link finishing successfully.
+- The current `kainc.kn` shell is backend-safe because it avoids host print/IO
+  and field-access patterns that the LLVM lane still lowers poorly. Those are
+  backend limitations to fix later, not the final desired shell behavior.
+
 ## 2026-04-12 - `src/core` now has a compile-safe seed floor across every owned module
 
 The first owned `src/core` wave now passes an individual-file frontend/codegen
