@@ -3,6 +3,9 @@
 Kain has real async and actor forms in the AST plus runtime support in
 `crates/kain-core/src/runtime.rs` and the native runtime headers.
 
+For lifecycle, mailbox ownership, and shutdown semantics, also read
+[guides/native-c-runtime/actor-lifecycle.md](/home/ephemara/Dev/Kain/guides/native-c-runtime/actor-lifecycle.md).
+
 ## Async Surface
 
 - `await` expressions
@@ -29,6 +32,11 @@ Actors are first-class AST items. The runtime model includes:
 - actor references
 - mailbox ownership and backpressure
 - supervision, monitors, and links
+
+The important rule is that `spawn` creates a runtime handle and mailbox, while
+`send` moves message ownership through that mailbox. Lifecycle shutdown and
+supervision are owned by the runtime and native ABI, not by ordinary library
+code.
 
 ## Message Passing
 

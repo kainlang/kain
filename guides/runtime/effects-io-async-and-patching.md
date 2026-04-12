@@ -2,7 +2,7 @@
 
 This page covers the runtime rules that shape call safety and mutation
 behavior.
-For the compiler-owned item quartet (`patch`, `law`, `converge`, `world`, and
+For the compiler-owned item set (`patch`, `law`, `converge`, `world`, and
 `orchestrate`), also read
 [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md).
 

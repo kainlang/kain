@@ -67,6 +67,7 @@ These files define the truth that the guides are derived from:
 | `syntax-and-semantics/expressions.md` | Expressions, operators, and control flow |
 | `syntax-and-semantics/statements.md` | Statements, blocks, and statement-level flow |
 | `syntax-and-semantics/modules-and-items.md` | Modules, visibility, and top-level item kinds |
+| `syntax-and-semantics/module-resolution.md` | `mod`, `use`, stdlib lookup, and module path encoding |
 | `syntax-and-semantics/functions-traits-and-impls.md` | Function signatures, traits, and impl blocks |
 | `syntax-and-semantics/macros-and-comptime.md` | Macros, comptime, and code generation seams |
 | `syntax-and-semantics/async-actors-and-concurrency.md` | Async, tasks, actors, and message passing |

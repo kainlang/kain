@@ -29,6 +29,24 @@ answers the second. The docs should keep those two ideas separate.
 For the exact alias matrix, use `reference/target-matrix.md`. That page is the
 canonical table; this page is the conceptual explanation.
 
+## Workflow Versus Alias
+
+Workflow commands and compile targets are different layers.
+
+| Workflow | Target or alias | What it does |
+| --- | --- | --- |
+| `kain run` | runtime execution lane | executes the program through the interpreter/runtime path |
+| `kain build -t interpret` | `Interpret` | explicit runtime target alias |
+| `kain build -t test` | `Test` | validation runtime lane |
+| `kain build --ue5` | UE5 packaging workflow | packages a plugin from `KAIN.toml` |
+| `kain build -t ue5` | `Ue5` | single-file UE5 codegen |
+| `kain build -t ue5editor` | `Ue5Editor` | editor-facing UE5 codegen |
+| `kain build native-ui` | native-ui workflow | materializes a desktop app bundle |
+
+Keep the command and the target separate in prose. The same language program can
+flow through either surface, but the artifact and the operator story are not the
+same.
+
 ## KainScript
 
 KainScript is the `Ks` target family. It is not an importer and not a separate
@@ -51,8 +69,8 @@ Different targets imply different output families:
 - `cpp` emits C++ source
 - `spirv`, `hlsl`, and `usf` emit shader source or binaries
 - `ue5` and `ue5editor` emit plugin-oriented outputs and generated headers
-- `interpret` and `test` execute the runtime lane instead of writing a source
-  artifact
+- `interpret` and `test` are runtime target aliases instead of source-emitting
+  targets
 
 That distinction matters because `build`, `run`, `gpu-artifacts`, `native-ui`,
 and UE5 packaging all consume the same language truth but materialize it in

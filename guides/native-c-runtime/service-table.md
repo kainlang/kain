@@ -27,6 +27,19 @@ Each service descriptor carries:
 The registry is bounded and explicit. It is designed to be queried during
 startup validation and capability discovery.
 
+## How Service Discovery Works
+
+The runtime uses the table to decide:
+
+1. which families are available on the current host
+2. which provider lane owns the implementation
+3. which services are required versus optional
+4. whether the ABI version matches what the runtime expects
+5. which function tables can be bound into the host bridge
+
+That is why the table is more than a list of names. It is the decision point
+between declared capability and live capability.
+
 ## Service Families
 
 ### Base

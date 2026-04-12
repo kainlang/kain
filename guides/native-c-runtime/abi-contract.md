@@ -23,6 +23,20 @@ The runtime contract pipeline is:
 - capability reporting
 - bridge between manifest truth and header-defined ABI truth
 
+## How Startup Uses The Contract Layer
+
+At startup, the native lane uses the contract layer to:
+
+1. load the manifest-driven runtime configuration
+2. compare the manifest against the generated headers and runtime version
+3. reject incompatible combinations before execution begins
+4. select the service families and capability masks that are available on the
+   current platform
+5. hand the validated contract to the service-table layer and the runtime host
+
+That makes the contract layer the gate between declarative configuration and
+actual execution.
+
 ## How To Think About It
 
 The contract layer is not the whole runtime. It is the gate that makes sure the

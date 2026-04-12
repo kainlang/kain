@@ -7,6 +7,14 @@ Kain has two related builtin layers:
 
 They overlap, but they are not the same thing.
 
+## Source Map
+
+| Family | Source file | What it means |
+| --- | --- | --- |
+| Source-loaded stdlib registry | `crates/kain-core/src/stdlib.rs` | Helpers loaded from stdlib roots and profiles before execution |
+| Runtime-native function registry | `crates/kain-core/src/runtime.rs` | Helpers registered directly on the interpreter/runtime surface |
+| Loader and profile selection | `crates/kain-core/src/stdlib.rs`, `crates/kain-core/src/runtime.rs` | Search paths and profile resolution for the stdlib layer |
+
 ## Stdlib Loader
 
 The stdlib loader searches in this order:

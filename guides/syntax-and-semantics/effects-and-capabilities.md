@@ -37,6 +37,12 @@ The important documentation rule is that capability gating is separate from
 syntax shape. A feature may parse, typecheck, or lower only when the relevant
 capability is enabled, and docs should say which layer owns the gate.
 
+One capability deserves a special note: the current registry marks
+`ParserStructLiterals` as enabled by default, but the current unit test
+`default_profile_keeps_struct_literals_disabled` still fails. Treat the struct
+literal default as unsettled until the code and tests are reconciled. Do not
+write docs that claim that default is stable.
+
 ## How To Read Capability-Gated Behavior
 
 When a feature seems missing, check the layers in this order:

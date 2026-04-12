@@ -38,24 +38,26 @@ That order matters.
 
 1. `syntax-and-semantics/syntax.md` for the surface map
 2. `syntax-and-semantics/modules-and-items.md` for imports and item families
-3. `syntax-and-semantics/types.md` and
+3. `syntax-and-semantics/module-resolution.md` for path encoding, visibility,
+   and stdlib lookup
+4. `syntax-and-semantics/types.md` and
    `syntax-and-semantics/effects-and-capabilities.md` for type forms, effect
    gating, and target support
-4. `syntax-and-semantics/low-level-memory.md` for pointer provenance, ABI
+5. `syntax-and-semantics/low-level-memory.md` for pointer provenance, ABI
    lowering, and memory operations
-5. `syntax-and-semantics/functions-traits-and-impls.md` for function
+6. `syntax-and-semantics/functions-traits-and-impls.md` for function
    signatures, trait contracts, and impl blocks
-6. `syntax-and-semantics/expressions.md` and `statements.md` for executable
+7. `syntax-and-semantics/expressions.md` and `statements.md` for executable
    syntax
-7. `syntax-and-semantics/macros-and-comptime.md` for compile-time behavior
-8. `runtime/runtime-model.md` for execution semantics
-9. `runtime/stdlib-and-builtins.md` for source stdlib and native helpers
-10. `runtime/compiler-owned-intents.md` for `patch`, `law`, `converge`,
+8. `syntax-and-semantics/macros-and-comptime.md` for compile-time behavior
+9. `runtime/runtime-model.md` for execution semantics
+10. `runtime/stdlib-and-builtins.md` for source stdlib and native helpers
+11. `runtime/compiler-owned-intents.md` for `patch`, `law`, `converge`,
    `world`, and `orchestrate`
-11. `runtime/effects-io-async-and-patching.md` for effects and runtime-owned
+12. `runtime/effects-io-async-and-patching.md` for effects and runtime-owned
     contracts
-12. `native-c-runtime/abi-contract.md` and `service-table.md` for the native ABI
-13. `cli/targets-and-codegen.md` and `reference/target-matrix.md` for target
+13. `native-c-runtime/abi-contract.md` and `service-table.md` for the native ABI
+14. `cli/targets-and-codegen.md` and `reference/target-matrix.md` for target
     aliases, codegen lanes, and output families
 
 ## What Kain Can Express

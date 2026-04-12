@@ -14,6 +14,10 @@ The `CompileTarget` enum itself lives in `crates/kain-core/src/lib.rs`.
 - `kn` remaps a bare `wasm` request to `run` when no output path is given.
 - `target_extension()` falls back to `out` for unknown internal targets, but the
   public CLI rejects unknown aliases before it reaches that point.
+- `run` is a CLI workflow command, not a compile target alias. `Interpret` and
+  `Test` are the runtime target aliases.
+- `build --ue5`, `build -t ue5`, and `build native-ui` are workflow commands
+  that materialize different artifact families.
 
 ## Targets
 

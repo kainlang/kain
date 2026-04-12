@@ -38,6 +38,7 @@ pages to understand those layers:
 - `types.md`
 - `effects-and-capabilities.md`
 - `low-level-memory.md`
+- `module-resolution.md`
 - `functions-traits-and-impls.md`
 - `patterns.md`
 - `expressions.md`

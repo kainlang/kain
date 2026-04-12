@@ -82,12 +82,25 @@ trait, or impl shape, read
 - function, trait, and impl semantics live on top of the module graph. A method
   is still a function, but it is checked with an explicit self type and then
   consumed by struct, component, actor, and domain-item lowering passes.
+- for a more explicit explanation of `mod`, `use`, aliasing, visibility, and
+  stdlib-vs-project lookup, read
+  [guides/syntax-and-semantics/module-resolution.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/module-resolution.md).
 
-## Compiler-Owned Intent Quartet
+## Name Encoding
+
+The runtime and type layers encode module paths differently:
+
+- runtime values use `module__name` style aliases
+- type and reflection names use `module::name` style aliases
+
+That distinction is visible in the code and matters when you read generated
+artifacts or runtime contracts.
+
+## Compiler-Owned Intent Set
 
 `patch`, `law`, `converge`, `world`, and `orchestrate` are not just ordinary
 declarations. They lower into runtime and bundle metadata that downstream
-tooling consumes directly.
+tooling consumes directly. The set has five members, not four.
 
 ## Runtime-And-Domain Families
 

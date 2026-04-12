@@ -45,6 +45,20 @@ such as:
 - host bridge
 - compatibility
 
+## Startup Flow
+
+The native runtime starts by stitching the manifest, contract layer, and
+service table together:
+
+1. load `runtime/native_runtime.toml`
+2. validate the contract against the native headers and version metadata
+3. resolve the service families that the current lane needs
+4. publish the reflection and capability payloads
+5. start the host/runtime boundary for the selected platform
+
+That flow is what turns the native runtime from a pile of headers into a
+repeatable startup contract.
+
 ## Platform Reality
 
 The active native lane is Windows-first. Linux and macOS are represented in the

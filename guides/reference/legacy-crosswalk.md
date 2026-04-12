@@ -12,7 +12,7 @@ Rule of thumb: if a topic exists in current code, trust the live source and the 
 | --- | --- |
 | First run, toolchain bootstrap, and basic file execution | [guides/quickstart.md](/home/ephemara/Dev/Kain/guides/quickstart.md) |
 | What Kain is and how the execution model works | [guides/language-overview.md](/home/ephemara/Dev/Kain/guides/language-overview.md) |
-| Syntax, items, types, patterns, expressions, statements, modules, functions, traits, impls, macros, comptime | [guides/syntax-and-semantics/](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/) |
+| Syntax, items, types, patterns, expressions, statements, modules, module resolution, functions, traits, impls, macros, comptime | [guides/syntax-and-semantics/](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/) |
 | Low-level memory, provenance, and ABI-aware lowering | [guides/syntax-and-semantics/low-level-memory.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/low-level-memory.md) |
 | Runtime semantics, stdlib loading, builtins, async, patching, actors | [guides/runtime/](/home/ephemara/Dev/Kain/guides/runtime/) |
 | Compiler-owned intents and runtime contracts | [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md) |
@@ -34,13 +34,14 @@ Rule of thumb: if a topic exists in current code, trust the live source and the 
 | --- | --- |
 | `USF`, shader bundles, and shader-canvas style output | [guides/syntax-and-semantics/domain-items.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/domain-items.md), [guides/runtime/stdlib-and-builtins.md](/home/ephemara/Dev/Kain/guides/runtime/stdlib-and-builtins.md), and the current UE5 example lanes |
 | Raw pointers, imported pointers, and ABI-aware memory lowering | [guides/syntax-and-semantics/low-level-memory.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/low-level-memory.md) |
+| Module resolution, visibility, and stdlib lookup | [guides/syntax-and-semantics/module-resolution.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/module-resolution.md) |
 | `ks`, `KainScript`, and script-lane execution | [guides/reference/target-matrix.md](/home/ephemara/Dev/Kain/guides/reference/target-matrix.md) and [guides/cli/cli-overview.md](/home/ephemara/Dev/Kain/guides/cli/cli-overview.md) |
 | Omni manifests and staged import orchestration | [guides/cli/selfhost-omni-fabric-lsp.md](/home/ephemara/Dev/Kain/guides/cli/selfhost-omni-fabric-lsp.md) and [guides/pipelines/omni.md](/home/ephemara/Dev/Kain/guides/pipelines/omni.md) |
 | Fabric manifests, runtime adapters, and contract validation | [guides/cli/selfhost-omni-fabric-lsp.md](/home/ephemara/Dev/Kain/guides/cli/selfhost-omni-fabric-lsp.md) and [guides/pipelines/fabric.md](/home/ephemara/Dev/Kain/guides/pipelines/fabric.md) |
 | C, Rust, TypeScript, and assembly import workflows | [guides/cli/importers.md](/home/ephemara/Dev/Kain/guides/cli/importers.md) |
 | UE5 packaging, plugin generation, and inject flows | [guides/cli/native-ui-and-packaging.md](/home/ephemara/Dev/Kain/guides/cli/native-ui-and-packaging.md) and [guides/examples/unreal-plugins.md](/home/ephemara/Dev/Kain/guides/examples/unreal-plugins.md) |
 | Native UI and app bundle materialization | [guides/cli/native-ui-and-packaging.md](/home/ephemara/Dev/Kain/guides/cli/native-ui-and-packaging.md) |
-| Compiler-owned intents (`law`, `patch`, `converge`, `world`, `orchestrate`) | [guides/syntax-and-semantics/modules-and-items.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/modules-and-items.md), [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md), [guides/runtime/effects-io-async-and-patching.md](/home/ephemara/Dev/Kain/guides/runtime/effects-io-async-and-patching.md), and [guides/examples/smoketest.md](/home/ephemara/Dev/Kain/guides/examples/smoketest.md) |
+| Compiler-owned intents (`law`, `patch`, `converge`, `world`, `orchestrate`) | [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md), [guides/runtime/effects-io-async-and-patching.md](/home/ephemara/Dev/Kain/guides/runtime/effects-io-async-and-patching.md), and [guides/examples/smoketest.md](/home/ephemara/Dev/Kain/guides/examples/smoketest.md) |
 | Function, trait, and impl semantics | [guides/syntax-and-semantics/functions-traits-and-impls.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/functions-traits-and-impls.md) |
 
 ## Historical Only Unless Code Says Otherwise

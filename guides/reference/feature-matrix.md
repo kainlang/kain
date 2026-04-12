@@ -39,7 +39,7 @@ current feature gate for parser and runtime behavior.
 
 | Capability | Default | What it gates |
 | --- | --- | --- |
-| `ParserStructLiterals` | yes | `Type { field: value }` struct literal syntax |
+| `ParserStructLiterals` | unsettled | `Type { field: value }` struct literal syntax |
 | `ParserBitwiseAnd` | yes | parser support for `&` |
 | `ParserBitwiseOr` | yes | parser support for `|` |
 | `ParserBitwiseXor` | yes | parser support for `^` |
@@ -51,6 +51,11 @@ current feature gate for parser and runtime behavior.
 | `RuntimeShiftLeft` | yes | runtime execution of `<<` on integers |
 | `RuntimeShiftRight` | yes | runtime execution of `>>` on integers |
 
+Note: `ParserStructLiterals` currently has a code/test disagreement. The
+registry lists it in the default set, but the unit test still asserts it is
+disabled. Treat the capability as unresolved until the implementation and tests
+agree.
+
 ## AST Item Families
 
 Every top-level item kind defined in `crates/kain-core/src/ast.rs` is covered
@@ -58,8 +63,8 @@ here.
 
 | Family | Variants | Primary guide |
 | --- | --- | --- |
-| Core declarations | `Function`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`, `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test` | `syntax-and-semantics/modules-and-items.md`, `syntax-and-semantics/functions-traits-and-impls.md`, `syntax-and-semantics/macros-and-comptime.md` |
-| Compiler-owned program contracts | `Patch`, `Law`, `Converge`, `World`, `Orchestrate` | `syntax-and-semantics/domain-items.md`, `runtime/effects-io-async-and-patching.md` |
+| Core declarations | `Function`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`, `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test` | `syntax-and-semantics/modules-and-items.md`, `syntax-and-semantics/module-resolution.md`, `syntax-and-semantics/functions-traits-and-impls.md`, `syntax-and-semantics/macros-and-comptime.md` |
+| Compiler-owned program contracts | `Patch`, `Law`, `Converge`, `World`, `Orchestrate` | `runtime/compiler-owned-intents.md`, `runtime/effects-io-async-and-patching.md` |
 | Runtime and domain items | `Component`, `Shader`, `Actor`, `MaterialGraph`, `MaterialFunction`, `GraphEditor`, `GraphRuntime`, `StateMachine`, `AsyncTask`, `EditorModule`, `GameplayTags`, `GameplayAbility`, `GameplayEffect`, `GameplayCue`, `AbilityTask`, `TargetActor` | `syntax-and-semantics/domain-items.md`, `syntax-and-semantics/async-actors-and-concurrency.md` |
 
 Domain enums that matter to authored code are also part of the surface:
