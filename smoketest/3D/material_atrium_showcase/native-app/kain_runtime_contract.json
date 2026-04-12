@@ -117,6 +117,11 @@
       "kind": "function"
     },
     {
+      "id": "function:main",
+      "name": "main",
+      "kind": "function"
+    },
+    {
       "id": "patch:choose_backend",
       "name": "choose_backend",
       "kind": "patch"
@@ -389,6 +394,13 @@
         "item_id": 10,
         "name": "App",
         "kind": "component",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 11,
+        "name": "main",
+        "kind": "function",
         "module_path": "",
         "type_id": null
       }

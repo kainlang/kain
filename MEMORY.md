@@ -1,5 +1,24 @@
 # MEMORY
 
+# 2026-04-12 - material_atrium now compiles through the LLVM/native executable lane
+
+The `material_atrium_showcase` smoke now compiles through Kain's LLVM/native executable lane into a standalone native binary under `smoketest/3D/material_atrium_showcase/llvm-native/`, but Linux still uses the Qt shell as the visible compatibility presenter. The authored smoke stays source-first and Kain-owned; the remaining gap is a real non-Rust native host that can present the LLVM executable directly on Linux.
+
+What changed:
+
+- Repaired `smoketest/3D/material_atrium_showcase/smoke.kn` so the backend switch buttons lower as string-backed command routes instead of unresolved function identifiers.
+- Added a tiny `fn main() -> Int` entrypoint so the LLVM/native lane can link the smoke as a standalone executable.
+- Compiled the smoke through `./target/debug/kain ... --target llvm ...`, which now emits `material-atrium-showcase.ll`, `material-atrium-showcase.runtime_contract.json`, `material-atrium-showcase.realtime_app.json`, and a linked `material-atrium-showcase` binary in the `llvm-native/` output tree.
+- Refreshed the Qt compatibility shell with `build native-ui` so the updated smoke remains visible on screen while the native host gap is still being closed.
+
+Current risk:
+
+- The standalone LLVM binary currently exits immediately on Linux because the visible presentation path still depends on the Qt host. The compile lane is native now, but the cross-platform native presenter still needs a real non-Rust host.
+
+Recommended next step:
+
+- Replace the remaining Qt/Rust presentation hop with a real native host surface for Linux so the LLVM executable itself can be the thing the user launches and sees.
+
 ## 2026-04-12 - material_atrium smoke moved to a source-first, Kain-owned launcher path
 
 The `smoketest/3D/material_atrium_showcase` smoke now treats `smoke.kn` as the authored entrypoint. The native launcher includes the Kain source directly, the top bar state and backend mood switching live in Kain language code, and the smoke names `material_atrium` as a first-class runtime profile instead of a generated bundle preview.

@@ -15,16 +15,16 @@ What it proves:
 
 How to build:
 
-Windows:
+LLVM/native executable lane:
+
+```bash
+./target/debug/kain smoketest/3D/material_atrium_showcase/smoke.kn --target llvm --output smoketest/3D/material_atrium_showcase/llvm-native/material-atrium-showcase.ll
+```
+
+Windows compatibility shell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File smoketest/3D/material_atrium_showcase/build_visual_exe.ps1
-```
-
-Linux/macOS:
-
-```bash
-cargo run -p cli --bin kain -- build native-ui smoketest/3D/material_atrium_showcase/smoke.kn --app-name material-atrium-showcase --window-title "Kain Material Atrium Showcase" -o smoketest/3D/material_atrium_showcase/native-app
 ```
 
 How to launch:
@@ -51,11 +51,13 @@ Pick a backend mood at launch:
 ```
 
 The Windows launcher accepts the same backend identifiers as its first argument.
+The Linux Qt shell remains the visible compatibility host while the LLVM/native executable lane matures.
 
 Current lane truth:
 
 - `bgfx` is the baseline lane that the smoke defaults to
 - `filament`, `diligent`, and `the-forge` are staged backend identities in the top bar and runtime metadata
+- the smoke now compiles through the LLVM/native executable lane, but Linux still uses the Qt shell for presentation
 - the Qt shell is still the compatibility host, not the final live renderer surface
 - the native Win32 viewport now recognizes `material_atrium` as a real scene profile and has a dedicated geometry branch for it
 - Linux still lacks a fully native viewport host, so the current smoke remains a compatibility-hosted proof there

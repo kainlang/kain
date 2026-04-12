@@ -37,7 +37,7 @@
     "function_name": "run_bundled_app_json"
   },
   "hot_reload": {
-    "summary": "Product mode stays default and devtools stay opt-in. Changed artifacts: source_input, runtime_bundle, runtime_contract, realtime_bundle. State-preserving reload remains gated when launcher and authored identity still match.",
+    "summary": "Product mode stays default and devtools stay opt-in. Changed artifacts: source_input, runtime_bundle, runtime_contract, realtime_bundle. State-preserving reload remains eligible when launcher and authored identity still match.",
     "launcher": {
       "kind": "run_bundled_app_json",
       "function_name": "run_bundled_app_json"
@@ -66,20 +66,20 @@
       {
         "role": "source_input",
         "path": "smoke.kn",
-        "fingerprint": "f0c5186ef5b0b8da",
-        "byte_length": 11632
+        "fingerprint": "8dc493b4099bc272",
+        "byte_length": 11744
       },
       {
         "role": "runtime_bundle",
         "path": "generated/native_app_bundle.json",
-        "fingerprint": "20bf186eb9b0c864",
-        "byte_length": 284283
+        "fingerprint": "e201f7a84593510a",
+        "byte_length": 284563
       },
       {
         "role": "runtime_contract",
         "path": "generated/kain_runtime_contract.json",
-        "fingerprint": "5c9cf6f3393fe27d",
-        "byte_length": 9885
+        "fingerprint": "5439a5f8f332499b",
+        "byte_length": 10117
       },
       {
         "role": "runtime_compatibility",
@@ -90,19 +90,19 @@
       {
         "role": "realtime_bundle",
         "path": "generated/kain_realtime_app_bundle.json",
-        "fingerprint": "3c87bddcb5f9fca5",
-        "byte_length": 19059
+        "fingerprint": "5b73bc90f3c56b65",
+        "byte_length": 19163
       }
     ],
-    "materialization_fingerprint": "ca41b98caa128077",
-    "previous_materialization_fingerprint": "b8fe4a4af22477a7",
+    "materialization_fingerprint": "f631f409f8aecdb0",
+    "previous_materialization_fingerprint": "ca41b98caa128077",
     "changed_artifact_roles": [
       "source_input",
       "runtime_bundle",
       "runtime_contract",
       "realtime_bundle"
     ],
-    "reload_compatible_with_previous": false
+    "reload_compatible_with_previous": true
   },
   "host_bridges": [],
   "host_sidecars": [

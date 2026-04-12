@@ -9782,7 +9782,7 @@
           "event": "click",
           "target": 5,
           "phase": "bubble",
-          "handler_id": "handle_bgfx",
+          "handler_id": "\"material_atrium.backend.bgfx\"",
           "dispatch_command": null,
           "transaction_label": null
         },
@@ -9791,7 +9791,7 @@
           "event": "click",
           "target": 7,
           "phase": "bubble",
-          "handler_id": "handle_filament",
+          "handler_id": "\"material_atrium.backend.filament\"",
           "dispatch_command": null,
           "transaction_label": null
         },
@@ -9800,7 +9800,7 @@
           "event": "click",
           "target": 9,
           "phase": "bubble",
-          "handler_id": "handle_diligent",
+          "handler_id": "\"material_atrium.backend.diligent\"",
           "dispatch_command": null,
           "transaction_label": null
         },
@@ -9809,7 +9809,7 @@
           "event": "click",
           "target": 11,
           "phase": "bubble",
-          "handler_id": "handle_forge",
+          "handler_id": "\"material_atrium.backend.the-forge\"",
           "dispatch_command": null,
           "transaction_label": null
         }
@@ -10142,7 +10142,7 @@
       "animation_state": {},
       "session_state": {
         "ui.contract.event_routes.json": {
-          "String": "[\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_bgfx\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-5::click::bubble\",\n    \"target\": \"ui.node::node-5\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_filament\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-7::click::bubble\",\n    \"target\": \"ui.node::node-7\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_diligent\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-9::click::bubble\",\n    \"target\": \"ui.node::node-9\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"handle_forge\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-11::click::bubble\",\n    \"target\": \"ui.node::node-11\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  }\n]"
+          "String": "[\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"\\\"material_atrium.backend.bgfx\\\"\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-5::click::bubble\",\n    \"target\": \"ui.node::node-5\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"\\\"material_atrium.backend.filament\\\"\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-7::click::bubble\",\n    \"target\": \"ui.node::node-7\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"\\\"material_atrium.backend.diligent\\\"\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-9::click::bubble\",\n    \"target\": \"ui.node::node-9\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  },\n  {\n    \"dispatch_command\": null,\n    \"event\": \"click\",\n    \"handler_id\": \"\\\"material_atrium.backend.the-forge\\\"\",\n    \"phase\": \"bubble\",\n    \"route_id\": \"ui.node::node-11::click::bubble\",\n    \"target\": \"ui.node::node-11\",\n    \"transaction\": null,\n    \"transaction_label\": null\n  }\n]"
         },
         "ui.contract.version": {
           "String": "ui_slate_x100.authoring_contract.v1"
@@ -10154,7 +10154,7 @@
           "String": "click"
         },
         "ui.event.route.ui.node::node-11::click::bubble.handler": {
-          "String": "handle_forge"
+          "String": "\"material_atrium.backend.the-forge\""
         },
         "ui.event.route.ui.node::node-11::click::bubble.phase": {
           "String": "bubble"
@@ -10166,7 +10166,7 @@
           "String": "click"
         },
         "ui.event.route.ui.node::node-5::click::bubble.handler": {
-          "String": "handle_bgfx"
+          "String": "\"material_atrium.backend.bgfx\""
         },
         "ui.event.route.ui.node::node-5::click::bubble.phase": {
           "String": "bubble"
@@ -10178,7 +10178,7 @@
           "String": "click"
         },
         "ui.event.route.ui.node::node-7::click::bubble.handler": {
-          "String": "handle_filament"
+          "String": "\"material_atrium.backend.filament\""
         },
         "ui.event.route.ui.node::node-7::click::bubble.phase": {
           "String": "bubble"
@@ -10190,7 +10190,7 @@
           "String": "click"
         },
         "ui.event.route.ui.node::node-9::click::bubble.handler": {
-          "String": "handle_diligent"
+          "String": "\"material_atrium.backend.diligent\""
         },
         "ui.event.route.ui.node::node-9::click::bubble.phase": {
           "String": "bubble"
