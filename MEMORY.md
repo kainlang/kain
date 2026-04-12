@@ -1,5 +1,24 @@
 # MEMORY
 
+## 2026-04-12 - material_atrium smoke moved to a source-first, Kain-owned launcher path
+
+The `smoketest/3D/material_atrium_showcase` smoke now treats `smoke.kn` as the authored entrypoint. The native launcher includes the Kain source directly, the top bar state and backend mood switching live in Kain language code, and the smoke names `material_atrium` as a first-class runtime profile instead of a generated bundle preview.
+
+What changed:
+
+- Rewrote `smoketest/3D/material_atrium_showcase/smoke.kn` so the hero shell, backend switchboard, and runtime-owner messaging are authored in Kain source.
+- Updated `smoketest/3D/material_atrium_showcase/native-app/src/main.rs` so the launcher includes `smoke.kn` directly and can accept a renderer backend override at startup.
+- Added a dedicated `material_atrium` geometry branch and viewport-profile hinting in `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`.
+- Refreshed the smoke README and durable architecture notes so they describe the source-first path instead of the older bundle-centric story.
+
+Current risk:
+
+- The Qt shell is still the compatibility host, so the smoke is source-first and Kain-owned but not yet a live native renderer surface on Linux.
+
+Recommended next step:
+
+- Collapse the remaining compatibility preview layer and drive one live native 3D surface end-to-end, starting with the `bgfx` lane.
+
 ## 2026-04-12 - Linux piano lab now boots as a real native UI/audio loop demo
 
 The `labs/playground/piano` lab now builds a Linux-native 2D piano app through Kain semantics, the native UI host, and a small C audio runtime. It opens a keyboard surface, plays generated notes, records loop events, and replays them from the C bridge instead of treating audio as a mock.

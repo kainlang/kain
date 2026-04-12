@@ -91,6 +91,28 @@ static const KainViewportProfile g_kain_viewport_profiles[] = {
         232
     },
     {
+        "material_atrium",
+        "Material Atrium",
+        "material_atrium,material-atrium,atrium_showcase",
+        {0.02f, 0.04f, 0.07f, 1.0f},
+        {0.03f, 0.05f, 0.09f, 1.0f},
+        {0.22f, 0.27f, 0.34f, 1.0f},
+        {0.92f, 0.88f, 0.76f, 1.0f},
+        {14.0f, 24.0f, -8.0f, 1.0f},
+        {0.18f, 0.78f, 1.00f},
+        {1.00f, 0.72f, 0.36f},
+        1728,
+        972,
+        8.8,
+        2.0,
+        6.45,
+        18.2,
+        0.0021,
+        1.84,
+        0.0175,
+        208
+    },
+    {
         "tensor_stream_probe",
         "Tensor Stream Probe",
         "gpu_compute_surface_probe,spv_ui_surface_probe,ui_surface_probe",

@@ -139,6 +139,24 @@ pub fn build_demo_output(config: &KainUiNativeDemoConfig) -> Result<UiBuildOutpu
     build_output(config)
 }
 
+pub fn run_material_atrium_showcase(source: impl Into<String>) -> Result<(), Box<dyn Error>> {
+    run_app(KainUiNativeAppConfig {
+        window_title: "Kain Material Atrium Showcase".to_string(),
+        root_component: "App".to_string(),
+        source: source.into(),
+        initial_window_size: [1728.0, 1080.0],
+        backend_plan: KainUiNativeBackendPlan {
+            shell_host_backend: UiHostBackendKind::Native,
+            document_host_backend: UiHostBackendKind::RmlUi,
+            devtools_host_backend: UiHostBackendKind::Imgui,
+            layout_engine: UiLayoutEngineKind::Native,
+            render_engine: UiRenderEngineKind::Native,
+            compatibility_host_backend: UiHostBackendKind::Qt,
+            mixed_backend_session: true,
+        },
+    })
+}
+
 pub fn run_app(config: KainUiNativeAppConfig) -> Result<(), Box<dyn Error>> {
     let bundle = build_runtime_bundle(&config)?;
     run_bundled_app(bundle)

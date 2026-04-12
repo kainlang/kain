@@ -916,6 +916,63 @@ static void kain_gl_render_scene_geometry(const KainNativeViewportApp* app) {
         return;
     }
 
+    if (kain_viewport_profile_is(profile, "material_atrium")) {
+        int column;
+        int beam;
+        int shard;
+        double atrium_breath = 1.0 + pulse * 0.14;
+
+        kain_gl_draw_box(0.0, 0.36, 0.0, 12.0, 0.72, 12.0, 0.08f, 0.11f, 0.16f);
+        kain_gl_draw_box(0.0, 1.08, 0.0, 9.2, 0.14, 9.2, 0.17f, 0.24f, 0.33f);
+        kain_gl_draw_box(0.0, 1.95 + pulse * 0.22, 0.0, 1.95, 3.0 + compute_phase * 0.75, 1.95, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
+        kain_gl_draw_box(0.0, 4.72 + pulse * 0.24, 0.0, 3.8, 0.20, 3.8, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        kain_gl_draw_box(0.0, 5.12 + pulse * 0.10, 0.0, 7.0, 0.18, 7.0, 0.26f, 0.42f, 0.56f);
+
+        for (column = 0; column < 12; ++column) {
+            double angle = ((double)column / 12.0) * M_PI * 2.0;
+            double radius = 10.8 + ((column % 3) * 0.35);
+            double column_x = cos(angle) * radius;
+            double column_z = sin(angle) * radius;
+            double column_height = 2.95 + ((column % 4) * 0.45) + pulse * 0.24;
+            double cap_height = 0.10 + ((column % 2) * 0.06);
+            float column_r = 0.20f + (float)(0.03 * (column % 4));
+            float column_g = 0.28f + (float)(0.02 * (column % 3));
+            float column_b = 0.38f + (float)(0.02 * (column % 2));
+
+            kain_gl_draw_box(column_x, 0.55 + column_height * 0.5, column_z, 0.66, column_height, 0.66, column_r, column_g, column_b);
+            kain_gl_draw_box(column_x, 1.12 + column_height, column_z, 0.34, cap_height, 0.34, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
+        }
+
+        for (beam = 0; beam < 4; ++beam) {
+            double angle = ((double)beam * (M_PI * 0.5)) + (compute_phase * 0.08);
+            double beam_x = cos(angle) * 0.2;
+            double beam_z = sin(angle) * 0.2;
+            double beam_scale_x = (beam % 2 == 0) ? 8.2 : 1.3;
+            double beam_scale_z = (beam % 2 == 0) ? 1.3 : 8.2;
+
+            kain_gl_draw_box(beam_x, 5.65, beam_z, beam_scale_x, 0.18, beam_scale_z, 0.28f, 0.34f, 0.42f);
+            kain_gl_draw_box(beam_x, 5.92, beam_z, beam_scale_x * 0.94, 0.06, beam_scale_z * 0.94, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        }
+
+        kain_gl_draw_orbit_ring(4.7 + pulse * 0.32, 3.72 + compute_phase * 0.16, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2], 0.76f);
+        kain_gl_draw_orbit_ring(7.4 + pulse * 0.12, 0.86, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2], 0.42f);
+        kain_gl_draw_energy_spokes(6.2 + atrium_breath, 4.0 + pulse * 0.08, app->total_time * 1.2, profile->accent_a);
+
+        for (shard = 0; shard < 8; ++shard) {
+            double angle = app->total_time * (0.22 + shard * 0.03) + shard * 0.78;
+            double radius = 5.6 + ((shard % 4) * 1.1);
+            double shard_x = cos(angle) * radius;
+            double shard_z = sin(angle * 0.97) * radius;
+            double shard_y = 7.4 + sin(app->total_time * 1.5 + shard * 0.6) * 1.1 + shard * 0.18;
+            double shard_scale = 0.52 + ((shard % 3) * 0.18);
+
+            kain_gl_draw_box(shard_x, shard_y, shard_z, shard_scale, 0.14, shard_scale * 1.6, 0.34f, 0.26f, 0.22f);
+            kain_gl_draw_box(shard_x, shard_y + 0.18, shard_z, shard_scale * 0.44, 0.06, shard_scale * 0.9, profile->accent_b[0], profile->accent_b[1], profile->accent_b[2]);
+        }
+
+        return;
+    }
+
     kain_gl_draw_box(0.0, 0.5, 0.0, 10.0, 1.0, 10.0, 0.12f, 0.14f, 0.18f);
     kain_gl_draw_box(0.0, 2.5 + pulse * 0.4, 0.0, 1.4, 5.0, 1.4, profile->accent_a[0], profile->accent_a[1], profile->accent_a[2]);
     kain_gl_draw_box(0.0, 5.3 + pulse * 0.7, 0.0, 3.8, 0.3, 3.8, 0.22f, 0.24f, 0.32f);
@@ -1199,8 +1256,8 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         ? app->contract_validation.warnings[0]
         : (app->runtime_contract.loaded
             ? (app->world_asset.loaded
-                ? "Runtime contract validated. City world is env-driven through KAIN_NATIVE_WORLD_ASSET."
-                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces / tensor_stream_probe / retirement_demo / kerr_black_hole.")
+                ? "Runtime contract validated. Scene asset is env-driven through KAIN_NATIVE_WORLD_ASSET."
+                : "Runtime contract validated. Use KAIN_NATIVE_SCENE_PROFILE to switch starforge / emberfall / luminous_port / magma_terraces / material_atrium / tensor_stream_probe / retirement_demo / kerr_black_hole.")
             : "No runtime contract was loaded. Keep the *.runtime_contract.json sidecar beside the exe for native-lane validation.");
     kain_ui_compiled_overlay_render(&app->surface, app->width, app->height, &app->compiled_ui, &overlay_spec);
 }

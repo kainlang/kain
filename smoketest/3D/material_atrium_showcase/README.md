@@ -1,87 +1,67 @@
 # Material Atrium Showcase
 
-`material_atrium_showcase` is the first premium-shell smoke for the new renderer-backend expansion work.
+`material_atrium_showcase` is the source-first 3D smoke for Kain's native runtime. The smoke source is embedded directly into the native launcher, the top bar is owned by Kain language code, and the shell treats `material_atrium` as a first-class runtime scene instead of a bundle example.
 
 What it proves:
 
-- a source-first native UI shell under `smoketest/3D/` powered by `kain-ui-native`
-- a premium 3D viewport scene bound to the new `material_atrium` scene in `kain-3D`
-- a UI-first presentation layer that frames the runtime around renderer backends instead of a bare viewer window
-- an atrium switchboard shell with top-bar backend cards for `bgfx`, `filament`, `diligent`, and `the-forge`
-- a packaging flow that still goes through `kain build native-ui` instead of inventing a second app materializer
-- a four-lane renderer matrix that names the current graphics backend roadmap directly in the shell
-- a primitive-backed scene stack that uses the authored Kain 3D primitive library for the atrium massing
-- a packaged preview image sidecar that feeds `KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH` so the Qt shell can display the atrium visual example without a manual hack
-- a deterministic repo-local image generator that renders `material_atrium` through Kain's software compatibility lane and labels the current backend truth honestly
+- a source-first native UI smoke under `smoketest/3D/` powered by `kain-ui-native`
+- Kain-owned runtime state for backend selection, runtime-owner messaging, and scene mode switching
+- a premium `viewport3d` scene bound to the authored `material_atrium` runtime profile
+- a top bar that can switch the smoke mood between `bgfx`, `filament`, `diligent`, and `the-forge`
+- a native-app launcher that includes `smoke.kn` directly instead of depending on a generated runtime bundle as the source of truth
+- the current Qt shell as a compatibility host while the native viewport bridge deepens
+- a Windows native viewport profile and geometry branch for `material_atrium` in the runtime itself
+- a deterministic preview image sidecar that remains a fallback proof artifact, not the runtime truth
 
-What you should see:
+How to build:
 
-- a polished Qt-native shell with a hero atrium viewport
-- four renderer cards for `bgfx`, `filament`, `diligent`, and the staged `the-forge` lane
-- a top bar switchboard that changes the active renderer mood in-place
-- primitive stack cards and runtime notes around the viewport
-- the `material_atrium` scene orbiting slowly in the center viewport
-
-Current lane truth:
-
-- `bgfx` is the first real vendor-backed backend lane in the runtime
-- `filament` and `diligent` are named and staged behind the shared backend seam
-- `the-forge` is staged as a fourth backend identity for the future bridge-first low-level renderer path
-- the smoke shell itself is native-runtime backed through `kain-ui-native` and the Qt host path
-- the native Win32 viewport now boots a renderer session and surfaces the requested backend, active backend, service key, vendor runtime, and compatibility executor diagnostics directly in the overlay
-- the current visual example is intentionally generated through the Kain software compatibility renderer so the proof stays reproducible on Linux and Windows while the native viewport bridges continue to deepen
-
-Build on Windows:
+Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File smoketest/3D/material_atrium_showcase/build_visual_exe.ps1
 ```
 
-Build on Linux/macOS:
+Linux/macOS:
 
 ```bash
 cargo run -p cli --bin kain -- build native-ui smoketest/3D/material_atrium_showcase/smoke.kn --app-name material-atrium-showcase --window-title "Kain Material Atrium Showcase" -o smoketest/3D/material_atrium_showcase/native-app
 ```
 
-Launch on Windows:
+How to launch:
+
+Windows:
 
 ```bat
 launch_visual_exe.bat
 ```
 
-Launch a specific backend on Windows:
-
-```bat
-launch_visual_exe.bat bgfx
-```
-
-Launch on Linux/macOS:
+Linux/macOS:
 
 ```bash
 ./launch_native_app.sh
 ```
 
-Launch a specific backend on Linux/macOS:
+Pick a backend mood at launch:
 
 ```bash
 ./launch_native_app.sh bgfx
+./launch_native_app.sh filament
+./launch_native_app.sh diligent
+./launch_native_app.sh the-forge
 ```
 
-Generate the deterministic renderer matrix artifact on Windows:
+The Windows launcher accepts the same backend identifiers as its first argument.
 
-```bat
-generate_runtime_matrix.bat
-```
+Current lane truth:
 
-Generate the deterministic renderer matrix artifact on Linux/macOS:
-
-```bash
-./generate_runtime_matrix.sh
-```
+- `bgfx` is the baseline lane that the smoke defaults to
+- `filament`, `diligent`, and `the-forge` are staged backend identities in the top bar and runtime metadata
+- the Qt shell is still the compatibility host, not the final live renderer surface
+- the native Win32 viewport now recognizes `material_atrium` as a real scene profile and has a dedicated geometry branch for it
+- Linux still lacks a fully native viewport host, so the current smoke remains a compatibility-hosted proof there
 
 Visual example:
 
-- `material_atrium_visual_example.png` is now generated from the real, primitive-backed `material_atrium` scene in `crates/kain-3D` by `cargo run -p kain-3d --bin material_atrium_smoke`.
-- The image is a deterministic software compatibility preview of the current runtime backend matrix, not a fake mockup.
-- It is still not a direct native viewport capture from `bgfx`, `filament`, `diligent`, or `the-forge`, and the labels inside the image call that out explicitly.
-- `generated/material_atrium_runtime_matrix.json` records the backend labels, scene metadata, and frame stats that produced the image.
+- `material_atrium_visual_example.png` is a deterministic preview artifact generated from the authored `material_atrium` scene
+- it proves the scene composition and shell presentation path without claiming to be a live vendor-direct viewport capture
+- `generated/material_atrium_runtime_matrix.json` records the backend labels, scene metadata, and frame stats used to produce it

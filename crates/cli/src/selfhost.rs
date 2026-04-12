@@ -2005,7 +2005,7 @@ fn write_function(
         return Ok(());
     }
     if function.name == "new" && current_impl.as_deref() == Some("DiagnosticBuilder") {
-        write_line(output, indent + 1, "DiagnosticBuilder { kind: kind, code: code, file: None, location: None, context: String__new_(), message: message.into(), suggestion: None }")?;
+        write_line(output, indent + 1, "DiagnosticBuilder { kind: kind, code: code, file: none, location: none, context: String__new_(), message: message.into(), suggestion: none }")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
@@ -2445,7 +2445,7 @@ fn write_function(
             indent + 3,
             "if (old_instance.name == instance.name):",
         )?;
-        write_line(output, indent + 4, "VNode::Component { instance: instance.clone(), rendered: Box__new_(reconcile(None, rendered)) }")?;
+        write_line(output, indent + 4, "VNode::Component { instance: instance.clone(), rendered: Box__new_(reconcile(none, rendered)) }")?;
         write_line(output, indent + 3, "else:")?;
         write_line(output, indent + 4, "next.clone()")?;
         write_line(output, indent + 2, "_ => next.clone()")?;
@@ -3037,7 +3037,7 @@ fn write_function(
             indent + 2,
             "Expr::Cast { target: target } => Some(target.clone())",
         )?;
-        write_line(output, indent + 2, "_ => None")?;
+        write_line(output, indent + 2, "_ => none")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
@@ -3307,7 +3307,7 @@ fn write_function(
             indent + 1,
             "let span = condition.span().merge(else_span.clone())",
         )?;
-        write_line(output, indent + 1, "Ok(Expr::Match { scrutinee: Box__new_(condition), arms: [aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(true, then_span.clone())), guard = None, body = then_expr, span = then_span.clone()), aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(false, else_span.clone())), guard = None, body = else_expr, span = else_span.clone())], span: span.clone() })")?;
+        write_line(output, indent + 1, "Ok(Expr::Match { scrutinee: Box__new_(condition), arms: [aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(true, then_span.clone())), guard = none, body = then_expr, span = then_span.clone()), aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Bool(false, else_span.clone())), guard = none, body = else_expr, span = else_span.clone())], span: span.clone() })")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
@@ -3353,8 +3353,8 @@ fn write_function(
         write_line(output, indent + 2, "_ =>")?;
         write_line(output, indent + 3, "let __selfhost_empty = none")?;
         write_line(output, indent + 1, "let transform = match stmt:")?;
-        write_line(output, indent + 2, "Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(e), span: span } => if fields.contains_key(name): Some((name.clone(), e.clone(), span.clone())) else: None")?;
-        write_line(output, indent + 2, "_ => None")?;
+        write_line(output, indent + 2, "Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(e), span: span } => if fields.contains_key(name): Some((name.clone(), e.clone(), span.clone())) else: none")?;
+        write_line(output, indent + 2, "_ => none")?;
         write_line(output, indent + 1, "match transform:")?;
         write_line(output, indent + 2, "Some((name, val, span)) => (*stmt) = Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: name, span: span.clone() }), value: Box__new_(val), span: span.clone() })")?;
         write_line(output, indent + 2, "_ => none")?;
@@ -3577,15 +3577,15 @@ fn write_function(
             "let res_field = f\"_await_{prev_await.index}_result\"",
         )?;
         write_line(output, indent + 2, "let poll_call = Expr::MethodCall { receiver: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: poll_field, span: span.clone() }), method: \"poll\".to_string(), args: [], span: span.clone() }")?;
-        write_line(output, indent + 2, "let pending_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Pending\".to_string(), fields: VariantPatternFields__Unit, span: span.clone() }, guard = None, body = Expr__Return(Some(Box__new_(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Pending\".to_string(), fields: EnumVariantFields__Unit, span: span.clone() })), span.clone()), span = span.clone())")?;
-        write_line(output, indent + 2, "let ready_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Ready\".to_string(), fields: VariantPatternFields__Tuple([Pattern::Binding { name: \"val\".to_string(), mutable_: false, span: span.clone() }]), span: span.clone() }, guard = None, body = Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), value: Box__new_(Expr__Ident(\"val\".to_string(), span.clone())), span: span.clone() }, span = span.clone())")?;
+        write_line(output, indent + 2, "let pending_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Pending\".to_string(), fields: VariantPatternFields__Unit, span: span.clone() }, guard = none, body = Expr__Return(Some(Box__new_(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Pending\".to_string(), fields: EnumVariantFields__Unit, span: span.clone() })), span.clone()), span = span.clone())")?;
+        write_line(output, indent + 2, "let ready_arm = aggregate_init(\"MatchArm\", pattern = Pattern::Variant { enum_name: Some(\"Poll\".to_string()), variant: \"Ready\".to_string(), fields: VariantPatternFields__Tuple([Pattern::Binding { name: \"val\".to_string(), mutable_: false, span: span.clone() }]), span: span.clone() }, guard = none, body = Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), value: Box__new_(Expr__Ident(\"val\".to_string(), span.clone())), span: span.clone() }, span = span.clone())")?;
         write_line(output, indent + 2, "body_stmts.push(Stmt__Expr(Expr::Match { scrutinee: Box__new_(poll_call), arms: [pending_arm, ready_arm], span: span.clone() }))")?;
         write_line(output, indent + 2, "match &prev_await.result_binding:")?;
         write_line(output, indent + 3, "Some(binding) =>")?;
         write_line(output, indent + 4, "if fields.contains_key(binding):")?;
         write_line(output, indent + 5, "body_stmts.push(Stmt__Expr(Expr::Assign { target: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: binding.clone(), span: span.clone() }), value: Box__new_(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() }))")?;
         write_line(output, indent + 4, "else:")?;
-        write_line(output, indent + 5, "body_stmts.push(Stmt::Let { pattern: Pattern::Binding { name: binding.clone(), mutable_: false, span: span.clone() }, ty: None, value: Some(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() })")?;
+        write_line(output, indent + 5, "body_stmts.push(Stmt::Let { pattern: Pattern::Binding { name: binding.clone(), mutable_: false, span: span.clone() }, ty: none, value: Some(Expr::Field { object: Box__new_(Expr__Ident(\"self\".to_string(), span.clone())), field: res_field.clone(), span: span.clone() }), span: span.clone() })")?;
         write_line(output, indent + 3, "_ =>")?;
         write_line(output, indent + 4, "let __selfhost_empty = none")?;
         write_line(output, indent + 1, "for stmt in &segment.stmts_before:")?;
@@ -3621,7 +3621,7 @@ fn write_function(
         write_line(output, indent + 4, "body_stmts.push(Stmt__Return(Some(Expr::EnumVariant { enum_name: \"Poll\".to_string(), variant: \"Ready\".to_string(), fields: EnumVariantFields__Tuple([Expr__None(span.clone())]), span: span.clone() }), span.clone()))")?;
         write_line(output, indent + 3, "else:")?;
         write_line(output, indent + 4, "let _state_done = true")?;
-        write_line(output, indent + 1, "aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Int(state_idx as i64, span.clone())), guard = None, body = Expr__Block(aggregate_init(\"Block\", stmts = body_stmts, span = span.clone()), span.clone()), span = span.clone())")?;
+        write_line(output, indent + 1, "aggregate_init(\"MatchArm\", pattern = Pattern__Literal(Expr__Int(state_idx as i64, span.clone())), guard = none, body = Expr__Block(aggregate_init(\"Block\", stmts = body_stmts, span = span.clone()), span.clone()), span = span.clone())")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
@@ -3794,7 +3794,7 @@ fn write_function(
         write_line(output, indent + 5, "return Some(value.to_string())")?;
         write_line(output, indent + 3, "_ =>")?;
         write_line(output, indent + 4, "let __selfhost_empty = none")?;
-        write_line(output, indent + 1, "None")?;
+        write_line(output, indent + 1, "none")?;
         writeln!(output)
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());

@@ -655,6 +655,17 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
     );
     env.define_global(
+        "Some".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown],
+            ResolvedType::Option(Box::new(ResolvedType::Unknown)),
+        ),
+    );
+    env.define_global(
+        "None".into(),
+        selfhost_nullary_function_type(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
+    );
+    env.define_global(
         "__kain_bootstrap_lex_tokens".into(),
         builtin_function_type(
             vec![shared_ref_type(ResolvedType::String)],
@@ -8530,6 +8541,28 @@ mod tests {
             ResolvedType::Function {
                 params: vec![ResolvedType::Unknown],
                 ret: Box::new(ResolvedType::Unknown),
+                effects: EffectSet::new(),
+            }
+        );
+
+        assert_eq!(
+            env.lookup("Some")
+                .cloned()
+                .expect("Some helper should be registered"),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
+                effects: EffectSet::new(),
+            }
+        );
+
+        assert_eq!(
+            env.lookup("None")
+                .cloned()
+                .expect("None helper should be registered"),
+            ResolvedType::Function {
+                params: Vec::new(),
+                ret: Box::new(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
                 effects: EffectSet::new(),
             }
         );
