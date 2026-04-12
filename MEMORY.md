@@ -1,5 +1,42 @@
 # MEMORY
 
+## 2026-04-11 - graphics vendor incorporation plan added for bgfx, bx, bimg, filament-core, and diligentcore
+
+The runtime now has a concrete graphics-vendor doctrine instead of a generic “maybe wire all the renderers in” impulse. The new vendors are useful, but they need different roles.
+
+What changed:
+
+- Added `runtime/KAIN_GRAPHICS_VENDOR_INTEGRATION_PLAN_2026-04-11.md`
+  - Positioned `bgfx` as the first practical renderer/backend lane for Kain.
+  - Positioned `bx` and `bimg` as support infrastructure that should travel with the `bgfx` lane instead of pretending to be standalone runtimes.
+  - Positioned `filament-core` as the higher-level premium scene/material/lighting experiment.
+  - Positioned `diligentcore` as the future explicit Kain-native render-graph / compute / device-control lane.
+  - Defined the wiring order:
+    - build-path preparation for graphics vendors
+    - `bgfx` + `bx` + `bimg`
+    - viewport/backend split
+    - `filament-core`
+    - `diligentcore`
+- Updated `ARCHITECTURE.md`
+  - Recorded the renderer-vendor doctrine as a guardrail so future agents do not try to wire `bgfx`, Filament, and Diligent into one undifferentiated viewport path.
+
+Design decisions:
+
+- Chose `bgfx` first because it solves the fastest practical problem: a real cross-platform renderer/backend lane.
+- Chose not to start with Filament even though it offers better immediate visuals, because it solves “look expensive” before it solves “make the runtime host/render sanely across platforms”.
+- Chose not to start with Diligent even though it is strategically valuable, because it is the deeper architecture lane rather than the fastest usable runtime rendering substrate.
+- Treated `gfx.viewport` as a host-facing presentation service, not as the permanent renderer contract.
+
+Current risks:
+
+- The current native runtime compile path is still effectively C-oriented, while `bgfx`, `filament-core`, and `diligentcore` are C++-heavy implementation trees.
+- `bgfx` is easier to approach first because it has a C99 surface, but Filament and Diligent likely need deliberate bridge-library treatment before they should enter the runtime manifest path.
+- The runtime still lacks a Kain-owned renderer backend interface, so the first implementation slice should create that seam before trying to make the viewport host cross-renderer-aware.
+
+Recommended next step:
+
+- Build the first renderer-backend seam with `bgfx` + `bx` + `bimg`, then split `gfx.viewport` into host-facing and backend-facing halves before attempting Filament or Diligent integration.
+
 ## 2026-04-11 - native runtime metadata and platform truth were resynchronized after the vendor slice
 
 The first vendor-backed runtime slice landed cleanly on Linux, but the manifest and tooling metadata drifted immediately afterward. This follow-up pass brought the native runtime companion metadata back into sync and widened the new vendor lane so Windows development is represented explicitly instead of being treated like a Linux-only accident.
