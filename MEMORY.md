@@ -1,5 +1,45 @@
 # MEMORY
 
+# 2026-04-12 - official Kain website rebuilt as a data-driven public site
+
+The official KAIN website at `/home/ephemara/Dev/Kain/website` was rebuilt as a
+data-driven public-site shell instead of the old monolithic inline page. The
+site now uses structured content plus a thin browser adapter, and it mounts a
+real Kain-compiled preview component in the hero.
+
+What changed:
+
+- Replaced the old inline page with a minimal shell in `index.html` and a
+  shared renderer in `site.js`.
+- Moved all page copy, capability cards, resources, and playground examples
+  into `site-data.js` so the surface is content-driven instead of hardcoded.
+- Reworked `style.css` into the full visual system for the site.
+- Added a Kain-authored preview component in `src/main.kn` and regenerated
+  `dist/main.js` from it.
+- Limited the live browser playground to targets that actually compile in the
+  current browser/compiler path.
+- Fixed `crates/kain-core/src/types.rs` so component props and component-local
+  state are visible in render/typecheck scope.
+
+Validation:
+
+- Node import/syntax check for `website/site.js` with a stubbed DOM
+- local static serving check for `website/`
+- compile probes for the playground examples across the verified browser
+  targets
+
+Current risk:
+
+- `site.js` depends on the generated browser compiler package and the generated
+  `dist/main.js` preview artifact staying in sync.
+- The playground should keep its target list aligned with the examples that are
+  actually proven in-browser, not with aspirational backend support.
+
+Recommended next step:
+
+- Keep the website data model stable and expand content from repo truth instead
+  of reintroducing a giant inline HTML/JS monolith.
+
 # 2026-04-12 - deep docs pass added pipeline, UE5, and low-level memory chapters
 
 The canonical guide tree now includes dedicated conceptual pages for the

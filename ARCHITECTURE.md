@@ -68,6 +68,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [docs](/M:/Code/Kain/docs): legacy doctrine, plans, pipeline notes, validation notes, and research
 - [guides](/M:/Code/Kain/guides): canonical long-form language, runtime, CLI, and reference guides
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
+- [website](/M:/Code/Kain/website): the official KAIN public site, data-driven launch surface, and browser playground; this is now the canonical website dogfood for the public-site archetype
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [apps/kain-fabric-dcc-suite](/M:/Code/Kain/apps/kain-fabric-dcc-suite): broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, animation, sim, render, compositor, publish, automation, and tensor planning lanes
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
@@ -371,11 +372,11 @@ If the debug CLI is missing:
 
 ## Template Packs
 
-`templates/Web` now hosts a manifest-driven universal web starter aimed at users who should not need Rust or Cargo installed.
+`templates/Web` now serves as a reusable web starter/reference pack, but the canonical public-facing example is `website/`.
 
 Key rules for this lane:
 
-- Kain owns orchestration and semantic UI preview entrypoints.
-- Node FFI owns browser packaging, local serving, and actor-server runtime glue.
-- themes, content, scenes, and experiences are registry-driven data, not scattered starter literals.
-- web template boilerplate should prefer reusable stdlib wrappers (`std::javascript::site_runtime`, `std::javascript::site_actor`) plus shared helper runtimes over copy-pasted starter code.
+- Kain owns the page semantics, the compiled preview subtree, and the site content model.
+- Browser and Node glue should stay thin: bundling, local serving, and browser compiler bootstrapping only.
+- themes, content, sections, and examples should be registry-driven data, not scattered starter literals.
+- Avoid reintroducing a helper-owned site runtime or fake enterprise metadata shell around the website surface.
