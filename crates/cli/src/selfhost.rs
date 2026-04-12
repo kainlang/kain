@@ -2072,6 +2072,118 @@ fn write_function(
             .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
         return Ok(());
     }
+    if function.name == "tokenize"
+        && current_impl
+            .as_deref()
+            .is_some_and(|name| name.starts_with("Lexer"))
+    {
+        write_line(
+            output,
+            indent + 1,
+            "__kain_bootstrap_lex_tokens(&(*_self).source)",
+        )?;
+        writeln!(output)
+            .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
+    if function.name == "process_indentation"
+        && current_impl
+            .as_deref()
+            .is_some_and(|name| name.starts_with("Lexer"))
+    {
+        write_line(output, indent + 1, "let mut result = Vec__new_()")?;
+        write_line(output, indent + 1, "let mut indent_stack = [0]")?;
+        write_line(output, indent + 1, "let mut iter = raw.into_iter().peekable()")?;
+        write_line(output, indent + 1, "loop:")?;
+        write_line(output, indent + 2, "match iter.next():")?;
+        write_line(output, indent + 3, "Some(token) =>")?;
+        write_line(output, indent + 4, "match &token.kind:")?;
+        write_line(output, indent + 5, "TokenKind::Newline(ws) =>")?;
+        write_line(output, indent + 6, "match iter.peek():")?;
+        write_line(output, indent + 7, "Some(next) =>")?;
+        write_line(output, indent + 8, "match &next.kind:")?;
+        write_line(output, indent + 9, "TokenKind::Newline(_) =>")?;
+        write_line(output, indent + 10, "continue")?;
+        write_line(output, indent + 9, "_ =>")?;
+        write_line(output, indent + 10, "()")?;
+        write_line(output, indent + 7, "_ =>")?;
+        write_line(output, indent + 8, "()")?;
+        write_line(output, indent + 6, "let mut indent: usize = 0")?;
+        write_line(
+            output,
+            indent + 6,
+            "for indent_char in ws[1..].chars():",
+        )?;
+        write_line(output, indent + 7, "if (indent_char == \"\\t\"):")?;
+        write_line(output, indent + 8, "indent = (indent + 4)")?;
+        write_line(output, indent + 7, "else:")?;
+        write_line(output, indent + 8, "indent = (indent + 1)")?;
+        write_line(
+            output,
+            indent + 6,
+            "let current = (*indent_stack.last().unwrap())",
+        )?;
+        write_line(output, indent + 6, "if (indent > current):")?;
+        write_line(output, indent + 7, "indent_stack.push(indent)")?;
+        write_line(
+            output,
+            indent + 7,
+            "result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))",
+        )?;
+        write_line(
+            output,
+            indent + 7,
+            "result.push(Token__new_(TokenKind__Indent, token.span))",
+        )?;
+        write_line(output, indent + 6, "elif (indent < current):")?;
+        write_line(
+            output,
+            indent + 7,
+            "result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))",
+        )?;
+        write_line(
+            output,
+            indent + 7,
+            "while ((indent_stack.len() > 1) && ((*indent_stack.last().unwrap()) > indent)):",
+        )?;
+        write_line(output, indent + 8, "indent_stack.pop()")?;
+        write_line(
+            output,
+            indent + 8,
+            "result.push(Token__new_(TokenKind__Dedent, token.span))",
+        )?;
+        write_line(output, indent + 6, "else:")?;
+        write_line(
+            output,
+            indent + 7,
+            "result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))",
+        )?;
+        write_line(output, indent + 5, "_ =>")?;
+        write_line(output, indent + 6, "result.push(token)")?;
+        write_line(output, indent + 3, "_ =>")?;
+        write_line(output, indent + 4, "break")?;
+        write_line(
+            output,
+            indent + 1,
+            "let final_span = result.last().map(fn(t): t.span).unwrap_or(Span__new_(0, 0))",
+        )?;
+        write_line(output, indent + 1, "while (indent_stack.len() > 1):")?;
+        write_line(output, indent + 2, "indent_stack.pop()")?;
+        write_line(
+            output,
+            indent + 2,
+            "result.push(Token__new_(TokenKind__Dedent, final_span))",
+        )?;
+        write_line(
+            output,
+            indent + 1,
+            "result.push(Token__new_(TokenKind__Eof, final_span))",
+        )?;
+        write_line(output, indent + 1, "Result::Ok(result)")?;
+        writeln!(output)
+            .map_err(|err| KainError::runtime(format!("Failed to render function: {}", err)))?;
+        return Ok(());
+    }
     if function.name == "span" && current_impl.as_deref() == Some("Type") {
         write_line(output, indent + 1, "match _self:")?;
         write_line(
@@ -5686,5 +5798,72 @@ fn untouched_afterwards():
         let rendered = render_program(&program).expect("default impl should render");
         assert!(rendered.contains("impl Default for LanguageCapabilities:"));
         assert!(rendered.contains("pub fn default_() -> LanguageCapabilities:"));
+    }
+
+    #[test]
+    fn render_program_bootstraps_lexer_tokenize_body() {
+        let span = kain_core::span::Span::default();
+        let program = Program {
+            items: vec![Item::Impl(kain_core::ast::Impl {
+                generics: Vec::new(),
+                trait_name: None,
+                trait_generics: Vec::new(),
+                target_type: Type::Named {
+                    name: "Lexer".to_string(),
+                    generics: Vec::new(),
+                    span,
+                },
+                methods: vec![kain_core::ast::Function {
+                    name: "tokenize".to_string(),
+                    generics: Vec::new(),
+                    params: vec![Param {
+                        name: "_self".to_string(),
+                        ty: Type::Ref {
+                            mutable: false,
+                            inner: Box::new(Type::Named {
+                                name: "Lexer".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            }),
+                            lifetime: None,
+                            span,
+                        },
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: Some(Type::Result(
+                        Box::new(Type::Named {
+                            name: "Array".to_string(),
+                            generics: vec![Type::Named {
+                                name: "Token".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            }],
+                            span,
+                        }),
+                        Box::new(Type::Named {
+                            name: "KainError".to_string(),
+                            generics: Vec::new(),
+                            span,
+                        }),
+                        span,
+                    )),
+                    effects: Vec::new(),
+                    body: Block {
+                        stmts: vec![Stmt::Expr(Expr::None(span))],
+                        span,
+                    },
+                    visibility: Visibility::Public,
+                    attributes: Vec::new(),
+                    span,
+                }],
+                span,
+            })],
+            span,
+        };
+
+        let rendered = render_program(&program).expect("lexer tokenize should render");
+        assert!(rendered.contains("__kain_bootstrap_lex_tokens(&(*_self).source)"));
     }
 }

@@ -423,6 +423,7 @@ impl<'a> TypeEnv<'a> {
         register_builtin_global_functions(&mut env);
         register_selfhost_constructor_globals(&mut env);
         register_selfhost_collection_methods(&mut env);
+        register_selfhost_host_bridge(&mut env);
         env
     }
 
@@ -510,6 +511,45 @@ fn selfhost_map_type() -> ResolvedType {
 fn selfhost_set_type() -> ResolvedType {
     ResolvedType::Struct("Set".to_string(), HashMap::new())
 }
+
+fn selfhost_bootstrap_lexer_result_type() -> ResolvedType {
+    ResolvedType::Result(
+        Box::new(dynamic_array_type(ResolvedType::Struct(
+            "Token".to_string(),
+            HashMap::new(),
+        ))),
+        Box::new(ResolvedType::Enum("KainError".to_string(), Vec::new())),
+    )
+}
+
+fn selfhost_kain_error_type() -> ResolvedType {
+    ResolvedType::Enum("KainError".to_string(), Vec::new())
+}
+
+fn selfhost_host_result_type(ok: ResolvedType) -> ResolvedType {
+    ResolvedType::Result(Box::new(ok), Box::new(selfhost_kain_error_type()))
+}
+
+fn selfhost_path_buf_type() -> ResolvedType {
+    ResolvedType::Struct("path::PathBuf".to_string(), HashMap::new())
+}
+
+fn selfhost_path_type() -> ResolvedType {
+    ResolvedType::Struct("path::Path".to_string(), HashMap::new())
+}
+
+fn selfhost_dir_entry_type() -> ResolvedType {
+    ResolvedType::Struct("DirEntry".to_string(), HashMap::new())
+}
+
+fn selfhost_duration_type() -> ResolvedType {
+    ResolvedType::Struct("Duration".to_string(), HashMap::new())
+}
+
+const SELFHOST_PATH_BUF_TYPE_ALIASES: &[&str] = &["path::PathBuf", "PathBuf"];
+const SELFHOST_PATH_TYPE_ALIASES: &[&str] = &["path::Path", "Path"];
+const SELFHOST_DIR_ENTRY_TYPE_ALIASES: &[&str] = &["DirEntry", "fs::DirEntry"];
+const SELFHOST_DURATION_TYPE_ALIASES: &[&str] = &["Duration", "time::Duration"];
 
 fn selfhost_constructor_return_type(kind: SelfhostConstructorKind) -> ResolvedType {
     match kind {
@@ -609,6 +649,13 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     env.define_global(
         "chr".into(),
         builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::String),
+    );
+    env.define_global(
+        "__kain_bootstrap_lex_tokens".into(),
+        builtin_function_type(
+            vec![shared_ref_type(ResolvedType::String)],
+            selfhost_bootstrap_lexer_result_type(),
+        ),
     );
 }
 
@@ -742,6 +789,349 @@ fn register_selfhost_collection_methods(env: &mut TypeEnv<'_>) {
             effects: EffectSet::new(),
         },
     );
+}
+
+fn register_selfhost_host_bridge(env: &mut TypeEnv<'_>) {
+    register_selfhost_host_bridge_types(env);
+    register_selfhost_host_bridge_methods(env);
+}
+
+fn register_selfhost_host_bridge_types(env: &mut TypeEnv<'_>) {
+    register_host_type_aliases(env, SELFHOST_PATH_BUF_TYPE_ALIASES, selfhost_path_buf_type());
+    register_host_type_aliases(env, SELFHOST_PATH_TYPE_ALIASES, selfhost_path_type());
+    register_host_type_aliases(env, SELFHOST_DIR_ENTRY_TYPE_ALIASES, selfhost_dir_entry_type());
+    register_host_type_aliases(env, SELFHOST_DURATION_TYPE_ALIASES, selfhost_duration_type());
+}
+
+fn register_host_type_aliases(env: &mut TypeEnv<'_>, aliases: &[&str], ty: ResolvedType) {
+    for alias in aliases {
+        env.types.insert((*alias).to_string(), ty.clone());
+    }
+}
+
+fn register_selfhost_host_bridge_methods(env: &mut TypeEnv<'_>) {
+    register_host_path_methods(env, SELFHOST_PATH_BUF_TYPE_ALIASES, selfhost_path_buf_type());
+    register_host_path_methods(env, SELFHOST_PATH_TYPE_ALIASES, selfhost_path_type());
+
+    for alias in SELFHOST_DIR_ENTRY_TYPE_ALIASES {
+        env.define_method(
+            (*alias).to_string(),
+            "path".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(selfhost_dir_entry_type())],
+                ret: Box::new(selfhost_path_buf_type()),
+                effects: EffectSet::new(),
+            },
+        );
+    }
+}
+
+fn register_host_path_methods(env: &mut TypeEnv<'_>, aliases: &[&str], receiver: ResolvedType) {
+    for alias in aliases {
+        env.define_method(
+            (*alias).to_string(),
+            "join".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone()), ResolvedType::Unknown],
+                ret: Box::new(selfhost_path_buf_type()),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "exists".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::Bool),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "is_dir".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::Bool),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "is_file".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::Bool),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "parent".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::Option(Box::new(selfhost_path_buf_type()))),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "to_path_buf".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(selfhost_path_buf_type()),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "to_string_lossy".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "display".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::String),
+                effects: EffectSet::new(),
+            },
+        );
+        env.define_method(
+            (*alias).to_string(),
+            "file_name".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(receiver.clone())],
+                ret: Box::new(ResolvedType::Option(Box::new(ResolvedType::String))),
+                effects: EffectSet::new(),
+            },
+        );
+    }
+}
+
+fn infer_selfhost_host_call_type(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    callee_name: &str,
+    args: &[CallArg],
+    span: Span,
+) -> Option<KainResult<ResolvedType>> {
+    match callee_name {
+        "std__env__var_" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__env__var_",
+            &[ResolvedType::Unknown],
+            selfhost_host_result_type(ResolvedType::String),
+        )),
+        "std__env__current_exe" | "std__env__current_dir" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            callee_name,
+            &[],
+            selfhost_host_result_type(selfhost_path_buf_type()),
+        )),
+        "std__env__set_current_dir" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__env__set_current_dir",
+            &[ResolvedType::Unknown],
+            selfhost_host_result_type(ResolvedType::Unit),
+        )),
+        "std__env__temp_dir" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__env__temp_dir",
+            &[],
+            selfhost_path_buf_type(),
+        )),
+        "std__env__set_var" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__env__set_var",
+            &[ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unit,
+        )),
+        "std__env__remove_var" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__env__remove_var",
+            &[ResolvedType::Unknown],
+            ResolvedType::Unit,
+        )),
+        "std__fs__read_dir" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__fs__read_dir",
+            &[ResolvedType::Unknown],
+            selfhost_host_result_type(dynamic_array_type(selfhost_dir_entry_type())),
+        )),
+        "std__fs__read_to_string" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__fs__read_to_string",
+            &[ResolvedType::Unknown],
+            selfhost_host_result_type(ResolvedType::String),
+        )),
+        "std__fs__create_dir_all" | "std__fs__remove_dir_all" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            callee_name,
+            &[ResolvedType::Unknown],
+            selfhost_host_result_type(ResolvedType::Unit),
+        )),
+        "std__fs__write" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__fs__write",
+            &[ResolvedType::Unknown, ResolvedType::Unknown],
+            selfhost_host_result_type(ResolvedType::Unit),
+        )),
+        "std__iter__empty" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__iter__empty",
+            &[],
+            dynamic_array_type(ResolvedType::Tuple(vec![
+                ResolvedType::String,
+                ResolvedType::Enum("ResolvedType".to_string(), Vec::new()),
+            ])),
+        )),
+        "std__mem__discriminant" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__mem__discriminant",
+            &[ResolvedType::Unknown],
+            ResolvedType::Int(IntSize::I64),
+        )),
+        "std__mem__take" => Some(infer_selfhost_mem_take_call(env, ctx, args, span)),
+        "std__mem__replace" => Some(infer_selfhost_mem_replace_call(env, ctx, args, span)),
+        "Duration__from_micros" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "Duration__from_micros",
+            &[ResolvedType::Int(IntSize::I64)],
+            selfhost_duration_type(),
+        )),
+        "std__thread__sleep" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__thread__sleep",
+            &[ResolvedType::Unknown],
+            ResolvedType::Unit,
+        )),
+        "std__thread__spawn_" => Some(infer_fixed_builtin_call(
+            env,
+            ctx,
+            args,
+            span,
+            "std__thread__spawn_",
+            &[ResolvedType::Unknown],
+            ResolvedType::Unit,
+        )),
+        _ => None,
+    }
+}
+
+fn infer_fixed_builtin_call(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    args: &[CallArg],
+    span: Span,
+    name: &str,
+    params: &[ResolvedType],
+    ret: ResolvedType,
+) -> KainResult<ResolvedType> {
+    if args.len() != params.len() {
+        return Err(env.type_error(
+            format!("{name} expects {} argument(s), found {}", params.len(), args.len()),
+            span,
+        ));
+    }
+    for (param_ty, arg) in params.iter().zip(args.iter()) {
+        let arg_ty = infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
+        ensure_type_compatible(env, param_ty, &arg_ty, arg.span, name)?;
+    }
+    Ok(ret)
+}
+
+fn infer_selfhost_mem_take_call(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<ResolvedType> {
+    if args.len() != 1 {
+        return Err(env.type_error(
+            format!("std__mem__take expects 1 argument, found {}", args.len()),
+            span,
+        ));
+    }
+    let source_ty = infer_expr_type(env, &args[0].value, ctx)?;
+    Ok(match source_ty {
+        ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => *inner,
+        other => other,
+    })
+}
+
+fn infer_selfhost_mem_replace_call(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<ResolvedType> {
+    if args.len() != 2 {
+        return Err(env.type_error(
+            format!("std__mem__replace expects 2 arguments, found {}", args.len()),
+            span,
+        ));
+    }
+    let target_ty = infer_expr_type(env, &args[0].value, ctx)?;
+    let replaced_ty = match target_ty {
+        ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => *inner,
+        other => other,
+    };
+    let replacement_ty =
+        infer_expr_type_with_expected(env, &args[1].value, ctx, Some(&replaced_ty))?;
+    ensure_type_compatible(
+        env,
+        &replaced_ty,
+        &replacement_ty,
+        args[1].span,
+        "std__mem__replace",
+    )?;
+    Ok(replaced_ty)
 }
 
 /// Main type checking entry point
@@ -2968,6 +3358,13 @@ fn infer_expr_type(
             }
         }
         Expr::Call { callee, args, span } => {
+            if let Expr::Ident(callee_name, _) = callee.as_ref() {
+                if let Some(host_call_ty) =
+                    infer_selfhost_host_call_type(env, ctx, callee_name, args, *span)
+                {
+                    return host_call_ty;
+                }
+            }
             let callee_ty = infer_expr_type(env, callee, ctx)?;
 
             match callee_ty {
@@ -3495,11 +3892,51 @@ fn infer_expr_type(
         Expr::Try(value, span) => {
             let value_ty = infer_expr_type(env, value, ctx)?;
             match value_ty {
-                ResolvedType::Result(ok, _) => Ok(*ok),
+                ResolvedType::Result(ok, err) => {
+                    if let Some(ctx) = ctx {
+                        match &ctx.return_type {
+                            ResolvedType::Result(_, return_err) => ensure_type_compatible(
+                                env,
+                                return_err.as_ref(),
+                                err.as_ref(),
+                                *span,
+                                "propagated error",
+                            )?,
+                            ResolvedType::Unknown => {}
+                            other => {
+                                return Err(env.type_error(
+                                    format!(
+                                        "'?' on Result requires enclosing function to return Result, found {}",
+                                        describe_type(other)
+                                    ),
+                                    *span,
+                                ));
+                            }
+                        }
+                    }
+                    Ok(*ok)
+                }
+                ResolvedType::Option(inner) => {
+                    if let Some(ctx) = ctx {
+                        match &ctx.return_type {
+                            ResolvedType::Option(_) | ResolvedType::Unknown => {}
+                            other => {
+                                return Err(env.type_error(
+                                    format!(
+                                        "'?' on Option requires enclosing function to return Option, found {}",
+                                        describe_type(other)
+                                    ),
+                                    *span,
+                                ));
+                            }
+                        }
+                    }
+                    Ok(*inner)
+                }
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                 other => Err(env.type_error(
                     format!(
-                        "'?' expects a Result value, found {}",
+                        "'?' expects a Result or Option value, found {}",
                         describe_type(&other)
                     ),
                     *span,
@@ -3899,6 +4336,14 @@ fn infer_method_call_type(
             "collect" => infer_builtin_collect_method(inner.as_ref(), args, span, env, "Array.collect"),
             "join" => infer_builtin_join_method(env, ctx, inner.as_ref(), args, span, "Array.join"),
             "first" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Array.first"),
+            "last" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Array.last"),
+            "pop" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Option(Box::new(inner.as_ref().clone())))
+                } else {
+                    Err(env.type_error("Array.pop expects no arguments", span))
+                }
+            }
             "cloned" | "copied" => infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method),
             "zip" => infer_builtin_zip_method(env, ctx, inner.as_ref(), args, span, "Array.zip"),
             "sum" => infer_builtin_sum_method(inner.as_ref(), args, span, env, "Array.sum"),
@@ -4048,6 +4493,7 @@ fn infer_method_call_type(
             "collect" => infer_builtin_collect_method(inner.as_ref(), args, span, env, "Slice.collect"),
             "join" => infer_builtin_join_method(env, ctx, inner.as_ref(), args, span, "Slice.join"),
             "first" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Slice.first"),
+            "last" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Slice.last"),
             "cloned" | "copied" => infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method),
             "zip" => infer_builtin_zip_method(env, ctx, inner.as_ref(), args, span, "Slice.zip"),
             "sum" => infer_builtin_sum_method(inner.as_ref(), args, span, env, "Slice.sum"),
@@ -4079,24 +4525,16 @@ fn infer_method_call_type(
                 )?;
                 Ok(inner.as_ref().clone())
             }
-            "and_then" => infer_builtin_transform_method(
-                env,
-                ctx,
-                inner.as_ref(),
-                args,
-                span,
-                |mapped| ResolvedType::Option(Box::new(mapped)),
-            ),
+            "and_then" => {
+                infer_builtin_option_chain_method(env, ctx, inner.as_ref(), args, span)
+            }
             "or_else" => infer_builtin_nullary_callback_method(
                 env,
                 ctx,
                 args,
                 span,
                 "Option.or_else",
-                |mapped| {
-                    ensure_type_compatible_option(mapped, inner.as_ref())
-                        .map(|ret| ResolvedType::Option(Box::new(ret)))
-                },
+                |mapped| ensure_option_return_type(mapped, inner.as_ref()),
             ),
             "cloned" | "copied" => {
                 infer_builtin_option_clone_adapter(inner.as_ref(), args, span, env, method)
@@ -4305,6 +4743,13 @@ fn infer_method_call_type(
                     Ok(shared_ref_type(ResolvedType::String))
                 } else {
                     Err(env.type_error("String.trim expects no arguments", span))
+                }
+            }
+            "to_string_lossy" if matches!(receiver_ty, ResolvedType::String) => {
+                if args.is_empty() {
+                    Ok(ResolvedType::String)
+                } else {
+                    Err(env.type_error("String.to_string_lossy expects no arguments", span))
                 }
             }
             "starts_with" | "eq_ignore_ascii_case" if matches!(receiver_ty, ResolvedType::String) => {
@@ -4923,6 +5368,29 @@ fn ensure_type_compatible_option(mapped: ResolvedType, expected: &ResolvedType) 
     }
 }
 
+fn ensure_option_return_type(mapped: ResolvedType, expected: &ResolvedType) -> KainResult<ResolvedType> {
+    match mapped {
+        ResolvedType::Option(inner) => {
+            if matches!(inner.as_ref(), ResolvedType::Unknown)
+                || types_compatible(expected, inner.as_ref())
+            {
+                Ok(ResolvedType::Option(Box::new(if matches!(
+                    inner.as_ref(),
+                    ResolvedType::Unknown
+                ) {
+                    expected.clone()
+                } else {
+                    inner.as_ref().clone()
+                })))
+            } else {
+                Ok(ResolvedType::Option(Box::new(ResolvedType::Unknown)))
+            }
+        }
+        ResolvedType::Unknown => Ok(ResolvedType::Option(Box::new(expected.clone()))),
+        other => Ok(ResolvedType::Option(Box::new(other))),
+    }
+}
+
 fn ensure_result_type(mapped: ResolvedType, ok_ty: &ResolvedType) -> KainResult<ResolvedType> {
     match mapped {
         ResolvedType::Result(ok, err) => {
@@ -5051,6 +5519,18 @@ fn infer_builtin_transform_method(
     }
 }
 
+fn infer_builtin_option_chain_method(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    input_ty: &ResolvedType,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<ResolvedType> {
+    let mapped =
+        infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, "Option.and_then")?;
+    ensure_option_return_type(mapped, input_ty)
+}
+
 fn infer_macro_type(
     env: &mut TypeEnv,
     name: &str,
@@ -5110,7 +5590,13 @@ fn check_pattern_compatibility(
         Pattern::Wildcard(_) | Pattern::Binding { .. } => Ok(()),
         Pattern::Literal(expr) => {
             let literal_ty = infer_expr_type(env, expr, None)?;
-            ensure_type_compatible(env, scrutinee_ty, &literal_ty, expr.span(), "match pattern")
+            ensure_type_compatible(
+                env,
+                pattern_match_subject_type(scrutinee_ty),
+                &literal_ty,
+                expr.span(),
+                "match pattern",
+            )
         }
         Pattern::Tuple(patterns, span) => match pattern_match_subject_type(scrutinee_ty) {
             ResolvedType::Tuple(items) if items.len() == patterns.len() => {
@@ -5203,6 +5689,16 @@ fn check_pattern_compatibility(
                 }
             }
             match match_ty {
+                ResolvedType::Enum(enum_name, _)
+                    if expected_enum.is_empty() || expected_enum == enum_name =>
+                {
+                    Ok(())
+                }
+                ResolvedType::Struct(type_name, _)
+                    if !expected_enum.is_empty() && expected_enum == type_name =>
+                {
+                    Ok(())
+                }
                 ResolvedType::Enum(_, _)
                 | ResolvedType::Option(_)
                 | ResolvedType::Result(_, _)
@@ -7490,6 +7986,18 @@ mod tests {
         .expect("Option.unwrap_or_else should typecheck");
         assert_eq!(unwrapped, ResolvedType::String);
 
+        let array_ty = ResolvedType::Array(Box::new(ResolvedType::String), 0);
+        let last_item =
+            infer_method_call_type(&mut env, None, &array_ty, "last", &[], span)
+                .expect("Array.last should typecheck");
+        assert_eq!(
+            last_item,
+            ResolvedType::Option(Box::new(ResolvedType::Ref {
+                mutable: false,
+                inner: Box::new(ResolvedType::String),
+            }))
+        );
+
         let chained_option = infer_method_call_type(
             &mut env,
             None,
@@ -7513,6 +8021,40 @@ mod tests {
         .expect("Option.or_ should typecheck");
         assert_eq!(chained_option, option_ty);
 
+        let flattened_option = infer_method_call_type(
+            &mut env,
+            None,
+            &option_ty,
+            "and_then",
+            &[CallArg {
+                name: None,
+                value: Expr::Lambda {
+                    params: vec![Param {
+                        name: "value".to_string(),
+                        ty: Type::Infer(span),
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    body: Box::new(Expr::EnumVariant {
+                        enum_name: "Option".to_string(),
+                        variant: "Some".to_string(),
+                        fields: EnumVariantFields::Tuple(vec![Expr::Ident(
+                            "value".to_string(),
+                            span,
+                        )]),
+                        span,
+                    }),
+                    span,
+                },
+                span,
+            }],
+            span,
+        )
+        .expect("Option.and_then should flatten callback options");
+        assert_eq!(flattened_option, option_ty);
+
         let copied_option = infer_method_call_type(
             &mut env,
             None,
@@ -7534,6 +8076,143 @@ mod tests {
         let ok_ty =
             infer_method_call_type(&mut env, None, &result_ty, "ok", &[], span).expect("Result.ok");
         assert_eq!(ok_ty, ResolvedType::Option(Box::new(ResolvedType::String)));
+    }
+
+    #[test]
+    fn typecheck_supports_try_for_option_and_result_in_matching_function_contexts() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let option_ctx = SemanticContext {
+            function_name: "unwrap_option".to_string(),
+            return_type: ResolvedType::Option(Box::new(ResolvedType::String)),
+            effects: EffectSet::new(),
+        };
+        env.define(
+            "maybe_name".to_string(),
+            ResolvedType::Option(Box::new(ResolvedType::String)),
+        );
+        let option_try_ty = infer_expr_type(
+            &mut env,
+            &Expr::Try(Box::new(Expr::Ident("maybe_name".to_string(), span)), span),
+            Some(&option_ctx),
+        )
+        .expect("Option-based '?' should typecheck inside Option-returning functions");
+        assert_eq!(option_try_ty, ResolvedType::String);
+
+        let result_ctx = SemanticContext {
+            function_name: "unwrap_result".to_string(),
+            return_type: ResolvedType::Result(
+                Box::new(ResolvedType::Bool),
+                Box::new(ResolvedType::String),
+            ),
+            effects: EffectSet::new(),
+        };
+        env.define(
+            "parsed".to_string(),
+            ResolvedType::Result(
+                Box::new(ResolvedType::Int(IntSize::I64)),
+                Box::new(ResolvedType::String),
+            ),
+        );
+        let result_try_ty = infer_expr_type(
+            &mut env,
+            &Expr::Try(Box::new(Expr::Ident("parsed".to_string(), span)), span),
+            Some(&result_ctx),
+        )
+        .expect("Result-based '?' should typecheck inside Result-returning functions");
+        assert_eq!(result_try_ty, ResolvedType::Int(IntSize::I64));
+    }
+
+    #[test]
+    fn typecheck_rejects_try_when_residual_shape_or_error_type_mismatch_return_context() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        env.define(
+            "maybe_name".to_string(),
+            ResolvedType::Option(Box::new(ResolvedType::String)),
+        );
+        let result_ctx = SemanticContext {
+            function_name: "wrong_shape".to_string(),
+            return_type: ResolvedType::Result(
+                Box::new(ResolvedType::String),
+                Box::new(ResolvedType::String),
+            ),
+            effects: EffectSet::new(),
+        };
+        let option_error = infer_expr_type(
+            &mut env,
+            &Expr::Try(Box::new(Expr::Ident("maybe_name".to_string(), span)), span),
+            Some(&result_ctx),
+        )
+        .expect_err("Option-based '?' should reject Result-returning functions");
+        assert!(
+            option_error
+                .to_string()
+                .contains("'?' on Option requires enclosing function to return Option"),
+            "unexpected diagnostic: {option_error}"
+        );
+
+        env.define(
+            "parsed".to_string(),
+            ResolvedType::Result(
+                Box::new(ResolvedType::Int(IntSize::I64)),
+                Box::new(ResolvedType::Bool),
+            ),
+        );
+        let mismatched_result_ctx = SemanticContext {
+            function_name: "wrong_error".to_string(),
+            return_type: ResolvedType::Result(
+                Box::new(ResolvedType::String),
+                Box::new(ResolvedType::String),
+            ),
+            effects: EffectSet::new(),
+        };
+        let result_error = infer_expr_type(
+            &mut env,
+            &Expr::Try(Box::new(Expr::Ident("parsed".to_string(), span)), span),
+            Some(&mismatched_result_ctx),
+        )
+        .expect_err("Result-based '?' should validate propagated error types");
+        assert!(
+            result_error
+                .to_string()
+                .contains("propagated error expected String, found Bool"),
+            "unexpected diagnostic: {result_error}"
+        );
+    }
+
+    #[test]
+    fn typecheck_allows_string_literal_patterns_against_shared_string_refs() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let pattern = Pattern::Literal(Expr::String("gcc".to_string(), span));
+        let scrutinee_ty = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(ResolvedType::String),
+        };
+
+        check_pattern_compatibility(&mut env, &pattern, &scrutinee_ty)
+            .expect("string literals should match shared string refs");
+    }
+
+    #[test]
+    fn typecheck_allows_explicit_enum_variant_patterns_against_unresolved_named_types() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let pattern = Pattern::Variant {
+            enum_name: Some("CompileTarget".to_string()),
+            variant: "Ue5".to_string(),
+            fields: VariantPatternFields::Unit,
+            span,
+        };
+        let scrutinee_ty = ResolvedType::Struct("CompileTarget".to_string(), HashMap::new());
+
+        check_pattern_compatibility(&mut env, &pattern, &scrutinee_ty)
+            .expect("explicit enum variant patterns should match unresolved named enum carriers");
     }
 
     #[test]
@@ -7624,6 +8303,123 @@ mod tests {
                 effects: EffectSet::new(),
             })
         );
+    }
+
+    #[test]
+    fn typecheck_registers_bootstrap_lexer_intrinsic() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+        assert_eq!(
+            env.lookup("__kain_bootstrap_lex_tokens").cloned(),
+            Some(ResolvedType::Function {
+                params: vec![ResolvedType::Ref {
+                    mutable: false,
+                    inner: Box::new(ResolvedType::String),
+                }],
+                ret: Box::new(ResolvedType::Result(
+                    Box::new(ResolvedType::Array(
+                        Box::new(ResolvedType::Struct("Token".to_string(), HashMap::new())),
+                        0,
+                    )),
+                    Box::new(ResolvedType::Enum("KainError".to_string(), Vec::new())),
+                )),
+                effects: EffectSet::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn typecheck_selfhost_host_bridge_calls_and_path_methods() {
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let span = Span::default();
+
+        let current_dir_call = Expr::Call {
+            callee: Box::new(Expr::Ident("std__env__current_dir".to_string(), span)),
+            args: Vec::new(),
+            span,
+        };
+        let current_dir_ty =
+            infer_expr_type(&mut env, &current_dir_call, None).expect("current_dir should typecheck");
+        assert_eq!(
+            current_dir_ty,
+            selfhost_host_result_type(selfhost_path_buf_type())
+        );
+
+        let path_ty = infer_method_call_type(&mut env, None, &current_dir_ty, "unwrap", &[], span)
+            .expect("Result.unwrap should produce a path");
+        assert_eq!(path_ty, selfhost_path_buf_type());
+
+        let join_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &path_ty,
+            "join",
+            &[CallArg {
+                name: None,
+                value: Expr::String("stdlib".to_string(), span),
+                span,
+            }],
+            span,
+        )
+        .expect("PathBuf.join should typecheck");
+        assert_eq!(join_ty, selfhost_path_buf_type());
+
+        let file_name_ty =
+            infer_method_call_type(&mut env, None, &join_ty, "file_name", &[], span)
+                .expect("PathBuf.file_name should typecheck");
+        let file_name_inner =
+            infer_method_call_type(&mut env, None, &file_name_ty, "unwrap", &[], span)
+                .expect("Option.unwrap should produce the file name");
+        assert_eq!(file_name_inner, ResolvedType::String);
+
+        let lossy_ty =
+            infer_method_call_type(&mut env, None, &file_name_inner, "to_string_lossy", &[], span)
+                .expect("String.to_string_lossy should typecheck");
+        assert_eq!(lossy_ty, ResolvedType::String);
+    }
+
+    #[test]
+    fn typecheck_selfhost_host_bridge_polymorphic_memory_helpers() {
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let span = Span::default();
+        let stored_ty = dynamic_array_type(ResolvedType::String);
+        env.define("errors".to_string(), stored_ty.clone());
+
+        let take_expr = Expr::Call {
+            callee: Box::new(Expr::Ident("std__mem__take".to_string(), span)),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Ident("errors".to_string(), span),
+                span,
+            }],
+            span,
+        };
+        let taken_ty = infer_expr_type(&mut env, &take_expr, None)
+            .expect("std__mem__take should preserve the stored type");
+        assert_eq!(taken_ty, stored_ty);
+
+        let replace_expr = Expr::Call {
+            callee: Box::new(Expr::Ident("std__mem__replace".to_string(), span)),
+            args: vec![
+                CallArg {
+                    name: None,
+                    value: Expr::Ident("errors".to_string(), span),
+                    span,
+                },
+                CallArg {
+                    name: None,
+                    value: Expr::Array(vec![Expr::String("new".to_string(), span)], span),
+                    span,
+                },
+            ],
+            span,
+        };
+        let replaced_ty = infer_expr_type(&mut env, &replace_expr, None)
+            .expect("std__mem__replace should preserve the replaced type");
+        assert_eq!(replaced_ty, stored_ty);
     }
 
     #[test]

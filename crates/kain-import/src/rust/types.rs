@@ -60,12 +60,26 @@ impl RustTypeMapper {
         segments
     }
 
+    pub fn resolve_value_path_segments(&self, path: &syn::Path) -> Vec<String> {
+        let mut segments = self.collect_path_segments(path);
+        if let Some(first) = segments.first().cloned() {
+            if let Some(expanded) = self.visible_paths.get(&first) {
+                let mut resolved = expanded.clone();
+                resolved.extend(segments.into_iter().skip(1));
+                segments = resolved;
+            }
+        }
+        if matches!(
+            segments.first().map(String::as_str),
+            Some("crate" | "self" | "super")
+        ) {
+            segments.remove(0);
+        }
+        segments
+    }
+
     fn normalize_path_segments(&self, path: &syn::Path) -> Vec<String> {
-        let mut segments = path
-            .segments
-            .iter()
-            .map(|seg| seg.ident.to_string())
-            .collect::<Vec<_>>();
+        let mut segments = self.collect_path_segments(path);
         if segments.is_empty() {
             return segments;
         }
@@ -77,6 +91,13 @@ impl RustTypeMapper {
             segments.remove(0);
         }
         segments
+    }
+
+    fn collect_path_segments(&self, path: &syn::Path) -> Vec<String> {
+        path.segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect::<Vec<_>>()
     }
 
     pub fn map_type(&self, ty: &syn::Type) -> Type {

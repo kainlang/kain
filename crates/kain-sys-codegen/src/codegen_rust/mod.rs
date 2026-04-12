@@ -9,9 +9,9 @@ pub mod gpu_artifacts;
 pub mod gpu_host;
 
 use kain_core::ast::{
-    BinaryOp, Block, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function, Generic, Impl,
-    Item, JSXAttrValue, JSXNode, Mod, Param, Pattern, Stmt, Struct, Trait, TraitMethod, Type,
-    UnaryOp, Use, VariantFields, VariantPatternFields,
+    BinaryOp, Block, CallArg, Component, ElseBranch, Enum, EnumVariantFields, Expr, Function,
+    Generic, Impl, Item, JSXAttrValue, JSXNode, Mod, Param, Pattern, Stmt, Struct, Trait,
+    TraitMethod, Type, UnaryOp, Use, VariantFields, VariantPatternFields,
 };
 use kain_core::effects::Effect;
 use kain_core::error::KainResult;
@@ -2182,6 +2182,18 @@ impl RustGen {
         Some(rendered)
     }
 
+    fn render_bootstrap_intrinsic_call(&self, name: &str, args: &[CallArg]) -> Option<String> {
+        match name {
+            "__kain_bootstrap_lex_tokens" if args.len() == 1 => {
+                let source = self.gen_expr(&args[0].value);
+                Some(format!(
+                    "{{ let __kain_source_ref = {source}; let __kain_source = __kain_source_ref.as_str(); let mut __kain_lex = crate::lexer::TokenKind::lexer(__kain_source); let mut __kain_raw_tokens = Vec::new(); while let Some(__kain_result) = __kain_lex.next() {{ let __kain_span = crate::span::Span::new(__kain_lex.span().start, __kain_lex.span().end); match __kain_result {{ Ok(__kain_kind) => {{ if matches!(__kain_kind, crate::lexer::TokenKind::Comment | crate::lexer::TokenKind::HashComment) {{ continue; }} __kain_raw_tokens.push(crate::lexer::Token::new(__kain_kind, __kain_span)); }} Err(_) => {{ return Err(crate::error::KainError::lexer(format!(\"Unexpected character: '{{}}'\", &__kain_source[__kain_span.start..__kain_span.end]), __kain_span)); }} }} }} let mut __kain_result_tokens = Vec::new(); let mut __kain_indent_stack: Vec<usize> = vec![0]; let mut __kain_iter = __kain_raw_tokens.into_iter().peekable(); while let Some(__kain_token) = __kain_iter.next() {{ match &__kain_token.kind {{ crate::lexer::TokenKind::Newline(__kain_ws) => {{ if let Some(__kain_next) = __kain_iter.peek() {{ if matches!(__kain_next.kind, crate::lexer::TokenKind::Newline(_)) {{ continue; }} }} let __kain_indent: usize = __kain_ws[1..].chars().map(|__kain_ch| if __kain_ch == '\\t' {{ 4 }} else {{ 1 }}).sum(); let __kain_current = *__kain_indent_stack.last().unwrap(); if __kain_indent > __kain_current {{ __kain_indent_stack.push(__kain_indent); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Indent, __kain_token.span)); }} else if __kain_indent < __kain_current {{ __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); while __kain_indent_stack.len() > 1 && *__kain_indent_stack.last().unwrap() > __kain_indent {{ __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_token.span)); }} }} else {{ __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); }} }} _ => __kain_result_tokens.push(__kain_token), }} }} let __kain_final_span = __kain_result_tokens.last().map(|__kain_token| __kain_token.span).unwrap_or(crate::span::Span::new(0, 0)); while __kain_indent_stack.len() > 1 {{ __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_final_span)); }} __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Eof, __kain_final_span)); Ok(__kain_result_tokens) }}"
+                ))
+            }
+            _ => None,
+        }
+    }
+
     fn gen_expr(&self, expr: &Expr) -> String {
         match expr {
             Expr::Int(n, _) => n.to_string(),
@@ -2217,6 +2229,9 @@ impl RustGen {
                 }
                 let call_arg_refs: Vec<&Expr> = args.iter().map(|a| &a.value).collect();
                 if let Some(rendered) = self.render_builtin_macro_exprs(&fn_name, &call_arg_refs) {
+                    return rendered;
+                }
+                if let Some(rendered) = self.render_bootstrap_intrinsic_call(&fn_name, args) {
                     return rendered;
                 }
                 if fn_name == "range" {
@@ -4412,6 +4427,34 @@ mod tests {
         };
 
         assert_eq!(gen.gen_expr(&expr), "pair.1");
+    }
+
+    #[test]
+    fn test_bootstrap_lexer_intrinsic_renders_logos_backed_block() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+        let expr = Expr::Call {
+            callee: Box::new(Expr::Ident("__kain_bootstrap_lex_tokens".to_string(), span)),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Ref {
+                    mutable: false,
+                    value: Box::new(Expr::Field {
+                        object: Box::new(Expr::Ident("_self".to_string(), span)),
+                        field: "source".to_string(),
+                        span,
+                    }),
+                    span,
+                },
+                span,
+            }],
+            span,
+        };
+
+        let rendered = gen.gen_expr(&expr);
+        assert!(rendered.contains("crate::lexer::TokenKind::lexer"));
+        assert!(rendered.contains("crate::lexer::TokenKind::Indent"));
+        assert!(rendered.contains("crate::lexer::TokenKind::Eof"));
     }
 
     #[test]

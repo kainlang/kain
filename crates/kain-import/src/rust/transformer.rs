@@ -866,8 +866,14 @@ impl RustTransformer {
             return None;
         }
         let variant = resolved.last()?.clone();
-        starts_with_uppercase(&variant)
-            .then(|| (self.normalize_variant_enum_name(&resolved[..resolved.len() - 1]), variant))
+        let enum_segments = &resolved[..resolved.len() - 1];
+        let enum_tail = enum_segments.last()?;
+        (starts_with_uppercase(&variant) && looks_like_type_name(enum_tail)).then(|| {
+            (
+                self.normalize_variant_enum_name(enum_segments),
+                variant,
+            )
+        })
     }
 
     fn make_variant_constructor_lambda(
@@ -1651,12 +1657,12 @@ impl RustTransformer {
             generics,
             trait_name: Some("Default".to_string()),
             trait_generics: Vec::new(),
-            target_type,
+            target_type: target_type.clone(),
             methods: vec![Function {
                 name: self.rename_value("default"),
                 generics: Vec::new(),
                 params: Vec::new(),
-                return_type: None,
+                return_type: Some(target_type.clone()),
                 effects: Vec::new(),
                 body: Block {
                     stmts: vec![Stmt::Expr(Expr::Struct {
@@ -1713,7 +1719,7 @@ impl RustTransformer {
             .collect::<Vec<_>>();
 
         Ok(Some(Impl {
-            generics,
+            generics: generics.clone(),
             trait_name: Some("Default".to_string()),
             trait_generics: Vec::new(),
             target_type: Type::Named {
@@ -1725,7 +1731,18 @@ impl RustTransformer {
                 name: self.rename_value("default"),
                 generics: Vec::new(),
                 params: Vec::new(),
-                return_type: None,
+                return_type: Some(Type::Named {
+                    name: type_name.clone(),
+                    generics: generics
+                        .iter()
+                        .map(|generic| Type::Named {
+                            name: generic.name.clone(),
+                            generics: Vec::new(),
+                            span: S,
+                        })
+                        .collect(),
+                    span: S,
+                }),
                 effects: Vec::new(),
                 body: Block {
                     stmts: vec![Stmt::Expr(Expr::EnumVariant {
@@ -3805,8 +3822,8 @@ impl RustTransformer {
         {
             return "_self".to_string();
         }
-        let resolved =
-            self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
+        let resolved = self
+            .resolve_impl_self_path_segments(self.type_mapper.resolve_value_path_segments(path));
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
         } else {
@@ -4983,6 +5000,81 @@ mod tests {
     }
 
     #[test]
+    fn preserves_std_root_for_direct_and_visible_value_paths() {
+        let program = transform_source(
+            r#"
+            use std::env;
+
+            fn demo() {
+                let _direct = std::env::var("KAIN_C_ABI_FLAVOR");
+                let _visible = env::var("KAIN_C_ABI_FLAVOR");
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[1] else {
+            panic!("expected function");
+        };
+
+        for stmt in &func.body.stmts {
+            let Stmt::Let {
+                value: Some(Expr::Call { callee, .. }),
+                ..
+            } = stmt
+            else {
+                panic!("expected call");
+            };
+
+            assert!(matches!(
+                callee.as_ref(),
+                Expr::Ident(path, _) if path == "std__env__var_"
+            ));
+        }
+    }
+
+    #[test]
+    fn strips_local_root_for_direct_and_visible_value_paths() {
+        let program = transform_source(
+            r#"
+            use crate::low_level_memory_metadata::C_UNION_ATTR;
+
+            fn demo() {
+                let _direct = crate::low_level_memory_metadata::C_UNION_ATTR;
+                let _visible = C_UNION_ATTR;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[1] else {
+            panic!("expected function");
+        };
+
+        let visible_stmt = func
+            .body
+            .stmts
+            .iter()
+            .find(|stmt| {
+                matches!(
+                    stmt,
+                    Stmt::Let {
+                        pattern: Pattern::Binding { name, .. },
+                        ..
+                    } if name == "visible"
+                )
+            })
+            .unwrap_or_else(|| panic!("expected visible binding, found {:?}", func.body.stmts));
+        let Stmt::Let {
+            value: Some(Expr::Ident(path, _)),
+            ..
+        } = visible_stmt
+        else {
+            panic!("expected visible constant identifier, found {visible_stmt:?}");
+        };
+
+        assert_eq!(path, "low_level_memory_metadata__C_UNION_ATTR");
+    }
+
+    #[test]
     fn lowers_capacity_constructors_to_supported_zero_arg_forms() {
         let program = transform_source(
             r#"
@@ -5145,6 +5237,10 @@ mod tests {
             .iter()
             .find(|method| method.name == "default_")
             .expect("expected default method");
+        assert!(matches!(
+            method.return_type.as_ref(),
+            Some(Type::Named { name, .. }) if name == "LanguageCapabilities"
+        ));
         let Stmt::Expr(Expr::Struct { name, fields, .. }) = &method.body.stmts[0] else {
             panic!("expected struct literal default body");
         };
@@ -5170,6 +5266,41 @@ mod tests {
                 if field_name == "tags"
                     && args.is_empty()
                     && matches!(callee.as_ref(), Expr::Ident(path, _) if path == "HashSet__new_")
+        ));
+    }
+
+    #[test]
+    fn synthesizes_default_method_return_type_for_derive_default_enums() {
+        let program = transform_source(
+            r#"
+            #[derive(Default)]
+            enum CueType {
+                #[default]
+                Once,
+                Loop,
+            }
+            "#,
+        );
+
+        let derived_impl = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Impl(imp) if matches!(&imp.trait_name, Some(name) if name == "Default") => {
+                    Some(imp)
+                }
+                _ => None,
+            })
+            .expect("expected synthesized Default impl");
+
+        let method = derived_impl
+            .methods
+            .iter()
+            .find(|method| method.name == "default_")
+            .expect("expected default method");
+        assert!(matches!(
+            method.return_type.as_ref(),
+            Some(Type::Named { name, .. }) if name == "CueType"
         ));
     }
 

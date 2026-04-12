@@ -3286,6 +3286,36 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                 unreachable!()
                             }
                         }
+                        "first" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("first expects no arguments"));
+                            }
+                            if let Value::Array(arr) = obj_val {
+                                Ok(arr.read().unwrap().first().cloned().unwrap_or(Value::None))
+                            } else {
+                                unreachable!()
+                            }
+                        }
+                        "last" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("last expects no arguments"));
+                            }
+                            if let Value::Array(arr) = obj_val {
+                                Ok(arr.read().unwrap().last().cloned().unwrap_or(Value::None))
+                            } else {
+                                unreachable!()
+                            }
+                        }
+                        "pop" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("pop expects no arguments"));
+                            }
+                            if let Value::Array(arr) = obj_val {
+                                Ok(arr.write().unwrap().pop().unwrap_or(Value::None))
+                            } else {
+                                unreachable!()
+                            }
+                        }
                         "len" => {
                             if let Value::Array(arr) = obj_val {
                                 Ok(Value::Int(arr.read().unwrap().len() as i64))
@@ -3503,8 +3533,19 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             match val {
                 Value::Result(true, v) => Ok(*v),
                 Value::Result(false, e) => Ok(Value::Return(Box::new(Value::Result(false, e)))),
+                Value::None => Ok(Value::Return(Box::new(Value::None))),
+                Value::EnumVariant(enum_name, variant, fields)
+                    if enum_name == "Option" && variant == "Some" && fields.len() == 1 =>
+                {
+                    Ok(fields[0].clone())
+                }
+                Value::EnumVariant(enum_name, variant, _)
+                    if enum_name == "Option" && variant == "None" =>
+                {
+                    Ok(Value::Return(Box::new(Value::None)))
+                }
                 _ => Err(KainError::runtime(
-                    "Type error: expected Result for ? operator",
+                    "Type error: expected Result or Option for ? operator",
                 )),
             }
         }
@@ -5801,5 +5842,33 @@ mod tests {
             }
             other => panic!("expected Some(true), found {other:?}"),
         }
+    }
+
+    #[test]
+    fn eval_try_unwraps_option_some_payload() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::Try(
+            Box::new(Expr::EnumVariant {
+                enum_name: "Option".to_string(),
+                variant: "Some".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::Bool(true, span)]),
+                span,
+            }),
+            span,
+        );
+
+        let value = eval_expr(&mut env, &expr).expect("Option-based '?' should unwrap Some");
+        assert!(matches!(value, Value::Bool(true)));
+    }
+
+    #[test]
+    fn eval_try_propagates_option_none_as_early_return() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::Try(Box::new(Expr::None(span)), span);
+
+        let value = eval_expr(&mut env, &expr).expect("Option-based '?' should propagate None");
+        assert!(matches!(value, Value::Return(inner) if matches!(inner.as_ref(), Value::None)));
     }
 }
