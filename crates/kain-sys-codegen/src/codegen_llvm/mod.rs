@@ -573,7 +573,10 @@ impl LlvmGenerator {
 
             let ptr_source = self.coerce_to_i64_storage(&val, src_ty);
             let reg = self.next_reg();
-            self.emit(&format!("  {} = inttoptr i64 {} to {}", reg, ptr_source, target_ty));
+            self.emit(&format!(
+                "  {} = inttoptr i64 {} to {}",
+                reg, ptr_source, target_ty
+            ));
             return Ok((reg, target_ty.to_string()));
         }
 
@@ -2285,7 +2288,10 @@ impl LlvmGenerator {
             receive_status, message_ptr
         ));
         let has_message = self.next_reg();
-        self.emit(&format!("  {} = icmp eq i32 {}, 0", has_message, receive_status));
+        self.emit(&format!(
+            "  {} = icmp eq i32 {}, 0",
+            has_message, receive_status
+        ));
 
         let label_closed = self.next_label();
         let label_dispatch = self.next_label();
@@ -2303,7 +2309,10 @@ impl LlvmGenerator {
             message_type_ptr, message_ptr
         ));
         let message_tag = self.next_reg();
-        self.emit(&format!("  {} = load i64, i64* {}", message_tag, message_type_ptr));
+        self.emit(&format!(
+            "  {} = load i64, i64* {}",
+            message_tag, message_type_ptr
+        ));
 
         let message_data_ptr = self.next_reg();
         self.emit(&format!(
@@ -2311,7 +2320,10 @@ impl LlvmGenerator {
             message_data_ptr, message_ptr
         ));
         let message_data = self.next_reg();
-        self.emit(&format!("  {} = load i8*, i8** {}", message_data, message_data_ptr));
+        self.emit(&format!(
+            "  {} = load i8*, i8** {}",
+            message_data, message_data_ptr
+        ));
 
         let label_unknown = self.next_label();
         let mut handler_labels = Vec::new();
@@ -2369,7 +2381,10 @@ impl LlvmGenerator {
                     field_ptr, msg_struct_ty, msg_struct_ty, payload, j
                 ));
                 let val = self.next_reg();
-                self.emit(&format!("  {} = load {}, {}* {}", val, p_ty, p_ty, field_ptr));
+                self.emit(&format!(
+                    "  {} = load {}, {}* {}",
+                    val, p_ty, p_ty, field_ptr
+                ));
 
                 let addr_reg = format!("%{}.addr", param.name);
                 self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
@@ -2391,7 +2406,10 @@ impl LlvmGenerator {
             self.emit_label(&handler_return_label);
             self.emit(&format!("  call void @free(i8* {})", message_data));
             let handler_ret = self.next_reg();
-            self.emit(&format!("  {} = load i32, i32* {}", handler_ret, return_slot));
+            self.emit(&format!(
+                "  {} = load i32, i32* {}",
+                handler_ret, return_slot
+            ));
             self.emit(&format!("  ret i32 {}", handler_ret));
 
             self.scopes.pop();

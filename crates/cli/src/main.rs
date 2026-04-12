@@ -2652,11 +2652,11 @@ fn native_runtime_object_cache_is_fresh(
         return false;
     }
 
-    let object_modified = match fs::metadata(&cache_paths.object_path).and_then(|meta| meta.modified())
-    {
-        Ok(value) => value,
-        Err(_) => return false,
-    };
+    let object_modified =
+        match fs::metadata(&cache_paths.object_path).and_then(|meta| meta.modified()) {
+            Ok(value) => value,
+            Err(_) => return false,
+        };
 
     let dependency_paths = match parse_native_runtime_depfile(&cache_paths.depfile_path) {
         Ok(paths) => paths,
@@ -2976,7 +2976,7 @@ macos = ["Cocoa"]
         let depfile_path = temp_dir.path().join("runtime.o.d");
         fs::write(
             &depfile_path,
-            "kain_runtime_target: /tmp/runtime\\ source.c \\\n+ /tmp/include/header\\ file.h /tmp/include/next.h\n",
+            "kain_runtime_target: /tmp/runtime\\ source.c \\\n /tmp/include/header\\ file.h /tmp/include/next.h\n",
         )
         .expect("depfile");
 
