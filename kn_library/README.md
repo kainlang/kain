@@ -1,7 +1,7 @@
 # KAIN Corpus Library
 
 **Generated:** 2026-02-13 23:04:00  
-**Total Files:** 88  
+**Total Files:** 88
 **Total Lines:** 13,663
 
 Canonical corpus guidance lives in [`../guides/examples/kn-library.md`](../guides/examples/kn-library.md)

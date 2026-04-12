@@ -50,4 +50,3 @@ This glossary keeps the terminology in the guide set consistent.
   the current effect set.
 - `Runtime`, `Editor`, `Program`, `UncookedOnly`, and `Developer` are UE5
   module types used by the packaging/configuration lanes.
-

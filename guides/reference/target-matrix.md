@@ -76,4 +76,3 @@ The most important alias differences are:
 - The CLI accepts `web` for the hybrid JS lane.
 - The CLI accepts `slate` and `ue5editor` for the editor target, while the
   core API only documents the narrower `ue5-editor` / `editor` pair.
-
