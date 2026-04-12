@@ -1,5 +1,50 @@
 # MEMORY
 
+## 2026-04-11 - renderer-session host wiring and deterministic 3D smoke artifact landed
+
+The 3D runtime push moved from “backend catalog and showcase shell” into a real host-consumed renderer lane. The native viewport now understands renderer-session truth, the smoke folder now has a reproducible image generator, and the visual example asset is no longer just a concept render.
+
+What changed:
+
+- Wired the renderer session into the Win32 raw-native viewport host
+  - Added `runtime/native/include/kain_runtime_renderer_session.h` and `runtime/native/src/core/kain_runtime_renderer_session.c` to the manifest-driven native runtime bundle.
+  - Updated `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c` so the host boots a `KainRuntimeRendererSession` from `KAIN_RUNTIME_RENDERER_BACKEND`, the runtime graphics bundle, and the backend catalog.
+  - The viewport overlay now reports requested/active backend identity, service key, vendor runtime/version, probe/start truth, and compatibility-executor diagnostics instead of only showing the older GL/procedural-world summary.
+  - Host shutdown now tears down the renderer session cleanly through the Kain-owned vendor service surface.
+- Added a deterministic visual-proof path under `crates/kain-3D`
+  - Added `crates/kain-3D/src/bin/material_atrium_smoke.rs`.
+  - Added `png`, `font8x8`, and `serde_json` dependencies to `crates/kain-3D/Cargo.toml`.
+  - The new binary renders the real `material_atrium` scene through Kain’s software compatibility renderer, composes a four-card backend matrix for `bgfx`, `filament`, `diligent`, and `the-forge`, and writes:
+    - `smoketest/3D/material_atrium_showcase/material_atrium_visual_example.png`
+    - `smoketest/3D/material_atrium_showcase/generated/material_atrium_runtime_matrix.json`
+- Expanded smoke tooling and docs
+  - Added `generate_runtime_matrix.sh` and `generate_runtime_matrix.bat`.
+  - Updated `launch_native_app.sh` and `launch_visual_exe.bat` so they accept an optional backend argument and export `KAIN_RUNTIME_RENDERER_BACKEND`.
+  - Updated `smoketest/3D/material_atrium_showcase/README.md` so it documents the real generation flow and stops claiming the visual example is only a concept mock.
+
+Validation completed:
+
+- `cargo run -p kain-3d --bin material_atrium_smoke -- --output-image smoketest/3D/material_atrium_showcase/material_atrium_visual_example.png --output-json smoketest/3D/material_atrium_showcase/generated/material_atrium_runtime_matrix.json`
+- `cargo build -p cli`
+- `./runtime/compile_native_runtime.sh`
+- `./runtime/validate_native_runtime.sh`
+
+Design decisions:
+
+- Kept Kain as the owner of renderer-session identity, fallback, and diagnostics instead of exposing raw vendor APIs in the viewport host.
+- Chose to keep the smoke artifact deterministic and software-rendered from `kain-3D` so Linux and Windows can both regenerate the same proof without needing every vendor backend fully live in the headless environment.
+- Overwrote `material_atrium_visual_example.png` with a real generated artifact rather than leaving a concept-only image in a repo that now has enough code to produce the scene honestly.
+
+Current risks:
+
+- Win32 host execution still routes the actual scene through the compatibility OpenGL executor. The session truth is real; direct `bgfx`/Filament/Diligent/The Forge viewport execution is still future work.
+- Linux still has the software smoke and runtime catalog truth, but not a full native app-host/input/viewport execution lane equivalent to the Win32 host.
+- The generated JSON matrix lives under `generated/`, which is gitignored; the tracked PNG is durable, but the detailed report is ephemeral unless regenerated.
+
+Recommended next step:
+
+- Replace the compatibility executor with the first direct vendor viewport path, starting with `bgfx`, then teach the Linux host lane to consume the same renderer-session contract instead of remaining mostly adapter-only.
+
 ## 2026-04-11 - egui was evicted from the default kain-ui-native crate path
 
 `kain-ui-native` no longer drags the old `egui` host through the default build. The crate now has a clean default facade for bundle/build metadata and an explicit legacy feature for the old desktop host.
