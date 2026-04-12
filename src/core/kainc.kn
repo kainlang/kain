@@ -1,14 +1,5 @@
 # Kain compiler shell
 
-fn kain_print_phase(phase: String, status: String, detail: String) -> Unit:
-    let _unused_phase = phase
-    let _unused_status = status
-    let _unused_detail = detail
-
-fn kain_print_error(phase: String, message: String) -> Unit:
-    let _unused_phase = phase
-    let _unused_message = message
-
 enum KainTarget:
     Llvm
     Native
@@ -16,13 +7,6 @@ enum KainTarget:
 
 fn run_seed_shell(target: KainTarget) -> Bool:
     let _unused_target = target
-    kain_print_phase("START", "DONE", "Kain shell booted")
-    kain_print_phase("LOAD", "DONE", "seed source lane ready")
-    kain_print_phase("LEX", "DONE", "seed lexer lane ready")
-    kain_print_phase("PARSE", "DONE", "seed parser lane ready")
-    kain_print_phase("TYPECHECK", "DONE", "seed boundary checks passed")
-    kain_print_phase("TARGET", "DONE", "target selected")
-    kain_print_phase("READY", "DONE", "source loaded, lexed, parsed, and validated for handoff")
     return true
 
 fn main() -> Int:

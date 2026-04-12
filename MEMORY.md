@@ -159,6 +159,9 @@ What changed in this pass:
   `crates/cli/src/main.rs`. The runtime bundle compiler now emits one depfile
   and one compile-fingerprint file per object and skips recompilation for fresh
   objects on repeat LLVM/native builds.
+- Removed the no-op `String` reporting helpers from `src/core/kainc.kn` after
+  the first native executable segfaulted during startup cleanup through
+  `rc_release`. The current seed shell now avoids that runtime seam entirely.
 
 Validation:
 
@@ -181,6 +184,12 @@ Validation:
   - warm pass: `Native runtime object cache: 189 reused, 0 compiled`
   - emitted runnable native executable:
     `/tmp/kainc_native_cache_probe_v2/kainc`
+- `bash -lc '/tmp/kainc_native_cache_probe_v2/kainc; status=$?; echo EXIT:$status'`
+  - final executable exits with `EXIT:0`
+- `gdb -batch -ex run -ex bt --args /tmp/kainc_native_cache_probe_v2/kainc`
+  - earlier crash root was `kain_print_error()` releasing invalid memory via
+    `rc_release` / `rpmalloc`; removing the string-reporting helpers fixed the
+    startup path
 
 Current risk:
 
