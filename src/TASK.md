@@ -24,23 +24,19 @@ This file is the operator handoff for parallel source ownership work under
 - `src/interop`
 - `src/c-ffi`
 - `src/crate-ffi`
-- `src/ui`
 - `src/3d`
 - `src/gpu-runtime`
 - `src/host`
 
 ## Important Note About UI
 
-For this wave, we are **not** splitting `ui-native` into a separate owned source
-folder yet.
+For this wave, UI is deferred.
 
-`src/ui` owns:
-- Kain UI semantics
-- runtime-facing UI models
-- temporary host projection boundaries if needed
-
-Do not create `src/ui-native` as a parallel rewrite lane right now unless the
-operator explicitly asks for it later.
+- Do not create `src/ui` as an active rewrite lane yet.
+- Do not create `src/ui-native` as an active rewrite lane yet.
+- Finish the language/runtime/native execution layers first.
+- Bring UI back only after `src/core`, `src/driver`, and `src/sys-codegen`
+  are materially stable.
 
 ## Agent Assignments
 
@@ -95,15 +91,6 @@ operator explicitly asks for it later.
   center.
 - Goal: Keep external crates as tools Kain can use, not the thing running the
   show.
-
-### Agent Canvas
-
-- Folder: `src/ui`
-- Task: Own the Kain UI semantic model.
-- Deliver: UI graph/types, runtime execution model, patch/update semantics, and
-  any temporary host projection seams.
-- Goal: Keep UI expressive and Kain-owned without splitting off `ui-native`
-  yet.
 
 ### Agent Vector
 
