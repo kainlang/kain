@@ -2349,10 +2349,11 @@ fn write_function(
             "Pattern::Variant { enum_name: enum_name, fields: fields } =>",
         )?;
         write_line(output, indent + 3, "match enum_name:")?;
+        write_line(output, indent + 4, "Some(name) =>")?;
         write_line(
             output,
-            indent + 4,
-            "Some(name) => out_.insert(name.clone())",
+            indent + 5,
+            "let __selfhost_insert = out_.insert(name.clone())",
         )?;
         write_line(output, indent + 4, "_ =>")?;
         write_line(output, indent + 5, "let __selfhost_empty = none")?;

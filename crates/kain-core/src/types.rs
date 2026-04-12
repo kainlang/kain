@@ -3399,55 +3399,21 @@ fn infer_method_call_type(
                     span,
                 ));
             }
+            if let ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) = inner.as_ref() {
+                return infer_named_method_call_type(
+                    env,
+                    ctx,
+                    name,
+                    receiver_ty,
+                    method,
+                    args,
+                    span,
+                );
+            }
             infer_method_call_type(env, ctx, inner.as_ref(), method, args, span)
         }
         ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) => {
-            if let Some(method_ty) = env.lookup_method(name, method).cloned() {
-                if let ResolvedType::Function {
-                    params,
-                    ret,
-                    effects,
-                } = method_ty
-                {
-                    let start_index = usize::from(
-                        params
-                            .first()
-                            .map(|ty| types_compatible(ty, receiver_ty))
-                            .unwrap_or(false),
-                    );
-                    let params = &params[start_index..];
-                    if params.len() != args.len() {
-                        return Err(env.type_error(
-                            format!(
-                                "Method '{}' expects {} argument(s), found {}",
-                                method,
-                                params.len(),
-                                args.len()
-                            ),
-                            span,
-                        ));
-                    }
-                    for (param_ty, arg) in params.iter().zip(args.iter()) {
-                        let arg_ty =
-                            infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
-                        ensure_type_compatible(env, param_ty, &arg_ty, span, "method argument")?;
-                    }
-                    if let Some(ctx) = ctx {
-                        check_effect_call(
-                            &ctx.effects,
-                            &effects,
-                            &ctx.function_name,
-                            method,
-                            span,
-                        )?;
-                    }
-                    Ok(*ret)
-                } else {
-                    Ok(ResolvedType::Unknown)
-                }
-            } else {
-                Err(env.type_error(format!("Unknown method '{}' on {}", method, name), span))
-            }
+            infer_named_method_call_type(env, ctx, name, receiver_ty, method, args, span)
         }
         ResolvedType::Array(inner, _) => match method {
             "len" => Ok(ResolvedType::Int(IntSize::I64)),
@@ -3968,6 +3934,68 @@ fn infer_method_call_type(
     }
 }
 
+fn infer_named_method_call_type(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    type_name: &str,
+    receiver_ty: &ResolvedType,
+    method: &str,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<ResolvedType> {
+    if let Some(method_ty) = env.lookup_method(type_name, method).cloned() {
+        if let ResolvedType::Function {
+            params,
+            ret,
+            effects,
+        } = method_ty
+        {
+            let start_index = usize::from(
+                params
+                    .first()
+                    .map(|ty| method_receiver_param_matches(ty, receiver_ty))
+                    .unwrap_or(false),
+            );
+            let params = &params[start_index..];
+            if params.len() != args.len() {
+                return Err(env.type_error(
+                    format!(
+                        "Method '{}' expects {} argument(s), found {}",
+                        method,
+                        params.len(),
+                        args.len()
+                    ),
+                    span,
+                ));
+            }
+            for (param_ty, arg) in params.iter().zip(args.iter()) {
+                let arg_ty = infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
+                ensure_type_compatible(env, param_ty, &arg_ty, span, "method argument")?;
+            }
+            if let Some(ctx) = ctx {
+                check_effect_call(&ctx.effects, &effects, &ctx.function_name, method, span)?;
+            }
+            Ok(*ret)
+        } else {
+            Ok(ResolvedType::Unknown)
+        }
+    } else {
+        Err(env.type_error(
+            format!("Unknown method '{}' on {}", method, type_name),
+            span,
+        ))
+    }
+}
+
+fn method_receiver_param_matches(param_ty: &ResolvedType, receiver_ty: &ResolvedType) -> bool {
+    if types_compatible(param_ty, receiver_ty) {
+        return true;
+    }
+    let owned_receiver = peel_receiver_refs(receiver_ty).clone();
+    types_compatible(param_ty, &owned_receiver)
+        || types_compatible(param_ty, &shared_ref_type(owned_receiver))
+}
+
 fn infer_index_lookup_method(
     env: &mut TypeEnv,
     ctx: Option<&SemanticContext>,
@@ -4405,6 +4433,13 @@ fn peel_shared_refs<'a>(ty: &'a ResolvedType) -> &'a ResolvedType {
             mutable: false,
             inner,
         } => peel_shared_refs(inner.as_ref()),
+        other => other,
+    }
+}
+
+fn peel_receiver_refs<'a>(ty: &'a ResolvedType) -> &'a ResolvedType {
+    match ty {
+        ResolvedType::Ref { inner, .. } => peel_receiver_refs(inner.as_ref()),
         other => other,
     }
 }
@@ -5139,10 +5174,17 @@ fn field_access_type(
     span: Span,
 ) -> KainResult<ResolvedType> {
     match object_ty {
-        ResolvedType::Struct(_, fields) => fields
-            .get(field)
-            .cloned()
-            .ok_or_else(|| env.type_error(format!("Unknown field '{}'", field), span)),
+        ResolvedType::Struct(name, fields) => {
+            if let Some(field_ty) = fields.get(field) {
+                return Ok(field_ty.clone());
+            }
+            if let Some(ResolvedType::Struct(_, refreshed_fields)) = env.lookup_type(name) {
+                if let Some(field_ty) = refreshed_fields.get(field) {
+                    return Ok(field_ty.clone());
+                }
+            }
+            Err(env.type_error(format!("Unknown field '{}'", field), span))
+        }
         ResolvedType::Tuple(items) => tuple_field_type(env, items, field, span),
         ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => {
             field_access_type(env, inner, field, span)
@@ -6751,6 +6793,24 @@ mod tests {
         )
         .expect("Set.contains should typecheck");
         assert_eq!(set_contains_ty, ResolvedType::Bool);
+
+        let set_insert_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &ResolvedType::Ref {
+                mutable: true,
+                inner: Box::new(selfhost_set_type()),
+            },
+            "insert",
+            &[CallArg {
+                name: None,
+                value: Expr::String("kind".to_string(), span),
+                span,
+            }],
+            span,
+        )
+        .expect("Set.insert should typecheck through mutable receivers");
+        assert_eq!(set_insert_ty, ResolvedType::Bool);
     }
 
     #[test]
@@ -6847,5 +6907,66 @@ mod tests {
         .expect("block-valued match arms should infer from their final expression");
 
         assert_eq!(ty, ResolvedType::String);
+    }
+
+    #[test]
+    fn typecheck_allows_borrowed_receivers_for_shared_self_methods() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let type_value = ResolvedType::Enum("Type".to_string(), Vec::new());
+        env.define_method(
+            "Type".to_string(),
+            "contains_raw_ptr".to_string(),
+            ResolvedType::Function {
+                params: vec![shared_ref_type(type_value.clone())],
+                ret: Box::new(ResolvedType::Bool),
+                effects: EffectSet::new(),
+            },
+        );
+
+        let borrowed_result = infer_method_call_type(
+            &mut env,
+            None,
+            &shared_ref_type(type_value.clone()),
+            "contains_raw_ptr",
+            &[],
+            span,
+        )
+        .expect("shared-self methods should dispatch through borrowed receivers");
+        assert_eq!(borrowed_result, ResolvedType::Bool);
+
+        let owned_result = infer_method_call_type(
+            &mut env,
+            None,
+            &type_value,
+            "contains_raw_ptr",
+            &[],
+            span,
+        )
+        .expect("shared-self methods should also dispatch through owned receivers");
+        assert_eq!(owned_result, ResolvedType::Bool);
+    }
+
+    #[test]
+    fn typecheck_refreshes_stale_struct_field_placeholders_on_access() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let mut refreshed_fields = HashMap::new();
+        refreshed_fields.insert("ty".to_string(), ResolvedType::String);
+        env.types.insert(
+            "Param".to_string(),
+            ResolvedType::Struct("Param".to_string(), refreshed_fields),
+        );
+
+        let field_ty = field_access_type(
+            &env,
+            &ResolvedType::Struct("Param".to_string(), HashMap::new()),
+            "ty",
+            span,
+        )
+        .expect("field access should refresh stale struct placeholders from registered types");
+        assert_eq!(field_ty, ResolvedType::String);
     }
 }

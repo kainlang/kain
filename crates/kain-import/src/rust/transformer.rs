@@ -1913,7 +1913,7 @@ impl RustTransformer {
             syn::Stmt::Expr(expr, semi) => {
                 let kain_expr = self.transform_expr(expr)?;
                 if semi.is_some() {
-                    Ok(vec![Stmt::Expr(kain_expr)])
+                    Ok(vec![Stmt::Expr(self.coerce_statement_expr(kain_expr))])
                 } else {
                     // Block-final expression without `;` → implicit return value
                     Ok(vec![Stmt::Expr(kain_expr)])
@@ -2543,7 +2543,7 @@ impl RustTransformer {
         let then_branch = self.transform_block(then_branch)?;
         let else_body = match else_expr {
             Some(expr) => self.transform_expr(expr)?,
-            None => Expr::None(S),
+            None => Expr::Tuple(Vec::new(), S),
         };
 
         Ok(Expr::Match {
@@ -2842,6 +2842,100 @@ impl RustTransformer {
             Some(self.map_type_checked(&pt.ty))
         } else {
             None
+        }
+    }
+
+    fn coerce_statement_expr(&mut self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_) => expr,
+            Expr::Block(block, span) => Expr::Block(self.coerce_statement_block(block), span),
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                span,
+            } => Expr::If {
+                condition,
+                then_branch: self.coerce_statement_block(then_branch),
+                else_branch: else_branch
+                    .map(|branch| Box::new(self.coerce_statement_else_branch(*branch))),
+                span,
+            },
+            Expr::Match {
+                scrutinee,
+                arms,
+                span,
+            } => Expr::Match {
+                scrutinee,
+                arms: arms
+                    .into_iter()
+                    .map(|arm| MatchArm {
+                        body: self.coerce_statement_expr(arm.body),
+                        ..arm
+                    })
+                    .collect(),
+                span,
+            },
+            other => Expr::Block(
+                Block {
+                    stmts: vec![
+                        Stmt::Expr(other),
+                        Stmt::Expr(Expr::Tuple(Vec::new(), S)),
+                    ],
+                    span: S,
+                },
+                S,
+            ),
+        }
+    }
+
+    fn coerce_statement_block(&mut self, mut block: Block) -> Block {
+        if let Some(last_stmt) = block.stmts.pop() {
+            block.stmts.push(self.coerce_statement_stmt(last_stmt));
+        }
+        if block.stmts.is_empty()
+            || (!Self::stmt_terminates_control_flow(block.stmts.last().expect("checked non-empty"))
+                && !matches!(block.stmts.last(), Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()))
+        {
+            block.stmts.push(Stmt::Expr(Expr::Tuple(Vec::new(), S)));
+        }
+        block
+    }
+
+    fn coerce_statement_stmt(&mut self, stmt: Stmt) -> Stmt {
+        match stmt {
+            Stmt::Expr(expr) => Stmt::Expr(self.coerce_statement_expr(expr)),
+            Stmt::Item(item) => Stmt::Item(item),
+            other => other,
+        }
+    }
+
+    fn coerce_statement_else_branch(&mut self, branch: ElseBranch) -> ElseBranch {
+        match branch {
+            ElseBranch::Else(block) => ElseBranch::Else(self.coerce_statement_block(block)),
+            ElseBranch::ElseIf(condition, block, tail) => ElseBranch::ElseIf(
+                condition,
+                self.coerce_statement_block(block),
+                tail.map(|branch| Box::new(self.coerce_statement_else_branch(*branch))),
+            ),
+        }
+    }
+
+    fn stmt_terminates_control_flow(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Expr(expr) => Self::expr_terminates_control_flow(expr),
+            _ => false,
+        }
+    }
+
+    fn expr_terminates_control_flow(expr: &Expr) -> bool {
+        match expr {
+            Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_) => true,
+            Expr::Block(block, _) => block
+                .stmts
+                .last()
+                .is_some_and(Self::stmt_terminates_control_flow),
+            _ => false,
         }
     }
 
@@ -3455,6 +3549,8 @@ impl RustTransformer {
             self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
+        } else if let Some(normalized) = self.normalize_local_associated_value_path(&resolved) {
+            normalized
         } else {
             resolved.join("::")
         }
@@ -3468,6 +3564,26 @@ impl RustTransformer {
         } else {
             resolved.join("::")
         }
+    }
+
+    fn normalize_local_associated_value_path(&mut self, resolved: &[String]) -> Option<String> {
+        if resolved.len() < 3 {
+            return None;
+        }
+        let root = resolved.first().map(String::as_str)?;
+        if !matches!(root, "crate" | "self" | "super") {
+            return None;
+        }
+        let associated_type = resolved.get(resolved.len() - 2)?;
+        if !looks_like_type_name(associated_type) {
+            return None;
+        }
+        let value = resolved.last()?;
+        Some(format!(
+            "{}::{}",
+            self.rename_type(associated_type),
+            self.rename_value(value),
+        ))
     }
 }
 
@@ -3574,6 +3690,13 @@ fn rewrite_associated_constructor_path(
                 .map(|segment| (*segment).to_string())
                 .collect()
         })
+}
+
+fn looks_like_type_name(segment: &str) -> bool {
+    segment
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_uppercase())
 }
 
 fn collect_enum_variant_shapes(
@@ -4260,6 +4383,93 @@ mod tests {
     }
 
     #[test]
+    fn lowers_if_let_without_else_to_unit_wildcard_arm() {
+        let program = transform_source(
+            r#"
+            fn demo(value: Option<i32>) {
+                if let Some(found) = value {
+                    println!("{}", found);
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected if-let to lower to match");
+        };
+
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(arms[1].body, Expr::Tuple(ref items, _) if items.is_empty()));
+    }
+
+    #[test]
+    fn coerces_semicolon_if_let_bodies_to_unit() {
+        let program = transform_source(
+            r#"
+            fn demo(value: Option<String>, out: std::collections::HashSet<String>) {
+                if let Some(found) = value {
+                    out.insert(found.clone());
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected if-let to lower to match");
+        };
+
+        assert_eq!(arms.len(), 2);
+        let Expr::Block(block, _) = &arms[0].body else {
+            panic!("expected statement if-let body to stay in a block");
+        };
+        assert!(match block.stmts.last() {
+            Some(Stmt::Expr(Expr::Tuple(items, _))) => items.is_empty(),
+            Some(Stmt::Expr(Expr::Block(inner, _))) => matches!(
+                inner.stmts.last(),
+                Some(Stmt::Expr(Expr::Tuple(items, _))) if items.is_empty()
+            ),
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn preserves_control_flow_in_semicolon_if_let_bodies() {
+        let program = transform_source(
+            r#"
+            fn demo(value: Option<String>) {
+                if let Some(found) = value {
+                    return;
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Match { arms, .. }) = &func.body.stmts[0] else {
+            panic!("expected if-let to lower to match");
+        };
+
+        let Expr::Block(block, _) = &arms[0].body else {
+            panic!("expected control-flow body to stay in a block");
+        };
+        assert!(matches!(
+            block.stmts.last(),
+            Some(Stmt::Expr(Expr::Return(None, _)))
+        ));
+    }
+
+    #[test]
     fn lowers_while_let_to_loop_and_match_without_strict_diagnostic() {
         let (program, diagnostics) = transform_with_diagnostics(
             r#"
@@ -4393,7 +4603,7 @@ mod tests {
 
         assert!(matches!(
             callee.as_ref(),
-            Expr::Ident(path, _) if path == "crate::diagnostics::SpanMapper::new"
+            Expr::Ident(path, _) if path == "SpanMapper::new"
         ));
     }
 
@@ -4451,6 +4661,43 @@ mod tests {
             assert!(matches!(
                 callee.as_ref(),
                 Expr::Ident(path, _) if path == expected_path
+            ));
+        }
+    }
+
+    #[test]
+    fn normalizes_local_associated_calls_from_imported_and_explicit_crate_paths() {
+        let program = transform_source(
+            r#"
+            use crate::runtime::Env;
+
+            fn demo() {
+                let imported = Env::new();
+                let explicit = crate::runtime::Env::new();
+            }
+            "#,
+        );
+
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        for stmt in &func.body.stmts {
+            let Stmt::Let {
+                value: Some(Expr::Call { callee, .. }),
+                ..
+            } = stmt
+            else {
+                panic!("expected associated call");
+            };
+            assert!(matches!(
+                callee.as_ref(),
+                Expr::Ident(path, _) if path == "Env::new"
             ));
         }
     }

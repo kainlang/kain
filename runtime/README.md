@@ -62,7 +62,7 @@ Use these files in this order when judging the runtime:
 
 Important caveats:
 
-- [native_runtime_metadata.json](./native_runtime_metadata.json) is useful, but it currently lags some of the real compiled surface.
+- [native_runtime_metadata.json](./native_runtime_metadata.json) is a tooling-facing companion to the manifest and should be kept in sync with [native_runtime.toml](./native_runtime.toml), especially when platform-scoped or vendor-backed services change.
 - Older sections of [changelogs/KAIN_NATIVE_RUNTIME_FEATURE_MATRIX.md](./changelogs/KAIN_NATIVE_RUNTIME_FEATURE_MATRIX.md) and lower sections of the completion tracker are historical logs, not always current truth.
 - [kain_runtime.c](./kain_runtime.c) is legacy and should not be treated as the active runtime definition.
 

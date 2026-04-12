@@ -9,7 +9,7 @@
 #endif
 
 #if !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
-#if defined(__linux__)
+#if KAIN_VENDOR_HAS_LIBUV
 #include "uv.h"
 #endif
 
@@ -46,7 +46,7 @@ static void kain_vendor_stub_deallocate(void* memory) {
     (void)memory;
 }
 
-#if defined(__linux__) && !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
+#if KAIN_VENDOR_HAS_LIBUV && !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
 static int kain_vendor_libuv_probe(void) {
     uv_loop_t loop;
     if (uv_loop_init(&loop) != 0) {

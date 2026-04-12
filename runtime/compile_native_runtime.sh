@@ -120,6 +120,7 @@ if [[ -f "$MANIFEST_PATH" ]]; then
     mapfile -t MANIFEST_PLATFORM_SOURCES < <(parse_manifest_array "${PLATFORM}_sources")
     mapfile -t MANIFEST_INCLUDE_DIRS < <(parse_manifest_array "include_dirs")
     mapfile -t MANIFEST_DEFINES < <(parse_manifest_array "defines")
+    mapfile -t MANIFEST_PLATFORM_DEFINES < <(parse_manifest_array "${PLATFORM}_defines")
 
     if [[ ${#MANIFEST_SOURCES[@]} -gt 0 || ${#MANIFEST_PLATFORM_SOURCES[@]} -gt 0 ]]; then
         for relative_source in "${MANIFEST_SOURCES[@]}" "${MANIFEST_PLATFORM_SOURCES[@]}"; do
@@ -132,6 +133,11 @@ if [[ -f "$MANIFEST_PATH" ]]; then
             RUNTIME_INCLUDE_DIRS+=("$PROJECT_ROOT/runtime/$relative_include")
         done
         for define in "${MANIFEST_DEFINES[@]}"; do
+            if [[ -n "$define" ]]; then
+                RUNTIME_DEFINES+=("$define")
+            fi
+        done
+        for define in "${MANIFEST_PLATFORM_DEFINES[@]}"; do
             if [[ -n "$define" ]]; then
                 RUNTIME_DEFINES+=("$define")
             fi

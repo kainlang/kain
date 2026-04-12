@@ -15,6 +15,8 @@ These files provide explicit, transparent, and machine-checkable declarations of
 - Generate documentation and validation reports
 - Integrate with build systems and tooling
 
+The durability rule is simple: `native_runtime.toml` and `native_runtime_metadata.json` are companion sources of truth and must be updated together when services, platforms, sources, defines, or link requirements change. If a service is only present on a subset of platforms, both files should say so explicitly.
+
 ## File Formats
 
 ### native_runtime.toml

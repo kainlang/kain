@@ -49,6 +49,12 @@ struct NativeRuntimeManifest {
     #[serde(default)]
     defines: Vec<String>,
     #[serde(default)]
+    windows_defines: Vec<String>,
+    #[serde(default)]
+    linux_defines: Vec<String>,
+    #[serde(default)]
+    macos_defines: Vec<String>,
+    #[serde(default)]
     link: NativeRuntimeLinkManifest,
 }
 
@@ -2359,6 +2365,7 @@ fn load_native_runtime_manifest(
         .iter()
         .map(|path| resolve_runtime_path(manifest_dir, path))
         .collect::<Vec<_>>();
+    let defines = current_platform_runtime_defines(&manifest);
 
     for source in &sources {
         if !source.exists() {
@@ -2385,7 +2392,7 @@ fn load_native_runtime_manifest(
             .unwrap_or_else(|| "kain-native-runtime".to_string()),
         sources,
         include_dirs,
-        defines: manifest.defines,
+        defines,
         link_libs: unique_link_libs({
             let mut libs = default_native_runtime_link_libs();
             libs.extend(platform_link_libs(&manifest.link));
@@ -2402,6 +2409,18 @@ fn current_platform_runtime_sources(manifest: &NativeRuntimeManifest) -> &[PathB
     } else {
         &manifest.linux_sources
     }
+}
+
+fn current_platform_runtime_defines(manifest: &NativeRuntimeManifest) -> Vec<String> {
+    let mut defines = manifest.defines.clone();
+    if cfg!(windows) {
+        defines.extend(manifest.windows_defines.iter().cloned());
+    } else if cfg!(target_os = "macos") {
+        defines.extend(manifest.macos_defines.iter().cloned());
+    } else {
+        defines.extend(manifest.linux_defines.iter().cloned());
+    }
+    defines
 }
 
 fn compile_native_runtime_bundle(
@@ -2607,6 +2626,9 @@ name = "test-runtime"
 sources = ["src/kain_runtime.c"]
 include_dirs = ["include"]
 defines = ["KAIN_TEST=1"]
+windows_defines = ["KAIN_WINDOWS=1"]
+linux_defines = ["KAIN_LINUX=1"]
+macos_defines = ["KAIN_MACOS=1"]
 
 [link]
 windows = ["user32", "gdi32"]
@@ -2623,7 +2645,22 @@ macos = ["Cocoa"]
         assert_eq!(resolved.sources.len(), 1);
         assert!(resolved.sources[0].is_absolute());
         assert!(resolved.include_dirs[0].is_absolute());
-        assert_eq!(resolved.defines, vec!["KAIN_TEST=1".to_string()]);
+        if cfg!(windows) {
+            assert_eq!(
+                resolved.defines,
+                vec!["KAIN_TEST=1".to_string(), "KAIN_WINDOWS=1".to_string()]
+            );
+        } else if cfg!(target_os = "macos") {
+            assert_eq!(
+                resolved.defines,
+                vec!["KAIN_TEST=1".to_string(), "KAIN_MACOS=1".to_string()]
+            );
+        } else {
+            assert_eq!(
+                resolved.defines,
+                vec!["KAIN_TEST=1".to_string(), "KAIN_LINUX=1".to_string()]
+            );
+        }
         assert_eq!(
             resolved.link_libs,
             unique_link_libs({

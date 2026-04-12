@@ -69,6 +69,31 @@ windows_sources = [
     "native/src/platform/win32/kain_runtime_win32_shared.c",
     "native/src/platform/win32/kain_runtime_viewport_win32.c",
     "native/src/platform/win32/kain_runtime_sculpt_win32.c",
+    "thirdparty/libuv/src/win/async.c",
+    "thirdparty/libuv/src/win/core.c",
+    "thirdparty/libuv/src/win/detect-wakeup.c",
+    "thirdparty/libuv/src/win/dl.c",
+    "thirdparty/libuv/src/win/error.c",
+    "thirdparty/libuv/src/win/fs.c",
+    "thirdparty/libuv/src/win/fs-event.c",
+    "thirdparty/libuv/src/win/getaddrinfo.c",
+    "thirdparty/libuv/src/win/getnameinfo.c",
+    "thirdparty/libuv/src/win/handle.c",
+    "thirdparty/libuv/src/win/loop-watcher.c",
+    "thirdparty/libuv/src/win/pipe.c",
+    "thirdparty/libuv/src/win/thread.c",
+    "thirdparty/libuv/src/win/poll.c",
+    "thirdparty/libuv/src/win/process.c",
+    "thirdparty/libuv/src/win/process-stdio.c",
+    "thirdparty/libuv/src/win/signal.c",
+    "thirdparty/libuv/src/win/snprintf.c",
+    "thirdparty/libuv/src/win/stream.c",
+    "thirdparty/libuv/src/win/tcp.c",
+    "thirdparty/libuv/src/win/tty.c",
+    "thirdparty/libuv/src/win/udp.c",
+    "thirdparty/libuv/src/win/util.c",
+    "thirdparty/libuv/src/win/winapi.c",
+    "thirdparty/libuv/src/win/winsock.c",
 ]
 
 linux_sources = [
@@ -126,6 +151,15 @@ include_dirs = [
 ]
 
 defines = [
+]
+
+windows_defines = [
+    "WIN32_LEAN_AND_MEAN",
+    "_WIN32_WINNT=0x0A00",
+    "_CRT_DECLARE_NONSTDC_NAMES=0",
+]
+
+linux_defines = [
     "_GNU_SOURCE",
     "_POSIX_C_SOURCE=200112",
     "_FILE_OFFSET_BITS=64",
@@ -322,6 +356,7 @@ name = "IO Loop"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed event loop and wake delivery substrate"
 
 [[services]]
@@ -330,6 +365,7 @@ name = "IO Filesystem"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed filesystem operations and async file dispatch"
 
 [[services]]
@@ -338,6 +374,7 @@ name = "IO Network"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed TCP, UDP, and name-resolution primitives"
 
 [[services]]
@@ -346,6 +383,7 @@ name = "IO Process"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed process spawning, pipes, and child lifecycle management"
 
 [[services]]
@@ -354,6 +392,7 @@ name = "IO Timers"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed timer wheel and deadline wake integration"
 
 [[services]]
@@ -410,6 +449,7 @@ name = "QuickJS Script Runtime"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Embedded JavaScript runtime for host automation and dynamic scripting"
 
 [[services]]
@@ -418,6 +458,7 @@ name = "Audio Backend"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed device and backend abstraction for realtime audio"
 
 [[services]]
@@ -426,6 +467,7 @@ name = "Audio Graph"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed audio graph and node processing substrate"
 
 [[services]]
@@ -434,6 +476,7 @@ name = "Audio Device"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed playback and capture device lifecycle"
 
 [[services]]
@@ -442,6 +485,7 @@ name = "Audio Assets"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Vendor-backed audio asset decoding and resource loading"
 
 [[services]]
@@ -450,6 +494,7 @@ name = "WASM Runtime Light"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Lightweight WebAssembly runtime for small sandboxed modules"
 
 [[services]]
@@ -458,6 +503,7 @@ name = "WASM Runtime Full"
 provider = "native-core"
 requirement = "optional"
 status = "planned"
+platforms = ["windows", "linux"]
 description = "Full WebAssembly runtime lane staged for richer module hosting"
 
 [[services]]
@@ -466,6 +512,7 @@ name = "WASM Module"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Kain-owned WebAssembly module loading and execution seam"
 
 [[services]]
@@ -474,6 +521,7 @@ name = "WASM WASI"
 provider = "native-core"
 requirement = "optional"
 status = "planned"
+platforms = ["windows", "linux"]
 description = "WASI-flavored runtime lane staged behind the WebAssembly service family"
 
 [[services]]
@@ -482,6 +530,7 @@ name = "Allocator Mimalloc"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Mimalloc-backed allocation lane for Kain runtime experiments"
 
 [[services]]
@@ -490,10 +539,11 @@ name = "Allocator Rpmalloc"
 provider = "native-core"
 requirement = "optional"
 status = "available"
+platforms = ["windows", "linux"]
 description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
 
 # Platform-Specific Link Dependencies
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
 linux = ["pthread", "dl", "rt", "m"]
 macos = []

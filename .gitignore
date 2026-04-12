@@ -98,6 +98,7 @@ third_party/modular_mojo/
 
 # Materialized app outputs and runtime-state sidecars
 /apps/*/generated/
+website/
 /apps/*/state/
 /apps/*/native-app/target/
 /apps/*/native-app/generated/

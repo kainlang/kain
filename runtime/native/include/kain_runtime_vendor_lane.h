@@ -12,7 +12,7 @@
 #define KAIN_VENDOR_HAS_MIMALLOC 0
 #define KAIN_VENDOR_HAS_RPMALLOC 0
 #else
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 #define KAIN_VENDOR_HAS_LIBUV 1
 #else
 #define KAIN_VENDOR_HAS_LIBUV 0
