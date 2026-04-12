@@ -1,6 +1,7 @@
-# Modules And Top-Level Items
+# Modules And Imports
 
-This page covers the declarations that can live at module scope.
+This page covers the declarations that can live at module scope, plus the way
+`use` and `mod` shape the import graph that the loader and runtime resolve.
 
 ## Top-Level Item Inventory
 
@@ -49,13 +50,49 @@ Most item kinds share the same metadata model:
 - generics where applicable
 - spans for diagnostics
 
+## Module And Import Rules
+
+- `mod` creates a nested module boundary and gives the compiler a structured
+  namespace tree.
+- `use` is the current name-resolution mechanism. It is how authored code
+  reaches local items, stdlib entries, and imported modules.
+- stdlib loading and module resolution are related but not identical. The stdlib
+  loader honors `KAIN_STDLIB_PATH` and `KAIN_STDLIB_PROFILE`, while the module
+  graph resolves authored `use` and `mod` paths inside the current program and
+  project layout.
+- imports are not just syntax sugar. They are part of the language model that
+  later runtime and target lanes rely on when they resolve names.
+
 ## Compiler-Owned Intent Quartet
 
 `patch`, `law`, `converge`, `world`, and `orchestrate` are not just ordinary
 declarations. They lower into runtime and bundle metadata that downstream
 tooling consumes directly.
 
+## Runtime-And-Domain Families
+
+The language surface also includes runtime- and toolchain-facing item families:
+
+- `Component` and `Shader`
+- `Actor`
+- `MaterialGraph` and `MaterialFunction`
+- `GraphEditor` and `GraphRuntime`
+- `StateMachine`
+- `AsyncTask`
+- `EditorModule`
+- `GameplayTags`, `GameplayAbility`, `GameplayEffect`, `GameplayCue`,
+  `AbilityTask`, and `TargetActor`
+
+Read `syntax-and-semantics/domain-items.md` for the lowering details of those
+families.
+
 ## Module Rule
 
 Modules can be inline or nested, and `use`/`mod` shape the import graph that
 the loader and runtime use to resolve names.
+
+## Practical Rule
+
+If a reader asks where a name comes from, start with this page. If they ask how
+that name behaves at runtime or after lowering, send them to the runtime,
+effects, or domain-item chapters instead of repeating the import story here.

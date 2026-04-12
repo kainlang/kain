@@ -9,14 +9,16 @@ standalone marketing layer.
 ## Read This First
 
 1. `quickstart.md` for the fastest end-to-end path.
-2. `language-overview.md` for the mental model.
-3. `syntax-and-semantics/` for the language surface.
-4. `runtime/` for execution, stdlib, and runtime behavior.
-5. `native-c-runtime/` for the C ABI floor.
-6. `cli/` for commands, flags, and packaging lanes.
-7. `crates/` for workspace structure and crate roles.
-8. `examples/` for proof surfaces and repo-local workflows.
-9. `reference/` for matrices, glossary terms, and troubleshooting.
+2. `reference/legacy-crosswalk.md` when you are translating from old prose or old folder names.
+3. `language-overview.md` for the mental model.
+4. `syntax-and-semantics/` for the language surface.
+5. `runtime/` for execution, stdlib, and runtime behavior.
+6. `native-c-runtime/` for the C ABI floor.
+7. `cli/` for commands, flags, packaging lanes, and target/codegen rules.
+8. `crates/` for workspace structure and crate roles.
+9. `examples/` for proof surfaces and repo-local workflows.
+10. `reference/` for matrices, glossary terms, troubleshooting, and legacy
+   crosswalks.
 
 ## Canonical Sources
 
@@ -41,9 +43,11 @@ These files define the truth that the guides are derived from:
 | Guide | What it covers |
 | --- | --- |
 | `quickstart.md` | Install, doctor, run, build, and first artifacts |
+| `reference/legacy-crosswalk.md` | Bridge from stale docs and legacy terms to the current guide tree |
 | `language-overview.md` | Mental model, execution flow, and target model |
 | `syntax-and-semantics/syntax.md` | Tokens, keywords, item families, and syntax shape |
 | `syntax-and-semantics/types.md` | All type forms and layout-aware type behavior |
+| `syntax-and-semantics/effects-and-capabilities.md` | Effect vocabulary, feature gating, and target support |
 | `syntax-and-semantics/patterns.md` | Match patterns and binding forms |
 | `syntax-and-semantics/expressions.md` | Expressions, operators, and control flow |
 | `syntax-and-semantics/statements.md` | Statements, blocks, and statement-level flow |
@@ -62,6 +66,7 @@ These files define the truth that the guides are derived from:
 | `native-c-runtime/actor-lifecycle.md` | Actor ownership, lifecycle, mailbox, and supervision |
 | `cli/cli-overview.md` | CLI shape, launcher behavior, and command families |
 | `cli/build-run-init.md` | `init`, `build`, `run`, and the build/materialization lanes |
+| `cli/targets-and-codegen.md` | Target alias families, KainScript, and codegen output rules |
 | `cli/importers.md` | `import-asm`, `import-c`, `import-rust`, `import-crate`, `import-ts` |
 | `cli/doctor-and-repair.md` | `doctor` diagnostics plus repair modes |
 | `cli/selfhost-omni-fabric-lsp.md` | `selfhost`, `omni`, `fabric`, and `lsp` |

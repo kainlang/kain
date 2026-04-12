@@ -1,5 +1,24 @@
 # MEMORY
 
+# 2026-04-12 - top-level docs received a deeper reader-path pass
+
+The guide tree now has a clearer entrypoint story: `guides/README.md` names the reading order, `guides/reference/legacy-crosswalk.md` bridges old prose to current canonical pages, `guides/quickstart.md` reads like a first-run path, and the example pages are framed as workflow or proof surfaces instead of directory summaries.
+
+What changed:
+
+- Added a legacy crosswalk page under `guides/reference/` to map older topics and terms into the current guide tree.
+- Strengthened the top-level guide map so readers can move from quickstart to the crosswalk to the deeper guide families without guessing.
+- Reframed `guides/examples/smoketest.md`, `guides/examples/apps.md`, `guides/examples/unreal-plugins.md`, and `guides/examples/kn-library.md` around their actual role in the repo.
+- Added docs-system guidance to `ARCHITECTURE.md` so future agents know `guides/` is canonical and `docs/` is audit-only.
+
+Current risk:
+
+- The deeper language/runtime/CLI pages are still being expanded in parallel, so top-level docs should keep pointing at them instead of trying to duplicate their content.
+
+Recommended next step:
+
+- Keep the reader order and crosswalk aligned with whatever final shape the deeper guide pages take, and update the crosswalk whenever legacy language or old README topics reappear in the repo.
+
 # 2026-04-12 - new LLVM dogfood lab added under labs/
 
 The repo now has a dedicated LLVM dogfood application at

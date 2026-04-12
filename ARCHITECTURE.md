@@ -3,6 +3,17 @@
 This file is the durable repo overview for the current Kain checkout.
 It is the fast way for future agents to understand what Kain is, where the important code lives, and which architectural rules matter enough to preserve.
 
+## Documentation System
+
+The repo's documentation is deliberately split by trust level and reader intent:
+
+- `guides/` is the canonical long-form guide tree for the live checkout.
+- `guides/reference/legacy-crosswalk.md` translates stale prose and old folder names into the current guide tree.
+- `docs/` is legacy support material and may lag behind the code; do not promote it back to the source of truth.
+- `smoketest/`, `apps/`, `unreal_plugins/`, and `kn_library/` are workflow, proof, and corpus surfaces that support the guide tree rather than replace it.
+
+When the docs and code disagree, treat the mismatch as a signal to update the canonical guide tree from source rather than to copy the stale wording forward.
+
 ## What Kain Is
 
 Kain is a compiled multi-target language toolchain, an executable semantic runtime, and an embeddable host stack.
@@ -43,6 +54,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
+- [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs
 - [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): legacy UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
 - [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): legacy syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`
 - [crates](/M:/Code/Kain/crates): workspace crates
@@ -62,6 +74,14 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [src](src): top-level selfhost Kain mirror tree; the selfhost pipeline can emit one `.kn` file per Rust source file under `src/<crate>/...`
 - [src/core](src/core): canonical owned Kain core surface; this is the active self-hosted language tree
 - [ouroboros](ouroboros): selfhost control-plane manifests, repair tooling, inventories, reports, and pipeline automation
+
+## Docs And Example Ownership
+
+- `guides/README.md` is the top-level reader map for the canonical guide tree.
+- `guides/quickstart.md` should stay short and point outward to the deeper pages, not become a second manual.
+- `guides/examples/*` are workflow pages: they explain what each repo lane proves and where to look next.
+- `guides/reference/troubleshooting.md` is for recurring operator failures and should point readers to the live code, the current CLI, and the legacy crosswalk when old terminology shows up.
+- `guides/reference/legacy-crosswalk.md` is the bridge from stale prose to current docs; update it whenever old terminology or historical topics surface again.
 
 ## Key Crates
 

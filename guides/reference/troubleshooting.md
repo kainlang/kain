@@ -5,6 +5,17 @@ Snapshot: April 12, 2026.
 This page collects the recurring failures that show up in the current codebase
 and points to the subsystem that owns the fix.
 
+## Docs Drift
+
+If an older README, a stale `docs/` page, or a copied command example disagrees
+with the current guide tree, treat that mismatch as a documentation bug, not a
+language bug. Start by checking the current page under `guides/`, then jump to
+[guides/reference/legacy-crosswalk.md](/home/ephemara/Dev/Kain/guides/reference/legacy-crosswalk.md)
+when you need to translate old terminology into the current docs set.
+
+The old `docs/` tree is legacy support material and should not be treated as the
+source of current behavior.
+
 ## `Unknown target`
 
 Likely cause:
@@ -183,3 +194,5 @@ Relevant code:
 - Use `kain doctor` first.
 - Use the reference pages in `guides/reference/` before assuming the CLI or
   target behavior is missing.
+- Use [guides/reference/legacy-crosswalk.md](/home/ephemara/Dev/Kain/guides/reference/legacy-crosswalk.md)
+  when an older term or older guide title does not match the current tree.

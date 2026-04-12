@@ -1,7 +1,10 @@
 # Apps
 
-`apps/` holds first-class applications and app prototypes that exercise the full
-Kain stack.
+`apps/` holds first-class applications and app prototypes that exercise the full Kain stack. These are product-shaped workflows, not toy samples.
+
+## How To Read It
+
+Use the app README and source for the specific lane you care about, then map what it proves back to the language, runtime, CLI, or packaging guide page. The app folders are especially useful when you want to understand how Kain behaves as a product substrate rather than as a standalone language snippet.
 
 ## Key Apps
 
@@ -16,10 +19,8 @@ Kain stack.
 
 ## Output Hygiene
 
-App build outputs are disposable. Keep generated executables, caches, and local
-preview folders out of git.
+App build outputs are disposable. Keep generated executables, caches, and local preview folders out of git.
 
-## Read This As A Workflow
+## Why It Matters
 
-These folders are not examples in the tutorial sense only. They are active app
-prototypes that prove how Kain behaves as a product substrate.
+These folders show how Kain is used when the language owns the product flow, not just the code snippet. They are the best place to see how manifests, runtime services, UI bundles, and target-specific packaging fit together in real apps.
