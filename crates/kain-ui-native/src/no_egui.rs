@@ -1,5 +1,6 @@
 use std::{error::Error, fmt};
 
+use crate::no_egui_qt_host::launch_qt_quick_host;
 use kain_core::{build_ui_output_from_source, KainError};
 use kain_ui::{
     ui_runtime_bundle_from_json, ui_runtime_bundle_from_output, ui_runtime_bundle_to_json,
@@ -74,21 +75,21 @@ impl Default for KainUiNativeAppConfig {
 }
 
 #[derive(Debug)]
-struct LegacyEguiRemovedError {
+struct UnsupportedNativeHostError {
     attempted_backend: &'static str,
 }
 
-impl fmt::Display for LegacyEguiRemovedError {
+impl fmt::Display for UnsupportedNativeHostError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "kain-ui-native no longer starts the legacy egui host by default; the default build expects a new non-egui host adapter, but `{}` was requested before that cutover landed. Rebuild with `--features legacy-egui` only if you intentionally need the old compatibility host",
+            "kain-ui-native default host routing only supports the Qt-backed path right now; `{}` does not have a live non-egui adapter in this build",
             self.attempted_backend
         )
     }
 }
 
-impl Error for LegacyEguiRemovedError {}
+impl Error for UnsupportedNativeHostError {}
 
 pub fn build_output(config: &KainUiNativeAppConfig) -> Result<UiBuildOutput, KainError> {
     build_ui_output_from_source(&config.source, &config.root_component)
@@ -146,9 +147,13 @@ pub fn run_app(config: KainUiNativeAppConfig) -> Result<(), Box<dyn Error>> {
 pub fn run_bundled_app(bundle: KainUiNativeRuntimeBundle) -> Result<(), Box<dyn Error>> {
     validate_runtime_bundle(&bundle)?;
     let backend_plan = KainUiNativeBackendPlan::from_runtime_metadata(&bundle.metadata);
-    Err(Box::new(LegacyEguiRemovedError {
-        attempted_backend: host_launch_label(&backend_plan),
-    }))
+    match normalized_shell_backend(&backend_plan) {
+        UiHostBackendKind::Qt => launch_qt_quick_host(&bundle, &backend_plan)
+            .map_err(|error| Box::new(error) as Box<dyn Error>),
+        _ => Err(Box::new(UnsupportedNativeHostError {
+            attempted_backend: host_launch_label(&backend_plan),
+        })),
+    }
 }
 
 pub fn run_bundled_app_json(json: &str) -> Result<(), Box<dyn Error>> {
@@ -165,7 +170,7 @@ fn validate_runtime_bundle(bundle: &KainUiNativeRuntimeBundle) -> Result<(), Box
 }
 
 fn host_launch_label(backend_plan: &KainUiNativeBackendPlan) -> &'static str {
-    match backend_plan.shell_host_backend {
+    match normalized_shell_backend(backend_plan) {
         UiHostBackendKind::Auto => "auto",
         UiHostBackendKind::Native => "native",
         UiHostBackendKind::LegacyEgui => "legacy-egui",
@@ -174,5 +179,12 @@ fn host_launch_label(backend_plan: &KainUiNativeBackendPlan) -> &'static str {
         UiHostBackendKind::Slint => "slint",
         UiHostBackendKind::Qt => "qt",
         UiHostBackendKind::Cef => "cef",
+    }
+}
+
+fn normalized_shell_backend(backend_plan: &KainUiNativeBackendPlan) -> UiHostBackendKind {
+    match backend_plan.shell_host_backend {
+        UiHostBackendKind::Auto | UiHostBackendKind::Native => UiHostBackendKind::Qt,
+        backend => backend,
     }
 }

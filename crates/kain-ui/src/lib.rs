@@ -1538,7 +1538,7 @@ impl Default for UiRuntimeMetadata {
             preferred_devtools_host_backend: UiHostBackendKind::Imgui,
             preferred_layout_engine: UiLayoutEngineKind::Yoga,
             preferred_render_engine: UiRenderEngineKind::Wgpu,
-            compatibility_host_backend: UiHostBackendKind::LegacyEgui,
+            compatibility_host_backend: UiHostBackendKind::Qt,
             mixed_backend_session: true,
         }
     }

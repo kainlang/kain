@@ -1,5 +1,54 @@
 # MEMORY
 
+## 2026-04-11 - default kain-ui-native host now launches a real Qt Quick session
+
+The no-`egui` cut is no longer just a facade. `kain-ui-native` now has a live default host path that materializes a Qt-backed session when the machine has an external Qt Quick runtime available.
+
+What changed:
+
+- Added a real default-host implementation in `crates/kain-ui-native`
+  - Split the non-legacy path into:
+    - `no_egui.rs` for the public API and routing
+    - `no_egui_session.rs` for bundle-to-session classification
+    - `no_egui_qt_host.rs` for Qt runtime discovery, artifact emission, and process launch
+  - `run_bundled_app(...)` now launches a generated Qt Quick session instead of always erroring.
+- Added a data-driven Qt session manifest
+  - The host now classifies compiled UI surfaces into document, viewport, devtools, and fallback lanes.
+  - It writes a temp `session.json` and generated `Main.qml` before launching `qmlscene` or `qml`.
+  - Missing live adapters degrade to explicit placeholder panes instead of aborting startup.
+- Promoted default bundle semantics to Qt-first
+  - `crates/kain-ui/src/lib.rs` now defaults `UiRuntimeMetadata.compatibility_host_backend` to `Qt`.
+  - The no-`egui` backend plan already defaulted shell compatibility to Qt; now the shared bundle metadata agrees.
+- Promoted the native runtime Qt lane from staged fiction to honest external-runtime probing
+  - `runtime/native/include/kain_runtime_vendor_lane.h` now marks `imgui`, `yoga`, and `qt` as present runtime lanes in the vendor catalog.
+  - `runtime/native/src/vendor/kain_runtime_vendor_ui_bridge.cpp` now probes for external Qt Quick runtimes via `KAIN_UI_NATIVE_QT_RUNTIME`, `KAIN_QT_QML_RUNTIME`, `qmlscene`, or `qml`.
+  - `ui.backend.qt` now reports `qt-external-runtime` instead of `qt-staged` when that lane is available.
+
+Validation completed:
+
+- `cargo check -p kain-ui-native`
+- `cargo test -q -p kain-ui-native`
+- `cargo test -q -p kain-ui`
+- `cargo check -p kain-ui-native --features legacy-egui`
+- `./runtime/compile_native_runtime.sh`
+- `./runtime/conformance/run_all.sh --category host_bridge --verbose`
+
+Design decisions:
+
+- Chose an external Qt Quick runtime first instead of a compiled-in Qt Widgets/QML bridge because the current environment does not ship a linkable Qt development toolchain.
+- Kept the session metadata-first and role-routed so a later in-process Qt bridge can replace the launcher without changing Kain bundle semantics again.
+- Treated viewport and devtools as honest placeholders in the Qt shell for now rather than lying about bgfx or ImGui being embedded already.
+
+Current risks:
+
+- The default host now depends on an external `qmlscene` or `qml` runtime being installed or pointed to by env var; this repo does not bundle a Qt runtime yet.
+- The Qt shell is real, but it still renders metadata-driven panes rather than fully executing retained document surfaces or embedding the bgfx viewport in-process.
+- `ui.backend.qt` is now truthier than before, but it still represents external-runtime availability, not a fully bundled Qt toolchain.
+
+Recommended next step:
+
+- Replace the metadata-only document/viewport/devtools placeholders with the first real in-process adapters, starting with a viewport container handoff and a dedicated Qt document-surface presenter.
+
 ## 2026-04-11 - renderer-session host wiring and deterministic 3D smoke artifact landed
 
 The 3D runtime push moved from “backend catalog and showcase shell” into a real host-consumed renderer lane. The native viewport now understands renderer-session truth, the smoke folder now has a reproducible image generator, and the visual example asset is no longer just a concept render.

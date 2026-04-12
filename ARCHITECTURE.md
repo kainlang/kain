@@ -147,10 +147,11 @@ The architecture rule here is the same as the viewport and compute lanes: shader
 
 The native runtime now has a first real UI vendor slice instead of only a future-host wish list:
 
-- `runtime/native` owns the service families and startup contract bits for `ui.layout.yoga`, `ui.backend.imgui`, `ui.devtools`, and the staged `ui.render.skia`, `ui.backend.rmlui`, `ui.backend.slint`, `ui.backend.qt`, and `ui.surface.browser.cef` lanes
+- `runtime/native` owns the service families and startup contract bits for `ui.layout.yoga`, `ui.backend.imgui`, `ui.devtools`, and the staged `ui.render.skia`, `ui.backend.rmlui`, `ui.backend.slint`, and `ui.surface.browser.cef` lanes; `ui.backend.qt` is now an external-runtime lane that probes for `qml` or `qmlscene` instead of pretending Qt is only staged
 - `runtime/thirdparty/imgui` and `runtime/thirdparty/yoga` are the first compile-backed UI vendor trees in the manifest-driven native bundle; the heavier UI stacks stay staged behind the same Kain-owned vendor bridge until the coordinator contract is proven
 - `crates/kain-ui` now emits explicit backend-role truth in runtime metadata and per-surface preferences through `UiHostBackendKind`, `UiLayoutEngineKind`, and `UiRenderEngineKind`
-- `crates/kain-ui-native` now defaults to a no-`egui` facade. The old 9k-line host survives in `src/legacy_egui.rs`, but only behind the explicit Cargo feature `legacy-egui`; default builds keep the bundle/build API and backend-plan metadata while refusing to boot the old host path
+- `crates/kain-ui-native` now defaults to a no-`egui` Qt Quick host. The old 9k-line host survives in `src/legacy_egui.rs`, but only behind the explicit Cargo feature `legacy-egui`; default builds keep the bundle/build API, materialize a Qt session manifest plus generated `Main.qml`, and launch the external `qml` / `qmlscene` runtime when it is available on the host
+- The current non-`egui` host is intentionally metadata-first: document, viewport, and devtools lanes are routed into a generated Qt Quick shell immediately, while in-process bgfx and ImGui embeddings still degrade to explicit placeholder panes until those adapters land
 
 ### Semantic Tab Workspace Lane
 
