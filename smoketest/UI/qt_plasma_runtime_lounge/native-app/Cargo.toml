@@ -6,5 +6,7 @@ edition = "2021"
 [workspace]
 
 [dependencies]
+kain-3d = { path = "../../../../crates/kain-3D" }
 kain-ui = { path = "../../../../crates/kain-ui" }
 kain-ui-native = { path = "../../../../crates/kain-ui-native" }
+png = "0.17"

@@ -32,6 +32,31 @@ impl Effect {
     }
 }
 
+fn effect_name(effect: Effect) -> &'static str {
+    match effect {
+        Effect::Pure => "Pure",
+        Effect::IO => "IO",
+        Effect::Async => "Async",
+        Effect::GPU => "GPU",
+        Effect::Reactive => "Reactive",
+        Effect::Unsafe => "Unsafe",
+        Effect::Alloc => "Alloc",
+        Effect::Panic => "Panic",
+    }
+}
+
+fn effect_set_to_string(effect_set: &EffectSet) -> String {
+    if effect_set.is_pure() {
+        return "Pure".to_string();
+    }
+
+    let mut labels = Vec::new();
+    for effect in effect_set.effects.iter().copied() {
+        labels.push(effect_name(effect).to_string());
+    }
+    labels.join(", ")
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EffectSet {
     pub effects: HashSet<Effect>,
@@ -78,45 +103,8 @@ pub fn check_effect_call(
     _span: Span,
 ) -> KainResult<()> {
     if !caller.can_call(callee) {
-        let caller_effect_str = if caller.is_pure() {
-            "Pure".to_string()
-        } else {
-            caller
-                .effects
-                .iter()
-                .map(|e| match e {
-                    Effect::Pure => "Pure",
-                    Effect::IO => "IO",
-                    Effect::Async => "Async",
-                    Effect::GPU => "GPU",
-                    Effect::Reactive => "Reactive",
-                    Effect::Unsafe => "Unsafe",
-                    Effect::Alloc => "Alloc",
-                    Effect::Panic => "Panic",
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-
-        let callee_effect_str = if callee.is_pure() {
-            "Pure".to_string()
-        } else {
-            callee
-                .effects
-                .iter()
-                .map(|e| match e {
-                    Effect::Pure => "Pure",
-                    Effect::IO => "IO",
-                    Effect::Async => "Async",
-                    Effect::GPU => "GPU",
-                    Effect::Reactive => "Reactive",
-                    Effect::Unsafe => "Unsafe",
-                    Effect::Alloc => "Alloc",
-                    Effect::Panic => "Panic",
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
+        let caller_effect_str = effect_set_to_string(caller);
+        let callee_effect_str = effect_set_to_string(callee);
 
         return Err(DiagnosticBuilder::new(
             ErrorKind::Validation,

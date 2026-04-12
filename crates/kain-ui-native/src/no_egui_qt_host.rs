@@ -17,6 +17,8 @@ const KAIN_UI_NATIVE_QT_RUNTIME_ENV: &str = "KAIN_UI_NATIVE_QT_RUNTIME";
 const KAIN_QT_QML_RUNTIME_ENV: &str = "KAIN_QT_QML_RUNTIME";
 const KAIN_UI_NATIVE_QT_ARTIFACT_DIR_ENV: &str = "KAIN_UI_NATIVE_QT_ARTIFACT_DIR";
 const KAIN_UI_NATIVE_QT_SCREENSHOT_PATH_ENV: &str = "KAIN_UI_NATIVE_QT_SCREENSHOT_PATH";
+const KAIN_UI_NATIVE_QT_BROWSER_URL_ENV: &str = "KAIN_UI_NATIVE_QT_BROWSER_URL";
+const KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_ENV: &str = "KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH";
 
 #[derive(Debug)]
 pub enum QtQuickHostLaunchError {
@@ -85,6 +87,8 @@ pub fn launch_qt_quick_host(
     let manifest = build_qt_quick_session_manifest(bundle, backend_plan);
     let qt_runtime = detect_qt_runtime()?;
     let screenshot_path = detect_optional_screenshot_path()?;
+    let browser_url = detect_optional_text_env(KAIN_UI_NATIVE_QT_BROWSER_URL_ENV)?;
+    let viewport_image_path = detect_optional_text_env(KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_ENV)?;
     let artifact_dir = create_qt_artifact_dir()?;
     let session_json_path = artifact_dir.join("session.json");
     let main_qml_path = artifact_dir.join("Main.qml");
@@ -99,7 +103,13 @@ pub fn launch_qt_quick_host(
     })?;
     fs::write(
         &main_qml_path,
-        render_main_qml(&manifest, screenshot_path.as_deref()).as_bytes(),
+        render_main_qml(
+            &manifest,
+            screenshot_path.as_deref(),
+            browser_url.as_deref(),
+            viewport_image_path.as_deref(),
+        )
+        .as_bytes(),
     )
     .map_err(|source| QtQuickHostLaunchError::Io {
         context: "write the generated Main.qml host file",
@@ -114,6 +124,11 @@ pub fn launch_qt_quick_host(
         .current_dir(&artifact_dir)
         .env("KAIN_UI_NATIVE_QT_SESSION_MANIFEST", &session_json_path)
         .env("QT_QUICK_CONTROLS_STYLE", quick_controls_style)
+        .env("QTWEBENGINE_DISABLE_SANDBOX", "1")
+        .env(
+            "QTWEBENGINE_CHROMIUM_FLAGS",
+            "--disable-gpu --disable-software-rasterizer --disable-dev-shm-usage",
+        )
         .status()
         .map_err(|source| QtQuickHostLaunchError::ProcessLaunch {
             program: qt_runtime.clone(),
@@ -177,6 +192,19 @@ fn detect_optional_screenshot_path() -> Result<Option<PathBuf>, QtQuickHostLaunc
     Ok(Some(screenshot_path))
 }
 
+fn detect_optional_text_env(env_key: &str) -> Result<Option<String>, QtQuickHostLaunchError> {
+    let Some(value) = env::var_os(env_key) else {
+        return Ok(None);
+    };
+
+    let value = value.to_string_lossy().into_owned();
+    if value.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(value))
+}
+
 fn find_binary_in_path(binary_name: &str) -> Option<PathBuf> {
     let path_var = env::var_os("PATH")?;
     for directory in env::split_paths(&path_var) {
@@ -220,7 +248,12 @@ fn create_qt_artifact_dir() -> Result<PathBuf, QtQuickHostLaunchError> {
     Ok(dir)
 }
 
-fn render_main_qml(manifest: &QtQuickSessionManifest, screenshot_path: Option<&Path>) -> String {
+fn render_main_qml(
+    manifest: &QtQuickSessionManifest,
+    screenshot_path: Option<&Path>,
+    browser_url: Option<&str>,
+    viewport_image_path: Option<&str>,
+) -> String {
     let session_json = serde_json::to_string_pretty(manifest).unwrap_or_else(|_| "{}".to_string());
     let screenshot_json = serde_json::to_string(
         &screenshot_path
@@ -228,42 +261,50 @@ fn render_main_qml(manifest: &QtQuickSessionManifest, screenshot_path: Option<&P
             .unwrap_or_default(),
     )
     .unwrap_or_else(|_| "\"\"".to_string());
+    let browser_url_json =
+        serde_json::to_string(&browser_url.unwrap_or_default()).unwrap_or_else(|_| "\"\"".to_string());
+    let viewport_image_json = serde_json::to_string(&viewport_image_path.unwrap_or_default())
+        .unwrap_or_else(|_| "\"\"".to_string());
 
     r##"import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtWebEngine
+import Qt5Compat.GraphicalEffects
 
 ApplicationWindow {
     id: root
     visible: true
-    width: Math.max(1280, kainSession.initial_window_size[0])
-    height: Math.max(780, kainSession.initial_window_size[1])
+    width: Math.max(1560, kainSession.initial_window_size[0])
+    height: Math.max(960, kainSession.initial_window_size[1])
     title: kainSession.window_title
-    color: "#04080d"
+    color: "#071018"
     readonly property var kainSession: (__KAIN_SESSION_JSON__)
     readonly property string screenshotPath: __KAIN_SCREENSHOT_PATH__
+    readonly property string browserUrl: __KAIN_BROWSER_URL__
+    readonly property string viewportImagePath: __KAIN_VIEWPORT_IMAGE_PATH__
+    property bool browserReady: false
 
-    function accentForRole(role) {
+    function roleAccent(role) {
         switch (role) {
         case "viewport":
-            return "#5ed0ff"
+            return "#60c5ff"
+        case "browser":
+            return "#67f0c4"
+        case "shader":
+            return "#d78cff"
         case "devtools":
-            return "#a48cff"
+            return "#8fb4ff"
         case "fallback":
-            return "#ffbf69"
+            return "#ffbd7a"
         default:
-            return "#67d0ff"
+            return "#9cc8ff"
         }
-    }
-
-    function surfaceCountLabel() {
-        return (kainSession.document_panes.length + kainSession.viewport_panes.length
-            + kainSession.devtools_panes.length + kainSession.fallback_panes.length) + " live panes"
     }
 
     Timer {
         id: screenshotTimer
-        interval: 450
+        interval: 6000
         repeat: false
         running: root.screenshotPath.length > 0
         onTriggered: chrome.grabToImage(function(result) {
@@ -272,32 +313,45 @@ ApplicationWindow {
         })
     }
 
+    component BadgePill: Rectangle {
+        required property string pillText
+        required property color pillColor
+        radius: 12
+        color: Qt.rgba(pillColor.r, pillColor.g, pillColor.b, 0.16)
+        border.width: 1
+        border.color: Qt.rgba(pillColor.r, pillColor.g, pillColor.b, 0.45)
+        implicitHeight: 28
+        implicitWidth: pillLabel.implicitWidth + 20
+
+        Label {
+            id: pillLabel
+            anchors.centerIn: parent
+            text: pillText
+            color: pillColor
+            font.pixelSize: 11
+            font.bold: true
+        }
+    }
+
     component PaneCard: Frame {
         required property var paneData
-        readonly property color accentColor: root.accentForRole(paneData.role)
+        readonly property color accentColor: root.roleAccent(paneData.role)
         Layout.fillWidth: true
-        padding: 16
+        padding: 14
 
         background: Rectangle {
-            radius: 22
-            color: "#161d29"
+            radius: 20
+            color: "#111a26"
             border.width: 1
-            border.color: Qt.rgba(PaneCard.accentColor.r, PaneCard.accentColor.g, PaneCard.accentColor.b, 0.38)
+            border.color: Qt.rgba(PaneCard.accentColor.r, PaneCard.accentColor.g, PaneCard.accentColor.b, 0.33)
             gradient: Gradient {
-                GradientStop { position: 0.0; color: "#243348" }
-                GradientStop { position: 1.0; color: "#151c28" }
+                GradientStop { position: 0.0; color: "#1d2a3d" }
+                GradientStop { position: 1.0; color: "#111821" }
             }
         }
 
         contentItem: ColumnLayout {
-            spacing: 12
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 4
-                radius: 2
-                color: PaneCard.accentColor
-            }
+            spacing: 10
 
             RowLayout {
                 Layout.fillWidth: true
@@ -305,12 +359,12 @@ ApplicationWindow {
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 6
+                    spacing: 4
 
                     Label {
                         text: paneData.title
-                        color: "#f4f7ff"
-                        font.pixelSize: 18
+                        color: "#f5f8ff"
+                        font.pixelSize: 17
                         font.bold: true
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
@@ -318,47 +372,34 @@ ApplicationWindow {
 
                     Label {
                         text: paneData.summary
-                        color: "#b7ddff"
+                        color: "#bcd6ef"
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
                 }
 
-                Rectangle {
-                    radius: 11
-                    color: Qt.rgba(PaneCard.accentColor.r, PaneCard.accentColor.g, PaneCard.accentColor.b, 0.18)
-                    border.width: 1
-                    border.color: Qt.rgba(PaneCard.accentColor.r, PaneCard.accentColor.g, PaneCard.accentColor.b, 0.45)
-                    implicitHeight: 32
-                    implicitWidth: badgeLabel.implicitWidth + 18
-
-                    Label {
-                        id: badgeLabel
-                        anchors.centerIn: parent
-                        text: paneData.role.toUpperCase()
-                        color: PaneCard.accentColor
-                        font.pixelSize: 12
-                        font.bold: true
-                    }
+                BadgePill {
+                    pillText: paneData.role.toUpperCase()
+                    pillColor: PaneCard.accentColor
                 }
             }
 
             Rectangle {
                 Layout.fillWidth: true
-                radius: 16
-                color: "#0f1723"
+                radius: 14
+                color: "#0d1520"
                 border.width: 1
-                border.color: "#24354a"
-                implicitHeight: adapterLabel.implicitHeight + 22
+                border.color: "#243247"
+                implicitHeight: adapterLabel.implicitHeight + 20
 
                 Label {
                     id: adapterLabel
                     anchors.fill: parent
-                    anchors.margins: 11
+                    anchors.margins: 10
                     text: paneData.adapter_state_label
                     wrapMode: Text.Wrap
-                    color: "#d5e7ff"
-                    font.pixelSize: 13
+                    color: "#d8e8ff"
+                    font.pixelSize: 12
                 }
             }
 
@@ -368,26 +409,228 @@ ApplicationWindow {
 
                 Repeater {
                     model: paneData.detail_lines
-
-                    delegate: Rectangle {
+                    delegate: BadgePill {
                         required property string modelData
-                        radius: 12
-                        color: "#111c2a"
-                        border.width: 1
-                        border.color: "#223448"
-                        implicitHeight: chipLabel.implicitHeight + 12
-                        implicitWidth: Math.min(320, chipLabel.implicitWidth + 18)
+                        pillText: modelData
+                        pillColor: "#9bb2c9"
+                    }
+                }
+            }
+        }
+    }
+
+    component BrowserPane: Frame {
+        required property var paneData
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        padding: 10
+
+        background: Rectangle {
+            radius: 22
+            color: "#101821"
+            border.width: 1
+            border.color: "#2d4a60"
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#162738" }
+                GradientStop { position: 1.0; color: "#0f151d" }
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                Label {
+                    text: paneData.title
+                    color: "#f5f8ff"
+                    font.pixelSize: 17
+                    font.bold: true
+                }
+                Item { Layout.fillWidth: true }
+                BadgePill {
+                    pillText: "WEBENGINE"
+                    pillColor: "#67f0c4"
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                radius: 16
+                color: "#0a1017"
+                border.width: 1
+                border.color: "#23364a"
+                Layout.preferredHeight: 20
+                implicitHeight: 20
+
+                Label {
+                    anchors.centerIn: parent
+                    text: paneData.adapter_state_label
+                    color: "#aac4d8"
+                    font.pixelSize: 11
+                }
+            }
+
+            WebEngineView {
+                id: browserView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                url: root.browserUrl.length > 0 ? root.browserUrl : "about:blank"
+                onLoadingChanged: {
+                    if (loadRequest.status === WebEngineView.LoadSucceededStatus
+                        || loadRequest.status === WebEngineView.LoadFailedStatus) {
+                        root.browserReady = true
+                    }
+                }
+            }
+        }
+    }
+
+    component ShaderPane: Frame {
+        required property var paneData
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        padding: 10
+
+        background: Rectangle {
+            radius: 22
+            color: "#11131f"
+            border.width: 1
+            border.color: "#50345f"
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#1a1330" }
+                GradientStop { position: 1.0; color: "#10131b" }
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                Label {
+                    text: paneData.title
+                    color: "#f5f8ff"
+                    font.pixelSize: 17
+                    font.bold: true
+                }
+                Item { Layout.fillWidth: true }
+                BadgePill {
+                    pillText: "SHADER"
+                    pillColor: "#d78cff"
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                radius: 14
+                color: "#0a1017"
+                border.width: 1
+                border.color: "#312540"
+                implicitHeight: shaderSummary.implicitHeight + 18
+
+                Label {
+                    id: shaderSummary
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    text: paneData.adapter_state_label
+                    wrapMode: Text.Wrap
+                    color: "#dbc8f4"
+                    font.pixelSize: 11
+                }
+            }
+
+            Item {
+                id: shaderStage
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                implicitHeight: 240
+
+                Rectangle {
+                    id: shaderSource
+                    anchors.fill: parent
+                    radius: 18
+                    color: "#141b2d"
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#2b4e7a" }
+                        GradientStop { position: 0.42; color: "#4e2f6f" }
+                        GradientStop { position: 1.0; color: "#101a25" }
+                    }
+
+                    Rectangle {
+                        width: 170
+                        height: 170
+                        radius: 85
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 18
+                        color: "#89d6ff"
+                        opacity: 0.20
+                    }
+
+                    Rectangle {
+                        width: 120
+                        height: 120
+                        radius: 60
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 26
+                        color: "#ff8fd8"
+                        opacity: 0.22
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        spacing: 8
 
                         Label {
-                            id: chipLabel
-                            anchors.centerIn: parent
-                            text: modelData
-                            color: "#9fb3ca"
-                            font.pixelSize: 12
-                            width: Math.min(300, implicitWidth)
-                            elide: Text.ElideRight
+                            text: "Live Shader Canvas"
+                            color: "#f5f8ff"
+                            font.pixelSize: 24
+                            font.bold: true
+                        }
+
+                        Label {
+                            text: "Qt GraphicalEffects is sampling a live source item here so the shell has a real shader-backed surface."
+                            color: "#d4d6ff"
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                        }
+
+                        Item { Layout.fillHeight: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Repeater {
+                                model: ["animated source", "blur pipeline", "overlay pass"]
+                                delegate: BadgePill {
+                                    required property string modelData
+                                    pillText: modelData
+                                    pillColor: "#e8b0ff"
+                                }
+                            }
                         }
                     }
+                }
+
+                FastBlur {
+                    anchors.fill: shaderSource
+                    source: shaderSource
+                    radius: 28
+                    transparentBorder: true
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 18
+                    color: "#0f1622"
+                    opacity: 0.14
+                    border.width: 1
+                    border.color: "#60517c"
                 }
             }
         }
@@ -397,35 +640,34 @@ ApplicationWindow {
         id: chrome
         anchors.fill: parent
         color: "#070b12"
-
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#0d1624" }
-            GradientStop { position: 0.38; color: "#0b1018" }
-            GradientStop { position: 1.0; color: "#09121d" }
+            GradientStop { position: 0.0; color: "#0d1726" }
+            GradientStop { position: 0.45; color: "#091119" }
+            GradientStop { position: 1.0; color: "#0a131c" }
         }
 
         Rectangle {
             anchors.top: parent.top
             anchors.right: parent.right
             anchors.topMargin: -120
-            anchors.rightMargin: -140
-            width: 420
-            height: 420
-            radius: 210
-            color: "#2867ff"
-            opacity: 0.14
+            anchors.rightMargin: -120
+            width: 360
+            height: 360
+            radius: 180
+            color: "#57c7ff"
+            opacity: 0.16
         }
 
         Rectangle {
             anchors.bottom: parent.bottom
             anchors.left: parent.left
             anchors.bottomMargin: -140
-            anchors.leftMargin: -100
+            anchors.leftMargin: -110
             width: 360
             height: 360
             radius: 180
-            color: "#1fc7ff"
-            opacity: 0.10
+            color: "#d78cff"
+            opacity: 0.12
         }
 
         ColumnLayout {
@@ -435,68 +677,50 @@ ApplicationWindow {
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 78
+                implicitHeight: 84
                 radius: 24
-                color: "#121b29"
+                color: "#111927"
                 border.width: 1
-                border.color: "#2a3a53"
-
+                border.color: "#274158"
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#1a2940" }
-                    GradientStop { position: 1.0; color: "#111824" }
+                    GradientStop { position: 0.0; color: "#1a2941" }
+                    GradientStop { position: 1.0; color: "#101721" }
                 }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: 16
                     spacing: 14
 
                     RowLayout {
                         spacing: 8
-
                         Repeater {
-                            model: ["#ff6b81", "#ffcc66", "#4be3c2"]
-
+                            model: ["#ff6f8b", "#ffd36d", "#69f0c7"]
                             delegate: Rectangle {
                                 required property string modelData
                                 width: 12
                                 height: 12
                                 radius: 6
                                 color: modelData
-                                opacity: 0.92
                             }
                         }
                     }
 
-                    Rectangle {
-                        radius: 18
-                        color: "#0d1522"
-                        border.width: 1
-                        border.color: "#2b4663"
-                        implicitHeight: 42
-                        implicitWidth: titleColumn.implicitWidth + 34
-
-                        ColumnLayout {
-                            id: titleColumn
-                            anchors.centerIn: parent
-                            spacing: 1
-
-                            Label {
-                                text: kainSession.window_title
-                                color: "#f7fbff"
-                                font.pixelSize: 20
-                                font.bold: true
-                            }
-
-                            Label {
-                                text: kainSession.root_component + " / " + root.surfaceCountLabel()
-                                color: "#92b8d9"
-                                font.pixelSize: 12
-                            }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Label {
+                            text: kainSession.window_title
+                            color: "#f7fbff"
+                            font.pixelSize: 22
+                            font.bold: true
+                        }
+                        Label {
+                            text: kainSession.root_component + " / " + (kainSession.document_panes.length + kainSession.viewport_panes.length + kainSession.browser_panes.length + kainSession.shader_panes.length + kainSession.devtools_panes.length + kainSession.fallback_panes.length) + " surfaces"
+                            color: "#9cb5c9"
+                            font.pixelSize: 12
                         }
                     }
-
-                    Item { Layout.fillWidth: true }
 
                     Repeater {
                         model: [
@@ -504,24 +728,10 @@ ApplicationWindow {
                             "layout " + kainSession.layout_engine,
                             "render " + kainSession.render_engine
                         ]
-
-                        delegate: Rectangle {
+                        delegate: BadgePill {
                             required property string modelData
-                            radius: 14
-                            color: "#0f1623"
-                            border.width: 1
-                            border.color: "#29425d"
-                            implicitHeight: 34
-                            implicitWidth: modeLabel.implicitWidth + 24
-
-                            Label {
-                                id: modeLabel
-                                anchors.centerIn: parent
-                                text: modelData
-                                color: "#afd4ff"
-                                font.pixelSize: 12
-                                font.bold: true
-                            }
+                            pillText: modelData
+                            pillColor: "#a8d9ff"
                         }
                     }
                 }
@@ -533,176 +743,88 @@ ApplicationWindow {
                 orientation: Qt.Horizontal
 
                 Rectangle {
-                    SplitView.preferredWidth: 270
-                    radius: 26
-                    color: "#101925"
+                    SplitView.preferredWidth: 310
+                    radius: 24
+                    color: "#0f1722"
                     border.width: 1
-                    border.color: "#22354a"
+                    border.color: "#22334a"
 
-                    ColumnLayout {
+                    ScrollView {
                         anchors.fill: parent
-                        anchors.margins: 16
-                        spacing: 14
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            radius: 22
-                            color: "#17263b"
-                            border.width: 1
-                            border.color: "#35527a"
-                            implicitHeight: 150
-
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "#20355a" }
-                                GradientStop { position: 1.0; color: "#151e2a" }
-                            }
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 8
-
-                                Label {
-                                    text: "Plasma Operator Deck"
-                                    color: "#f7fbff"
-                                    font.pixelSize: 20
-                                    font.bold: true
-                                }
-
-                                Label {
-                                    text: "A Qt Quick shell proving Kain can present document, viewport, and devtools lanes inside one polished control surface."
-                                    color: "#b5cee7"
-                                    wrapMode: Text.Wrap
-                                    Layout.fillWidth: true
-                                }
-
-                                Rectangle {
-                                    radius: 14
-                                    color: "#0d1623"
-                                    border.width: 1
-                                    border.color: "#2a4360"
-                                    implicitHeight: 34
-                                    implicitWidth: sessionBadge.implicitWidth + 24
-
-                                    Label {
-                                        id: sessionBadge
-                                        anchors.centerIn: parent
-                                        text: kainSession.mixed_backend_session ? "mixed backend session" : "single backend session"
-                                        color: "#87d0ff"
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-                                }
-                            }
-                        }
+                        anchors.margins: 14
+                        contentWidth: availableWidth
 
                         ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
+                            width: parent.width
+                            spacing: 12
 
-                            Label {
-                                text: "Runtime Summary"
-                                color: "#f4f7ff"
-                                font.pixelSize: 16
-                                font.bold: true
-                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                radius: 20
+                                color: "#142234"
+                                border.width: 1
+                                border.color: "#2a4a68"
+                                implicitHeight: 140
 
-                            Repeater {
-                                model: kainSession.summary_lines
-
-                                delegate: Rectangle {
-                                    required property string modelData
-                                    Layout.fillWidth: true
-                                    radius: 14
-                                    color: "#0d131d"
-                                    border.width: 1
-                                    border.color: "#1f2c3f"
-                                    implicitHeight: lineLabel.implicitHeight + 18
-
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 8
                                     Label {
-                                        id: lineLabel
-                                        anchors.fill: parent
-                                        anchors.margins: 10
-                                        text: modelData
+                                        text: "Plasma Runtime Deck"
+                                        color: "#f5f8ff"
+                                        font.pixelSize: 19
+                                        font.bold: true
+                                    }
+                                    Label {
+                                        text: "Kain owns the semantic UI model. Qt is only the host shell."
+                                        color: "#bdd3e8"
                                         wrapMode: Text.Wrap
-                                        color: "#99afc4"
+                                        Layout.fillWidth: true
+                                    }
+                                    BadgePill {
+                                        pillText: kainSession.mixed_backend_session ? "mixed backend session" : "single backend session"
+                                        pillColor: "#67f0c4"
                                     }
                                 }
                             }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            Repeater {
-                                model: [
-                                    { label: "Docs", count: kainSession.document_panes.length, color: "#60c5ff" },
-                                    { label: "Views", count: kainSession.viewport_panes.length, color: "#67f0c4" },
-                                    { label: "Tools", count: kainSession.devtools_panes.length, color: "#aa8cff" }
-                                ]
-
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    radius: 18
-                                    color: "#0f1824"
-                                    border.width: 1
-                                    border.color: "#25384f"
-                                    implicitHeight: 74
-
-                                    Column {
-                                        anchors.centerIn: parent
-                                        spacing: 4
-
-                                        Label {
-                                            text: modelData.count
-                                            color: modelData.color
-                                            font.pixelSize: 24
-                                            font.bold: true
-                                            horizontalAlignment: Text.AlignHCenter
-                                            width: parent.width
-                                        }
-
-                                        Label {
-                                            text: modelData.label
-                                            color: "#b2c4d8"
-                                            font.pixelSize: 12
-                                            horizontalAlignment: Text.AlignHCenter
-                                            width: parent.width
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Item { Layout.fillHeight: true }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            radius: 18
-                            color: "#0d1420"
-                            border.width: 1
-                            border.color: "#203147"
-                            implicitHeight: 80
 
                             ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 14
-                                spacing: 6
-
+                                Layout.fillWidth: true
+                                spacing: 8
                                 Label {
-                                    text: "Operator Note"
-                                    color: "#f4f7ff"
-                                    font.pixelSize: 14
+                                    text: "Runtime Summary"
+                                    color: "#f5f8ff"
+                                    font.pixelSize: 16
                                     font.bold: true
                                 }
+                                Repeater {
+                                    model: kainSession.summary_lines
+                                    delegate: PaneCard {
+                                        required property string modelData
+                                        paneData: ({
+                                            "title": "summary",
+                                            "summary": modelData,
+                                            "role": "summary",
+                                            "adapter_state_label": modelData,
+                                            "detail_lines": [modelData]
+                                        })
+                                    }
+                                }
+                            }
 
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
                                 Label {
-                                    text: "Viewport and ImGui adapters still route through explicit placeholders, but the shell, routing, metadata, and capture flow are live."
-                                    color: "#9bb1c8"
-                                    wrapMode: Text.Wrap
-                                    Layout.fillWidth: true
+                                    text: "Document Rail"
+                                    color: "#f5f8ff"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                }
+                                Repeater {
+                                    model: kainSession.document_panes
+                                    delegate: PaneCard { paneData: modelData }
                                 }
                             }
                         }
@@ -711,125 +833,94 @@ ApplicationWindow {
 
                 Rectangle {
                     SplitView.fillWidth: true
-                    radius: 28
-                    color: "#0f141d"
+                    radius: 24
+                    color: "#0e151f"
                     border.width: 1
-                    border.color: "#223348"
+                    border.color: "#223349"
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 16
+                        anchors.margins: 14
+                        spacing: 14
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 12
+                            radius: 20
+                            color: "#101928"
+                            border.width: 1
+                            border.color: "#264058"
+                            implicitHeight: 300
 
-                            Label {
-                                text: "Runtime Canvas"
-                                color: "#f7fbff"
-                                font.pixelSize: 22
-                                font.bold: true
-                            }
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 8
 
-                            Item { Layout.fillWidth: true }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Label {
+                                        text: "Viewport"
+                                        color: "#f5f8ff"
+                                        font.pixelSize: 17
+                                        font.bold: true
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    BadgePill {
+                                        pillText: "KAIN 3D PREVIEW"
+                                        pillColor: "#60c5ff"
+                                    }
+                                }
 
-                            Rectangle {
-                                radius: 14
-                                color: "#132030"
-                                border.width: 1
-                                border.color: "#27415d"
-                                implicitHeight: 34
-                                implicitWidth: statusLabel.implicitWidth + 24
-
-                                Label {
-                                    id: statusLabel
-                                    anchors.centerIn: parent
-                                    text: "Qt Quick shell active"
-                                    color: "#78d7ff"
-                                    font.pixelSize: 12
-                                    font.bold: true
+                                Image {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    fillMode: Image.PreserveAspectCrop
+                                    source: root.viewportImagePath.length > 0 ? root.viewportImagePath : ""
+                                    asynchronous: true
+                                    mipmap: true
+                                    cache: true
                                 }
                             }
                         }
 
-                        SplitView {
+                        Rectangle {
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            orientation: Qt.Vertical
+                            radius: 20
+                            color: "#101923"
+                            border.width: 1
+                            border.color: "#2a4a68"
+                            implicitHeight: 290
 
-                            Rectangle {
-                                SplitView.fillHeight: true
-                                radius: 24
-                                color: "#121b28"
-                                border.width: 1
-                                border.color: "#2b415b"
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 8
 
-                                ScrollView {
-                                    anchors.fill: parent
-                                    anchors.margins: 12
-                                    contentWidth: availableWidth
-
-                                    ColumnLayout {
-                                        width: parent.width
-                                        spacing: 12
-
-                                        Label {
-                                            text: "Document Deck"
-                                            color: "#f4f7ff"
-                                            font.pixelSize: 18
-                                            font.bold: true
-                                        }
-
-                                        Repeater {
-                                            model: kainSession.document_panes
-
-                                            delegate: PaneCard {
-                                                paneData: modelData
-                                            }
-                                        }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Label {
+                                        text: "Browser"
+                                        color: "#f5f8ff"
+                                        font.pixelSize: 17
+                                        font.bold: true
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    BadgePill {
+                                        pillText: root.browserReady ? "loaded" : "loading"
+                                        pillColor: "#67f0c4"
                                     }
                                 }
-                            }
 
-                            Rectangle {
-                                SplitView.preferredHeight: 280
-                                radius: 24
-                                color: "#101826"
-                                border.width: 1
-                                border.color: "#25384f"
-
-                                ColumnLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 14
-                                    spacing: 10
-
-                                    RowLayout {
-                                        Layout.fillWidth: true
-
-                                        Label {
-                                            text: "Viewport Stage"
-                                            color: "#f4f7ff"
-                                            font.pixelSize: 18
-                                            font.bold: true
-                                        }
-
-                                        Item { Layout.fillWidth: true }
-
-                                        Label {
-                                            text: "bgfx handoff next"
-                                            color: "#8fdfff"
-                                            font.pixelSize: 12
-                                        }
-                                    }
-
-                                    Repeater {
-                                        model: kainSession.viewport_panes
-
-                                        delegate: PaneCard {
-                                            paneData: modelData
-                                        }
-                                    }
+                                BrowserPane {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    paneData: kainSession.browser_panes.length > 0 ? kainSession.browser_panes[0] : ({
+                                        "title": "Browser",
+                                        "summary": "browser lane",
+                                        "role": "browser",
+                                        "adapter_state_label": "Browser lane placeholder",
+                                        "detail_lines": []
+                                    })
                                 }
                             }
                         }
@@ -837,95 +928,67 @@ ApplicationWindow {
                 }
 
                 Rectangle {
-                    SplitView.preferredWidth: 360
-                    radius: 26
-                    color: "#101722"
+                    SplitView.preferredWidth: 420
+                    radius: 24
+                    color: "#10171f"
                     border.width: 1
-                    border.color: "#203246"
+                    border.color: "#243449"
 
                     ScrollView {
                         anchors.fill: parent
-                        anchors.margins: 16
+                        anchors.margins: 14
                         contentWidth: availableWidth
 
                         ColumnLayout {
                             width: parent.width
                             spacing: 12
 
-                            Label {
-                                text: "Devtools Rail"
-                                color: "#f4f7ff"
-                                font.pixelSize: 18
-                                font.bold: true
-                            }
-
-                            Repeater {
-                                model: kainSession.devtools_panes
-
-                                delegate: PaneCard {
-                                    paneData: modelData
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Label {
+                                    text: "Shader Surface"
+                                    color: "#f5f8ff"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                }
+                                Repeater {
+                                    model: kainSession.shader_panes
+                                    delegate: ShaderPane { paneData: modelData }
                                 }
                             }
 
-                            Label {
-                                visible: kainSession.fallback_panes.length > 0
-                                text: "Staged Adapters"
-                                color: "#f4f7ff"
-                                font.pixelSize: 18
-                                font.bold: true
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Label {
+                                    text: "Devtools"
+                                    color: "#f5f8ff"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                }
+                                Repeater {
+                                    model: kainSession.devtools_panes
+                                    delegate: PaneCard { paneData: modelData }
+                                }
                             }
 
-                            Repeater {
-                                model: kainSession.fallback_panes
-
-                                delegate: PaneCard {
-                                    paneData: modelData
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Label {
+                                    text: "Fallback"
+                                    color: "#f5f8ff"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    visible: kainSession.fallback_panes.length > 0
+                                }
+                                Repeater {
+                                    model: kainSession.fallback_panes
+                                    delegate: PaneCard { paneData: modelData }
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 54
-                radius: 20
-                color: "#101823"
-                border.width: 1
-                border.color: "#223349"
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 12
-
-                    Label {
-                        text: "kain ui runtime"
-                        color: "#f4f7ff"
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
-
-                    Rectangle {
-                        width: 1
-                        Layout.fillHeight: true
-                        color: "#223349"
-                    }
-
-                    Label {
-                        text: "Plasma-style shell with deterministic screenshot capture for the Qt host smoke lane."
-                        color: "#93a9c0"
-                        font.pixelSize: 12
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                    }
-
-                    Label {
-                        text: root.screenshotPath.length > 0 ? "capture armed" : "interactive session"
-                        color: "#80d6ff"
-                        font.pixelSize: 12
-                        font.bold: true
                     }
                 }
             }
@@ -935,6 +998,8 @@ ApplicationWindow {
 "##
     .replace("__KAIN_SESSION_JSON__", &session_json)
     .replace("__KAIN_SCREENSHOT_PATH__", &screenshot_json)
+    .replace("__KAIN_BROWSER_URL__", &browser_url_json)
+    .replace("__KAIN_VIEWPORT_IMAGE_PATH__", &viewport_image_json)
 }
 
 #[cfg(test)]
@@ -957,9 +1022,17 @@ mod tests {
         );
         let manifest =
             build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
-        let qml = render_main_qml(&manifest, None);
-        assert!(qml.contains("Plasma Operator Deck"));
+        let qml = render_main_qml(
+            &manifest,
+            Some(Path::new("/tmp/kain-smoke-shot.png")),
+            Some("file:///tmp/kain-browser.html"),
+            Some("/tmp/kain-viewport.png"),
+        );
+        assert!(qml.contains("Plasma Runtime Deck"));
         assert!(qml.contains("Qt Runtime"));
+        assert!(qml.contains("WebEngineView"));
+        assert!(qml.contains("FastBlur"));
+        assert!(qml.contains("KAIN 3D PREVIEW"));
     }
 
     #[test]

@@ -3108,6 +3108,30 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             match obj_val {
                 // Struct methods: StructName_method(obj, args)
                 Value::Struct(ref name, _) | Value::Future(ref name, _) => {
+                    if name == "Map" {
+                        match method.as_str() {
+                            "iter" => {
+                                if !arg_vals.is_empty() {
+                                    return Err(KainError::runtime("Map.iter expects no arguments"));
+                                }
+                                if let Value::Struct(_, fields) = &obj_val {
+                                    let items = fields
+                                        .read()
+                                        .unwrap()
+                                        .iter()
+                                        .map(|(key, value)| {
+                                            Value::Tuple(vec![
+                                                Value::String(key.clone()),
+                                                value.clone(),
+                                            ])
+                                        })
+                                        .collect();
+                                    return Ok(runtime_array_value(items));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                     let func_name = format!("{}_{}", name, method);
 
                     if let Some(func) = env.functions.get(&func_name).cloned() {
@@ -3225,6 +3249,18 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         }
                         Ok(Value::None)
                     }
+                    "take" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Option.take expects no arguments"));
+                        }
+                        Ok(Value::None)
+                    }
+                    "filter" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Option.filter expects 1 argument"));
+                        }
+                        Ok(Value::None)
+                    }
                     "or" | "or_" => {
                         if arg_vals.len() != 1 {
                             return Err(KainError::runtime("Option.or expects 1 argument"));
@@ -3247,6 +3283,34 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                 )));
                             }
                             Ok(obj_val)
+                        }
+                        "take" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("Option.take expects no arguments"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                eval_assignment(env, receiver, Value::None)?;
+                                Ok(obj_val)
+                            } else {
+                                Ok(Value::None)
+                            }
+                        }
+                        "filter" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.filter expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                match call_function(env, arg_vals[0].clone(), vec![fields[0].clone()])? {
+                                    Value::Bool(true) => Ok(obj_val),
+                                    Value::Bool(false) => Ok(Value::None),
+                                    other => Err(KainError::runtime(format!(
+                                        "Option.filter predicate must return Bool, found {}",
+                                        runtime_value_kind(&other)
+                                    ))),
+                                }
+                            } else {
+                                Ok(Value::None)
+                            }
                         }
                         "or" | "or_" => {
                             if arg_vals.len() != 1 {
@@ -3901,6 +3965,29 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         .get(field)
                         .cloned()
                         .ok_or_else(|| KainError::runtime(format!("Field not found: {}", field)))
+                }
+                Value::Tuple(items) => {
+                    let index = match field.as_str() {
+                        "x" | "r" => 0,
+                        "y" | "g" => 1,
+                        "z" | "b" => 2,
+                        "w" | "a" => 3,
+                        _ => match field.strip_prefix("__kain_tuple_") {
+                            Some(index) => index.parse::<usize>().map_err(|_| {
+                                KainError::runtime(format!(
+                                    "Field access on tuple uses unknown field {field}"
+                                ))
+                            })?,
+                            None => {
+                                return Err(KainError::runtime(format!(
+                                    "Field access on tuple uses unknown field {field}"
+                                )))
+                            }
+                        },
+                    };
+                    items.get(index).cloned().ok_or_else(|| {
+                        KainError::runtime(format!("Tuple field not found: {}", field))
+                    })
                 }
                 Value::ActorRef(r) => {
                     // Check if it's the current actor (self)
@@ -5842,6 +5929,86 @@ mod tests {
             }
             other => panic!("expected Some(true), found {other:?}"),
         }
+    }
+
+    #[test]
+    fn eval_option_filter_drops_some_when_predicate_is_false() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::MethodCall {
+            receiver: Box::new(Expr::EnumVariant {
+                enum_name: "Option".to_string(),
+                variant: "Some".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::Bool(true, span)]),
+                span,
+            }),
+            method: "filter".to_string(),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Lambda {
+                    params: vec![Param {
+                        name: "value".to_string(),
+                        ty: Type::Infer(span),
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    body: Box::new(Expr::Bool(false, span)),
+                    span,
+                },
+                span,
+            }],
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("Option.filter should evaluate");
+        assert!(matches!(value, Value::None));
+    }
+
+    #[test]
+    fn eval_option_take_clears_some_value_and_returns_previous_option() {
+        let span = Span::default();
+        let mut env = Env::new();
+        env.define(
+            "bit_pack".to_string(),
+            Value::EnumVariant(
+                "Option".to_string(),
+                "Some".to_string(),
+                vec![Value::String("pack".to_string())],
+            ),
+        );
+        let expr = Expr::MethodCall {
+            receiver: Box::new(Expr::Ident("bit_pack".to_string(), span)),
+            method: "take".to_string(),
+            args: vec![],
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("Option.take should evaluate");
+        assert!(matches!(
+            value,
+            Value::EnumVariant(enum_name, variant, fields)
+                if enum_name == "Option" && variant == "Some" && fields.len() == 1
+        ));
+        assert!(matches!(env.lookup_value("bit_pack"), Some(Value::None)));
+    }
+
+    #[test]
+    fn eval_imported_synthetic_tuple_field_access() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::Field {
+            object: Box::new(Expr::Tuple(
+                vec![Expr::String("left".to_string(), span), Expr::Bool(true, span)],
+                span,
+            )),
+            field: "__kain_tuple_1".to_string(),
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("synthetic tuple field should evaluate");
+        assert!(matches!(value, Value::Bool(true)));
     }
 
     #[test]

@@ -701,6 +701,18 @@ fn register_selfhost_collection_methods(env: &mut TypeEnv<'_>) {
     );
     env.define_method(
         "Map".to_string(),
+        "iter".to_string(),
+        ResolvedType::Function {
+            params: vec![shared_ref_type(selfhost_map_type())],
+            ret: Box::new(dynamic_array_type(ResolvedType::Tuple(vec![
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ]))),
+            effects: EffectSet::new(),
+        },
+    );
+    env.define_method(
+        "Map".to_string(),
         "insert".to_string(),
         ResolvedType::Function {
             params: vec![map_receiver.clone(), ResolvedType::Unknown, ResolvedType::Unknown],
@@ -3058,13 +3070,19 @@ fn infer_expr_type_with_expected(
             )?;
         }
 
+        let resolved_ret = if matches!(annotated_ret, ResolvedType::Unknown) {
+            if matches!(expected_ret.as_ref(), ResolvedType::Unknown) {
+                body_ty.clone()
+            } else {
+                expected_ret.as_ref().clone()
+            }
+        } else {
+            annotated_ret
+        };
+
         return Ok(ResolvedType::Function {
             params: param_types,
-            ret: Box::new(if matches!(annotated_ret, ResolvedType::Unknown) {
-                expected_ret.as_ref().clone()
-            } else {
-                annotated_ret
-            }),
+            ret: Box::new(resolved_ret),
             effects: EffectSet::new(),
         });
     }
@@ -4171,6 +4189,12 @@ fn infer_method_call_type(
                     span,
                 ));
             }
+            if matches!(inner.as_ref(), ResolvedType::Option(_)) && method == "take" && !*mutable {
+                return Err(env.type_error(
+                    "Option.take requires a mutable receiver".to_string(),
+                    span,
+                ));
+            }
             if let ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) = inner.as_ref() {
                 return infer_named_method_call_type(
                     env,
@@ -4510,6 +4534,13 @@ fn infer_method_call_type(
                 span,
                 |mapped| ResolvedType::Option(Box::new(mapped)),
             ),
+            "take" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Option(inner.clone()))
+                } else {
+                    Err(env.type_error("Option.take expects no arguments", span))
+                }
+            }
             "unwrap_or" => {
                 if args.len() != 1 {
                     return Err(env.type_error("Option.unwrap_or expects exactly one argument", span));
@@ -4527,6 +4558,9 @@ fn infer_method_call_type(
             }
             "and_then" => {
                 infer_builtin_option_chain_method(env, ctx, inner.as_ref(), args, span)
+            }
+            "filter" => {
+                infer_builtin_option_filter_method(env, ctx, inner.as_ref(), args, span)
             }
             "or_else" => infer_builtin_nullary_callback_method(
                 env,
@@ -5110,6 +5144,7 @@ fn infer_builtin_collect_method(
         ResolvedType::Option(inner) => Ok(ResolvedType::Option(Box::new(dynamic_array_type(
             inner.as_ref().clone(),
         )))),
+        ResolvedType::Tuple(items) if items.len() == 2 => Ok(selfhost_map_type()),
         other => Ok(dynamic_array_type(other.clone())),
     }
 }
@@ -5531,6 +5566,25 @@ fn infer_builtin_option_chain_method(
     ensure_option_return_type(mapped, input_ty)
 }
 
+fn infer_builtin_option_filter_method(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    input_ty: &ResolvedType,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<ResolvedType> {
+    let predicate =
+        infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, "Option.filter")?;
+    ensure_type_compatible(
+        env,
+        &ResolvedType::Bool,
+        &predicate,
+        span,
+        "Option.filter predicate",
+    )?;
+    Ok(ResolvedType::Option(Box::new(input_ty.clone())))
+}
+
 fn infer_macro_type(
     env: &mut TypeEnv,
     name: &str,
@@ -5752,11 +5806,19 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
             Ok(())
         }
         Pattern::Tuple(patterns, _) => {
-            if let ResolvedType::Tuple(items) = pattern_match_subject_type(ty) {
-                for (pattern, item_ty) in patterns.iter().zip(items.iter()) {
-                    let bound_ty = borrowed_pattern_binding_type(ty, item_ty);
-                    bind_pattern_types(env, pattern, &bound_ty)?;
+            match pattern_match_subject_type(ty) {
+                ResolvedType::Tuple(items) => {
+                    for (pattern, item_ty) in patterns.iter().zip(items.iter()) {
+                        let bound_ty = borrowed_pattern_binding_type(ty, item_ty);
+                        bind_pattern_types(env, pattern, &bound_ty)?;
+                    }
                 }
+                ResolvedType::Unknown => {
+                    for pattern in patterns {
+                        bind_pattern_types(env, pattern, &ResolvedType::Unknown)?;
+                    }
+                }
+                _ => {}
             }
             Ok(())
         }
@@ -5805,6 +5867,20 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
                                     bind_pattern_types(env, pattern, &bound_ty)?;
                                 }
                             }
+                        }
+                    }
+                    VariantPatternFields::Unit => {}
+                }
+            } else if matches!(match_ty, ResolvedType::Unknown) {
+                match fields {
+                    VariantPatternFields::Tuple(patterns) => {
+                        for pattern in patterns {
+                            bind_pattern_types(env, pattern, &ResolvedType::Unknown)?;
+                        }
+                    }
+                    VariantPatternFields::Struct(patterns) => {
+                        for (_, pattern) in patterns {
+                            bind_pattern_types(env, pattern, &ResolvedType::Unknown)?;
                         }
                     }
                     VariantPatternFields::Unit => {}
@@ -6223,7 +6299,17 @@ fn tuple_field_type(
         "y" | "g" => 1,
         "z" | "b" => 2,
         "w" | "a" => 3,
-        _ => return Err(env.type_error(format!("Unknown tuple/vector field '{}'", field), span)),
+        _ => match field.strip_prefix("__kain_tuple_") {
+            Some(index) => index
+                .parse::<usize>()
+                .map_err(|_| env.type_error(format!("Unknown tuple/vector field '{}'", field), span))?,
+            None => {
+                return Err(env.type_error(
+                    format!("Unknown tuple/vector field '{}'", field),
+                    span,
+                ))
+            }
+        },
     };
     items.get(index).cloned().ok_or_else(|| {
         env.type_error(
@@ -7124,6 +7210,77 @@ mod tests {
     }
 
     #[test]
+    fn typecheck_supports_imported_synthetic_tuple_field_access() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        env.define(
+            "pair".to_string(),
+            ResolvedType::Tuple(vec![ResolvedType::String, ResolvedType::Bool]),
+        );
+
+        let field_ty = infer_expr_type(
+            &mut env,
+            &Expr::Field {
+                object: Box::new(Expr::Ident("pair".to_string(), span)),
+                field: "__kain_tuple_1".to_string(),
+                span,
+            },
+            None,
+        )
+        .expect("synthetic tuple field access should resolve to the indexed item");
+        assert_eq!(field_ty, ResolvedType::Bool);
+    }
+
+    #[test]
+    fn typecheck_binds_tuple_pattern_names_even_when_tuple_type_is_unknown() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let pattern = Pattern::Tuple(
+            vec![
+                Pattern::Binding {
+                    name: "left".to_string(),
+                    mutable: false,
+                    span,
+                },
+                Pattern::Binding {
+                    name: "right".to_string(),
+                    mutable: false,
+                    span,
+                },
+            ],
+            span,
+        );
+
+        bind_pattern_types(&mut env, &pattern, &ResolvedType::Unknown)
+            .expect("unknown tuple bindings should still introduce names");
+        assert_eq!(env.lookup("left"), Some(&ResolvedType::Unknown));
+        assert_eq!(env.lookup("right"), Some(&ResolvedType::Unknown));
+    }
+
+    #[test]
+    fn typecheck_binds_variant_payload_names_even_when_variant_type_is_unknown() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let pattern = Pattern::Variant {
+            enum_name: None,
+            variant: "Some".to_string(),
+            fields: VariantPatternFields::Tuple(vec![Pattern::Binding {
+                name: "width".to_string(),
+                mutable: false,
+                span,
+            }]),
+            span,
+        };
+
+        bind_pattern_types(&mut env, &pattern, &ResolvedType::Unknown)
+            .expect("unknown variant payloads should still introduce names");
+        assert_eq!(env.lookup("width"), Some(&ResolvedType::Unknown));
+    }
+
+    #[test]
     fn typecheck_binds_struct_variant_fields_by_name_under_borrow() {
         let span = Span::default();
         let program = Program {
@@ -7960,6 +8117,23 @@ mod tests {
     }
 
     #[test]
+    fn typecheck_collects_sequence_of_pairs_into_map() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let mapped_ty = ResolvedType::Array(
+            Box::new(ResolvedType::Tuple(vec![
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ])),
+            0,
+        );
+        let collected = infer_method_call_type(&mut env, None, &mapped_ty, "collect", &[], span)
+            .expect("collect should fold tuple pairs into a Map");
+        assert_eq!(collected, selfhost_map_type());
+    }
+
+    #[test]
     fn typecheck_supports_option_and_result_expectation_helpers() {
         let span = Span::default();
         let span_mapper = SpanMapper::new("");
@@ -8068,6 +8242,38 @@ mod tests {
         )
         .expect("Option.copied should typecheck");
         assert_eq!(copied_option, ResolvedType::Option(Box::new(ResolvedType::Bool)));
+
+        let filtered_option = infer_method_call_type(
+            &mut env,
+            None,
+            &option_ty,
+            "filter",
+            &[CallArg {
+                name: None,
+                value: Expr::Lambda {
+                    params: vec![Param {
+                        name: "value".to_string(),
+                        ty: Type::Infer(span),
+                        mutable: false,
+                        default: None,
+                        span,
+                    }],
+                    return_type: None,
+                    body: Box::new(Expr::Bool(true, span)),
+                    span,
+                },
+                span,
+            }],
+            span,
+        )
+        .expect("Option.filter should keep the option shape");
+        assert_eq!(filtered_option, option_ty);
+
+        let taken_option =
+            infer_method_call_type(&mut env, None, &option_ty, "take", &[], span).expect(
+                "Option.take should keep the option shape",
+            );
+        assert_eq!(taken_option, option_ty);
 
         let result_ty = ResolvedType::Result(
             Box::new(ResolvedType::String),
@@ -8615,6 +8821,23 @@ fn describe(kind: lexer::TokenKind) -> String:
         assert_eq!(
             map_get_ty,
             ResolvedType::Option(Box::new(ResolvedType::Unknown))
+        );
+
+        let map_iter_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &selfhost_map_type(),
+            "iter",
+            &[],
+            span,
+        )
+        .expect("Map.iter should typecheck");
+        assert_eq!(
+            map_iter_ty,
+            ResolvedType::Array(
+                Box::new(ResolvedType::Tuple(vec![ResolvedType::String, ResolvedType::Unknown])),
+                0
+            )
         );
 
         let set_contains_ty = infer_method_call_type(

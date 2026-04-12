@@ -7,7 +7,12 @@ ARTIFACT_DIR="$OUTPUT_DIR/generated"
 SCREENSHOT_PATH="$OUTPUT_DIR/qt_plasma_runtime_lounge.png"
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$SCREENSHOT_PATH" "$ARTIFACT_DIR/Main.qml" "$ARTIFACT_DIR/session.json"
+rm -f \
+    "$SCREENSHOT_PATH" \
+    "$ARTIFACT_DIR/Main.qml" \
+    "$ARTIFACT_DIR/session.json" \
+    "$ARTIFACT_DIR/browser_surface.html" \
+    "$ARTIFACT_DIR/viewport_preview.png"
 
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 export QT_QUICK_BACKEND="${QT_QUICK_BACKEND:-software}"

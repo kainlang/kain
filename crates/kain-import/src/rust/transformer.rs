@@ -686,6 +686,61 @@ impl RustTransformer {
         }
     }
 
+    fn lower_option_as_ref_call(&mut self, receiver: Expr, receiver_ty: Option<Type>) -> Expr {
+        match receiver_ty {
+            Some(Type::Ref { inner, .. }) if matches!(inner.as_ref(), Type::Option(_, _)) => {
+                self.lower_option_as_ref_match(Expr::Deref(Box::new(receiver), S))
+            }
+            Some(Type::Option(_, _)) => self.lower_option_as_ref_match(receiver),
+            _ => self.lower_borrow_adapter_call(receiver, receiver_ty),
+        }
+    }
+
+    fn lower_option_as_ref_match(&self, scrutinee: Expr) -> Expr {
+        let binding_name = "__kain_option_as_ref_value".to_string();
+        Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms: vec![
+                MatchArm {
+                    pattern: Pattern::Variant {
+                        enum_name: Some("Option".to_string()),
+                        variant: "Some".to_string(),
+                        fields: VariantPatternFields::Tuple(vec![Pattern::Binding {
+                            name: binding_name.clone(),
+                            mutable: false,
+                            span: S,
+                        }]),
+                        span: S,
+                    },
+                    guard: None,
+                    body: Expr::EnumVariant {
+                        enum_name: "Option".to_string(),
+                        variant: "Some".to_string(),
+                        fields: EnumVariantFields::Tuple(vec![Expr::Ref {
+                            mutable: false,
+                            value: Box::new(Expr::Ident(binding_name, S)),
+                            span: S,
+                        }]),
+                        span: S,
+                    },
+                    span: S,
+                },
+                MatchArm {
+                    pattern: Pattern::Variant {
+                        enum_name: Some("Option".to_string()),
+                        variant: "None".to_string(),
+                        fields: VariantPatternFields::Unit,
+                        span: S,
+                    },
+                    guard: None,
+                    body: Expr::None(S),
+                    span: S,
+                },
+            ],
+            span: S,
+        }
+    }
+
     fn resolved_path_segments(&self, path: &syn::Path) -> Vec<String> {
         self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path))
     }
@@ -2443,11 +2498,11 @@ impl RustTransformer {
                 let receiver = self.transform_expr(&m.receiver)?;
                 let receiver = self.peel_expr_wrapper(receiver);
                 let method_name = m.method.to_string();
+                if m.args.is_empty() && method_name == "as_ref" {
+                    return Ok(self.lower_option_as_ref_call(receiver, receiver_ty));
+                }
                 if m.args.is_empty()
-                    && matches!(
-                        method_name.as_str(),
-                        "as_ref" | "as_mut" | "as_deref" | "as_deref_mut"
-                    )
+                    && matches!(method_name.as_str(), "as_mut" | "as_deref" | "as_deref_mut")
                 {
                     return Ok(self.lower_borrow_adapter_call(receiver, receiver_ty));
                 }
@@ -5936,6 +5991,62 @@ mod tests {
             Expr::Deref(inner, _)
                 if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "item")
         ));
+    }
+
+    #[test]
+    fn lowers_option_as_ref_calls_to_option_match() {
+        let program = transform_source(
+            r#"
+            fn inspect(item: &Option<i32>) {
+                let value = item.as_ref();
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Let { value, .. } = &function.body.stmts[0] else {
+            panic!("expected let statement");
+        };
+        let Some(value) = value else {
+            panic!("expected lowered option value");
+        };
+        let Expr::Match { scrutinee, arms, .. } = value else {
+            panic!("expected option-as-ref match expression");
+        };
+        assert_eq!(arms.len(), 2);
+        assert!(matches!(
+            scrutinee.as_ref(),
+            Expr::Deref(inner, _) if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "item")
+        ));
+        assert!(matches!(
+            &arms[0].pattern,
+            Pattern::Variant {
+                enum_name: Some(enum_name),
+                variant,
+                fields: VariantPatternFields::Tuple(patterns),
+                ..
+            } if enum_name == "Option"
+                && variant == "Some"
+                && matches!(patterns.as_slice(), [Pattern::Binding { .. }])
+        ));
+        let Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields: EnumVariantFields::Tuple(values),
+            ..
+        } = &arms[0].body
+        else {
+            panic!("expected Some arm to rebuild Option");
+        };
+        assert_eq!(enum_name, "Option");
+        assert_eq!(variant, "Some");
+        let [Expr::Ref { value, .. }] = values.as_slice() else {
+            panic!("expected single reference value in Some arm");
+        };
+        assert!(matches!(value.as_ref(), Expr::Ident(_, _)));
+        assert!(matches!(&arms[1].body, Expr::None(_)));
     }
 
     #[test]

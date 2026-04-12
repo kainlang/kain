@@ -578,7 +578,10 @@ fn extract_compute_metadata_from_comptime_block(
 }
 
 fn is_compute_plan_binding(name: &str) -> bool {
-    COMPUTE_PLAN_BINDING_NAMES.contains(&name)
+    match name {
+        "compute" | "compute_plan" => true,
+        _ => false,
+    }
 }
 
 fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMetadataError> {

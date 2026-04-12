@@ -24,6 +24,8 @@ pub struct QtQuickSessionManifest {
     pub summary_lines: Vec<String>,
     pub document_panes: Vec<QtQuickPane>,
     pub viewport_panes: Vec<QtQuickPane>,
+    pub browser_panes: Vec<QtQuickPane>,
+    pub shader_panes: Vec<QtQuickPane>,
     pub devtools_panes: Vec<QtQuickPane>,
     pub fallback_panes: Vec<QtQuickPane>,
 }
@@ -43,6 +45,8 @@ pub struct QtQuickPane {
 enum SessionPaneRole {
     Document,
     Viewport,
+    Browser,
+    Shader,
     Devtools,
     Fallback,
 }
@@ -53,6 +57,8 @@ pub fn build_qt_quick_session_manifest(
 ) -> QtQuickSessionManifest {
     let mut document_panes = Vec::new();
     let mut viewport_panes = Vec::new();
+    let mut browser_panes = Vec::new();
+    let mut shader_panes = Vec::new();
     let mut devtools_panes = Vec::new();
     let mut fallback_panes = Vec::new();
 
@@ -61,6 +67,8 @@ pub fn build_qt_quick_session_manifest(
         match classify_surface_role(surface) {
             SessionPaneRole::Document => document_panes.push(pane),
             SessionPaneRole::Viewport => viewport_panes.push(pane),
+            SessionPaneRole::Browser => browser_panes.push(pane),
+            SessionPaneRole::Shader => shader_panes.push(pane),
             SessionPaneRole::Devtools => devtools_panes.push(pane),
             SessionPaneRole::Fallback => fallback_panes.push(pane),
         }
@@ -81,6 +89,24 @@ pub fn build_qt_quick_session_manifest(
             "Viewport Surface",
             "No viewport-class surfaces were emitted by this bundle.",
             "qt-viewport-slot",
+        ));
+    }
+
+    if browser_panes.is_empty() {
+        browser_panes.push(placeholder_pane(
+            "browser-placeholder",
+            "Browser Surface",
+            "No browser-class surfaces were emitted by this bundle.",
+            "qt-webengine-slot",
+        ));
+    }
+
+    if shader_panes.is_empty() {
+        shader_panes.push(placeholder_pane(
+            "shader-placeholder",
+            "Shader Surface",
+            "No shader-backed surfaces were emitted by this bundle.",
+            "qt-shader-effect-slot",
         ));
     }
 
@@ -107,9 +133,11 @@ pub fn build_qt_quick_session_manifest(
             backend_plan.mixed_backend_session,
         ),
         format!(
-            "document_panes={} viewport_panes={} devtools_panes={} fallback_panes={}",
+            "document_panes={} viewport_panes={} browser_panes={} shader_panes={} devtools_panes={} fallback_panes={}",
             document_panes.len(),
             viewport_panes.len(),
+            browser_panes.len(),
+            shader_panes.len(),
             devtools_panes.len(),
             fallback_panes.len(),
         ),
@@ -133,6 +161,8 @@ pub fn build_qt_quick_session_manifest(
         summary_lines,
         document_panes,
         viewport_panes,
+        browser_panes,
+        shader_panes,
         devtools_panes,
         fallback_panes,
     }
@@ -190,12 +220,24 @@ fn placeholder_pane(id: &str, title: &str, summary: &str, adapter_state: &str) -
 }
 
 fn classify_surface_role(surface: &UiSurface) -> SessionPaneRole {
+    if surface.shader.is_some()
+        || surface.composition_mode == UiSurfaceCompositionMode::ShaderCanvas
+    {
+        return SessionPaneRole::Shader;
+    }
+
     if matches!(
         surface.kind,
         UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D
     ) || surface.composition_mode == UiSurfaceCompositionMode::Viewport
     {
         return SessionPaneRole::Viewport;
+    }
+
+    if surface.preferred_host_backend == UiHostBackendKind::Cef
+        || matches!(surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
+    {
+        return SessionPaneRole::Browser;
     }
 
     if surface.preferred_host_backend == UiHostBackendKind::Imgui
@@ -218,6 +260,8 @@ fn role_label(role: SessionPaneRole) -> &'static str {
     match role {
         SessionPaneRole::Document => "document",
         SessionPaneRole::Viewport => "viewport",
+        SessionPaneRole::Browser => "browser",
+        SessionPaneRole::Shader => "shader",
         SessionPaneRole::Devtools => "devtools",
         SessionPaneRole::Fallback => "fallback",
     }
@@ -232,7 +276,9 @@ fn adapter_state_for_surface(surface: &UiSurface, role: SessionPaneRole) -> &'st
                 "qt-qml-adapter-pending"
             }
         }
-        SessionPaneRole::Viewport => "bgfx-viewport-handoff-pending",
+        SessionPaneRole::Viewport => "kain-3d-preview-pending",
+        SessionPaneRole::Browser => "qt-webengine-backed",
+        SessionPaneRole::Shader => "qt-graphical-effects-backed",
         SessionPaneRole::Devtools => "imgui-devtools-handoff-pending",
         SessionPaneRole::Fallback => "staged-backend-placeholder",
     }
@@ -248,10 +294,20 @@ fn adapter_summary_for_surface(surface: &UiSurface, role: SessionPaneRole) -> &'
             }
         }
         SessionPaneRole::Viewport => {
-            "Viewport slot is reserved inside the Qt session; in-process bgfx embedding is the next adapter cut."
+            if surface.preferred_render_engine == UiRenderEngineKind::Wgpu {
+                "Kain 3D software preview is embedded in the Qt session; the native bgfx handoff remains the next adapter cut."
+            } else {
+                "Viewport slot is reserved inside the Qt session; in-process bgfx embedding is the next adapter cut."
+            }
+        }
+        SessionPaneRole::Browser => {
+            "Qt WebEngine is presenting a live browser panel inside the workstation shell."
+        }
+        SessionPaneRole::Shader => {
+            "Qt GraphicalEffects is rendering a real shader-backed surface inside the shell."
         }
         SessionPaneRole::Devtools => {
-            "Devtools lane is represented in the Qt session, but the ImGui pane bridge is still pending."
+            "Devtools rail is represented in the Qt session, but the ImGui pane bridge is still pending."
         }
         SessionPaneRole::Fallback => {
             "Requested backend remains staged, so the Qt host renders a deliberate placeholder instead of failing startup."
@@ -330,8 +386,8 @@ mod tests {
     use crate::no_egui::KainUiNativeBackendPlan;
     use kain_ui::{
         ui_runtime_bundle_from_output, UiBuildOutput, UiHostBackendKind, UiNodeId,
-        UiRuntimeMetadata, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
-        UiSurfaceRendererPreference, UiRuntimeSystems,
+        UiRuntimeMetadata, UiRuntimeSystems, UiSurface, UiSurfaceCompositionMode,
+        UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding,
     };
 
     #[test]
@@ -376,15 +432,59 @@ mod tests {
                         },
                         UiSurface {
                             id: "document.inspector".to_string(),
-                            kind: UiSurfaceKind::Tree,
+                            kind: UiSurfaceKind::Table,
                             node: UiNodeId(3),
                             title: Some("Inspector".to_string()),
-                            renderer_preference: UiSurfaceRendererPreference::Native,
+                            renderer_preference: UiSurfaceRendererPreference::Dom,
                             composition_mode: UiSurfaceCompositionMode::Host,
+                            preferred_host_backend: UiHostBackendKind::RmlUi,
+                            preferred_layout_engine: Default::default(),
+                            preferred_render_engine: UiRenderEngineKind::Skia,
+                            gpu_backing_required: false,
+                            shader: None,
+                        },
+                        UiSurface {
+                            id: "browser.panel".to_string(),
+                            kind: UiSurfaceKind::Custom("browser_panel".to_string()),
+                            node: UiNodeId(4),
+                            title: Some("Browser".to_string()),
+                            renderer_preference: UiSurfaceRendererPreference::Dom,
+                            composition_mode: UiSurfaceCompositionMode::Host,
+                            preferred_host_backend: UiHostBackendKind::Cef,
+                            preferred_layout_engine: Default::default(),
+                            preferred_render_engine: UiRenderEngineKind::Browser,
+                            gpu_backing_required: false,
+                            shader: None,
+                        },
+                        UiSurface {
+                            id: "shader.canvas".to_string(),
+                            kind: UiSurfaceKind::Canvas,
+                            node: UiNodeId(5),
+                            title: Some("Shader Canvas".to_string()),
+                            renderer_preference: UiSurfaceRendererPreference::Shader,
+                            composition_mode: UiSurfaceCompositionMode::ShaderCanvas,
                             preferred_host_backend: UiHostBackendKind::Qt,
                             preferred_layout_engine: Default::default(),
-                            preferred_render_engine: UiRenderEngineKind::Native,
-                            gpu_backing_required: false,
+                            preferred_render_engine: UiRenderEngineKind::Shader,
+                            gpu_backing_required: true,
+                            shader: Some(UiSurfaceShaderBinding {
+                                shader_ref: "kain://shader/plasma-glow".to_string(),
+                                entry_point: Some("main".to_string()),
+                                stage: Some("fragment".to_string()),
+                                derived_format: Some("rgba8unorm".to_string()),
+                            }),
+                        },
+                        UiSurface {
+                            id: "devtools.timeline".to_string(),
+                            kind: UiSurfaceKind::Timeline,
+                            node: UiNodeId(6),
+                            title: Some("Timeline".to_string()),
+                            renderer_preference: UiSurfaceRendererPreference::Native,
+                            composition_mode: UiSurfaceCompositionMode::LayeredGpu,
+                            preferred_host_backend: UiHostBackendKind::Imgui,
+                            preferred_layout_engine: Default::default(),
+                            preferred_render_engine: UiRenderEngineKind::Wgpu,
+                            gpu_backing_required: true,
                             shader: None,
                         },
                     ],
@@ -398,7 +498,9 @@ mod tests {
 
         assert_eq!(manifest.document_panes.len(), 1);
         assert_eq!(manifest.viewport_panes.len(), 1);
-        assert_eq!(manifest.devtools_panes.len(), 1);
+        assert_eq!(manifest.browser_panes.len(), 1);
+        assert_eq!(manifest.shader_panes.len(), 1);
+        assert_eq!(manifest.devtools_panes.len(), 2);
         assert_eq!(manifest.fallback_panes.len(), 0);
     }
 
@@ -417,7 +519,11 @@ mod tests {
 
         assert_eq!(manifest.document_panes.len(), 1);
         assert_eq!(manifest.viewport_panes.len(), 1);
+        assert_eq!(manifest.browser_panes.len(), 1);
+        assert_eq!(manifest.shader_panes.len(), 1);
         assert_eq!(manifest.devtools_panes.len(), 1);
         assert_eq!(manifest.document_panes[0].role, "placeholder");
+        assert_eq!(manifest.browser_panes[0].role, "placeholder");
+        assert_eq!(manifest.shader_panes[0].role, "placeholder");
     }
 }

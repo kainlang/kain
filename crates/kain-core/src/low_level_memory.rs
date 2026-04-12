@@ -59,12 +59,21 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
             TypedItem::Struct(st) => {
                 let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
                 let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR);
-                let pack_align = attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR)
-                    .map(|bits| bits.div_ceil(8))
-                    .filter(|align| *align > 0);
-                let explicit_type_align = attr_usize_arg(&st.ast.attributes, C_TYPE_ALIGN_ATTR)
-                    .map(|bits| bits.div_ceil(8))
-                    .filter(|align| *align > 0);
+                let pack_align = match attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR) {
+                    Some(bits) => {
+                        let align = bits.div_ceil(8);
+                        if align > 0 { Some(align) } else { None }
+                    }
+                    None => None,
+                };
+                let explicit_type_align =
+                    match attr_usize_arg(&st.ast.attributes, C_TYPE_ALIGN_ATTR) {
+                        Some(bits) => {
+                            let align = bits.div_ceil(8);
+                            if align > 0 { Some(align) } else { None }
+                        }
+                        None => None,
+                    };
                 let mut offset = 0usize;
                 let mut max_field_size = 0usize;
                 let mut max_align = 1usize;
@@ -216,9 +225,15 @@ impl LayoutRegistry {
                 "Float" => self.abi.double_bits.div_ceil(8),
                 other => self.structs.get(other).map(|info| info.size).unwrap_or(8),
             },
-            Type::Array(inner, size, _) => self.type_size_fallback(inner) * size,
+            Type::Array(inner, size, _) => self.type_size_fallback(inner) * *size,
             Type::Slice(_, _) => 16,
-            Type::Tuple(types, _) => types.iter().map(|ty| self.type_size_fallback(ty)).sum(),
+            Type::Tuple(types, _) => {
+                let mut total = 0usize;
+                for ty in types {
+                    total += self.type_size_fallback(ty);
+                }
+                total
+            }
             Type::Ref { .. } | Type::Ptr { .. } => 8,
             Type::Option(inner, _) => self.type_size_fallback(inner),
             Type::Result(ok, err, _) => self
@@ -346,17 +361,18 @@ pub fn lower_typed_program_memory_for_target(
     program: &TypedProgram,
     target: CompileTarget,
 ) -> KainResult<TypedProgram> {
-    if !matches!(
-        target,
+    let supported = match target {
         CompileTarget::Ts
-            | CompileTarget::Js
-            | CompileTarget::Wasm
-            | CompileTarget::Llvm
-            | CompileTarget::Cpp
-            | CompileTarget::Rust
-            | CompileTarget::Ue5
-            | CompileTarget::Ue5Editor
-    ) {
+        | CompileTarget::Js
+        | CompileTarget::Wasm
+        | CompileTarget::Llvm
+        | CompileTarget::Cpp
+        | CompileTarget::Rust
+        | CompileTarget::Ue5
+        | CompileTarget::Ue5Editor => true,
+        _ => false,
+    };
+    if !supported {
         return Ok(program.clone());
     }
     let layouts = LayoutRegistry::build_with_abi(&program.items, c_abi_policy_for_target(target));
@@ -512,35 +528,7 @@ fn lower_typed_item_memory(
                 .collect(),
         }),
         TypedItem::Enum(enum_item) => TypedItem::Enum(TypedEnum {
-            ast: Enum {
-                variants: enum_item
-                    .ast
-                    .variants
-                    .iter()
-                    .map(|variant| Variant {
-                        fields: match &variant.fields {
-                            VariantFields::Unit => VariantFields::Unit,
-                            VariantFields::Tuple(types) => {
-                                VariantFields::Tuple(types.iter().map(lower_type_memory).collect())
-                            }
-                            VariantFields::Struct(fields) => VariantFields::Struct(
-                                fields
-                                    .iter()
-                                    .map(|field| Field {
-                                        ty: lower_type_memory(&field.ty),
-                                        default: field.default.as_ref().map(|expr| {
-                                            lower_free_expr_memory(expr, target, layouts)
-                                        }),
-                                        ..field.clone()
-                                    })
-                                    .collect(),
-                            ),
-                        },
-                        ..variant.clone()
-                    })
-                    .collect(),
-                ..enum_item.ast.clone()
-            },
+            ast: lower_enum_memory(&enum_item.ast, target, layouts),
             variant_payload_types: enum_item
                 .variant_payload_types
                 .iter()
@@ -553,6 +541,39 @@ fn lower_typed_item_memory(
                 .collect(),
         }),
         _ => item.clone(),
+    }
+}
+
+fn lower_enum_memory(enum_ast: &Enum, target: CompileTarget, layouts: &LayoutRegistry) -> Enum {
+    let mut variants = Vec::new();
+    for variant in &enum_ast.variants {
+        let fields = match &variant.fields {
+            VariantFields::Unit => VariantFields::Unit,
+            VariantFields::Tuple(types) => {
+                VariantFields::Tuple(types.iter().map(lower_type_memory).collect())
+            }
+            VariantFields::Struct(fields) => VariantFields::Struct(
+                fields
+                    .iter()
+                    .map(|field| Field {
+                        ty: lower_type_memory(&field.ty),
+                        default: field
+                            .default
+                            .as_ref()
+                            .map(|expr| lower_free_expr_memory(expr, target, layouts)),
+                        ..field.clone()
+                    })
+                    .collect(),
+            ),
+        };
+        variants.push(Variant {
+            fields,
+            ..variant.clone()
+        });
+    }
+    Enum {
+        variants,
+        ..enum_ast.clone()
     }
 }
 
@@ -591,14 +612,20 @@ fn lower_function_memory(
             }
         }
         if !prefix.is_empty() {
-            prefix.extend(body.stmts);
-            body.stmts = prefix;
+            let mut merged = prefix;
+            for stmt in body.stmts {
+                merged.push(stmt);
+            }
+            body.stmts = merged;
         }
     }
 
     Function {
         params,
-        return_type: function.return_type.as_ref().map(lower_type_memory),
+        return_type: match &function.return_type {
+            Some(return_type) => Some(lower_type_memory(return_type)),
+            None => None,
+        },
         body,
         ..function.clone()
     }
@@ -648,7 +675,9 @@ fn lower_actor_handler_memory(
 fn lower_block_memory_with_ctx(block: &Block, ctx: &mut FunctionMemoryCtx<'_>) -> Block {
     let mut stmts = Vec::new();
     for stmt in &block.stmts {
-        stmts.extend(lower_stmt_memory_with_ctx(stmt, ctx));
+        for lowered_stmt in lower_stmt_memory_with_ctx(stmt, ctx) {
+            stmts.push(lowered_stmt);
+        }
     }
     Block {
         stmts,
@@ -657,71 +686,96 @@ fn lower_block_memory_with_ctx(block: &Block, ctx: &mut FunctionMemoryCtx<'_>) -
 }
 
 fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> Vec<Stmt> {
+    let mut out = Vec::new();
     match stmt {
-        Stmt::Expr(expr) => vec![Stmt::Expr(lower_expr_memory_with_ctx(expr, ctx))],
+        Stmt::Expr(expr) => {
+            out.push(Stmt::Expr(lower_expr_memory_with_ctx(expr, ctx)));
+        }
         Stmt::Let {
             pattern,
             ty,
             value,
             span,
         } => {
-            let lowered = Stmt::Let {
-                pattern: pattern.clone(),
-                ty: ty.as_ref().map(lower_type_memory),
-                value: value
-                    .as_ref()
-                    .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
-                span: *span,
+            let lowered_value = match value.as_ref() {
+                Some(expr) => Some(lower_expr_memory_with_ctx(expr, ctx)),
+                None => None,
             };
+            out.push(Stmt::Let {
+                pattern: pattern.clone(),
+                ty: match ty {
+                    Some(ty) => Some(lower_type_memory(ty)),
+                    None => None,
+                },
+                value: lowered_value,
+                span: *span,
+            });
             if let Pattern::Binding { name, .. } = pattern {
                 if let Some(ty) = ty {
                     ctx.local_types.insert(name.clone(), ty.clone());
                 }
                 if ctx.address_taken.contains(name) {
-                    return vec![lowered, make_pointer_binding_stmt(name, *span)];
+                    out.push(make_pointer_binding_stmt(name, *span));
+                    return out;
                 }
             }
-            vec![lowered]
         }
-        Stmt::Return(value, span) => vec![Stmt::Return(
-            value
-                .as_ref()
-                .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
-            *span,
-        )],
-        Stmt::Break(value, span) => vec![Stmt::Break(
-            value
-                .as_ref()
-                .map(|expr| lower_expr_memory_with_ctx(expr, ctx)),
-            *span,
-        )],
-        Stmt::Continue(span) => vec![Stmt::Continue(*span)],
+        Stmt::Return(value, span) => {
+            out.push(Stmt::Return(
+                match value.as_ref() {
+                    Some(expr) => Some(lower_expr_memory_with_ctx(expr, ctx)),
+                    None => None,
+                },
+                *span,
+            ));
+        }
+        Stmt::Break(value, span) => {
+            out.push(Stmt::Break(
+                match value.as_ref() {
+                    Some(expr) => Some(lower_expr_memory_with_ctx(expr, ctx)),
+                    None => None,
+                },
+                *span,
+            ));
+        }
+        Stmt::Continue(span) => {
+            out.push(Stmt::Continue(*span));
+        }
         Stmt::For {
             binding,
             iter,
             body,
             span,
-        } => vec![Stmt::For {
-            binding: binding.clone(),
-            iter: lower_expr_memory_with_ctx(iter, ctx),
-            body: lower_block_memory_with_ctx(body, ctx),
-            span: *span,
-        }],
+        } => {
+            out.push(Stmt::For {
+                binding: binding.clone(),
+                iter: lower_expr_memory_with_ctx(iter, ctx),
+                body: lower_block_memory_with_ctx(body, ctx),
+                span: *span,
+            });
+        }
         Stmt::While {
             condition,
             body,
             span,
-        } => vec![Stmt::While {
-            condition: lower_expr_memory_with_ctx(condition, ctx),
-            body: lower_block_memory_with_ctx(body, ctx),
-            span: *span,
-        }],
-        Stmt::Loop { body, span } => vec![Stmt::Loop {
-            body: lower_block_memory_with_ctx(body, ctx),
-            span: *span,
-        }],
-        Stmt::Item(item) => vec![Stmt::Item(item.clone())],
+        } => {
+            out.push(Stmt::While {
+                condition: lower_expr_memory_with_ctx(condition, ctx),
+                body: lower_block_memory_with_ctx(body, ctx),
+                span: *span,
+            });
+        }
+        Stmt::Loop { body, span } => {
+            out.push(Stmt::Loop {
+                body: lower_block_memory_with_ctx(body, ctx),
+                span: *span,
+            });
+        }
+        Stmt::Item(item) => {
+            out.push(Stmt::Item(item.clone()));
+        }
     }
+    out
 }
 
 fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> Expr {
@@ -738,18 +792,21 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             offset,
             element_ty,
             ..
-        } => helper_call(
-            "__kain_ptr_offset",
-            vec![
-                lower_expr_memory_with_ctx(pointer, ctx),
-                lower_expr_memory_with_ctx(offset, ctx),
-                Expr::Int(
-                    memory_stride_for_type(element_ty.as_ref(), ctx.layouts).unwrap_or(1),
-                    span,
-                ),
-            ],
-            span,
-        ),
+        } => {
+            let element_ty: Option<&Type> = element_ty.as_ref();
+            helper_call(
+                "__kain_ptr_offset",
+                vec![
+                    lower_expr_memory_with_ctx(pointer, ctx),
+                    lower_expr_memory_with_ctx(offset, ctx),
+                    Expr::Int(
+                        memory_stride_for_type(element_ty, ctx.layouts).unwrap_or(1),
+                        span,
+                    ),
+                ],
+                span,
+            )
+        }
         Expr::MemLoad {
             pointer, load_ty, ..
         } => {
@@ -945,21 +1002,21 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 };
             }
 
-            let normalized_left = if matches!(op, BinaryOp::Shl | BinaryOp::Shr) {
-                cast_if_needed(
+            let normalized_left = match op {
+                BinaryOp::Shl | BinaryOp::Shr => cast_if_needed(
                     lowered_left,
                     left_ty
                         .as_ref()
                         .and_then(|ty| promoted_type_for_arithmetic(ty, ctx.layouts.abi)),
                     *span,
-                )
-            } else {
-                lowered_left
+                ),
+                _ => lowered_left,
             };
-            let normalized_right = if matches!(op, BinaryOp::Shl | BinaryOp::Shr) {
-                cast_if_needed(lowered_right, Some(named_int_type(*span)), *span)
-            } else {
-                lowered_right
+            let normalized_right = match op {
+                BinaryOp::Shl | BinaryOp::Shr => {
+                    cast_if_needed(lowered_right, Some(named_int_type(*span)), *span)
+                }
+                _ => lowered_right,
             };
 
             Expr::Binary {
@@ -1209,7 +1266,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     ..param.clone()
                 })
                 .collect(),
-            return_type: return_type.as_ref().map(lower_type_memory),
+            return_type: match return_type {
+                Some(return_type) => Some(lower_type_memory(return_type)),
+                None => None,
+            },
             body: Box::new(lower_expr_memory_with_ctx(body, ctx)),
             span: *span,
         },
@@ -1999,10 +2059,12 @@ fn lower_heap_realloc_expr(
 }
 
 fn uses_seeded_heap_helper_abi(target: CompileTarget) -> bool {
-    matches!(
-        target,
-        CompileTarget::Ts | CompileTarget::Js | CompileTarget::Wasm | CompileTarget::Hybrid
-    )
+    match target {
+        CompileTarget::Ts | CompileTarget::Js | CompileTarget::Wasm | CompileTarget::Hybrid => {
+            true
+        }
+        _ => false,
+    }
 }
 
 fn lower_aggregate_init_expr(
