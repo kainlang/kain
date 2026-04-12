@@ -62,7 +62,11 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                 let pack_align = match attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR) {
                     Some(bits) => {
                         let align = bits.div_ceil(8);
-                        if align > 0 { Some(align) } else { None }
+                        if align > 0 {
+                            Some(align)
+                        } else {
+                            None
+                        }
                     }
                     None => None,
                 };
@@ -70,7 +74,11 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                     match attr_usize_arg(&st.ast.attributes, C_TYPE_ALIGN_ATTR) {
                         Some(bits) => {
                             let align = bits.div_ceil(8);
-                            if align > 0 { Some(align) } else { None }
+                            if align > 0 {
+                                Some(align)
+                            } else {
+                                None
+                            }
                         }
                         None => None,
                     };
@@ -941,10 +949,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             lower_expr_memory_with_ctx(object, ctx),
                             Expr::String(field.clone(), *span),
                             Expr::String(field_type_name, *span),
-                            Expr::Int(
-                                field_stride,
-                                *span,
-                            ),
+                            Expr::Int(field_stride, *span),
                             Expr::Int(layout_size as i64, *span),
                             lower_expr_memory_with_ctx(value, ctx),
                         ],
@@ -1211,8 +1216,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 EnumVariantFields::Struct(items) => {
                     let mut lowered_items: Vec<(String, Expr)> = Vec::new();
                     for (field, value) in items.iter() {
-                        lowered_items
-                            .push((field.clone(), lower_expr_memory_with_ctx(value, ctx)));
+                        lowered_items.push((field.clone(), lower_expr_memory_with_ctx(value, ctx)));
                     }
                     EnumVariantFields::Struct(lowered_items)
                 }
@@ -1868,10 +1872,9 @@ fn lower_resolved_type_memory(ty: &ResolvedType) -> ResolvedType {
                 .map(|(field, ty)| (field.clone(), lower_resolved_type_memory(ty)))
                 .collect(),
         ),
-        ResolvedType::Enum(name, variants) => ResolvedType::Enum(
-            name.clone(),
-            lower_resolved_enum_variants(variants),
-        ),
+        ResolvedType::Enum(name, variants) => {
+            ResolvedType::Enum(name.clone(), lower_resolved_enum_variants(variants))
+        }
         _ => ty.clone(),
     }
 }
@@ -2007,7 +2010,7 @@ fn lower_storage_expr(ty: &Type, layouts: &LayoutRegistry, span: Span, zeroed: b
                     }
                 }
                 None => Expr::None(span),
-            }
+            },
         },
         Type::Unit(_) => Expr::Tuple(Vec::new(), span),
         Type::Ref { .. } | Type::Ptr { .. } => Expr::None(span),
@@ -2089,9 +2092,7 @@ fn lower_heap_realloc_expr(
 
 fn uses_seeded_heap_helper_abi(target: CompileTarget) -> bool {
     match target {
-        CompileTarget::Ts | CompileTarget::Js | CompileTarget::Wasm | CompileTarget::Hybrid => {
-            true
-        }
+        CompileTarget::Ts | CompileTarget::Js | CompileTarget::Wasm | CompileTarget::Hybrid => true,
         _ => false,
     }
 }
@@ -2443,10 +2444,9 @@ fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
             first_memory_expr_context(expr, format!("{owner} contains a raw memory operation"))
         }
         Stmt::Let { value, .. } => match value {
-            Some(value) => first_memory_expr_context(
-                value,
-                format!("{owner} contains a raw memory operation"),
-            ),
+            Some(value) => {
+                first_memory_expr_context(value, format!("{owner} contains a raw memory operation"))
+            }
             None => None,
         },
         Stmt::Return(Some(expr), _) => first_memory_expr_context(
@@ -2498,9 +2498,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
                 first_memory_expr_context(size, base)
             }
         }
-        Expr::AggregateInit { fields, .. } => {
-            first_memory_expr_context_from_pairs(fields, base)
-        }
+        Expr::AggregateInit { fields, .. } => first_memory_expr_context_from_pairs(fields, base),
         Expr::Binary { left, right, .. } => {
             if let Some(context) = first_memory_expr_context(left, base.clone()) {
                 Some(context)
@@ -2557,9 +2555,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
                 }
             }
         }
-        Expr::EnumVariant { fields, .. } => {
-            first_memory_enum_variant_fields_context(fields, base)
-        }
+        Expr::EnumVariant { fields, .. } => first_memory_enum_variant_fields_context(fields, base),
         Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => {
             first_memory_expr_context_from_exprs(items, base)
         }
@@ -2632,10 +2628,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
     }
 }
 
-fn first_memory_expr_context_from_pairs(
-    items: &[(String, Expr)],
-    base: String,
-) -> Option<String> {
+fn first_memory_expr_context_from_pairs(items: &[(String, Expr)], base: String) -> Option<String> {
     for (_, value) in items {
         if let Some(context) = first_memory_expr_context(value, base.clone()) {
             return Some(context);
@@ -2670,9 +2663,7 @@ fn first_memory_else_branch_context(
     base: String,
 ) -> Option<String> {
     match else_branch {
-        crate::ast::ElseBranch::Else(else_block) => {
-            first_memory_block_context(else_block, base)
-        }
+        crate::ast::ElseBranch::Else(else_block) => first_memory_block_context(else_block, base),
         crate::ast::ElseBranch::ElseIf(cond, else_block, next_branch) => {
             if let Some(context) = first_memory_expr_context(cond, base.clone()) {
                 Some(context)
@@ -2745,7 +2736,11 @@ fn format_type(ty: &Type) -> String {
             params,
             return_type,
             ..
-        } => format!("fn({}) -> {}", join_formatted_type_list(params, ", "), format_type(return_type)),
+        } => format!(
+            "fn({}) -> {}",
+            join_formatted_type_list(params, ", "),
+            format_type(return_type)
+        ),
         Type::Option(inner, _) => format!("{}?", format_type(inner)),
         Type::Result(ok, err, _) => format!("{}!{}", format_type(ok), format_type(err)),
         Type::Infer(_) => "_".to_string(),
@@ -2759,7 +2754,11 @@ fn format_type(ty: &Type) -> String {
             if generics.is_empty() {
                 format!("impl {}", trait_name)
             } else {
-                format!("impl {}<{}>", trait_name, join_formatted_type_list(generics, ", "))
+                format!(
+                    "impl {}<{}>",
+                    trait_name,
+                    join_formatted_type_list(generics, ", ")
+                )
             }
         }
     }

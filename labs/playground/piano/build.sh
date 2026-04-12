@@ -21,8 +21,8 @@ clang -shared -O2 -fPIC \
     -ldl -lpthread -lm
 
 (
-    cd "$repo_root"
-    cargo run -q --manifest-path "$repo_root/Cargo.toml" -p cli --bin kain -- build "$lab_root/src/main.kn" \
+    cd "$lab_root"
+    cargo run -q --manifest-path "$repo_root/Cargo.toml" -p cli --bin kain -- build "src/main.kn" \
         --target llvm \
         --output "$llvm_output"
 )

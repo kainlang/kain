@@ -175,7 +175,7 @@ pub fn augment_source_for_runtime(
 
     let mode = artifact_mode_for_target(target).ok_or_else(|| {
         KainError::runtime(
-            "C ABI FFI is currently available in Interpret, Test, and Rust/native packaging lanes",
+            "C ABI FFI is currently available in Interpret, Test, Rust/native packaging, and LLVM lanes",
         )
     })?;
     let mut outputs = Vec::with_capacity(imports.len());
@@ -248,6 +248,7 @@ fn artifact_mode_for_target(target: CompileTarget) -> Option<ArtifactMode> {
     match target {
         CompileTarget::Interpret | CompileTarget::Test => Some(ArtifactMode::Both),
         CompileTarget::Rust => Some(ArtifactMode::Generate),
+        CompileTarget::Llvm => Some(ArtifactMode::Generate),
         _ => None,
     }
 }
@@ -547,7 +548,9 @@ mod tests {
             &PrepareContext::default(),
         )
         .expect_err("c bridge should reject JS codegen target");
-        assert!(error.to_string().contains("Interpret, Test, and Rust"));
+        let message = error.to_string();
+        assert!(message.contains("Interpret, Test"));
+        assert!(message.contains("LLVM"));
     }
 
     #[test]
@@ -583,6 +586,42 @@ mod tests {
 
         assert!(augmented.contains("mod c:"));
         assert!(augmented.contains("beacon_add"));
+    }
+
+    #[test]
+    fn llvm_target_prepares_generated_c_bridge_as_extern_declarations() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
+        fs::write(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\nBEACON_EXPORT const char* beacon_label(int id);\nBEACON_EXPORT int beacon_ping(void);\n",
+        )
+        .expect("header");
+        fs::write(
+            &source_path,
+            "#include \"beacon_math.h\"\n#include <stdio.h>\nstatic char G_BUFFER[64];\nint beacon_add(int a, int b) { return a + b; }\nconst char* beacon_label(int id) { snprintf(G_BUFFER, sizeof(G_BUFFER), \"beacon-%d\", id); return G_BUFFER; }\nint beacon_ping(void) { return 1; }\n",
+        )
+        .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        write_c_manifest(root, "beacon_math", &header_path, &dll_path);
+
+        let augmented = augment_source_for_runtime(
+            "use c::beacon_math\nfn main() -> Int:\n    let ping = beacon_ping(())\n    return beacon_add(ping, 3)\n",
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("llvm target should accept generated c bridge bindings");
+
+        assert!(augmented.contains("@extern fn"));
+        assert!(augmented.contains("beacon_add"));
+        assert!(augmented.contains("beacon_ping"));
     }
 
     #[test]

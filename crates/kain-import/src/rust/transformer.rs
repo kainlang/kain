@@ -542,14 +542,11 @@ impl RustTransformer {
                 name,
                 generics,
                 span,
-            } if name == "Self" => self
-                .current_impl_target
-                .clone()
-                .unwrap_or(Type::Named {
-                    name,
-                    generics,
-                    span,
-                }),
+            } if name == "Self" => self.current_impl_target.clone().unwrap_or(Type::Named {
+                name,
+                generics,
+                span,
+            }),
             Type::Named {
                 name,
                 generics,
@@ -569,11 +566,9 @@ impl RustTransformer {
                     .collect(),
                 span,
             ),
-            Type::Array(inner, size, span) => Type::Array(
-                Box::new(self.resolve_impl_self_type(*inner)),
-                size,
-                span,
-            ),
+            Type::Array(inner, size, span) => {
+                Type::Array(Box::new(self.resolve_impl_self_type(*inner)), size, span)
+            }
             Type::Slice(inner, span) => {
                 Type::Slice(Box::new(self.resolve_impl_self_type(*inner)), span)
             }
@@ -807,9 +802,14 @@ impl RustTransformer {
         let rewritten = rewrite_associated_constructor_path(&resolved, args.len())?;
         Some(
             args.iter()
-                .map(|expr| self.transform_expr(expr).map(|value| self.peel_expr_wrapper(value)))
+                .map(|expr| {
+                    self.transform_expr(expr)
+                        .map(|value| self.peel_expr_wrapper(value))
+                })
                 .collect::<Result<Vec<_>>>()
-                .map(|evaluated_args| self.build_rewritten_constructor_call(&rewritten, evaluated_args)),
+                .map(|evaluated_args| {
+                    self.build_rewritten_constructor_call(&rewritten, evaluated_args)
+                }),
         )
     }
 
@@ -871,27 +871,21 @@ impl RustTransformer {
                 "None".to_string(),
                 EnumVariantCtorShape::Unit,
             )),
-            [enum_name, variant] if enum_name == "Option" && variant == "Some" => {
-                Some((
-                    "Option".to_string(),
-                    "Some".to_string(),
-                    EnumVariantCtorShape::Tuple(1),
-                ))
-            }
-            [enum_name, variant] if enum_name == "Result" && variant == "Ok" => {
-                Some((
-                    "Result".to_string(),
-                    "Ok".to_string(),
-                    EnumVariantCtorShape::Tuple(1),
-                ))
-            }
-            [enum_name, variant] if enum_name == "Result" && variant == "Err" => {
-                Some((
-                    "Result".to_string(),
-                    "Err".to_string(),
-                    EnumVariantCtorShape::Tuple(1),
-                ))
-            }
+            [enum_name, variant] if enum_name == "Option" && variant == "Some" => Some((
+                "Option".to_string(),
+                "Some".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
+            [enum_name, variant] if enum_name == "Result" && variant == "Ok" => Some((
+                "Result".to_string(),
+                "Ok".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
+            [enum_name, variant] if enum_name == "Result" && variant == "Err" => Some((
+                "Result".to_string(),
+                "Err".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
             _ => None,
         }
     }
@@ -908,8 +902,7 @@ impl RustTransformer {
         }
         let variant = resolved.last()?.clone();
         let enum_name = self.normalize_variant_enum_name(&resolved[..resolved.len() - 1]);
-        self
-            .enum_variant_shapes
+        self.enum_variant_shapes
             .get(&enum_name)
             .and_then(|variants| variants.get(&variant))
             .cloned()
@@ -923,12 +916,8 @@ impl RustTransformer {
         let variant = resolved.last()?.clone();
         let enum_segments = &resolved[..resolved.len() - 1];
         let enum_tail = enum_segments.last()?;
-        (starts_with_uppercase(&variant) && looks_like_type_name(enum_tail)).then(|| {
-            (
-                self.normalize_variant_enum_name(enum_segments),
-                variant,
-            )
-        })
+        (starts_with_uppercase(&variant) && looks_like_type_name(enum_tail))
+            .then(|| (self.normalize_variant_enum_name(enum_segments), variant))
     }
 
     fn make_variant_constructor_lambda(
@@ -991,7 +980,10 @@ impl RustTransformer {
                     .iter()
                     .zip(params.iter())
                     .map(|(field_name, param)| {
-                        (self.rename_field(field_name), Expr::Ident(param.name.clone(), S))
+                        (
+                            self.rename_field(field_name),
+                            Expr::Ident(param.name.clone(), S),
+                        )
                     })
                     .collect::<Vec<_>>();
                 Expr::Lambda {
@@ -1050,7 +1042,10 @@ impl RustTransformer {
             .or_else(|| self.fallback_explicit_variant_head(&resolved))?;
         Some(
             args.iter()
-                .map(|expr| self.transform_expr(expr).map(|value| self.peel_expr_wrapper(value)))
+                .map(|expr| {
+                    self.transform_expr(expr)
+                        .map(|value| self.peel_expr_wrapper(value))
+                })
                 .collect::<Result<Vec<_>>>()
                 .map(|values| Expr::EnumVariant {
                     enum_name,
@@ -1822,9 +1817,19 @@ impl RustTransformer {
             Type::Named { name, .. }
                 if matches!(
                     name.as_str(),
-                    "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
-                        | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
-                        | "Int" | "UInt"
+                    "u8" | "u16"
+                        | "u32"
+                        | "u64"
+                        | "u128"
+                        | "usize"
+                        | "i8"
+                        | "i16"
+                        | "i32"
+                        | "i64"
+                        | "i128"
+                        | "isize"
+                        | "Int"
+                        | "UInt"
                 ) =>
             {
                 Expr::Int(0, S)
@@ -1868,14 +1873,19 @@ impl RustTransformer {
             },
             Type::Array(_, _, _) | Type::Slice(_, _) => Expr::Array(Vec::new(), S),
             Type::Tuple(items, _) => Expr::Tuple(
-                items.iter().map(|item| self.synthesize_default_expr_for_type(item)).collect(),
+                items
+                    .iter()
+                    .map(|item| self.synthesize_default_expr_for_type(item))
+                    .collect(),
                 S,
             ),
             Type::Ref { inner, .. } | Type::Ptr { inner, .. } => {
                 self.synthesize_default_expr_for_type(inner)
             }
             Type::Unit(_) | Type::Never(_) => Expr::Tuple(Vec::new(), S),
-            Type::Function { .. } | Type::Impl { .. } | Type::Infer(_) => Expr::Tuple(Vec::new(), S),
+            Type::Function { .. } | Type::Impl { .. } | Type::Infer(_) => {
+                Expr::Tuple(Vec::new(), S)
+            }
         }
     }
 
@@ -3208,10 +3218,7 @@ impl RustTransformer {
             },
             other => Expr::Block(
                 Block {
-                    stmts: vec![
-                        Stmt::Expr(other),
-                        Stmt::Expr(Expr::Tuple(Vec::new(), S)),
-                    ],
+                    stmts: vec![Stmt::Expr(other), Stmt::Expr(Expr::Tuple(Vec::new(), S))],
                     span: S,
                 },
                 S,
@@ -5142,7 +5149,10 @@ mod tests {
             "#,
         );
 
-        assert!(program.items.iter().any(|item| matches!(item, Item::Use(_))));
+        assert!(program
+            .items
+            .iter()
+            .any(|item| matches!(item, Item::Use(_))));
         let func = program
             .items
             .iter()
@@ -5170,14 +5180,21 @@ mod tests {
             else {
                 panic!("expected constructor rewrite call");
             };
-            assert_eq!(outer_args.len(), 1, "capacity argument should still evaluate");
+            assert_eq!(
+                outer_args.len(),
+                1,
+                "capacity argument should still evaluate"
+            );
             let Expr::Lambda { body, .. } = callee.as_ref() else {
                 panic!("expected constructor rewrite lambda");
             };
             let Expr::Call { callee, args, .. } = body.as_ref() else {
                 panic!("expected constructor rewrite body call");
             };
-            assert!(args.is_empty(), "rewritten constructors should drop capacity args");
+            assert!(
+                args.is_empty(),
+                "rewritten constructors should drop capacity args"
+            );
             assert!(matches!(
                 callee.as_ref(),
                 Expr::Ident(path, _) if path == expected_path
@@ -5254,7 +5271,10 @@ mod tests {
             panic!("expected eager Lazy::new call");
         };
 
-        assert!(args.is_empty(), "Lazy::new should lower to a nullary factory call");
+        assert!(
+            args.is_empty(),
+            "Lazy::new should lower to a nullary factory call"
+        );
         assert!(matches!(
             callee.as_ref(),
             Expr::Ident(path, _) if path == "String__new_"
@@ -5838,7 +5858,10 @@ mod tests {
             }] if name == "_self"
                 && matches!(inner.as_ref(), Type::Named { name, .. } if name == "WorldSurfaceKind")
         ));
-        let Stmt::Expr(Expr::Match { scrutinee, arms, .. }) = &method.body.stmts[0] else {
+        let Stmt::Expr(Expr::Match {
+            scrutinee, arms, ..
+        }) = &method.body.stmts[0]
+        else {
             panic!("expected match expression");
         };
         assert!(matches!(
@@ -5905,7 +5928,10 @@ mod tests {
         let Item::Function(function) = &program.items[1] else {
             panic!("expected function");
         };
-        let Stmt::Expr(Expr::MethodCall { receiver, method, .. }) = &function.body.stmts[0] else {
+        let Stmt::Expr(Expr::MethodCall {
+            receiver, method, ..
+        }) = &function.body.stmts[0]
+        else {
             panic!("expected method call");
         };
         assert_eq!(method, "len");
@@ -6010,7 +6036,10 @@ mod tests {
         let Some(value) = value else {
             panic!("expected lowered option value");
         };
-        let Expr::Match { scrutinee, arms, .. } = value else {
+        let Expr::Match {
+            scrutinee, arms, ..
+        } = value
+        else {
             panic!("expected option-as-ref match expression");
         };
         assert_eq!(arms.len(), 2);
@@ -6062,7 +6091,9 @@ mod tests {
         };
         let Stmt::Let {
             ty: Some(Type::Option(inner, _)),
-            value: Some(Expr::Match { scrutinee, arms, .. }),
+            value: Some(Expr::Match {
+                scrutinee, arms, ..
+            }),
             ..
         } = &function.body.stmts[0]
         else {

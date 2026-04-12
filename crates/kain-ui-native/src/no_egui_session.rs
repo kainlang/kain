@@ -184,7 +184,10 @@ fn pane_from_surface(surface: &UiSurface) -> QtQuickPane {
     );
     let detail_lines = vec![
         format!("surface_id={}", surface.id),
-        format!("composition={}", composition_label(surface.composition_mode)),
+        format!(
+            "composition={}",
+            composition_label(surface.composition_mode)
+        ),
         format!("gpu_backing_required={}", surface.gpu_backing_required),
         format!(
             "renderer_preference={}",
@@ -386,8 +389,8 @@ mod tests {
     use crate::no_egui::KainUiNativeBackendPlan;
     use kain_ui::{
         ui_runtime_bundle_from_output, UiBuildOutput, UiHostBackendKind, UiNodeId,
-        UiRuntimeMetadata, UiRuntimeSystems, UiSurface, UiSurfaceCompositionMode,
-        UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding,
+        UiRuntimeMetadata, UiRuntimeSystems, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
+        UiSurfaceRendererPreference, UiSurfaceShaderBinding,
     };
 
     #[test]
@@ -494,7 +497,8 @@ mod tests {
             native_projection: Default::default(),
         };
 
-        let manifest = build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
+        let manifest =
+            build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
 
         assert_eq!(manifest.document_panes.len(), 1);
         assert_eq!(manifest.viewport_panes.len(), 1);
@@ -515,7 +519,8 @@ mod tests {
             UiBuildOutput::default(),
         );
 
-        let manifest = build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
+        let manifest =
+            build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
 
         assert_eq!(manifest.document_panes.len(), 1);
         assert_eq!(manifest.viewport_panes.len(), 1);

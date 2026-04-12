@@ -14,7 +14,7 @@ use kain_core::Span;
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum LlvmTargetId {
@@ -103,6 +103,10 @@ struct LlvmGenerator {
     locals: HashMap<String, (String, String)>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
+    /// Tracks function parameter LLVM types for call-site lowering.
+    function_params: HashMap<String, Vec<String>>,
+    /// Functions that were emitted as extern declarations.
+    extern_functions: HashSet<String>,
     /// Maps string content to global variable name
     strings: HashMap<String, String>,
     string_counter: usize,
@@ -128,6 +132,8 @@ impl LlvmGenerator {
             label_count: 0,
             locals: HashMap::new(),
             functions: HashMap::new(),
+            function_params: HashMap::new(),
+            extern_functions: HashSet::new(),
             strings: HashMap::new(),
             string_counter: 0,
             loop_stack: Vec::new(),
@@ -1793,6 +1799,26 @@ impl LlvmGenerator {
         Ok((params.clone(), ret_type))
     }
 
+    fn extern_callable_signature(
+        &self,
+        resolved_type: &ResolvedType,
+        callable_name: &str,
+        span: Span,
+    ) -> KainResult<(Vec<ResolvedType>, String)> {
+        let ResolvedType::Function { params, ret, .. } = resolved_type else {
+            return Err(KainError::codegen(
+                format!("{} has non-function type", callable_name),
+                span,
+            ));
+        };
+
+        Ok((params.clone(), self.map_type(ret)))
+    }
+
+    fn function_is_extern(func: &TypedFunction) -> bool {
+        func.ast.attributes.iter().any(|attr| attr.name == "extern")
+    }
+
     fn register_world_type_and_global(
         &mut self,
         world: &kain_core::types::TypedWorld,
@@ -1954,9 +1980,36 @@ impl LlvmGenerator {
         // 2b. Pre-scan functions to register return types
         for item in &program.items {
             if let TypedItem::Function(func) = item {
-                let (_, ret_ty) =
-                    self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?;
-                self.functions.insert(func.ast.name.clone(), ret_ty);
+                if Self::function_is_extern(func) {
+                    let (params, ret_ty) = self.extern_callable_signature(
+                        &func.resolved_type,
+                        &func.ast.name,
+                        func.ast.span,
+                    )?;
+                    self.functions.insert(func.ast.name.clone(), ret_ty.clone());
+                    self.function_params.insert(
+                        func.ast.name.clone(),
+                        params
+                            .into_iter()
+                            .map(|param| self.map_type(&param))
+                            .collect(),
+                    );
+                    self.extern_functions.insert(func.ast.name.clone());
+                } else {
+                    let (params, ret_ty) = self.callable_signature(
+                        &func.resolved_type,
+                        &func.ast.name,
+                        func.ast.span,
+                    )?;
+                    self.functions.insert(func.ast.name.clone(), ret_ty.clone());
+                    self.function_params.insert(
+                        func.ast.name.clone(),
+                        params
+                            .into_iter()
+                            .map(|param| self.map_type(&param))
+                            .collect(),
+                    );
+                }
             } else if let TypedItem::Patch(patch) = item {
                 let (_, ret_ty) =
                     self.callable_signature(&patch.resolved_type, &patch.ast.name, patch.ast.span)?;
@@ -2647,6 +2700,9 @@ impl LlvmGenerator {
     }
 
     fn compile_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+        if Self::function_is_extern(func) {
+            return self.compile_extern_function(func);
+        }
         self.compile_named_callable(
             &func.ast.name,
             &func.ast.params,
@@ -2654,6 +2710,36 @@ impl LlvmGenerator {
             &func.resolved_type,
             func.ast.span,
         )
+    }
+
+    fn compile_extern_function(&mut self, func: &TypedFunction) -> KainResult<()> {
+        let (param_types, ret_type) =
+            self.extern_callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?;
+
+        let mut param_str = String::new();
+        let mut emitted_index = 0usize;
+        for (index, _) in func.ast.params.iter().enumerate() {
+            let param_ty = self.map_type(&param_types[index]);
+            if param_ty == "void" {
+                continue;
+            }
+            if emitted_index > 0 {
+                param_str.push_str(", ");
+            }
+            param_str.push_str(&format!("{} %arg{}", param_ty, emitted_index));
+            emitted_index += 1;
+        }
+
+        self.extern_functions.insert(func.ast.name.clone());
+        self.functions
+            .insert(func.ast.name.clone(), ret_type.clone());
+
+        self.emit(&format!(
+            "declare {} @{}({})",
+            ret_type, func.ast.name, param_str
+        ));
+        self.emit("");
+        Ok(())
     }
 
     fn compile_block(&mut self, block: &Block) -> KainResult<()> {
@@ -3020,8 +3106,20 @@ impl LlvmGenerator {
     ) -> KainResult<(String, String)> {
         let mut compiled_args = Vec::new();
         let mut arg_types = Vec::new();
+        let is_extern = self.extern_functions.contains(func_name);
+        let param_types = self.function_params.get(func_name).cloned();
 
         for (index, arg) in args.iter().enumerate() {
+            let param_ty = param_types
+                .as_ref()
+                .and_then(|types| types.get(index))
+                .cloned()
+                .unwrap_or_default();
+
+            if is_extern && param_ty == "void" {
+                continue;
+            }
+
             let (val, ty) = self.compile_expr(&arg.value)?;
 
             let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with('%'))
@@ -4403,7 +4501,11 @@ impl LlvmGenerator {
 
 #[cfg(test)]
 mod tests {
-    use super::runtime_symbol_for_stdlib_function;
+    use super::{generate, runtime_symbol_for_stdlib_function};
+    use kain_core::diagnostics::SpanMapper;
+    use kain_core::lexer::Lexer;
+    use kain_core::parser::Parser;
+    use kain_core::types;
 
     #[test]
     fn remaps_rounding_builtins_to_runtime_wrappers() {
@@ -4417,5 +4519,30 @@ mod tests {
             "kain_round_i64"
         );
         assert_eq!(runtime_symbol_for_stdlib_function("sqrt"), "sqrt");
+    }
+
+    #[test]
+    fn lowers_extern_cffi_declarations_without_void_parameters() {
+        let source = r#"
+@extern fn piano_audio_status(arg1: Void) -> String
+@extern fn piano_audio_note_on(midi_note: Int) -> Int
+
+fn main() -> Int:
+    let status = piano_audio_status(())
+    return piano_audio_note_on(60)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-extern-test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &mapper, "<llvm-extern-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+
+        assert!(llvm.contains("declare i8* @piano_audio_status()"));
+        assert!(llvm.contains("declare i64 @piano_audio_note_on(i64 %arg0)"));
+        assert!(llvm.contains("call i8* @piano_audio_status()"));
+        assert!(llvm.contains("call i64 @piano_audio_note_on(i64 60)"));
     }
 }

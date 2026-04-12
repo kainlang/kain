@@ -162,7 +162,9 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
     output.push_str(&format!("    mod {}:\n", resolved.import_name));
     for binding in &bundle.functions {
         for alias in &binding.exported_aliases {
-            output.push_str(&format!("        fn {}(", alias));
+            output.push_str("        @extern fn ");
+            output.push_str(alias);
+            output.push('(');
             for (index, param) in binding.params.iter().enumerate() {
                 if index > 0 {
                     output.push_str(", ");
@@ -173,14 +175,7 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
             if !matches!(binding.return_type, BridgeType::Unit) {
                 output.push_str(&format!(" -> {}", binding.return_type.render_kain()));
             }
-            output.push_str(":\n");
-            if matches!(binding.return_type, BridgeType::Unit) {
-                output.push_str("            return\n\n");
-            } else {
-                output.push_str("            return ");
-                output.push_str(binding.return_type.default_literal());
-                output.push_str("\n\n");
-            }
+            output.push('\n');
         }
     }
     output

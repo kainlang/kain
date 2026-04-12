@@ -22,6 +22,10 @@ use cli::{
     BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
     BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
+use kain_c_ffi::{
+    ArtifactMode as CArtifactMode, ImportCOptions as CImportCOptions,
+    PrepareContext as CPrepareContext,
+};
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
 use std::collections::BTreeSet;
@@ -930,6 +934,14 @@ fn run_source(
 
                     let mut cmd = std::process::Command::new(&clang_cmd);
                     let mut runtime_link_libs = Vec::new();
+                    let cffi_link_inputs = match resolve_c_ffi_shared_libraries_for_linking(&source)
+                    {
+                        Ok(paths) => paths,
+                        Err(err) => {
+                            eprintln!(" Failed to resolve C FFI link inputs: {}", err);
+                            return false;
+                        }
+                    };
 
                     if let Some(runtime_bundle) = match resolve_native_runtime_bundle() {
                         Ok(bundle) => bundle,
@@ -966,6 +978,10 @@ fn run_source(
                         .arg(&exe_path)
                         .arg("-Wno-override-module")
                         .arg("-g"); // Debug info
+
+                    for shared_library in cffi_link_inputs {
+                        cmd.arg(shared_library);
+                    }
 
                     runtime_link_libs = unique_link_libs(
                         [runtime_link_libs, default_native_runtime_link_libs()].concat(),
@@ -2331,6 +2347,41 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
     Ok(None)
 }
 
+fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<Vec<PathBuf>, String> {
+    let prepare = CPrepareContext {
+        current_dir: std::env::current_dir().ok(),
+        manifest_path: None,
+    };
+    let outputs = kain_c_ffi::import_libraries_for_source(
+        source,
+        &CImportCOptions {
+            mode: CArtifactMode::Generate,
+            ..CImportCOptions::default()
+        },
+        &prepare,
+    )
+    .map_err(|err| err.to_string())?;
+
+    let mut shared_libraries = Vec::new();
+    for output in outputs {
+        let shared_lib_path = output.resolved.shared_lib_path.ok_or_else(|| {
+            format!(
+                "C FFI library '{}' does not declare a shared library for LLVM linking",
+                output.resolved.import_name
+            )
+        })?;
+        if !shared_lib_path.exists() {
+            return Err(format!(
+                "C FFI shared library {} does not exist",
+                shared_lib_path.display()
+            ));
+        }
+        shared_libraries.push(shared_lib_path);
+    }
+
+    Ok(shared_libraries)
+}
+
 fn load_native_runtime_manifest(
     manifest_path: &Path,
 ) -> Result<ResolvedNativeRuntimeBundle, String> {
@@ -2630,8 +2681,8 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_native_runtime_link_libs, load_native_runtime_manifest,
-        platform_link_libs, runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
+        default_native_runtime_link_libs, load_native_runtime_manifest, platform_link_libs,
+        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
         NativeRuntimeLinkManifest,
     };
     use std::{fs, path::Path};

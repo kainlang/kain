@@ -701,7 +701,7 @@ fn prepare_frontend_source_for_target(
             let source = kain_node::prepare_source_for_runtime(&source, target)?;
             prepare_rust_ffi_source(&source, target)
         }
-        CompileTarget::Rust => prepare_c_ffi_source(source, target),
+        CompileTarget::Rust | CompileTarget::Llvm => prepare_c_ffi_source(source, target),
         _ => Ok(source.to_string()),
     }
 }

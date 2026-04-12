@@ -2309,10 +2309,7 @@ impl Env {
             Item::Enum(e) => {
                 for variant in &e.variants {
                     let variant_name = format!("{}::{}", e.name, variant.name);
-                    self.define(
-                        variant_name.clone(),
-                        Value::Function(variant_name.clone()),
-                    );
+                    self.define(variant_name.clone(), Value::Function(variant_name.clone()));
                     let alias = selfhost_enum_variant_alias_name(&e.name, &variant.name);
                     let alias_value = match &variant.fields {
                         VariantFields::Unit => {
@@ -2428,17 +2425,12 @@ impl Env {
             TypedItem::Enum(e) => {
                 for variant in &e.ast.variants {
                     let variant_name = format!("{}::{}", e.ast.name, variant.name);
-                    self.define(
-                        variant_name.clone(),
-                        Value::Function(variant_name.clone()),
-                    );
+                    self.define(variant_name.clone(), Value::Function(variant_name.clone()));
                     let alias = selfhost_enum_variant_alias_name(&e.ast.name, &variant.name);
                     let alias_value = match &variant.fields {
-                        VariantFields::Unit => Value::EnumVariant(
-                            e.ast.name.clone(),
-                            variant.name.clone(),
-                            Vec::new(),
-                        ),
+                        VariantFields::Unit => {
+                            Value::EnumVariant(e.ast.name.clone(), variant.name.clone(), Vec::new())
+                        }
                         VariantFields::Tuple(_) | VariantFields::Struct(_) => {
                             Value::Function(variant_name)
                         }
@@ -3112,7 +3104,9 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         match method.as_str() {
                             "iter" => {
                                 if !arg_vals.is_empty() {
-                                    return Err(KainError::runtime("Map.iter expects no arguments"));
+                                    return Err(KainError::runtime(
+                                        "Map.iter expects no arguments",
+                                    ));
                                 }
                                 if let Value::Struct(_, fields) = &obj_val {
                                     let items = fields
@@ -3300,7 +3294,11 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                 return Err(KainError::runtime("Option.filter expects 1 argument"));
                             }
                             if variant == "Some" && fields.len() == 1 {
-                                match call_function(env, arg_vals[0].clone(), vec![fields[0].clone()])? {
+                                match call_function(
+                                    env,
+                                    arg_vals[0].clone(),
+                                    vec![fields[0].clone()],
+                                )? {
                                     Value::Bool(true) => Ok(obj_val),
                                     Value::Bool(false) => Ok(Value::None),
                                     other => Err(KainError::runtime(format!(
@@ -3389,9 +3387,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         }
                         "binary_search" => {
                             if arg_vals.len() != 1 {
-                                return Err(KainError::runtime(
-                                    "binary_search expects 1 argument",
-                                ));
+                                return Err(KainError::runtime("binary_search expects 1 argument"));
                             }
                             if let Value::Array(arr) = obj_val {
                                 eval_array_binary_search(&arr.read().unwrap(), &arg_vals[0])
@@ -4470,7 +4466,7 @@ fn call_function(env: &mut Env, func: Value, args: Vec<Value>) -> KainResult<Val
                     "Argument mismatch: expected {}, got {}",
                     f.params.len(),
                     args.len()
-                ))); 
+                )));
             }
 
             let inline_scope = env.function_inline_scopes.get(&name).cloned();
@@ -6000,7 +5996,10 @@ mod tests {
         let mut env = Env::new();
         let expr = Expr::Field {
             object: Box::new(Expr::Tuple(
-                vec![Expr::String("left".to_string(), span), Expr::Bool(true, span)],
+                vec![
+                    Expr::String("left".to_string(), span),
+                    Expr::Bool(true, span),
+                ],
                 span,
             )),
             field: "__kain_tuple_1".to_string(),

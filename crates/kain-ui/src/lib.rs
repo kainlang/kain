@@ -3259,9 +3259,12 @@ fn surface_host_backend_for_node(node: &UiNode, kind: &UiSurfaceKind) -> UiHostB
 }
 
 fn surface_layout_engine_for_node(node: &UiNode) -> UiLayoutEngineKind {
-    first_string_prop(node, &["layout_engine", "surface_layout_engine", "ui_layout_engine"])
-        .and_then(parse_surface_layout_engine)
-        .unwrap_or(UiLayoutEngineKind::Yoga)
+    first_string_prop(
+        node,
+        &["layout_engine", "surface_layout_engine", "ui_layout_engine"],
+    )
+    .and_then(parse_surface_layout_engine)
+    .unwrap_or(UiLayoutEngineKind::Yoga)
 }
 
 fn surface_render_engine_for_node(

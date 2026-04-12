@@ -6,8 +6,7 @@ use kain_driver::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
     NativeAppBundle, NativeAppBundleConfig, NativeAppHostSidecarBinding,
     NativeAppLauncherEntrypoint, NativeAppMaterializationConfig, NativeAppMaterializedPaths,
-    NativeAppMetadata,
-    NativeAppRuntimeDependency,
+    NativeAppMetadata, NativeAppRuntimeDependency,
 };
 
 const DEFAULT_RUNTIME_CRATE_NAME: &str = "kain-ui-native";

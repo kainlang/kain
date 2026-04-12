@@ -40,9 +40,12 @@ struct TileRender {
 fn main() -> Result<(), Box<dyn Error>> {
     let config = parse_args()?;
     let catalog = SceneCatalog::default();
-    let scene = catalog
-        .scene(&config.scene_name)
-        .ok_or_else(|| format!("scene `{}` is not registered in SceneCatalog::default()", config.scene_name))?;
+    let scene = catalog.scene(&config.scene_name).ok_or_else(|| {
+        format!(
+            "scene `{}` is not registered in SceneCatalog::default()",
+            config.scene_name
+        )
+    })?;
 
     let header_height = 112usize;
     let gutter = 24usize;
@@ -144,16 +147,12 @@ fn parse_args() -> Result<SmokeConfig, Box<dyn Error>> {
     while let Some(argument) = args.next() {
         match argument.as_str() {
             "--output-image" => {
-                output_image = PathBuf::from(
-                    args.next()
-                        .ok_or("--output-image requires a path value")?,
-                );
+                output_image =
+                    PathBuf::from(args.next().ok_or("--output-image requires a path value")?);
             }
             "--output-json" => {
-                output_json = PathBuf::from(
-                    args.next()
-                        .ok_or("--output-json requires a path value")?,
-                );
+                output_json =
+                    PathBuf::from(args.next().ok_or("--output-json requires a path value")?);
             }
             "--scene" => {
                 scene_name = args.next().ok_or("--scene requires a scene name")?;
@@ -242,7 +241,8 @@ fn tile_specs() -> [TileSpec; 4] {
             backend_id: "the-forge",
             accent: [242, 140, 140, 255],
             runtime_status: "staged low-level renderer lane",
-            executor_summary: "bridge-first backend identity is cataloged, viewport path still pending",
+            executor_summary:
+                "bridge-first backend identity is cataloged, viewport path still pending",
             note_line: "aggressive low-level GPU substrate for future Kain renderer expansion",
             time_seconds: 2.45,
             renderer_config: SoftwareRendererConfig {
@@ -268,7 +268,16 @@ fn draw_tile(
     let footer_y = y + height.saturating_sub(76);
     let frame = &tile.frame;
 
-    fill_rect(canvas, canvas_width, canvas_height, x, y, width, height, [18, 23, 31, 255]);
+    fill_rect(
+        canvas,
+        canvas_width,
+        canvas_height,
+        x,
+        y,
+        width,
+        height,
+        [18, 23, 31, 255],
+    );
     stroke_rect(
         canvas,
         canvas_width,
@@ -425,12 +434,7 @@ fn write_report(
     Ok(())
 }
 
-fn write_png(
-    path: &Path,
-    width: usize,
-    height: usize,
-    rgba: &[u8],
-) -> Result<(), Box<dyn Error>> {
+fn write_png(path: &Path, width: usize, height: usize, rgba: &[u8]) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -554,8 +558,26 @@ fn draw_text_block(
     text: &str,
 ) {
     let shadow_color = [0, 0, 0, 180];
-    draw_text(canvas, canvas_width, canvas_height, x + scale, y + scale, scale, shadow_color, text);
-    draw_text(canvas, canvas_width, canvas_height, x, y, scale, color, text);
+    draw_text(
+        canvas,
+        canvas_width,
+        canvas_height,
+        x + scale,
+        y + scale,
+        scale,
+        shadow_color,
+        text,
+    );
+    draw_text(
+        canvas,
+        canvas_width,
+        canvas_height,
+        x,
+        y,
+        scale,
+        color,
+        text,
+    );
 }
 
 fn draw_text(

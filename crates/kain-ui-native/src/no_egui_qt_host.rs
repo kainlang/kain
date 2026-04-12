@@ -261,8 +261,8 @@ fn render_main_qml(
             .unwrap_or_default(),
     )
     .unwrap_or_else(|_| "\"\"".to_string());
-    let browser_url_json =
-        serde_json::to_string(&browser_url.unwrap_or_default()).unwrap_or_else(|_| "\"\"".to_string());
+    let browser_url_json = serde_json::to_string(&browser_url.unwrap_or_default())
+        .unwrap_or_else(|_| "\"\"".to_string());
     let viewport_image_json = serde_json::to_string(&viewport_image_path.unwrap_or_default())
         .unwrap_or_else(|_| "\"\"".to_string());
 

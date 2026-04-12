@@ -131,7 +131,9 @@ pub fn runtime_bundle_to_json(
     ui_runtime_bundle_to_json(bundle)
 }
 
-pub fn runtime_bundle_from_json(json: &str) -> Result<KainUiNativeRuntimeBundle, serde_json::Error> {
+pub fn runtime_bundle_from_json(
+    json: &str,
+) -> Result<KainUiNativeRuntimeBundle, serde_json::Error> {
     ui_runtime_bundle_from_json(json)
 }
 

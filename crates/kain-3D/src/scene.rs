@@ -394,10 +394,7 @@ impl Default for SceneCatalog {
             ),
             ("starforge".to_string(), "luminous_port".to_string()),
             ("emberfall".to_string(), "magma_terraces".to_string()),
-            (
-                "renderer_atrium".to_string(),
-                "material_atrium".to_string(),
-            ),
+            ("renderer_atrium".to_string(), "material_atrium".to_string()),
             (
                 "material_gallery".to_string(),
                 "material_atrium".to_string(),
@@ -1936,11 +1933,7 @@ fn build_material_atrium_scene() -> SceneDescription {
     description
 }
 
-fn set_node_transform(
-    scene: &mut AuthoringScene,
-    node_id: NodeId,
-    transform: Transform,
-) {
+fn set_node_transform(scene: &mut AuthoringScene, node_id: NodeId, transform: Transform) {
     scene
         .node_mut(node_id)
         .expect("material atrium node should exist")

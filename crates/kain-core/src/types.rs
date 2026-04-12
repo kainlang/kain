@@ -730,7 +730,11 @@ fn register_selfhost_collection_methods(env: &mut TypeEnv<'_>) {
         "Map".to_string(),
         "insert".to_string(),
         ResolvedType::Function {
-            params: vec![map_receiver.clone(), ResolvedType::Unknown, ResolvedType::Unknown],
+            params: vec![
+                map_receiver.clone(),
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+            ],
             ret: Box::new(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
             effects: EffectSet::new(),
         },
@@ -824,10 +828,22 @@ fn register_selfhost_host_bridge(env: &mut TypeEnv<'_>) {
 }
 
 fn register_selfhost_host_bridge_types(env: &mut TypeEnv<'_>) {
-    register_host_type_aliases(env, SELFHOST_PATH_BUF_TYPE_ALIASES, selfhost_path_buf_type());
+    register_host_type_aliases(
+        env,
+        SELFHOST_PATH_BUF_TYPE_ALIASES,
+        selfhost_path_buf_type(),
+    );
     register_host_type_aliases(env, SELFHOST_PATH_TYPE_ALIASES, selfhost_path_type());
-    register_host_type_aliases(env, SELFHOST_DIR_ENTRY_TYPE_ALIASES, selfhost_dir_entry_type());
-    register_host_type_aliases(env, SELFHOST_DURATION_TYPE_ALIASES, selfhost_duration_type());
+    register_host_type_aliases(
+        env,
+        SELFHOST_DIR_ENTRY_TYPE_ALIASES,
+        selfhost_dir_entry_type(),
+    );
+    register_host_type_aliases(
+        env,
+        SELFHOST_DURATION_TYPE_ALIASES,
+        selfhost_duration_type(),
+    );
 }
 
 fn register_host_type_aliases(env: &mut TypeEnv<'_>, aliases: &[&str], ty: ResolvedType) {
@@ -837,7 +853,11 @@ fn register_host_type_aliases(env: &mut TypeEnv<'_>, aliases: &[&str], ty: Resol
 }
 
 fn register_selfhost_host_bridge_methods(env: &mut TypeEnv<'_>) {
-    register_host_path_methods(env, SELFHOST_PATH_BUF_TYPE_ALIASES, selfhost_path_buf_type());
+    register_host_path_methods(
+        env,
+        SELFHOST_PATH_BUF_TYPE_ALIASES,
+        selfhost_path_buf_type(),
+    );
     register_host_path_methods(env, SELFHOST_PATH_TYPE_ALIASES, selfhost_path_type());
 
     for alias in SELFHOST_DIR_ENTRY_TYPE_ALIASES {
@@ -1102,7 +1122,11 @@ fn infer_fixed_builtin_call(
 ) -> KainResult<ResolvedType> {
     if args.len() != params.len() {
         return Err(env.type_error(
-            format!("{name} expects {} argument(s), found {}", params.len(), args.len()),
+            format!(
+                "{name} expects {} argument(s), found {}",
+                params.len(),
+                args.len()
+            ),
             span,
         ));
     }
@@ -1140,7 +1164,10 @@ fn infer_selfhost_mem_replace_call(
 ) -> KainResult<ResolvedType> {
     if args.len() != 2 {
         return Err(env.type_error(
-            format!("std__mem__replace expects 2 arguments, found {}", args.len()),
+            format!(
+                "std__mem__replace expects 2 arguments, found {}",
+                args.len()
+            ),
             span,
         ));
     }
@@ -1295,7 +1322,11 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                     }
                 };
                 variants.push((v.name.clone(), ResolvedType::Unit));
-                variant_aliases.push((v.name.clone(), payload_types.clone(), matches!(v.fields, VariantFields::Unit)));
+                variant_aliases.push((
+                    v.name.clone(),
+                    payload_types.clone(),
+                    matches!(v.fields, VariantFields::Unit),
+                ));
                 variant_map.insert(
                     v.name.clone(),
                     EnumVariantTypeInfo {
@@ -1405,7 +1436,11 @@ fn register_method_signatures(
 ) -> KainResult<()> {
     for method in methods {
         let signature = function_signature(env, method, Some(self_ty))?;
-        env.define_method(type_name.to_string(), method.name.clone(), signature.clone());
+        env.define_method(
+            type_name.to_string(),
+            method.name.clone(),
+            signature.clone(),
+        );
         if !method_has_receiver_param(method) {
             env.define_global(
                 lowered_impl_function_name(type_name, &method.name),
@@ -1502,11 +1537,7 @@ fn predeclare_inline_module_type_aliases(
     }
 }
 
-fn register_inline_module_type_aliases(
-    env: &mut TypeEnv,
-    items: &[Item],
-    module_path: &[String],
-) {
+fn register_inline_module_type_aliases(env: &mut TypeEnv, items: &[Item], module_path: &[String]) {
     for item in items {
         match item {
             Item::Struct(s) => {
@@ -1538,8 +1569,10 @@ fn register_inline_module_type_aliases(
             }
             Item::Component(component) => {
                 if let Some(resolved) = env.lookup_type(&component.name).cloned() {
-                    env.types
-                        .insert(module_scoped_type_name(module_path, &component.name), resolved);
+                    env.types.insert(
+                        module_scoped_type_name(module_path, &component.name),
+                        resolved,
+                    );
                 }
             }
             Item::Actor(actor) => {
@@ -4192,23 +4225,26 @@ fn infer_method_call_type(
                     if args.is_empty() {
                         return Ok(ResolvedType::Ref {
                             mutable: *mutable,
-                            inner: Box::new(ResolvedType::Slice(Box::new(item_ty.as_ref().clone()))),
+                            inner: Box::new(ResolvedType::Slice(Box::new(
+                                item_ty.as_ref().clone(),
+                            ))),
                         });
                     }
-                    return Err(env.type_error("Array.as_slice expects no arguments".to_string(), span));
+                    return Err(
+                        env.type_error("Array.as_slice expects no arguments".to_string(), span)
+                    );
                 }
             }
-            if matches!(inner.as_ref(), ResolvedType::Array(_, _)) && method == "push" && !*mutable {
-                return Err(env.type_error(
-                    "Array.push requires a mutable receiver".to_string(),
-                    span,
-                ));
+            if matches!(inner.as_ref(), ResolvedType::Array(_, _)) && method == "push" && !*mutable
+            {
+                return Err(
+                    env.type_error("Array.push requires a mutable receiver".to_string(), span)
+                );
             }
             if matches!(inner.as_ref(), ResolvedType::Option(_)) && method == "take" && !*mutable {
-                return Err(env.type_error(
-                    "Option.take requires a mutable receiver".to_string(),
-                    span,
-                ));
+                return Err(
+                    env.type_error("Option.take requires a mutable receiver".to_string(), span)
+                );
             }
             if let ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) = inner.as_ref() {
                 return infer_named_method_call_type(
@@ -4363,16 +4399,29 @@ fn infer_method_call_type(
                     Box::new(ResolvedType::Int(IntSize::I64)),
                 ))
             }
-            "map" => infer_builtin_transform_method(env, ctx, inner.as_ref(), args, span, |mapped| {
-                dynamic_array_type(mapped)
-            }),
-            "any" => infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Array.any"),
-            "all" => infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Array.all"),
-            "find" => infer_builtin_find_method(env, ctx, inner.as_ref(), args, span, "Array.find"),
-            "find_map" => {
-                infer_builtin_find_map_method(env, ctx, inner.as_ref(), args, span, "Array.find_map")
+            "map" => {
+                infer_builtin_transform_method(env, ctx, inner.as_ref(), args, span, |mapped| {
+                    dynamic_array_type(mapped)
+                })
             }
-            "collect" => infer_builtin_collect_method(inner.as_ref(), args, span, env, "Array.collect"),
+            "any" => {
+                infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Array.any")
+            }
+            "all" => {
+                infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Array.all")
+            }
+            "find" => infer_builtin_find_method(env, ctx, inner.as_ref(), args, span, "Array.find"),
+            "find_map" => infer_builtin_find_map_method(
+                env,
+                ctx,
+                inner.as_ref(),
+                args,
+                span,
+                "Array.find_map",
+            ),
+            "collect" => {
+                infer_builtin_collect_method(inner.as_ref(), args, span, env, "Array.collect")
+            }
             "join" => infer_builtin_join_method(env, ctx, inner.as_ref(), args, span, "Array.join"),
             "first" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Array.first"),
             "last" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Array.last"),
@@ -4383,7 +4432,9 @@ fn infer_method_call_type(
                     Err(env.type_error("Array.pop expects no arguments", span))
                 }
             }
-            "cloned" | "copied" => infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method),
+            "cloned" | "copied" => {
+                infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method)
+            }
             "zip" => infer_builtin_zip_method(env, ctx, inner.as_ref(), args, span, "Array.zip"),
             "sum" => infer_builtin_sum_method(inner.as_ref(), args, span, env, "Array.sum"),
             "max" => infer_builtin_max_method(inner.as_ref(), args, span, env, "Array.max"),
@@ -4520,20 +4571,35 @@ fn infer_method_call_type(
                     Box::new(ResolvedType::Int(IntSize::I64)),
                 ))
             }
-            "map" => infer_builtin_transform_method(env, ctx, inner.as_ref(), args, span, |mapped| {
-                dynamic_array_type(mapped)
-            }),
-            "any" => infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Slice.any"),
-            "all" => infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Slice.all"),
-            "find" => infer_builtin_find_method(env, ctx, inner.as_ref(), args, span, "Slice.find"),
-            "find_map" => {
-                infer_builtin_find_map_method(env, ctx, inner.as_ref(), args, span, "Slice.find_map")
+            "map" => {
+                infer_builtin_transform_method(env, ctx, inner.as_ref(), args, span, |mapped| {
+                    dynamic_array_type(mapped)
+                })
             }
-            "collect" => infer_builtin_collect_method(inner.as_ref(), args, span, env, "Slice.collect"),
+            "any" => {
+                infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Slice.any")
+            }
+            "all" => {
+                infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Slice.all")
+            }
+            "find" => infer_builtin_find_method(env, ctx, inner.as_ref(), args, span, "Slice.find"),
+            "find_map" => infer_builtin_find_map_method(
+                env,
+                ctx,
+                inner.as_ref(),
+                args,
+                span,
+                "Slice.find_map",
+            ),
+            "collect" => {
+                infer_builtin_collect_method(inner.as_ref(), args, span, env, "Slice.collect")
+            }
             "join" => infer_builtin_join_method(env, ctx, inner.as_ref(), args, span, "Slice.join"),
             "first" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Slice.first"),
             "last" => infer_builtin_first_method(inner.as_ref(), args, span, env, "Slice.last"),
-            "cloned" | "copied" => infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method),
+            "cloned" | "copied" => {
+                infer_builtin_clone_adapter(inner.as_ref(), args, span, env, method)
+            }
             "zip" => infer_builtin_zip_method(env, ctx, inner.as_ref(), args, span, "Slice.zip"),
             "sum" => infer_builtin_sum_method(inner.as_ref(), args, span, env, "Slice.sum"),
             "max" => infer_builtin_max_method(inner.as_ref(), args, span, env, "Slice.max"),
@@ -4541,14 +4607,11 @@ fn infer_method_call_type(
             _ => Err(env.type_error(format!("Unknown method '{}' on Slice", method), span)),
         },
         ResolvedType::Option(inner) => match method {
-            "map" => infer_builtin_transform_method(
-                env,
-                ctx,
-                inner.as_ref(),
-                args,
-                span,
-                |mapped| ResolvedType::Option(Box::new(mapped)),
-            ),
+            "map" => {
+                infer_builtin_transform_method(env, ctx, inner.as_ref(), args, span, |mapped| {
+                    ResolvedType::Option(Box::new(mapped))
+                })
+            }
             "take" => {
                 if args.is_empty() {
                     Ok(ResolvedType::Option(inner.clone()))
@@ -4558,7 +4621,9 @@ fn infer_method_call_type(
             }
             "unwrap_or" => {
                 if args.len() != 1 {
-                    return Err(env.type_error("Option.unwrap_or expects exactly one argument", span));
+                    return Err(
+                        env.type_error("Option.unwrap_or expects exactly one argument", span)
+                    );
                 }
                 let default_ty =
                     infer_expr_type_with_expected(env, &args[0].value, ctx, Some(inner.as_ref()))?;
@@ -4571,12 +4636,8 @@ fn infer_method_call_type(
                 )?;
                 Ok(inner.as_ref().clone())
             }
-            "and_then" => {
-                infer_builtin_option_chain_method(env, ctx, inner.as_ref(), args, span)
-            }
-            "filter" => {
-                infer_builtin_option_filter_method(env, ctx, inner.as_ref(), args, span)
-            }
+            "and_then" => infer_builtin_option_chain_method(env, ctx, inner.as_ref(), args, span),
+            "filter" => infer_builtin_option_filter_method(env, ctx, inner.as_ref(), args, span),
             "or_else" => infer_builtin_nullary_callback_method(
                 env,
                 ctx,
@@ -4637,9 +4698,7 @@ fn infer_method_call_type(
                 args,
                 span,
                 "Option.unwrap_or_else",
-                |mapped| {
-                    ensure_type_compatible_option(mapped, inner.as_ref()).map(|ret| ret)
-                },
+                |mapped| ensure_type_compatible_option(mapped, inner.as_ref()).map(|ret| ret),
             ),
             "is_some" | "is_none" => {
                 if args.is_empty() {
@@ -4648,39 +4707,43 @@ fn infer_method_call_type(
                     Err(env.type_error(format!("Option.{method} expects no arguments"), span))
                 }
             }
-            "is_some_and" => {
-                infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Option.is_some_and")
-            }
+            "is_some_and" => infer_builtin_predicate_method(
+                env,
+                ctx,
+                inner.as_ref(),
+                args,
+                span,
+                "Option.is_some_and",
+            ),
             "ok_or_else" => infer_builtin_nullary_callback_method(
                 env,
                 ctx,
                 args,
                 span,
                 "Option.ok_or_else",
-                |mapped| Ok(ResolvedType::Result(Box::new(inner.as_ref().clone()), Box::new(mapped))),
+                |mapped| {
+                    Ok(ResolvedType::Result(
+                        Box::new(inner.as_ref().clone()),
+                        Box::new(mapped),
+                    ))
+                },
             ),
             _ => Err(env.type_error(format!("Unknown method '{}' on Option", method), span)),
         },
         ResolvedType::Result(ok, err) => match method {
-            "map" => infer_builtin_transform_method(
-                env,
-                ctx,
-                ok.as_ref(),
-                args,
-                span,
-                |mapped| ResolvedType::Result(Box::new(mapped), Box::new(err.as_ref().clone())),
-            ),
-            "map_err" => infer_builtin_transform_method(
-                env,
-                ctx,
-                err.as_ref(),
-                args,
-                span,
-                |mapped| ResolvedType::Result(Box::new(ok.as_ref().clone()), Box::new(mapped)),
-            ),
+            "map" => infer_builtin_transform_method(env, ctx, ok.as_ref(), args, span, |mapped| {
+                ResolvedType::Result(Box::new(mapped), Box::new(err.as_ref().clone()))
+            }),
+            "map_err" => {
+                infer_builtin_transform_method(env, ctx, err.as_ref(), args, span, |mapped| {
+                    ResolvedType::Result(Box::new(ok.as_ref().clone()), Box::new(mapped))
+                })
+            }
             "unwrap_or" => {
                 if args.len() != 1 {
-                    return Err(env.type_error("Result.unwrap_or expects exactly one argument", span));
+                    return Err(
+                        env.type_error("Result.unwrap_or expects exactly one argument", span)
+                    );
                 }
                 let default_ty =
                     infer_expr_type_with_expected(env, &args[0].value, ctx, Some(ok.as_ref()))?;
@@ -4700,9 +4763,7 @@ fn infer_method_call_type(
                 args,
                 span,
                 "Result.or_else",
-                |mapped| {
-                    ensure_result_type(mapped, ok.as_ref())
-                },
+                |mapped| ensure_result_type(mapped, ok.as_ref()),
             ),
             "unwrap_or_else" => infer_builtin_unary_result_callback(
                 env,
@@ -4711,9 +4772,7 @@ fn infer_method_call_type(
                 args,
                 span,
                 "Result.unwrap_or_else",
-                |mapped| {
-                    ensure_type_compatible_option(mapped, ok.as_ref())
-                },
+                |mapped| ensure_type_compatible_option(mapped, ok.as_ref()),
             ),
             "unwrap" | "expect" => {
                 if method == "expect" && args.len() != 1 {
@@ -4801,7 +4860,9 @@ fn infer_method_call_type(
                     Err(env.type_error("String.to_string_lossy expects no arguments", span))
                 }
             }
-            "starts_with" | "eq_ignore_ascii_case" if matches!(receiver_ty, ResolvedType::String) => {
+            "starts_with" | "eq_ignore_ascii_case"
+                if matches!(receiver_ty, ResolvedType::String) =>
+            {
                 infer_builtin_string_arg_predicate(
                     env,
                     ctx,
@@ -4846,10 +4907,9 @@ fn infer_method_call_type(
             }
             "push_str" if matches!(receiver_ty, ResolvedType::String) => {
                 if args.len() != 1 {
-                    return Err(env.type_error(
-                        "String.push_str expects exactly one argument",
-                        span,
-                    ));
+                    return Err(
+                        env.type_error("String.push_str expects exactly one argument", span)
+                    );
                 }
                 let arg_ty = infer_expr_type_with_expected(
                     env,
@@ -4870,9 +4930,19 @@ fn infer_method_call_type(
                 if args.len() != 1 {
                     return Err(env.type_error("String.push expects exactly one argument", span));
                 }
-                let arg_ty =
-                    infer_expr_type_with_expected(env, &args[0].value, ctx, Some(&ResolvedType::Char))?;
-                ensure_type_compatible(env, &ResolvedType::Char, &arg_ty, args[0].span, "String.push")?;
+                let arg_ty = infer_expr_type_with_expected(
+                    env,
+                    &args[0].value,
+                    ctx,
+                    Some(&ResolvedType::Char),
+                )?;
+                ensure_type_compatible(
+                    env,
+                    &ResolvedType::Char,
+                    &arg_ty,
+                    args[0].span,
+                    "String.push",
+                )?;
                 Ok(ResolvedType::Unit)
             }
             "repeat" if matches!(receiver_ty, ResolvedType::String) => {
@@ -4917,7 +4987,14 @@ fn infer_method_call_type(
                 infer_builtin_same_type_numeric_method(env, ctx, receiver_ty, args, span, method)
             }
             "div_ceil" if matches!(receiver_ty, ResolvedType::Int(_)) => {
-                infer_builtin_same_type_numeric_method(env, ctx, receiver_ty, args, span, "div_ceil")
+                infer_builtin_same_type_numeric_method(
+                    env,
+                    ctx,
+                    receiver_ty,
+                    args,
+                    span,
+                    "div_ceil",
+                )
             }
             "saturating_add" | "saturating_sub" | "saturating_mul" | "wrapping_add"
             | "wrapping_sub" | "wrapping_mul" | "wrapping_shl" | "wrapping_shr"
@@ -4935,7 +5012,11 @@ fn infer_method_call_type(
                     Ok(ResolvedType::Bool)
                 } else {
                     Err(env.type_error(
-                        format!("{}.{} expects no arguments", describe_type(receiver_ty), method),
+                        format!(
+                            "{}.{} expects no arguments",
+                            describe_type(receiver_ty),
+                            method
+                        ),
                         span,
                     ))
                 }
@@ -4945,13 +5026,20 @@ fn infer_method_call_type(
                     Ok(ResolvedType::String)
                 } else {
                     Err(env.type_error(
-                        format!("{}.to_string expects no arguments", describe_type(receiver_ty)),
+                        format!(
+                            "{}.to_string expects no arguments",
+                            describe_type(receiver_ty)
+                        ),
                         span,
                     ))
                 }
             }
             _ => Err(env.type_error(
-                format!("Unknown method '{}' on {}", method, describe_type(receiver_ty)),
+                format!(
+                    "Unknown method '{}' on {}",
+                    method,
+                    describe_type(receiver_ty)
+                ),
                 span,
             )),
         },
@@ -4974,7 +5062,7 @@ fn infer_named_method_call_type(
     method: &str,
     args: &[CallArg],
     span: Span,
-    ) -> KainResult<ResolvedType> {
+) -> KainResult<ResolvedType> {
     if let Some(method_ty) = env.lookup_method(type_name, method).cloned() {
         if let ResolvedType::Function {
             params,
@@ -5015,10 +5103,7 @@ fn infer_named_method_call_type(
         if args.is_empty() {
             Ok(ResolvedType::String)
         } else {
-            Err(env.type_error(
-                format!("{type_name}.to_string expects no arguments"),
-                span,
-            ))
+            Err(env.type_error(format!("{type_name}.to_string expects no arguments"), span))
         }
     } else {
         Err(env.type_error(
@@ -5046,10 +5131,7 @@ fn infer_index_lookup_method(
     method_name: &str,
 ) -> KainResult<ResolvedType> {
     if args.len() != 1 {
-        return Err(env.type_error(
-            format!("{method_name} expects exactly one argument"),
-            span,
-        ));
+        return Err(env.type_error(format!("{method_name} expects exactly one argument"), span));
     }
     let index_ty = infer_expr_type_with_expected(
         env,
@@ -5089,7 +5171,8 @@ fn infer_builtin_predicate_method(
     span: Span,
     method_name: &str,
 ) -> KainResult<ResolvedType> {
-    let predicate_ty = infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
+    let predicate_ty =
+        infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
     ensure_type_compatible(
         env,
         &ResolvedType::Bool,
@@ -5108,7 +5191,8 @@ fn infer_builtin_find_method(
     span: Span,
     method_name: &str,
 ) -> KainResult<ResolvedType> {
-    let predicate_ty = infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
+    let predicate_ty =
+        infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
     ensure_type_compatible(
         env,
         &ResolvedType::Bool,
@@ -5127,7 +5211,8 @@ fn infer_builtin_find_map_method(
     span: Span,
     method_name: &str,
 ) -> KainResult<ResolvedType> {
-    let mapped_ty = infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
+    let mapped_ty =
+        infer_builtin_unary_callback_return(env, ctx, input_ty, args, span, method_name)?;
     match mapped_ty {
         ResolvedType::Option(inner) => Ok(ResolvedType::Option(inner)),
         ResolvedType::Unknown => Ok(ResolvedType::Option(Box::new(ResolvedType::Unknown))),
@@ -5174,7 +5259,8 @@ fn infer_builtin_join_method(
 ) -> KainResult<ResolvedType> {
     let string_item = ResolvedType::String;
     let borrowed_string_item = shared_ref_type(ResolvedType::String);
-    if !types_compatible(&string_item, item_ty) && !types_compatible(&borrowed_string_item, item_ty) {
+    if !types_compatible(&string_item, item_ty) && !types_compatible(&borrowed_string_item, item_ty)
+    {
         return Err(env.type_error(
             format!(
                 "{method_name} requires a String sequence, found {}",
@@ -5342,13 +5428,7 @@ fn infer_builtin_unary_callback_return(
         infer_expr_type_with_expected(env, &args[0].value, ctx, Some(&expected_callback))?;
     match callback_ty {
         ResolvedType::Function { params, ret, .. } if params.len() == 1 => {
-            ensure_type_compatible(
-                env,
-                input_ty,
-                &params[0],
-                args[0].span,
-                method_name,
-            )?;
+            ensure_type_compatible(env, input_ty, &params[0], args[0].span, method_name)?;
             Ok(*ret)
         }
         ResolvedType::Unknown => Ok(ResolvedType::Unknown),
@@ -5406,7 +5486,10 @@ fn infer_builtin_unary_result_callback(
     wrap_output(mapped)
 }
 
-fn ensure_type_compatible_option(mapped: ResolvedType, expected: &ResolvedType) -> KainResult<ResolvedType> {
+fn ensure_type_compatible_option(
+    mapped: ResolvedType,
+    expected: &ResolvedType,
+) -> KainResult<ResolvedType> {
     if matches!(mapped, ResolvedType::Unknown) || types_compatible(expected, &mapped) {
         Ok(if matches!(mapped, ResolvedType::Unknown) {
             expected.clone()
@@ -5418,20 +5501,22 @@ fn ensure_type_compatible_option(mapped: ResolvedType, expected: &ResolvedType) 
     }
 }
 
-fn ensure_option_return_type(mapped: ResolvedType, expected: &ResolvedType) -> KainResult<ResolvedType> {
+fn ensure_option_return_type(
+    mapped: ResolvedType,
+    expected: &ResolvedType,
+) -> KainResult<ResolvedType> {
     match mapped {
         ResolvedType::Option(inner) => {
             if matches!(inner.as_ref(), ResolvedType::Unknown)
                 || types_compatible(expected, inner.as_ref())
             {
-                Ok(ResolvedType::Option(Box::new(if matches!(
-                    inner.as_ref(),
-                    ResolvedType::Unknown
-                ) {
-                    expected.clone()
-                } else {
-                    inner.as_ref().clone()
-                })))
+                Ok(ResolvedType::Option(Box::new(
+                    if matches!(inner.as_ref(), ResolvedType::Unknown) {
+                        expected.clone()
+                    } else {
+                        inner.as_ref().clone()
+                    },
+                )))
             } else {
                 Ok(ResolvedType::Option(Box::new(ResolvedType::Unknown)))
             }
@@ -5636,7 +5721,10 @@ fn pattern_match_subject_type(ty: &ResolvedType) -> &ResolvedType {
     }
 }
 
-fn borrowed_pattern_binding_type(container_ty: &ResolvedType, field_ty: &ResolvedType) -> ResolvedType {
+fn borrowed_pattern_binding_type(
+    container_ty: &ResolvedType,
+    field_ty: &ResolvedType,
+) -> ResolvedType {
     match container_ty {
         ResolvedType::Ref { mutable, .. } => ResolvedType::Ref {
             mutable: *mutable,
@@ -5685,7 +5773,10 @@ fn check_pattern_compatibility(
         } => match pattern_match_subject_type(scrutinee_ty) {
             ResolvedType::Struct(struct_name, known_fields)
                 if struct_name == name
-                    || matches!(pattern_match_subject_type(scrutinee_ty), ResolvedType::Unknown) =>
+                    || matches!(
+                        pattern_match_subject_type(scrutinee_ty),
+                        ResolvedType::Unknown
+                    ) =>
             {
                 for (field_name, field_pattern) in fields {
                     let field_ty = known_fields
@@ -5875,8 +5966,8 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
                     VariantPatternFields::Struct(patterns) => {
                         if let Some(enum_name) = enum_name {
                             for (field_name, pattern) in patterns {
-                                if let Some(field_ty) =
-                                    env.lookup_enum_variant_named_field(enum_name, variant, field_name)
+                                if let Some(field_ty) = env
+                                    .lookup_enum_variant_named_field(enum_name, variant, field_name)
                                 {
                                     let bound_ty = borrowed_pattern_binding_type(ty, field_ty);
                                     bind_pattern_types(env, pattern, &bound_ty)?;
@@ -5905,7 +5996,9 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
         }
         Pattern::Slice { patterns, rest, .. } => {
             let item_ty = match pattern_match_subject_type(ty) {
-                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => inner.as_ref().clone(),
+                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
+                    inner.as_ref().clone()
+                }
                 _ => ResolvedType::Unknown,
             };
             for pattern in patterns {
@@ -5913,7 +6006,8 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
                 bind_pattern_types(env, pattern, &bound_ty)?;
             }
             if let Some(rest_name) = rest {
-                let rest_ty = borrowed_pattern_binding_type(ty, &ResolvedType::Slice(Box::new(item_ty)));
+                let rest_ty =
+                    borrowed_pattern_binding_type(ty, &ResolvedType::Slice(Box::new(item_ty)));
                 env.define(rest_name.clone(), rest_ty);
             }
             Ok(())
@@ -6126,9 +6220,13 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         | (ResolvedType::Bool, ResolvedType::Bool)
         | (ResolvedType::String, ResolvedType::String)
         | (ResolvedType::Char, ResolvedType::Char) => true,
-        (ResolvedType::String, ResolvedType::Ref { mutable: false, inner }) => {
-            types_compatible(expected, peel_shared_refs(inner.as_ref()))
-        }
+        (
+            ResolvedType::String,
+            ResolvedType::Ref {
+                mutable: false,
+                inner,
+            },
+        ) => types_compatible(expected, peel_shared_refs(inner.as_ref())),
         (ResolvedType::Int(_), ResolvedType::Int(_)) => true,
         (ResolvedType::Float(_), ResolvedType::Float(_)) => true,
         (ResolvedType::Int(_), ResolvedType::Float(_))
@@ -6339,14 +6437,11 @@ fn tuple_field_type(
         "z" | "b" => 2,
         "w" | "a" => 3,
         _ => match field.strip_prefix("__kain_tuple_") {
-            Some(index) => index
-                .parse::<usize>()
-                .map_err(|_| env.type_error(format!("Unknown tuple/vector field '{}'", field), span))?,
+            Some(index) => index.parse::<usize>().map_err(|_| {
+                env.type_error(format!("Unknown tuple/vector field '{}'", field), span)
+            })?,
             None => {
-                return Err(env.type_error(
-                    format!("Unknown tuple/vector field '{}'", field),
-                    span,
-                ))
+                return Err(env.type_error(format!("Unknown tuple/vector field '{}'", field), span))
             }
         },
     };
@@ -7202,7 +7297,10 @@ mod tests {
                     effects: vec![],
                     body: Block {
                         stmts: vec![Stmt::Expr(Expr::Call {
-                            callee: Box::new(Expr::Ident("is_compute_plan_binding".to_string(), span)),
+                            callee: Box::new(Expr::Ident(
+                                "is_compute_plan_binding".to_string(),
+                                span,
+                            )),
                             args: vec![CallArg {
                                 name: None,
                                 value: Expr::Ref {
@@ -7463,10 +7561,8 @@ mod tests {
         let span = Span::default();
         let span_mapper = SpanMapper::new("");
         let mut env = TypeEnv::new(&span_mapper, "<test>");
-        let result_ty = ResolvedType::Result(
-            Box::new(ResolvedType::String),
-            Box::new(ResolvedType::Bool),
-        );
+        let result_ty =
+            ResolvedType::Result(Box::new(ResolvedType::String), Box::new(ResolvedType::Bool));
         let callback = Expr::Lambda {
             params: vec![Param {
                 name: "value".to_string(),
@@ -7627,15 +7723,9 @@ mod tests {
         };
         env.define("items".to_string(), borrowed_array.clone());
 
-        let slice_ty = infer_method_call_type(
-            &mut env,
-            None,
-            &borrowed_array,
-            "as_slice",
-            &[],
-            span,
-        )
-        .expect("borrowed arrays should expose as_slice");
+        let slice_ty =
+            infer_method_call_type(&mut env, None, &borrowed_array, "as_slice", &[], span)
+                .expect("borrowed arrays should expose as_slice");
         assert_eq!(
             slice_ty,
             ResolvedType::Ref {
@@ -7906,13 +7996,16 @@ mod tests {
         let mut env = TypeEnv::new(&span_mapper, "<test>");
         let array_ty = ResolvedType::Array(Box::new(ResolvedType::String), 0);
 
-        let peekable_ty =
-            infer_method_call_type(&mut env, None, &array_ty, "peekable", &[], span).expect("peekable");
+        let peekable_ty = infer_method_call_type(&mut env, None, &array_ty, "peekable", &[], span)
+            .expect("peekable");
         assert_eq!(peekable_ty, array_ty);
 
         let next_ty =
             infer_method_call_type(&mut env, None, &array_ty, "next", &[], span).expect("next");
-        assert_eq!(next_ty, ResolvedType::Option(Box::new(ResolvedType::String)));
+        assert_eq!(
+            next_ty,
+            ResolvedType::Option(Box::new(ResolvedType::String))
+        );
 
         let peek_ty =
             infer_method_call_type(&mut env, None, &array_ty, "peek", &[], span).expect("peek");
@@ -8200,9 +8293,8 @@ mod tests {
         assert_eq!(unwrapped, ResolvedType::String);
 
         let array_ty = ResolvedType::Array(Box::new(ResolvedType::String), 0);
-        let last_item =
-            infer_method_call_type(&mut env, None, &array_ty, "last", &[], span)
-                .expect("Array.last should typecheck");
+        let last_item = infer_method_call_type(&mut env, None, &array_ty, "last", &[], span)
+            .expect("Array.last should typecheck");
         assert_eq!(
             last_item,
             ResolvedType::Option(Box::new(ResolvedType::Ref {
@@ -8280,7 +8372,10 @@ mod tests {
             span,
         )
         .expect("Option.copied should typecheck");
-        assert_eq!(copied_option, ResolvedType::Option(Box::new(ResolvedType::Bool)));
+        assert_eq!(
+            copied_option,
+            ResolvedType::Option(Box::new(ResolvedType::Bool))
+        );
 
         let filtered_option = infer_method_call_type(
             &mut env,
@@ -8308,16 +8403,12 @@ mod tests {
         .expect("Option.filter should keep the option shape");
         assert_eq!(filtered_option, option_ty);
 
-        let taken_option =
-            infer_method_call_type(&mut env, None, &option_ty, "take", &[], span).expect(
-                "Option.take should keep the option shape",
-            );
+        let taken_option = infer_method_call_type(&mut env, None, &option_ty, "take", &[], span)
+            .expect("Option.take should keep the option shape");
         assert_eq!(taken_option, option_ty);
 
-        let result_ty = ResolvedType::Result(
-            Box::new(ResolvedType::String),
-            Box::new(ResolvedType::Bool),
-        );
+        let result_ty =
+            ResolvedType::Result(Box::new(ResolvedType::String), Box::new(ResolvedType::Bool));
         let ok_ty =
             infer_method_call_type(&mut env, None, &result_ty, "ok", &[], span).expect("Result.ok");
         assert_eq!(ok_ty, ResolvedType::Option(Box::new(ResolvedType::String)));
@@ -8523,7 +8614,10 @@ mod tests {
             ("HashSet__new_", selfhost_set_type()),
             ("std__collections__HashSet__new_", selfhost_set_type()),
         ] {
-            let ty = env.lookup(name).cloned().expect("selfhost helper should be registered");
+            let ty = env
+                .lookup(name)
+                .cloned()
+                .expect("selfhost helper should be registered");
             assert_eq!(
                 ty,
                 ResolvedType::Function {
@@ -8618,8 +8712,8 @@ mod tests {
             args: Vec::new(),
             span,
         };
-        let current_dir_ty =
-            infer_expr_type(&mut env, &current_dir_call, None).expect("current_dir should typecheck");
+        let current_dir_ty = infer_expr_type(&mut env, &current_dir_call, None)
+            .expect("current_dir should typecheck");
         assert_eq!(
             current_dir_ty,
             selfhost_host_result_type(selfhost_path_buf_type())
@@ -8644,17 +8738,22 @@ mod tests {
         .expect("PathBuf.join should typecheck");
         assert_eq!(join_ty, selfhost_path_buf_type());
 
-        let file_name_ty =
-            infer_method_call_type(&mut env, None, &join_ty, "file_name", &[], span)
-                .expect("PathBuf.file_name should typecheck");
+        let file_name_ty = infer_method_call_type(&mut env, None, &join_ty, "file_name", &[], span)
+            .expect("PathBuf.file_name should typecheck");
         let file_name_inner =
             infer_method_call_type(&mut env, None, &file_name_ty, "unwrap", &[], span)
                 .expect("Option.unwrap should produce the file name");
         assert_eq!(file_name_inner, ResolvedType::String);
 
-        let lossy_ty =
-            infer_method_call_type(&mut env, None, &file_name_inner, "to_string_lossy", &[], span)
-                .expect("String.to_string_lossy should typecheck");
+        let lossy_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &file_name_inner,
+            "to_string_lossy",
+            &[],
+            span,
+        )
+        .expect("String.to_string_lossy should typecheck");
         assert_eq!(lossy_ty, ResolvedType::String);
     }
 
@@ -8895,19 +8994,16 @@ fn describe(kind: lexer::TokenKind) -> String:
             ResolvedType::Option(Box::new(ResolvedType::Unknown))
         );
 
-        let map_iter_ty = infer_method_call_type(
-            &mut env,
-            None,
-            &selfhost_map_type(),
-            "iter",
-            &[],
-            span,
-        )
-        .expect("Map.iter should typecheck");
+        let map_iter_ty =
+            infer_method_call_type(&mut env, None, &selfhost_map_type(), "iter", &[], span)
+                .expect("Map.iter should typecheck");
         assert_eq!(
             map_iter_ty,
             ResolvedType::Array(
-                Box::new(ResolvedType::Tuple(vec![ResolvedType::String, ResolvedType::Unknown])),
+                Box::new(ResolvedType::Tuple(vec![
+                    ResolvedType::String,
+                    ResolvedType::Unknown
+                ])),
                 0
             )
         );
@@ -8945,26 +9041,14 @@ fn describe(kind: lexer::TokenKind) -> String:
         .expect("Set.insert should typecheck through mutable receivers");
         assert_eq!(set_insert_ty, ResolvedType::Bool);
 
-        let map_is_empty_ty = infer_method_call_type(
-            &mut env,
-            None,
-            &selfhost_map_type(),
-            "is_empty",
-            &[],
-            span,
-        )
-        .expect("Map.is_empty should typecheck");
+        let map_is_empty_ty =
+            infer_method_call_type(&mut env, None, &selfhost_map_type(), "is_empty", &[], span)
+                .expect("Map.is_empty should typecheck");
         assert_eq!(map_is_empty_ty, ResolvedType::Bool);
 
-        let set_is_empty_ty = infer_method_call_type(
-            &mut env,
-            None,
-            &selfhost_set_type(),
-            "is_empty",
-            &[],
-            span,
-        )
-        .expect("Set.is_empty should typecheck");
+        let set_is_empty_ty =
+            infer_method_call_type(&mut env, None, &selfhost_set_type(), "is_empty", &[], span)
+                .expect("Set.is_empty should typecheck");
         assert_eq!(set_is_empty_ty, ResolvedType::Bool);
     }
 
@@ -9066,7 +9150,9 @@ fn demo(filter: Option<Filter>, out_: &mut Set<String>):
         let Stmt::Expr(Expr::Call { callee, args, .. }) = &inner_some_body.stmts[0] else {
             panic!("expected first inner Some statement to be a call");
         };
-        assert!(matches!(callee.as_ref(), Expr::Ident(name, _) if name == "collect_type_names_from_item"));
+        assert!(
+            matches!(callee.as_ref(), Expr::Ident(name, _) if name == "collect_type_names_from_item")
+        );
         assert_eq!(args.len(), 2);
         assert!(matches!(
             &args[0].value,
@@ -9180,15 +9266,9 @@ fn demo(filter: Option<Filter>, out_: &mut Set<String>):
         .expect("shared-self methods should dispatch through borrowed receivers");
         assert_eq!(borrowed_result, ResolvedType::Bool);
 
-        let owned_result = infer_method_call_type(
-            &mut env,
-            None,
-            &type_value,
-            "contains_raw_ptr",
-            &[],
-            span,
-        )
-        .expect("shared-self methods should also dispatch through owned receivers");
+        let owned_result =
+            infer_method_call_type(&mut env, None, &type_value, "contains_raw_ptr", &[], span)
+                .expect("shared-self methods should also dispatch through owned receivers");
         assert_eq!(owned_result, ResolvedType::Bool);
     }
 

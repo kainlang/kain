@@ -927,6 +927,7 @@ dependencies = [
  "gpu",
  "heck 0.5.0",
  "kain-asm",
+ "kain-c-ffi",
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
