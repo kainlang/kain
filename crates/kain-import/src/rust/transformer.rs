@@ -69,6 +69,13 @@ impl RustMacroPolicy {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EnumVariantCtorShape {
+    Unit,
+    Tuple(usize),
+    Struct(Vec<String>),
+}
+
 pub struct RustTransformer {
     /// Maps Rust types to KAIN types.
     type_mapper: RustTypeMapper,
@@ -93,6 +100,9 @@ pub struct RustTransformer {
 
     /// Monotonic counter for synthetic closure parameter names.
     closure_param_counter: usize,
+
+    /// Known enum variant constructor shapes keyed by fully-qualified enum path.
+    enum_variant_shapes: HashMap<String, HashMap<String, EnumVariantCtorShape>>,
 
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
@@ -131,6 +141,7 @@ impl RustTransformer {
             local_types: vec![HashMap::new()],
             value_substitutions: vec![HashMap::new()],
             closure_param_counter: 0,
+            enum_variant_shapes: HashMap::new(),
             diagnostics: Vec::new(),
             reported_diagnostic_keys: HashSet::new(),
             options,
@@ -675,8 +686,250 @@ impl RustTransformer {
         }
     }
 
+    fn resolved_path_segments(&self, path: &syn::Path) -> Vec<String> {
+        self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path))
+    }
+
+    fn builtin_variant_shape(
+        &self,
+        resolved: &[String],
+    ) -> Option<(String, String, EnumVariantCtorShape)> {
+        match resolved {
+            [variant] if variant == "None" => Some((
+                "Option".to_string(),
+                "None".to_string(),
+                EnumVariantCtorShape::Unit,
+            )),
+            [variant] if variant == "Some" => Some((
+                "Option".to_string(),
+                "Some".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
+            [variant] if variant == "Ok" => Some((
+                "Result".to_string(),
+                "Ok".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
+            [variant] if variant == "Err" => Some((
+                "Result".to_string(),
+                "Err".to_string(),
+                EnumVariantCtorShape::Tuple(1),
+            )),
+            [enum_name, variant] if enum_name == "Option" && variant == "None" => Some((
+                "Option".to_string(),
+                "None".to_string(),
+                EnumVariantCtorShape::Unit,
+            )),
+            [enum_name, variant] if enum_name == "Option" && variant == "Some" => {
+                Some((
+                    "Option".to_string(),
+                    "Some".to_string(),
+                    EnumVariantCtorShape::Tuple(1),
+                ))
+            }
+            [enum_name, variant] if enum_name == "Result" && variant == "Ok" => {
+                Some((
+                    "Result".to_string(),
+                    "Ok".to_string(),
+                    EnumVariantCtorShape::Tuple(1),
+                ))
+            }
+            [enum_name, variant] if enum_name == "Result" && variant == "Err" => {
+                Some((
+                    "Result".to_string(),
+                    "Err".to_string(),
+                    EnumVariantCtorShape::Tuple(1),
+                ))
+            }
+            _ => None,
+        }
+    }
+
+    fn known_variant_shape(
+        &self,
+        resolved: &[String],
+    ) -> Option<(String, String, EnumVariantCtorShape)> {
+        if let Some(shape) = self.builtin_variant_shape(resolved) {
+            return Some(shape);
+        }
+        if resolved.len() < 2 {
+            return None;
+        }
+        let variant = resolved.last()?.clone();
+        let enum_name = resolved[..resolved.len() - 1].join("::");
+        self
+            .enum_variant_shapes
+            .get(&enum_name)
+            .and_then(|variants| variants.get(&variant))
+            .cloned()
+            .map(|shape| (enum_name, variant, shape))
+    }
+
+    fn fallback_explicit_variant_head(&self, resolved: &[String]) -> Option<(String, String)> {
+        if resolved.len() < 2 {
+            return None;
+        }
+        let variant = resolved.last()?.clone();
+        starts_with_uppercase(&variant)
+            .then(|| (resolved[..resolved.len() - 1].join("::"), variant))
+    }
+
+    fn make_variant_constructor_lambda(
+        &mut self,
+        enum_name: String,
+        variant: String,
+        shape: EnumVariantCtorShape,
+    ) -> Expr {
+        match shape {
+            EnumVariantCtorShape::Unit => Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Unit,
+                span: S,
+            },
+            EnumVariantCtorShape::Tuple(arity) => {
+                let params = (0..arity)
+                    .map(|_| {
+                        let name = self.next_closure_param_name();
+                        Param {
+                            name: name.clone(),
+                            ty: Type::Infer(S),
+                            mutable: false,
+                            default: None,
+                            span: S,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let values = params
+                    .iter()
+                    .map(|param| Expr::Ident(param.name.clone(), S))
+                    .collect::<Vec<_>>();
+                Expr::Lambda {
+                    params,
+                    return_type: None,
+                    body: Box::new(Expr::EnumVariant {
+                        enum_name,
+                        variant,
+                        fields: EnumVariantFields::Tuple(values),
+                        span: S,
+                    }),
+                    span: S,
+                }
+            }
+            EnumVariantCtorShape::Struct(field_names) => {
+                let params = field_names
+                    .iter()
+                    .map(|field_name| {
+                        let name = self.rename_value(field_name);
+                        Param {
+                            name,
+                            ty: Type::Infer(S),
+                            mutable: false,
+                            default: None,
+                            span: S,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let fields = field_names
+                    .iter()
+                    .zip(params.iter())
+                    .map(|(field_name, param)| {
+                        (self.rename_field(field_name), Expr::Ident(param.name.clone(), S))
+                    })
+                    .collect::<Vec<_>>();
+                Expr::Lambda {
+                    params,
+                    return_type: None,
+                    body: Box::new(Expr::EnumVariant {
+                        enum_name,
+                        variant,
+                        fields: EnumVariantFields::Struct(fields),
+                        span: S,
+                    }),
+                    span: S,
+                }
+            }
+        }
+    }
+
+    fn lower_path_variant_expr(&mut self, path: &syn::Path) -> Option<Expr> {
+        let resolved = self.resolved_path_segments(path);
+        if let Some((enum_name, variant, shape)) = self.known_variant_shape(&resolved) {
+            return match (enum_name, variant, shape) {
+                (enum_name, variant, EnumVariantCtorShape::Unit)
+                    if enum_name == "Option" && variant == "None" =>
+                {
+                    Some(Expr::None(S))
+                }
+                (enum_name, variant, EnumVariantCtorShape::Unit) => Some(Expr::EnumVariant {
+                    enum_name,
+                    variant,
+                    fields: EnumVariantFields::Unit,
+                    span: S,
+                }),
+                (enum_name, variant, shape) => {
+                    Some(self.make_variant_constructor_lambda(enum_name, variant, shape))
+                }
+            };
+        }
+        self.fallback_explicit_variant_head(&resolved)
+            .map(|(enum_name, variant)| Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Unit,
+                span: S,
+            })
+    }
+
+    fn lower_variant_call_expr(
+        &mut self,
+        path: &syn::Path,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+    ) -> Option<Result<Expr>> {
+        let resolved = self.resolved_path_segments(path);
+        let (enum_name, variant) = self
+            .known_variant_shape(&resolved)
+            .map(|(enum_name, variant, _)| (enum_name, variant))
+            .or_else(|| self.fallback_explicit_variant_head(&resolved))?;
+        Some(
+            args.iter()
+                .map(|expr| self.transform_expr(expr).map(|value| self.peel_expr_wrapper(value)))
+                .collect::<Result<Vec<_>>>()
+                .map(|values| Expr::EnumVariant {
+                    enum_name,
+                    variant,
+                    fields: EnumVariantFields::Tuple(values),
+                    span: S,
+                }),
+        )
+    }
+
+    fn lower_variant_struct_expr(&mut self, expr: &syn::ExprStruct) -> Option<Result<Expr>> {
+        let resolved = self.resolved_path_segments(&expr.path);
+        let (enum_name, variant) = self
+            .known_variant_shape(&resolved)
+            .map(|(enum_name, variant, _)| (enum_name, variant))
+            .or_else(|| self.fallback_explicit_variant_head(&resolved))?;
+        Some(
+            expr.fields
+                .iter()
+                .map(|field| {
+                    let field_name = self.rename_field(&member_name(&field.member));
+                    let value = self.transform_expr(&field.expr)?;
+                    Ok((field_name, self.peel_expr_wrapper(value)))
+                })
+                .collect::<Result<Vec<_>>>()
+                .map(|fields| Expr::EnumVariant {
+                    enum_name,
+                    variant,
+                    fields: EnumVariantFields::Struct(fields),
+                    span: S,
+                }),
+        )
+    }
+
     fn pattern_variant_head(&self, path: &syn::Path) -> (Option<String>, String) {
-        let resolved = self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
+        let resolved = self.resolved_path_segments(path);
         let variant = resolved
             .last()
             .cloned()
@@ -699,6 +952,7 @@ impl RustTransformer {
     // ─────────────────────────────────────────────────────────────────────
 
     pub fn transform(&mut self, file: syn::File) -> Result<Program> {
+        self.enum_variant_shapes = collect_enum_variant_shapes(&file.items);
         let mut items = Vec::new();
         for item in &file.items {
             items.extend(self.transform_item(item)?);
@@ -1528,7 +1782,6 @@ impl RustTransformer {
 
     fn normalize_for_iter_expr(expr: Expr) -> Expr {
         match expr {
-            Expr::Ref { value, .. } => Self::normalize_for_iter_expr(*value),
             Expr::Paren(inner, _) => Self::normalize_for_iter_expr(*inner),
             other => other,
         }
@@ -1720,6 +1973,9 @@ impl RustTransformer {
                         _ => receiver,
                     });
                 }
+                if let Some(variant_expr) = self.lower_path_variant_expr(&p.path) {
+                    return Ok(variant_expr);
+                }
                 let name = self.resolve_value_path(&p.path);
                 Ok(Expr::Ident(name, S))
             }
@@ -1819,6 +2075,11 @@ impl RustTransformer {
 
             // ── Function call ─────────────────────────────────────────────
             syn::Expr::Call(c) => {
+                if let syn::Expr::Path(path) = c.func.as_ref() {
+                    if let Some(variant_expr) = self.lower_variant_call_expr(&path.path, &c.args) {
+                        return variant_expr;
+                    }
+                }
                 let callee = self.transform_expr(&c.func)?;
                 let callee = self.peel_expr_wrapper(callee);
                 let args = self.transform_call_args(&c.args)?;
@@ -1855,6 +2116,9 @@ impl RustTransformer {
 
             // ── Struct construction ───────────────────────────────────────
             syn::Expr::Struct(s) => {
+                if let Some(variant_expr) = self.lower_variant_struct_expr(s) {
+                    return variant_expr;
+                }
                 let name = self.resolve_type_path(&s.path);
                 let fields = s
                     .fields
@@ -3178,6 +3442,69 @@ fn path_to_ident(path: &syn::Path) -> String {
         .join("::")
 }
 
+fn collect_enum_variant_shapes(
+    items: &[syn::Item],
+) -> HashMap<String, HashMap<String, EnumVariantCtorShape>> {
+    let mut shapes = HashMap::new();
+    let mut module_path = Vec::new();
+    collect_enum_variant_shapes_from_items(items, &mut module_path, &mut shapes);
+    shapes
+}
+
+fn collect_enum_variant_shapes_from_items(
+    items: &[syn::Item],
+    module_path: &mut Vec<String>,
+    output: &mut HashMap<String, HashMap<String, EnumVariantCtorShape>>,
+) {
+    for item in items {
+        match item {
+            syn::Item::Enum(item_enum) => {
+                let mut full_path = module_path.clone();
+                full_path.push(item_enum.ident.to_string());
+                let enum_name = full_path.join("::");
+                let variants = item_enum
+                    .variants
+                    .iter()
+                    .map(|variant| {
+                        let shape = match &variant.fields {
+                            syn::Fields::Unit => EnumVariantCtorShape::Unit,
+                            syn::Fields::Unnamed(fields) => {
+                                EnumVariantCtorShape::Tuple(fields.unnamed.len())
+                            }
+                            syn::Fields::Named(fields) => EnumVariantCtorShape::Struct(
+                                fields
+                                    .named
+                                    .iter()
+                                    .filter_map(|field| {
+                                        field.ident.as_ref().map(|ident| ident.to_string())
+                                    })
+                                    .collect(),
+                            ),
+                        };
+                        (variant.ident.to_string(), shape)
+                    })
+                    .collect::<HashMap<_, _>>();
+                output.insert(enum_name, variants);
+            }
+            syn::Item::Mod(item_mod) => {
+                if let Some((_, nested)) = &item_mod.content {
+                    module_path.push(item_mod.ident.to_string());
+                    collect_enum_variant_shapes_from_items(nested, module_path, output);
+                    module_path.pop();
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn starts_with_uppercase(value: &str) -> bool {
+    value
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_uppercase())
+}
+
 fn has_cfg_test_attr(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         attr.path().is_ident("cfg")
@@ -4432,7 +4759,7 @@ mod tests {
     }
 
     #[test]
-    fn strips_borrow_wrappers_from_for_loop_iterables() {
+    fn preserves_borrowed_for_loop_iterables() {
         let program = transform_source(
             r#"
             struct Demo {
@@ -4458,13 +4785,17 @@ mod tests {
         };
         assert!(matches!(
             iter,
-            Expr::Field { object, field, .. }
-                if field == "values"
-                    && matches!(
-                        object.as_ref(),
-                        Expr::Deref(inner, _)
-                            if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "demo")
-                    )
+            Expr::Ref { value, .. }
+                if matches!(
+                    value.as_ref(),
+                    Expr::Field { object, field, .. }
+                        if field == "values"
+                            && matches!(
+                                object.as_ref(),
+                                Expr::Deref(inner, _)
+                                    if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "demo")
+                            )
+                )
         ));
     }
 
@@ -4494,6 +4825,182 @@ mod tests {
             scrutinee.as_ref(),
             Expr::Deref(inner, _)
                 if matches!(inner.as_ref(), Expr::Ident(name, _) if name == "item")
+        ));
+    }
+
+    #[test]
+    fn lowers_prelude_option_and_result_variant_constructors() {
+        let program = transform_source(
+            r#"
+            fn demo() -> Result<Option<i32>, String> {
+                Ok(Some(1))
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+            ..
+        }) = &function.body.stmts[0]
+        else {
+            panic!("expected enum variant expression");
+        };
+        assert_eq!(enum_name, "Result");
+        assert_eq!(variant, "Ok");
+        let EnumVariantFields::Tuple(values) = fields else {
+            panic!("expected tuple variant fields");
+        };
+        assert!(matches!(
+            values.as_slice(),
+            [Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Tuple(inner),
+                ..
+            }] if enum_name == "Option"
+                && variant == "Some"
+                && matches!(inner.as_slice(), [Expr::Int(1, _)])
+        ));
+    }
+
+    #[test]
+    fn lowers_explicit_enum_variant_values_in_expression_position() {
+        let program = transform_source(
+            r#"
+            enum Mode {
+                Fast,
+                Slow(i32),
+            }
+
+            fn demo(flag: bool) -> Mode {
+                if flag {
+                    Mode::Fast
+                } else {
+                    Mode::Slow(1)
+                }
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        }) = &function.body.stmts[0]
+        else {
+            panic!("expected if expression");
+        };
+        assert!(matches!(
+            then_branch.stmts.as_slice(),
+            [Stmt::Expr(Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Unit,
+                ..
+            })] if enum_name == "Mode" && variant == "Fast"
+        ));
+        let Some(else_branch) = else_branch.as_deref() else {
+            panic!("expected else branch");
+        };
+        let ElseBranch::Else(block) = else_branch else {
+            panic!("expected plain else branch");
+        };
+        assert!(matches!(
+            block.stmts.as_slice(),
+            [Stmt::Expr(Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Tuple(values),
+                ..
+            })] if enum_name == "Mode"
+                && variant == "Slow"
+                && matches!(values.as_slice(), [Expr::Int(1, _)])
+        ));
+    }
+
+    #[test]
+    fn lowers_builtin_variant_constructor_values_to_lambdas() {
+        let program = transform_source(
+            r#"
+            fn demo(values: Result<i32, String>) {
+                let next = values.map(Some);
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { args, .. }),
+            ..
+        } = &function.body.stmts[0]
+        else {
+            panic!("expected method call let binding");
+        };
+        let Expr::Lambda { params, body, .. } = &args[0].value else {
+            panic!("expected constructor lambda");
+        };
+        assert_eq!(params.len(), 1);
+        assert!(matches!(
+            body.as_ref(),
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Tuple(values),
+                ..
+            } if enum_name == "Option"
+                && variant == "Some"
+                && matches!(values.as_slice(), [Expr::Ident(name, _)] if name == &params[0].name)
+        ));
+    }
+
+    #[test]
+    fn lowers_explicit_tuple_variant_constructor_values_to_lambdas() {
+        let program = transform_source(
+            r#"
+            enum LoadError {
+                Invalid(String),
+            }
+
+            fn demo(values: Result<i32, String>) {
+                let next = values.map_err(LoadError::Invalid);
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let Stmt::Let {
+            value: Some(Expr::MethodCall { args, .. }),
+            ..
+        } = &function.body.stmts[0]
+        else {
+            panic!("expected method call let binding");
+        };
+        let Expr::Lambda { params, body, .. } = &args[0].value else {
+            panic!("expected constructor lambda");
+        };
+        assert_eq!(params.len(), 1);
+        assert!(matches!(
+            body.as_ref(),
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields: EnumVariantFields::Tuple(values),
+                ..
+            } if enum_name == "LoadError"
+                && variant == "Invalid"
+                && matches!(values.as_slice(), [Expr::Ident(name, _)] if name == &params[0].name)
         ));
     }
 

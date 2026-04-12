@@ -1552,6 +1552,32 @@ fn repair_selfhost_bundle(source: String) -> String {
         ]
         .join("\n")
     });
+    let source = repair_named_function_block(
+        &source,
+        "fn extract_compute_metadata_from_comptime_block(",
+        |_| {
+            [
+                "fn extract_compute_metadata_from_comptime_block(block: &Block) -> Result<Option<ComputeMetadata>, ComputeMetadataError>:",
+                "    for stmt in &(*block).stmts:",
+                "        match stmt:",
+                "            Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(expr) } =>",
+                "                if is_compute_plan_binding(name):",
+                "                    return parse_compute_metadata_expr(expr).map(fn(metadata): Option::Some(metadata))",
+                "                else:",
+                "                    ()",
+                "            Stmt::Item(item) =>",
+                "                match item:",
+                "                    Item::Comptime(comptime_) =>",
+                "                        match (extract_compute_metadata_from_comptime_block(&comptime_.body)?):",
+                "                            Some(metadata) => return Result::Ok(Option::Some(metadata))",
+                "                            _ => ()",
+                "                    _ => ()",
+                "            _ => ()",
+                "    Result::Ok(none)",
+            ]
+            .join("\n")
+        },
+    );
     let source = source.replace(
         "                _ => let __selfhost_empty = none",
         "                _ =>\n                    let __selfhost_empty = none",

@@ -1,5 +1,60 @@
 # MEMORY
 
+## 2026-04-11 - phase2 selfhost advanced through parser, borrow, variant, and builtin-method blockers but is still not green
+
+Phase2 selfhost is materially further forward than the earlier parser-wall state, but it is not fully green yet. The work in this pass pushed the generated `kain-core.kn` through several real language and selfhost-repair seams and left the current front blocker at a smaller builtin-surface gap instead of the earlier structural failures.
+
+What changed:
+
+- Updated `crates/kain-import/src/rust/transformer.rs`
+  - Resolved impl `Self` more aggressively across receivers, return types, value/type paths, and pattern variant heads.
+  - Added enum-constructor-aware lowering so explicit enum variant values and constructor references lower correctly, including lambda synthesis for higher-order constructor values.
+  - Preserved borrowed `for` iterables and added explicit borrowed-field-base deref insertion plus borrow-adapter lowering (`as_ref`, `as_mut`, `as_deref`, `as_deref_mut`).
+  - Normalized const/static borrowed slices into owned array-ish shapes for selfhost import.
+- Updated `crates/kain-core/src/types.rs`
+  - Added bidirectional lambda inference for higher-order call/method sites.
+  - Fixed borrowed pattern matching so borrowed enum payloads stay borrowed.
+  - Allowed field access through borrowed struct/pointer wrappers.
+  - Preserved named-field identity for struct-style enum variants in both pattern binding and enum construction checks instead of positionally zipping fields.
+  - Added builtin method typing for `Option.map`, `Option.unwrap_or`, `Result.map`, `Result.map_err`, `Result.unwrap_or`, and `Array.contains`.
+  - Normalized empty tuple literals `()` to `Unit`.
+  - Added focused regressions for borrowed field access, borrowed struct-variant binding by field name, higher-order `Result.map`, empty tuple unit inference, and array `contains`.
+- Updated `crates/cli/src/selfhost.rs`
+  - Added a named-function selfhost repair for `extract_compute_metadata_from_comptime_block(...)` so the generated Kain stays statement-shaped instead of leaking `none`-typed expression arms into a unit-only control-flow position.
+
+Validation completed:
+
+- `cargo test -q -p kain-import preserves_borrowed_for_loop_iterables -- --nocapture`
+- `cargo test -q -p kain-import lowers_builtin_variant_constructor_values_to_lambdas -- --nocapture`
+- `cargo test -q -p kain-import lowers_explicit_tuple_variant_constructor_values_to_lambdas -- --nocapture`
+- `cargo test -q -p kain-import lowers_explicit_enum_variant_values_in_expression_position -- --nocapture`
+- `cargo test -q -p kain-core typecheck_for_loops_over_borrowed_arrays_as_borrowed_items -- --nocapture`
+- `cargo test -q -p kain-core typecheck_infers_lambda_parameters_from_expected_function_type -- --nocapture`
+- `cargo test -q -p kain-core typecheck_infers_lambda_arguments_for_higher_order_methods -- --nocapture`
+- `cargo test -q -p kain-core typecheck_borrowed_variant_patterns_bind_borrowed_payloads -- --nocapture`
+- `cargo test -q -p kain-core typecheck_allows_field_access_through_borrowed_structs -- --nocapture`
+- `cargo test -q -p kain-core typecheck_binds_struct_variant_fields_by_name_under_borrow -- --nocapture`
+- `cargo test -q -p kain-core typecheck_infers_result_map_callback_types -- --nocapture`
+- `cargo test -q -p kain-core typecheck_treats_empty_tuple_literal_as_unit -- --nocapture`
+- `cargo test -q -p kain-core typecheck_allows_array_contains -- --nocapture`
+- repeated `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir /tmp/kain_phase2_probe_after_patch*`
+
+Design decisions:
+
+- Fixed the real type/import semantics where the language surface was clearly missing something broadly useful, instead of papering over every phase2 blocker in the repair lane.
+- Used the selfhost named-function repair only where the generated shape itself was clearly the wrong control-flow form for Kain (`extract_compute_metadata_from_comptime_block`).
+- Kept generic selfhost strictness intact; this pass widened well-scoped language support rather than weakening type safety globally.
+
+Current risks:
+
+- Phase2 still is not green. After the latest pass, the current front blocker is in generated `kain-core.kn` around `COMPUTE_PLAN_BINDING_NAMES.contains(&name)`: the checker now accepts `Array.contains`, but the call site is still producing a deeper borrowed argument shape (`&&String`) and likely needs either another small builtin-method compatibility expansion or importer-side borrow cleanup.
+- The selfhost lane is still surfacing method-surface gaps one family at a time, so more builtin collection/option/result/string methods may still need to be modeled before the stage2 workspace build becomes the active blocker.
+- The worktree also contained unrelated user-side changes in `runtime/conformance/platform_parity/*`; those were left untouched.
+
+Recommended next step:
+
+- Continue phase2 from the current `Array.contains(&name)` seam, then keep rerunning `kain selfhost phase2` until the next front blocker moves from semantic typing to stage2 workspace assembly/build failures.
+
 ## 2026-04-11 - dated runtime expansion roadmap added for self-hosting, MCP, web, graphics, audio, and foreign runtime growth
 
 A new dated runtime planning document now captures the desired long-range direction for the native/runtime stack under the repo's current private, AI-developed assumptions.
