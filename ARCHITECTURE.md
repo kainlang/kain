@@ -177,7 +177,7 @@ The architecture rule here is the same as the viewport and compute lanes: shader
 The native runtime now has a first real UI vendor slice instead of only a future-host wish list:
 
 - `runtime/native` owns the service families and startup contract bits for `ui.layout.yoga`, `ui.backend.imgui`, and `ui.devtools`; `ui.render.skia`, `ui.backend.rmlui`, `ui.backend.slint`, `ui.backend.qt`, `ui.surface.browser.cef`, `gfx.backend.filament`, `gfx.backend.diligent`, `gfx.backend.forge`, and `wasm.runtime.full` / `wasm.wasi` now activate through bridge-backed or external-runtime probes instead of staying staged
-- `runtime/thirdparty/imgui` and `runtime/thirdparty/yoga` are the first compile-backed UI vendor trees in the manifest-driven native bundle; the heavier UI stacks now use probe-backed bridge identities rather than permanent staged placeholders
+- `runtime/3rdparty/imgui` and `runtime/3rdparty/yoga` are the first compile-backed UI vendor trees in the manifest-driven native bundle; the heavier UI stacks now use probe-backed bridge identities rather than permanent staged placeholders
 - `crates/kain-ui` now emits explicit backend-role truth in runtime metadata and per-surface preferences through `UiHostBackendKind`, `UiLayoutEngineKind`, and `UiRenderEngineKind`
 - `crates/kain-ui-native` now defaults to a no-`egui` Qt Quick host. The old 9k-line host survives in `src/legacy_egui.rs`, but only behind the explicit Cargo feature `legacy-egui`; default builds keep the bundle/build API, materialize a Qt session manifest plus generated `Main.qml`, and launch the external `qml` / `qmlscene` runtime when it is available on the host
 - The current non-`egui` host is intentionally metadata-first: document, viewport, and devtools lanes are routed into a generated Qt Quick shell immediately, while in-process bgfx and ImGui embeddings still degrade to explicit placeholder panes until those adapters land
@@ -233,8 +233,8 @@ Viewport startup intent now follows the same compiler-owned pattern:
 
 ## Important Folders By Intent
 
-- [runtime/native](/M:/Code/Kain/runtime/native): canonical C runtime and ABI/service floor; manifest-driven vendor incorporation stays Kain-owned here even when implementation comes from `runtime/thirdparty`
-- [runtime/thirdparty](/M:/Code/Kain/runtime/thirdparty): curated vendor bundle for Kainized runtime incorporation; upstream engines live here, but Kain-owned wrappers, service keys, and contracts stay under `runtime/native`
+- [runtime/native](/M:/Code/Kain/runtime/native): canonical C runtime and ABI/service floor; manifest-driven vendor incorporation stays Kain-owned here even when implementation comes from `runtime/3rdparty`
+- [runtime/3rdparty](/M:/Code/Kain/runtime/3rdparty): curated vendor bundle for Kainized runtime incorporation; upstream engines live here, but Kain-owned wrappers, service keys, and contracts stay under `runtime/native`
 - [runtime/conformance](/M:/Code/Kain/runtime/conformance): lane-level conformance harnesses
 - [runtime/parallel](/M:/Code/Kain/runtime/parallel): Rust/Zig companion runtime work that must stay aligned with the native runtime doctrine
 - [docs/kainplan](/M:/Code/Kain/docs/kainplan): active design and execution docs

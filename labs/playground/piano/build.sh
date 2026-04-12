@@ -8,7 +8,7 @@ generated_dir="$lab_root/generated"
 app_name="piano"
 shared_lib="$lab_root/native/libpiano_audio.so"
 source_file="$lab_root/native/piano_audio.c"
-miniaudio_include="$repo_root/runtime/thirdparty/miniaudio"
+miniaudio_include="$repo_root/runtime/3rdparty/miniaudio"
 llvm_output="$generated_dir/$app_name.ll"
 binary_path="$generated_dir/$app_name"
 

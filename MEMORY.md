@@ -1,5 +1,32 @@
 # MEMORY
 
+## 2026-04-12 - runtime vendor tree renamed to runtime/3rdparty
+
+The canonical vendored runtime checkout moved from `runtime/thirdparty` to
+`runtime/3rdparty`. Repo-owned manifests, metadata, docs, and the piano lab
+build script now reference the new path.
+
+What changed:
+
+- Renamed the root vendor tree to `runtime/3rdparty`.
+- Updated `runtime/native_runtime.toml` and
+  `runtime/native_runtime_metadata.json` to use `3rdparty/` source prefixes.
+- Rewrote runtime architecture/historical docs and
+  `labs/playground/piano/build.sh` to point at `runtime/3rdparty`.
+- Verified that repo-owned references to `runtime/thirdparty` are gone outside
+  the moved tree.
+
+Current risk:
+
+- Upstream vendor subtrees still contain their own internal `thirdparty` and
+  `3rdparty` directory names and comments, which are unrelated to the repo-root
+  rename.
+
+Recommended next step:
+
+- Keep new runtime path references on `runtime/3rdparty` so the old root path
+  does not creep back into manifests or docs.
+
 ## 2026-04-12 - LLVM actor lowering now targets the canonical native actor ABI
 
 The LLVM backend in `crates/kain-sys-codegen` now lowers actor programs against `runtime/native/include/kain_runtime_actor.h` instead of the old `KAIN_spawn` / `mq_*` path. The emitted IR now carries explicit `%KainActorMessage` and `%KainActorSpawnConfig` types, and actor entrypoints use the canonical `(actor_id, mailbox, user_data)` signature.
@@ -801,8 +828,8 @@ What changed:
   - Preserved the raw-native core assumptions: `KAIN_RUNTIME_SERVICE_CORE_MASK`, `missing_core_service_count`, and `valid_for_raw_native` still only care about the existing three Win32 host services.
 - Hardened build and vendor trees
   - Updated `runtime/compile_native_runtime.sh` to consume manifest `defines`, not just sources and include dirs.
-  - Patched `runtime/thirdparty/quickjs/quickjs.c` with a `CONFIG_VERSION` fallback so Kain can compile the engine cleanly from the vendor tree.
-  - Added `runtime/thirdparty/wamr/core/version.h` as a Kain shim because the curated WAMR tree omits the generated upstream header that `wasm_runtime_common.c` expects.
+  - Patched `runtime/3rdparty/quickjs/quickjs.c` with a `CONFIG_VERSION` fallback so Kain can compile the engine cleanly from the vendor tree.
+  - Added `runtime/3rdparty/wamr/core/version.h` as a Kain shim because the curated WAMR tree omits the generated upstream header that `wasm_runtime_common.c` expects.
 - Updated conformance harnesses
   - Patched `runtime/conformance/diagnostics/compile_tests.sh` and `runtime/conformance/host_bridge/run_tests.sh` so they compile the vendor lane in stub-only mode when they only need the registry/catalog surface.
 
@@ -836,14 +863,14 @@ Recommended next step:
   - add a Kain-owned `audio.*` API above the miniaudio lane
   - decide whether allocator selection becomes runtime-configurable before wiring mimalloc/rpmalloc into shared allocation helpers
 
-## 2026-04-11 - vendor-edit harvest plan added for third-party runtimes under runtime/thirdparty
+## 2026-04-11 - vendor-edit harvest plan added for third-party runtimes under runtime/3rdparty
 
 The repo now has an explicit plan for how imported third-party runtimes should strengthen Kain without becoming the runtime's source of semantic truth.
 
 What changed:
 
 - Added `runtime/KAIN_RUNTIME_HARVEST_PLAN_2026-04-11.md`
-  - Defined the operating model for `runtime/thirdparty/` as `vendor, complete, patch, wrap, validate`.
+  - Defined the operating model for `runtime/3rdparty/` as `vendor, complete, patch, wrap, validate`.
   - Made the intended workflow explicit: edit vendored runtime files in place for Kain rather than embedding them unchanged or rewriting them from scratch.
   - Classified the current third-party imports by practical usefulness:
     - `quickjs`: strongest real integration candidate and the first recommended active service family
@@ -862,13 +889,13 @@ Design decisions:
 
 Current risks:
 
-- `runtime/thirdparty/` is still in an ambiguous repo state: several trees look partial, no shared inventory or patch ledger exists yet, and provenance/build completeness is not normalized.
+- `runtime/3rdparty/` is still in an ambiguous repo state: several trees look partial, no shared inventory or patch ledger exists yet, and provenance/build completeness is not normalized.
 - Editing vendor code in place will pay off only if patch provenance and conformance are kept disciplined; otherwise the trees will decay into untraceable forks.
 - The new plan still depends on a future unified Kain runtime value ABI and Kain-owned script-runtime contract so foreign runtimes do not become ad hoc boundary APIs.
 
 Recommended next step:
 
-- Add `runtime/thirdparty/INVENTORY.md` and a first QuickJS integration spec so the repo distinguishes clearly between buildable vendor lanes, reference-only imports, and the first real harvested runtime service.
+- Add `runtime/3rdparty/INVENTORY.md` and a first QuickJS integration spec so the repo distinguishes clearly between buildable vendor lanes, reference-only imports, and the first real harvested runtime service.
 
 ## 2026-04-11 - phase2 selfhost advanced through parser, borrow, variant, and builtin-method blockers but is still not green
 
