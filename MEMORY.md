@@ -1,5 +1,39 @@
 # MEMORY
 
+## 2026-04-11 - vendor-edit harvest plan added for third-party runtimes under runtime/thirdparty
+
+The repo now has an explicit plan for how imported third-party runtimes should strengthen Kain without becoming the runtime's source of semantic truth.
+
+What changed:
+
+- Added `runtime/KAIN_RUNTIME_HARVEST_PLAN_2026-04-11.md`
+  - Defined the operating model for `runtime/thirdparty/` as `vendor, complete, patch, wrap, validate`.
+  - Made the intended workflow explicit: edit vendored runtime files in place for Kain rather than embedding them unchanged or rewriting them from scratch.
+  - Classified the current third-party imports by practical usefulness:
+    - `quickjs`: strongest real integration candidate and the first recommended active service family
+    - `wren`: promising embed API, but current import is incomplete
+    - `mruby`: useful architecture source, but current import is incomplete
+    - `lua`: valuable VM/data-structure reference, but current import is incomplete
+    - `cpython/dictobject.c`: idea source for maps/dicts, not a runtime integration path by itself
+  - Defined Kain-owned target families around those imports such as `script.quickjs`, `script.wren`, `script.mruby`, `script.lua`, and `data.dict.experimental`.
+  - Recorded the first execution order: provenance/completeness audit, QuickJS-first integration, data-structure harvest from Lua and CPython dict behavior, then explicit completion-or-prune decisions for the half-imported runtimes.
+
+Design decisions:
+
+- Chose a vendor-edit strategy instead of a clean-room rewrite strategy because the imported runtimes already contain useful mature machinery that Kain can adapt faster than recreating from zero.
+- Preserved the rule that Kain still owns semantics, the kernel, diagnostics, tracing, permissions, and public extension contracts.
+- Positioned QuickJS as the first active dynamic scripting/service-runtime candidate because it is the only current third-party tree that looks close to a usable embeddable drop.
+
+Current risks:
+
+- `runtime/thirdparty/` is still in an ambiguous repo state: several trees look partial, no shared inventory or patch ledger exists yet, and provenance/build completeness is not normalized.
+- Editing vendor code in place will pay off only if patch provenance and conformance are kept disciplined; otherwise the trees will decay into untraceable forks.
+- The new plan still depends on a future unified Kain runtime value ABI and Kain-owned script-runtime contract so foreign runtimes do not become ad hoc boundary APIs.
+
+Recommended next step:
+
+- Add `runtime/thirdparty/INVENTORY.md` and a first QuickJS integration spec so the repo distinguishes clearly between buildable vendor lanes, reference-only imports, and the first real harvested runtime service.
+
 ## 2026-04-11 - phase2 selfhost advanced through parser, borrow, variant, and builtin-method blockers but is still not green
 
 Phase2 selfhost is materially further forward than the earlier parser-wall state, but it is not fully green yet. The work in this pass pushed the generated `kain-core.kn` through several real language and selfhost-repair seams and left the current front blocker at a smaller builtin-surface gap instead of the earlier structural failures.
