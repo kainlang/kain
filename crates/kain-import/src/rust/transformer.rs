@@ -3550,10 +3550,8 @@ impl RustTransformer {
             self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
-        } else if let Some(normalized) = self.normalize_local_associated_value_path(&resolved) {
-            normalized
         } else {
-            resolved.join("::")
+            resolved.join("__")
         }
     }
 
@@ -3567,26 +3565,6 @@ impl RustTransformer {
         } else {
             resolved.join("::")
         }
-    }
-
-    fn normalize_local_associated_value_path(&mut self, resolved: &[String]) -> Option<String> {
-        if resolved.len() < 3 {
-            return None;
-        }
-        let root = resolved.first().map(String::as_str)?;
-        if !matches!(root, "crate" | "self" | "super") {
-            return None;
-        }
-        let associated_type = resolved.get(resolved.len() - 2)?;
-        if !looks_like_type_name(associated_type) {
-            return None;
-        }
-        let value = resolved.last()?;
-        Some(format!(
-            "{}::{}",
-            self.rename_type(associated_type),
-            self.rename_value(value),
-        ))
     }
 
     fn normalize_local_type_path(&mut self, resolved: &[String]) -> Option<String> {
@@ -4787,10 +4765,36 @@ mod tests {
                 panic!("expected identifier callee");
             };
             assert!(
-                path.ends_with("Env::new") || path.ends_with("Env::new_"),
-                "expected Env::new-style callee, found {path}"
+                path == "Env__new" || path == "Env__new_",
+                "expected flattened Env::new-style callee, found {path}"
             );
         }
+    }
+
+    #[test]
+    fn flattens_explicit_module_value_paths_into_selfhost_aliases() {
+        let program = transform_source(
+            r#"
+            fn demo(env: &mut crate::runtime::Env, block: &crate::ast::Block) {
+                crate::runtime::eval_block(env, block);
+            }
+            "#,
+        );
+
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        let rendered_body = format!("{:?}", func.body.stmts);
+        assert!(
+            rendered_body.contains("runtime__eval_block"),
+            "expected flattened runtime alias in lowered body, found {rendered_body}"
+        );
     }
 
     #[test]

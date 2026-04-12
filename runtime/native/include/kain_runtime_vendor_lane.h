@@ -14,6 +14,7 @@
 #define KAIN_VENDOR_HAS_BGFX 0
 #define KAIN_VENDOR_HAS_FILAMENT 0
 #define KAIN_VENDOR_HAS_DILIGENT 0
+#define KAIN_VENDOR_HAS_FORGE 0
 #define KAIN_VENDOR_HAS_BIMG 0
 #else
 #if defined(__linux__) || defined(_WIN32)
@@ -30,7 +31,8 @@
 #define KAIN_VENDOR_HAS_BGFX 1
 #define KAIN_VENDOR_HAS_FILAMENT 0
 #define KAIN_VENDOR_HAS_DILIGENT 0
-#define KAIN_VENDOR_HAS_BIMG 0
+#define KAIN_VENDOR_HAS_FORGE 0
+#define KAIN_VENDOR_HAS_BIMG 1
 #endif
 
 typedef struct {
@@ -79,6 +81,7 @@ extern const KainVendorServiceFunctionTable g_kain_vendor_allocator_rpmalloc_ser
 extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_bgfx_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_filament_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service;
 extern const KainVendorServiceFunctionTable g_kain_vendor_asset_texture_bimg_service;
 

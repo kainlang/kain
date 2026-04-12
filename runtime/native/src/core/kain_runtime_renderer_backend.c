@@ -40,6 +40,15 @@ static const KainRendererBackendDescriptor g_kain_renderer_backend_catalog[] = {
         "Explicit render-graph, compute, and pipeline-control lane",
         KAIN_VENDOR_HAS_DILIGENT
     },
+    {
+        KAIN_RENDERER_BACKEND_FORGE,
+        "forge",
+        "The Forge Renderer",
+        "the-forge",
+        KAIN_SERVICE_KEY_GFX_BACKEND_FORGE,
+        "Low-level cross-platform renderer substrate staged for a future Kain-owned backend lane",
+        KAIN_VENDOR_HAS_FORGE
+    },
 };
 
 const KainRendererBackendDescriptor* kain_renderer_backend_catalog(void) {

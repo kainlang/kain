@@ -1,0 +1,54 @@
+// Copyright (C) 2026 The Qt Company Ltd.
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GFDL-1.3-no-invariants-only
+
+/*!
+\page qmllint-warnings-and-errors-renamed-type.html
+\ingroup qmllint-warnings-and-errors
+
+\title Renamed Type
+\brief [renamed-type] A type was called by its unexported name.
+
+\qmllintwarningcategory renamed-type
+
+\section1 Renamed Type
+
+\section2 What happened?
+A type, which was renamed via \l QT_QML_SOURCE_TYPENAME or via a hand-written qmldir,
+was called by its unexported name.
+
+\section2 Why is this bad?
+This leads to confusing code, as a single type now has more than one name. Renamed singletons
+won't work correctly when using their unexported name, and the unexported name can't be used
+by QML files outside the current QML module.
+
+\section2 Example
+\badcode
+# CMakeLists.txt
+set_source_files_properties(Tree.qml PROPERTIES QT_QML_SOURCE_TYPENAME BinaryTree)
+qt_add_qml_module(MyModule
+    URI MyModule
+    QML_FILES Tree.qml
+)
+\endcode
+\qml
+// Tree.qml
+import QtQml
+
+Item {
+    property Tree left // uses old name - not ok
+    property Tree right // uses old name - not ok
+}
+\endqml
+
+To fix this warning, replace the old name with the new name:
+
+\qml
+// Tree.qml
+import QtQml
+
+Item {
+    property BinaryTree left // uses new name - ok
+    property BinaryTree right // uses new name - ok
+}
+\endqml
+*/

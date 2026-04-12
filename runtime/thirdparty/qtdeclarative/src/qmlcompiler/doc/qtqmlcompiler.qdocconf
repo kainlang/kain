@@ -1,0 +1,56 @@
+include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
+include($QT_INSTALL_DOCS/config/exampleurl-qtdeclarative.qdocconf)
+
+project                 = QtQmlCompiler
+description             = Qt Qml Compiler Reference Documentation
+version                 = $QT_VERSION
+
+qhp.projects            = QtQmlCompiler
+
+qhp.QtQmlCompiler.file          = qtqmlcompiler.qhp
+qhp.QtQmlCompiler.namespace     = org.qt-project.qtqmlcompiler.$QT_VERSION_TAG
+qhp.QtQmlCompiler.virtualFolder = qtqmlcompiler
+qhp.QtQmlCompiler.indexTitle    = Qt Qml Compiler
+qhp.QtQmlCompiler.indexRoot     =
+
+qhp.QtQmlCompiler.subprojects = manual classes
+qhp.QtQmlCompiler.subprojects.manual.title = Qt Qml Compiler
+qhp.QtQmlCompiler.subprojects.manual.indexTitle = Qt Qml Compiler module topics
+qhp.QtQmlCompiler.subprojects.manual.type = manual
+
+qhp.QtQmlCompiler.subprojects.classes.title = C++ Classes
+qhp.QtQmlCompiler.subprojects.classes.indexTitle = Qt Qml Compiler C++ Classes
+qhp.QtQmlCompiler.subprojects.classes.selectors = namespace class
+qhp.QtQmlCompiler.subprojects.classes.sortPages = true
+
+tagfile                 = qtqmlcompiler.tags
+
+depends += \
+    qtcore \
+    qtnetwork \
+    qtqmlmodels \
+    qtqmlworkerscript \
+    qtgui \
+    qtquick \
+    qtdoc \
+    qtwidgets \
+    qtquickcontrols \
+    qmake \
+    qtcmake \
+    qtqml \
+    qtlinguist
+
+headerdirs  += ..
+
+sourcedirs  += ..
+
+navigation.landingpage = "Qt Qml Compiler"
+navigation.cppclassespage = "Qt Qml Compiler C++ Classes"
+# Auto-generate navigation linking based on "Qt Labs Platform module topics":
+navigation.toctitles = "Qt Qml Compiler module topics"
+navigation.toctitles.inclusive = false
+
+# Enforce zero documentation warnings
+warninglimit = 0
+exampledirs += \
+    ../../../examples/qmlcompiler

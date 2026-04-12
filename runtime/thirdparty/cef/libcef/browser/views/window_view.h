@@ -1,0 +1,181 @@
+// Copyright 2016 The Chromium Embedded Framework Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
+
+#ifndef CEF_LIBCEF_BROWSER_VIEWS_WINDOW_VIEW_H_
+#define CEF_LIBCEF_BROWSER_VIEWS_WINDOW_VIEW_H_
+#pragma once
+
+#include <optional>
+#include <vector>
+
+#include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
+#include "cef/include/views/cef_window.h"
+#include "cef/include/views/cef_window_delegate.h"
+#include "cef/libcef/browser/views/overlay_view_host.h"
+#include "cef/libcef/browser/views/panel_view.h"
+#include "cef/libcef/browser/views/widget_destruction_observer.h"
+#include "third_party/skia/include/core/SkRegion.h"
+#include "ui/display/display.h"
+#include "ui/views/widget/widget_delegate.h"
+#include "ui/views/widget/widget_observer.h"
+
+class CefWindowWidgetDelegate;
+
+// Owned by the Widget, via CefWindowWidgetDelegate.
+class CefWindowView : public CefPanelView<views::View, CefWindowDelegate>,
+                      public views::WidgetObserver {
+  METADATA_HEADER(CefWindowView, views::View)
+
+ public:
+  using ParentClass = CefPanelView<views::View, CefWindowDelegate>;
+
+  class Delegate {
+   public:
+    // Returns true to signal that the Widget can be closed.
+    virtual bool CanWidgetClose() = 0;
+
+    // Called when the underlying platform window is closing.
+    virtual void OnWindowClosing() = 0;
+
+    // Called when the WindowView is about to be deleted.
+    virtual void OnWindowViewDeleted() = 0;
+
+   protected:
+    virtual ~Delegate() = default;
+  };
+
+  // |cef_delegate| may be nullptr.
+  // |window_delegate| must be non-nullptr.
+  CefWindowView(CefWindowDelegate* cef_delegate, Delegate* window_delegate);
+  ~CefWindowView() override;
+
+  CefWindowView(const CefWindowView&) = delete;
+  CefWindowView& operator=(const CefWindowView&) = delete;
+
+  // Create the Widget.
+  void CreateWidget(gfx::AcceleratedWidget parent_widget);
+
+  // Returns the CefWindow associated with this view. See comments on
+  // CefViewView::GetCefView.
+  CefRefPtr<CefWindow> GetCefWindow() const;
+
+  // views::WidgetDelegate methods forwarded from CefWindowWidgetDelegate:
+  bool CanMinimize() const;
+  bool CanMaximize() const;
+  void WindowClosing();
+  views::View* GetContentsView();
+  views::ClientView* CreateClientView(views::Widget* widget);
+  std::unique_ptr<views::FrameView> CreateFrameView(views::Widget* widget);
+  bool ShouldDescendIntoChildForEventHandling(gfx::NativeView child,
+                                              const gfx::Point& location);
+
+  // views::View methods:
+  void ViewHierarchyChanged(
+      const views::ViewHierarchyChangedDetails& details) override;
+  void OnThemeChanged() override;
+
+  // views::WidgetObserver methods:
+  void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+  void OnWidgetBoundsChanged(views::Widget* widget,
+                             const gfx::Rect& new_bounds) override;
+
+  // Returns the Display containing this Window.
+  display::Display GetDisplay() const;
+
+  // Set/get the window title.
+  void SetTitle(const std::u16string& title);
+  std::u16string title() const { return title_; }
+
+  // Set/get the window icon. This should be a 16x16 icon suitable for use in
+  // the Windows's title bar.
+  void SetWindowIcon(CefRefPtr<CefImage> window_icon);
+  CefRefPtr<CefImage> window_icon() const { return window_icon_; }
+
+  // Set/get the window app icon. This should be a larger icon for use in the
+  // host environment app switching UI. On Windows, this is the ICON_BIG used in
+  // Alt-Tab list and Windows taskbar. The Window icon will be used by default
+  // if no Window App icon is specified.
+  void SetWindowAppIcon(CefRefPtr<CefImage> window_app_icon);
+  CefRefPtr<CefImage> window_app_icon() const { return window_app_icon_; }
+
+  CefRefPtr<CefOverlayController> AddOverlayView(
+      CefRefPtr<CefView> view,
+      cef_docking_mode_t docking_mode,
+      bool can_activate);
+
+  // Called from CefOverlayViewHost::Cleanup().
+  void RemoveOverlayView(CefOverlayViewHost* host, views::View* host_view);
+
+  // Set/get the draggable regions.
+  void SetDraggableRegions(const std::vector<CefDraggableRegion>& regions);
+  SkRegion* draggable_region() const { return draggable_region_.get(); }
+
+  // Called from CefOverlayViewHost::SetOverlayBounds().
+  void OnOverlayBoundsChanged();
+
+  // Returns the FrameView for this Window. May be nullptr.
+  views::FrameView* GetFrameView() const;
+
+  // Optionally modify the bounding box for the Chrome Find bar.
+  void UpdateFindBarBoundingBox(gfx::Rect* bounds) const;
+
+  // Optionally modify the top inset for Chrome dialogs.
+  void UpdateDialogTopInset(int* dialog_top_y) const;
+
+  std::optional<float> GetTitlebarHeight(bool required) const;
+  bool IsFrameless() const { return is_frameless_; }
+
+  // Called before ThemeChanged() for native or Chrome theme changes.
+  void OnThemeColorsChanged(bool chrome_theme);
+
+  // The Widget that hosts us, if we're a modal dialog. May return nullptr
+  // during initialization and destruction.
+  views::Widget* host_widget() const;
+
+  bool IsAlloyStyle() const { return is_alloy_style_; }
+  bool IsChromeStyle() const { return !is_alloy_style_; }
+
+  Delegate* window_delegate() const { return window_delegate_.get(); }
+
+ private:
+  friend class CefWindowWidgetDelegate;
+
+  // Called after Widget teardown starts, before |this| is deleted.
+  void DeleteDelegate();
+
+  void MoveOverlaysIfNecessary();
+  void InvalidateExclusionRegions();
+
+  void UpdateBoundingBox(gfx::Rect* bounds, bool add_titlebar_height) const;
+
+  // Not owned by this object.
+  raw_ptr<Delegate> window_delegate_;
+
+  // True if the window is Alloy style, otherwise Chrome style.
+  const bool is_alloy_style_;
+
+  // True if the window is frameless. It might still be resizable and draggable.
+  bool is_frameless_ = false;
+
+  std::u16string title_;
+  CefRefPtr<CefImage> window_icon_;
+  CefRefPtr<CefImage> window_app_icon_;
+
+  std::unique_ptr<SkRegion> draggable_region_;
+  std::vector<gfx::Rect> draggable_rects_;
+
+  mutable int last_dialog_top_y_ = -1;
+  mutable int last_dialog_top_inset_ = -1;
+
+  // Tracks the Widget that hosts us, if we're a modal dialog.
+  std::unique_ptr<WidgetDestructionObserver> host_widget_destruction_observer_;
+
+  // Hosts for overlay widgets.
+  std::vector<raw_ptr<CefOverlayViewHost>> overlay_hosts_;
+
+  base::WeakPtrFactory<CefWindowView> weak_ptr_factory_{this};
+};
+
+#endif  // CEF_LIBCEF_BROWSER_VIEWS_WINDOW_VIEW_H_

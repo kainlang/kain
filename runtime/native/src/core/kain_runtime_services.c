@@ -395,6 +395,16 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         (void*)&g_kain_vendor_gfx_backend_diligent_service
     },
     {
+        KAIN_SERVICE_KEY_GFX_BACKEND_FORGE,
+        "The Forge Renderer Backend",
+        "Low-level cross-platform renderer substrate staged behind the Kain renderer backend seam",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_FORGE ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_gfx_backend_forge_service
+    },
+    {
         KAIN_SERVICE_KEY_UI_COMPONENT,
         "UI Component Runtime",
         "Component state, invalidation, focus, and event routing",

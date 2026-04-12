@@ -3145,6 +3145,15 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             Value::Return(v) => Ok(*v),
                             v => Ok(v),
                         }
+                    } else if method == "to_string" {
+                        if !arg_vals.is_empty() {
+                            Err(KainError::runtime(format!(
+                                "{}.to_string expects no arguments",
+                                name
+                            )))
+                        } else {
+                            Ok(Value::String(obj_val.to_string()))
+                        }
                     } else {
                         Err(KainError::runtime(format!(
                             "Method {} not found for type {}",
@@ -3155,6 +3164,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
                 // Native Type Methods (e.g. Array.push, String.len)
                 Value::Int(value) => match method.as_str() {
+                    "to_string" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Int.to_string expects no arguments"));
+                        }
+                        Ok(Value::String(obj_val.to_string()))
+                    }
                     "min" => eval_i64_binary_method(value, &arg_vals, method, i64::min),
                     "max" => eval_i64_binary_method(value, &arg_vals, method, i64::max),
                     "div_ceil" => eval_i64_div_ceil_method(value, &arg_vals, method),
@@ -3188,6 +3203,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     ))),
                 },
                 Value::Float(value) => match method.as_str() {
+                    "to_string" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Float.to_string expects no arguments"));
+                        }
+                        Ok(Value::String(obj_val.to_string()))
+                    }
                     "min" => eval_f64_binary_method(value, &arg_vals, method, f64::min),
                     "max" => eval_f64_binary_method(value, &arg_vals, method, f64::max),
                     _ => Err(KainError::runtime(format!(
@@ -3198,6 +3219,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 Value::Array(_) => {
                     // Map common array methods to native functions
                     match method.as_str() {
+                        "to_string" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime(
+                                    "Array.to_string expects no arguments",
+                                ));
+                            }
+                            Ok(Value::String(obj_val.to_string()))
+                        }
                         "push" => {
                             if arg_vals.len() != 1 {
                                 return Err(KainError::runtime("push expects 1 argument"));
@@ -3235,6 +3264,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     }
                 }
                 Value::String(text) => match method.as_str() {
+                    "to_string" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime(
+                                "String.to_string expects no arguments",
+                            ));
+                        }
+                        Ok(Value::String(text.clone()))
+                    }
                     "len" => Ok(Value::Int(text.len() as i64)),
                     "push_str" => {
                         let suffix = expect_single_string_arg(&arg_vals, method)?;
@@ -3257,6 +3294,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         method
                     ))),
                 },
+
+                _ if method == "to_string" => {
+                    if !arg_vals.is_empty() {
+                        Err(KainError::runtime("to_string expects no arguments"))
+                    } else {
+                        Ok(Value::String(obj_val.to_string()))
+                    }
+                }
 
                 _ => Err(KainError::runtime(format!(
                     "Method calls not supported on this type: {:?}",
@@ -5651,5 +5696,35 @@ fn normalize_poll_result(val: Value) -> Value {
         PollState::Ready(inner) => Value::Poll(true, Some(Box::new(inner))),
         PollState::Pending => Value::Poll(false, None),
         PollState::NotAPoll => val, // Keep as-is
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{CallArg, EnumVariantFields};
+    use crate::span::Span;
+
+    #[test]
+    fn eval_method_call_supports_named_enum_to_string() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::MethodCall {
+            receiver: Box::new(Expr::EnumVariant {
+                enum_name: "KainError".to_string(),
+                variant: "Runtime".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::String("boom".to_string(), span)]),
+                span,
+            }),
+            method: "to_string".to_string(),
+            args: Vec::<CallArg>::new(),
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("named enums should stringify at runtime");
+        match value {
+            Value::String(rendered) => assert_eq!(rendered, "KainError::Runtime(boom)"),
+            other => panic!("expected Value::String, found {other:?}"),
+        }
     }
 }

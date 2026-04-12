@@ -1,0 +1,49 @@
+// Copyright (C) 2026 The Qt Company Ltd.
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GFDL-1.3-no-invariants-only
+
+/*!
+\page qmllint-warnings-and-errors-type-instantiated-recursively.html
+\ingroup qmllint-warnings-and-errors
+
+\title Type is instantiated recursively
+\brief [type-instantiated-recursively] Type instantiates itself.
+
+\qmllintwarningcategory type-instantiated-recursively
+
+\section1 Type can't be instantiated recursively
+
+\section2 What happened?
+A component instantiated itself.
+
+\section2 Why is this bad?
+The component needs itself to instantiate itself, creating an infinite loop. The QML runtime
+will error out on this component.
+
+\section2 Example
+\qml
+// MyComponent.qml
+import QtQuick
+
+Item {
+    MyComponent {}
+}
+\endqml
+To fix this warning,
+\list
+\li Replace the problematic component with another one if it was a mistake.
+\li Postpone the instantiation to later, with
+\l{Dynamic QML Object Creation from JavaScript} for example.
+\endlist
+\qml
+// MyComponent.qml
+import QtQuick
+
+Item {
+    // solution 1: MyComponent was not needed here, use another type
+    Item {}
+
+    // solution 2: add a MyComponent property and set it later
+    property MyComponent myChild
+}
+\endqml
+*/

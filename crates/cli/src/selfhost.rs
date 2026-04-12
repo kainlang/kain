@@ -5095,10 +5095,29 @@ fn sanitize_path_to_ident(path: &str) -> String {
 
 fn sanitize_expr_path(path: &str) -> String {
     if path.contains("::") {
-        sanitize_path_to_ident(path)
+        if should_flatten_associated_expr_path(path) {
+            sanitize_path_to_ident(path)
+        } else {
+            path.split("::")
+                .map(sanitize_identifier)
+                .collect::<Vec<_>>()
+                .join("::")
+        }
     } else {
         sanitize_identifier(path)
     }
+}
+
+fn should_flatten_associated_expr_path(path: &str) -> bool {
+    let segments = path.split("::").collect::<Vec<_>>();
+    if segments.len() < 2 {
+        return false;
+    }
+    let associated_type = segments[segments.len() - 2];
+    associated_type
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_uppercase())
 }
 
 fn control_head_expr_to_string(expr: &Expr) -> String {
@@ -5594,7 +5613,26 @@ fn untouched_afterwards():
             sanitize_path_to_ident("std::collections::HashMap"),
             "std__collections__HashMap"
         );
-        assert_eq!(sanitize_expr_path("foo::bar::baz"), "foo__bar__baz");
+        assert_eq!(sanitize_expr_path("foo::bar::baz"), "foo::bar::baz");
+        assert_eq!(
+            sanitize_expr_path("crate::repair::Self"),
+            "crate::repair::Self_"
+        );
+        assert_eq!(sanitize_expr_path("Vec::new"), "Vec__new_");
+        assert_eq!(sanitize_expr_path("Vec::new_"), "Vec__new_");
+        assert_eq!(sanitize_expr_path("Env::new_"), "Env__new_");
+        assert_eq!(
+            sanitize_expr_path("span::Span::default_"),
+            "span__Span__default_"
+        );
+        assert_eq!(
+            sanitize_expr_path("std::collections::HashSet::new"),
+            "std__collections__HashSet__new_"
+        );
+        assert_eq!(
+            sanitize_expr_path("std::collections::HashSet::new_"),
+            "std__collections__HashSet__new_"
+        );
     }
 
     #[test]

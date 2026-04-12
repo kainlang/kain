@@ -613,6 +613,20 @@ const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_diligent_service 
     kain_vendor_stub_deallocate
 };
 
+const KainVendorServiceFunctionTable g_kain_vendor_gfx_backend_forge_service = {
+    "gfx.backend.forge",
+    "the-forge",
+    "the-forge-renderer-staged",
+    kain_vendor_forge_version_string,
+    kain_vendor_forge_probe,
+    kain_vendor_forge_probe,
+    kain_vendor_stub_shutdown,
+    kain_vendor_stub_poll_once,
+    kain_vendor_stub_eval_int32,
+    kain_vendor_stub_allocate,
+    kain_vendor_stub_deallocate
+};
+
 const KainVendorServiceFunctionTable g_kain_vendor_asset_image_bimg_service = {
     "asset.image.bimg",
     "bimg",
@@ -661,6 +675,7 @@ static const KainVendorServiceDescriptor g_kain_vendor_service_catalog[] = {
     {"gfx.backend.bgfx", "gfx", "bgfx", KAIN_VENDOR_HAS_BGFX, &g_kain_vendor_gfx_backend_bgfx_service},
     {"gfx.backend.filament", "gfx", "filament-core", KAIN_VENDOR_HAS_FILAMENT, &g_kain_vendor_gfx_backend_filament_service},
     {"gfx.backend.diligent", "gfx", "diligentcore", KAIN_VENDOR_HAS_DILIGENT, &g_kain_vendor_gfx_backend_diligent_service},
+    {"gfx.backend.forge", "gfx", "the-forge", KAIN_VENDOR_HAS_FORGE, &g_kain_vendor_gfx_backend_forge_service},
     {"asset.image.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_image_bimg_service},
     {"asset.texture.bimg", "asset", "bimg", KAIN_VENDOR_HAS_BIMG, &g_kain_vendor_asset_texture_bimg_service}
 };

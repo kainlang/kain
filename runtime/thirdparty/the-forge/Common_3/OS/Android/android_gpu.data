@@ -1,0 +1,145 @@
+version: 0.3
+#Possible Classfications for Preset: ultra; high; medium; low; verylow; office
+#Sources:
+#https://technical.city/en/video/rating
+#https://raw.githubusercontent.com/GameTechDev/gpudetect/master/IntelGfx.cfg
+#https://vulkan.gpuinfo.org/api/v2/getreportlist.php
+
+BEGIN_DEFAULT_CONFIGURATION;
+#if the gpu doesn't exist in the GPU_LIST use this instead
+DefaultPresetLevel; Low;
+DefaultTarget; android;
+END_DEFAULT_CONFIGURATION;
+
+BEGIN_VENDOR_LIST;
+amd; 0x1002;
+nvidia; 0x10de;
+imgtec; 0x1010;
+apple; 0x106b;
+arm; 0x13b5;
+samsung; 0x144d;
+qualcomm; 0x5143;
+END_VENDOR_LIST;
+
+#VendorID ; DeviceID ; Preset ; #Device Details
+
+BEGIN_GPU_LIST;
+#amd
+0x1002; 0x15D8; verylow; #AMD; AMD Radeon(TM) RX Vega 10 Graphics
+0x1002; 0x687F; verylow; #AMD; Radeon RX Vega
+
+#nvidia
+0x10DE; 0x1341; verylow; #NVIDIA; NVIDIA GeForce 840M
+0x10DE; 0x1B06; high; #NVIDIA; GeForce GTX 1080 Ti
+0x10DE; 0x1C60; medium; #NVIDIA; NVIDIA GeForce GTX 1060
+0x10DE; 0x1C82; low; #NVIDIA; NVIDIA GeForce GTX 1050 Ti
+0x10DE; 0x1D81; high; #NVIDIA; NVIDIA TITAN V
+0x10DE; 0x1F95; high; #NVIDIA; NVIDIA GeForce GTX 1650 Ti
+0x10DE; 0x21C4; medium; #NVIDIA; NVIDIA GeForce GTX 1660 SUPER
+0x10DE; 0x249C; high; #NVIDIA; NVIDIA GeForce RTX 3080 Laptop GPU
+0x10DE; 0x24DD; medium; #NVIDIA; NVIDIA GeForce RTX 3070 Laptop GPU
+0x10DE; 0x25A2; medium; #NVIDIA; NVIDIA GeForce RTX 3050 Laptop GPU
+0x10DE; 0x2786; high; #NVIDIA; NVIDIA GeForce RTX 4070
+0x10DE; 0x92BA03D7; verylow; #NVIDIA; NVIDIA Tegra X1
+0x10DE; 0x92EB03D7; verylow; #NVIDIA; NVIDIA Tegra X1 (rev B) (nvgpu)
+
+#imgtec
+0x1010; 0x22021016; verylow; #ImgTec; PowerVR Rogue GE8100
+0x1010; 0x22054030; verylow; #ImgTec; PowerVR Rogue GE8300
+0x1010; 0x22054038; verylow; #ImgTec; PowerVR Rogue GE8300
+0x1010; 0x22104018; verylow; #ImgTec; PowerVR Rogue GE8320
+0x1010; 0x22104218; verylow; #ImgTec; PowerVR Rogue GE8322
+0x1010; 0x24208504; verylow; #ImgTec; PowerVR Rogue GM9446
+0x1010; 0x35010101; verylow; #ImgTec; PowerVR BXM-8-256
+0x1010; 0x40233; verylow; #ImgTec; PowerVR Rogue GX6250
+0x1010; 0x5012E; verylow; #ImgTec; PowerVR Rogue G6110
+0x1010; 0x6250; verylow; #ImgTec; PowerVR Rogue GX6250
+0x1010; 0xA0419; verylow; #ImgTec; PowerVR Rogue GT7400 Plus
+
+#apple
+0x106B; 0x201; verylow; #Apple; Apple M1
+
+#arm
+0x13B5; 0x60A00001; verylow; #ARM; Mali-G71
+0x13B5; 0x60A00002; verylow; #ARM; Mali-G71
+0x13B5; 0x62210001; verylow; #ARM; Mali-G72
+0x13B5; 0x62210010; verylow; #ARM; Mali-G72
+0x13B5; 0x62210030; verylow; #ARM; Mali-G72 MP3
+0x13B5; 0x70901010; verylow; #ARM; Mali-G51
+0x13B5; 0x72110000; verylow; #ARM; Mali-G76
+0x13B5; 0x72120000; verylow; #ARM; Mali-G52
+0x13B5; 0x74021000; verylow; #ARM; Mali-G52
+0x13B5; 0x7500011; verylow; #ARM; Mali-T760
+0x13B5; 0x8300010; verylow; #ARM; Mali-T830
+0x13B5; 0x8301000; verylow; #ARM; Mali-T830
+0x13B5; 0x8600020; verylow; #ARM; Mali-T860
+0x13B5; 0x8602000; verylow; #ARM; Mali-T860
+0x13B5; 0x8800020; verylow; #ARM; Mali-T880
+0x13B5; 0x8801008; verylow; #ARM; Mali-T880
+0x13B5; 0x8802000; verylow; #ARM; Mali-T880
+0x13B5; 0x90800011; verylow; #ARM; Mali-G57
+0x13B5; 0x90910000; verylow; #ARM; Mali-G57
+0x13B5; 0x90910010; verylow; #ARM; Mali-G57
+0x13B5; 0x90930000; verylow; #ARM; Mali-G57
+0x13B5; 0x90930010; verylow; #ARM; Mali-G57 MC2
+0x13B5; 0x92020000; low; #ARM; Mali-G78
+0x13B5; 0x92020010; low; #ARM; Mali-G78
+0x13B5; 0x92041010; low; #ARM; Mali-G68
+0x13B5; 0xA8620000; low; #ARM; Mali-G710
+0x13B5; 0xA8620004; low; #ARM; Mali-G710
+0x13B5; 0xA8670000; low; #ARM; Mali-G610
+0x13B5; 0xB8A20000; medium; #ARM; Mali-G715
+0x13B5; 0xB8A21010; medium; #ARM; Mali-G715-Immortalis MC11
+0x13B5; 0xB8A21020; medium; #ARM; Mali-G715
+0x13B5; 0xC8700000; medium; #ARM; Mali-G720-Immortalis MC12
+
+#samsung
+0x144D; 0x2600200; medium; #Samsung; Samsung Xclipse 940
+0x144D; 0x73A0; medium; #Samsung; Samsung Xclipse 920
+
+#qualcomm
+0x5143; 0x4010800; verylow; #Qualcomm; Adreno (TM) 418
+0x5143; 0x4030001; verylow; #Qualcomm; Adreno (TM) 430
+0x5143; 0x4030002; verylow; #Qualcomm; Adreno (TM) 430
+0x5143; 0x43050A00; medium; #Qualcomm; Adreno (TM) 740
+0x5143; 0x43050A01; medium; #Qualcomm; Adreno (TM) 740
+0x5143; 0x43050B00; medium; #Qualcomm; Adreno (TM) 740
+0x5143; 0x43051400; medium; #Qualcomm; Adreno (TM) 750
+0x5143; 0x43051401; medium; #Qualcomm; Adreno (TM) 750
+0x5143; 0x5000400; verylow; #Qualcomm; Adreno (TM) 504
+0x5143; 0x5000500; verylow; #Qualcomm; Adreno (TM) 505
+0x5143; 0x5000600; verylow; #Qualcomm; Adreno (TM) 506
+0x5143; 0x5000800; verylow; #Qualcomm; Adreno (TM) 508
+0x5143; 0x5000900; verylow; #Qualcomm; Adreno (TM) 509
+0x5143; 0x5010000; verylow; #Qualcomm; Adreno (TM) 510
+0x5143; 0x5010200; verylow; #Qualcomm; Adreno (TM) 512
+0x5143; 0x5030002; verylow; #Qualcomm; Adreno (TM) 530
+0x5143; 0x5030004; verylow; #Qualcomm; Adreno (TM) 530
+0x5143; 0x5040001; verylow; #Qualcomm; Adreno (TM) 540
+0x5143; 0x6010000; verylow; #Qualcomm; Adreno (TM) 610
+0x5143; 0x6010001; verylow; #Qualcomm; Adreno (TM) 610
+0x5143; 0x6010200; verylow; #Qualcomm; Adreno (TM) 612
+0x5143; 0x6010501; verylow; #Qualcomm; Adreno (TM) 615
+0x5143; 0x6010600; verylow; #Qualcomm; Adreno (TM) 616
+0x5143; 0x6010800; verylow; #Qualcomm; Adreno (TM) 618
+0x5143; 0x6010900; verylow; #Qualcomm; Adreno (TM) 619
+0x5143; 0x6010901; verylow; #Qualcomm; Adreno (TM) 619
+0x5143; 0x6020000; verylow; #Qualcomm; Adreno (TM) 620
+0x5143; 0x6020001; verylow; #Qualcomm; Adreno (TM) 620
+0x5143; 0x6030001; verylow; #Qualcomm; Adreno (TM) 630
+0x5143; 0x6030500; verylow; #Qualcomm; Adreno (TM) 642L
+0x5143; 0x6030501; verylow; #Qualcomm; Adreno (TM) 643
+0x5143; 0x6040001; verylow; #Qualcomm; Adreno (TM) 640
+0x5143; 0x6050001; low; #Qualcomm; Adreno (TM) 650
+0x5143; 0x6050002; low; #Qualcomm; Adreno (TM) 650
+0x5143; 0x6060000; low; #Qualcomm; Adreno (TM) 660
+0x5143; 0x6060001; low; #Qualcomm; Adreno (TM) 660
+0x5143; 0x6060010; verylow; #Qualcomm; Adreno (TM) 642
+0x5143; 0x6060201; verylow; #Qualcomm; Adreno (TM) 644
+0x5143; 0x7000200; verylow; #Qualcomm; Adreno (TM) 702
+0x5143; 0x7010000; verylow; #Qualcomm; Adreno (TM) 710
+0x5143; 0x7030001; low; #Qualcomm; Adreno (TM) 730
+0x5143; 0x7030002; low; #Qualcomm; Adreno (TM) 725
+
+END_GPU_LIST;
+

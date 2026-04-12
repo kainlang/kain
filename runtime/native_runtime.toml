@@ -37,6 +37,75 @@ sources = [
     "thirdparty/miniaudio/miniaudio.c",
     "thirdparty/bx/src/amalgamated.cpp",
     "thirdparty/bgfx/src/amalgamated.cpp",
+    "thirdparty/bimg/src/image.cpp",
+    "thirdparty/bimg/src/image_cubemap_filter.cpp",
+    "thirdparty/bimg/src/image_decode.cpp",
+    "thirdparty/bimg/src/image_encode.cpp",
+    "thirdparty/bimg/src/image_gnf.cpp",
+    "thirdparty/bimg/3rdparty/etc1/etc1.cpp",
+    "thirdparty/bimg/3rdparty/etc2/ProcessRGB.cpp",
+    "thirdparty/bimg/3rdparty/etc2/Tables.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/alpha.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/clusterfit.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/colourblock.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/colourfit.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/colourset.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/maths.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/rangefit.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/singlecolourfit.cpp",
+    "thirdparty/bimg/3rdparty/libsquish/squish.cpp",
+    "thirdparty/bimg/3rdparty/pvrtc/BitScale.cpp",
+    "thirdparty/bimg/3rdparty/pvrtc/MortonTable.cpp",
+    "thirdparty/bimg/3rdparty/pvrtc/PvrTcDecoder.cpp",
+    "thirdparty/bimg/3rdparty/pvrtc/PvrTcEncoder.cpp",
+    "thirdparty/bimg/3rdparty/pvrtc/PvrTcPacket.cpp",
+    "thirdparty/bimg/3rdparty/edtaa3/edtaa3func.cpp",
+    "thirdparty/bimg/3rdparty/iqa/source/convolve.c",
+    "thirdparty/bimg/3rdparty/iqa/source/decimate.c",
+    "thirdparty/bimg/3rdparty/iqa/source/math_utils.c",
+    "thirdparty/bimg/3rdparty/iqa/source/ms_ssim.c",
+    "thirdparty/bimg/3rdparty/iqa/source/mse.c",
+    "thirdparty/bimg/3rdparty/iqa/source/psnr.c",
+    "thirdparty/bimg/3rdparty/iqa/source/ssim.c",
+    "thirdparty/bimg/3rdparty/lodepng/lodepng.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/nvtt.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc6h/zoh.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc6h/zoh_utils.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc6h/zohone.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc6h/zohtwo.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode0.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode1.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode2.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode3.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode4.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode5.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode6.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode7.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/bc7/avpcl_utils.cpp",
+    "thirdparty/bimg/3rdparty/nvtt/nvmath/fitting.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_averages_and_directions.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_block_sizes.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_color_quantize.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_color_unquantize.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_compress_symbolic.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_compute_variance.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_decompress_symbolic.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_diagnostic_trace.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_entry.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_find_best_partitioning.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_ideal_endpoints_and_weights.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_image.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_integer_sequence.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_mathlib.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_mathlib_softfloat.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_partition_tables.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_percentile_tables.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_pick_best_endpoint_format.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_quantization.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_symbolic_physical.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_weight_align.cpp",
+    "thirdparty/bimg/3rdparty/astc-encoder/source/astcenc_weight_quant_xfer_tables.cpp",
     "thirdparty/wasm3/source/m3_bind.c",
     "thirdparty/wasm3/source/m3_code.c",
     "thirdparty/wasm3/source/m3_compile.c",
@@ -153,6 +222,14 @@ include_dirs = [
     "thirdparty/bx/include",
     "thirdparty/bx/3rdparty",
     "thirdparty/bimg/include",
+    "thirdparty/bimg/src",
+    "thirdparty/bimg/3rdparty",
+    "thirdparty/bimg/3rdparty/astc-encoder/include",
+    "thirdparty/bimg/3rdparty/astc-encoder/source",
+    "thirdparty/bimg/3rdparty/nvtt",
+    "thirdparty/bimg/3rdparty/iqa/include",
+    "thirdparty/bimg/3rdparty/tinyexr",
+    "thirdparty/bimg/3rdparty/tinyexr/deps",
     "thirdparty/quickjs",
     "thirdparty/miniaudio",
     "thirdparty/wasm3/source",
@@ -288,6 +365,15 @@ platforms = ["windows", "linux"]
 description = "Explicit render-graph and compute-oriented renderer lane staged for deeper GPU control"
 
 [[services]]
+key = "gfx.backend.forge"
+name = "The Forge Renderer Backend"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+platforms = ["windows", "linux"]
+description = "Low-level cross-platform renderer substrate staged behind the Kain renderer backend seam"
+
+[[services]]
 key = "scene.runtime"
 name = "Scene Runtime"
 provider = "native-core"
@@ -324,7 +410,7 @@ key = "asset.image.bimg"
 name = "bimg Image Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 platforms = ["windows", "linux"]
 description = "Image decoding and staging lane reserved for renderer-facing asset ingestion"
 
@@ -333,7 +419,7 @@ key = "asset.texture.bimg"
 name = "bimg Texture Runtime"
 provider = "native-core"
 requirement = "optional"
-status = "planned"
+status = "available"
 platforms = ["windows", "linux"]
 description = "Texture container and mip/format staging lane reserved for renderer asset flow"
 

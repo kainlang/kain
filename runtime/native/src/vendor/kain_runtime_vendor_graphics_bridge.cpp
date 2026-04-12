@@ -8,6 +8,10 @@
 #include <bgfx/defines.h>
 #endif
 
+#if KAIN_VENDOR_HAS_BIMG && !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
+#include <bimg/bimg.h>
+#endif
+
 extern "C" {
 
 #if KAIN_VENDOR_HAS_BGFX && !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
@@ -52,12 +56,30 @@ int kain_vendor_diligent_probe(void) {
     return 0;
 }
 
+const char* kain_vendor_forge_version_string(void) {
+    return "the-forge-staged";
+}
+
+int kain_vendor_forge_probe(void) {
+    return 0;
+}
+
+#if KAIN_VENDOR_HAS_BIMG && !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
 const char* kain_vendor_bimg_version_string(void) {
-    return "bimg-staged";
+    return "bimg-runtime";
+}
+
+int kain_vendor_bimg_probe(void) {
+    return bimg::getBitsPerPixel(bimg::TextureFormat::RGBA8) > 0 ? 1 : 0;
+}
+#else
+const char* kain_vendor_bimg_version_string(void) {
+    return "bimg-unavailable";
 }
 
 int kain_vendor_bimg_probe(void) {
     return 0;
 }
+#endif
 
 } /* extern "C" */

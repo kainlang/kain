@@ -657,6 +657,24 @@ fn register_selfhost_collection_methods(env: &mut TypeEnv<'_>) {
         },
     );
     env.define_method(
+        "Map".to_string(),
+        "len".to_string(),
+        ResolvedType::Function {
+            params: vec![shared_ref_type(selfhost_map_type())],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::new(),
+        },
+    );
+    env.define_method(
+        "Map".to_string(),
+        "is_empty".to_string(),
+        ResolvedType::Function {
+            params: vec![shared_ref_type(selfhost_map_type())],
+            ret: Box::new(ResolvedType::Bool),
+            effects: EffectSet::new(),
+        },
+    );
+    env.define_method(
         "Set".to_string(),
         "insert".to_string(),
         ResolvedType::Function {
@@ -680,6 +698,24 @@ fn register_selfhost_collection_methods(env: &mut TypeEnv<'_>) {
         ResolvedType::Function {
             params: vec![set_receiver],
             ret: Box::new(dynamic_array_type(ResolvedType::Unknown)),
+            effects: EffectSet::new(),
+        },
+    );
+    env.define_method(
+        "Set".to_string(),
+        "len".to_string(),
+        ResolvedType::Function {
+            params: vec![shared_ref_type(selfhost_set_type())],
+            ret: Box::new(ResolvedType::Int(IntSize::I64)),
+            effects: EffectSet::new(),
+        },
+    );
+    env.define_method(
+        "Set".to_string(),
+        "is_empty".to_string(),
+        ResolvedType::Function {
+            params: vec![shared_ref_type(selfhost_set_type())],
+            ret: Box::new(ResolvedType::Bool),
             effects: EffectSet::new(),
         },
     );
@@ -4288,7 +4324,7 @@ fn infer_named_method_call_type(
     method: &str,
     args: &[CallArg],
     span: Span,
-) -> KainResult<ResolvedType> {
+    ) -> KainResult<ResolvedType> {
     if let Some(method_ty) = env.lookup_method(type_name, method).cloned() {
         if let ResolvedType::Function {
             params,
@@ -4324,6 +4360,15 @@ fn infer_named_method_call_type(
             Ok(*ret)
         } else {
             Ok(ResolvedType::Unknown)
+        }
+    } else if method == "to_string" {
+        if args.is_empty() {
+            Ok(ResolvedType::String)
+        } else {
+            Err(env.type_error(
+                format!("{type_name}.to_string expects no arguments"),
+                span,
+            ))
         }
     } else {
         Err(env.type_error(
@@ -6686,6 +6731,24 @@ mod tests {
     }
 
     #[test]
+    fn typecheck_allows_named_enum_to_string_method() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+
+        let stringified_error = infer_method_call_type(
+            &mut env,
+            None,
+            &ResolvedType::Enum("KainError".to_string(), Vec::new()),
+            "to_string",
+            &[],
+            span,
+        )
+        .expect("Named enums should support builtin to_string");
+        assert_eq!(stringified_error, ResolvedType::String);
+    }
+
+    #[test]
     fn typecheck_allows_borrowed_array_as_slice_and_get() {
         let span = Span::default();
         let span_mapper = SpanMapper::new("");
@@ -7540,6 +7603,28 @@ mod helper_module:
         )
         .expect("Set.insert should typecheck through mutable receivers");
         assert_eq!(set_insert_ty, ResolvedType::Bool);
+
+        let map_is_empty_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &selfhost_map_type(),
+            "is_empty",
+            &[],
+            span,
+        )
+        .expect("Map.is_empty should typecheck");
+        assert_eq!(map_is_empty_ty, ResolvedType::Bool);
+
+        let set_is_empty_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &selfhost_set_type(),
+            "is_empty",
+            &[],
+            span,
+        )
+        .expect("Set.is_empty should typecheck");
+        assert_eq!(set_is_empty_ty, ResolvedType::Bool);
     }
 
     #[test]

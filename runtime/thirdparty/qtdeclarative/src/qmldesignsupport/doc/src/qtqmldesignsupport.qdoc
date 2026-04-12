@@ -1,0 +1,95 @@
+// Copyright (C) 2026 The Qt Company Ltd.
+// SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GFDL-1.3-no-invariants-only
+
+/*!
+    \title \QDesSup
+    \page qtqmldesignsupport-index.html
+    \brief Provides a set of types to allow registering and referencing objects in QML
+
+    The \QDesSup provides support for design tooling with a set of types for
+    registering and referencing objects in QML. Objects are identified with a key string at
+    registration and reference types can use these keys to get references to the registered objects.
+    The idea is to allow clean separation between UI code and business logic, particularly in cases
+    where UI code is automatically generated with some tool and developers are not expected to
+    manually modify it. The \QDesSup module provides both a
+    \l{\QDesSup QML Types}{QML API} and a
+    \l{\QDesSup C++ Classes}{C++ API} for referencing registered objects.
+    The object registration is only available as \l{\QDesSup QML Types}{QML API}.
+
+    \section1 Using the Module
+
+    \section2 QML API
+
+    \include {module-use.qdocinc} {using the qml api} {QtQml.DesignSupport}
+
+    The \l{\QDesSup QML Types}{QML API} of \QDesSup module
+    provides the types required for registering QML objects and referencing registered QML objects.
+
+    \section2 C++ API
+
+    \include {module-use.qdocinc} {using the c++ api}
+
+    The \l{\QDesSup C++ Classes}{C++ API} of \QDesSup
+    module provides the classes required for referencing registered QML objects.
+
+    \section3 Building with CMake
+
+    \include {module-use.qdocinc} {building with cmake} {QmlDesignSupport}
+
+    \section3 Building with qmake
+
+    \include {module-use.qdocinc} {building_with_qmake} {qmldesignsupport}
+
+    \section1 API Reference
+
+    \list
+        \li \l {\QDesSup C++ Classes} {C++ Classes}
+        \li \l {\QDesSup QML Types} {QML Types}
+    \endlist
+
+    \section1 Licenses and Attributions
+
+    \QDesSup is available under commercial licenses from \l{The Qt Company}.
+    In addition, it is available under the
+    \l{GNU Lesser General Public License, version 3}, or
+    the \l{GNU General Public License, version 2}.
+    See \l{Qt Licensing} for further details.
+*/
+
+/*!
+    \qmlmodule QtQml.DesignSupport
+    \title \QDesSup QML Module
+    \ingroup qmlmodules
+    \brief QML types for \QDesSup API
+    \since 6.12
+
+    The \QDesSup functionality can be accessed via these QML types.
+*/
+
+/*!
+    \module QtQmlDesignSupport
+    \qtcmakepackage QmlDesignSupport
+    \qtvariable qmldesignsupport
+    \title \QDesSup Module
+    \since 6.12
+
+    \brief C++ classes for the \QDesSup API.
+*/
+
+/*!
+    \title \QDesSup QML Types
+    \group qmldesignsupport_qml
+
+    \brief QML types for the \QDesSup API.
+
+    The \QDesSup functionality can be accessed via these QML types.
+*/
+
+/*!
+    \title \QDesSup C++ Classes
+    \group qmldesignsupport
+
+    \brief C++ classes for the \QDesSup API.
+
+    The \QDesSup functionality can be accessed via these C++ classes.
+*/

@@ -46,6 +46,7 @@
 #define KAIN_SERVICE_KEY_GFX_BACKEND_BGFX       "gfx.backend.bgfx"
 #define KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT   "gfx.backend.filament"
 #define KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT   "gfx.backend.diligent"
+#define KAIN_SERVICE_KEY_GFX_BACKEND_FORGE      "gfx.backend.forge"
 #define KAIN_SERVICE_KEY_GFX_SHADER             "gfx.shader"
 #define KAIN_SERVICE_KEY_GFX_MATERIAL           "gfx.material"
 #define KAIN_SERVICE_KEY_GFX_COMPUTE            "gfx.compute"

@@ -14,6 +14,9 @@ int kain_vendor_filament_probe(void);
 const char* kain_vendor_diligent_version_string(void);
 int kain_vendor_diligent_probe(void);
 
+const char* kain_vendor_forge_version_string(void);
+int kain_vendor_forge_probe(void);
+
 const char* kain_vendor_bimg_version_string(void);
 int kain_vendor_bimg_probe(void);
 

@@ -1,0 +1,43 @@
+include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
+
+project                 = QtQmlDesignSupport
+description             = Qt Qml Design Support Reference Documentation
+version                 = $QT_VERSION
+
+qhp.projects            = QtQmlDesignSupport
+
+qhp.QtQmlDesignSupport.file = qtqmldesignsupport.qhp
+qhp.QtQmlDesignSupport.namespace = org.qt-project.qtqmldesignsupport.$QT_VERSION_TAG
+qhp.QtQmlDesignSupport.virtualFolder = qtqmldesignsupport
+qhp.QtQmlDesignSupport.indexTitle = Qt Qml Design Support
+qhp.QtQmlDesignSupport.indexRoot =
+
+qhp.QtQmlDesignSupport.subprojects = qmltypes classes
+
+qhp.QtQmlDesignSupport.subprojects.qmltypes.title = QML Types
+qhp.QtQmlDesignSupport.subprojects.qmltypes.indexTitle = Qt Qml Design Support QML Types
+qhp.QtQmlDesignSupport.subprojects.qmltypes.selectors = qmlclass
+qhp.QtQmlDesignSupport.subprojects.qmltypes.sortPages = true
+
+qhp.QtQmlDesignSupport.subprojects.classes.title = C++ Classes
+qhp.QtQmlDesignSupport.subprojects.classes.indexTitle = Qt Qml Design Support C++ Classes
+qhp.QtQmlDesignSupport.subprojects.classes.selectors = class headerfile
+qhp.QtQmlDesignSupport.subprojects.classes.sortPages = true
+
+headerdirs  += ..
+sourcedirs  += ..
+exampledirs += snippets
+imagedirs   += images
+
+depends += qtcore qtdoc qtgui qtqml qtquick
+
+tagfile = qtqmldesignsupport.tags
+
+navigation.landingpage = Qt Qml Design Support
+navigation.qmltypespage = Qt Qml Design Support QML Types
+navigation.cppclassespage = Qt Qml Design Support C++ Classes
+
+macro.QDesSup = "Qt Qml Design Support"
+
+# Enforce zero documentation warnings
+warninglimit = 0

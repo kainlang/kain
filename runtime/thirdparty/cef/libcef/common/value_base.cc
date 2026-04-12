@@ -1,0 +1,254 @@
+// Copyright (c) 2012 The Chromium Embedded Framework Authors. All rights
+// reserved. Use of this source code is governed by a BSD-style license that
+// can be found in the LICENSE file.
+
+#include "cef/libcef/common/value_base.h"
+
+CefValueController::CefValueController() = default;
+
+CefValueController::~CefValueController() {
+  // Everything should already have been removed.
+  DCHECK(!owner_value_ && !owner_object_);
+  DCHECK(reference_map_.empty());
+  DCHECK(dependency_map_.empty());
+}
+
+void CefValueController::SetOwner(void* value, Object* object) {
+  DCHECK(value && object);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  // Owner should only be set once.
+  DCHECK(!owner_value_ && !owner_object_);
+
+  owner_value_ = value;
+  owner_object_ = object;
+}
+
+void CefValueController::AddReference(void* value, Object* object) {
+  DCHECK(value && object);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  // Controller should currently have an owner.
+  DCHECK(owner_value_);
+
+  // Values should only be added once.
+  DCHECK(!reference_map_.contains(value));
+  DCHECK(value != owner_value_);
+
+  reference_map_.insert(std::make_pair(value, object));
+}
+
+void CefValueController::Remove(void* value, bool notify_object) {
+  DCHECK(value);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  // Controller should currently have an owner.
+  DCHECK(owner_value_);
+
+  if (value == owner_value_) {
+    // Should never notify when removing the owner object.
+    DCHECK(!notify_object);
+
+    owner_value_ = nullptr;
+    owner_object_ = nullptr;
+
+    // Remove all references.
+    if (reference_map_.size() > 0) {
+      for (const auto& [ref_value, ref_object] : reference_map_) {
+        ref_object->OnControlRemoved();
+      }
+      reference_map_.clear();
+    }
+
+    // Remove all dependencies.
+    dependency_map_.clear();
+  } else {
+    {
+      ReferenceMap::iterator it = reference_map_.find(value);
+      if (it != reference_map_.end()) {
+        // Remove the reference.
+        if (notify_object) {
+          it->second->OnControlRemoved();
+        }
+        reference_map_.erase(it);
+      }
+    }
+
+    if (!dependency_map_.empty()) {
+      // Remove any instance from dependency map sets.
+      DependencyMap::iterator it = dependency_map_.begin();
+      while (it != dependency_map_.end()) {
+        DependencySet& set = it->second;
+        DependencySet::iterator it_set = set.find(value);
+        if (it_set != set.end()) {
+          set.erase(it_set);
+        }
+        if (set.empty()) {
+          it = dependency_map_.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+  }
+}
+
+CefValueController::Object* CefValueController::Get(void* value) {
+  DCHECK(value);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  if (value == owner_value_) {
+    return owner_object_;
+  } else {
+    ReferenceMap::iterator it = reference_map_.find(value);
+    if (it != reference_map_.end()) {
+      return it->second;
+    }
+    return nullptr;
+  }
+}
+
+void CefValueController::AddDependency(void* parent, void* child) {
+  DCHECK(parent && child && parent != child);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  DependencyMap::iterator it = dependency_map_.find(parent);
+  if (it == dependency_map_.end()) {
+    // New set.
+    DependencySet set;
+    set.insert(child);
+    dependency_map_.insert(std::make_pair(parent, set));
+  } else if (!it->second.contains(child)) {
+    // Update existing set.
+    it->second.insert(child);
+  }
+}
+
+void CefValueController::RemoveDependencies(void* value) {
+  DCHECK(value);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  if (dependency_map_.empty()) {
+    return;
+  }
+
+  DependencyMap::iterator it_dependency = dependency_map_.find(value);
+  if (it_dependency == dependency_map_.end()) {
+    return;
+  }
+
+  // Start with the set of dependencies for the current value.
+  DependencySet remove_set = it_dependency->second;
+  dependency_map_.erase(it_dependency);
+
+  DependencySet::iterator it_value;
+  ReferenceMap::iterator it_reference;
+
+  while (remove_set.size() > 0) {
+    it_value = remove_set.begin();
+    value = *it_value;
+    remove_set.erase(it_value);
+
+    // Does the current value have dependencies?
+    it_dependency = dependency_map_.find(value);
+    if (it_dependency != dependency_map_.end()) {
+      // Append the dependency set to the remove set.
+      remove_set.insert(it_dependency->second.begin(),
+                        it_dependency->second.end());
+      dependency_map_.erase(it_dependency);
+    }
+
+    // Does the current value have a reference?
+    it_reference = reference_map_.find(value);
+    if (it_reference != reference_map_.end()) {
+      // Remove the reference.
+      it_reference->second->OnControlRemoved();
+      reference_map_.erase(it_reference);
+    }
+  }
+}
+
+void CefValueController::TakeFrom(CefValueController* other) {
+  DCHECK(other);
+
+  // Both controllers should already be locked.
+  DCHECK(locked());
+  DCHECK(other->locked());
+
+  if (!other->reference_map_.empty()) {
+    // Transfer references from the other to this.
+    for (const auto& [value, object] : other->reference_map_) {
+      // References should only be added once.
+      DCHECK(!reference_map_.contains(value));
+      reference_map_.insert(std::make_pair(value, object));
+    }
+    other->reference_map_.clear();
+  }
+
+  if (!other->dependency_map_.empty()) {
+    // Transfer dependencies from the other to this.
+    for (const auto& [parent, children] : other->dependency_map_) {
+      DependencyMap::iterator it_me = dependency_map_.find(parent);
+      if (it_me == dependency_map_.end()) {
+        // All children are new.
+        dependency_map_.insert(std::make_pair(parent, children));
+      } else {
+        // Evaluate each child.
+        for (const auto& child : children) {
+          if (!it_me->second.contains(child)) {
+            it_me->second.insert(child);
+          }
+        }
+      }
+    }
+  }
+}
+
+void CefValueController::Swap(void* old_value, void* new_value) {
+  DCHECK(old_value && new_value && old_value != new_value);
+
+  // Controller should already be locked.
+  DCHECK(locked());
+
+  if (owner_value_ == old_value) {
+    owner_value_ = new_value;
+  }
+
+  if (!reference_map_.empty()) {
+    ReferenceMap::iterator it = reference_map_.find(old_value);
+    if (it != reference_map_.end()) {
+      // References should only be added once.
+      DCHECK(!reference_map_.contains(new_value));
+      reference_map_.insert(std::make_pair(new_value, it->second));
+      reference_map_.erase(it);
+    }
+  }
+
+  if (!dependency_map_.empty()) {
+    DependencyMap::iterator it = dependency_map_.find(old_value);
+    if (it != dependency_map_.end()) {
+      dependency_map_.insert(std::make_pair(new_value, it->second));
+      dependency_map_.erase(it);
+    }
+
+    for (auto& [parent, children] : dependency_map_) {
+      DependencySet::iterator dit = children.find(old_value);
+      if (dit != children.end()) {
+        children.insert(new_value);
+        children.erase(dit);
+      }
+    }
+  }
+}

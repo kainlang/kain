@@ -10,6 +10,7 @@ typedef enum {
     KAIN_RENDERER_BACKEND_BGFX,
     KAIN_RENDERER_BACKEND_FILAMENT,
     KAIN_RENDERER_BACKEND_DILIGENT,
+    KAIN_RENDERER_BACKEND_FORGE,
 } KainRendererBackendKind;
 
 typedef struct {

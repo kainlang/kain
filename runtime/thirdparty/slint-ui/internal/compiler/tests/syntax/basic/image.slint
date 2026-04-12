@@ -1,0 +1,24 @@
+// Copyright © SixtyFPS GmbH <info@slint.dev>
+// SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
+
+
+export SubElements := Rectangle {
+//                 ><warning{':=' to declare a component is deprecated. The new syntax declare components with 'component MyComponent {'. Read the documentation for more info}
+
+    background: blue;
+
+    Image {
+        source: @image-url("foo.png");
+    }
+
+    Image {
+        source: @image-url("builtin:/common/does-not-exist.svg");
+//              >                                              <error{Cannot find image file builtin:/common/does-not-exist.svg}
+    }
+
+    Rectangle {
+        background: red;
+    }
+
+
+}

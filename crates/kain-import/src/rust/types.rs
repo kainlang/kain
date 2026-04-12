@@ -185,7 +185,7 @@ impl RustTypeMapper {
                 // KAIN's own Result alias
                 let mut g = generics.iter().cloned();
                 let ok = g.next().unwrap_or(named("String"));
-                let err = g.next().unwrap_or(named("Error"));
+                let err = g.next().unwrap_or(named("KainError"));
                 return Type::Result(Box::new(ok), Box::new(err), S);
             }
             _ => {}
@@ -455,6 +455,17 @@ mod tests {
                 lifetime: None,
                 span: S,
             }
+        );
+    }
+
+    #[test]
+    fn maps_kainresult_to_kainerror_result_alias() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(KainResult<()>);
+
+        assert_eq!(
+            mapper.map_type(&ty),
+            Type::Result(Box::new(Type::Unit(S)), Box::new(named("KainError")), S)
         );
     }
 }

@@ -1,0 +1,98 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 30
+    buildToolsVersion "30.0.3"
+    ndkVersion MSBUILD_NDK_VERSION
+    defaultConfig {
+        applicationId "com.forge.unittest.${ANDROID_APPLICATION_NAME}"
+        minSdkVersion MSBUILD_MIN_SDK_VERSION
+        targetSdkVersion 31
+        versionCode 1
+        versionName "1.0"
+
+        resValue "string", "app_name", ANDROID_APPLICATION_NAME
+        resValue "string", "lib_name", ANDROID_APPLICATION_LIBRARY_NAME
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += ["${MSBUILD_ANDROID_GRADLE_BUILD_OUTPUT_DIR}/../assets"]
+            jniLibs.srcDirs = [MSBUILD_JNI_LIBS_SRC_DIR]
+        }
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = MSBUILD_ANDROID_OUTPUT_APK_NAME
+        }
+    }
+
+    aaptOptions {
+        noCompress '.bin', '.gltf', '.svt', '.ktx', '.zip', '.buny'
+    }
+
+	buildFeatures {
+		prefab true
+	}
+    
+    
+    signingConfigs {
+        internal_build {
+        	initWith(signingConfigs.debug)
+        }
+        shipping_build {
+            // Note: This should be replaced with proper shipping signing configuration before releasing the app,
+            //       this is a workaround to be able to install release builds without signature
+        	initWith(signingConfigs.debug)
+        }
+    }
+
+    // This is an example on how to setup builds for different custom configuration types
+    buildTypes {
+        debug {
+            initWith(buildTypes.debug)
+            applicationIdSuffix ".debug"
+            debuggable true
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.internal_build
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        profile {
+            initWith(buildTypes.release)
+            applicationIdSuffix ".profile"
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.internal_build
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                debugSymbolLevel 'FULL'
+                abiFilters 'arm64-v8a'
+            }
+        }
+        release {
+            initWith(buildTypes.release)
+            applicationIdSuffix ".release"
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.shipping_build
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            ndk {
+                debugSymbolLevel 'FULL'
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'androidx.appcompat:appcompat:1.0.2'
+    implementation 'androidx.games:games-memory-advice:2.0.0-beta04'
+    implementation "androidx.games:games-controller:2.0.1"
+}
+
+buildDir = MSBUILD_ANDROID_GRADLE_BUILD_OUTPUT_DIR
