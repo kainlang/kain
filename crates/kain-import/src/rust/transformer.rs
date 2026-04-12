@@ -746,12 +746,43 @@ impl RustTransformer {
         args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
     ) -> Option<Result<Expr>> {
         let resolved = self.resolved_path_segments(path);
+        if let Some(lowered) = self.lower_eager_wrapper_constructor(&resolved, args) {
+            return Some(lowered);
+        }
         let rewritten = rewrite_associated_constructor_path(&resolved, args.len())?;
         Some(
             args.iter()
                 .map(|expr| self.transform_expr(expr).map(|value| self.peel_expr_wrapper(value)))
                 .collect::<Result<Vec<_>>>()
                 .map(|evaluated_args| self.build_rewritten_constructor_call(&rewritten, evaluated_args)),
+        )
+    }
+
+    fn lower_eager_wrapper_constructor(
+        &mut self,
+        resolved: &[String],
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+    ) -> Option<Result<Expr>> {
+        let is_lazy_new = matches!(
+            resolved,
+            [name, method] if name == "Lazy" && method == "new"
+                | [_, _, name, method] if name == "Lazy" && method == "new"
+        );
+        if !is_lazy_new {
+            return None;
+        }
+        if args.len() != 1 {
+            return Some(Err(crate::Error::Unsupported(
+                "Lazy::new expects exactly one factory argument".to_string(),
+            )));
+        }
+        Some(
+            self.transform_expr(args.first().expect("checked single arg"))
+                .map(|factory| Expr::Call {
+                    callee: Box::new(self.peel_expr_wrapper(factory)),
+                    args: Vec::new(),
+                    span: S,
+                }),
         )
     }
 
@@ -4799,6 +4830,42 @@ mod tests {
                 "expected flattened Env::new-style callee, found {path}"
             );
         }
+    }
+
+    #[test]
+    fn lowers_lazy_new_to_eager_factory_call() {
+        let program = transform_source(
+            r#"
+            use once_cell::sync::Lazy;
+
+            fn demo() {
+                let value = Lazy::new(String::new);
+            }
+            "#,
+        );
+
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        let Stmt::Let {
+            value: Some(Expr::Call { callee, args, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected eager Lazy::new call");
+        };
+
+        assert!(args.is_empty(), "Lazy::new should lower to a nullary factory call");
+        assert!(matches!(
+            callee.as_ref(),
+            Expr::Ident(path, _) if path == "String__new_"
+        ));
     }
 
     #[test]

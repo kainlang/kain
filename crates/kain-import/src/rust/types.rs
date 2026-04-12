@@ -135,6 +135,15 @@ impl RustTypeMapper {
             _ => {}
         }
 
+        // Eager wrapper types keep imported semantics simple in selfhost mode.
+        // `Lazy<T>` is an initialization wrapper, not a semantic runtime type.
+        if name == "Lazy" {
+            if let Some(inner) = generics.first().cloned() {
+                return inner;
+            }
+            return named("Unknown");
+        }
+
         // Ownership wrappers — unwrap to inner T for ergonomic import, but preserve
         // them in strict self-host mode so recursive compiler/runtime types keep
         // their original indirection shape.
@@ -467,5 +476,13 @@ mod tests {
             mapper.map_type(&ty),
             Type::Result(Box::new(Type::Unit(S)), Box::new(named("KainError")), S)
         );
+    }
+
+    #[test]
+    fn maps_lazy_wrapper_to_inner_type_even_in_selfhost_mode() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(once_cell::sync::Lazy<String>);
+
+        assert_eq!(mapper.map_type(&ty), named("String"));
     }
 }

@@ -3217,6 +3217,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     ))),
                 },
                 Value::None => match method.as_str() {
+                    "cloned" | "copied" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime(format!(
+                                "Option.{method} expects no arguments"
+                            )));
+                        }
+                        Ok(Value::None)
+                    }
                     "or" | "or_" => {
                         if arg_vals.len() != 1 {
                             return Err(KainError::runtime("Option.or expects 1 argument"));
@@ -3232,6 +3240,14 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     if enum_name == "Option" =>
                 {
                     match method.as_str() {
+                        "cloned" | "copied" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime(format!(
+                                    "Option.{method} expects no arguments"
+                                )));
+                            }
+                            Ok(obj_val)
+                        }
                         "or" | "or_" => {
                             if arg_vals.len() != 1 {
                                 return Err(KainError::runtime("Option.or expects 1 argument"));
@@ -5757,6 +5773,33 @@ mod tests {
         match value {
             Value::String(rendered) => assert_eq!(rendered, "KainError::Runtime(boom)"),
             other => panic!("expected Value::String, found {other:?}"),
+        }
+    }
+
+    #[test]
+    fn eval_option_copied_keeps_some_payload() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::MethodCall {
+            receiver: Box::new(Expr::EnumVariant {
+                enum_name: "Option".to_string(),
+                variant: "Some".to_string(),
+                fields: EnumVariantFields::Tuple(vec![Expr::Bool(true, span)]),
+                span,
+            }),
+            method: "copied".to_string(),
+            args: Vec::<CallArg>::new(),
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("Option.copied should evaluate");
+        match value {
+            Value::EnumVariant(enum_name, variant, fields)
+                if enum_name == "Option" && variant == "Some" =>
+            {
+                assert!(matches!(fields.as_slice(), [Value::Bool(true)]));
+            }
+            other => panic!("expected Some(true), found {other:?}"),
         }
     }
 }

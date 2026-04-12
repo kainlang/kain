@@ -625,6 +625,12 @@ fn module_scoped_name(module_path: &[String], item_name: &str) -> String {
     parts.join("__")
 }
 
+fn module_scoped_type_name(module_path: &[String], item_name: &str) -> String {
+    let mut parts = module_path.to_vec();
+    parts.push(item_name.to_string());
+    parts.join("::")
+}
+
 fn register_selfhost_constructor_globals(env: &mut TypeEnv<'_>) {
     for spec in SELFHOST_CONSTRUCTOR_SPECS {
         env.define_global(
@@ -824,6 +830,8 @@ fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
         }
         Item::Mod(module) => {
             if let Some(children) = &module.inline {
+                let module_path = vec![module.name.clone()];
+                predeclare_inline_module_type_aliases(env, children, &module_path);
                 for child in children {
                     predeclare_item_types(env, child);
                 }
@@ -959,6 +967,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         Item::Mod(module) => {
             if let Some(children) = &module.inline {
                 let module_path = vec![module.name.clone()];
+                register_inline_module_type_aliases(env, children, &module_path);
                 register_inline_module_global_aliases(env, children, &module_path)?;
                 for child in children {
                     register_item_types(env, child)?;
@@ -1024,6 +1033,114 @@ fn register_inline_module_global_aliases(
         }
     }
     Ok(())
+}
+
+fn predeclare_inline_module_type_aliases(
+    env: &mut TypeEnv,
+    items: &[Item],
+    module_path: &[String],
+) {
+    for item in items {
+        match item {
+            Item::Struct(s) => {
+                let scoped_name = module_scoped_type_name(module_path, &s.name);
+                env.types
+                    .entry(scoped_name)
+                    .or_insert_with(|| ResolvedType::Struct(s.name.clone(), HashMap::new()));
+            }
+            Item::Enum(e) => {
+                let scoped_name = module_scoped_type_name(module_path, &e.name);
+                env.types
+                    .entry(scoped_name.clone())
+                    .or_insert_with(|| ResolvedType::Enum(e.name.clone(), Vec::new()));
+                env.enum_variants.entry(scoped_name).or_default();
+            }
+            Item::World(world) => {
+                let scoped_name = module_scoped_type_name(module_path, &world.name);
+                env.types
+                    .entry(scoped_name)
+                    .or_insert_with(|| ResolvedType::Struct(world.name.clone(), HashMap::new()));
+            }
+            Item::Component(component) => {
+                let scoped_name = module_scoped_type_name(module_path, &component.name);
+                env.types.entry(scoped_name).or_insert_with(|| {
+                    ResolvedType::Struct(component.name.clone(), HashMap::new())
+                });
+            }
+            Item::Actor(actor) => {
+                let scoped_name = module_scoped_type_name(module_path, &actor.name);
+                env.types
+                    .entry(scoped_name)
+                    .or_insert_with(|| ResolvedType::Struct(actor.name.clone(), HashMap::new()));
+            }
+            Item::Mod(module) => {
+                if let Some(children) = &module.inline {
+                    let mut nested_path = module_path.to_vec();
+                    nested_path.push(module.name.clone());
+                    predeclare_inline_module_type_aliases(env, children, &nested_path);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn register_inline_module_type_aliases(
+    env: &mut TypeEnv,
+    items: &[Item],
+    module_path: &[String],
+) {
+    for item in items {
+        match item {
+            Item::Struct(s) => {
+                if let Some(resolved) = env.lookup_type(&s.name).cloned() {
+                    env.types
+                        .insert(module_scoped_type_name(module_path, &s.name), resolved);
+                }
+            }
+            Item::Enum(e) => {
+                if let Some(resolved) = env.lookup_type(&e.name).cloned() {
+                    let scoped_name = module_scoped_type_name(module_path, &e.name);
+                    env.types.insert(scoped_name.clone(), resolved);
+                    if let Some(variants) = env.enum_variants.get(&e.name).cloned() {
+                        env.enum_variants.insert(scoped_name, variants);
+                    }
+                }
+            }
+            Item::TypeAlias(alias) => {
+                if let Some(resolved) = env.lookup_type(&alias.name).cloned() {
+                    env.types
+                        .insert(module_scoped_type_name(module_path, &alias.name), resolved);
+                }
+            }
+            Item::World(world) => {
+                if let Some(resolved) = env.lookup_type(&world.name).cloned() {
+                    env.types
+                        .insert(module_scoped_type_name(module_path, &world.name), resolved);
+                }
+            }
+            Item::Component(component) => {
+                if let Some(resolved) = env.lookup_type(&component.name).cloned() {
+                    env.types
+                        .insert(module_scoped_type_name(module_path, &component.name), resolved);
+                }
+            }
+            Item::Actor(actor) => {
+                if let Some(resolved) = env.lookup_type(&actor.name).cloned() {
+                    env.types
+                        .insert(module_scoped_type_name(module_path, &actor.name), resolved);
+                }
+            }
+            Item::Mod(module) => {
+                if let Some(children) = &module.inline {
+                    let mut nested_path = module_path.to_vec();
+                    nested_path.push(module.name.clone());
+                    register_inline_module_type_aliases(env, children, &nested_path);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn inline_module_scope_bindings(
@@ -3981,6 +4098,9 @@ fn infer_method_call_type(
                         .map(|ret| ResolvedType::Option(Box::new(ret)))
                 },
             ),
+            "cloned" | "copied" => {
+                infer_builtin_option_clone_adapter(inner.as_ref(), args, span, env, method)
+            }
             "or" | "or_" => {
                 if args.len() != 1 {
                     return Err(env.type_error("Option.or expects exactly one argument", span));
@@ -4606,6 +4726,26 @@ fn infer_builtin_clone_adapter(
         other => other.clone(),
     };
     Ok(dynamic_array_type(cloned_item))
+}
+
+fn infer_builtin_option_clone_adapter(
+    item_ty: &ResolvedType,
+    args: &[CallArg],
+    span: Span,
+    env: &mut TypeEnv,
+    method_name: &str,
+) -> KainResult<ResolvedType> {
+    if !args.is_empty() {
+        return Err(env.type_error(format!("{method_name} expects no arguments"), span));
+    }
+    let cloned_item = match item_ty {
+        ResolvedType::Ref {
+            mutable: false,
+            inner,
+        } => inner.as_ref().clone(),
+        other => other.clone(),
+    };
+    Ok(ResolvedType::Option(Box::new(cloned_item)))
 }
 
 fn infer_builtin_zip_method(
@@ -7373,6 +7513,20 @@ mod tests {
         .expect("Option.or_ should typecheck");
         assert_eq!(chained_option, option_ty);
 
+        let copied_option = infer_method_call_type(
+            &mut env,
+            None,
+            &ResolvedType::Option(Box::new(ResolvedType::Ref {
+                mutable: false,
+                inner: Box::new(ResolvedType::Bool),
+            })),
+            "copied",
+            &[],
+            span,
+        )
+        .expect("Option.copied should typecheck");
+        assert_eq!(copied_option, ResolvedType::Option(Box::new(ResolvedType::Bool)));
+
         let result_ty = ResolvedType::Result(
             Box::new(ResolvedType::String),
             Box::new(ResolvedType::Bool),
@@ -7575,6 +7729,28 @@ mod helper_module:
 
         check(&program, &span_mapper, "<test>")
             .expect("inline module functions should resolve sibling helpers lexically");
+    }
+
+    #[test]
+    fn typecheck_resolves_inline_module_enum_type_paths() {
+        let source = r#"
+mod lexer:
+    pub enum TokenKind:
+        Fn
+
+fn describe(kind: lexer::TokenKind) -> String:
+    match kind:
+        lexer::TokenKind::Fn => "fn"
+"#;
+
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        let span_mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("source should parse");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("inline module enum type paths should resolve to enum shapes");
     }
 
     #[test]
