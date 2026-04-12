@@ -1,5 +1,34 @@
 # MEMORY
 
+# 2026-04-12 - new LLVM dogfood lab added under labs/
+
+The repo now has a dedicated LLVM dogfood application at
+`labs/llvm_world_dogfood_lab/`. It is meant to be the go-to repo-local proof
+for the current LLVM pipeline shape, especially after the canonical native
+actor ABI alignment work.
+
+What changed:
+
+- Added a new lab README, bash build/run wrappers, and a single-source
+  `src/main.kn` entrypoint.
+- The lab combines `world`, `patch`, `converge`, `orchestrate`, canonical
+  actor spawn/send, and native UI + viewport rendering in one authored app.
+- The source keeps to LLVM-safe shapes that are already proven elsewhere in the
+  repo: named actor payloads, compiler-owned world patches, array helpers,
+  loops, and JSX expressions.
+
+Current risk:
+
+- The lab is intentionally dense. If it fails, the most likely issues are
+  source-shape mismatches in actor payload names or a backend regression in one
+  of the compiler-owned intent lanes rather than the lab packaging itself.
+
+Recommended next step:
+
+- Build `labs/llvm_world_dogfood_lab` with the local CLI, keep the source in
+  sync with any backend fixes, and use it as the default LLVM dogfood app when
+  validating future runtime or codegen changes.
+
 ## 2026-04-12 - canonical long-form guides moved to guides/
 
 The repo now has a canonical long-form documentation tree under `guides/`.
@@ -98,11 +127,11 @@ Recommended next step:
 
 - Run the native compile/validation path and then trim any stale `staged` wording that still survives in non-authoritative docs.
 
-## 2026-04-12 - LLVM/native builds compile the full runtime bundle and are not incremental
+## 2026-04-12 - LLVM/native builds compile the full runtime bundle and now reuse runtime objects incrementally
 
 The current `kain build ... -t llvm` lane does more than emit LLVM IR. After
 writing the `.ll` file and native sidecars, the CLI resolves
-`runtime/native/runtime.toml`, compiles every listed runtime source into object
+`runtime/native_runtime.toml`, compiles every listed runtime source into object
 files under `<output>/.kain-runtime/<runtime-name>/`, and then links those
 objects with the generated program.
 
@@ -113,9 +142,10 @@ What this means in practice:
 - The current runtime bundle is very large and includes core runtime C plus
   third-party stacks like bgfx, bimg, yoga, libuv, QuickJS, miniaudio, wasm3,
   mimalloc, and rpmalloc.
-- The current implementation is not incremental. `compile_native_runtime_bundle`
-  recompiles every runtime source on each invocation and does not perform
-  timestamp or object-cache reuse.
+- The CLI now reuses per-source runtime objects under
+  `<output>/.kain-runtime/<runtime-name>/` when the object file, depfile, and
+  compile fingerprint are present and all source/header dependencies are older
+  than the cached object.
 
 What changed in this pass:
 
@@ -125,6 +155,10 @@ What changed in this pass:
   compile under modern C rules.
 - Reworked `src/core/kainc.kn` again to avoid `impl self` lowering in the LLVM
   seed shell after the backend produced duplicate local names like `self.addr`.
+- Added depfile-driven native runtime object caching in
+  `crates/cli/src/main.rs`. The runtime bundle compiler now emits one depfile
+  and one compile-fingerprint file per object and skips recompilation for fresh
+  objects on repeat LLVM/native builds.
 
 Validation:
 
@@ -133,23 +167,31 @@ Validation:
   - emitted `/tmp/kainc_native_full/kainc.runtime_contract.json`
   - emitted `/tmp/kainc_native_full/kainc.realtime_app.json`
   - then entered the full native runtime compile path from
-    `runtime/native/runtime.toml`
+    `runtime/native_runtime.toml`
 - Earlier failure on undeclared `rc_*` calls in `kain_runtime_actor.c` was
   removed by the header fix.
 - The next LLVM/codegen seam hit before the shell rewrite was a duplicate local
   name from method lowering (`self.addr`); the current `kainc.kn` no longer
   uses that shape.
+- `cargo test -p cli --bin kain native_runtime_ -- --nocapture`
+- `cargo test -p cli --bin kain runtime_source_cpp_detection_matches_known_extensions -- --nocapture`
+- `cargo build -p cli --bin kain`
+- `target/debug/kain build src/core/kainc.kn -t llvm -o /tmp/kainc_native_cache_probe_v2/kainc`
+  - cold pass: `Native runtime object cache: 0 reused, 189 compiled`
+  - warm pass: `Native runtime object cache: 189 reused, 0 compiled`
+  - emitted runnable native executable:
+    `/tmp/kainc_native_cache_probe_v2/kainc`
 
 Current risk:
 
 - The native runtime build is still extremely heavy for tiny shell programs
-  because the CLI always compiles the full runtime manifest.
+  because the CLI still links the full runtime manifest even though it now
+  reuses compiled objects on repeat builds.
 
 Recommended next step:
 
-- Add an incremental object-cache layer or introduce a much smaller
-  `kainc`/compiler-shell runtime profile so shell builds do not drag the whole
-  engine/runtime stack every time.
+- Introduce a much smaller `kainc`/compiler-shell runtime profile so tiny shell
+  builds stop linking the whole engine/runtime stack after the object cache.
 
 ## 2026-04-12 - `src/core/kainc.kn` now clears LLVM emission as a backend-safe seed shell
 

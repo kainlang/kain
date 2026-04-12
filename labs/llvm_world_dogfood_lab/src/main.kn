@@ -1,0 +1,205 @@
+world ArcologyLab:
+    state compiler_heat: Int = 18
+    state tower_count: Int = 9
+    state signal_density: Int = 14
+    state render_layers: Int = 5
+    state actor_pulses: Int = 0
+    state mode_label: String = "boot"
+    state status_line: String = "Arcology booted and awaiting the first patch."
+    state score_line: String = "score=0 | resonance=0"
+    state actor_status: String = "actor lane idle"
+    surface native_ui => App
+    surface viewport3d => "magma_terraces"
+
+component App():
+    render <slot layout="column" gap={12} padding={12}>
+        <panel title="LLVM Arcology Dogfood" layout="column" gap={6}>
+            <text role="title">{"LLVM Arcology Dogfood"}</text>
+            <text role="caption">{ArcologyLab.status_line}</text>
+            <text role="caption">{ArcologyLab.score_line}</text>
+        </panel>
+
+        <panel title="Control Deck" layout="row" gap={12}>
+            <inspector title="World Truth">
+                <text role="body">{f"heat={ArcologyLab.compiler_heat}"}</text>
+                <text role="body">{f"tower_count={ArcologyLab.tower_count}"}</text>
+                <text role="body">{f"signal_density={ArcologyLab.signal_density}"}</text>
+                <text role="body">{f"render_layers={ArcologyLab.render_layers}"}</text>
+                <text role="body">{f"actor_pulses={ArcologyLab.actor_pulses}"}</text>
+                <text role="body">{f"mode_label={ArcologyLab.mode_label}"}</text>
+            </inspector>
+
+            <tree title="Pipeline">
+                <text role="body">{"compiler-owned world state"}</text>
+                <text role="body">{"patch transactions"}</text>
+                <text role="body">{"converge dispatch"}</text>
+                <text role="body">{"orchestrate stage chaining"}</text>
+                <text role="body">{"canonical actor mailbox traffic"}</text>
+                <text role="body">{"native UI and viewport projection"}</text>
+            </tree>
+        </panel>
+
+        <panel title="Stage" layout="row" gap={12}>
+            <viewport3d title="Arcology Stage" scene="magma_terraces" />
+            <panel title="Signal Racks" layout="column" gap={8}>
+                <graph title="Heat Drift" />
+                <timeline title="Pulse Chronicle" />
+            </panel>
+        </panel>
+
+        <panel title="Telemetry" layout="row" gap={12}>
+            <inspector title="Snapshot">
+                <text role="body">{arcology_summary(arcology_telemetry(ArcologyLab.compiler_heat, ArcologyLab.tower_count, ArcologyLab.actor_pulses, ArcologyLab.render_layers))}</text>
+                <text role="body">{f"converged_preview={stabilize_lane(ArcologyLab.compiler_heat)}"}</text>
+                <text role="body">{f"actor_status={ArcologyLab.actor_status}"}</text>
+                <text role="body">{f"status_line={ArcologyLab.status_line}"}</text>
+            </inspector>
+
+            <tree title="Ledger">
+                <text role="body">{"render path is explicit"}</text>
+                <text role="body">{"actor lane is live"}</text>
+                <text role="body">{"no print-based fallback"}</text>
+                <text role="body">{"all compiler-owned intents are present"}</text>
+            </tree>
+        </panel>
+    </slot>
+
+struct ArcologyTelemetry:
+    heat: Int
+    towers: Int
+    pulses: Int
+    layers: Int
+    resonance: Int
+    score: Int
+
+actor ArcologyConductor:
+    state dispatch_count: Int = 0
+    state pulse_count: Int = 0
+    state seal_count: Int = 0
+    state heat: Int = 12
+    state mode_label: String = "boot"
+    state status_line: String = "actor lane ready"
+
+    on Pulse(pulse_amount: Int):
+        let touched: Int = pulse_amount + 1
+        let heat_bias: Int = touched + 11
+
+    on Seal(seal_amount: Int):
+        let touched: Int = seal_amount + 2
+        let heat_bias: Int = touched + 13
+
+    on Stabilize(stabilize_amount: Int):
+        let touched: Int = stabilize_amount + 3
+        let heat_bias: Int = touched + 17
+
+fn clamp_int(value: Int, floor: Int, ceiling: Int) -> Int:
+    if value < floor:
+        return floor
+    elif value > ceiling:
+        return ceiling
+    return value
+
+fn arcology_mode_label(heat: Int) -> String:
+    if heat < 18:
+        return "boot"
+    elif heat < 30:
+        return "forge"
+    elif heat < 42:
+        return "orbit"
+    elif heat < 54:
+        return "stabilize"
+    return "cathedral"
+
+fn arcology_resonance(heat: Int, towers: Int, pulses: Int, layers: Int) -> Int:
+    let samples = [
+        heat,
+        towers * 2,
+        pulses * 3,
+        layers * 4,
+        11,
+        17,
+        heat + towers
+    ]
+
+    let total = 0
+    let index = 0
+    while index < len(samples):
+        total = total + samples[index]
+        index = index + 1
+    return total
+
+fn arcology_telemetry(heat: Int, towers: Int, pulses: Int, layers: Int) -> ArcologyTelemetry:
+    let resonance = arcology_resonance(heat, towers, pulses, layers)
+    let score = clamp_int(resonance + heat + towers + pulses + layers, 0, 999)
+    return ArcologyTelemetry { heat: heat, towers: towers, pulses: pulses, layers: layers, resonance: resonance, score: score }
+
+fn arcology_summary(telemetry: ArcologyTelemetry) -> String:
+    return f"heat={telemetry.heat} | towers={telemetry.towers} | pulses={telemetry.pulses} | layers={telemetry.layers} | resonance={telemetry.resonance} | score={telemetry.score}"
+
+fn arcology_bias(value: Int) -> Int:
+    return value + 3
+
+fn arcology_crush(value: Int) -> Int:
+    return value + 5
+
+patch lift_heat(lab: ArcologyLab, delta: Int) -> Int:
+    lab.compiler_heat = lab.compiler_heat + delta
+    return lab.compiler_heat
+
+patch widen_towers(lab: ArcologyLab, delta: Int) -> Int:
+    lab.tower_count = lab.tower_count + delta
+    return lab.tower_count
+
+patch raise_signal_density(lab: ArcologyLab, delta: Int) -> Int:
+    lab.signal_density = lab.signal_density + delta
+    return lab.signal_density
+
+patch advance_render_layers(lab: ArcologyLab, delta: Int) -> Int:
+    lab.render_layers = lab.render_layers + delta
+    return lab.render_layers
+
+patch record_actor_lane(lab: ArcologyLab, pulses: Int, status: String) -> String:
+    lab.actor_pulses = pulses
+    lab.actor_status = status
+    return lab.actor_status
+
+patch refresh_manifest(lab: ArcologyLab) -> String:
+    let telemetry = arcology_telemetry(lab.compiler_heat, lab.tower_count, lab.actor_pulses, lab.render_layers)
+    lab.mode_label = arcology_mode_label(telemetry.heat)
+    lab.status_line = f"mode={lab.mode_label} | heat={telemetry.heat} | towers={telemetry.towers} | pulses={telemetry.pulses} | layers={telemetry.layers}"
+    lab.score_line = arcology_summary(telemetry)
+    return lab.score_line
+
+converge stabilize_lane(value: Int) -> Int:
+    spec reference:
+        return value + 11
+    fast interpret_lane when target("interpret"):
+        return value + 11
+    fast dispatch_lane when capability("converge.dispatch"):
+        return value + 11
+
+orchestrate arcology_pipeline(value: Int) -> Int:
+    let staged: Int = kain stabilize_lane(value)
+    let inflated: Int = rust arcology_bias(staged)
+    let cooled: Int = kain arcology_crush(inflated)
+    return cooled
+
+fn main() -> Int:
+    let arcology = ArcologyLab
+    let conductor = spawn ArcologyConductor()
+    send conductor.Pulse(pulse_amount = 2)
+    send conductor.Pulse(pulse_amount = 5)
+    send conductor.Seal(seal_amount = 3)
+    send conductor.Stabilize(stabilize_amount = 1)
+
+    let heated = lift_heat(arcology, 9)
+    let widened = widen_towers(arcology, 4)
+    let density = raise_signal_density(arcology, 6)
+    let layers = advance_render_layers(arcology, 2)
+    let actor_status = record_actor_lane(arcology, 4, "actor burst: pulse, pulse, seal, stabilize")
+    let telemetry = arcology_telemetry(arcology.compiler_heat, arcology.tower_count, arcology.actor_pulses, arcology.render_layers)
+    let preview = stabilize_lane(telemetry.heat)
+    let staged = arcology_pipeline(telemetry.score)
+    let final_score = clamp_int(staged + preview + heated + widened + density + layers + len(actor_status), 0, 999)
+    refresh_manifest(arcology)
+    return final_score
