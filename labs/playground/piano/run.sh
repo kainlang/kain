@@ -2,24 +2,28 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_dir="$script_dir/native-app"
-app_name="kain-piano"
+generated_dir="$script_dir/generated"
+app_name="piano"
+binary_path="$generated_dir/$app_name"
 user_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
-if [[ ! -d "$project_dir" ]]; then
+if [[ ! -x "$binary_path" && ! -x "$binary_path.exe" ]]; then
     "$script_dir/build.sh"
 fi
 
-launch_candidate="$(find "$project_dir" -maxdepth 3 -type f \( -name "$app_name" -o -name "$app_name.exe" \) -perm -111 2>/dev/null | sort | tail -n1)"
-
-if [[ -z "$launch_candidate" ]]; then
-    "$script_dir/build.sh"
-    launch_candidate="$(find "$project_dir" -maxdepth 3 -type f \( -name "$app_name" -o -name "$app_name.exe" \) -perm -111 2>/dev/null | sort | tail -n1)"
-fi
-
-if [[ -z "$launch_candidate" ]]; then
-    echo "Unable to find a piano app executable under $project_dir" >&2
+if [[ ! -x "$binary_path" && ! -x "$binary_path.exe" ]]; then
+    echo "Unable to find a piano executable under $generated_dir" >&2
     exit 1
+fi
+
+launch_candidate="$binary_path"
+if [[ -x "$binary_path.exe" ]]; then
+    launch_candidate="$binary_path.exe"
+fi
+
+binary_base="$launch_candidate"
+if [[ "$launch_candidate" == *.exe ]]; then
+    binary_base="${launch_candidate%.exe}"
 fi
 
 export XDG_RUNTIME_DIR="$user_runtime_dir"
@@ -40,6 +44,9 @@ if [[ -z "${XAUTHORITY:-}" ]]; then
     fi
 fi
 
+export KAIN_RUNTIME_CONTRACT="${KAIN_RUNTIME_CONTRACT:-$binary_base.runtime_contract.json}"
+export KAIN_REALTIME_APP_BUNDLE="${KAIN_REALTIME_APP_BUNDLE:-$binary_base.realtime_app.json}"
+export KAIN_RUNTIME_CONTRACT_STRICT="${KAIN_RUNTIME_CONTRACT_STRICT:-1}"
 export LD_LIBRARY_PATH="$script_dir/native${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 cd "$script_dir"

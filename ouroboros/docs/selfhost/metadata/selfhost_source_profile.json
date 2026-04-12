@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "canonical_source_mirror",
+  "description": "File-preserving selfhost source mirror profile. Rust remains the bootstrap donor while the pipeline emits one canonical Kain file per Rust file and uses aggregate compatibility artifacts only for roundtrip/codegen.",
+  "roots": {
+    "canonical_source_root": "src",
+    "output_mirror_root": "mirror/src",
+    "roundtrip_rust_root": "roundtrip_rust",
+    "stage2_workspace_dir": "stage2_workspace"
+  },
+  "artifacts": {
+    "aggregate_bundle_extension": ".kn",
+    "aggregate_roundtrip_extension": ".roundtrip.rs",
+    "source_correspondence_manifest_file": "source_correspondence_manifest.json"
+  },
+  "phases": {
+    "phase1": [
+      "kain-core",
+      "kain-import"
+    ],
+    "phase2": [
+      "kain-core",
+      "kain-import",
+      "kain-sys-codegen",
+      "cli"
+    ]
+  },
+  "ownership": {
+    "bootstrap_source": "rust",
+    "default_file_ownership_state": "bootstrap_from_rust",
+    "fallback_mode": "rust_semantic_fallback",
+    "roundtrip_strategy": "aggregate_bundle_then_split",
+    "synthesized_main_root_strategy": "compat_include_lib"
+  }
+}

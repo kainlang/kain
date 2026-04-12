@@ -35,6 +35,11 @@ pub struct CratePhase1Result {
     pub import_success: bool,
     pub import_error: Option<String>,
     pub output_kn_path: Option<String>,
+    pub canonical_kain_root: Option<String>,
+    pub output_kain_root: Option<String>,
+    pub aggregate_roundtrip_rust_path: Option<String>,
+    pub roundtrip_rust_tree_root: Option<String>,
+    pub mirrored_file_count: usize,
     pub item_count: usize,
     pub rejected_macros_found: Vec<MacroFinding>,
     pub required_direct_lowering_still_preserved: Vec<MacroFinding>,
@@ -52,6 +57,8 @@ pub struct Stage2WorkspaceCrateEvidence {
     pub crate_name: String,
     pub source_roundtrip_path: String,
     pub source_roundtrip_byte_size: u64,
+    pub source_tree_root: String,
+    pub roundtrip_file_count: usize,
     pub manifest_path: String,
     pub lib_rs_path: String,
     pub main_rs_path: Option<String>,
@@ -61,9 +68,16 @@ pub struct Stage2WorkspaceCrateEvidence {
 pub struct SelfHostPhase1Report {
     pub generated_at_utc: String,
     pub repo_root: String,
+    pub profile_path: String,
+    pub profile_name: String,
     pub inventory_dir: String,
     pub inventory_inputs: Vec<InventoryInputEvidence>,
     pub output_dir: String,
+    pub canonical_source_root: String,
+    pub output_mirror_root: String,
+    pub roundtrip_rust_root: String,
+    pub source_correspondence_manifest_path: String,
+    pub source_correspondence_file_count: usize,
     pub crates_processed: Vec<String>,
     pub modules_discovered: BTreeMap<String, Vec<String>>,
     pub diagnostics_by_category: BTreeMap<String, usize>,
@@ -85,6 +99,10 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
     out.push_str(&format!("# {} Report\n\n", title));
     out.push_str(&format!("- Generated at: `{}`\n", report.generated_at_utc));
     out.push_str(&format!("- Repo root: `{}`\n", report.repo_root));
+    out.push_str(&format!(
+        "- Profile: `{}` (`{}`)\n",
+        report.profile_name, report.profile_path
+    ));
     out.push_str(&format!("- Inventory dir: `{}`\n", report.inventory_dir));
     if report.inventory_inputs.is_empty() {
         out.push_str("- Inventory inputs: `none`\n");
@@ -98,6 +116,22 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         }
     }
     out.push_str(&format!("- Output dir: `{}`\n", report.output_dir));
+    out.push_str(&format!(
+        "- Canonical source root: `{}`\n",
+        report.canonical_source_root
+    ));
+    out.push_str(&format!(
+        "- Output mirror root: `{}`\n",
+        report.output_mirror_root
+    ));
+    out.push_str(&format!(
+        "- Roundtrip Rust root: `{}`\n",
+        report.roundtrip_rust_root
+    ));
+    out.push_str(&format!(
+        "- Source correspondence manifest: `{}` ({} files)\n",
+        report.source_correspondence_manifest_path, report.source_correspondence_file_count
+    ));
     out.push_str(&format!(
         "- Final status: `{}`\n",
         status_label(&report.final_phase_status)
@@ -115,10 +149,12 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         out.push_str("- Stage2 workspace crates:\n");
         for crate_evidence in &report.stage2_workspace_crates {
             out.push_str(&format!(
-                "  - `{}` source `{}` ({} bytes), manifest `{}`, lib `{}`",
+                "  - `{}` source `{}` ({} bytes), tree `{}` ({} files), manifest `{}`, lib `{}`",
                 crate_evidence.crate_name,
                 crate_evidence.source_roundtrip_path,
                 crate_evidence.source_roundtrip_byte_size,
+                crate_evidence.source_tree_root,
+                crate_evidence.roundtrip_file_count,
                 crate_evidence.manifest_path,
                 crate_evidence.lib_rs_path
             ));
@@ -211,6 +247,26 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
             Some(path) => out.push_str(&format!("- Output bundle: `{}`\n", path)),
             None => out.push_str("- Output bundle: `<none>`\n"),
         }
+        match &crate_result.canonical_kain_root {
+            Some(path) => out.push_str(&format!("- Canonical Kain root: `{}`\n", path)),
+            None => out.push_str("- Canonical Kain root: `<none>`\n"),
+        }
+        match &crate_result.output_kain_root {
+            Some(path) => out.push_str(&format!("- Output mirror root: `{}`\n", path)),
+            None => out.push_str("- Output mirror root: `<none>`\n"),
+        }
+        match &crate_result.aggregate_roundtrip_rust_path {
+            Some(path) => out.push_str(&format!("- Aggregate roundtrip Rust: `{}`\n", path)),
+            None => out.push_str("- Aggregate roundtrip Rust: `<none>`\n"),
+        }
+        match &crate_result.roundtrip_rust_tree_root {
+            Some(path) => out.push_str(&format!("- Roundtrip Rust tree: `{}`\n", path)),
+            None => out.push_str("- Roundtrip Rust tree: `<none>`\n"),
+        }
+        out.push_str(&format!(
+            "- Mirrored file count: `{}`\n",
+            crate_result.mirrored_file_count
+        ));
         if let Some(error) = &crate_result.import_error {
             out.push_str(&format!("- Import error: `{}`\n", error.replace('`', "'")));
         }

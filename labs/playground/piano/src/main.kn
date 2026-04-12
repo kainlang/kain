@@ -20,8 +20,8 @@ fn boot_audio() -> Bool:
 world PianoLab:
     state audio_ready: Bool = false
     state audio_status: String = piano_boot_status_text()
-    state status_line: String = "Tap a key to wake the audio engine."
-    state detail_line: String = "Record a loop, stop it, then play it back."
+    state status_line: String = "Ready the keyboard. Audio boots on first touch."
+    state detail_line: String = "Kain owns the surface; C owns the sound."
     state loop_line: String = "loop notes: 0 | loop ms: 0 | audio ready: no"
     state last_note: String = "none"
     state note_count: Int = 0
@@ -189,61 +189,201 @@ fn handle_c5():
     play_key(PianoLab, "C5", 72)
 
 fn handle_csharp4():
-    play_key(PianoLab, "C-sharp 4", 61)
+    play_key(PianoLab, "C#4", 61)
 
 fn handle_dsharp4():
-    play_key(PianoLab, "D-sharp 4", 63)
+    play_key(PianoLab, "D#4", 63)
 
 fn handle_fsharp4():
-    play_key(PianoLab, "F-sharp 4", 66)
+    play_key(PianoLab, "F#4", 66)
 
 fn handle_gsharp4():
-    play_key(PianoLab, "G-sharp 4", 68)
+    play_key(PianoLab, "G#4", 68)
 
 fn handle_asharp4():
-    play_key(PianoLab, "A-sharp 4", 70)
+    play_key(PianoLab, "A#4", 70)
 
 component App():
-    render <panel title="Kain Piano Lab" layout="column" gap={16} padding={16}>
-        <panel title="Transport" layout="column" gap={8}>
-            <label>{PianoLab.status_line}</label>
-            <label>{PianoLab.audio_status}</label>
-            <label>{PianoLab.detail_line}</label>
-            <label>{PianoLab.loop_line}</label>
-            <label>{"Click a key, capture a loop, and let the C runtime replay it."}</label>
-            <panel title="Controls" layout="row" gap={8}>
-                <button onclick={handle_record_loop}>Record Loop</button>
-                <button onclick={handle_stop_recording}>Stop Recording</button>
-                <button onclick={handle_play_loop}>Play Loop</button>
-                <button onclick={handle_stop_loop}>Stop Loop</button>
-                <button onclick={handle_clear_loop}>Clear Loop</button>
+    render <slot>
+        <theme name="piano_lab">
+            <scope name="piano_lab" selector="piano-lab" />
+            <token name="theme.background.top" category="color" value="#120d0b" />
+            <token name="theme.background.bottom" category="color" value="#261c16" />
+            <token name="theme.surface.base" category="color" value="#191311" />
+            <token name="theme.surface.alt" category="color" value="#281d18" />
+            <token name="theme.surface.overlay" category="color" value="#241912d8" />
+            <token name="theme.accent.primary" category="color" value="#cc9651" />
+            <token name="theme.accent.soft" category="color" value="#f1d49a" />
+            <token name="theme.highlight" category="color" value="#fff0c2" />
+            <token name="theme.text.default" category="color" value="#fff8ed" />
+            <token name="theme.text.muted" category="color" value="#d4c2ae" />
+            <token name="theme.typography.scale" category="type" value={1.04} />
+            <token name="theme.spacing.scale" category="space" value={1.0} />
+            <token name="theme.radius.scale" category="radius" value={1.12} />
+            <token name="widget.panel.surface.mode" category="surface" value="glass" />
+            <token name="widget.inspector.surface.mode" category="surface" value="flat" />
+            <token name="widget.tree.surface.mode" category="surface" value="ghost" />
+            <token name="widget.timeline.surface.mode" category="surface" value="accent" />
+            <token name="widget.element.surface.mode" category="surface" value="flat" />
+            <variant scope="piano_lab" name="shell">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="piano_lab" name="hero">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={18} />
+            </variant>
+            <variant scope="piano_lab" name="stage">
+                <token name="surface.mode" category="surface" value="layered" />
+                <token name="surface.padding" category="space" value={14} />
+            </variant>
+            <variant scope="piano_lab" name="transport">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <variant scope="piano_lab" name="ledger">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={10} />
+            </variant>
+            <variant scope="piano_lab" name="meter">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={10} />
+            </variant>
+            <widget kind="element" scope="piano_lab" variant="transport_button">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.fill" category="color" value="#2a1f1a" />
+                <token name="surface.stroke" category="color" value="#b78149" />
+                <token name="surface.radius" category="surface" value={16} />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.color" category="color" value="#fff8ed" />
+                <token name="text.color" category="color" value="#fff8ed" />
+                <token name="accent.color" category="color" value="#f2c46b" />
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="element" scope="piano_lab" variant="white_key">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.fill" category="color" value="#f7efe3" />
+                <token name="surface.stroke" category="color" value="#c4b097" />
+                <token name="surface.radius" category="surface" value={14} />
+                <token name="surface.padding" category="space" value={12} />
+                <token name="title.color" category="color" value="#181411" />
+                <token name="text.color" category="color" value="#181411" />
+                <token name="accent.color" category="color" value="#aa7d43" />
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <widget kind="element" scope="piano_lab" variant="black_key">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.fill" category="color" value="#1a1210" />
+                <token name="surface.stroke" category="color" value="#4a372f" />
+                <token name="surface.radius" category="surface" value={12} />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.color" category="color" value="#f7efdf" />
+                <token name="text.color" category="color" value="#f7efdf" />
+                <token name="accent.color" category="color" value="#d69b4e" />
+                <token name="density" category="layout" value="compact" />
+            </widget>
+            <textvariant scope="piano_lab" name="hero">
+                <token name="body.size" category="type" value={30} />
+            </textvariant>
+            <textvariant scope="piano_lab" name="metric">
+                <token name="body.size" category="type" value={24} />
+            </textvariant>
+        </theme>
+        <panel title="Kain Piano Lab" scope="piano_lab" variant="shell" class="dense accent" layout="dock" persistent_layout_id="piano_lab_shell" gap={16} padding={16}>
+            <panel title="Control Rail" dock="left" scope="piano_lab" variant="transport" split_ratio={0.26} min_width={260} max_width={360} resizable={true} layout="column" gap={12}>
+                <panel title="Now Playing" scope="piano_lab" variant="hero" layout="column" gap={8}>
+                    <text role="eyebrow">KAIN PIANO / LLVM NATIVE</text>
+                    <text role="hero" variant="hero">The UI is authored in Kain, the binary is linked through LLVM, and the audio bridge stays in C.</text>
+                    <text role="body">This surface is a real instrument lane, not a smoke-test shell. Press the keys, capture a loop, and let the runtime replay it.</text>
+                </panel>
+                <panel title="Transport" scope="piano_lab" variant="transport" layout="column" gap={8}>
+                    <panel title="Audio Ready" scope="piano_lab" variant="meter" layout="column" gap={2}>
+                        <text role="metric">{bool_text(PianoLab.audio_ready)}</text>
+                        <text role="caption">audio ready</text>
+                    </panel>
+                    <button variant="transport_button" onclick={handle_record_loop}>Record Loop</button>
+                    <button variant="transport_button" onclick={handle_stop_recording}>Stop Recording</button>
+                    <button variant="transport_button" onclick={handle_play_loop}>Play Loop</button>
+                    <button variant="transport_button" onclick={handle_stop_loop}>Stop Loop</button>
+                    <button variant="transport_button" onclick={handle_clear_loop}>Clear Loop</button>
+                </panel>
+                <panel title="Loop State" scope="piano_lab" variant="ledger" layout="column" gap={4}>
+                    <text role="title">{PianoLab.status_line}</text>
+                    <text role="caption">{PianoLab.audio_status}</text>
+                    <text role="caption">{PianoLab.detail_line}</text>
+                    <text role="caption">{PianoLab.loop_line}</text>
+                </panel>
             </panel>
-            <panel title="Mode" layout="row" gap={8}>
-                {if PianoLab.recording: <label>Recording loop</label> else: <label>Idle</label>}
-                {if PianoLab.loop_playing: <label>Loop cycling</label> else: <label>Loop paused</label>}
+            <panel title="Keyboard Stage" dock="center" scope="piano_lab" variant="stage" layout="column" gap={14}>
+                <panel title="Stage Header" scope="piano_lab" variant="hero" layout="row" gap={12}>
+                    <panel title="Lead" scope="piano_lab" variant="hero" layout="column" gap={6}>
+                        <text role="eyebrow">ONE OCTAVE, REAL AUDIO, KAIN SEMANTICS</text>
+                        <text role="hero" variant="hero">A 2D instrument surface driven entirely by the language.</text>
+                        <text role="body">White and black keys are separately themed semantic buttons. The loop recorder and replay logic live in the same Kain world model.</text>
+                    </panel>
+                    <panel title="Meters" scope="piano_lab" variant="meter" layout="row" gap={10}>
+                        <panel title="Last Note" scope="piano_lab" variant="meter" layout="column" gap={2}>
+                            <text role="metric">{PianoLab.last_note}</text>
+                            <text role="caption">last note</text>
+                        </panel>
+                        <panel title="Tap Count" scope="piano_lab" variant="meter" layout="column" gap={2}>
+                            <text role="metric">{PianoLab.note_count}</text>
+                            <text role="caption">notes hit</text>
+                        </panel>
+                        <panel title="Loop Length" scope="piano_lab" variant="meter" layout="column" gap={2}>
+                            <text role="metric">{PianoLab.loop_duration_ms}</text>
+                            <text role="caption">loop ms</text>
+                        </panel>
+                    </panel>
+                </panel>
+                <panel title="Accidentals" scope="piano_lab" variant="stage" layout="grid" columns={5} gap={8}>
+                    <button variant="black_key" onclick={handle_csharp4}>Csharp4</button>
+                    <button variant="black_key" onclick={handle_dsharp4}>Dsharp4</button>
+                    <button variant="black_key" onclick={handle_fsharp4}>Fsharp4</button>
+                    <button variant="black_key" onclick={handle_gsharp4}>Gsharp4</button>
+                    <button variant="black_key" onclick={handle_asharp4}>Asharp4</button>
+                </panel>
+                <panel title="Naturals" scope="piano_lab" variant="stage" layout="grid" columns={8} gap={8}>
+                    <button variant="white_key" onclick={handle_c4}>C4</button>
+                    <button variant="white_key" onclick={handle_d4}>D4</button>
+                    <button variant="white_key" onclick={handle_e4}>E4</button>
+                    <button variant="white_key" onclick={handle_f4}>F4</button>
+                    <button variant="white_key" onclick={handle_g4}>G4</button>
+                    <button variant="white_key" onclick={handle_a4}>A4</button>
+                    <button variant="white_key" onclick={handle_b4}>B4</button>
+                    <button variant="white_key" onclick={handle_c5}>C5</button>
+                </panel>
+                <panel title="Loop Cue" scope="piano_lab" variant="ledger" layout="column" gap={4}>
+                    <text role="caption">Capture a phrase, stop recording, and use Play Loop to keep the phrase cycling.</text>
+                    <text role="caption">The runtime keeps the loop buffer in C while Kain keeps the UI and transport flow coherent.</text>
+                </panel>
+            </panel>
+            <panel title="Performance Tape" dock="right" scope="piano_lab" variant="ledger" split_ratio={0.25} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
+                <inspector title="State" scope="piano_lab" variant="ledger">
+                    <text role="caption">audio ready</text>
+                    <text role="metric">{bool_text(PianoLab.audio_ready)}</text>
+                    <text role="caption">recording</text>
+                    <text role="metric">{bool_text(PianoLab.recording)}</text>
+                    <text role="caption">loop playing</text>
+                    <text role="metric">{bool_text(PianoLab.loop_playing)}</text>
+                    <text role="caption">captured notes</text>
+                    <text role="metric">{PianoLab.loop_note_count}</text>
+                </inspector>
+                <tree title="Action Log" scope="piano_lab" variant="ledger">
+                    <text role="caption">Loop actions appear here in order.</text>
+                    {for entry in PianoLab.action_log: <text role="caption">{entry}</text>}
+                </tree>
+            </panel>
+            <panel title="Loop Timeline" dock="bottom" scope="piano_lab" variant="ledger" split_ratio={0.20} min_height={180} max_height={280} resizable={true} layout="row" gap={12}>
+                <timeline title="Capture Timeline" scope="piano_lab">
+                    <text role="caption">Record Loop, Stop Recording, and Play Loop are the transport phases. The C runtime handles the ring buffer. Kain owns the UI and transport flow.</text>
+                </timeline>
+                <inspector title="Playback Notes" scope="piano_lab" variant="ledger" layout="column" gap={4}>
+                    <text role="caption">{PianoLab.status_line}</text>
+                    <text role="caption">{PianoLab.detail_line}</text>
+                    <text role="caption">{PianoLab.loop_line}</text>
+                </inspector>
             </panel>
         </panel>
-        <panel title="Keyboard" layout="column" gap={10}>
-            <panel title="Black Keys" layout="row" gap={6}>
-                <button onclick={handle_csharp4}>C-sharp 4</button>
-                <button onclick={handle_dsharp4}>D-sharp 4</button>
-                <button onclick={handle_fsharp4}>F-sharp 4</button>
-                <button onclick={handle_gsharp4}>G-sharp 4</button>
-                <button onclick={handle_asharp4}>A-sharp 4</button>
-            </panel>
-            <panel title="White Keys" layout="row" gap={6}>
-                <button onclick={handle_c4}>C4</button>
-                <button onclick={handle_d4}>D4</button>
-                <button onclick={handle_e4}>E4</button>
-                <button onclick={handle_f4}>F4</button>
-                <button onclick={handle_g4}>G4</button>
-                <button onclick={handle_a4}>A4</button>
-                <button onclick={handle_b4}>B4</button>
-                <button onclick={handle_c5}>C5</button>
-            </panel>
-        </panel>
-        <panel title="Action Tape" layout="column" gap={4}>
-            <label>{"Loop actions appear here as you play."}</label>
-            {for entry in PianoLab.action_log: <label>{entry}</label>}
-        </panel>
-    </panel>
+    </slot>

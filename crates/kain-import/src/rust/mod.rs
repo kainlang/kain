@@ -46,7 +46,7 @@ mod types;
 
 pub use selfhost::{
     import_rust_selfhost_dir, import_rust_selfhost_dir_detailed, RustCrateGraph, RustModuleNode,
-    RustSelfHostImportResult, RustSelfHostOptions,
+    RustSelfHostImportResult, RustSelfHostModuleProgram, RustSelfHostOptions,
 };
 pub use transformer::RustTransformer;
 

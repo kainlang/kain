@@ -24,6 +24,7 @@ pub mod packager;
 pub mod repair;
 pub mod rust_build;
 pub mod selfhost;
+pub mod selfhost_profile;
 pub mod selfhost_report;
 
 // Constants

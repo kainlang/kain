@@ -121,9 +121,16 @@ impl RustCrateGraph {
 #[derive(Debug, Clone)]
 pub struct RustSelfHostImportResult {
     pub program: Program,
+    pub module_programs: Vec<RustSelfHostModuleProgram>,
     pub diagnostics: Vec<String>,
     pub rejected: bool,
     pub graph: RustCrateGraph,
+}
+
+#[derive(Debug, Clone)]
+pub struct RustSelfHostModuleProgram {
+    pub module: RustModuleNode,
+    pub program: Program,
 }
 
 pub fn import_rust_selfhost_dir_detailed(
@@ -144,11 +151,15 @@ pub fn import_rust_selfhost_dir_detailed(
                 .into_iter()
                 .filter(|diag| !is_allowed_diagnostic(diag, options)),
         );
-        module_programs.push((module.clone(), program));
+        module_programs.push(RustSelfHostModuleProgram {
+            module: module.clone(),
+            program,
+        });
     }
 
     Ok(RustSelfHostImportResult {
         program: build_selfhost_program(crate_root, &module_programs),
+        module_programs,
         rejected: !diagnostics.is_empty(),
         diagnostics,
         graph,
@@ -293,13 +304,13 @@ struct SelfHostModuleTree {
 
 fn build_selfhost_program(
     crate_root: &Path,
-    module_programs: &[(RustModuleNode, Program)],
+    module_programs: &[RustSelfHostModuleProgram],
 ) -> Program {
     let mut root = SelfHostModuleTree::default();
 
-    for (module, program) in module_programs {
-        let path = module_path_segments(crate_root, &module.file_path);
-        insert_module_items(&mut root, &path, program.items.clone());
+    for module_program in module_programs {
+        let path = module_path_segments(crate_root, &module_program.module.file_path);
+        insert_module_items(&mut root, &path, module_program.program.items.clone());
     }
 
     Program {

@@ -1,4 +1,7 @@
 use crate::error::{KainError, KainResult};
+use crate::selfhost_profile::{
+    default_selfhost_source_profile_path, SelfHostSourceProfile,
+};
 use crate::selfhost_report::{
     render_phase_markdown, CratePhase1Result, InventoryInputEvidence, MacroFinding,
     SelfHostPhase1Report, SelfHostPhaseStatus, Stage2WorkspaceCrateEvidence, TraitDynSummary,
@@ -10,8 +13,8 @@ use kain_core::ast::{
     Pattern, Program, Stmt, Type, Use, VariantPatternFields, Visibility,
 };
 use kain_core::parser::RESERVED_KEYWORDS;
-use kain_import::rust::RustSelfHostOptions;
-use serde::Deserialize;
+use kain_import::rust::{RustSelfHostModuleProgram, RustSelfHostOptions};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -34,6 +37,93 @@ thread_local! {
     static CURRENT_SELFHOST_MODULE: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct SelfHostSourceCorrespondenceManifest {
+    generated_at_utc: String,
+    phase_name: String,
+    repo_root: String,
+    profile_path: String,
+    profile_name: String,
+    canonical_source_root: String,
+    output_mirror_root: String,
+    roundtrip_rust_root: String,
+    crates: Vec<SelfHostCrateCorrespondence>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SelfHostCrateCorrespondence {
+    crate_name: String,
+    crate_root: String,
+    aggregate_bundle_path: Option<String>,
+    aggregate_roundtrip_rust_path: Option<String>,
+    canonical_kain_root: String,
+    output_kain_root: String,
+    roundtrip_rust_tree_root: String,
+    mirrored_files: Vec<SelfHostFileCorrespondence>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SelfHostFileCorrespondence {
+    module_name: String,
+    rust_source_path: String,
+    rust_source_relative_path: String,
+    canonical_kain_path: String,
+    output_kain_path: String,
+    stage2_roundtrip_rust_path: String,
+    module_path: Vec<String>,
+    source_kind: String,
+    ownership_state: String,
+    stage2_roundtrip_strategy: String,
+}
+
+#[derive(Debug, Clone)]
+struct SelfHostCrateEmissionArtifacts {
+    aggregate_bundle_path: Option<PathBuf>,
+    canonical_kain_root: Option<PathBuf>,
+    output_kain_root: Option<PathBuf>,
+    mirrored_file_count: usize,
+}
+
+#[derive(Debug, Clone)]
+struct CrateRoundtripRustArtifacts {
+    aggregate_rust_path: PathBuf,
+    source_tree_root: PathBuf,
+    lib_rs_path: PathBuf,
+    main_rs_path: Option<PathBuf>,
+    file_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelfHostRustSourceKind {
+    LibRoot,
+    MainRoot,
+    ModuleFile,
+    ModuleDirectoryRoot,
+}
+
+impl SelfHostRustSourceKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::LibRoot => "lib_root",
+            Self::MainRoot => "main_root",
+            Self::ModuleFile => "module_file",
+            Self::ModuleDirectoryRoot => "module_directory_root",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SelfHostFileMirrorPlan {
+    module_name: String,
+    rust_source_path: PathBuf,
+    rust_source_relative_path: PathBuf,
+    canonical_kain_path: PathBuf,
+    output_kain_path: PathBuf,
+    stage2_roundtrip_rust_path: PathBuf,
+    module_path: Vec<String>,
+    source_kind: SelfHostRustSourceKind,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum SelfHostCommand {
     Phase1 {
@@ -42,6 +132,9 @@ pub enum SelfHostCommand {
 
         #[arg(long)]
         output_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        profile_path: Option<PathBuf>,
 
         #[arg(long, default_value_t = true)]
         emit_bundles: bool,
@@ -52,6 +145,9 @@ pub enum SelfHostCommand {
 
         #[arg(long)]
         output_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        profile_path: Option<PathBuf>,
 
         #[arg(long, default_value_t = true)]
         emit_bundles: bool,
@@ -72,11 +168,13 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
         SelfHostCommand::Phase1 {
             inventory_dir,
             output_dir,
+            profile_path,
             emit_bundles,
-        } => run_phase1(inventory_dir, output_dir, emit_bundles),
+        } => run_phase1(inventory_dir, output_dir, profile_path, emit_bundles),
         SelfHostCommand::Phase2 {
             inventory_dir,
             output_dir,
+            profile_path,
             emit_bundles,
             emit_roundtrip_rust,
             assemble_stage2,
@@ -84,6 +182,7 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
         } => run_phase2(
             inventory_dir,
             output_dir,
+            profile_path,
             emit_bundles,
             emit_roundtrip_rust,
             assemble_stage2,
@@ -95,12 +194,14 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
 fn run_phase1(
     inventory_dir: Option<PathBuf>,
     output_dir: Option<PathBuf>,
+    profile_path: Option<PathBuf>,
     emit_bundles: bool,
 ) -> KainResult<()> {
     run_phase(
         "phase1",
         inventory_dir,
         output_dir,
+        profile_path,
         emit_bundles,
         false,
         false,
@@ -111,6 +212,7 @@ fn run_phase1(
 fn run_phase2(
     inventory_dir: Option<PathBuf>,
     output_dir: Option<PathBuf>,
+    profile_path: Option<PathBuf>,
     emit_bundles: bool,
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,
@@ -120,6 +222,7 @@ fn run_phase2(
         "phase2",
         inventory_dir,
         output_dir,
+        profile_path,
         emit_bundles,
         emit_roundtrip_rust,
         assemble_stage2,
@@ -131,6 +234,7 @@ fn run_phase(
     phase_name: &str,
     inventory_dir: Option<PathBuf>,
     output_dir: Option<PathBuf>,
+    profile_path: Option<PathBuf>,
     emit_bundles: bool,
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,

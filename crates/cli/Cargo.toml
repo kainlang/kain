@@ -54,6 +54,8 @@ reqwest = { workspace = true }
 minijinja = { workspace = true }
 heck = { workspace = true }
 toml = { workspace = true }
+prettyplease = "0.2"
+syn = { version = "2", features = ["full"] }
 
 # C++ validation dependencies
 which = "6.0"
