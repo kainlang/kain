@@ -1,5 +1,32 @@
 # MEMORY
 
+## 2026-04-12 - canonical long-form guides moved to guides/
+
+The repo now has a canonical long-form documentation tree under `guides/`.
+The goal is to keep the code-driven language, runtime, CLI, and example
+explanations in one source-driven place while treating the older `docs/` tree
+as legacy support material.
+
+What changed:
+
+- Added `guides/README.md` as the entry point for the new guide set.
+- Added layered language, runtime, native ABI, CLI, crate, example, and
+  reference pages under `guides/`.
+- Cross-linked the root README, crate index, example READMEs, runtime README,
+  and project architecture notes to the new guide tree.
+
+Current risk:
+
+- Some older `docs/` material still exists and may disagree with the live code.
+  Future docs updates should continue to treat the code and the `guides/` tree
+  as the source of truth.
+
+Recommended next step:
+
+- Keep expanding the guide tree from the code, not from the stale `docs/`
+  folder, and add missing examples or command notes only when they map back to
+  the current source.
+
 ## 2026-04-12 - runtime vendor tree renamed to runtime/3rdparty
 
 The canonical vendored runtime checkout moved from `runtime/thirdparty` to

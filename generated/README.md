@@ -13,4 +13,6 @@ Avoid keeping:
 - committed binaries such as `.exe`, `.dll`, `.lib`, `.obj`, `.pdb`, `.ilk`, `.o`
 - Cargo `target/` directories or `.kain` caches
 
-If a log, screenshot, or validation report matters long-term, move it into `docs/validation/` or `docs/recent/` and link it from the relevant README.
+If a log, screenshot, or validation report matters long-term, move it into
+`guides/reference/troubleshooting.md` or a repo-owned archive path and link it
+from the relevant README.

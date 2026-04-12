@@ -46,4 +46,6 @@ Artifact inspection:
 ## Output Hygiene
 
 - `native-app/` is disposable and should not stay checked in.
-- `generated/spv_ui_surface_probe.*` is disposable probe output unless you deliberately archive it under `docs/validation/` or `docs/recent/`.
+- `generated/spv_ui_surface_probe.*` is disposable probe output unless you
+  deliberately archive it under `guides/reference/troubleshooting.md` or a
+  repo-owned archive path.

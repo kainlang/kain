@@ -2,6 +2,9 @@
 
 This folder is the proof matrix for Kain's runtime bridges, UI, GPU, and mixed-language workflows.
 
+Canonical smoke guidance lives in [`../guides/examples/smoketest.md`](../guides/examples/smoketest.md)
+and the root guide tree at [`../guides/README.md`](../guides/README.md).
+
 ## What Lives Here
 
 - focused smoke apps that validate a single capability or integration

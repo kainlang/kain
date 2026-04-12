@@ -4,6 +4,9 @@
 **Total Files:** 88  
 **Total Lines:** 13,663
 
+Canonical corpus guidance lives in [`../guides/examples/kn-library.md`](../guides/examples/kn-library.md)
+and the root guide tree at [`../guides/README.md`](../guides/README.md).
+
 ## Purpose
 
 This library contains deduplicated, high-quality KAIN source files collected from the entire repository. It serves as:

@@ -2,6 +2,9 @@
 
 This folder holds first-class Kain applications and app prototypes that exercise the full language + runtime stack.
 
+Canonical app guidance lives in [`../guides/examples/apps.md`](../guides/examples/apps.md)
+and the root guide tree at [`../guides/README.md`](../guides/README.md).
+
 ## What Lives Here
 
 - `kade-desktop/` is the native desktop app lane and its supporting assets.

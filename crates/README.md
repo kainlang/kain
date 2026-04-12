@@ -18,11 +18,11 @@ Use `crates/repomap.md` when you need the full tree view.
 
 - [`repomap.md`](./repomap.md) for the crate tree.
 - [`kain-gpu-runtime/README.md`](./kain-gpu-runtime/README.md) for the runtime executor crate.
+- [`../guides/README.md`](../guides/README.md) for the canonical long-form guide tree.
+- [`../guides/crates/index.md`](../guides/crates/index.md) for the crate family guide.
 - [`../README.md`](../README.md) for the repo-level operating brief.
 - [`../repomap.md`](../repomap.md) for the workspace overview.
 - [`../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md`](../runtime/native/C_RUNTIME_CONTRACT_PIPELINE.md) for the native runtime contract lane.
-- [`../docs/pipeline/CRATES_PIPELINE.md`](../docs/pipeline/CRATES_PIPELINE.md) for the crates maintenance pipeline.
-- [`../docs/crates/README.md`](../docs/crates/README.md) for the docs-layer crate notes.
 
 ## Notes
 

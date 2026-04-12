@@ -6,6 +6,10 @@ The canonical runtime entrypoint is [native_runtime.toml](./native_runtime.toml)
 
 `runtime/parallel/` is the non-C companion lane for native runtime completion work. It shares the same architectural intent and metadata, but it must stay isolated from `runtime/native/` while the C runtime spec remains the active truth source.
 
+For the canonical runtime guide set, see [`../guides/README.md`](../guides/README.md)
+and the native runtime guide pages under `guides/runtime/` and
+`guides/native-c-runtime/`.
+
 ## Executive Summary
 
 - For Windows-native LLVM executables, the runtime is already materially usable.
@@ -331,7 +335,8 @@ Output hygiene:
 
 - treat `runtime/conformance/**/bin` and `generated/` binaries as disposable
 - keep `.exe`, `.dll`, `.lib`, `.obj`, `.o`, `.pdb`, `.ilk` outputs out of git
-- move validation logs that must be kept into `docs/validation/` or `docs/recent/`
+- move validation logs that must be kept into `guides/reference/troubleshooting.md`
+  or a repo-owned archive path
 
 ## Guidance For Future Runtime Work
 

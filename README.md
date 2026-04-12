@@ -7,11 +7,14 @@
 This README is the top-level operational brief for the current Kain repo state in `M:\Code\Kain`.
 It is written for engineers, agents, and future-you who need the truth of the current system, not a marketing summary.
 
+The canonical long-form guide tree lives in `guides/`. The older `docs/`
+tree is legacy support material and may lag behind the code.
+
 Validated against:
 
 - workspace manifest: `M:\Code\Kain\Cargo.toml`
 - root workspace map: `M:\Code\Kain\repomap.md`
-- docs folder guide: `M:\Code\Kain\docs\README.md`
+- canonical guide tree: `M:\Code\Kain\guides\README.md`
 - research lane guide: `M:\Code\Kain\docs\research\README.md`
 - docs pipeline index: `M:\Code\Kain\docs\pipeline\README.md`
 - C runtime pipeline notes: `M:\Code\Kain\docs\pipeline\C_RUNTIME_PIPELINE.md`
@@ -315,7 +318,7 @@ kain selfhost phase1
 kain selfhost phase2
 ```
 
-Repair-specific notes live in [`docs/pipeline/SELFHOST_REPAIR.md`](docs/pipeline/SELFHOST_REPAIR.md).
+Repair-specific notes live in [`guides/cli/doctor-and-repair.md`](guides/cli/doctor-and-repair.md).
 
 ### `kain omni`
 

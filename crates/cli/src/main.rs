@@ -82,6 +82,13 @@ struct ResolvedNativeRuntimeBundle {
     uses_cpp_runtime: bool,
 }
 
+#[derive(Debug)]
+struct NativeRuntimeObjectCachePaths {
+    object_path: PathBuf,
+    depfile_path: PathBuf,
+    fingerprint_path: PathBuf,
+}
+
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
 #[command(author = "Kipp")]
@@ -2507,26 +2514,32 @@ fn compile_native_runtime_bundle(
 
     let object_ext = if cfg!(windows) { "obj" } else { "o" };
     let mut objects = Vec::with_capacity(bundle.sources.len());
+    let mut reused_object_count = 0usize;
+    let mut compiled_object_count = 0usize;
     for (index, source) in bundle.sources.iter().enumerate() {
-        let object_path = runtime_obj_dir.join(format!(
-            "{:02}_{}.{}",
-            index,
-            sanitize_runtime_name(
-                &source
-                    .file_stem()
-                    .and_then(|stem| stem.to_str())
-                    .unwrap_or("runtime")
-            ),
-            object_ext
-        ));
+        let cache_paths =
+            build_native_runtime_object_cache_paths(&runtime_obj_dir, index, source, object_ext);
+        let compile_fingerprint =
+            build_native_runtime_compile_fingerprint(bundle, clang_cmd, source)?;
+
+        if native_runtime_object_cache_is_fresh(&cache_paths, &compile_fingerprint) {
+            reused_object_count += 1;
+            objects.push(cache_paths.object_path.clone());
+            continue;
+        }
 
         let mut compile_cmd = std::process::Command::new(clang_cmd);
         compile_cmd
             .arg("-c")
             .arg(source)
             .arg("-o")
-            .arg(&object_path)
-            .arg("-g");
+            .arg(&cache_paths.object_path)
+            .arg("-g")
+            .arg("-MMD")
+            .arg("-MF")
+            .arg(&cache_paths.depfile_path)
+            .arg("-MT")
+            .arg("kain_runtime_target");
 
         if runtime_source_uses_cpp(source) {
             compile_cmd.arg("-std=c++20");
@@ -2543,15 +2556,200 @@ fn compile_native_runtime_bundle(
             .status()
             .map_err(|err| format!("unable to invoke clang for {}: {}", source.display(), err))?;
         if !status.success() {
+            let _ = fs::remove_file(&cache_paths.object_path);
             return Err(format!(
                 "clang returned a non-zero status while compiling {}",
                 source.display()
             ));
         }
-        objects.push(object_path);
+        fs::write(&cache_paths.fingerprint_path, &compile_fingerprint).map_err(|err| {
+            format!(
+                "unable to write runtime build fingerprint {}: {}",
+                cache_paths.fingerprint_path.display(),
+                err
+            )
+        })?;
+        compiled_object_count += 1;
+        objects.push(cache_paths.object_path);
+    }
+
+    if compiled_object_count > 0 || reused_object_count > 0 {
+        eprintln!(
+            " Native runtime object cache: {} reused, {} compiled",
+            reused_object_count, compiled_object_count
+        );
     }
 
     Ok(objects)
+}
+
+fn build_native_runtime_object_cache_paths(
+    runtime_obj_dir: &Path,
+    index: usize,
+    source: &Path,
+    object_ext: &str,
+) -> NativeRuntimeObjectCachePaths {
+    let object_stem = format!(
+        "{:02}_{}",
+        index,
+        sanitize_runtime_name(
+            &source
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .unwrap_or("runtime")
+        )
+    );
+
+    NativeRuntimeObjectCachePaths {
+        object_path: runtime_obj_dir.join(format!("{object_stem}.{object_ext}")),
+        depfile_path: runtime_obj_dir.join(format!("{object_stem}.{object_ext}.d")),
+        fingerprint_path: runtime_obj_dir.join(format!("{object_stem}.{object_ext}.fingerprint")),
+    }
+}
+
+fn build_native_runtime_compile_fingerprint(
+    bundle: &ResolvedNativeRuntimeBundle,
+    clang_cmd: &str,
+    source: &Path,
+) -> Result<String, String> {
+    let current_dir = std::env::current_dir()
+        .map_err(|err| format!("unable to resolve native runtime build cwd: {}", err))?;
+    let mut fingerprint_lines = vec![
+        "kain-native-runtime-cache-v1".to_string(),
+        format!("bundle={}", bundle.name),
+        format!("clang={}", clang_cmd),
+        format!("cwd={}", current_dir.display()),
+        format!("source={}", source.display()),
+        format!("cpp={}", runtime_source_uses_cpp(source)),
+    ];
+
+    for include_dir in &bundle.include_dirs {
+        fingerprint_lines.push(format!("include={}", include_dir.display()));
+    }
+    for define in &bundle.defines {
+        fingerprint_lines.push(format!("define={}", define));
+    }
+
+    Ok(fingerprint_lines.join("\n"))
+}
+
+fn native_runtime_object_cache_is_fresh(
+    cache_paths: &NativeRuntimeObjectCachePaths,
+    compile_fingerprint: &str,
+) -> bool {
+    if !cache_paths.object_path.exists()
+        || !cache_paths.depfile_path.exists()
+        || !cache_paths.fingerprint_path.exists()
+    {
+        return false;
+    }
+
+    let stored_fingerprint = match fs::read_to_string(&cache_paths.fingerprint_path) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    if stored_fingerprint != compile_fingerprint {
+        return false;
+    }
+
+    let object_modified = match fs::metadata(&cache_paths.object_path).and_then(|meta| meta.modified())
+    {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+
+    let dependency_paths = match parse_native_runtime_depfile(&cache_paths.depfile_path) {
+        Ok(paths) => paths,
+        Err(_) => return false,
+    };
+    if dependency_paths.is_empty() {
+        return false;
+    }
+
+    for dependency_path in dependency_paths {
+        let dependency_modified =
+            match fs::metadata(&dependency_path).and_then(|meta| meta.modified()) {
+                Ok(value) => value,
+                Err(_) => return false,
+            };
+        if dependency_modified > object_modified {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn parse_native_runtime_depfile(depfile_path: &Path) -> Result<Vec<PathBuf>, String> {
+    let depfile_contents = fs::read_to_string(depfile_path).map_err(|err| {
+        format!(
+            "unable to read native runtime depfile {}: {}",
+            depfile_path.display(),
+            err
+        )
+    })?;
+    let depfile_contents = depfile_contents.replace("\\\r\n", "").replace("\\\n", "");
+    let dependency_section = depfile_contents
+        .split_once(':')
+        .map(|(_, dependencies)| dependencies)
+        .ok_or_else(|| {
+            format!(
+                "native runtime depfile {} did not contain a target separator",
+                depfile_path.display()
+            )
+        })?;
+    let depfile_cwd = std::env::current_dir().map_err(|err| {
+        format!(
+            "unable to resolve cwd while parsing native runtime depfile {}: {}",
+            depfile_path.display(),
+            err
+        )
+    })?;
+
+    let mut dependency_paths = Vec::new();
+    let mut current_token = String::new();
+    let mut chars = dependency_section.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.next() {
+                Some('\n') => {}
+                Some('\r') => {
+                    if matches!(chars.peek(), Some('\n')) {
+                        chars.next();
+                    }
+                }
+                Some(escaped) => current_token.push(escaped),
+                None => current_token.push('\\'),
+            }
+            continue;
+        }
+
+        if ch.is_whitespace() {
+            if !current_token.is_empty() {
+                let dependency_path = PathBuf::from(&current_token);
+                if dependency_path.is_absolute() {
+                    dependency_paths.push(dependency_path);
+                } else {
+                    dependency_paths.push(depfile_cwd.join(dependency_path));
+                }
+                current_token.clear();
+            }
+            continue;
+        }
+
+        current_token.push(ch);
+    }
+
+    if !current_token.is_empty() {
+        let dependency_path = PathBuf::from(&current_token);
+        if dependency_path.is_absolute() {
+            dependency_paths.push(dependency_path);
+        } else {
+            dependency_paths.push(depfile_cwd.join(dependency_path));
+        }
+    }
+
+    Ok(dependency_paths)
 }
 
 fn sanitize_runtime_name(value: &str) -> String {
@@ -2681,11 +2879,13 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        default_native_runtime_link_libs, load_native_runtime_manifest, platform_link_libs,
+        build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
+        default_native_runtime_link_libs, load_native_runtime_manifest,
+        native_runtime_object_cache_is_fresh, parse_native_runtime_depfile, platform_link_libs,
         runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
-        NativeRuntimeLinkManifest,
+        NativeRuntimeLinkManifest, ResolvedNativeRuntimeBundle,
     };
-    use std::{fs, path::Path};
+    use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
 
     #[test]
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
@@ -2768,6 +2968,77 @@ macos = ["Cocoa"]
         assert!(runtime_source_uses_cpp(Path::new("renderer.cpp")));
         assert!(runtime_source_uses_cpp(Path::new("renderer.cxx")));
         assert!(!runtime_source_uses_cpp(Path::new("renderer.c")));
+    }
+
+    #[test]
+    fn native_runtime_depfile_parser_handles_escaped_spaces() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let depfile_path = temp_dir.path().join("runtime.o.d");
+        fs::write(
+            &depfile_path,
+            "kain_runtime_target: /tmp/runtime\\ source.c \\\n+ /tmp/include/header\\ file.h /tmp/include/next.h\n",
+        )
+        .expect("depfile");
+
+        let dependencies =
+            parse_native_runtime_depfile(&depfile_path).expect("parsed runtime depfile");
+
+        assert_eq!(
+            dependencies,
+            vec![
+                PathBuf::from("/tmp/runtime source.c"),
+                PathBuf::from("/tmp/include/header file.h"),
+                PathBuf::from("/tmp/include/next.h"),
+            ]
+        );
+    }
+
+    #[test]
+    fn native_runtime_object_cache_detects_stale_dependencies() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let source_path = temp_dir.path().join("runtime.c");
+        let header_path = temp_dir.path().join("runtime.h");
+        fs::write(&source_path, "#include \"runtime.h\"\n").expect("source");
+        fs::write(&header_path, "#define KAIN_RUNTIME 1\n").expect("header");
+
+        let cache_paths =
+            build_native_runtime_object_cache_paths(temp_dir.path(), 0, &source_path, "o");
+        let bundle = ResolvedNativeRuntimeBundle {
+            name: "test-runtime".to_string(),
+            sources: vec![source_path.clone()],
+            include_dirs: vec![temp_dir.path().to_path_buf()],
+            defines: vec!["KAIN_TEST=1".to_string()],
+            link_libs: Vec::new(),
+            uses_cpp_runtime: false,
+        };
+        let fingerprint =
+            build_native_runtime_compile_fingerprint(&bundle, "clang", &source_path).expect("fp");
+
+        sleep(Duration::from_millis(20));
+        fs::write(&cache_paths.object_path, "object").expect("object");
+        fs::write(
+            &cache_paths.depfile_path,
+            format!(
+                "kain_runtime_target: {} {}\n",
+                source_path.display(),
+                header_path.display()
+            ),
+        )
+        .expect("depfile");
+        fs::write(&cache_paths.fingerprint_path, &fingerprint).expect("fingerprint");
+
+        assert!(native_runtime_object_cache_is_fresh(
+            &cache_paths,
+            &fingerprint
+        ));
+
+        sleep(Duration::from_millis(20));
+        fs::write(&header_path, "#define KAIN_RUNTIME 2\n").expect("updated header");
+
+        assert!(!native_runtime_object_cache_is_fresh(
+            &cache_paths,
+            &fingerprint
+        ));
     }
 }
 

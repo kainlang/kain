@@ -42,15 +42,17 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
-- [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): active UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
-- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`
+- [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
+- [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): legacy UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
+- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): legacy syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
 - [smoketest/compiler_owned_intent](/M:/Code/Kain/smoketest/compiler_owned_intent): compiler-owned intent suite smoke covering `kain run` plus LLVM runtime-contract / realtime-bundle staging
 - [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
-- [docs](/M:/Code/Kain/docs): doctrine, plans, pipeline notes, validation notes, and research
+- [docs](/M:/Code/Kain/docs): legacy doctrine, plans, pipeline notes, validation notes, and research
+- [guides](/M:/Code/Kain/guides): canonical long-form language, runtime, CLI, and reference guides
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [apps/kain-fabric-dcc-suite](/M:/Code/Kain/apps/kain-fabric-dcc-suite): broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, animation, sim, render, compositor, publish, automation, and tensor planning lanes
@@ -237,8 +239,8 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [runtime/3rdparty](/M:/Code/Kain/runtime/3rdparty): curated vendor bundle for Kainized runtime incorporation; upstream engines live here, but Kain-owned wrappers, service keys, and contracts stay under `runtime/native`
 - [runtime/conformance](/M:/Code/Kain/runtime/conformance): lane-level conformance harnesses
 - [runtime/parallel](/M:/Code/Kain/runtime/parallel): Rust/Zig companion runtime work that must stay aligned with the native runtime doctrine
-- [docs/kainplan](/M:/Code/Kain/docs/kainplan): active design and execution docs
-- [docs/pipeline](/M:/Code/Kain/docs/pipeline): pipeline notes and operational docs
+- [docs/kainplan](/M:/Code/Kain/docs/kainplan): legacy design and execution docs
+- [docs/pipeline](/M:/Code/Kain/docs/pipeline): legacy pipeline notes and operational docs
 - [labs](/M:/Code/Kain/labs): focused validation labs
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
@@ -308,7 +310,7 @@ If the debug CLI is missing:
 - The repair lane is profile-driven. If a file is being "fixed" in a way that changes meaning, that is a bug in the caller or profile selection, not a feature.
 - Large Windows test binaries can hit linker OOM pressure.
 - The workspace still pins `pyo3 0.20.x`, so a machine-default Python 3.13+ or 3.14 can break builds. Prefer Python 3.12, set `PYO3_PYTHON` explicitly when needed, and keep the Python 3.12 install directory on PATH so the built `kain.exe` can resolve `python312.dll` at runtime.
-- `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived under `docs/validation/` or `docs/recent/`.
+- `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived in a repo-owned archive path and cross-linked from `guides/reference/troubleshooting.md`.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - Runtime conformance harnesses that compile `kain_runtime_services.c` or `kain_runtime_contract.c` in isolation must also compile `runtime/native/src/vendor/kain_runtime_vendor_lane.c` or define `KAIN_RUNTIME_VENDOR_STUBS_ONLY=1`; the service catalog now has real vendor-backed function-table references.
