@@ -1,5 +1,48 @@
 # MEMORY
 
+## 2026-04-11 - egui was evicted from the default kain-ui-native crate path
+
+`kain-ui-native` no longer drags the old `egui` host through the default build. The crate now has a clean default facade for bundle/build metadata and an explicit legacy feature for the old desktop host.
+
+What changed:
+
+- Split `crates/kain-ui-native/src/lib.rs` into a feature-gated dispatcher
+  - Default builds now export a small no-`egui` facade.
+  - The old host was preserved as `crates/kain-ui-native/src/legacy_egui.rs`.
+- Added `crates/kain-ui-native/src/no_egui.rs`
+  - Preserves the public bundle/runtime API surface used by apps and smoketests:
+    - `KainUiNativeBackendPlan`
+    - `KainUiNativeAppConfig`
+    - runtime bundle serialization helpers
+    - `run_*` entrypoints
+  - Keeps build/bundle generation working from `kain-core` + `kain-ui`.
+  - Makes runtime launch fail fast with an explicit error instead of silently booting the legacy host.
+- Feature-gated the old host dependency blast in `crates/kain-ui-native/Cargo.toml`
+  - `eframe`, `egui-wgpu`, `wgpu`, `kain-3D`, `ab_glyph`, `fdsm`, `fdsm-ttf-parser`, `image`, `nalgebra`, `bytemuck` are now optional and only enabled by `legacy-egui`.
+- Stopped default runtime metadata from advertising `LegacyEgui` as the compatibility backend
+  - The no-`egui` facade now defaults the compatibility lane to `Qt` so bundle metadata does not claim a host that the default crate build no longer provides.
+
+Validation completed:
+
+- `cargo check -p kain-ui-native`
+- `cargo check -p kain-ui-native --features legacy-egui`
+
+Design decisions:
+
+- Chose extraction over deletion. The old host still exists for compatibility and archaeology, but it no longer defines the default crate identity.
+- Preserved the bundle/build API first because many apps and smoketests already call `run_bundled_app_json(...)` and related helpers.
+- Made the default runtime launch path fail loudly instead of pretending Qt/Imgui/RmlUi are live hosts before they exist.
+
+Current risks:
+
+- Default `kain-ui-native` launches now fail intentionally until a real non-`egui` shell lands.
+- The bundle metadata now points at the future UI lane (`Qt` shell, `RmlUi` document host, `Imgui` devtools, `Yoga` layout), but those are planning defaults rather than live host implementations in this crate.
+- The legacy feature still compiles the old monolith; it is compatibility debt, not a sustainable endpoint.
+
+Recommended next step:
+
+- Land the first real non-`egui` host adapter in `kain-ui-native`, starting with a shell/session coordinator that can launch one concrete backend instead of erroring out after bundle validation.
+
 ## 2026-04-11 - first UI vendor runtime slice landed with honest service bits and backend-role metadata
 
 The UI overhaul is no longer only a plan. The native runtime now has a real UI vendor lane, the startup contract surface has room to describe it honestly, and the semantic UI crates can declare mixed-backend sessions without treating the native host as one opaque `egui` blob.

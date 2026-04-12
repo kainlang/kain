@@ -150,7 +150,7 @@ The native runtime now has a first real UI vendor slice instead of only a future
 - `runtime/native` owns the service families and startup contract bits for `ui.layout.yoga`, `ui.backend.imgui`, `ui.devtools`, and the staged `ui.render.skia`, `ui.backend.rmlui`, `ui.backend.slint`, `ui.backend.qt`, and `ui.surface.browser.cef` lanes
 - `runtime/thirdparty/imgui` and `runtime/thirdparty/yoga` are the first compile-backed UI vendor trees in the manifest-driven native bundle; the heavier UI stacks stay staged behind the same Kain-owned vendor bridge until the coordinator contract is proven
 - `crates/kain-ui` now emits explicit backend-role truth in runtime metadata and per-surface preferences through `UiHostBackendKind`, `UiLayoutEngineKind`, and `UiRenderEngineKind`
-- `crates/kain-ui-native` is still operationally `egui`-hosted, but it now carries a backend-plan coordinator seam and treats `egui` as the compatibility host instead of pretending it is the final semantic UI runtime
+- `crates/kain-ui-native` now defaults to a no-`egui` facade. The old 9k-line host survives in `src/legacy_egui.rs`, but only behind the explicit Cargo feature `legacy-egui`; default builds keep the bundle/build API and backend-plan metadata while refusing to boot the old host path
 
 ### Semantic Tab Workspace Lane
 

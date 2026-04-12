@@ -3,18 +3,33 @@ name = "kain-ui-native"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+legacy-egui = [
+    "dep:ab_glyph",
+    "dep:bytemuck",
+    "dep:eframe",
+    "dep:egui-wgpu",
+    "dep:kain-3d",
+    "dep:fdsm",
+    "dep:fdsm-ttf-parser",
+    "dep:image",
+    "dep:nalgebra",
+    "dep:wgpu",
+]
+
 [dependencies]
-ab_glyph = "0.2"
-bytemuck = { workspace = true }
-eframe = { version = "0.31", features = ["wgpu"] }
-egui-wgpu = "0.31"
-kain-3d = { path = "../kain-3D" }
-fdsm = "0.8.0"
-fdsm-ttf-parser = "0.2.0"
-image = { version = "0.25.6", default-features = false }
+ab_glyph = { version = "0.2", optional = true }
+bytemuck = { workspace = true, optional = true }
+eframe = { version = "0.31", features = ["wgpu"], optional = true }
+egui-wgpu = { version = "0.31", optional = true }
+kain-3d = { path = "../kain-3D", optional = true }
+fdsm = { version = "0.8.0", optional = true }
+fdsm-ttf-parser = { version = "0.2.0", optional = true }
+image = { version = "0.25.6", default-features = false, optional = true }
 kain-core = { path = "../kain-core" }
 kain-ui = { path = "../kain-ui" }
-nalgebra = "0.34.1"
+nalgebra = { version = "0.34.1", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-wgpu = { workspace = true }
+wgpu = { workspace = true, optional = true }
