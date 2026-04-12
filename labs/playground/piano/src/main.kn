@@ -1,0 +1,185 @@
+use c::piano_audio
+
+fn piano_cache_dir() -> String:
+    return "native/piano_cache"
+
+fn bool_text(flag: Bool) -> String:
+    if flag:
+        return "yes"
+    return "no"
+
+fn boot_audio() -> Bool:
+    return piano_audio_init(piano_cache_dir(), 48000) == 1
+
+component App():
+    state audio_ready: Bool = boot_audio()
+    state audio_status: String = piano_audio_status()
+    state status_line: String = "Tap a key to hear the piano."
+    state detail_line: String = "Record a loop, stop it, then play it back."
+    state loop_line: String = "loop notes: 0 | loop ms: 0"
+    state last_note: String = "none"
+    state note_count: Int = 0
+    state recording: Bool = false
+    state loop_playing: Bool = false
+    state loop_note_count: Int = 0
+    state loop_duration_ms: Int = 0
+    state action_total: Int = 0
+    state action_log: Array<String> = []
+
+    fn ensure_audio_ready():
+        if !audio_ready:
+            audio_ready = boot_audio()
+            audio_status = piano_audio_status()
+
+    fn log_action(message: String):
+        action_total = action_total + 1
+        action_log.push(str(action_total) + ". " + message)
+
+    fn rebuild_status(reason: String):
+        audio_status = piano_audio_status()
+        status_line = reason + " | " + audio_status
+        detail_line = "last note: " + last_note + " | taps: " + str(note_count) + " | recording: " + bool_text(recording) + " | loop playing: " + bool_text(loop_playing)
+        loop_line = "loop notes: " + str(loop_note_count) + " | loop ms: " + str(loop_duration_ms)
+
+    fn play_key(label: String, midi_note: Int):
+        ensure_audio_ready()
+        if piano_audio_note_on(midi_note) == 1:
+            last_note = label
+            note_count = note_count + 1
+            log_action("tap " + label)
+            rebuild_status("Played " + label)
+        else:
+            log_action("failed " + label)
+            rebuild_status("Audio call failed for " + label)
+
+    fn start_recording():
+        ensure_audio_ready()
+        if piano_audio_start_recording() == 1:
+            recording = true
+            loop_playing = false
+            loop_note_count = 0
+            loop_duration_ms = 0
+            log_action("record armed")
+            rebuild_status("Recording loop")
+        else:
+            log_action("record arm failed")
+            rebuild_status("Unable to arm loop recording")
+
+    fn stop_recording():
+        ensure_audio_ready()
+        let captured = piano_audio_stop_recording()
+        recording = false
+        loop_note_count = captured
+        loop_duration_ms = piano_audio_loop_duration_ms()
+        log_action("record stopped with " + str(captured) + " notes")
+        rebuild_status("Loop captured")
+
+    fn play_loop():
+        ensure_audio_ready()
+        if piano_audio_start_loop_playback() == 1:
+            loop_playing = true
+            log_action("loop playing")
+            rebuild_status("Loop cycling")
+        else:
+            loop_playing = false
+            log_action("loop unavailable")
+            rebuild_status("No captured loop yet")
+
+    fn stop_loop():
+        ensure_audio_ready()
+        piano_audio_stop_loop_playback()
+        loop_playing = false
+        log_action("loop stopped")
+        rebuild_status("Loop stopped")
+
+    fn clear_loop():
+        ensure_audio_ready()
+        piano_audio_clear_loop()
+        recording = false
+        loop_playing = false
+        loop_note_count = 0
+        loop_duration_ms = 0
+        log_action("loop cleared")
+        rebuild_status("Loop cleared")
+
+    fn press_csharp4():
+        play_key("C#4", 61)
+
+    fn press_dsharp4():
+        play_key("D#4", 63)
+
+    fn press_fsharp4():
+        play_key("F#4", 66)
+
+    fn press_gsharp4():
+        play_key("G#4", 68)
+
+    fn press_asharp4():
+        play_key("A#4", 70)
+
+    fn press_c4():
+        play_key("C4", 60)
+
+    fn press_d4():
+        play_key("D4", 62)
+
+    fn press_e4():
+        play_key("E4", 64)
+
+    fn press_f4():
+        play_key("F4", 65)
+
+    fn press_g4():
+        play_key("G4", 67)
+
+    fn press_a4():
+        play_key("A4", 69)
+
+    fn press_b4():
+        play_key("B4", 71)
+
+    fn press_c5():
+        play_key("C5", 72)
+
+    render <panel title="Kain Piano Lab" layout="column" gap={16} padding={16}>
+        <panel title="Transport" layout="column" gap={8}>
+            <label>{status_line}</label>
+            <label>{audio_status}</label>
+            <label>{detail_line}</label>
+            <label>{loop_line}</label>
+            <panel title="Controls" layout="row" gap={8}>
+                <button onclick={start_recording}>Record Loop</button>
+                <button onclick={stop_recording}>Stop Recording</button>
+                <button onclick={play_loop}>Play Loop</button>
+                <button onclick={stop_loop}>Stop Loop</button>
+                <button onclick={clear_loop}>Clear Loop</button>
+            </panel>
+            <panel title="Mode" layout="row" gap={8}>
+                {if recording: <label>Recording loop</label> else: <label>Idle</label>}
+                {if loop_playing: <label>Loop cycling</label> else: <label>Loop paused</label>}
+            </panel>
+        </panel>
+        <panel title="Keyboard" layout="column" gap={10}>
+            <panel title="Black Keys" layout="row" gap={6}>
+                <button onclick={press_csharp4}>C#4</button>
+                <button onclick={press_dsharp4}>D#4</button>
+                <button onclick={press_fsharp4}>F#4</button>
+                <button onclick={press_gsharp4}>G#4</button>
+                <button onclick={press_asharp4}>A#4</button>
+            </panel>
+            <panel title="White Keys" layout="row" gap={6}>
+                <button onclick={press_c4}>C4</button>
+                <button onclick={press_d4}>D4</button>
+                <button onclick={press_e4}>E4</button>
+                <button onclick={press_f4}>F4</button>
+                <button onclick={press_g4}>G4</button>
+                <button onclick={press_a4}>A4</button>
+                <button onclick={press_b4}>B4</button>
+                <button onclick={press_c5}>C5</button>
+            </panel>
+        </panel>
+        <panel title="Action Tape" layout="column" gap={4}>
+            <label>Loop actions appear here as you play.</label>
+            {for entry in action_log: <label>{entry}</label>}
+        </panel>
+    </panel>

@@ -651,6 +651,10 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::String),
     );
     env.define_global(
+        "Box__new_".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
+    );
+    env.define_global(
         "__kain_bootstrap_lex_tokens".into(),
         builtin_function_type(
             vec![shared_ref_type(ResolvedType::String)],
@@ -6135,6 +6139,30 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
                     .all(|(left, right)| types_compatible(left, right))
         }
         (ResolvedType::Option(left), ResolvedType::Option(right)) => types_compatible(left, right),
+        (
+            ResolvedType::Option(left),
+            ResolvedType::Ref {
+                mutable: false,
+                inner,
+            },
+        ) => match inner.as_ref() {
+            ResolvedType::Option(right) => {
+                types_compatible(left, &shared_ref_type(right.as_ref().clone()))
+            }
+            _ => false,
+        },
+        (
+            ResolvedType::Ref {
+                mutable: false,
+                inner,
+            },
+            ResolvedType::Option(right),
+        ) => match inner.as_ref() {
+            ResolvedType::Option(left) => {
+                types_compatible(&shared_ref_type(left.as_ref().clone()), right)
+            }
+            _ => false,
+        },
         (ResolvedType::Result(left_ok, left_err), ResolvedType::Result(right_ok, right_err)) => {
             types_compatible(left_ok, right_ok) && types_compatible(left_err, right_err)
         }
@@ -8494,6 +8522,17 @@ mod tests {
                 }
             );
         }
+
+        assert_eq!(
+            env.lookup("Box__new_")
+                .cloned()
+                .expect("box helper should be registered"),
+            ResolvedType::Function {
+                params: vec![ResolvedType::Unknown],
+                ret: Box::new(ResolvedType::Unknown),
+                effects: EffectSet::new(),
+            }
+        );
     }
 
     #[test]
@@ -9012,6 +9051,21 @@ fn demo(filter: Option<Filter>, out_: &mut Set<String>):
 
         check(&program, &span_mapper, "<test>")
             .expect("nested borrowed optional matches should typecheck");
+    }
+
+    #[test]
+    fn types_compatible_accepts_borrowed_option_views() {
+        let widget = ResolvedType::Struct("Widget".to_string(), HashMap::new());
+        let owned_option = ResolvedType::Option(Box::new(widget.clone()));
+        let borrowed_option = ResolvedType::Option(Box::new(shared_ref_type(widget.clone())));
+        let borrowed_owned_option = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(owned_option.clone()),
+        };
+
+        assert!(types_compatible(&borrowed_option, &borrowed_owned_option));
+        assert!(types_compatible(&borrowed_owned_option, &borrowed_option));
+        assert!(!types_compatible(&owned_option, &borrowed_owned_option));
     }
 
     #[test]

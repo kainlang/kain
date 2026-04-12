@@ -793,16 +793,13 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             element_ty,
             ..
         } => {
-            let element_ty: Option<&Type> = element_ty.as_ref();
+            let stride = memory_stride_for_type(element_ty.as_ref(), ctx.layouts).unwrap_or(1);
             helper_call(
                 "__kain_ptr_offset",
                 vec![
                     lower_expr_memory_with_ctx(pointer, ctx),
                     lower_expr_memory_with_ctx(offset, ctx),
-                    Expr::Int(
-                        memory_stride_for_type(element_ty, ctx.layouts).unwrap_or(1),
-                        span,
-                    ),
+                    Expr::Int(stride, span),
                 ],
                 span,
             )
@@ -872,10 +869,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             zero_fill_rest,
             ..
         } => {
-            let lowered_fields = fields
-                .iter()
-                .map(|(name, value)| (name.clone(), lower_expr_memory_with_ctx(value, ctx)))
-                .collect::<Vec<_>>();
+            let mut lowered_fields: Vec<(String, Expr)> = Vec::new();
+            for (name, value) in fields.iter() {
+                lowered_fields.push((name.clone(), lower_expr_memory_with_ctx(value, ctx)));
+            }
             lower_aggregate_init_expr(ty, &lowered_fields, *zero_fill_rest, ctx.layouts, span)
         }
         Expr::Assign {
@@ -931,23 +928,21 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                         field,
                         ctx,
                     );
+                    let (field_type_name, field_stride) = match &field_ty {
+                        Some(ty) => (
+                            type_key(ty),
+                            memory_stride_for_type(Some(ty), ctx.layouts).unwrap_or(1),
+                        ),
+                        None => ("unknown".to_string(), 1),
+                    };
                     return helper_call(
                         "__kain_union_set",
                         vec![
                             lower_expr_memory_with_ctx(object, ctx),
                             Expr::String(field.clone(), *span),
-                            Expr::String(
-                                field_ty
-                                    .as_ref()
-                                    .map(type_key)
-                                    .unwrap_or_else(|| "unknown".to_string()),
-                                *span,
-                            ),
+                            Expr::String(field_type_name, *span),
                             Expr::Int(
-                                field_ty
-                                    .as_ref()
-                                    .and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts))
-                                    .unwrap_or(1),
+                                field_stride,
                                 *span,
                             ),
                             Expr::Int(layout_size as i64, *span),
@@ -988,12 +983,12 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             let lowered_right = lower_expr_memory_with_ctx(right, ctx);
 
             if should_apply_usual_arithmetic_conversions(*op) {
-                let common_ty = left_ty
-                    .as_ref()
-                    .zip(right_ty.as_ref())
-                    .and_then(|(lhs, rhs)| {
+                let common_ty = match (left_ty.as_ref(), right_ty.as_ref()) {
+                    (Some(lhs), Some(rhs)) => {
                         usual_arithmetic_conversion_type(lhs, rhs, ctx.layouts.abi)
-                    });
+                    }
+                    _ => None,
+                };
                 return Expr::Binary {
                     left: Box::new(cast_if_needed(lowered_left, common_ty.clone(), *span)),
                     op: *op,
@@ -1005,9 +1000,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             let normalized_left = match op {
                 BinaryOp::Shl | BinaryOp::Shr => cast_if_needed(
                     lowered_left,
-                    left_ty
-                        .as_ref()
-                        .and_then(|ty| promoted_type_for_arithmetic(ty, ctx.layouts.abi)),
+                    match left_ty.as_ref() {
+                        Some(ty) => promoted_type_for_arithmetic(ty, ctx.layouts.abi),
+                        None => None,
+                    },
                     *span,
                 ),
                 _ => lowered_left,
@@ -1032,9 +1028,10 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             let normalized_operand = match op {
                 UnaryOp::Neg | UnaryOp::BitNot => cast_if_needed(
                     lowered_operand,
-                    operand_ty
-                        .as_ref()
-                        .and_then(|ty| promoted_type_for_arithmetic(ty, ctx.layouts.abi)),
+                    match operand_ty.as_ref() {
+                        Some(ty) => promoted_type_for_arithmetic(ty, ctx.layouts.abi),
+                        None => None,
+                    },
                     *span,
                 ),
                 _ => lowered_operand,
@@ -1128,25 +1125,20 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     .and_then(|object_ty| field_type_from_object(&object_ty, field, ctx))
                     .map(|ty| lower_storage_expr(&ty, ctx.layouts, *span, true))
                     .unwrap_or_else(|| Expr::None(*span));
+                let (field_type_name, field_stride) = match &field_ty {
+                    Some(ty) => (
+                        type_key(ty),
+                        memory_stride_for_type(Some(ty), ctx.layouts).unwrap_or(1),
+                    ),
+                    None => ("unknown".to_string(), 1),
+                };
                 return helper_call(
                     "__kain_union_get",
                     vec![
                         lower_expr_memory_with_ctx(object, ctx),
                         Expr::String(field.clone(), *span),
-                        Expr::String(
-                            field_ty
-                                .as_ref()
-                                .map(type_key)
-                                .unwrap_or_else(|| "unknown".to_string()),
-                            *span,
-                        ),
-                        Expr::Int(
-                            field_ty
-                                .as_ref()
-                                .and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts))
-                                .unwrap_or(1),
-                            *span,
-                        ),
+                        Expr::String(field_type_name, *span),
+                        Expr::Int(field_stride, *span),
                         Expr::Int(layout_size as i64, *span),
                         fallback,
                     ],
@@ -1187,44 +1179,51 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             fields,
             rest,
             span,
-        } => Expr::Struct {
-            name: name.clone(),
-            fields: fields
-                .iter()
-                .map(|(field, value)| (field.clone(), lower_expr_memory_with_ctx(value, ctx)))
-                .collect(),
-            rest: rest
-                .as_ref()
-                .map(|value| Box::new(lower_expr_memory_with_ctx(value, ctx))),
-            span: *span,
-        },
+        } => {
+            let mut lowered_fields: Vec<(String, Expr)> = Vec::new();
+            for (field, value) in fields.iter() {
+                lowered_fields.push((field.clone(), lower_expr_memory_with_ctx(value, ctx)));
+            }
+            Expr::Struct {
+                name: name.clone(),
+                fields: lowered_fields,
+                rest: rest
+                    .as_ref()
+                    .map(|value| Box::new(lower_expr_memory_with_ctx(value, ctx))),
+                span: *span,
+            }
+        }
         Expr::EnumVariant {
             enum_name,
             variant,
             fields,
             span,
-        } => Expr::EnumVariant {
-            enum_name: enum_name.clone(),
-            variant: variant.clone(),
-            fields: match fields {
+        } => {
+            let lowered_fields = match fields {
                 EnumVariantFields::Unit => EnumVariantFields::Unit,
-                EnumVariantFields::Tuple(items) => EnumVariantFields::Tuple(
-                    items
-                        .iter()
-                        .map(|item| lower_expr_memory_with_ctx(item, ctx))
-                        .collect(),
-                ),
-                EnumVariantFields::Struct(items) => EnumVariantFields::Struct(
-                    items
-                        .iter()
-                        .map(|(field, value)| {
-                            (field.clone(), lower_expr_memory_with_ctx(value, ctx))
-                        })
-                        .collect(),
-                ),
-            },
-            span: *span,
-        },
+                EnumVariantFields::Tuple(items) => {
+                    let mut lowered_items: Vec<Expr> = Vec::new();
+                    for item in items.iter() {
+                        lowered_items.push(lower_expr_memory_with_ctx(item, ctx));
+                    }
+                    EnumVariantFields::Tuple(lowered_items)
+                }
+                EnumVariantFields::Struct(items) => {
+                    let mut lowered_items: Vec<(String, Expr)> = Vec::new();
+                    for (field, value) in items.iter() {
+                        lowered_items
+                            .push((field.clone(), lower_expr_memory_with_ctx(value, ctx)));
+                    }
+                    EnumVariantFields::Struct(lowered_items)
+                }
+            };
+            Expr::EnumVariant {
+                enum_name: enum_name.clone(),
+                variant: variant.clone(),
+                fields: lowered_fields,
+                span: *span,
+            }
+        }
         Expr::If {
             condition,
             then_branch,
@@ -1311,10 +1310,14 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
         ),
         Expr::Spawn { actor, init, span } => Expr::Spawn {
             actor: actor.clone(),
-            init: init
-                .iter()
-                .map(|(name, value)| (name.clone(), lower_expr_memory_with_ctx(value, ctx)))
-                .collect(),
+            init: {
+                let mut lowered_init: Vec<(String, Expr)> = Vec::new();
+                for (name, value) in init.iter() {
+                    lowered_init
+                        .push((name.clone(), lower_expr_memory_with_ctx(value, ctx)));
+                }
+                lowered_init
+            },
             span: *span,
         },
         Expr::SendMsg {
@@ -1325,10 +1328,14 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
         } => Expr::SendMsg {
             target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
             message: message.clone(),
-            data: data
-                .iter()
-                .map(|(name, value)| (name.clone(), lower_expr_memory_with_ctx(value, ctx)))
-                .collect(),
+            data: {
+                let mut lowered_data: Vec<(String, Expr)> = Vec::new();
+                for (name, value) in data.iter() {
+                    lowered_data
+                        .push((name.clone(), lower_expr_memory_with_ctx(value, ctx)));
+                }
+                lowered_data
+            },
             span: *span,
         },
         Expr::Comptime(inner, inner_span) => Expr::Comptime(
@@ -1482,10 +1489,11 @@ fn pointer_for_addressable(value: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> Opt
             span,
         } => {
             let base_ptr = pointer_for_addressable(object, ctx)?;
-            let stride = infer_element_type(object, ctx)
-                .as_ref()
-                .and_then(|ty| memory_stride_for_type(Some(ty), ctx.layouts))
-                .unwrap_or(1);
+            let element_ty = infer_element_type(object, ctx);
+            let stride = match &element_ty {
+                Some(ty) => memory_stride_for_type(Some(ty), ctx.layouts).unwrap_or(1),
+                None => 1,
+            };
             Some(helper_call(
                 "__kain_index_ptr",
                 vec![
@@ -2100,27 +2108,20 @@ fn lower_aggregate_init_expr(
                         return if let Some(active_field) = active_field {
                             let active_ty =
                                 info.fields.get(&active_field).map(|field| field.ty.clone());
+                            let (active_type_name, active_stride) = match &active_ty {
+                                Some(ty) => (
+                                    type_key(ty),
+                                    memory_stride_for_type(Some(ty), layouts).unwrap_or(1),
+                                ),
+                                None => ("unknown".to_string(), 1),
+                            };
                             helper_call(
                                 "__kain_union_wrap",
                                 vec![
                                     base_struct,
                                     Expr::String(active_field, span),
-                                    Expr::String(
-                                        active_ty
-                                            .as_ref()
-                                            .map(type_key)
-                                            .unwrap_or_else(|| "unknown".to_string()),
-                                        span,
-                                    ),
-                                    Expr::Int(
-                                        active_ty
-                                            .as_ref()
-                                            .and_then(|ty| {
-                                                memory_stride_for_type(Some(ty), layouts)
-                                            })
-                                            .unwrap_or(1),
-                                        span,
-                                    ),
+                                    Expr::String(active_type_name, span),
+                                    Expr::Int(active_stride, span),
                                     Expr::Int(info.size as i64, span),
                                     active_value,
                                 ],

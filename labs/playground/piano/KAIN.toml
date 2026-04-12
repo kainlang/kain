@@ -1,0 +1,6 @@
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "piano_audio"
+header = "native/piano_audio.h"
+shared_lib = "native/${kain_dynlib:piano_audio}"

@@ -2222,17 +2222,15 @@ impl RustTransformer {
             syn::Stmt::Local(local) => {
                 let pattern = self.transform_pattern(&local.pat);
                 let ty = self.type_from_local_pat(&local.pat);
-                let (ty_ann, value) = if let Some(init) = &local.init {
-                    let ty_from_pat = self.type_from_local_pat(&local.pat);
-                    let val = self.transform_expr(&init.expr)?;
-                    (ty_from_pat, Some(val))
-                } else {
-                    (None, None)
-                };
-                let ty_ann = ty.or(ty_ann);
+                let ty_ann = ty.or_else(|| self.type_from_local_pat(&local.pat));
                 if let (Some(ty_ann), Pattern::Binding { name, .. }) = (&ty_ann, &pattern) {
                     self.define(name, ty_ann.clone());
                 }
+                let value = if let Some(init) = &local.init {
+                    Some(self.transform_expr(&init.expr)?)
+                } else {
+                    None
+                };
                 Ok(vec![Stmt::Let {
                     pattern,
                     ty: ty_ann,
@@ -6047,6 +6045,42 @@ mod tests {
         };
         assert!(matches!(value.as_ref(), Expr::Ident(_, _)));
         assert!(matches!(&arms[1].body, Expr::None(_)));
+    }
+
+    #[test]
+    fn lowers_typed_let_option_as_ref_initializer_with_shadowed_binding() {
+        let program = transform_source(
+            r#"
+            fn inspect(item: &Option<i32>) {
+                let item: Option<&i32> = item.as_ref();
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Let {
+            ty: Some(Type::Option(inner, _)),
+            value: Some(Expr::Match { scrutinee, arms, .. }),
+            ..
+        } = &function.body.stmts[0]
+        else {
+            panic!("expected typed let initializer to lower to match");
+        };
+        assert!(matches!(
+            inner.as_ref(),
+            Type::Ref {
+                inner,
+                mutable: false,
+                ..
+            } if matches!(inner.as_ref(), Type::Named { name, .. } if name == "i32")
+        ));
+        assert!(matches!(
+            scrutinee.as_ref(),
+            Expr::Ident(name, _) if name == "item"
+        ));
+        assert_eq!(arms.len(), 2);
     }
 
     #[test]
