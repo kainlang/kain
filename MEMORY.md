@@ -1,5 +1,71 @@
 # MEMORY
 
+## 2026-04-11 - first UI vendor runtime slice landed with honest service bits and backend-role metadata
+
+The UI overhaul is no longer only a plan. The native runtime now has a real UI vendor lane, the startup contract surface has room to describe it honestly, and the semantic UI crates can declare mixed-backend sessions without treating the native host as one opaque `egui` blob.
+
+What changed:
+
+- Expanded `runtime/native` for UI vendor families
+  - Added `runtime/native/include/kain_runtime_vendor_ui_bridge.h` and `runtime/native/src/vendor/kain_runtime_vendor_ui_bridge.cpp`.
+  - Added service families for:
+    - `ui.layout.yoga`
+    - `ui.render.skia`
+    - `ui.backend.imgui`
+    - `ui.backend.rmlui`
+    - `ui.backend.slint`
+    - `ui.backend.qt`
+    - `ui.surface.browser.cef`
+    - `ui.devtools`
+  - Wired `imgui` and `yoga` as the first compile-backed UI vendors through the manifest-driven native runtime bundle.
+  - Kept `skia`, `rmlui`, `slint`, `qt`, and `cef` staged behind the same Kain-owned vendor bridge instead of pretending they are production-ready.
+- Widened the runtime contract mask
+  - `runtime/native/include/kain_runtime_contract.h` now uses a `uint64_t`-backed `KainRuntimeServiceMask`.
+  - This unblocked honest contract bits for the new UI service families instead of aliasing them into an already full 32-bit mask.
+  - Updated startup validation, win32 host callers, and the diagnostics conformance helper to use the wider mask.
+- Expanded semantic UI truth in `crates/kain-ui`
+  - Added explicit backend-role enums:
+    - `UiHostBackendKind`
+    - `UiLayoutEngineKind`
+    - `UiRenderEngineKind`
+  - Extended `UiRuntimeMetadata` and `UiSurface` so bundles can describe shell/document/devtools hosts plus layout/render preferences without host-local side channels.
+  - Added host-backend capability tables alongside the older coarse renderer table.
+- Added the first native host coordinator seam in `crates/kain-ui-native`
+  - Introduced `KainUiNativeBackendPlan`.
+  - The native host now carries shell/devtools/layout/render/compatibility choices through bundle creation and runtime reload.
+  - `egui` remains the live compatibility host, but the crate no longer has to pretend it is the only backend model worth describing.
+- Re-synced `runtime/native_runtime_metadata.json` with the manifest after the UI lane additions so tooling sees the same service families, source groups, and include roots as the build.
+
+Validation completed:
+
+- `cargo check -p kain-ui`
+- `cargo check -p kain-ui-native`
+- `cargo test -q -p kain-ui`
+- `./runtime/compile_native_runtime.sh`
+- `./runtime/conformance/run_all.sh --category diagnostics --verbose`
+- `./runtime/conformance/run_all.sh --category host_bridge --verbose`
+
+Design decisions:
+
+- Chose `imgui` and `yoga` as the first compile-backed UI vendors because they are small enough to prove the runtime seam now and useful enough to shape the architecture.
+- Chose a 64-bit service mask instead of another round of bit aliasing because the startup contract needs to stay trustworthy as the runtime broadens.
+- Kept the heavier UI stacks staged; the point of this pass was to create a Kain-owned UI vendor lane and coordinator seam, not to jam Qt, CEF, Slint, RmlUi, and Skia into one unstable host.
+- Preserved legacy `egui` compatibility in `kain-ui-native` while making backend selection explicit runtime metadata instead of a hardcoded host assumption.
+
+Current risks:
+
+- `kain-ui-native` is still operationally `egui`-hosted. The new backend plan is a coordinator seam, not a full backend cutover yet.
+- `runtime/native_runtime_metadata.json` is synchronized again, but the repo still lacks a strict automated parity check that fails fast when the TOML and JSON drift.
+- `imgui` and `yoga` are compile-backed and registered, but they are not yet deeply integrated into patch execution, the runtime value ABI, or the native host rendering path.
+- The heavier UI vendors are intentionally staged only; they still need deliberate source selection and adapter design before compile-backed incorporation.
+
+Recommended next step:
+
+- Consume the new backend-role metadata for one real host cutover seam:
+  - route layout execution through `ui.layout.yoga`
+  - route devtools and inspector surfaces through `ui.devtools` / `ui.backend.imgui`
+  - keep the shell on the compatibility host until one Qt- or Skia-backed presentation seam is deliberately proven
+
 ## 2026-04-11 - mixed-language graphics vendor slice landed with bgfx/bimg live and The Forge staged
 
 The runtime now has a real renderer-backend seam in native code instead of only a graphics-vendor plan doc. The first implementation pass added a mixed C/C++ native build path, a Kain-owned renderer backend catalog, real `bgfx` + `bx` + `bimg` vendor incorporation, a staged `the-forge` backend identity, and a source-first 3D smoke shell under `smoketest/3D/material_atrium_showcase`.

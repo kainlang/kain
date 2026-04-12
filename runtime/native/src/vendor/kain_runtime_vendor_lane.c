@@ -10,6 +10,58 @@
 #define CONFIG_VERSION "kain-vendor"
 #endif
 
+#if defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
+#define kain_vendor_bgfx_version_string kain_vendor_bgfx_stub_version_string
+#define kain_vendor_bgfx_probe kain_vendor_bgfx_stub_probe
+#define kain_vendor_filament_version_string kain_vendor_filament_stub_version_string
+#define kain_vendor_filament_probe kain_vendor_filament_stub_probe
+#define kain_vendor_diligent_version_string kain_vendor_diligent_stub_version_string
+#define kain_vendor_diligent_probe kain_vendor_diligent_stub_probe
+#define kain_vendor_forge_version_string kain_vendor_forge_stub_version_string
+#define kain_vendor_forge_probe kain_vendor_forge_stub_probe
+#define kain_vendor_bimg_version_string kain_vendor_bimg_stub_version_string
+#define kain_vendor_bimg_probe kain_vendor_bimg_stub_probe
+#define kain_vendor_imgui_version_string kain_vendor_imgui_stub_version_string
+#define kain_vendor_imgui_probe kain_vendor_imgui_stub_probe
+#define kain_vendor_yoga_version_string kain_vendor_yoga_stub_version_string
+#define kain_vendor_yoga_probe kain_vendor_yoga_stub_probe
+#define kain_vendor_rmlui_version_string kain_vendor_rmlui_stub_version_string
+#define kain_vendor_rmlui_probe kain_vendor_rmlui_stub_probe
+#define kain_vendor_skia_version_string kain_vendor_skia_stub_version_string
+#define kain_vendor_skia_probe kain_vendor_skia_stub_probe
+#define kain_vendor_slint_version_string kain_vendor_slint_stub_version_string
+#define kain_vendor_slint_probe kain_vendor_slint_stub_probe
+#define kain_vendor_qt_version_string kain_vendor_qt_stub_version_string
+#define kain_vendor_qt_probe kain_vendor_qt_stub_probe
+#define kain_vendor_cef_version_string kain_vendor_cef_stub_version_string
+#define kain_vendor_cef_probe kain_vendor_cef_stub_probe
+
+static const char* kain_vendor_bgfx_stub_version_string(void) { return "bgfx-stub"; }
+static int kain_vendor_bgfx_stub_probe(void) { return 0; }
+static const char* kain_vendor_filament_stub_version_string(void) { return "filament-stub"; }
+static int kain_vendor_filament_stub_probe(void) { return 0; }
+static const char* kain_vendor_diligent_stub_version_string(void) { return "diligent-stub"; }
+static int kain_vendor_diligent_stub_probe(void) { return 0; }
+static const char* kain_vendor_forge_stub_version_string(void) { return "forge-stub"; }
+static int kain_vendor_forge_stub_probe(void) { return 0; }
+static const char* kain_vendor_bimg_stub_version_string(void) { return "bimg-stub"; }
+static int kain_vendor_bimg_stub_probe(void) { return 0; }
+static const char* kain_vendor_imgui_stub_version_string(void) { return "imgui-stub"; }
+static int kain_vendor_imgui_stub_probe(void) { return 0; }
+static const char* kain_vendor_yoga_stub_version_string(void) { return "yoga-stub"; }
+static int kain_vendor_yoga_stub_probe(void) { return 0; }
+static const char* kain_vendor_rmlui_stub_version_string(void) { return "rmlui-stub"; }
+static int kain_vendor_rmlui_stub_probe(void) { return 0; }
+static const char* kain_vendor_skia_stub_version_string(void) { return "skia-stub"; }
+static int kain_vendor_skia_stub_probe(void) { return 0; }
+static const char* kain_vendor_slint_stub_version_string(void) { return "slint-stub"; }
+static int kain_vendor_slint_stub_probe(void) { return 0; }
+static const char* kain_vendor_qt_stub_version_string(void) { return "qt-stub"; }
+static int kain_vendor_qt_stub_probe(void) { return 0; }
+static const char* kain_vendor_cef_stub_version_string(void) { return "cef-stub"; }
+static int kain_vendor_cef_stub_probe(void) { return 0; }
+#endif
+
 #if !defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
 #if KAIN_VENDOR_HAS_LIBUV
 #include "uv.h"

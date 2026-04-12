@@ -143,6 +143,15 @@ The native shader-canvas UI lane now follows this contract:
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
 
+### UI Vendor Runtime Lane
+
+The native runtime now has a first real UI vendor slice instead of only a future-host wish list:
+
+- `runtime/native` owns the service families and startup contract bits for `ui.layout.yoga`, `ui.backend.imgui`, `ui.devtools`, and the staged `ui.render.skia`, `ui.backend.rmlui`, `ui.backend.slint`, `ui.backend.qt`, and `ui.surface.browser.cef` lanes
+- `runtime/thirdparty/imgui` and `runtime/thirdparty/yoga` are the first compile-backed UI vendor trees in the manifest-driven native bundle; the heavier UI stacks stay staged behind the same Kain-owned vendor bridge until the coordinator contract is proven
+- `crates/kain-ui` now emits explicit backend-role truth in runtime metadata and per-surface preferences through `UiHostBackendKind`, `UiLayoutEngineKind`, and `UiRenderEngineKind`
+- `crates/kain-ui-native` is still operationally `egui`-hosted, but it now carries a backend-plan coordinator seam and treats `egui` as the compatibility host instead of pretending it is the final semantic UI runtime
+
 ### Semantic Tab Workspace Lane
 
 Semantic authored tabs now follow the same ownership rule:
@@ -241,6 +250,7 @@ If the debug CLI is missing:
 - Keep the interpreter/runtime lane and emitted bundle/codegen lanes semantically aligned. A packaged target may optimize or lower behavior, but it should not silently define different language meaning than `kain-core`.
 - Preserve the distinction between authored language semantics, importer behavior, and backend/runtime support.
 - Vendor runtimes may strengthen `runtime/native`, but they must land behind Kain-owned service families, startup contracts, diagnostics, and scheduler policy instead of becoming the public contract themselves.
+- UI vendors follow that same rule more aggressively: Qt, ImGui, Yoga, RmlUi, Slint, CEF, Skia, and future backends are adapters or substrates behind Kain-owned semantic trees, layout intent, runtime metadata, and service contracts. Do not let a host UI stack become the source of authored truth.
 - Platform- or console-specific render-command experiments should start as isolated adapter lanes under `smoketest/` or another dedicated adapter crate before any shared `kain-3D` contract is widened. The new `smoketest/3D/sm64_fast3d_smoke` is the pattern: it owns its own manifest, segment registry, display-list interpreter, and combiner logic instead of baking N64-specific assumptions into the common scene/material API too early.
 - The SM64 import refresh workflow for that lane is now profile-driven and lives beside the smoke under `smoketest/3D/sm64_fast3d_smoke`. Use `refresh_sm64_import.bat` and `sm64_import_profile.render_us.json` instead of reconstructing long one-off `import-c` commands from memory.
 - The same smoke now has a title-face extraction lane. `extract_sm64_title_face.bat`, `launch_title_face_visual_exe.bat`, and `capture_title_face_snapshot.bat` are the quickest path to a compiled proof that uses real extracted Mario face geometry while keeping N64-specific semantics inside the adapter.
