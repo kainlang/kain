@@ -763,16 +763,16 @@ impl RustTransformer {
         resolved: &[String],
         args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
     ) -> Option<Result<Expr>> {
-        let is_lazy_new = matches!(
-            resolved,
-            [name, method] if name == "Lazy" && method == "new"
-                | [_, _, name, method] if name == "Lazy" && method == "new"
-        );
+        let is_lazy_new = match resolved {
+            [name, method] => name == "Lazy" && method == "new",
+            [_, _, name, method] => name == "Lazy" && method == "new",
+            _ => false,
+        };
         if !is_lazy_new {
             return None;
         }
         if args.len() != 1 {
-            return Some(Err(crate::Error::Unsupported(
+            return Some(Err(crate::ImportError::UnsupportedFeature(
                 "Lazy::new expects exactly one factory argument".to_string(),
             )));
         }
@@ -1071,8 +1071,22 @@ impl RustTransformer {
                 .into_iter()
                 .map(Item::Function)
                 .collect()),
-            syn::Item::Struct(s) => Ok(vec![Item::Struct(self.transform_struct(s)?)]),
-            syn::Item::Enum(e) => Ok(vec![Item::Enum(self.transform_enum(e)?)]),
+            syn::Item::Struct(s) => {
+                let struct_item = self.transform_struct(s)?;
+                let mut items = vec![Item::Struct(struct_item)];
+                if let Some(default_impl) = self.synthesize_derived_default_impl_for_struct(s)? {
+                    items.push(Item::Impl(default_impl));
+                }
+                Ok(items)
+            }
+            syn::Item::Enum(e) => {
+                let enum_item = self.transform_enum(e)?;
+                let mut items = vec![Item::Enum(enum_item)];
+                if let Some(default_impl) = self.synthesize_derived_default_impl_for_enum(e)? {
+                    items.push(Item::Impl(default_impl));
+                }
+                Ok(items)
+            }
             syn::Item::Impl(i) => Ok(vec![Item::Impl(self.transform_impl(i)?)]),
             syn::Item::Const(c) => Ok(vec![Item::Const(self.transform_const(c)?)]),
             syn::Item::Static(s) => Ok(vec![Item::Const(self.transform_static(s)?)]),
@@ -1577,6 +1591,215 @@ impl RustTransformer {
             visibility: visibility(&e.vis),
             span: S,
         })
+    }
+
+    fn synthesize_derived_default_impl_for_struct(
+        &mut self,
+        s: &syn::ItemStruct,
+    ) -> Result<Option<Impl>> {
+        if !has_derive_attr(&s.attrs, "Default") {
+            return Ok(None);
+        }
+
+        let type_name = self.rename_type(&s.ident.to_string());
+        let generics = self.type_mapper.map_generic_params(&s.generics.params);
+        let generic_types = generics
+            .iter()
+            .map(|generic| Type::Named {
+                name: generic.name.clone(),
+                generics: Vec::new(),
+                span: S,
+            })
+            .collect::<Vec<_>>();
+        let target_type = Type::Named {
+            name: type_name.clone(),
+            generics: generic_types,
+            span: S,
+        };
+
+        let fields = match &s.fields {
+            syn::Fields::Named(named) => named
+                .named
+                .iter()
+                .map(|field| {
+                    let field_name = self.rename_field(
+                        &field
+                            .ident
+                            .as_ref()
+                            .map(|ident| ident.to_string())
+                            .unwrap_or_default(),
+                    );
+                    let field_ty = self.map_type_checked(&field.ty);
+                    let default_value = self.synthesize_default_expr_for_type(&field_ty);
+                    (field_name, default_value)
+                })
+                .collect(),
+            syn::Fields::Unnamed(unnamed) => unnamed
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let field_ty = self.map_type_checked(&field.ty);
+                    let default_value = self.synthesize_default_expr_for_type(&field_ty);
+                    (format!("field_{index}"), default_value)
+                })
+                .collect(),
+            syn::Fields::Unit => Vec::new(),
+        };
+
+        Ok(Some(Impl {
+            generics,
+            trait_name: Some("Default".to_string()),
+            trait_generics: Vec::new(),
+            target_type,
+            methods: vec![Function {
+                name: self.rename_value("default"),
+                generics: Vec::new(),
+                params: Vec::new(),
+                return_type: None,
+                effects: Vec::new(),
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::Struct {
+                        name: type_name,
+                        fields,
+                        rest: None,
+                        span: S,
+                    })],
+                    span: S,
+                },
+                visibility: Visibility::Public,
+                attributes: Vec::new(),
+                span: S,
+            }],
+            span: S,
+        }))
+    }
+
+    fn synthesize_derived_default_impl_for_enum(
+        &mut self,
+        e: &syn::ItemEnum,
+    ) -> Result<Option<Impl>> {
+        if !has_derive_attr(&e.attrs, "Default") {
+            return Ok(None);
+        }
+
+        let default_variant = e
+            .variants
+            .iter()
+            .find(|variant| has_default_variant_attr(&variant.attrs));
+        let Some(default_variant) = default_variant else {
+            return Ok(None);
+        };
+        if !matches!(default_variant.fields, syn::Fields::Unit) {
+            self.note_lossy_class(
+                "derive_default_lowering",
+                format!(
+                    "derive(Default) enum {} uses a non-unit default variant",
+                    e.ident
+                ),
+            );
+            return Ok(None);
+        }
+
+        let type_name = self.rename_type(&e.ident.to_string());
+        let generics = self.type_mapper.map_generic_params(&e.generics.params);
+        let generic_types = generics
+            .iter()
+            .map(|generic| Type::Named {
+                name: generic.name.clone(),
+                generics: Vec::new(),
+                span: S,
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Some(Impl {
+            generics,
+            trait_name: Some("Default".to_string()),
+            trait_generics: Vec::new(),
+            target_type: Type::Named {
+                name: type_name.clone(),
+                generics: generic_types,
+                span: S,
+            },
+            methods: vec![Function {
+                name: self.rename_value("default"),
+                generics: Vec::new(),
+                params: Vec::new(),
+                return_type: None,
+                effects: Vec::new(),
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::EnumVariant {
+                        enum_name: type_name,
+                        variant: self.rename_variant(&default_variant.ident.to_string()),
+                        fields: EnumVariantFields::Unit,
+                        span: S,
+                    })],
+                    span: S,
+                },
+                visibility: Visibility::Public,
+                attributes: Vec::new(),
+                span: S,
+            }],
+            span: S,
+        }))
+    }
+
+    fn synthesize_default_expr_for_type(&mut self, ty: &Type) -> Expr {
+        match ty {
+            Type::Named { name, .. } if name == "Bool" => Expr::Bool(false, S),
+            Type::Named { name, .. }
+                if matches!(
+                    name.as_str(),
+                    "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
+                        | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
+                        | "Int" | "UInt"
+                ) =>
+            {
+                Expr::Int(0, S)
+            }
+            Type::Named { name, .. } if matches!(name.as_str(), "f32" | "f64" | "Float") => {
+                Expr::Float(0.0, S)
+            }
+            Type::Named { name, .. } if name == "String" => Expr::Call {
+                callee: Box::new(Expr::Ident("String__new_".to_string(), S)),
+                args: Vec::new(),
+                span: S,
+            },
+            Type::Named { name, .. } if name == "Map" => Expr::Call {
+                callee: Box::new(Expr::Ident("HashMap__new_".to_string(), S)),
+                args: Vec::new(),
+                span: S,
+            },
+            Type::Named { name, .. } if name == "Set" => Expr::Call {
+                callee: Box::new(Expr::Ident("HashSet__new_".to_string(), S)),
+                args: Vec::new(),
+                span: S,
+            },
+            Type::Named { name, .. } => {
+                let helper_target = name.rsplit("::").next().unwrap_or(name);
+                Expr::Call {
+                    callee: Box::new(Expr::Ident(format!("{helper_target}__default_"), S)),
+                    args: Vec::new(),
+                    span: S,
+                }
+            }
+            Type::Option(_, _) => Expr::None(S),
+            Type::Result(_, _, _) => Expr::Call {
+                callee: Box::new(Expr::Ident("Result__default_".to_string(), S)),
+                args: Vec::new(),
+                span: S,
+            },
+            Type::Array(_, _, _) | Type::Slice(_, _) => Expr::Array(Vec::new(), S),
+            Type::Tuple(items, _) => Expr::Tuple(
+                items.iter().map(|item| self.synthesize_default_expr_for_type(item)).collect(),
+                S,
+            ),
+            Type::Ref { inner, .. } | Type::Ptr { inner, .. } => {
+                self.synthesize_default_expr_for_type(inner)
+            }
+            Type::Unit(_) | Type::Never(_) => Expr::Tuple(Vec::new(), S),
+            Type::Function { .. } | Type::Impl { .. } | Type::Infer(_) => Expr::Tuple(Vec::new(), S),
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -3727,6 +3950,26 @@ fn visibility(vis: &syn::Visibility) -> Visibility {
     }
 }
 
+fn has_derive_attr(attrs: &[syn::Attribute], derive_name: &str) -> bool {
+    attrs.iter().any(|attr| {
+        let syn::Meta::List(list) = &attr.meta else {
+            return false;
+        };
+        if !list.path.is_ident("derive") {
+            return false;
+        }
+        list.parse_args_with(
+            syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
+        )
+        .map(|paths| paths.iter().any(|path| path.is_ident(derive_name)))
+        .unwrap_or(false)
+    })
+}
+
+fn has_default_variant_attr(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("default"))
+}
+
 fn path_to_ident(path: &syn::Path) -> String {
     path.segments
         .iter()
@@ -4865,6 +5108,46 @@ mod tests {
         assert!(matches!(
             callee.as_ref(),
             Expr::Ident(path, _) if path == "String__new_"
+        ));
+    }
+
+    #[test]
+    fn synthesizes_default_method_for_derive_default_structs() {
+        let program = transform_source(
+            r#"
+            #[derive(Default)]
+            struct LanguageCapabilities {
+                flags: HashMap<String, bool>,
+            }
+            "#,
+        );
+
+        let derived_impl = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Impl(imp) if matches!(&imp.trait_name, Some(name) if name == "Default") => {
+                    Some(imp)
+                }
+                _ => None,
+            })
+            .expect("expected synthesized Default impl");
+
+        let method = derived_impl
+            .methods
+            .iter()
+            .find(|method| method.name == "default_")
+            .expect("expected default method");
+        let Stmt::Expr(Expr::Struct { name, fields, .. }) = &method.body.stmts[0] else {
+            panic!("expected struct literal default body");
+        };
+        assert_eq!(name, "LanguageCapabilities");
+        assert!(matches!(
+            fields.as_slice(),
+            [(field_name, Expr::Call { callee, args, .. })]
+                if field_name == "flags"
+                    && args.is_empty()
+                    && matches!(callee.as_ref(), Expr::Ident(path, _) if path == "HashMap__new_")
         ));
     }
 

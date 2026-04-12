@@ -2,6 +2,7 @@
 #include "../../../include/kain_runtime_asset.h"
 #include "../../../include/kain_runtime_contract.h"
 #include "../../../include/kain_runtime_graphics.h"
+#include "../../../include/kain_runtime_renderer_session.h"
 #include "../../../include/kain_runtime_realtime.h"
 #include "../../../include/kain_runtime_ui.h"
 
@@ -31,6 +32,7 @@ typedef struct {
     KainRuntimeGraphicsBundle graphics_bundle;
     KainRuntimeGraphicsValidation graphics_validation;
     KainRuntimeGraphicsExecutionState compute_execution;
+    KainRuntimeRendererSession renderer_session;
     HMODULE gpu_runtime_library;
     void* gpu_runtime_handle;
     KainGpuRuntimeDispatchFn gpu_runtime_dispatch;
@@ -1001,12 +1003,14 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     char subtitle_line[256];
     char stats_line[256];
     char asset_line[256];
+    char renderer_line[256];
+    char vendor_line[256];
     char realtime_line[256];
     char compute_line[256];
     char config_line[256];
     char contract_line[256];
     char validation_line[256];
-    const char* live_lines[7];
+    const char* live_lines[9];
     const char* help_lines[1];
     KainUiCompiledOverlaySpec overlay_spec;
     const KainViewportProfile* profile = app->settings.profile;
@@ -1032,7 +1036,52 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
         snprintf(subtitle_line, sizeof(subtitle_line), "%s  |  raw native GLB world lane", profile->label);
     } else {
         snprintf(asset_line, sizeof(asset_line), "fallback procedural world  |  no GLB loaded");
-        snprintf(subtitle_line, sizeof(subtitle_line), "%s  |  GPU-backed OpenGL lane", profile->label);
+        snprintf(subtitle_line, sizeof(subtitle_line), "%s  |  compatibility OpenGL scene lane", profile->label);
+    }
+    if (app->renderer_session.status != KAIN_RENDERER_SESSION_STATUS_UNINITIALIZED) {
+        char renderer_summary[KAIN_RUNTIME_RENDERER_SESSION_MAX_SUMMARY];
+        kain_runtime_renderer_session_format_summary(
+            &app->renderer_session,
+            renderer_summary,
+            sizeof(renderer_summary)
+        );
+        snprintf(
+            subtitle_line,
+            sizeof(subtitle_line),
+            "%s  |  %s",
+            profile->label,
+            renderer_summary
+        );
+        snprintf(
+            renderer_line,
+            sizeof(renderer_line),
+            "renderer %s  |  service %s  |  runtime %s %s",
+            app->renderer_session.active_backend_id[0]
+                ? app->renderer_session.active_backend_id
+                : "none",
+            app->renderer_session.active_service_key[0]
+                ? app->renderer_session.active_service_key
+                : "none",
+            app->renderer_session.vendor_runtime_name[0]
+                ? app->renderer_session.vendor_runtime_name
+                : "none",
+            app->renderer_session.vendor_version[0]
+                ? app->renderer_session.vendor_version
+                : "unknown"
+        );
+        snprintf(
+            vendor_line,
+            sizeof(vendor_line),
+            "vendor probe %s  |  start %s  |  %s",
+            app->renderer_session.vendor_probe_passed ? "ok" : "no",
+            app->renderer_session.vendor_start_passed ? "ok" : "no",
+            app->renderer_session.diagnostic[0]
+                ? app->renderer_session.diagnostic
+                : "no vendor diagnostic"
+        );
+    } else {
+        snprintf(renderer_line, sizeof(renderer_line), "renderer session  |  uninitialized");
+        snprintf(vendor_line, sizeof(vendor_line), "vendor lane  |  no renderer session diagnostics");
     }
     if (app->runtime_contract.loaded) {
         snprintf(
@@ -1123,11 +1172,13 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     }
     live_lines[0] = stats_line;
     live_lines[1] = config_line;
-    live_lines[2] = asset_line;
-    live_lines[3] = realtime_line;
-    live_lines[4] = compute_line;
-    live_lines[5] = contract_line;
-    live_lines[6] = validation_line;
+    live_lines[2] = renderer_line;
+    live_lines[3] = vendor_line;
+    live_lines[4] = asset_line;
+    live_lines[5] = realtime_line;
+    live_lines[6] = compute_line;
+    live_lines[7] = contract_line;
+    live_lines[8] = validation_line;
     help_lines[0] = "WASD move  |  Space jump  |  Shift sprint  |  Click capture mouse  |  Esc release";
 
     ZeroMemory(&overlay_spec, sizeof(overlay_spec));
@@ -1141,7 +1192,7 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.fallback_title = "KAIN NATIVE VIEWPORT";
     overlay_spec.fallback_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
-    overlay_spec.live_line_count = 7;
+    overlay_spec.live_line_count = 9;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 1;
     overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
@@ -1303,6 +1354,7 @@ static void kain_native_shutdown_gl(KainNativeViewportApp* app) {
 
 static int kain_native_viewport_host_init(KainWin32AppHost* host, void* user_data) {
     KainNativeViewportApp* app = (KainNativeViewportApp*)user_data;
+    char* requested_backend_id = NULL;
     double to_center_x;
     double to_center_z;
     double world_height;
@@ -1314,6 +1366,15 @@ static int kain_native_viewport_host_init(KainWin32AppHost* host, void* user_dat
     if (!kain_native_init_gl(app)) {
         return 0;
     }
+    requested_backend_id = kain_env_dup("KAIN_RUNTIME_RENDERER_BACKEND");
+    kain_runtime_renderer_session_boot(
+        &app->graphics_bundle,
+        &app->graphics_validation,
+        KAIN_PLATFORM_KIND_WIN32,
+        requested_backend_id && requested_backend_id[0] ? requested_backend_id : NULL,
+        &app->renderer_session
+    );
+    kain_env_free(requested_backend_id);
     if ((app->contract_validation.downgraded_optional_mask & KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF) == 0u &&
         kain_native_scene_asset_load_from_env(KAIN_NATIVE_WORLD_ASSET_ENV, &app->world_asset)) {
         app->world_ground_y = app->world_asset.ground_height;
@@ -1379,8 +1440,10 @@ static void kain_native_viewport_host_frame(KainWin32AppHost* host, void* user_d
         }
     }
     kain_native_update_camera(app, frame_delta);
-    kain_gl_render_frame(app);
-    kain_win32_gl_surface_present(&app->surface);
+    if (kain_runtime_renderer_session_should_use_gl_compat(&app->renderer_session)) {
+        kain_gl_render_frame(app);
+        kain_win32_gl_surface_present(&app->surface);
+    }
 }
 
 static void kain_native_viewport_host_shutdown(KainWin32AppHost* host, void* user_data) {
@@ -1396,6 +1459,7 @@ static void kain_native_viewport_host_shutdown(KainWin32AppHost* host, void* use
         FreeLibrary(app->gpu_runtime_library);
         app->gpu_runtime_library = NULL;
     }
+    kain_runtime_renderer_session_shutdown(&app->renderer_session);
     kain_native_scene_asset_shutdown(&app->world_asset);
     kain_native_shutdown_gl(app);
 }
@@ -1470,6 +1534,7 @@ static void kain_run_native_viewport(double x, double y, const char* window_titl
 
     ZeroMemory(&app, sizeof(app));
     ZeroMemory(&config, sizeof(config));
+    kain_runtime_renderer_session_init(&app.renderer_session);
     app.settings = kain_load_viewport_settings();
     kain_native_viewport_try_load_runtime_contract(&app);
     if (!kain_native_viewport_validate_runtime_contract(&app)) {

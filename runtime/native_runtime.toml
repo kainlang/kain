@@ -11,6 +11,7 @@ sources = [
     "native/src/core/kain_runtime_services.c",
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_renderer_backend.c",
+    "native/src/core/kain_runtime_renderer_session.c",
     "native/src/core/kain_runtime_scene.c",
     "native/src/core/kain_runtime_reflection.c",
     "native/src/core/kain_runtime_realtime.c",
