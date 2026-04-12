@@ -1,77 +1,72 @@
 #ifndef KAIN_RUNTIME_VENDOR_LANE_H
 #define KAIN_RUNTIME_VENDOR_LANE_H
 
-#include "kain_runtime_services.h"
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
+#if defined(KAIN_RUNTIME_VENDOR_STUBS_ONLY)
+#define KAIN_VENDOR_HAS_LIBUV 0
+#define KAIN_VENDOR_HAS_QUICKJS 0
+#define KAIN_VENDOR_HAS_MINIAUDIO 0
+#define KAIN_VENDOR_HAS_WASM3 0
+#define KAIN_VENDOR_HAS_WAMR 0
+#define KAIN_VENDOR_HAS_MIMALLOC 0
+#define KAIN_VENDOR_HAS_RPMALLOC 0
+#else
+#if defined(__linux__)
+#define KAIN_VENDOR_HAS_LIBUV 1
+#else
+#define KAIN_VENDOR_HAS_LIBUV 0
+#endif
+#define KAIN_VENDOR_HAS_QUICKJS 1
+#define KAIN_VENDOR_HAS_MINIAUDIO 1
+#define KAIN_VENDOR_HAS_WASM3 1
+#define KAIN_VENDOR_HAS_WAMR 0
+#define KAIN_VENDOR_HAS_MIMALLOC 1
+#define KAIN_VENDOR_HAS_RPMALLOC 1
 #endif
 
-/*
- * KAIN Native Vendor Lane
- *
- * This header exposes a Kain-owned catalog for third-party runtime engines
- * staged under runtime/thirdparty. The lane is intentionally additive: it
- * defines descriptors and function-table pointers without mutating the live
- * service registry, contract, or manifest layers.
- */
-
-#define KAIN_VENDOR_SERVICE_KEY_IO_LOOP           "io.loop"
-#define KAIN_VENDOR_SERVICE_KEY_IO_FS             "io.fs"
-#define KAIN_VENDOR_SERVICE_KEY_IO_NET            "io.net"
-#define KAIN_VENDOR_SERVICE_KEY_IO_PROCESS        "io.process"
-#define KAIN_VENDOR_SERVICE_KEY_IO_TIMERS         "io.timers"
-#define KAIN_VENDOR_SERVICE_KEY_SCRIPT_QUICKJS    "script.quickjs"
-#define KAIN_VENDOR_SERVICE_KEY_AUDIO_BACKEND     "audio.backend"
-#define KAIN_VENDOR_SERVICE_KEY_AUDIO_GRAPH       "audio.graph"
-#define KAIN_VENDOR_SERVICE_KEY_AUDIO_DEVICE      "audio.device"
-#define KAIN_VENDOR_SERVICE_KEY_AUDIO_ASSETS      "audio.assets"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_RUNTIME_LIGHT "wasm.runtime.light"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_MODULE_LIGHT  "wasm.module.light"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_WASI_LIGHT    "wasm.wasi.light"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_RUNTIME_FULL  "wasm.runtime.full"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_MODULE_FULL   "wasm.module.full"
-#define KAIN_VENDOR_SERVICE_KEY_WASM_WASI_FULL     "wasm.wasi.full"
-#define KAIN_VENDOR_SERVICE_KEY_ALLOCATOR_MIMALLOC "allocator.mimalloc"
-#define KAIN_VENDOR_SERVICE_KEY_ALLOCATOR_RPMALLOC "allocator.rpmalloc"
-
-typedef enum {
-    KAIN_VENDOR_SERVICE_FAMILY_UNKNOWN = 0,
-    KAIN_VENDOR_SERVICE_FAMILY_LIBUV,
-    KAIN_VENDOR_SERVICE_FAMILY_QUICKJS,
-    KAIN_VENDOR_SERVICE_FAMILY_MINIAUDIO,
-    KAIN_VENDOR_SERVICE_FAMILY_WASM3,
-    KAIN_VENDOR_SERVICE_FAMILY_WAMR,
-    KAIN_VENDOR_SERVICE_FAMILY_MIMALLOC,
-    KAIN_VENDOR_SERVICE_FAMILY_RPMALLOC,
-    KAIN_VENDOR_SERVICE_FAMILY_COUNT
-} KainVendorServiceFamily;
+typedef struct {
+    const char* service_key;
+    const char* vendor_name;
+    const char* runtime_name;
+    const char* (*version_string)(void);
+    int (*probe)(void);
+    int (*start)(void);
+    void (*shutdown)(void);
+    int (*poll_once)(int timeout_ms);
+    int (*eval_int32)(const char* source, int* out_value);
+    void* (*allocate)(size_t size);
+    void (*deallocate)(void* memory);
+} KainVendorServiceFunctionTable;
 
 typedef struct {
-    KainVendorServiceFamily family;
+    const char* key;
     const char* family_name;
     const char* vendor_name;
-    KainServiceDescriptor descriptor;
+    int available;
+    const KainVendorServiceFunctionTable* function_table;
 } KainVendorServiceDescriptor;
 
-typedef struct {
-    const KainVendorServiceDescriptor* services;
-    size_t service_count;
-} KainVendorServiceCatalog;
-
-const KainVendorServiceCatalog* kain_vendor_service_catalog(void);
+const KainVendorServiceDescriptor* kain_vendor_service_catalog(void);
 size_t kain_vendor_service_count(void);
 const KainVendorServiceDescriptor* kain_vendor_service_at(size_t index);
-const KainVendorServiceDescriptor* kain_vendor_service_lookup(const char* service_key);
-const KainVendorServiceDescriptor* kain_vendor_service_family_lookup(KainVendorServiceFamily family);
-const KainServiceDescriptor* kain_vendor_service_runtime_descriptor(const char* service_key);
-const void* kain_vendor_service_function_table(const char* service_key);
-const char* kain_vendor_service_family_name(KainVendorServiceFamily family);
-const char* kain_vendor_service_vendor_name(KainVendorServiceFamily family);
+const KainVendorServiceDescriptor* kain_vendor_service_lookup(const char* key);
 
-#ifdef __cplusplus
-}
-#endif
+extern const KainVendorServiceFunctionTable g_kain_vendor_io_loop_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_io_fs_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_io_net_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_io_process_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_io_timers_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_script_quickjs_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_audio_backend_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_audio_graph_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_audio_device_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_audio_assets_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_runtime_light_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_runtime_full_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_module_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_wasm_wasi_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_allocator_mimalloc_service;
+extern const KainVendorServiceFunctionTable g_kain_vendor_allocator_rpmalloc_service;
 
 #endif /* KAIN_RUNTIME_VENDOR_LANE_H */

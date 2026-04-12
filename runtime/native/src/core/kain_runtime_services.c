@@ -1,5 +1,6 @@
 #include "../../include/kain_runtime_services.h"
 #include "../../include/kain_runtime_base.h"
+#include "../../include/kain_runtime_vendor_lane.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -284,6 +285,56 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         NULL
     },
     {
+        KAIN_SERVICE_KEY_IO_LOOP,
+        "IO Loop",
+        "Vendor-backed event loop and wake delivery substrate",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_io_loop_service
+    },
+    {
+        KAIN_SERVICE_KEY_IO_FS,
+        "IO Filesystem",
+        "Vendor-backed filesystem operations and async file dispatch",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_io_fs_service
+    },
+    {
+        KAIN_SERVICE_KEY_IO_NET,
+        "IO Network",
+        "Vendor-backed TCP, UDP, and name-resolution primitives",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_io_net_service
+    },
+    {
+        KAIN_SERVICE_KEY_IO_PROCESS,
+        "IO Process",
+        "Vendor-backed process spawning, pipes, and child lifecycle management",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_io_process_service
+    },
+    {
+        KAIN_SERVICE_KEY_IO_TIMERS,
+        "IO Timers",
+        "Vendor-backed timer wheel and deadline wake integration",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_io_timers_service
+    },
+    {
         KAIN_SERVICE_KEY_GFX_COMPUTE,
         "Compute Runtime",
         "Compute bundle validation, dispatch planning, and native runtime handoff",
@@ -322,6 +373,116 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
+    },
+    {
+        KAIN_SERVICE_KEY_SCRIPT_QUICKJS,
+        "QuickJS Script Runtime",
+        "Embedded JavaScript runtime for host automation and dynamic scripting",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_QUICKJS ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_script_quickjs_service
+    },
+    {
+        KAIN_SERVICE_KEY_AUDIO_BACKEND,
+        "Audio Backend",
+        "Vendor-backed device and backend abstraction for realtime audio",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_audio_backend_service
+    },
+    {
+        KAIN_SERVICE_KEY_AUDIO_GRAPH,
+        "Audio Graph",
+        "Vendor-backed audio graph and node processing substrate",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_audio_graph_service
+    },
+    {
+        KAIN_SERVICE_KEY_AUDIO_DEVICE,
+        "Audio Device",
+        "Vendor-backed playback and capture device lifecycle",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_audio_device_service
+    },
+    {
+        KAIN_SERVICE_KEY_AUDIO_ASSETS,
+        "Audio Assets",
+        "Vendor-backed audio asset decoding and resource loading",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_audio_assets_service
+    },
+    {
+        KAIN_SERVICE_KEY_WASM_RUNTIME_LIGHT,
+        "WASM Runtime Light",
+        "Lightweight WebAssembly runtime for small sandboxed modules",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_WASM3 ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_wasm_runtime_light_service
+    },
+    {
+        KAIN_SERVICE_KEY_WASM_RUNTIME_FULL,
+        "WASM Runtime Full",
+        "Full WebAssembly runtime lane staged for richer module hosting",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_wasm_runtime_full_service
+    },
+    {
+        KAIN_SERVICE_KEY_WASM_MODULE,
+        "WASM Module",
+        "Kain-owned WebAssembly module loading and execution seam",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_WASM3 ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_wasm_module_service
+    },
+    {
+        KAIN_SERVICE_KEY_WASM_WASI,
+        "WASM WASI",
+        "WASI-flavored runtime lane staged behind the WebAssembly service family",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_wasm_wasi_service
+    },
+    {
+        KAIN_SERVICE_KEY_ALLOCATOR_MIMALLOC,
+        "Allocator Mimalloc",
+        "Mimalloc-backed allocation lane for Kain runtime experiments",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_MIMALLOC ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_allocator_mimalloc_service
+    },
+    {
+        KAIN_SERVICE_KEY_ALLOCATOR_RPMALLOC,
+        "Allocator Rpmalloc",
+        "Rpmalloc-backed allocation lane for Kain runtime experiments",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_VENDOR_HAS_RPMALLOC ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        (void*)&g_kain_vendor_allocator_rpmalloc_service
     },
 };
 

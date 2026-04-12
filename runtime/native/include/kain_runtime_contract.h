@@ -26,6 +26,22 @@
 #define KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION     (1u << 9)
 #define KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION      (1u << 10)
 #define KAIN_RUNTIME_SERVICE_ASSET_INGESTION        (1u << 11)
+#define KAIN_RUNTIME_SERVICE_IO_LOOP                (1u << 12)
+#define KAIN_RUNTIME_SERVICE_IO_FS                  (1u << 13)
+#define KAIN_RUNTIME_SERVICE_IO_NET                 (1u << 14)
+#define KAIN_RUNTIME_SERVICE_IO_PROCESS             (1u << 15)
+#define KAIN_RUNTIME_SERVICE_IO_TIMERS              (1u << 16)
+#define KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS         (1u << 17)
+#define KAIN_RUNTIME_SERVICE_AUDIO_BACKEND          (1u << 18)
+#define KAIN_RUNTIME_SERVICE_AUDIO_GRAPH            (1u << 19)
+#define KAIN_RUNTIME_SERVICE_AUDIO_DEVICE           (1u << 20)
+#define KAIN_RUNTIME_SERVICE_AUDIO_ASSETS           (1u << 21)
+#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT     (1u << 22)
+#define KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL      (1u << 23)
+#define KAIN_RUNTIME_SERVICE_WASM_MODULE            (1u << 24)
+#define KAIN_RUNTIME_SERVICE_WASM_WASI              (1u << 25)
+#define KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC     (1u << 26)
+#define KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC     (1u << 27)
 
 #define KAIN_RUNTIME_SERVICE_CORE_MASK ( \
     KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST | \
@@ -42,7 +58,23 @@
     KAIN_RUNTIME_SERVICE_SCENE_MUTATION | \
     KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION | \
     KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION | \
-    KAIN_RUNTIME_SERVICE_ASSET_INGESTION \
+    KAIN_RUNTIME_SERVICE_ASSET_INGESTION | \
+    KAIN_RUNTIME_SERVICE_IO_LOOP | \
+    KAIN_RUNTIME_SERVICE_IO_FS | \
+    KAIN_RUNTIME_SERVICE_IO_NET | \
+    KAIN_RUNTIME_SERVICE_IO_PROCESS | \
+    KAIN_RUNTIME_SERVICE_IO_TIMERS | \
+    KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS | \
+    KAIN_RUNTIME_SERVICE_AUDIO_BACKEND | \
+    KAIN_RUNTIME_SERVICE_AUDIO_GRAPH | \
+    KAIN_RUNTIME_SERVICE_AUDIO_DEVICE | \
+    KAIN_RUNTIME_SERVICE_AUDIO_ASSETS | \
+    KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT | \
+    KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL | \
+    KAIN_RUNTIME_SERVICE_WASM_MODULE | \
+    KAIN_RUNTIME_SERVICE_WASM_WASI | \
+    KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC | \
+    KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC \
 )
 
 typedef struct {
@@ -67,6 +99,22 @@ typedef struct {
     int has_runtime_inspection;
     int has_device_reflection;
     int has_asset_ingestion;
+    int has_io_loop;
+    int has_io_fs;
+    int has_io_net;
+    int has_io_process;
+    int has_io_timers;
+    int has_script_quickjs;
+    int has_audio_backend;
+    int has_audio_graph;
+    int has_audio_device;
+    int has_audio_assets;
+    int has_wasm_runtime_light;
+    int has_wasm_runtime_full;
+    int has_wasm_module;
+    int has_wasm_wasi;
+    int has_allocator_mimalloc;
+    int has_allocator_rpmalloc;
     unsigned int service_mask;
     unsigned int required_abi_version;
     char target[KAIN_RUNTIME_CONTRACT_MAX_TARGET];

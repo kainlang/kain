@@ -112,12 +112,14 @@ parse_manifest_array() {
 
 RUNTIME_SOURCES=()
 RUNTIME_INCLUDE_DIRS=()
+RUNTIME_DEFINES=()
 RUNTIME_BUNDLE_NAME="kain-native-runtime"
 
 if [[ -f "$MANIFEST_PATH" ]]; then
     mapfile -t MANIFEST_SOURCES < <(parse_manifest_array "sources")
     mapfile -t MANIFEST_PLATFORM_SOURCES < <(parse_manifest_array "${PLATFORM}_sources")
     mapfile -t MANIFEST_INCLUDE_DIRS < <(parse_manifest_array "include_dirs")
+    mapfile -t MANIFEST_DEFINES < <(parse_manifest_array "defines")
 
     if [[ ${#MANIFEST_SOURCES[@]} -gt 0 || ${#MANIFEST_PLATFORM_SOURCES[@]} -gt 0 ]]; then
         for relative_source in "${MANIFEST_SOURCES[@]}" "${MANIFEST_PLATFORM_SOURCES[@]}"; do
@@ -128,6 +130,11 @@ if [[ -f "$MANIFEST_PATH" ]]; then
         done
         for relative_include in "${MANIFEST_INCLUDE_DIRS[@]}"; do
             RUNTIME_INCLUDE_DIRS+=("$PROJECT_ROOT/runtime/$relative_include")
+        done
+        for define in "${MANIFEST_DEFINES[@]}"; do
+            if [[ -n "$define" ]]; then
+                RUNTIME_DEFINES+=("$define")
+            fi
         done
     fi
 fi
@@ -186,6 +193,9 @@ build_compile_command() {
         for include_dir in "${RUNTIME_INCLUDE_DIRS[@]}"; do
             out_cmd_ref+=("/I" "$include_dir")
         done
+        for define in "${RUNTIME_DEFINES[@]}"; do
+            out_cmd_ref+=("/D" "$define")
+        done
         if [[ "$PLATFORM" == "windows" ]]; then
             out_cmd_ref+=("/D" "WIN32" "/D" "_WINDOWS")
         fi
@@ -199,6 +209,9 @@ build_compile_command() {
         fi
         for include_dir in "${RUNTIME_INCLUDE_DIRS[@]}"; do
             out_cmd_ref+=("-I" "$include_dir")
+        done
+        for define in "${RUNTIME_DEFINES[@]}"; do
+            out_cmd_ref+=("-D" "$define")
         done
         if [[ "$PLATFORM" == "windows" ]]; then
             out_cmd_ref+=("-D" "WIN32" "-D" "_WINDOWS")

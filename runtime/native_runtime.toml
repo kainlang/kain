@@ -20,12 +20,46 @@ sources = [
     "native/src/core/kain_runtime_bitfield.c",
     "native/src/core/kain_runtime_union.c",
     "native/src/core/kain_runtime_actor.c",
+    "native/src/vendor/kain_runtime_vendor_lane.c",
     "native/src/asset/kain_asset_gltf.c",
     "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
     "native/src/ui/kain_ui_compiled_overlay.c",
     "native/src/ui/kain_ui_overlay.c",
     "native/src/ui/kain_ui_runtime.c",
+    "thirdparty/quickjs/cutils.c",
+    "thirdparty/quickjs/dtoa.c",
+    "thirdparty/quickjs/libregexp.c",
+    "thirdparty/quickjs/libunicode.c",
+    "thirdparty/quickjs/quickjs.c",
+    "thirdparty/miniaudio/miniaudio.c",
+    "thirdparty/wasm3/source/m3_bind.c",
+    "thirdparty/wasm3/source/m3_code.c",
+    "thirdparty/wasm3/source/m3_compile.c",
+    "thirdparty/wasm3/source/m3_core.c",
+    "thirdparty/wasm3/source/m3_env.c",
+    "thirdparty/wasm3/source/m3_exec.c",
+    "thirdparty/wasm3/source/m3_function.c",
+    "thirdparty/wasm3/source/m3_info.c",
+    "thirdparty/wasm3/source/m3_module.c",
+    "thirdparty/wasm3/source/m3_parse.c",
+    "thirdparty/mimalloc/src/alloc.c",
+    "thirdparty/mimalloc/src/alloc-aligned.c",
+    "thirdparty/mimalloc/src/alloc-posix.c",
+    "thirdparty/mimalloc/src/arena.c",
+    "thirdparty/mimalloc/src/bitmap.c",
+    "thirdparty/mimalloc/src/heap.c",
+    "thirdparty/mimalloc/src/init.c",
+    "thirdparty/mimalloc/src/libc.c",
+    "thirdparty/mimalloc/src/options.c",
+    "thirdparty/mimalloc/src/os.c",
+    "thirdparty/mimalloc/src/page.c",
+    "thirdparty/mimalloc/src/random.c",
+    "thirdparty/mimalloc/src/segment.c",
+    "thirdparty/mimalloc/src/segment-map.c",
+    "thirdparty/mimalloc/src/stats.c",
+    "thirdparty/mimalloc/src/prim/prim.c",
+    "thirdparty/rpmalloc/rpmalloc/rpmalloc.c",
 ]
 
 windows_sources = [
@@ -40,11 +74,62 @@ windows_sources = [
 linux_sources = [
     "native/src/platform/linux/kain_runtime_linux_shared.c",
     "native/src/platform/linux/kain_runtime_linux_graphics.c",
+    "thirdparty/libuv/src/fs-poll.c",
+    "thirdparty/libuv/src/idna.c",
+    "thirdparty/libuv/src/inet.c",
+    "thirdparty/libuv/src/random.c",
+    "thirdparty/libuv/src/strscpy.c",
+    "thirdparty/libuv/src/strtok.c",
+    "thirdparty/libuv/src/thread-common.c",
+    "thirdparty/libuv/src/threadpool.c",
+    "thirdparty/libuv/src/timer.c",
+    "thirdparty/libuv/src/uv-common.c",
+    "thirdparty/libuv/src/uv-data-getter-setters.c",
+    "thirdparty/libuv/src/version.c",
+    "thirdparty/libuv/src/unix/async.c",
+    "thirdparty/libuv/src/unix/core.c",
+    "thirdparty/libuv/src/unix/dl.c",
+    "thirdparty/libuv/src/unix/fs.c",
+    "thirdparty/libuv/src/unix/getaddrinfo.c",
+    "thirdparty/libuv/src/unix/getnameinfo.c",
+    "thirdparty/libuv/src/unix/linux.c",
+    "thirdparty/libuv/src/unix/loop-watcher.c",
+    "thirdparty/libuv/src/unix/loop.c",
+    "thirdparty/libuv/src/unix/pipe.c",
+    "thirdparty/libuv/src/unix/poll.c",
+    "thirdparty/libuv/src/unix/process.c",
+    "thirdparty/libuv/src/unix/procfs-exepath.c",
+    "thirdparty/libuv/src/unix/proctitle.c",
+    "thirdparty/libuv/src/unix/random-devurandom.c",
+    "thirdparty/libuv/src/unix/random-getrandom.c",
+    "thirdparty/libuv/src/unix/random-sysctl-linux.c",
+    "thirdparty/libuv/src/unix/signal.c",
+    "thirdparty/libuv/src/unix/stream.c",
+    "thirdparty/libuv/src/unix/tcp.c",
+    "thirdparty/libuv/src/unix/thread.c",
+    "thirdparty/libuv/src/unix/tty.c",
+    "thirdparty/libuv/src/unix/udp.c",
 ]
 
 macos_sources = []
 
-include_dirs = ["native/include"]
+include_dirs = [
+    "native/include",
+    "thirdparty/libuv/include",
+    "thirdparty/libuv/src",
+    "thirdparty/quickjs",
+    "thirdparty/miniaudio",
+    "thirdparty/wasm3/source",
+    "thirdparty/mimalloc/include",
+    "thirdparty/mimalloc/src",
+    "thirdparty/rpmalloc/rpmalloc",
+]
+
+defines = [
+    "_GNU_SOURCE",
+    "_POSIX_C_SOURCE=200112",
+    "_FILE_OFFSET_BITS=64",
+]
 
 # Runtime Version and ABI Metadata
 # These values must match the constants defined in runtime/native/include/kain_runtime_version.h
@@ -232,6 +317,46 @@ status = "available"
 description = "Timer registration and wake delivery"
 
 [[services]]
+key = "io.loop"
+name = "IO Loop"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed event loop and wake delivery substrate"
+
+[[services]]
+key = "io.fs"
+name = "IO Filesystem"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed filesystem operations and async file dispatch"
+
+[[services]]
+key = "io.net"
+name = "IO Network"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed TCP, UDP, and name-resolution primitives"
+
+[[services]]
+key = "io.process"
+name = "IO Process"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed process spawning, pipes, and child lifecycle management"
+
+[[services]]
+key = "io.timers"
+name = "IO Timers"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed timer wheel and deadline wake integration"
+
+[[services]]
 key = "gfx.shader"
 name = "Shader Runtime"
 provider = "native-core"
@@ -279,8 +404,96 @@ requirement = "optional"
 status = "available"
 description = "Plugin and foreign service integration"
 
+[[services]]
+key = "script.quickjs"
+name = "QuickJS Script Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Embedded JavaScript runtime for host automation and dynamic scripting"
+
+[[services]]
+key = "audio.backend"
+name = "Audio Backend"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed device and backend abstraction for realtime audio"
+
+[[services]]
+key = "audio.graph"
+name = "Audio Graph"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed audio graph and node processing substrate"
+
+[[services]]
+key = "audio.device"
+name = "Audio Device"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed playback and capture device lifecycle"
+
+[[services]]
+key = "audio.assets"
+name = "Audio Assets"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Vendor-backed audio asset decoding and resource loading"
+
+[[services]]
+key = "wasm.runtime.light"
+name = "WASM Runtime Light"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Lightweight WebAssembly runtime for small sandboxed modules"
+
+[[services]]
+key = "wasm.runtime.full"
+name = "WASM Runtime Full"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "Full WebAssembly runtime lane staged for richer module hosting"
+
+[[services]]
+key = "wasm.module"
+name = "WASM Module"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Kain-owned WebAssembly module loading and execution seam"
+
+[[services]]
+key = "wasm.wasi"
+name = "WASM WASI"
+provider = "native-core"
+requirement = "optional"
+status = "planned"
+description = "WASI-flavored runtime lane staged behind the WebAssembly service family"
+
+[[services]]
+key = "allocator.mimalloc"
+name = "Allocator Mimalloc"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Mimalloc-backed allocation lane for Kain runtime experiments"
+
+[[services]]
+key = "allocator.rpmalloc"
+name = "Allocator Rpmalloc"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
+
 # Platform-Specific Link Dependencies
 [link]
 windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32"]
-linux = ["pthread"]
+linux = ["pthread", "dl", "rt", "m"]
 macos = []

@@ -1,5 +1,67 @@
 # MEMORY
 
+## 2026-04-11 - first native vendor incorporation slice is now live in the manifest-driven C runtime
+
+The native runtime is no longer only planning around third-party vendors; the first real vendor-backed service slice is wired into `runtime/native`, compiled through the manifest-driven bundle, and validated end to end on Linux.
+
+What changed:
+
+- Expanded `runtime/native_runtime.toml`
+  - Added `native/src/vendor/kain_runtime_vendor_lane.c`.
+  - Added real vendor source sets for `QuickJS`, `miniaudio`, `wasm3`, `mimalloc`, `rpmalloc`, and the Linux `libuv` source graph.
+  - Added vendor include roots and manifest defines for the Linux/libuv-oriented build.
+  - Added new service declarations for:
+    - `io.loop`, `io.fs`, `io.net`, `io.process`, `io.timers`
+    - `script.quickjs`
+    - `audio.backend`, `audio.graph`, `audio.device`, `audio.assets`
+    - `wasm.runtime.light`, `wasm.runtime.full`, `wasm.module`, `wasm.wasi`
+    - `allocator.mimalloc`, `allocator.rpmalloc`
+- Added `runtime/native/include/kain_runtime_vendor_lane.h` and `runtime/native/src/vendor/kain_runtime_vendor_lane.c`
+  - Introduced Kain-owned vendor function tables and a small vendor descriptor catalog.
+  - Wired real probe/start/allocate/eval hooks for `libuv`, `QuickJS`, `miniaudio`, `wasm3`, `mimalloc`, and `rpmalloc`.
+  - Left `WAMR` intentionally staged/degraded instead of pretending the curated tree is production-ready.
+  - Added `KAIN_RUNTIME_VENDOR_STUBS_ONLY` so conformance harnesses can compile the service catalog without dragging the full vendor source graph into every isolated test binary.
+- Expanded runtime service and contract surfaces
+  - Updated `runtime/native/include/kain_runtime_services.h` and `runtime/native/src/core/kain_runtime_services.c` with the new vendor-backed service families and function-table pointers.
+  - Updated `runtime/native/include/kain_runtime_contract.h` and `runtime/native/src/core/kain_runtime_contract.c` with new service-mask bits and `has_*` fields for the vendor families.
+  - Preserved the raw-native core assumptions: `KAIN_RUNTIME_SERVICE_CORE_MASK`, `missing_core_service_count`, and `valid_for_raw_native` still only care about the existing three Win32 host services.
+- Hardened build and vendor trees
+  - Updated `runtime/compile_native_runtime.sh` to consume manifest `defines`, not just sources and include dirs.
+  - Patched `runtime/thirdparty/quickjs/quickjs.c` with a `CONFIG_VERSION` fallback so Kain can compile the engine cleanly from the vendor tree.
+  - Added `runtime/thirdparty/wamr/core/version.h` as a Kain shim because the curated WAMR tree omits the generated upstream header that `wasm_runtime_common.c` expects.
+- Updated conformance harnesses
+  - Patched `runtime/conformance/diagnostics/compile_tests.sh` and `runtime/conformance/host_bridge/run_tests.sh` so they compile the vendor lane in stub-only mode when they only need the registry/catalog surface.
+
+Validation completed:
+
+- `./runtime/compile_native_runtime.sh`
+  - now compiles a 92-object native runtime bundle with the vendor sources included
+- `./runtime/conformance/run_all.sh --verbose`
+- `./runtime/validate_native_runtime.sh`
+  - full suite passed: CLI build, native runtime compilation, LLVM/raw-native fixtures, and native runtime conformance
+
+Design decisions:
+
+- Treated vendor incorporation as Kain-owned service expansion, not as raw API exposure.
+- Chose a real first slice now: `libuv`, `QuickJS`, `miniaudio`, `wasm3`, `mimalloc`, and `rpmalloc` are compile-backed and surfaced through the runtime.
+- Kept `WAMR` staged because the curated tree still needs more than a thin manifest add; the missing generated `version.h` was only the first blocker, not proof of readiness.
+- Added a stub-only vendor mode for narrow conformance binaries instead of forcing every conformance harness to link the full vendor graph.
+
+Current risks:
+
+- The vendor-heavy manifest materially increases compile time and warning volume; warning cleanup is now a real runtime maintenance lane.
+- The new vendor service families are surfaced and probeable, but they are not yet deeply integrated into scheduler policy, host bridge semantics, or the runtime value ABI.
+- `WAMR` is still only staged. The shimmed `version.h` unblocks future work, but the full/runtime+WASI lane still needs a deliberately reduced source selection and another compile pass.
+- Windows support for the new vendor lane is not proven by the same depth as Linux yet, even though the wrapper source is guarded to avoid forcing Linux-only `libuv` symbols into non-Linux builds.
+
+Recommended next step:
+
+- Start replacing ad hoc runtime subsystems with the new vendor-backed families one seam at a time:
+  - move async timer/wake infrastructure toward `io.loop` / `io.timers`
+  - add first real `script.quickjs` module-loading and host-bridge hooks
+  - add a Kain-owned `audio.*` API above the miniaudio lane
+  - decide whether allocator selection becomes runtime-configurable before wiring mimalloc/rpmalloc into shared allocation helpers
+
 ## 2026-04-11 - vendor-edit harvest plan added for third-party runtimes under runtime/thirdparty
 
 The repo now has an explicit plan for how imported third-party runtimes should strengthen Kain without becoming the runtime's source of semantic truth.

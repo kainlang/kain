@@ -20,6 +20,22 @@ static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
     {KAIN_SERVICE_KEY_ASSET_INGESTION, KAIN_RUNTIME_SERVICE_ASSET_INGESTION, 0},
     {KAIN_SERVICE_KEY_UI_BUNDLE, KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED, 0},
     {KAIN_SERVICE_KEY_GFX_COMPUTE, KAIN_RUNTIME_SERVICE_GFX_COMPUTE, 0},
+    {KAIN_SERVICE_KEY_IO_LOOP, KAIN_RUNTIME_SERVICE_IO_LOOP, 0},
+    {KAIN_SERVICE_KEY_IO_FS, KAIN_RUNTIME_SERVICE_IO_FS, 0},
+    {KAIN_SERVICE_KEY_IO_NET, KAIN_RUNTIME_SERVICE_IO_NET, 0},
+    {KAIN_SERVICE_KEY_IO_PROCESS, KAIN_RUNTIME_SERVICE_IO_PROCESS, 0},
+    {KAIN_SERVICE_KEY_IO_TIMERS, KAIN_RUNTIME_SERVICE_IO_TIMERS, 0},
+    {KAIN_SERVICE_KEY_SCRIPT_QUICKJS, KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS, 0},
+    {KAIN_SERVICE_KEY_AUDIO_BACKEND, KAIN_RUNTIME_SERVICE_AUDIO_BACKEND, 0},
+    {KAIN_SERVICE_KEY_AUDIO_GRAPH, KAIN_RUNTIME_SERVICE_AUDIO_GRAPH, 0},
+    {KAIN_SERVICE_KEY_AUDIO_DEVICE, KAIN_RUNTIME_SERVICE_AUDIO_DEVICE, 0},
+    {KAIN_SERVICE_KEY_AUDIO_ASSETS, KAIN_RUNTIME_SERVICE_AUDIO_ASSETS, 0},
+    {KAIN_SERVICE_KEY_WASM_RUNTIME_LIGHT, KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT, 0},
+    {KAIN_SERVICE_KEY_WASM_RUNTIME_FULL, KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL, 0},
+    {KAIN_SERVICE_KEY_WASM_MODULE, KAIN_RUNTIME_SERVICE_WASM_MODULE, 0},
+    {KAIN_SERVICE_KEY_WASM_WASI, KAIN_RUNTIME_SERVICE_WASM_WASI, 0},
+    {KAIN_SERVICE_KEY_ALLOCATOR_MIMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC, 0},
+    {KAIN_SERVICE_KEY_ALLOCATOR_RPMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC, 0},
 };
 
 static const size_t g_kain_runtime_service_spec_count =
@@ -396,6 +412,38 @@ static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION) != 0u;
     bundle->has_asset_ingestion =
         (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_INGESTION) != 0u;
+    bundle->has_io_loop =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_LOOP) != 0u;
+    bundle->has_io_fs =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_FS) != 0u;
+    bundle->has_io_net =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_NET) != 0u;
+    bundle->has_io_process =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_PROCESS) != 0u;
+    bundle->has_io_timers =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_TIMERS) != 0u;
+    bundle->has_script_quickjs =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS) != 0u;
+    bundle->has_audio_backend =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_BACKEND) != 0u;
+    bundle->has_audio_graph =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_GRAPH) != 0u;
+    bundle->has_audio_device =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_DEVICE) != 0u;
+    bundle->has_audio_assets =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_ASSETS) != 0u;
+    bundle->has_wasm_runtime_light =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT) != 0u;
+    bundle->has_wasm_runtime_full =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL) != 0u;
+    bundle->has_wasm_module =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_MODULE) != 0u;
+    bundle->has_wasm_wasi =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_WASI) != 0u;
+    bundle->has_allocator_mimalloc =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC) != 0u;
+    bundle->has_allocator_rpmalloc =
+        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC) != 0u;
     bundle->core_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
     );

@@ -94,6 +94,7 @@ COMMON_SOURCES=(
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_services.c"
     "$NATIVE_SRC/core/kain_runtime_host_bridge.c"
+    "$NATIVE_SRC/vendor/kain_runtime_vendor_lane.c"
 )
 
 TOTAL_TESTS=0
@@ -114,7 +115,7 @@ for binary in "${TEST_BINARIES[@]}"; do
     run_with_timeout "$COMPILE_TIMEOUT_SEC" "host bridge compilation" \
         "$C_COMPILER" \
         -I"$NATIVE_INCLUDE" \
-        -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L \
+        -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -DKAIN_RUNTIME_VENDOR_STUBS_ONLY=1 \
         "${COMMON_SOURCES[@]}" \
         "$SCRIPT_DIR/${binary}.c" \
         -o "$SCRIPT_DIR/$binary"

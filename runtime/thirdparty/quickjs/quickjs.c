@@ -32,6 +32,11 @@
 #include <time.h>
 #include <fenv.h>
 #include <math.h>
+
+#ifndef CONFIG_VERSION
+#define CONFIG_VERSION "kain-vendor"
+#endif
+
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
 #elif defined(__linux__) || defined(__GLIBC__)

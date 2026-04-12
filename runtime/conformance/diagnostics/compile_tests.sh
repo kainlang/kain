@@ -33,6 +33,7 @@ COMMON_CFLAGS=(
     -Wextra
     -std=c11
     -D_POSIX_C_SOURCE=200809L
+    -DKAIN_RUNTIME_VENDOR_STUBS_ONLY=1
     -I"$NATIVE_INCLUDE"
 )
 
@@ -41,6 +42,7 @@ COMMON_SOURCES=(
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_services.c"
     "$NATIVE_SRC/core/kain_runtime_contract.c"
+    "$NATIVE_SRC/vendor/kain_runtime_vendor_lane.c"
 )
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
