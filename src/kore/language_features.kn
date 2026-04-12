@@ -1,6 +1,6 @@
-# Kore Language Features
+# Kain Language Features
 
-// This file is the feature contract for the owned Kore core. It names the
+// This file is the feature contract for the owned Kain core. It names the
 // language surfaces we want, the ones we are still borrowing from donors, and
 // the ones intentionally excluded from wave 1.
 
@@ -35,7 +35,7 @@ struct FeatureRule:
     donor: Option<String>
     rationale: String
 
-struct KoreOwnershipContract:
+struct KainOwnershipContract:
     canonical_root: String
     owned_tree: String
     donor_trees: Array<String>
@@ -43,14 +43,14 @@ struct KoreOwnershipContract:
     current_wave: String
     notes: String
 
-struct KoreLanguageProfile:
-    contract: KoreOwnershipContract
+struct KainLanguageProfile:
+    contract: KainOwnershipContract
     features: Array<FeatureRule>
 
-const KORE_CANONICAL_ROOT: String = "src/kore"
-const KORE_DONOR_ROOT: String = "src/rust-import"
-const KORE_LEGACY_DONOR_ROOT: String = "src/.legacy"
-const KORE_EXCLUDED_SURFACES: Array<String> = [
+const KAIN_CANONICAL_ROOT: String = "src/kore"
+const KAIN_DONOR_ROOT: String = "src/.rustimport"
+const KAIN_LEGACY_DONOR_ROOT: String = "src/.legacy"
+const KAIN_EXCLUDED_SURFACES: Array<String> = [
     "ue5",
     "shader codegen",
     "pipeline orchestration",

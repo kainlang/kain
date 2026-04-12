@@ -1,6 +1,6 @@
-# Kore Foundational AST
+# Kain Foundational AST
 
-// This file models the owned Kore syntax surface before UE5 and pipeline-era
+// This file models the owned Kain syntax surface before UE5 and pipeline-era
 // expansion. It is intentionally bounded: core declarations, expressions,
 // statements, patterns, and type expressions only.
 
@@ -47,7 +47,7 @@ struct FnDef:
 struct Param:
     name: String
     ty: TypeExpr
-    default: Option<Expr>
+    default_value: Option<Expr>
     is_mut: Bool
     span: Span
 
@@ -66,7 +66,7 @@ struct StructDef:
 struct FieldDef:
     name: String
     ty: TypeExpr
-    default: Option<Expr>
+    default_value: Option<Expr>
     is_pub: Bool
     span: Span
 
@@ -385,4 +385,3 @@ struct Attribute:
 enum Visibility:
     Private
     Public
-

@@ -1,0 +1,134 @@
+// ============================================================================
+// Kain Effect System - compile-time side-effect tracking
+// ============================================================================
+// Small enough to be useful immediately, with room to expand later.
+// ============================================================================
+
+use error
+use span
+
+pub enum Effect:
+    PureEffect
+    IoEffect
+    AsyncEffect
+    GpuEffect
+    ReactiveEffect
+    UnsafeEffect
+    AllocEffect
+    PanicEffect
+
+impl Effect:
+    pub fn from_str(name: String) -> Option<Effect>:
+        if name == "Pure":
+            return Option::Some(Effect::PureEffect)
+        if name == "IO":
+            return Option::Some(Effect::IoEffect)
+        if name == "Async":
+            return Option::Some(Effect::AsyncEffect)
+        if name == "GPU":
+            return Option::Some(Effect::GpuEffect)
+        if name == "Reactive":
+            return Option::Some(Effect::ReactiveEffect)
+        if name == "Unsafe":
+            return Option::Some(Effect::UnsafeEffect)
+        if name == "Alloc":
+            return Option::Some(Effect::AllocEffect)
+        if name == "Panic":
+            return Option::Some(Effect::PanicEffect)
+        return none
+
+    pub fn to_str(self) -> String:
+        match self:
+            Effect::PureEffect => return "Pure"
+            Effect::IoEffect => return "IO"
+            Effect::AsyncEffect => return "Async"
+            Effect::GpuEffect => return "GPU"
+            Effect::ReactiveEffect => return "Reactive"
+            Effect::UnsafeEffect => return "Unsafe"
+            Effect::AllocEffect => return "Alloc"
+            Effect::PanicEffect => return "Panic"
+
+pub struct EffectSet:
+    effect_items: Array<Effect>
+
+impl EffectSet:
+    pub fn new_() -> EffectSet:
+        return EffectSet { effect_items: [] }
+
+    pub fn pure_() -> EffectSet:
+        let set = EffectSet { effect_items: [] }
+        push(set.effect_items, Effect::PureEffect)
+        return set
+
+    pub fn add_effect(self, effect: Effect) -> EffectSet:
+        for existing in self.effect_items:
+            if existing.to_str() == effect.to_str():
+                return self
+        push(self.effect_items, effect)
+        return self
+
+    pub fn has(self, effect: Effect) -> Bool:
+        let target = effect.to_str()
+        for existing in self.effect_items:
+            if existing.to_str() == target:
+                return true
+        return false
+
+    pub fn is_pure(self) -> Bool:
+        if len(self.effect_items) == 0:
+            return true
+
+        for effect in self.effect_items:
+            if effect.to_str() != "Pure":
+                return false
+        return true
+
+    pub fn can_call(self, callee: EffectSet) -> Bool:
+        if callee.is_pure():
+            return true
+        if self.is_pure():
+            return false
+        if self.has(Effect::UnsafeEffect):
+            return true
+
+        for effect in callee.effect_items:
+            if !self.has(effect):
+                return false
+        return true
+
+    pub fn merge(self, other: EffectSet) -> EffectSet:
+        let result = EffectSet { effect_items: [] }
+        for effect in self.effect_items:
+            result = result.add_effect(effect)
+        for effect in other.effect_items:
+            result = result.add_effect(effect)
+        return result
+
+    pub fn to_string(self) -> String:
+        if len(self.effect_items) == 0:
+            return "{}"
+
+        let text = "{"
+        let first = true
+        for effect in self.effect_items:
+            if !first:
+                text = text + ", "
+            text = text + effect.to_str()
+            first = false
+        text = text + "}"
+        return text
+
+pub fn check_effect_call(caller: EffectSet, callee: EffectSet, location: Span) -> Bool:
+    if !caller.can_call(callee):
+        let message = "Effect violation: " + caller.to_string() + " cannot call " + callee.to_string()
+        println(message)
+        return false
+    return true
+
+pub fn parse_effects(annotations: Array<String>) -> EffectSet:
+    let set = EffectSet::new_()
+    for annotation in annotations:
+        match Effect::from_str(annotation):
+            Some(effect) => set = set.add_effect(effect)
+            None => ()
+    return set

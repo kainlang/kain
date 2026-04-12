@@ -1,0 +1,26 @@
+use ast::Program
+use error::KainError
+use error::KainResult
+
+# Kain Comptime Seed
+
+struct ComptimeStats:
+    blocks_seen: Int
+    expressions_folded: Int
+
+pub fn eval_program(program: Program) -> KainResult<Program>:
+    return Ok(program)
+
+pub fn eval_program_with_stats(program: Program) -> KainResult<(Program, ComptimeStats)>:
+    return Ok((
+        program,
+        ComptimeStats {
+            blocks_seen: 0,
+            expressions_folded: 0
+        }
+    ))
+
+pub fn reject_unsupported_host_evaluation(message: String) -> KainError:
+    return KainError::runtime(
+        "kain comptime host evaluation not yet implemented: " + message
+    )

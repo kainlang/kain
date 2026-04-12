@@ -1,0 +1,98 @@
+# Kain Standard Library Seed
+
+enum CompileTarget:
+    Llvm
+    Rust
+    Js
+    Wasm
+    Interpret
+    Test
+
+struct StdLibBuiltin:
+    name: String
+    arity: Int
+    summary: String
+
+struct StdLibCatalog:
+    builtins: Array<StdLibBuiltin>
+
+impl CompileTarget:
+    pub fn from_str(name: String) -> Option<CompileTarget>:
+        if name == "llvm" || name == "native":
+            return Some(CompileTarget::Llvm)
+        if name == "rust" || name == "rs":
+            return Some(CompileTarget::Rust)
+        if name == "js" || name == "javascript":
+            return Some(CompileTarget::Js)
+        if name == "wasm":
+            return Some(CompileTarget::Wasm)
+        if name == "run" || name == "interpret":
+            return Some(CompileTarget::Interpret)
+        if name == "test":
+            return Some(CompileTarget::Test)
+        return none
+
+impl StdLibCatalog:
+    pub fn core() -> StdLibCatalog:
+        return StdLibCatalog {
+            builtins: [
+                StdLibBuiltin {
+                    name: "println",
+                    arity: 1,
+                    summary: "write a line to stdout"
+                },
+                StdLibBuiltin {
+                    name: "panic",
+                    arity: 1,
+                    summary: "abort execution with a message"
+                },
+                StdLibBuiltin {
+                    name: "len",
+                    arity: 1,
+                    summary: "return the length of an array or string"
+                },
+                StdLibBuiltin {
+                    name: "str",
+                    arity: 1,
+                    summary: "convert a value into a string"
+                }
+            ]
+        }
+
+pub fn load_stdlib_for_target(target: CompileTarget) -> String:
+    match target:
+        CompileTarget::Llvm => ""
+        CompileTarget::Rust => ""
+        CompileTarget::Js => ""
+        CompileTarget::Wasm => ""
+        CompileTarget::Interpret => ""
+        CompileTarget::Test => ""
+
+pub fn core_keywords() -> Array<String>:
+    return [
+        "fn",
+        "let",
+        "var",
+        "if",
+        "else",
+        "while",
+        "for",
+        "in",
+        "return",
+        "match",
+        "struct",
+        "enum",
+        "trait",
+        "impl",
+        "use",
+        "pub",
+        "async",
+        "await",
+        "break",
+        "continue",
+        "const",
+        "extern",
+        "effect",
+        "module",
+        "comptime"
+    ]

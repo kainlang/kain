@@ -1,0 +1,32 @@
+# Kain Low-Level ABI Seed
+
+enum NativeIntegerWidth:
+    Bits8
+    Bits16
+    Bits32
+    Bits64
+
+enum AbiValueKind:
+    Unit
+    Integer(NativeIntegerWidth)
+    Float32
+    Float64
+    Pointer
+    Aggregate(String)
+
+struct AbiValueLayout:
+    kind: AbiValueKind
+    size_bytes: Int
+    align_bytes: Int
+
+struct AbiFunctionSignature:
+    name: String
+    params: Array<AbiValueLayout>
+    return_layout: AbiValueLayout
+
+pub fn pointer_layout() -> AbiValueLayout:
+    return AbiValueLayout {
+        kind: AbiValueKind::Pointer,
+        size_bytes: 8,
+        align_bytes: 8
+    }

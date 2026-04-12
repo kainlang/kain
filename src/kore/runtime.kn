@@ -1,0 +1,117 @@
+use ast::BinaryOp
+use ast::Expr
+use ast::Literal
+use ast::Path
+use ast::Program
+use error::KainError
+use error::KainResult
+
+# Kain Runtime Seed
+
+enum Value:
+    Unit
+    Bool(Bool)
+    Int(Int)
+    Float(Float)
+    String(String)
+
+struct Binding:
+    name: String
+    value: Value
+
+struct Env:
+    bindings: Array<Binding>
+
+impl Env:
+    pub fn new_() -> Env:
+        return Env { bindings: [] }
+
+    pub fn insert(_self: Env, name: String, value: Value) -> Env:
+        _self.bindings.push(Binding { name: name, value: value })
+        return _self
+
+    pub fn lookup(_self: &Env, name: String) -> Option<Value>:
+        for binding in (*_self).bindings:
+            if binding.name == name:
+                return Some(binding.value)
+        return None
+
+pub fn interpret_program(program: Program) -> KainResult<Value>:
+    let _unused_program = program
+    return Ok(Value::Unit)
+
+pub fn interpret_expr(expr: Expr, env: &Env) -> KainResult<Value>:
+    match expr:
+        Expr::Literal(literal) => return interpret_literal(literal)
+        Expr::Path(path) => return interpret_path(path, env)
+        Expr::Binary(binary_expr) =>
+            let left_value = interpret_expr((*binary_expr.left), env)?
+            let right_value = interpret_expr((*binary_expr.right), env)?
+            return eval_binary(binary_expr.op, left_value, right_value)
+        _ =>
+            return Err(KainError::runtime(
+                "kain runtime seed cannot interpret this expression form yet"
+            ))
+
+fn interpret_literal(literal: Literal) -> KainResult<Value>:
+    match literal:
+        Literal::Unit => return Ok(Value::Unit)
+        Literal::Bool(value) => return Ok(Value::Bool(value))
+        Literal::Int(value) => return Ok(Value::Int(value))
+        Literal::Float(value) => return Ok(Value::Float(value))
+        Literal::String(value) => return Ok(Value::String(value))
+        Literal::Char(value) =>
+            return Ok(Value::String(value.to_string()))
+
+fn interpret_path(path: Path, env: &Env) -> KainResult<Value>:
+    if path.segments.is_empty():
+        return Err(KainError::runtime("empty path in runtime lookup"))
+    let first_segment = path.segments[0]
+    match env.lookup(first_segment.name):
+        Some(value) => return Ok(value)
+        None =>
+            return Err(KainError::runtime(
+                "unknown runtime binding: " + first_segment.name
+            ))
+
+fn eval_binary(op: BinaryOp, left_value: Value, right_value: Value) -> KainResult<Value>:
+    match op:
+        BinaryOp::Add =>
+            match left_value:
+                Value::Int(left_int) =>
+                    match right_value:
+                        Value::Int(right_int) => return Ok(Value::Int(left_int + right_int))
+                        _ => ()
+                Value::String(left_text) =>
+                    match right_value:
+                        Value::String(right_text) =>
+                            return Ok(Value::String(left_text + right_text))
+                        _ => ()
+                _ => ()
+        BinaryOp::Sub =>
+            match left_value:
+                Value::Int(left_int) =>
+                    match right_value:
+                        Value::Int(right_int) => return Ok(Value::Int(left_int - right_int))
+                        _ => ()
+                _ => ()
+        BinaryOp::Mul =>
+            match left_value:
+                Value::Int(left_int) =>
+                    match right_value:
+                        Value::Int(right_int) => return Ok(Value::Int(left_int * right_int))
+                        _ => ()
+                _ => ()
+        BinaryOp::Div =>
+            match left_value:
+                Value::Int(left_int) =>
+                    match right_value:
+                        Value::Int(right_int) => return Ok(Value::Int(left_int / right_int))
+                        _ => ()
+                _ => ()
+        BinaryOp::Eq => return Ok(Value::Bool(left_value == right_value))
+        BinaryOp::Ne => return Ok(Value::Bool(left_value != right_value))
+        _ => ()
+    return Err(KainError::runtime(
+        "unsupported binary evaluation in kain runtime seed"
+    ))

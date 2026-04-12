@@ -1,5 +1,29 @@
 # MEMORY
 
+## 2026-04-12 - `src/kore` stays the folder nod, but active owned identifiers are now Kain
+
+The owned language tree under `src/kore` was accidentally carrying the old `Kore`
+naming into the active pipeline shell and contract surface. The folder name stays
+`src/kore` as the deliberate nod, but the code now uses `Kain` for the current
+language/core identity.
+
+What changed:
+
+- Renamed the self-host driver shell from `korec.kn` to `kainc.kn`.
+- Renamed the driver shell types, helpers, and log prefixes to `Kain*` and
+  `KAIN*`.
+- Renamed the feature contract types and constants in
+  `src/kore/language_features.kn` to `Kain*` / `KAIN_*`.
+- Updated the owned-core README to describe Kain, while keeping the folder path
+  `src/kore` intact.
+
+Current note:
+
+- The only remaining `kore` mention in the owned tree is the historic donor
+  filename `src/.legacy/src/korec.kn` in the README matrix.
+- The driver shell is still a seed shell; it is named correctly now, but the
+  implementation remains intentionally synthetic.
+
 ## 2026-04-12 - selfhost can now mirror every workspace crate with `--all-crates`
 
 The selfhost mirror tree no longer has to stop at the profile's bounded phase slices when the operator wants a whole-workspace source dump. `kain selfhost phase1` and `phase2` now accept `--all-crates`, which discovers every `crates/*/Cargo.toml` directory at runtime, drives the same file-preserving mirror pipeline over that live crate set, and records the selection mode in the emitted report.
