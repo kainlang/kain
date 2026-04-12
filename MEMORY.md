@@ -1,5 +1,73 @@
 # MEMORY
 
+# 2026-04-12 - extern crate lowering now shares the external module diagnostic lane
+
+The Rust importer previously surfaced `syn::Item::ExternCrate` under a one-off `extern_crate_decl` class, which the selfhost allowlist did not recognize. That class now folds into `external_mod_decl`, matching the existing `allow_external_mod_decls` path and letting `cli` import cleanly during phase2.
+
+What changed:
+
+- `crates/kain-import/src/rust/transformer.rs` now emits `class:external_mod_decl` for `extern crate ...`.
+- The mirrored Kain source under `src/rust-import/kain-import/rust/transformer.kn` was updated to stay in sync.
+- Added a regression test covering `extern crate ue5;` classification.
+
+Validation:
+
+- `cargo test -p kain-import external_mod_decl -- --nocapture`
+- `cargo test -p kain-import selfhost::tests::keeps_external_mod_decls_compatibility_flag -- --nocapture`
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir /tmp/kain_selfhost_importfix --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force`
+
+Current risk:
+
+- The broader selfhost lane is still bridge-first, but this specific import blocker is cleared. The next failure, if any, will be a different crate or a later stage2 assembly/build issue.
+
+Recommended next step:
+
+- Continue phase2 against the same inventory profile and chase the new front blocker after `cli`.
+
+# 2026-04-12 - native runtime cache moved to a repo-local host cache and now prebuilds vendor archives
+
+The manifest-driven native runtime no longer ties object reuse to the current
+LLVM/native executable output directory. The CLI now stages runtime build
+artifacts under `generated/native_runtime/cache/<host>/<runtime-name>/`, keeps
+repo-owned runtime sources as loose cached objects, and prebuilds a cached
+static archive for the heavy vendored `3rdparty/` source family.
+
+What changed:
+
+- Added `[[archive_groups]]` support to `runtime/native_runtime.toml` and
+  mirrored that build metadata into `runtime/native_runtime_metadata.json`.
+- Changed `crates/cli/src/main.rs` so the LLVM/native build path writes runtime
+  objects into a stable repo-local cache root instead of `<output>/.kain-runtime/`.
+- Added portable archiver detection with `KAIN_AR_PATH` override support and
+  built the current `3rdparty/` vendor surface into a cached `vendor-runtime`
+  static archive.
+- Updated `runtime/compile_native_runtime.sh` to reuse the same repo-local
+  cache root and to emit/reuse the vendor archive during compile-only runtime
+  validation runs.
+- Updated runtime/architecture docs to explain the new cache root, archive
+  group contract, and `KAIN_RUNTIME_CACHE_DIR` / `KAIN_AR_PATH` overrides.
+
+Validation:
+
+- `cargo test -p cli runtime_`
+- `bash -n runtime/compile_native_runtime.sh`
+
+Current risk:
+
+- The CLI path tracks header dependencies with depfiles, but
+  `runtime/compile_native_runtime.sh` still uses source-plus-fingerprint reuse
+  rather than the full depfile-aware freshness check. That helper script should
+  eventually share the stricter cache logic too.
+- The current runtime manifest uses one big `vendor-runtime` archive. That is
+  the safest cross-platform first cut, but future work may still want smaller
+  archive partitions if link-time measurements justify them.
+
+Recommended next step:
+
+- Measure cold build, warm build, and relink-only times for `kain build -t llvm`
+  after the new cache lands, then decide whether the next win is a slimmer
+  runtime profile or finer-grained archive partitioning.
+
 # 2026-04-12 - selfhost now treats the kain executable as the first bootstrap correctness gate
 
 The active selfhost profile stays on the Rust bridge path, but phase2 now front-loads `cli` ahead of `kain-sys-codegen` so the `kain` executable is the first thing we prove correct on this pass. That keeps the import bridge intact while making executable parity the gating milestone instead of a later byproduct.

@@ -87,6 +87,10 @@ At a high level, the runtime flow looks like this:
 
 3. The driver/native app materialization path resolves [native_runtime.toml](./native_runtime.toml), compiles the listed C sources, and links them into the native executable or app bundle.
 
+   - The CLI now stages that runtime build through a repo-local cache under `generated/native_runtime/cache/<host>/<runtime-name>/` by default instead of tying reuse to a specific executable output folder.
+   - `[[archive_groups]]` in [native_runtime.toml](./native_runtime.toml) can prebuild static archives for heavy source families; the current native runtime uses that for the vendored `3rdparty/` surface so warm builds relink one cached vendor archive instead of recompiling every third-party translation unit.
+   - `KAIN_RUNTIME_CACHE_DIR` overrides the cache root, and `KAIN_AR_PATH` overrides the archiver selection when a host needs a non-default `llvm-ar`, `ar`, or `lib.exe`.
+
 4. At startup, the runtime validates:
    - ABI compatibility
    - runtime version compatibility
@@ -115,6 +119,7 @@ Today that manifest includes:
 - Win32 and OpenGL host pieces
 - platform boundary logic
 - UI runtime sources
+- archive-group metadata for prebuilt vendor static archives
 
 This is the active build surface for native Kain executables.
 

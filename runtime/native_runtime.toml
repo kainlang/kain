@@ -291,6 +291,10 @@ linux_defines = [
     "_FILE_OFFSET_BITS=64",
 ]
 
+[[archive_groups]]
+name = "vendor-runtime"
+source_prefixes = ["3rdparty/"]
+
 # Runtime Version and ABI Metadata
 # These values must match the constants defined in runtime/native/include/kain_runtime_version.h
 [version]

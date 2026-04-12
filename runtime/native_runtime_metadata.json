@@ -308,6 +308,15 @@
       "3rdparty/libuv/src/win/winsock.c"
     ]
   },
+  "archive_groups": [
+    {
+      "name": "vendor-runtime",
+      "source_prefixes": [
+        "3rdparty/"
+      ],
+      "description": "Prebuilt static archive grouping for vendored runtime sources so warm native builds can relink against one cached vendor library instead of recompiling every third-party translation unit."
+    }
+  ],
   "include_dirs": [
     "native/include",
     "3rdparty/libuv/include",

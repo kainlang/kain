@@ -28,7 +28,7 @@ use kain_c_ffi::{
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -59,7 +59,16 @@ struct NativeRuntimeManifest {
     #[serde(default)]
     macos_defines: Vec<String>,
     #[serde(default)]
+    archive_groups: Vec<NativeRuntimeArchiveManifest>,
+    #[serde(default)]
     link: NativeRuntimeLinkManifest,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NativeRuntimeArchiveManifest {
+    name: String,
+    #[serde(default)]
+    source_prefixes: Vec<PathBuf>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -78,7 +87,16 @@ struct ResolvedNativeRuntimeBundle {
     sources: Vec<PathBuf>,
     include_dirs: Vec<PathBuf>,
     defines: Vec<String>,
+    archive_groups: Vec<ResolvedNativeRuntimeArchiveGroup>,
+    cache_root: PathBuf,
     link_libs: Vec<String>,
+    uses_cpp_runtime: bool,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedNativeRuntimeArchiveGroup {
+    name: String,
+    source_paths: Vec<PathBuf>,
     uses_cpp_runtime: bool,
 }
 
@@ -87,6 +105,31 @@ struct NativeRuntimeObjectCachePaths {
     object_path: PathBuf,
     depfile_path: PathBuf,
     fingerprint_path: PathBuf,
+}
+
+#[derive(Debug)]
+struct NativeRuntimeStaticArchivePaths {
+    archive_path: PathBuf,
+    fingerprint_path: PathBuf,
+}
+
+#[derive(Debug, Default)]
+struct NativeRuntimeCompiledArtifacts {
+    loose_objects: Vec<PathBuf>,
+    static_archives: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum NativeRuntimeArchiverFlavor {
+    GnuAr,
+    MsvcLib,
+}
+
+#[derive(Debug)]
+struct NativeRuntimeArchiver {
+    command: String,
+    flavor: NativeRuntimeArchiverFlavor,
+    archive_ext: &'static str,
 }
 
 #[derive(ClapParser, Debug)]
@@ -941,6 +984,7 @@ fn run_source(
 
                     let mut cmd = std::process::Command::new(&clang_cmd);
                     let mut runtime_link_libs = Vec::new();
+                    let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
                     let cffi_link_inputs = match resolve_c_ffi_shared_libraries_for_linking(&source)
                     {
                         Ok(paths) => paths,
@@ -957,20 +1001,14 @@ fn run_source(
                             return false;
                         }
                     } {
-                        let runtime_objects = match compile_native_runtime_bundle(
-                            &runtime_bundle,
-                            &clang_cmd,
-                            &exe_path,
-                        ) {
-                            Ok(objects) => objects,
-                            Err(err) => {
-                                eprintln!(" Failed to compile runtime library: {}", err);
-                                return false;
-                            }
-                        };
-                        for object in runtime_objects {
-                            cmd.arg(object);
-                        }
+                        runtime_artifacts =
+                            match compile_native_runtime_bundle(&runtime_bundle, &clang_cmd) {
+                                Ok(artifacts) => artifacts,
+                                Err(err) => {
+                                    eprintln!(" Failed to compile runtime library: {}", err);
+                                    return false;
+                                }
+                            };
                         runtime_link_libs = runtime_bundle.link_libs;
                         if runtime_bundle.uses_cpp_runtime {
                             runtime_link_libs = unique_link_libs(
@@ -980,8 +1018,16 @@ fn run_source(
                         }
                     }
 
-                    cmd.arg(&output_path)
-                        .arg("-o")
+                    cmd.arg(&output_path);
+
+                    for object in runtime_artifacts.loose_objects {
+                        cmd.arg(object);
+                    }
+                    for archive in runtime_artifacts.static_archives {
+                        cmd.arg(archive);
+                    }
+
+                    cmd.arg("-o")
                         .arg(&exe_path)
                         .arg("-Wno-override-module")
                         .arg("-g"); // Debug info
@@ -2346,6 +2392,8 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
             sources: vec![runtime_c],
             include_dirs: Vec::new(),
             defines: Vec::new(),
+            archive_groups: Vec::new(),
+            cache_root: default_runtime_cache_root(),
             link_libs: default_native_runtime_link_libs(),
             uses_cpp_runtime: false,
         }));
@@ -2420,11 +2468,15 @@ fn load_native_runtime_manifest(
             manifest_path.display()
         )
     })?;
-    let sources = manifest
+    let source_entries = manifest
         .sources
         .iter()
         .chain(selected_sources.iter())
-        .map(|path| resolve_runtime_path(manifest_dir, path))
+        .map(|path| (path.clone(), resolve_runtime_path(manifest_dir, path)))
+        .collect::<Vec<_>>();
+    let sources = source_entries
+        .iter()
+        .map(|(_, resolved_path)| resolved_path.clone())
         .collect::<Vec<_>>();
     let include_dirs = manifest
         .include_dirs
@@ -2432,6 +2484,8 @@ fn load_native_runtime_manifest(
         .map(|path| resolve_runtime_path(manifest_dir, path))
         .collect::<Vec<_>>();
     let defines = current_platform_runtime_defines(&manifest);
+    let archive_groups =
+        resolve_native_runtime_archive_groups(&source_entries, &manifest.archive_groups)?;
 
     for source in &sources {
         if !source.exists() {
@@ -2460,6 +2514,8 @@ fn load_native_runtime_manifest(
         sources,
         include_dirs,
         defines,
+        archive_groups,
+        cache_root: default_runtime_cache_root(),
         link_libs: unique_link_libs({
             let mut libs = default_native_runtime_link_libs();
             libs.extend(platform_link_libs(&manifest.link));
@@ -2471,6 +2527,96 @@ fn load_native_runtime_manifest(
             .chain(selected_sources.iter())
             .any(|path| runtime_source_uses_cpp(path)),
     })
+}
+
+fn resolve_native_runtime_archive_groups(
+    source_entries: &[(PathBuf, PathBuf)],
+    archive_manifests: &[NativeRuntimeArchiveManifest],
+) -> Result<Vec<ResolvedNativeRuntimeArchiveGroup>, String> {
+    let mut groups = Vec::new();
+    let mut claimed_sources = BTreeMap::<PathBuf, String>::new();
+    let mut seen_group_names = BTreeSet::new();
+
+    for archive_manifest in archive_manifests {
+        let group_name = archive_manifest.name.trim();
+        if group_name.is_empty() {
+            return Err("runtime archive groups must have a non-empty name".to_string());
+        }
+        if !seen_group_names.insert(group_name.to_string()) {
+            return Err(format!(
+                "runtime archive group `{}` is declared more than once",
+                group_name
+            ));
+        }
+        if archive_manifest.source_prefixes.is_empty() {
+            return Err(format!(
+                "runtime archive group `{}` must declare at least one source prefix",
+                group_name
+            ));
+        }
+
+        let mut group_sources = Vec::new();
+        for (relative_path, resolved_path) in source_entries {
+            if archive_manifest
+                .source_prefixes
+                .iter()
+                .any(|prefix| relative_path.starts_with(prefix))
+            {
+                if let Some(existing_group) =
+                    claimed_sources.insert(relative_path.clone(), group_name.to_string())
+                {
+                    return Err(format!(
+                        "runtime source {} is claimed by archive groups `{}` and `{}`",
+                        relative_path.display(),
+                        existing_group,
+                        group_name
+                    ));
+                }
+                group_sources.push(resolved_path.clone());
+            }
+        }
+
+        if group_sources.is_empty() {
+            let prefixes = archive_manifest
+                .source_prefixes
+                .iter()
+                .map(|prefix| prefix.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "runtime archive group `{}` did not match any sources for prefixes [{}]",
+                group_name, prefixes
+            ));
+        }
+
+        groups.push(ResolvedNativeRuntimeArchiveGroup {
+            name: group_name.to_string(),
+            uses_cpp_runtime: group_sources
+                .iter()
+                .any(|path| runtime_source_uses_cpp(path)),
+            source_paths: group_sources,
+        });
+    }
+
+    Ok(groups)
+}
+
+fn default_runtime_cache_root() -> PathBuf {
+    if let Ok(configured_root) = std::env::var("KAIN_RUNTIME_CACHE_DIR") {
+        let configured_root = PathBuf::from(configured_root);
+        if !configured_root.as_os_str().is_empty() {
+            return configured_root.join(runtime_cache_host_tag());
+        }
+    }
+
+    PathBuf::from("generated")
+        .join("native_runtime")
+        .join("cache")
+        .join(runtime_cache_host_tag())
+}
+
+fn runtime_cache_host_tag() -> String {
+    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 fn current_platform_runtime_sources(manifest: &NativeRuntimeManifest) -> &[PathBuf] {
@@ -2498,12 +2644,10 @@ fn current_platform_runtime_defines(manifest: &NativeRuntimeManifest) -> Vec<Str
 fn compile_native_runtime_bundle(
     bundle: &ResolvedNativeRuntimeBundle,
     clang_cmd: &str,
-    exe_path: &Path,
-) -> Result<Vec<PathBuf>, String> {
-    let output_dir = exe_path.parent().unwrap_or_else(|| Path::new("."));
-    let runtime_obj_dir = output_dir
-        .join(".kain-runtime")
-        .join(sanitize_runtime_name(&bundle.name));
+) -> Result<NativeRuntimeCompiledArtifacts, String> {
+    let runtime_cache_dir = bundle.cache_root.join(sanitize_runtime_name(&bundle.name));
+    let runtime_obj_dir = runtime_cache_dir.join("objects");
+    let runtime_archive_dir = runtime_cache_dir.join("archives");
     fs::create_dir_all(&runtime_obj_dir).map_err(|err| {
         format!(
             "unable to create runtime object directory {}: {}",
@@ -2511,11 +2655,19 @@ fn compile_native_runtime_bundle(
             err
         )
     })?;
+    fs::create_dir_all(&runtime_archive_dir).map_err(|err| {
+        format!(
+            "unable to create runtime archive directory {}: {}",
+            runtime_archive_dir.display(),
+            err
+        )
+    })?;
 
     let object_ext = if cfg!(windows) { "obj" } else { "o" };
-    let mut objects = Vec::with_capacity(bundle.sources.len());
+    let mut object_paths_by_source = BTreeMap::<PathBuf, PathBuf>::new();
     let mut reused_object_count = 0usize;
     let mut compiled_object_count = 0usize;
+
     for (index, source) in bundle.sources.iter().enumerate() {
         let cache_paths =
             build_native_runtime_object_cache_paths(&runtime_obj_dir, index, source, object_ext);
@@ -2524,7 +2676,7 @@ fn compile_native_runtime_bundle(
 
         if native_runtime_object_cache_is_fresh(&cache_paths, &compile_fingerprint) {
             reused_object_count += 1;
-            objects.push(cache_paths.object_path.clone());
+            object_paths_by_source.insert(source.clone(), cache_paths.object_path.clone());
             continue;
         }
 
@@ -2570,17 +2722,102 @@ fn compile_native_runtime_bundle(
             )
         })?;
         compiled_object_count += 1;
-        objects.push(cache_paths.object_path);
+        object_paths_by_source.insert(source.clone(), cache_paths.object_path.clone());
     }
 
-    if compiled_object_count > 0 || reused_object_count > 0 {
+    let archived_sources = bundle
+        .archive_groups
+        .iter()
+        .flat_map(|group| group.source_paths.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let loose_objects = bundle
+        .sources
+        .iter()
+        .filter(|source| !archived_sources.contains(*source))
+        .map(|source| {
+            object_paths_by_source.get(source).cloned().ok_or_else(|| {
+                format!(
+                    "runtime object cache is missing a compiled object for {}",
+                    source.display()
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut static_archives = Vec::new();
+    let mut reused_archive_count = 0usize;
+    let mut rebuilt_archive_count = 0usize;
+
+    if !bundle.archive_groups.is_empty() {
+        let archiver = find_native_runtime_archiver(clang_cmd)?;
+        for archive_group in &bundle.archive_groups {
+            let object_paths = archive_group
+                .source_paths
+                .iter()
+                .map(|source| {
+                    object_paths_by_source.get(source).cloned().ok_or_else(|| {
+                        format!(
+                            "runtime archive group `{}` is missing object output for {}",
+                            archive_group.name,
+                            source.display()
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let archive_paths = build_native_runtime_archive_cache_paths(
+                &runtime_archive_dir,
+                &archive_group.name,
+                archiver.archive_ext,
+            );
+            let archive_fingerprint =
+                build_native_runtime_archive_fingerprint(bundle, &archiver, archive_group);
+
+            if native_runtime_archive_cache_is_fresh(
+                &archive_paths,
+                &archive_fingerprint,
+                &object_paths,
+            ) {
+                reused_archive_count += 1;
+            } else {
+                build_native_runtime_static_archive(
+                    &archiver,
+                    &archive_paths.archive_path,
+                    &object_paths,
+                )?;
+                fs::write(&archive_paths.fingerprint_path, &archive_fingerprint).map_err(
+                    |err| {
+                        format!(
+                            "unable to write runtime archive fingerprint {}: {}",
+                            archive_paths.fingerprint_path.display(),
+                            err
+                        )
+                    },
+                )?;
+                rebuilt_archive_count += 1;
+            }
+
+            static_archives.push(archive_paths.archive_path);
+        }
+    }
+
+    if compiled_object_count > 0
+        || reused_object_count > 0
+        || rebuilt_archive_count > 0
+        || reused_archive_count > 0
+    {
         eprintln!(
-            " Native runtime object cache: {} reused, {} compiled",
-            reused_object_count, compiled_object_count
+            " Native runtime cache: {} reused, {} compiled, {} archives reused, {} archives rebuilt",
+            reused_object_count,
+            compiled_object_count,
+            reused_archive_count,
+            rebuilt_archive_count
         );
     }
 
-    Ok(objects)
+    Ok(NativeRuntimeCompiledArtifacts {
+        loose_objects,
+        static_archives,
+    })
 }
 
 fn build_native_runtime_object_cache_paths(
@@ -2607,18 +2844,33 @@ fn build_native_runtime_object_cache_paths(
     }
 }
 
+fn build_native_runtime_archive_cache_paths(
+    runtime_archive_dir: &Path,
+    archive_group_name: &str,
+    archive_ext: &str,
+) -> NativeRuntimeStaticArchivePaths {
+    let archive_stem = sanitize_runtime_name(archive_group_name);
+    let archive_file_name = if archive_ext.eq_ignore_ascii_case("lib") {
+        format!("{}.{}", archive_stem, archive_ext)
+    } else {
+        format!("lib{}.{}", archive_stem, archive_ext)
+    };
+
+    NativeRuntimeStaticArchivePaths {
+        archive_path: runtime_archive_dir.join(&archive_file_name),
+        fingerprint_path: runtime_archive_dir.join(format!("{}.fingerprint", archive_file_name)),
+    }
+}
+
 fn build_native_runtime_compile_fingerprint(
     bundle: &ResolvedNativeRuntimeBundle,
     clang_cmd: &str,
     source: &Path,
 ) -> Result<String, String> {
-    let current_dir = std::env::current_dir()
-        .map_err(|err| format!("unable to resolve native runtime build cwd: {}", err))?;
     let mut fingerprint_lines = vec![
         "kain-native-runtime-cache-v1".to_string(),
         format!("bundle={}", bundle.name),
         format!("clang={}", clang_cmd),
-        format!("cwd={}", current_dir.display()),
         format!("source={}", source.display()),
         format!("cpp={}", runtime_source_uses_cpp(source)),
     ];
@@ -2631,6 +2883,25 @@ fn build_native_runtime_compile_fingerprint(
     }
 
     Ok(fingerprint_lines.join("\n"))
+}
+
+fn build_native_runtime_archive_fingerprint(
+    bundle: &ResolvedNativeRuntimeBundle,
+    archiver: &NativeRuntimeArchiver,
+    archive_group: &ResolvedNativeRuntimeArchiveGroup,
+) -> String {
+    let mut fingerprint_lines = vec![
+        "kain-native-runtime-archive-cache-v1".to_string(),
+        format!("bundle={}", bundle.name),
+        format!("group={}", archive_group.name),
+        format!("archiver={}", archiver.command),
+        format!("archiver_ext={}", archiver.archive_ext),
+        format!("cpp={}", archive_group.uses_cpp_runtime),
+    ];
+    for source_path in &archive_group.source_paths {
+        fingerprint_lines.push(format!("source={}", source_path.display()));
+    }
+    fingerprint_lines.join("\n")
 }
 
 fn native_runtime_object_cache_is_fresh(
@@ -2678,6 +2949,196 @@ fn native_runtime_object_cache_is_fresh(
     }
 
     true
+}
+
+fn native_runtime_archive_cache_is_fresh(
+    cache_paths: &NativeRuntimeStaticArchivePaths,
+    archive_fingerprint: &str,
+    object_paths: &[PathBuf],
+) -> bool {
+    if object_paths.is_empty()
+        || !cache_paths.archive_path.exists()
+        || !cache_paths.fingerprint_path.exists()
+    {
+        return false;
+    }
+
+    let stored_fingerprint = match fs::read_to_string(&cache_paths.fingerprint_path) {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    if stored_fingerprint != archive_fingerprint {
+        return false;
+    }
+
+    let archive_modified =
+        match fs::metadata(&cache_paths.archive_path).and_then(|meta| meta.modified()) {
+            Ok(value) => value,
+            Err(_) => return false,
+        };
+
+    for object_path in object_paths {
+        let object_modified = match fs::metadata(object_path).and_then(|meta| meta.modified()) {
+            Ok(value) => value,
+            Err(_) => return false,
+        };
+        if object_modified > archive_modified {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn find_native_runtime_archiver(clang_cmd: &str) -> Result<NativeRuntimeArchiver, String> {
+    if let Ok(configured_path) = std::env::var("KAIN_AR_PATH") {
+        let configured_path = PathBuf::from(configured_path);
+        if let Some(resolved) = resolve_runtime_tool_path(&configured_path) {
+            return Ok(classify_native_runtime_archiver(resolved));
+        }
+        return Err(format!(
+            "KAIN_AR_PATH points to {}, but that archiver was not found",
+            configured_path.display()
+        ));
+    }
+
+    let mut candidates = Vec::<PathBuf>::new();
+    if let Some(compiler_path) = resolve_runtime_tool_path(Path::new(clang_cmd)) {
+        if let Some(parent_dir) = compiler_path.parent() {
+            if cfg!(windows) {
+                candidates.push(parent_dir.join("llvm-lib.exe"));
+                candidates.push(parent_dir.join("llvm-ar.exe"));
+                candidates.push(parent_dir.join("lib.exe"));
+            } else {
+                candidates.push(parent_dir.join("llvm-ar"));
+                candidates.push(parent_dir.join("ar"));
+            }
+        }
+    }
+
+    if cfg!(windows) {
+        candidates.extend([
+            PathBuf::from("llvm-lib.exe"),
+            PathBuf::from("llvm-ar.exe"),
+            PathBuf::from("lib.exe"),
+            PathBuf::from("llvm-lib"),
+            PathBuf::from("llvm-ar"),
+            PathBuf::from("ar"),
+        ]);
+    } else {
+        candidates.extend([PathBuf::from("llvm-ar"), PathBuf::from("ar")]);
+    }
+
+    let mut seen_candidates = BTreeSet::new();
+    for candidate in candidates {
+        let candidate_key = candidate.to_string_lossy().into_owned();
+        if !seen_candidates.insert(candidate_key) {
+            continue;
+        }
+        if let Some(resolved) = resolve_runtime_tool_path(&candidate) {
+            return Ok(classify_native_runtime_archiver(resolved));
+        }
+    }
+
+    Err(format!(
+        "unable to locate a static archiver for native runtime archives; set KAIN_AR_PATH or install llvm-ar/lib.exe"
+    ))
+}
+
+fn resolve_runtime_tool_path(candidate: &Path) -> Option<PathBuf> {
+    if candidate.components().count() > 1 || candidate.is_absolute() {
+        return candidate.exists().then(|| candidate.to_path_buf());
+    }
+    which::which(candidate).ok()
+}
+
+fn classify_native_runtime_archiver(path: PathBuf) -> NativeRuntimeArchiver {
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let flavor = if file_name == "lib.exe" || file_name == "llvm-lib.exe" || file_name == "llvm-lib"
+    {
+        NativeRuntimeArchiverFlavor::MsvcLib
+    } else {
+        NativeRuntimeArchiverFlavor::GnuAr
+    };
+
+    NativeRuntimeArchiver {
+        command: path.to_string_lossy().into_owned(),
+        flavor,
+        archive_ext: match flavor {
+            NativeRuntimeArchiverFlavor::MsvcLib => "lib",
+            NativeRuntimeArchiverFlavor::GnuAr => "a",
+        },
+    }
+}
+
+fn build_native_runtime_static_archive(
+    archiver: &NativeRuntimeArchiver,
+    archive_path: &Path,
+    object_paths: &[PathBuf],
+) -> Result<(), String> {
+    if object_paths.is_empty() {
+        return Err(format!(
+            "cannot build runtime archive {} with no object files",
+            archive_path.display()
+        ));
+    }
+
+    if archive_path.exists() {
+        fs::remove_file(archive_path).map_err(|err| {
+            format!(
+                "unable to remove stale runtime archive {}: {}",
+                archive_path.display(),
+                err
+            )
+        })?;
+    }
+
+    let mut command = std::process::Command::new(&archiver.command);
+    match archiver.flavor {
+        NativeRuntimeArchiverFlavor::GnuAr => {
+            command.arg("rcs").arg(archive_path);
+            for object_path in object_paths {
+                command.arg(object_path);
+            }
+        }
+        NativeRuntimeArchiverFlavor::MsvcLib => {
+            command.arg("/nologo");
+            command.arg(format!("/OUT:{}", archive_path.display()));
+            for object_path in object_paths {
+                command.arg(object_path);
+            }
+        }
+    }
+
+    let status = command.status().map_err(|err| {
+        format!(
+            "unable to invoke runtime archiver {} for {}: {}",
+            archiver.command,
+            archive_path.display(),
+            err
+        )
+    })?;
+    if !status.success() {
+        let _ = fs::remove_file(archive_path);
+        return Err(format!(
+            "runtime archiver {} returned a non-zero status while building {}",
+            archiver.command,
+            archive_path.display()
+        ));
+    }
+    if !archive_path.exists() {
+        return Err(format!(
+            "runtime archiver {} did not create {}",
+            archiver.command,
+            archive_path.display()
+        ));
+    }
+
+    Ok(())
 }
 
 fn parse_native_runtime_depfile(depfile_path: &Path) -> Result<Vec<PathBuf>, String> {
@@ -2879,11 +3340,14 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
-        default_native_runtime_link_libs, load_native_runtime_manifest,
+        build_native_runtime_archive_fingerprint, build_native_runtime_compile_fingerprint,
+        build_native_runtime_object_cache_paths, default_native_runtime_link_libs,
+        default_runtime_cache_root, load_native_runtime_manifest,
         native_runtime_object_cache_is_fresh, parse_native_runtime_depfile, platform_link_libs,
-        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
-        NativeRuntimeLinkManifest, ResolvedNativeRuntimeBundle,
+        resolve_native_runtime_archive_groups, runtime_source_uses_cpp, sanitize_runtime_name,
+        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
+        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, ResolvedNativeRuntimeArchiveGroup,
+        ResolvedNativeRuntimeBundle,
     };
     use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
 
@@ -2932,6 +3396,7 @@ macos = ["Cocoa"]
         assert_eq!(resolved.sources.len(), 1);
         assert!(resolved.sources[0].is_absolute());
         assert!(resolved.include_dirs[0].is_absolute());
+        assert!(resolved.archive_groups.is_empty());
         assert!(!resolved.uses_cpp_runtime);
         if cfg!(windows) {
             assert_eq!(
@@ -2968,6 +3433,73 @@ macos = ["Cocoa"]
         assert!(runtime_source_uses_cpp(Path::new("renderer.cpp")));
         assert!(runtime_source_uses_cpp(Path::new("renderer.cxx")));
         assert!(!runtime_source_uses_cpp(Path::new("renderer.c")));
+    }
+
+    #[test]
+    fn runtime_archive_groups_claim_vendor_sources_once() {
+        let source_entries = vec![
+            (
+                PathBuf::from("native/src/core/runtime.c"),
+                PathBuf::from("/abs/native/src/core/runtime.c"),
+            ),
+            (
+                PathBuf::from("3rdparty/bgfx/src/amalgamated.cpp"),
+                PathBuf::from("/abs/3rdparty/bgfx/src/amalgamated.cpp"),
+            ),
+            (
+                PathBuf::from("3rdparty/imgui/imgui.cpp"),
+                PathBuf::from("/abs/3rdparty/imgui/imgui.cpp"),
+            ),
+        ];
+        let archive_groups = resolve_native_runtime_archive_groups(
+            &source_entries,
+            &[NativeRuntimeArchiveManifest {
+                name: "vendor-runtime".to_string(),
+                source_prefixes: vec![PathBuf::from("3rdparty")],
+            }],
+        )
+        .expect("archive groups");
+
+        assert_eq!(archive_groups.len(), 1);
+        assert_eq!(archive_groups[0].name, "vendor-runtime");
+        assert_eq!(archive_groups[0].source_paths.len(), 2);
+        assert!(archive_groups[0].uses_cpp_runtime);
+    }
+
+    #[test]
+    fn runtime_archive_fingerprint_changes_with_group_name() {
+        let bundle = ResolvedNativeRuntimeBundle {
+            name: "test-runtime".to_string(),
+            sources: vec![PathBuf::from("/abs/runtime.c")],
+            include_dirs: vec![PathBuf::from("/abs/include")],
+            defines: vec!["KAIN_TEST=1".to_string()],
+            archive_groups: Vec::new(),
+            cache_root: default_runtime_cache_root(),
+            link_libs: Vec::new(),
+            uses_cpp_runtime: false,
+        };
+        let archiver = NativeRuntimeArchiver {
+            command: "llvm-ar".to_string(),
+            flavor: NativeRuntimeArchiverFlavor::GnuAr,
+            archive_ext: "a",
+        };
+        let vendor_group = ResolvedNativeRuntimeArchiveGroup {
+            name: "vendor-runtime".to_string(),
+            source_paths: vec![PathBuf::from("/abs/3rdparty/vendor.cpp")],
+            uses_cpp_runtime: true,
+        };
+        let ui_group = ResolvedNativeRuntimeArchiveGroup {
+            name: "ui-runtime".to_string(),
+            source_paths: vec![PathBuf::from("/abs/3rdparty/vendor.cpp")],
+            uses_cpp_runtime: true,
+        };
+
+        let vendor_fingerprint =
+            build_native_runtime_archive_fingerprint(&bundle, &archiver, &vendor_group);
+        let ui_fingerprint =
+            build_native_runtime_archive_fingerprint(&bundle, &archiver, &ui_group);
+
+        assert_ne!(vendor_fingerprint, ui_fingerprint);
     }
 
     #[test]
@@ -3008,6 +3540,8 @@ macos = ["Cocoa"]
             sources: vec![source_path.clone()],
             include_dirs: vec![temp_dir.path().to_path_buf()],
             defines: vec!["KAIN_TEST=1".to_string()],
+            archive_groups: Vec::new(),
+            cache_root: default_runtime_cache_root(),
             link_libs: Vec::new(),
             uses_cpp_runtime: false,
         };
