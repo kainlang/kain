@@ -123,9 +123,13 @@ EOF
             ;;
         llvm_actor_message)
             cat <<'EOF'
-define void @Printer_run(i8* %arg)
-call void @KAIN_spawn(
-call void @mq_push(
+%KainActorMessage = type { i64, i8*, i64, i64 }
+%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, [128 x i8] }
+define i32 @Printer_run(i64 %actor_id, i8* %mailbox, i8* %user_data)
+call void @kain_actor_spawn_config_init(
+call i64 @kain_actor_spawn(
+call i32 @kain_actor_receive(
+call i32 @kain_actor_send(
 EOF
             ;;
         llvm_world_pipeline)

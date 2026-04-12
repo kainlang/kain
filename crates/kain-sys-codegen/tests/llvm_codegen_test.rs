@@ -582,14 +582,19 @@ fn llvm_generates_actor_spawn_and_send_message_paths() {
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("define void @Printer_run(i8* %arg)"));
-    // Verify that actor spawn uses the actor-specific entrypoint, not default_actor_run
-    assert!(
-        llvm.contains("call void @KAIN_spawn(i8* bitcast (void (i8*)* @Printer_run to i8*), i8*")
-    );
-    assert!(llvm.contains("call i8* @mq_new()"));
-    assert!(llvm.contains("call void @mq_push(i8* "));
+    assert!(llvm.contains("%KainActorMessage = type { i64, i8*, i64, i64 }"));
+    assert!(llvm.contains(
+        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, [128 x i8] }"
+    ));
+    assert!(llvm.contains("define i32 @Printer_run(i64 %actor_id, i8* %mailbox, i8* %user_data)"));
+    assert!(llvm.contains("call void @kain_actor_spawn_config_init(%KainActorSpawnConfig*"));
+    assert!(llvm.contains("call i64 @kain_actor_spawn(%KainActorSpawnConfig*"));
+    assert!(llvm.contains("call i32 @kain_actor_receive(i8* %mailbox, %KainActorMessage*"));
+    assert!(llvm.contains("call i32 @kain_actor_send(i64 "));
+    assert!(llvm.contains("call void @free(i8* "));
     assert!(llvm.contains("%Printer_Print = type { i64 }"));
+    assert!(!llvm.contains("KAIN_spawn"));
+    assert!(!llvm.contains("mq_push"));
 }
 
 #[test]

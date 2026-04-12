@@ -1,5 +1,28 @@
 # MEMORY
 
+## 2026-04-12 - LLVM actor lowering now targets the canonical native actor ABI
+
+The LLVM backend in `crates/kain-sys-codegen` now lowers actor programs against `runtime/native/include/kain_runtime_actor.h` instead of the old `KAIN_spawn` / `mq_*` path. The emitted IR now carries explicit `%KainActorMessage` and `%KainActorSpawnConfig` types, and actor entrypoints use the canonical `(actor_id, mailbox, user_data)` signature.
+
+What changed:
+
+- Replaced legacy actor spawn/message lowering with `kain_actor_spawn_config_init`, `kain_actor_spawn`, `kain_actor_send`, and `kain_actor_receive`.
+- Mapped the native runtime actor ABI types into LLVM so the backend stays aligned with the C runtime headers.
+- Treated compiler-owned actor state as borrowed runtime state during actor cleanup, and freed received message payload buffers explicitly after dispatch.
+
+Validation:
+
+- Rebuilt the CLI with `cargo build -p cli` so the `target/debug/kain` binary reflects the new backend before running fixture generation.
+- Regenerated the LLVM actor fixture output from `runtime/fixtures/llvm_actor_message/main.kn` and confirmed the new IR shape.
+
+Current risk:
+
+- `kain build ... -t llvm` still has a heavyweight native link phase after LLVM emission. The `.ll` artifact is now aligned, but end-to-end fixture validation still depends on the full runtime link finishing successfully.
+
+Recommended next step:
+
+- Keep `runtime/native/include/kain_runtime_actor.h`, `crates/kain-sys-codegen`, and the LLVM fixture expectations in lockstep whenever actor ownership or ABI layout changes again.
+
 ## 2026-04-12 - native runtime vendor lanes now promote from probe results
 
 The native runtime now treats several vendor-backed lanes as bridge-first runtime capabilities instead of permanent staged placeholders. The service registry refreshes availability from each vendor function table's `probe()` result, so a lane can move from manifest truth to active runtime truth when the external runtime or binary is actually present.

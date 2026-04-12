@@ -9,4 +9,4 @@ This fixture compiles to LLVM, links against the native runtime, executes the pr
 Expected result:
 
 - The executable exits with code `0`
-- The emitted LLVM IR contains `Printer_run`, `KAIN_spawn`, and `mq_push`
+- The emitted LLVM IR contains `Printer_run`, `kain_actor_spawn`, `kain_actor_send`, and the canonical `%KainActorMessage` / `%KainActorSpawnConfig` ABI types

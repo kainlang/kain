@@ -48,26 +48,26 @@ Added deprecation comment to `default_actor_run` function explaining:
 
 ### Actor Entrypoint Generation
 
-The LLVM backend already generates actor-specific run functions with the signature:
+The LLVM backend now generates actor-specific run functions with the canonical native ABI:
 ```llvm
-define void @{ActorName}_run(i8* %arg)
+define i32 @{ActorName}_run(i64 %actor_id, i8* %mailbox, i8* %user_data)
 ```
 
 These functions:
-1. Cast the `i8* %arg` to the actor struct pointer
-2. Extract the mailbox from field 0
-3. Enter a message processing loop
+1. Cast the `user_data` pointer to the actor state struct pointer
+2. Publish the runtime actor id into field 0
+3. Enter a message receive loop through `kain_actor_receive`
 4. Switch on message tags to dispatch to handlers
 5. Process handler bodies with access to actor state
 
 ### Spawn Call Path
 
-The spawn now correctly passes the actor's entrypoint:
+Actor spawning now passes a populated `KainActorSpawnConfig` into the native runtime:
 ```llvm
-call void @KAIN_spawn(i8* bitcast (void (i8*)* @Printer_run to i8*), i8* %actor_mem)
+call i64 @kain_actor_spawn(%KainActorSpawnConfig* %spawn_config, i8* null)
 ```
 
-This ensures that when `KAIN_spawn` creates a thread, it calls the correct actor's message loop.
+This ensures that the LLVM lane stays aligned with the canonical C runtime actor ABI instead of the old `KAIN_spawn` wrapper path.
 
 ## Requirements Satisfied
 
@@ -81,24 +81,7 @@ This ensures that when `KAIN_spawn` creates a thread, it calls the correct actor
 
 ## Next Steps
 
-This change establishes the correct actor bootstrap path in LLVM codegen. Future work (Tasks 5.2-5.6) will:
-
-1. Define proper actor runtime structs and headers (Task 5.2)
-2. Implement mailbox-backed actor spawn and shutdown (Task 5.3)
-3. Add actor lifecycle and supervision semantics (Task 5.4)
-4. Implement actor registry and monitoring (Task 5.5)
-5. Add actor runtime conformance tests (Task 5.6)
-
-The current implementation still uses the old `KAIN_spawn(void*, void*)` signature. The full actor bootstrap ABI defined in `runtime/native/include/kain_runtime_actor.h` uses:
-```c
-typedef KainActorExitReason (*KainActorBootstrapFn)(
-    KainActorId actor_id,
-    KainActorMailbox* mailbox,
-    void* user_data
-);
-```
-
-Future tasks will migrate to this richer ABI that provides actor ID, typed mailbox, and proper exit reason handling.
+This change establishes the correct actor bootstrap path in LLVM codegen and keeps it aligned with the canonical native runtime ABI defined in `runtime/native/include/kain_runtime_actor.h`.
 
 ## Files Modified
 

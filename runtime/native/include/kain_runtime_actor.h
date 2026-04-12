@@ -223,6 +223,9 @@ typedef KainActorExitReason (*KainActorBootstrapFn)(
  */
 typedef struct {
     KainActorBootstrapFn bootstrap_fn;
+    /* Retained by the actor runtime for the actor's lifetime. The compiler
+     * owns this RC-managed state object and the runtime keeps one reference
+     * while the actor is alive. */
     void* user_data;
     size_t mailbox_capacity;
     KainSupervisionStrategy supervision_strategy;

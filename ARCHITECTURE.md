@@ -108,6 +108,14 @@ That same frontend lane now owns five compiler-owned intent declarations:
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
 
+### LLVM Native Actor ABI
+
+`crates/kain-sys-codegen` now lowers actors against the canonical native runtime actor header instead of the legacy `KAIN_spawn` / `mq_*` lane.
+
+- LLVM actor entrypoints use the canonical `(actor_id, mailbox, user_data)` signature and talk to `kain_actor_spawn_config_init`, `kain_actor_spawn`, `kain_actor_send`, and `kain_actor_receive`.
+- The LLVM actor message and spawn-config layouts are emitted as explicit ABI types, so any change to `runtime/native/include/kain_runtime_actor.h` must be reflected in codegen and fixture validation together.
+- Actor state ownership in the LLVM lane follows the native runtime contract: compiler-owned actor state is passed as `user_data`, and received message payload buffers are freed after dispatch.
+
 ### Host bridge flow
 
 `.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI) -> shared payload contracts via kain-interop`

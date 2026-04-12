@@ -150,9 +150,9 @@ cd runtime/fixtures/llvm_heap_memory
 **Purpose:** Validates actor spawn and mailbox send paths in a linked LLVM/native executable
 
 **What it tests:**
-- Actor-specific bootstrap entrypoint emission
-- Mailbox allocation during actor spawn
-- Message send lowering through `mq_push`
+- Actor-specific bootstrap entrypoint emission through the canonical `kain_actor_spawn_config_init` / `kain_actor_spawn` ABI
+- Canonical actor state and message ABI emission
+- Message send lowering through `kain_actor_send`
 - Successful execution of the produced actor binary
 
 ---
