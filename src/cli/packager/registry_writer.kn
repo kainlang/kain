@@ -1,0 +1,165 @@
+use std::io::Cursor
+
+use std::path::Path
+
+use unreal_asset_base::containers::IndexedMap
+
+use unreal_asset_base::containers::NameMap
+
+use unreal_asset_base::containers::SharedResource
+
+use unreal_asset_base::custom_version::FAssetRegistryVersionType
+
+use unreal_asset_base::engine_version
+
+use unreal_asset_base::flags::EPackageFlags
+
+use unreal_asset_base::types::FName
+
+use unreal_asset_registry::objects::asset_data::AssetData
+
+use unreal_asset_registry::objects::asset_data::TopLevelAssetPath
+
+use unreal_asset_registry::objects::asset_package_data::AssetPackageData
+
+use unreal_asset_registry::AssetRegistryState
+
+const REGISTRY_VERSION: unreal_asset_base::custom_version::FAssetRegistryVersionType = unreal_asset_base__custom_version__FAssetRegistryVersionType__AddedDependencyFlags
+
+@doc(doc = " Describes a single generated asset for registry insertion.")
+@doc(doc = "")
+@doc(doc = " This is the data-driven input — callers populate this struct for each")
+@doc(doc = " generated `.uasset` and pass it to [`register_assets`].")
+@derive(Debug, Clone)
+pub struct AssetEntry:
+    object_path: String
+    package_path: String
+    package_name: String
+    asset_name: String
+    asset_class: String
+
+impl AssetEntry:
+    pub fn new_(package_name: String, asset_name: String, asset_class: String) -> AssetEntry:
+        let package_path = package_name.rsplit_once("/").map(fn(__kain_closure_arg0): __kain_closure_arg0.__kain_tuple_0.to_string()).unwrap_or_else(fn(): ("/Game").to_string())
+        let object_path = f"{package_name}.{asset_name}"
+        AssetEntry { object_path: object_path, package_path: package_path, package_name: package_name.to_string(), asset_name: asset_name.to_string(), asset_class: asset_class.to_string() }
+
+    pub fn blueprint(package_name: String, asset_name: String) -> AssetEntry:
+        AssetEntry__new_(package_name, asset_name, "/Script/Engine.Blueprint")
+
+    pub fn material(package_name: String, asset_name: String) -> AssetEntry:
+        AssetEntry__new_(package_name, asset_name, "/Script/Engine.Material")
+
+    pub fn data_asset(package_name: String, asset_name: String) -> AssetEntry:
+        AssetEntry__new_(package_name, asset_name, "/Script/Engine.DataAsset")
+
+    pub fn custom(package_name: String, asset_name: String, class_path: String) -> AssetEntry:
+        AssetEntry__new_(package_name, asset_name, class_path)
+
+
+@doc(doc = " Write (or update) an `AssetRegistry.bin` file with the given asset entries.")
+@doc(doc = "")
+@doc(doc = " # Behaviour")
+@doc(doc = "")
+@doc(doc = " 1. If `registry_path` exists, reads the existing registry and appends")
+@doc(doc = "    new entries (deduplicating by `object_path`).")
+@doc(doc = " 2. If the file doesn't exist, creates a fresh registry from scratch.")
+@doc(doc = " 3. Writes the result back to `registry_path`.")
+@doc(doc = "")
+@doc(doc = " # Errors")
+@doc(doc = "")
+@doc(doc = " Returns `Err` on I/O or serialization failure. The caller is expected")
+@doc(doc = " to treat these as **non-fatal** (log and continue).")
+@cfg(feature = "ue5")
+pub fn register_assets(registry_path: &std::path::Path, entries: &[AssetEntry], engine_version: unreal_asset_base::engine_version::EngineVersion) -> Result<(), String>:
+    if entries.is_empty():
+        return Result::Ok(())
+    let (object_version, object_version_ue5) = unreal_asset_base__engine_version__get_object_versions(unreal_asset_base__engine_version)
+    let mut registry = if registry_path.exists():
+        load_existing_registry(registry_path, unreal_asset_base__engine_version)?
+    else:
+        create_empty_registry(object_version, object_version_ue5)
+    let name_map = registry.name_map().cloned().unwrap_or_else(NameMap__new_)
+    let existing_paths: Set<String> = registry.assets_data.iter().map(fn(ad): ad.object_path.get_owned_content()).collect()
+    let mut added = 0
+    for entry in entries:
+        if existing_paths.contains(&entry.object_path):
+            continue
+        let asset_data = build_asset_data(&name_map, entry, REGISTRY_VERSION)
+        registry.assets_data.push(asset_data)
+        ()
+        let pkg_data = build_package_data(&name_map, entry, REGISTRY_VERSION)
+        registry.package_data.push(pkg_data)
+        ()
+        added = (added + 1)
+        ()
+    ()
+    if (added == 0):
+        return Result::Ok(())
+    let mut cursor = Cursor__new_(Vec__new_())
+    registry.write(&mut cursor).map_err(fn(e): f"Failed to write AssetRegistry: {e}")?
+    ()
+    match registry_path.parent():
+        Some(parent) =>
+            std__fs__create_dir_all(parent).map_err(fn(e): f"Failed to create registry directory: {e}")?
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    std__fs__write(registry_path, cursor.into_inner()).map_err(fn(e): f"Failed to write AssetRegistry.bin: {e}")?
+    ()
+    Result::Ok(())
+
+@doc(doc = " Load an existing `AssetRegistry.bin` file.")
+@cfg(feature = "ue5")
+fn load_existing_registry(path: &std::path::Path, engine_version: unreal_asset_base::engine_version::EngineVersion) -> Result<unreal_asset_registry::AssetRegistryState, String>:
+    use unreal_asset_base::containers::Chain
+
+    use unreal_asset_base::reader::RawReader
+
+    let data = std__fs__read(path).map_err(fn(e): f"Failed to read AssetRegistry.bin: {e}")?
+    let cursor = Cursor__new_(data)
+    let (ov, ov5) = unreal_asset_base__engine_version__get_object_versions(unreal_asset_base__engine_version)
+    let name_map = NameMap__new_()
+    let mut reader = RawReader__new_(Chain__new_(cursor, none), ov, ov5, false, name_map)
+    AssetRegistryState__new_(&mut reader).map_err(fn(e): f"Failed to parse AssetRegistry.bin: {e}")
+
+@doc(doc = " Create an empty registry state targeting `AddedDependencyFlags` version.")
+@cfg(feature = "ue5")
+fn create_empty_registry(object_version: unreal_asset_base::object_version::ObjectVersion, object_version_ue5: unreal_asset_base::object_version::ObjectVersionUE5) -> unreal_asset_registry::AssetRegistryState:
+    let name_map = NameMap__new_()
+    AssetRegistryState__from_data(REGISTRY_VERSION, object_version, object_version_ue5, Option::Some(name_map), Vec__new_(), Vec__new_(), Vec__new_())
+
+@doc(doc = " Build an `AssetData` entry from an `AssetEntry` descriptor.")
+@cfg(feature = "ue5")
+fn build_asset_data(name_map: &unreal_asset_base::containers::SharedResource<unreal_asset_base::containers::NameMap>, entry: &AssetEntry, version: unreal_asset_base::custom_version::FAssetRegistryVersionType) -> unreal_asset_registry::objects::asset_data::AssetData:
+    let object_path = make_fname(name_map, &(*entry).object_path)
+    let package_name = make_fname(name_map, &(*entry).package_name)
+    let package_path = make_fname(name_map, &(*entry).package_path)
+    let asset_name = make_fname(name_map, &(*entry).asset_name)
+    let (asset_class, asset_path) = if (version >= unreal_asset_base__custom_version__FAssetRegistryVersionType__ClassPaths):
+        let (pkg, cls) = (*entry).asset_class.rsplit_once(".").unwrap_or(("/Script/Engine", &(*entry).asset_class))
+        let path = unreal_asset_registry::objects::asset_data::TopLevelAssetPath { package_name: make_fname(name_map, pkg), asset_name: make_fname(name_map, cls) }
+        (none, Option::Some(path))
+    else:
+        (Option::Some(make_fname(name_map, &(*entry).asset_class)), none)
+    AssetData__from_data(object_path, package_name, package_path, asset_name, asset_class, asset_path, IndexedMap__new_(), Default__default_(), Vec__new_(), unreal_asset_base__flags__EPackageFlags__PKG_NONE, version)
+
+@doc(doc = " Build a matching `AssetPackageData` entry.")
+@cfg(feature = "ue5")
+fn build_package_data(name_map: &unreal_asset_base::containers::SharedResource<unreal_asset_base::containers::NameMap>, entry: &AssetEntry, version: unreal_asset_base::custom_version::FAssetRegistryVersionType) -> unreal_asset_registry::objects::asset_package_data::AssetPackageData:
+    use unreal_asset_registry::objects::md5_hash::FMD5Hash
+
+    AssetPackageData__from_data(make_fname(name_map, &(*entry).package_name), Guid__default_(), Option::Some(unreal_asset_registry::objects::md5_hash::FMD5Hash { hash: none }), none, 0, 0, none, (-1), none, 0, version)
+
+@doc(doc = " Create a `Backed` FName by adding the string to the shared name map.")
+@doc(doc = "")
+@doc(doc = " Uses `Deref` to access the interior `RefCell` since we only")
+@doc(doc = " have an immutable reference to the `SharedResource`.")
+@cfg(feature = "ue5")
+fn make_fname(name_map: &unreal_asset_base::containers::SharedResource<unreal_asset_base::containers::NameMap>, value: String) -> unreal_asset_base::types::FName:
+    name_map.borrow_mut().add_fname(value)
+

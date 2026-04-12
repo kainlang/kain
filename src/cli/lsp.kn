@@ -1,0 +1,1757 @@
+use std::collections::hash_map::Entry
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use crate::ast::Actor
+
+use crate::ast::Component
+
+use crate::ast::Const
+
+use crate::ast::Enum
+
+use crate::ast::Field
+
+use crate::ast::Function
+
+use crate::ast::Impl
+
+use crate::ast::Item
+
+use crate::ast::MacroDef
+
+use crate::ast::MessageHandler
+
+use crate::ast::Param
+
+use crate::ast::Program
+
+use crate::ast::Shader
+
+use crate::ast::StateDecl
+
+use crate::ast::Struct
+
+use crate::ast::TestDef
+
+use crate::ast::Trait
+
+use crate::ast::TraitMethod
+
+use crate::ast::Type
+
+use crate::ast::Uniform
+
+use crate::ast::Variant
+
+use crate::ast::Visibility
+
+use crate::diagnostic_registry::spec_for_code
+
+use crate::error::KainError
+
+use crate::lexer::Lexer
+
+use crate::lexer::Token
+
+use crate::lexer::TokenKind
+
+use crate::packager::load_manifest
+
+use crate::packager::PackageManifest
+
+use crate::parser::Parser
+
+use crate::span::Span
+
+use crate::types
+
+use crate::ErrorKind
+
+use tower_lsp::jsonrpc::Result
+
+use tower_lsp::lsp_types::*
+
+use tower_lsp::Client
+
+use tower_lsp::LanguageServer
+
+use tower_lsp::LspService
+
+use tower_lsp::Server
+
+use gpu
+
+use ue5
+
+use ue5_shaders
+
+use web
+
+const TOKEN_TYPES: Array<SemanticTokenType> = [SemanticTokenType__KEYWORD, SemanticTokenType__STRING, SemanticTokenType__NUMBER, SemanticTokenType__OPERATOR, SemanticTokenType__FUNCTION, SemanticTokenType__METHOD, SemanticTokenType__PARAMETER, SemanticTokenType__VARIABLE, SemanticTokenType__PROPERTY, SemanticTokenType__STRUCT, SemanticTokenType__ENUM, SemanticTokenType__ENUM_MEMBER, SemanticTokenType__INTERFACE, SemanticTokenType__TYPE, SemanticTokenType__TYPE_PARAMETER, SemanticTokenType__DECORATOR, SemanticTokenType__MACRO, SemanticTokenType__NAMESPACE]
+
+const TOKEN_MODIFIERS: Array<SemanticTokenModifier> = [SemanticTokenModifier__DECLARATION, SemanticTokenModifier__READONLY, SemanticTokenModifier__DEFAULT_LIBRARY]
+
+const MOD_DECLARATION: u32 = (1 << 0)
+
+const MOD_READONLY: u32 = (1 << 1)
+
+const MOD_DEFAULT_LIBRARY: u32 = (1 << 2)
+
+const KEYWORD_ITEMS: Array<String> = ["fn", "let", "mut", "var", "const", "if", "else", "elif", "match", "for", "while", "loop", "break", "continue", "return", "await", "in", "with", "as", "type", "struct", "enum", "trait", "impl", "pub", "mod", "use", "self", "Self", "true", "false", "none", "component", "patch", "law", "converge", "world", "orchestrate", "shader", "actor", "state", "spawn", "send", "receive", "emit", "comptime", "macro", "vertex", "fragment", "test"]
+
+const EFFECT_ITEMS: Array<String> = ["Pure", "IO", "Async", "GPU", "Reactive", "Unsafe", "Alloc", "Panic"]
+
+const TYPE_ITEMS: Array<String> = ["Int", "Float", "Bool", "String", "Char", "Unit", "Never", "Option", "Result", "Array", "Slice", "Tuple", "Map", "Set", "Vec2", "Vec3", "Vec4", "Mat2", "Mat3", "Mat4", "Sampler2D", "Sampler3D", "Ptr", "PtrMut", "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "isize", "usize", "f32", "f64"]
+
+const STDLIB_ITEMS: Array<String> = ["print", "println", "read_line", "read_file", "write_file", "push", "pop", "len", "map", "filter", "reduce", "sort", "reverse", "abs", "min", "max", "sqrt", "pow", "sin", "cos", "tan", "floor", "ceil", "round", "split", "join", "trim", "replace", "substring", "to_upper", "to_lower", "json_parse", "json_stringify", "http_get", "http_post", "py_call", "sample", "perlin_noise", "simplex_noise", "worley_noise", "fresnel_schlick", "ggx_distribution", "smith_geometry", "rgb_to_hsv", "hsv_to_rgb", "color_grade", "uv_scroll", "uv_scale", "uv_rotate", "apply_damage", "calculate_xp", "check_cooldown", "roll_loot", "addr_of", "ptr_offset", "mem_load", "mem_store", "sizeof_type", "alignof_type", "alloca", "uninit", "alloc", "realloc", "free"]
+
+@derive(Debug, Clone)
+struct Document:
+    text: String
+    version: i32
+    analysis: Option<DocumentAnalysis>
+
+@derive(Debug, Default)
+struct DocumentStore:
+    docs: tokio::sync::RwLock<Map<Url, Document>>
+
+impl Default for DocumentStore:
+    pub fn default_() -> DocumentStore:
+        DocumentStore { docs: RwLock__default_() }
+
+
+impl DocumentStore:
+    fn upsert(_self: &DocumentStore, uri: Url, text: String, version: i32):
+        let mut guard = await (*_self).docs.write()
+        guard.insert(uri, Document { text: text, version: version, analysis: none })
+        ()
+
+    fn remove(_self: &DocumentStore, uri: &Url):
+        let mut guard = await (*_self).docs.write()
+        guard.remove(uri)
+        ()
+
+    fn get_text(_self: &DocumentStore, uri: &Url) -> Option<String>:
+        let guard = await (*_self).docs.read()
+        guard.get(uri).map(fn(doc): doc.text.clone())
+
+    fn get_version(_self: &DocumentStore, uri: &Url) -> Option<i32>:
+        let guard = await (*_self).docs.read()
+        guard.get(uri).map(fn(doc): doc.version)
+
+    fn get_analysis(_self: &DocumentStore, uri: &Url) -> Option<DocumentAnalysis>:
+        let guard = await (*_self).docs.read()
+        guard.get(uri).and_then(fn(doc): doc.analysis.clone())
+
+    fn update_analysis(_self: &DocumentStore, uri: &Url, analysis: Option<DocumentAnalysis>):
+        let mut guard = await (*_self).docs.write()
+        match guard.get_mut(uri):
+            Some(doc) =>
+                doc.analysis = analysis
+                ()
+            _ => ()
+
+    fn apply_changes(_self: &DocumentStore, uri: &Url, version: i32, changes: &[TextDocumentContentChangeEvent]) -> Option<String>:
+        if changes.is_empty():
+            return await (*_self).get_text(uri)
+        let mut guard = await (*_self).docs.write()
+        match guard.entry(uri.clone()):
+            std__collections__hash_map__Entry::Occupied(mut entry) =>
+                let mut current = entry.get().text.clone()
+                for change in changes:
+                    current = none
+                    ()
+                ()
+                let doc = entry.get_mut()
+                doc.text = current.clone()
+                ()
+                doc.version = version
+                ()
+                doc.analysis = none
+                ()
+                Option::Some(current)
+            std__collections__hash_map__Entry::Vacant(entry) =>
+                let full_text_change = changes.iter().rev().find(fn(change): change.range.is_none())?
+                let text = full_text_change.text.clone()
+                entry.insert(Document { text: text.clone(), version: version, analysis: none })
+                ()
+                Option::Some(text)
+
+
+@derive(Debug, Clone)
+struct DocumentAnalysis:
+    symbols: Map<String, Array<SymbolInfo>>
+    document_symbols: Array<DocumentSymbol>
+    semantic_tokens: Array<SemanticToken>
+    occurrences: Map<String, Array<Range>>
+    signatures: Map<String, SignatureInfo>
+
+impl DocumentAnalysis:
+    fn from_program(text: String, program: &Program, tokens: &[Token]) -> DocumentAnalysis:
+        let mut builder = AnalysisBuilder__new_(text)
+        builder.collect_program(program)
+        ()
+        let occurrences = collect_occurrences(text, tokens)
+        let symbols = builder.symbols.clone()
+        let document_symbols = builder.document_symbols.clone()
+        let signatures = builder.signatures.clone()
+        let semantic_tokens = builder.build_semantic_tokens(tokens)
+        DocumentAnalysis { symbols: symbols, document_symbols: document_symbols, semantic_tokens: semantic_tokens, occurrences: occurrences, signatures: signatures }
+
+    fn lookup(_self: &DocumentAnalysis, ident: String) -> Option<&[SymbolInfo]>:
+        (*_self).symbols.get(ident).map(fn(items): items.as_slice())
+
+
+@derive(Debug, Clone)
+struct SymbolInfo:
+    range: Range
+    detail: Option<String>
+    completion_kind: AnalysisCompletionKind
+
+@derive(Debug, Clone)
+struct SignatureInfo:
+    label: String
+    parameters: Array<String>
+    documentation: Option<String>
+
+@derive(Debug, Clone)
+struct WorkspaceEntry:
+    text: String
+    analysis: DocumentAnalysis
+
+enum AnalysisCompletionKind:
+    Function
+    Method
+    Struct
+    Enum
+    EnumMember
+    Trait
+    Variable
+    Field
+    Constant
+    Module
+    Macro
+    TypeAlias
+
+impl AnalysisCompletionKind:
+    fn completion_item_kind(_self: AnalysisCompletionKind) -> CompletionItemKind:
+        match _self:
+            AnalysisCompletionKind::Function => CompletionItemKind__FUNCTION
+            AnalysisCompletionKind::Method => CompletionItemKind__METHOD
+            AnalysisCompletionKind::Struct => CompletionItemKind__STRUCT
+            AnalysisCompletionKind::Enum => CompletionItemKind__ENUM
+            AnalysisCompletionKind::EnumMember => CompletionItemKind__ENUM_MEMBER
+            AnalysisCompletionKind::Trait => CompletionItemKind__INTERFACE
+            AnalysisCompletionKind::Variable => CompletionItemKind__VARIABLE
+            AnalysisCompletionKind::Field => CompletionItemKind__FIELD
+            AnalysisCompletionKind::Constant => CompletionItemKind__CONSTANT
+            AnalysisCompletionKind::Module => CompletionItemKind__MODULE
+            AnalysisCompletionKind::Macro => CompletionItemKind__FUNCTION
+            AnalysisCompletionKind::TypeAlias => CompletionItemKind__TYPE_PARAMETER
+
+
+@derive(Debug, Clone)
+struct SemanticTokenAbsolute:
+    start: usize
+    end: usize
+    token_type: u32
+    token_modifiers: u32
+    priority: u8
+
+struct AnalysisBuilder<a>:
+    text: String
+    symbols: Map<String, Array<SymbolInfo>>
+    document_symbols: Array<DocumentSymbol>
+    absolute_tokens: Array<SemanticTokenAbsolute>
+    signatures: Map<String, SignatureInfo>
+
+impl<a> AnalysisBuilder<a>:
+    fn new_(text: String) -> AnalysisBuilder<a>:
+        AnalysisBuilder { text: text, symbols: HashMap__new_(), document_symbols: Vec__new_(), absolute_tokens: Vec__new_(), signatures: HashMap__new_() }
+
+    fn collect_program(_self: &mut AnalysisBuilder<a>, program: &Program):
+        for item in &(*program).items:
+            match (*_self).collect_item(item):
+                Some(symbol) =>
+                    (*_self).document_symbols.push(symbol)
+                    ()
+                _ => ()
+
+    fn collect_item(_self: &mut AnalysisBuilder<a>, item: &Item) -> Option<DocumentSymbol>:
+        match item:
+            Item::Function(function) => Option::Some((*_self).collect_function_symbol(function, false))
+            Item::Patch(patch) => (*_self).simple_named_item_symbol(&patch.name, patch.span, Option::Some(f"patch {patch.name}"), SymbolKind__FUNCTION, AnalysisCompletionKind__Function)
+            Item::Law(law) => (*_self).simple_named_item_symbol(&law.name, law.span, Option::Some(f"law {law.name}"), SymbolKind__FUNCTION, AnalysisCompletionKind__Function)
+            Item::Converge(converge) => (*_self).simple_named_item_symbol(&converge.name, converge.span, Option::Some(f"converge {converge.name}"), SymbolKind__FUNCTION, AnalysisCompletionKind__Function)
+            Item::World(world) => (*_self).simple_named_item_symbol(&world.name, world.span, Option::Some(f"world {world.name}"), SymbolKind__MODULE, AnalysisCompletionKind__Module)
+            Item::Orchestrate(orchestrate) => (*_self).simple_named_item_symbol(&orchestrate.name, orchestrate.span, Option::Some(f"orchestrate {orchestrate.name}"), SymbolKind__FUNCTION, AnalysisCompletionKind__Function)
+            Item::Component(component_) => Option::Some((*_self).collect_component_symbol(component_))
+            Item::Shader(shader_) => Option::Some((*_self).collect_shader_symbol(shader_))
+            Item::Actor(actor_) => Option::Some((*_self).collect_actor_symbol(actor_))
+            Item::Struct(struct_def) => Option::Some((*_self).collect_struct_symbol(struct_def))
+            Item::Enum(enum_def) => Option::Some((*_self).collect_enum_symbol(enum_def))
+            Item::Trait(trait_def) => Option::Some((*_self).collect_trait_symbol(trait_def))
+            Item::Impl(impl_def) => Option::Some((*_self).collect_impl_symbol(impl_def))
+            Item::TypeAlias(alias) => (*_self).simple_item_symbol(&alias.name, alias.span, Option::Some(f"type {alias.name} = {format_type(&alias.target)}"), SymbolKind__TYPE_PARAMETER, AnalysisCompletionKind__TypeAlias, semantic_type_index(SemanticTokenType__TYPE), MOD_DECLARATION)
+            Item::Mod(module) => (*_self).simple_item_symbol(&module.name, module.span, Option::Some(format_visibility(module.visibility, &f"mod {module.name}")), SymbolKind__MODULE, AnalysisCompletionKind__Module, semantic_type_index(SemanticTokenType__NAMESPACE), MOD_DECLARATION)
+            Item::Const(const_def) => (*_self).collect_const_symbol(const_def)
+            Item::Macro(mac) => (*_self).collect_macro_symbol(mac)
+            Item::Test(test_) => (*_self).collect_test_symbol(test_)
+            Item::MaterialGraph(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@material_graph {def.name}"), SymbolKind__OBJECT, AnalysisCompletionKind__Struct)
+            Item::MaterialFunction(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@material_function {def.name}"), SymbolKind__FUNCTION, AnalysisCompletionKind__Function)
+            Item::GraphEditor(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@graph_editor {def.name}"), SymbolKind__OBJECT, AnalysisCompletionKind__Struct)
+            Item::GraphRuntime(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@graph_runtime {def.name}"), SymbolKind__OBJECT, AnalysisCompletionKind__Struct)
+            Item::StateMachine(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@state_machine {def.name}"), SymbolKind__OBJECT, AnalysisCompletionKind__Struct)
+            Item::AsyncTask(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@async_task {def.name}"), SymbolKind__OBJECT, AnalysisCompletionKind__Struct)
+            Item::EditorModule(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@editor_module {def.name}"), SymbolKind__MODULE, AnalysisCompletionKind__Module)
+            Item::GameplayTags(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@gameplay_tags namespace {def.name}"), SymbolKind__MODULE, AnalysisCompletionKind__Module)
+            Item::GameplayAbility(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@ability struct {def.name}"), SymbolKind__STRUCT, AnalysisCompletionKind__Struct)
+            Item::GameplayEffect(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@gameplay_effect struct {def.name}"), SymbolKind__STRUCT, AnalysisCompletionKind__Struct)
+            Item::GameplayCue(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@gameplay_cue struct {def.name}"), SymbolKind__STRUCT, AnalysisCompletionKind__Struct)
+            Item::AbilityTask(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@ability_task struct {def.name}"), SymbolKind__STRUCT, AnalysisCompletionKind__Struct)
+            Item::TargetActor(def) => (*_self).simple_named_item_symbol(&def.name, def.span, Option::Some(f"@target_actor struct {def.name}"), SymbolKind__STRUCT, AnalysisCompletionKind__Struct)
+            Item::Use(_) => none
+            Item::Comptime(_) => none
+
+    fn collect_function_symbol(_self: &mut AnalysisBuilder<a>, function: &Function, method: Bool) -> DocumentSymbol:
+        let detail = Option::Some(format_visibility((*function).visibility, &format_fn_signature(function)))
+        (*_self).signatures.entry((*function).name.clone()).or_insert_with(fn(): SignatureInfo { label: format_fn_signature(function), parameters: (*function).params.iter().map(fn(param): f"{param.name}: {format_type(&param.ty)}").collect(), documentation: detail.clone() })
+        ()
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&(*function).name, (*function).span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&(*function).name, selection_range, detail.clone(), if method: AnalysisCompletionKind__Method else: AnalysisCompletionKind__Function)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, if method: SemanticTokenType__METHOD else: SemanticTokenType__FUNCTION, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for generic in &(*function).generics:
+            match find_identifier_range((*_self).text, &generic.name, Option::Some(generic.span)):
+                Some(range) =>
+                    (*_self).add_symbol(&generic.name, range, Option::Some(f"generic {generic.name}"), AnalysisCompletionKind__TypeAlias)
+                    ()
+                    (*_self).add_semantic_token_from_range(range, SemanticTokenType__TYPE_PARAMETER, MOD_DECLARATION, 5)
+                    ()
+                _ => ()
+        ()
+        for param in &(*function).params:
+            match (*_self).collect_param_symbol(param):
+                Some(child) =>
+                    children.push(child)
+                    ()
+                _ => ()
+        ()
+        DocumentSymbol { name: (*function).name.clone(), detail: detail, kind: SymbolKind__FUNCTION, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_component_symbol(_self: &mut AnalysisBuilder<a>, component_: &Component) -> DocumentSymbol:
+        let detail = Option::Some(format_visibility(component_.visibility, &f"component {component_.name} -> UI"))
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&component_.name, component_.span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&component_.name, selection_range, detail.clone(), AnalysisCompletionKind__Struct)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__STRUCT, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for prop in &component_.props:
+            match (*_self).collect_param_symbol(prop):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for state_ in &component_.state_:
+            match (*_self).collect_state_symbol(state_):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for method in &component_.methods:
+            children.push((*_self).collect_function_symbol(method, true))
+            ()
+        ()
+        DocumentSymbol { name: component_.name.clone(), detail: detail, kind: SymbolKind__STRUCT, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_shader_symbol(_self: &mut AnalysisBuilder<a>, shader_: &Shader) -> DocumentSymbol:
+        let detail = Option::Some(f"shader {format_shader_stage((*shader_).stage)} {(*shader_).name} -> {format_type(&(*shader_).outputs)}")
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&(*shader_).name, (*shader_).span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&(*shader_).name, selection_range, detail.clone(), AnalysisCompletionKind__Function)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__FUNCTION, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for input in &(*shader_).inputs:
+            match (*_self).collect_param_symbol(input):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for uniform_ in &(*shader_).uniforms:
+            match (*_self).collect_uniform_symbol(uniform_):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        DocumentSymbol { name: (*shader_).name.clone(), detail: detail, kind: SymbolKind__FUNCTION, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_actor_symbol(_self: &mut AnalysisBuilder<a>, actor_: &Actor) -> DocumentSymbol:
+        let detail = Option::Some(f"actor {actor_.name}")
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&actor_.name, actor_.span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&actor_.name, selection_range, detail.clone(), AnalysisCompletionKind__Struct)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__STRUCT, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for state_ in &actor_.state_:
+            match (*_self).collect_state_symbol(state_):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for handler in &actor_.handlers:
+            match (*_self).collect_handler_symbol(handler):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for method in &actor_.methods:
+            children.push((*_self).collect_function_symbol(method, true))
+            ()
+        ()
+        DocumentSymbol { name: actor_.name.clone(), detail: detail, kind: SymbolKind__STRUCT, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_struct_symbol(_self: &mut AnalysisBuilder<a>, struct_def: &Struct) -> DocumentSymbol:
+        let detail = Option::Some(format_visibility((*struct_def).visibility, &f"struct {format_type_name(&(*struct_def).name, &(*struct_def).generics)}"))
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&(*struct_def).name, (*struct_def).span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&(*struct_def).name, selection_range, detail.clone(), AnalysisCompletionKind__Struct)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__STRUCT, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for generic in &(*struct_def).generics:
+            match find_identifier_range((*_self).text, &generic.name, Option::Some(generic.span)):
+                Some(range) =>
+                    (*_self).add_symbol(&generic.name, range, Option::Some(f"generic {generic.name}"), AnalysisCompletionKind__TypeAlias)
+                    ()
+                    (*_self).add_semantic_token_from_range(range, SemanticTokenType__TYPE_PARAMETER, MOD_DECLARATION, 5)
+                    ()
+                _ => ()
+        ()
+        for field in &(*struct_def).fields:
+            match (*_self).collect_field_symbol(field):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        for method in &(*struct_def).methods:
+            children.push((*_self).collect_function_symbol(method, true))
+            ()
+        ()
+        DocumentSymbol { name: (*struct_def).name.clone(), detail: detail, kind: SymbolKind__STRUCT, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_enum_symbol(_self: &mut AnalysisBuilder<a>, enum_def: &Enum) -> DocumentSymbol:
+        let detail = Option::Some(format_visibility((*enum_def).visibility, &f"enum {format_type_name(&(*enum_def).name, &(*enum_def).generics)}"))
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&(*enum_def).name, (*enum_def).span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&(*enum_def).name, selection_range, detail.clone(), AnalysisCompletionKind__Enum)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__ENUM, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for variant in &(*enum_def).variants:
+            match (*_self).collect_variant_symbol(variant):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        DocumentSymbol { name: (*enum_def).name.clone(), detail: detail, kind: SymbolKind__ENUM, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_trait_symbol(_self: &mut AnalysisBuilder<a>, trait_def: &Trait) -> DocumentSymbol:
+        let detail = Option::Some(format_visibility((*trait_def).visibility, &f"trait {format_type_name(&(*trait_def).name, &(*trait_def).generics)}"))
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(&(*trait_def).name, (*trait_def).span).unwrap_or_else(default_range_pair)
+        (*_self).add_symbol(&(*trait_def).name, selection_range, detail.clone(), AnalysisCompletionKind__Trait)
+        ()
+        (*_self).add_semantic_token_from_range(selection_range, SemanticTokenType__INTERFACE, MOD_DECLARATION, 5)
+        ()
+        let mut children = Vec__new_()
+        for method in &(*trait_def).methods:
+            match (*_self).collect_trait_method_symbol(method):
+                Some(symbol) =>
+                    children.push(symbol)
+                    ()
+                _ => ()
+        ()
+        DocumentSymbol { name: (*trait_def).name.clone(), detail: detail, kind: SymbolKind__INTERFACE, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_impl_symbol(_self: &mut AnalysisBuilder<a>, impl_def: &Impl) -> DocumentSymbol:
+        let name = match &(*impl_def).trait_name:
+            Some(trait_name) => f"impl {trait_name} for {format_type(&(*impl_def).target_type)}"
+            _ => f"impl {format_type(&(*impl_def).target_type)}"
+        let full_range = span_to_range((*_self).text, (*impl_def).span)
+        let selection_range = full_range
+        let mut children = Vec__new_()
+        for method in &(*impl_def).methods:
+            children.push((*_self).collect_function_symbol(method, true))
+            ()
+        ()
+        DocumentSymbol { name: name, detail: none, kind: SymbolKind__OBJECT, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: Option::Some(children) }
+
+    fn collect_const_symbol(_self: &mut AnalysisBuilder<a>, const_def: &Const) -> Option<DocumentSymbol>:
+        (*_self).simple_item_symbol(&(*const_def).name, (*const_def).span, Option::Some(format_visibility((*const_def).visibility, &f"const {(*const_def).name}: {format_type(&(*const_def).ty)}")), SymbolKind__CONSTANT, AnalysisCompletionKind__Constant, semantic_type_index(SemanticTokenType__VARIABLE), (MOD_DECLARATION | MOD_READONLY))
+
+    fn collect_macro_symbol(_self: &mut AnalysisBuilder<a>, mac: &MacroDef) -> Option<DocumentSymbol>:
+        (*_self).simple_item_symbol(&(*mac).name, (*mac).span, Option::Some(f"macro {(*mac).name}!"), SymbolKind__FUNCTION, AnalysisCompletionKind__Macro, semantic_type_index(SemanticTokenType__MACRO), MOD_DECLARATION)
+
+    fn collect_test_symbol(_self: &mut AnalysisBuilder<a>, test_: &TestDef) -> Option<DocumentSymbol>:
+        (*_self).simple_item_symbol(&test_.name, test_.span, Option::Some(f"test \"{test_.name}\""), SymbolKind__EVENT, AnalysisCompletionKind__Function, semantic_type_index(SemanticTokenType__FUNCTION), MOD_DECLARATION)
+
+    fn collect_param_symbol(_self: &mut AnalysisBuilder<a>, param: &Param) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*param).name, Option::Some((*param).span))?
+        let detail = Option::Some("{if (*param).mutable_: \"mut \" else: \"\"}param {(*param).name}: {format_type(&(*param).ty)}")
+        (*_self).add_symbol(&(*param).name, range, detail.clone(), AnalysisCompletionKind__Variable)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__PARAMETER, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*param).name.clone(), detail: detail, kind: SymbolKind__VARIABLE, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_uniform_symbol(_self: &mut AnalysisBuilder<a>, uniform_: &Uniform) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &uniform_.name, Option::Some(uniform_.span))?
+        let detail = Option::Some(f"uniform {uniform_.name}: {format_type(&uniform_.ty)} @{uniform_.binding}")
+        (*_self).add_symbol(&uniform_.name, range, detail.clone(), AnalysisCompletionKind__Field)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__PROPERTY, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: uniform_.name.clone(), detail: detail, kind: SymbolKind__PROPERTY, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_state_symbol(_self: &mut AnalysisBuilder<a>, state_: &StateDecl) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*state_).name, Option::Some((*state_).span))?
+        let detail = Option::Some(f"state {(*state_).name}: {format_type(&(*state_).ty)}")
+        (*_self).add_symbol(&(*state_).name, range, detail.clone(), AnalysisCompletionKind__Field)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__PROPERTY, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*state_).name.clone(), detail: detail, kind: SymbolKind__PROPERTY, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_field_symbol(_self: &mut AnalysisBuilder<a>, field: &Field) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*field).name, Option::Some((*field).span))?
+        let detail = Option::Some(format_visibility((*field).visibility, &f"{(*field).name}: {format_type(&(*field).ty)}"))
+        (*_self).add_symbol(&(*field).name, range, detail.clone(), AnalysisCompletionKind__Field)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__PROPERTY, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*field).name.clone(), detail: detail, kind: SymbolKind__FIELD, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_variant_symbol(_self: &mut AnalysisBuilder<a>, variant: &Variant) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*variant).name, Option::Some((*variant).span))?
+        let detail = Option::Some(f"variant {(*variant).name}")
+        (*_self).add_symbol(&(*variant).name, range, detail.clone(), AnalysisCompletionKind__EnumMember)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__ENUM_MEMBER, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*variant).name.clone(), detail: detail, kind: SymbolKind__ENUM_MEMBER, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_trait_method_symbol(_self: &mut AnalysisBuilder<a>, method: &TraitMethod) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*method).name, Option::Some((*method).span))?
+        let detail = Option::Some(format_trait_method_signature(method))
+        (*_self).signatures.entry((*method).name.clone()).or_insert_with(fn(): SignatureInfo { label: format_trait_method_signature(method), parameters: (*method).params.iter().map(fn(param): f"{param.name}: {format_type(&param.ty)}").collect(), documentation: detail.clone() })
+        ()
+        (*_self).add_symbol(&(*method).name, range, detail.clone(), AnalysisCompletionKind__Method)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__METHOD, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*method).name.clone(), detail: detail, kind: SymbolKind__METHOD, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn collect_handler_symbol(_self: &mut AnalysisBuilder<a>, handler: &MessageHandler) -> Option<DocumentSymbol>:
+        let range = find_identifier_range((*_self).text, &(*handler).message_type, Option::Some((*handler).span))?
+        let detail = Option::Some("on {(*handler).message_type}({(*handler).params.iter().map(fn(param): f\"{param.name}: {format_type(&param.ty)}\").collect().join(\", \")})")
+        (*_self).signatures.entry((*handler).message_type.clone()).or_insert_with(fn(): SignatureInfo { label: detail.clone().unwrap_or_default(), parameters: (*handler).params.iter().map(fn(param): f"{param.name}: {format_type(&param.ty)}").collect(), documentation: detail.clone() })
+        ()
+        (*_self).add_symbol(&(*handler).message_type, range, detail.clone(), AnalysisCompletionKind__Method)
+        ()
+        (*_self).add_semantic_token_from_range(range, SemanticTokenType__METHOD, MOD_DECLARATION, 5)
+        ()
+        Option::Some(DocumentSymbol { name: (*handler).message_type.clone(), detail: detail, kind: SymbolKind__METHOD, tags: none, deprecated: none, range: range, selection_range: range, children: none })
+
+    fn simple_named_item_symbol(_self: &mut AnalysisBuilder<a>, name: String, span: Span, detail: Option<String>, kind: SymbolKind, completion_kind: AnalysisCompletionKind) -> Option<DocumentSymbol>:
+        (*_self).simple_item_symbol(name, span, detail, kind, completion_kind, semantic_type_index(SemanticTokenType__STRUCT), MOD_DECLARATION)
+
+    fn simple_item_symbol(_self: &mut AnalysisBuilder<a>, name: String, span: Span, detail: Option<String>, kind: SymbolKind, completion_kind: AnalysisCompletionKind, semantic_type: u32, semantic_modifiers: u32) -> Option<DocumentSymbol>:
+        let (selection_range, full_range) = (*_self).name_and_full_ranges(name, span)?
+        (*_self).add_symbol(name, selection_range, detail.clone(), completion_kind)
+        ()
+        (*_self).absolute_tokens.push(SemanticTokenAbsolute { start: range_start_offset((*_self).text, selection_range), end: range_end_offset((*_self).text, selection_range), token_type: semantic_type, token_modifiers: semantic_modifiers, priority: 5 })
+        ()
+        Option::Some(DocumentSymbol { name: name.to_string(), detail: detail, kind: kind, tags: none, deprecated: none, range: full_range, selection_range: selection_range, children: none })
+
+    fn name_and_full_ranges(_self: &AnalysisBuilder<a>, name: String, span: Span) -> Option<(Range, Range)>:
+        let selection_range = find_identifier_range((*_self).text, name, Option::Some(span))?
+        let full_range = span_to_range((*_self).text, span)
+        Option::Some((selection_range, full_range))
+
+    fn add_symbol(_self: &mut AnalysisBuilder<a>, name: String, range: Range, detail: Option<String>, completion_kind: AnalysisCompletionKind):
+        (*_self).symbols.entry(name.to_string()).or_default().push(SymbolInfo { range: range, detail: detail, completion_kind: completion_kind })
+        ()
+
+    fn add_semantic_token_from_range(_self: &mut AnalysisBuilder<a>, range: Range, token_type: SemanticTokenType, token_modifiers: u32, priority: u8):
+        let start = range_start_offset((*_self).text, range)
+        let end = range_end_offset((*_self).text, range)
+        if (start >= end):
+            return
+        (*_self).absolute_tokens.push(SemanticTokenAbsolute { start: start, end: end, token_type: semantic_type_index(token_type), token_modifiers: token_modifiers, priority: priority })
+        ()
+
+    fn build_semantic_tokens(_self: AnalysisBuilder<a>, tokens: &[Token]) -> Array<SemanticToken>:
+        for token in tokens:
+            match semantic_token_type_for_lexical(&token.kind):
+                Some(token_type) =>
+                    _self.absolute_tokens.push(SemanticTokenAbsolute { start: token.span.start, end: token.span.end, token_type: token_type, token_modifiers: 0, priority: 1 })
+                    ()
+                _ => ()
+        ()
+        _self.absolute_tokens.sort_by_key(fn(token): (token.start, token.end, token.priority))
+        ()
+        let mut filtered = Vec__new_()
+        let mut last_end = 0
+        for token in _self.absolute_tokens:
+            if (token.start < last_end):
+                continue
+            last_end = token.end
+            ()
+            filtered.push(token)
+            ()
+        ()
+        encode_semantic_tokens(_self.text, &filtered)
+
+
+@derive(Debug)
+struct Backend:
+    client: tower_lsp::Client
+    docs: DocumentStore
+    workspace_roots: tokio::sync::RwLock<Array<std::path::PathBuf>>
+    workspace_index: tokio::sync::RwLock<Map<Url, WorkspaceEntry>>
+
+impl tower_lsp::LanguageServer for Backend:
+    fn initialize(_self: &Backend, params: InitializeParams) -> Result<InitializeResult, Error>:
+        let mut roots = Vec__new_()
+        match params.workspace_folders:
+            Some(folders) =>
+                for folder in folders:
+                    match folder.uri.to_file_path():
+                        Ok(path) =>
+                            roots.push(path)
+                            ()
+                        _ => ()
+                ()
+                ()
+            _ =>
+                match params.root_uri:
+                    Some(root_uri) =>
+                        match root_uri.to_file_path():
+                            Ok(path) =>
+                                roots.push(path)
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+        (*await (*_self).workspace_roots.write()) = roots
+        ()
+        Result::Ok(InitializeResult { server_info: Option::Some(ServerInfo { name: ("KAIN Language Server").to_string(), version: Option::Some(env!("CARGO_PKG_VERSION").to_string()) }), capabilities: ServerCapabilities { text_document_sync: Option::Some(TextDocumentSyncCapability::Options(TextDocumentSyncOptions { open_close: Option::Some(true), change: Option::Some(TextDocumentSyncKind__INCREMENTAL), will_save: none, will_save_wait_until: none, save: Option::Some(TextDocumentSyncSaveOptions::Supported(true)) })), hover_provider: Option::Some(HoverProviderCapability::Simple(true)), definition_provider: Option::Some(OneOf::Left(true)), references_provider: Option::Some(OneOf::Left(true)), rename_provider: Option::Some(OneOf::Left(true)), document_symbol_provider: Option::Some(OneOf::Left(true)), workspace_symbol_provider: Option::Some(OneOf::Left(true)), document_formatting_provider: Option::Some(OneOf::Left(true)), code_action_provider: Option::Some(CodeActionProviderCapability::Simple(true)), signature_help_provider: Option::Some(SignatureHelpOptions { trigger_characters: Option::Some([("(").to_string(), (",").to_string()]), retrigger_characters: Option::Some([(",").to_string()]), work_done_progress_options: WorkDoneProgressOptions__default_() }), completion_provider: Option::Some(CompletionOptions { resolve_provider: Option::Some(false), trigger_characters: Option::Some([(".").to_string(), (":").to_string(), ("@").to_string()]), ..CompletionOptions__default_() }), semantic_tokens_provider: Option::Some(SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions { legend: SemanticTokensLegend { token_types: TOKEN_TYPES.to_vec(), token_modifiers: TOKEN_MODIFIERS.to_vec() }, full: Option::Some(SemanticTokensFullOptions::Bool(true)), range: none, work_done_progress_options: WorkDoneProgressOptions__default_() })), ..Default__default_() } })
+
+    fn initialized(_self: &Backend, _: InitializedParams):
+        await (*_self).client.log_message(MessageType__INFO, "KAIN Language Server initialized with live diagnostics, outline symbols, and semantic tokens.")
+        ()
+        await (*_self).refresh_workspace_index()
+        ()
+
+    fn shutdown(_self: &Backend) -> Result<(), Error>:
+        Result::Ok(())
+
+    fn did_open(_self: &Backend, params: DidOpenTextDocumentParams):
+        let uri = params.text_document.uri
+        let text = params.text_document.text
+        let version = params.text_document.version
+        await (*_self).docs.upsert(uri.clone(), text.clone(), version)
+        ()
+        await (*_self).validate_document(uri, text, Option::Some(version))
+        ()
+
+    fn did_change(_self: &Backend, params: DidChangeTextDocumentParams):
+        if params.content_changes.is_empty():
+            return
+        let uri = params.text_document.uri
+        let version = params.text_document.version
+        match await (*_self).docs.apply_changes(&uri, version, &params.content_changes):
+            Some(text) =>
+                await (*_self).validate_document(uri, text, Option::Some(version))
+                ()
+            None =>
+                await (*_self).client.log_message(MessageType__ERROR, f"Failed to apply text changes for {uri}")
+                ()
+
+    fn did_close(_self: &Backend, params: DidCloseTextDocumentParams):
+        await (*_self).docs.remove(&params.text_document.uri)
+        ()
+        await (*_self).client.publish_diagnostics(params.text_document.uri, [], none)
+        ()
+
+    fn did_save(_self: &Backend, params: DidSaveTextDocumentParams):
+        match await (*_self).docs.get_text(&params.text_document.uri):
+            Some(text) =>
+                let version = await (*_self).docs.get_version(&params.text_document.uri)
+                await (*_self).validate_document(params.text_document.uri.clone(), text, version)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        await (*_self).refresh_workspace_index()
+        ()
+
+    fn hover(_self: &Backend, params: HoverParams) -> Result<Option<Hover>, Error>:
+        let uri = params.text_document_position_params.text_document.uri
+        let position = params.text_document_position_params.position
+        let text = match await (*_self).docs.get_text(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let analysis = match await (*_self).docs.get_analysis(&uri):
+            Some(analysis) => analysis
+            None => return Result::Ok(none)
+        let offset = match position_to_offset(&text, &position):
+            Some(offset) => offset
+            None => return Result::Ok(none)
+        let (ident, range) = match find_ident_at_offset(&text, offset):
+            Some(value) => value
+            None => return Result::Ok(none)
+        match analysis.lookup(&ident):
+            Some(symbols) =>
+                match symbols.first():
+                    Some(info) =>
+                        let value = info.detail.clone().unwrap_or_else(fn(): ident.clone())
+                        return Result::Ok(Option::Some(Hover { contents: HoverContents::Markup(MarkupContent { kind: MarkupKind__Markdown, value: f"```kain\n{value}\n```" }), range: Option::Some(info.range) }))
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        if (KEYWORD_ITEMS.contains(&ident.as_str()) || EFFECT_ITEMS.contains(&ident.as_str())):
+            return Result::Ok(Option::Some(Hover { contents: HoverContents::Markup(MarkupContent { kind: MarkupKind__Markdown, value: f"```text\nKAIN keyword: {ident}\n```" }), range: Option::Some(range) }))
+        if TYPE_ITEMS.contains(&ident.as_str()):
+            return Result::Ok(Option::Some(Hover { contents: HoverContents::Markup(MarkupContent { kind: MarkupKind__Markdown, value: f"```text\nKAIN built-in type: {ident}\n```" }), range: Option::Some(range) }))
+        Result::Ok(none)
+
+    fn goto_definition(_self: &Backend, params: GotoDefinitionParams) -> Result<Option<GotoDefinitionResponse>, Error>:
+        let uri = params.text_document_position_params.text_document.uri
+        let position = params.text_document_position_params.position
+        let text = match await (*_self).docs.get_text(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let analysis = match await (*_self).docs.get_analysis(&uri):
+            Some(analysis) => analysis
+            None => return Result::Ok(none)
+        let offset = match position_to_offset(&text, &position):
+            Some(offset) => offset
+            None => return Result::Ok(none)
+        let (ident, _) = match find_ident_at_offset(&text, offset):
+            Some(item) => item
+            None => return Result::Ok(none)
+        match analysis.lookup(&ident):
+            Some(items) =>
+                match items.first():
+                    Some(item) => return Result::Ok(Option::Some(GotoDefinitionResponse::Scalar(Location__new_(uri, item.range))))
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(none)
+
+    fn completion(_self: &Backend, params: CompletionParams) -> Result<Option<CompletionResponse>, Error>:
+        let uri = params.text_document_position.text_document.uri
+        let position = params.text_document_position.position
+        let text = (await (*_self).docs.get_text(&uri)).unwrap_or_default()
+        let analysis = await (*_self).docs.get_analysis(&uri)
+        let prefix = position_to_offset(&text, &position).and_then(fn(offset): find_completion_prefix(&text, offset)).unwrap_or_default()
+        let mut items = Vec__new_()
+        match analysis:
+            Some(analysis) =>
+                for selfhost_for_item in &analysis.symbols:
+                    let (name, infos) = selfhost_for_item
+                    match infos.first():
+                        Some(info) =>
+                            items.push(CompletionItem { label: name.clone(), kind: Option::Some(info.completion_kind.completion_item_kind()), detail: info.detail.clone(), ..CompletionItem__default_() })
+                            ()
+                        _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        items.extend(keyword_completion_items())
+        ()
+        items.extend(effect_completion_items())
+        ()
+        items.extend(type_completion_items())
+        ()
+        items.extend(stdlib_completion_items())
+        ()
+        dedupe_completion_items(&mut items)
+        ()
+        if (!prefix.is_empty()):
+            let lowered = prefix.to_ascii_lowercase()
+            items.retain(fn(item): item.label.to_ascii_lowercase().starts_with(&lowered))
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(Option::Some(CompletionResponse::Array(items)))
+
+    fn references(_self: &Backend, params: ReferenceParams) -> Result<Option<Array<Location>>, Error>:
+        let uri = params.text_document_position.text_document.uri
+        let position = params.text_document_position.position
+        let text = match await (*_self).text_for_uri(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let offset = match position_to_offset(&text, &position):
+            Some(offset) => offset
+            None => return Result::Ok(none)
+        let (ident, _) = match find_ident_at_offset(&text, offset):
+            Some(value) => value
+            None => return Result::Ok(none)
+        let locations = await (*_self).workspace_occurrences(&ident)
+        Result::Ok(Option::Some(locations))
+
+    fn rename(_self: &Backend, params: RenameParams) -> Result<Option<WorkspaceEdit>, Error>:
+        let uri = params.text_document_position.text_document.uri
+        let position = params.text_document_position.position
+        let text = match await (*_self).text_for_uri(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let offset = match position_to_offset(&text, &position):
+            Some(offset) => offset
+            None => return Result::Ok(none)
+        let (ident, _) = match find_ident_at_offset(&text, offset):
+            Some(value) => value
+            None => return Result::Ok(none)
+        let mut changes: Map<Url, Array<TextEdit>> = HashMap__new_()
+        for location in await (*_self).workspace_occurrences(&ident):
+            changes.entry(location.uri).or_default().push(TextEdit { range: location.range, new_text: params.new_name.clone() })
+            ()
+        ()
+        Result::Ok(Option::Some(WorkspaceEdit { changes: Option::Some(changes), document_changes: none, change_annotations: none }))
+
+    fn signature_help(_self: &Backend, params: SignatureHelpParams) -> Result<Option<SignatureHelp>, Error>:
+        let uri = params.text_document_position_params.text_document.uri
+        let position = params.text_document_position_params.position
+        let text = match await (*_self).text_for_uri(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let offset = match position_to_offset(&text, &position):
+            Some(offset) => offset
+            None => return Result::Ok(none)
+        let Some((callee, active_parameter)) = find_call_context(&text, offset)
+        let Some(signature) = await (*_self).lookup_signature(&callee)
+        let signatures = [SignatureInformation { label: signature.label.clone(), documentation: signature.documentation.clone().map(Documentation__String), parameters: Option::Some(signature.parameters.iter().map(fn(label): ParameterInformation { label: ParameterLabel::Simple(label.clone()), documentation: none }).collect()), active_parameter: none }]
+        Result::Ok(Option::Some(SignatureHelp { signatures: signatures, active_signature: Option::Some(0), active_parameter: Option::Some(active_parameter as u32) }))
+
+    fn document_symbol(_self: &Backend, params: DocumentSymbolParams) -> Result<Option<DocumentSymbolResponse>, Error>:
+        let uri = params.text_document.uri
+        let analysis = match await (*_self).docs.get_analysis(&uri):
+            Some(analysis) => analysis
+            None => return Result::Ok(none)
+        Result::Ok(Option::Some(DocumentSymbolResponse::Nested(analysis.document_symbols)))
+
+    fn symbol(_self: &Backend, params: WorkspaceSymbolParams) -> Result<Option<Array<SymbolInformation>>, Error>:
+        let query = params.query.to_ascii_lowercase()
+        let mut results = Vec__new_()
+        for selfhost_for_item in await (*_self).all_workspace_entries():
+            let (uri, entry) = selfhost_for_item
+            for selfhost_for_item in entry.analysis.symbols:
+                let (name, infos) = selfhost_for_item
+                if ((!query.is_empty()) && (!name.to_ascii_lowercase().contains(&query))):
+                    continue
+                match infos.first():
+                    Some(info) =>
+                        results.push(SymbolInformation { name: name, kind: completion_kind_to_symbol_kind(info.completion_kind), tags: none, deprecated: none, location: Location { uri: uri.clone(), range: info.range }, container_name: none })
+                        ()
+                    _ => ()
+        ()
+        Result::Ok(Option::Some(results))
+
+    fn formatting(_self: &Backend, params: DocumentFormattingParams) -> Result<Option<Array<TextEdit>>, Error>:
+        let uri = params.text_document.uri
+        let text = match await (*_self).text_for_uri(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let formatted = format_document_text(&text)
+        if (formatted == text):
+            return Result::Ok(Option::Some([]))
+        let end = offset_to_position(&text, text.len())
+        Result::Ok(Option::Some([TextEdit { range: Range { start: Position__default_(), end: end }, new_text: formatted }]))
+
+    fn code_action(_self: &Backend, params: CodeActionParams) -> Result<Option<CodeActionResponse>, Error>:
+        let uri = params.text_document.uri
+        let text = match await (*_self).text_for_uri(&uri):
+            Some(text) => text
+            None => return Result::Ok(none)
+        let mut actions = Vec__new_()
+        for diagnostic in params.context.diagnostics:
+            match missing_colon_code_action(&uri, &text, &diagnostic):
+                Some(action) =>
+                    actions.push(CodeActionOrCommand::CodeAction(action))
+                    ()
+                _ => ()
+        ()
+        let formatted = format_document_text(&text)
+        if (formatted != text):
+            let end = offset_to_position(&text, text.len())
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction { title: ("Format KAIN document").to_string(), kind: Option::Some(CodeActionKind__SOURCE), diagnostics: none, edit: Option::Some(WorkspaceEdit { changes: Option::Some(HashMap__from([(uri.clone(), [TextEdit { range: Range { start: Position__default_(), end: end }, new_text: formatted }])])), document_changes: none, change_annotations: none }), command: none, is_preferred: Option::Some(false), disabled: none, data: none }))
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(Option::Some(actions))
+
+    fn semantic_tokens_full(_self: &Backend, params: SemanticTokensParams) -> Result<Option<SemanticTokensResult>, Error>:
+        let uri = params.text_document.uri
+        let analysis = match await (*_self).docs.get_analysis(&uri):
+            Some(analysis) => analysis
+            None => return Result::Ok(none)
+        let result_id = (await (*_self).docs.get_version(&uri)).map(fn(version): version.to_string())
+        Result::Ok(Option::Some(SemanticTokensResult::Tokens(SemanticTokens { result_id: result_id, data: analysis.semantic_tokens })))
+
+
+impl Backend:
+    fn text_for_uri(_self: &Backend, uri: &Url) -> Option<String>:
+        match await (*_self).docs.get_text(uri):
+            Some(text) => return Option::Some(text)
+            _ =>
+                ()
+                ()
+        let guard = await (*_self).workspace_index.read()
+        guard.get(uri).map(fn(entry): entry.text.clone())
+
+    fn all_workspace_entries(_self: &Backend) -> Array<(Url, WorkspaceEntry)>:
+        let mut entries = Vec__new_()
+        let open_docs = await (*_self).docs.docs.read()
+        for selfhost_for_item in open_docs.iter():
+            let (uri, doc) = selfhost_for_item
+            match &doc.analysis:
+                Some(analysis) =>
+                    entries.push((uri.clone(), WorkspaceEntry { text: doc.text.clone(), analysis: analysis.clone() }))
+                    ()
+                _ => ()
+        ()
+        drop(open_docs)
+        ()
+        let indexed = await (*_self).workspace_index.read()
+        for selfhost_for_item in indexed.iter():
+            let (uri, entry) = selfhost_for_item
+            if entries.iter().any(fn(__kain_closure_arg0): (__kain_closure_arg0.__kain_tuple_0 == uri)):
+                continue
+            entries.push((uri.clone(), entry.clone()))
+            ()
+        ()
+        entries
+
+    fn workspace_occurrences(_self: &Backend, ident: String) -> Array<Location>:
+        let mut results = Vec__new_()
+        for selfhost_for_item in await (*_self).all_workspace_entries():
+            let (uri, entry) = selfhost_for_item
+            match entry.analysis.occurrences.get(ident):
+                Some(ranges) =>
+                    for range in ranges:
+                        results.push(Location { uri: uri.clone(), range: (*range) })
+                        ()
+                _ => ()
+        ()
+        results
+
+    fn lookup_signature(_self: &Backend, name: String) -> Option<SignatureInfo>:
+        for selfhost_for_item in await (*_self).all_workspace_entries():
+            let (_, entry) = selfhost_for_item
+            match entry.analysis.signatures.get(name):
+                Some(signature) => return Option::Some(signature.clone())
+                _ => ()
+        ()
+        none
+
+    fn refresh_workspace_index(_self: &Backend):
+        let roots = (await (*_self).workspace_roots.read()).clone()
+        if roots.is_empty():
+            return
+        let mut updated = HashMap__new_()
+        let open_docs = await (*_self).docs.docs.read()
+        let open_uris: Set<Url> = open_docs.keys().cloned().collect()
+        drop(open_docs)
+        ()
+        for root in roots:
+            for file in collect_kain_files(&root):
+                let Ok(uri) = Url__from_file_path(&file)
+                if open_uris.contains(&uri):
+                    continue
+                let Ok(text) = std__fs__read_to_string(&file)
+                match await (*_self).analyze_source(&uri, &text):
+                    Some(analysis) =>
+                        updated.insert(uri, WorkspaceEntry { text: text, analysis: analysis })
+                        ()
+                    _ => ()
+        ()
+        (*await (*_self).workspace_index.write()) = updated
+        ()
+
+    fn analyze_source(_self: &Backend, uri: &Url, text: String) -> Option<DocumentAnalysis>:
+        let lexer = Lexer__new_(text)
+        let tokens = lexer.tokenize().ok()?
+        let span_mapper = SpanMapper__new_(text)
+        let file_name = uri.path()
+        let mut parser = Parser__new_(&tokens, &span_mapper, file_name)
+        let program = parser.parse().ok()?
+        types__check(&program, &span_mapper, file_name).ok()?
+        ()
+        Option::Some(DocumentAnalysis__from_program(text, &program, &tokens))
+
+    fn validate_document(_self: &Backend, uri: Url, text: String, version: Option<i32>):
+        let lexer = Lexer__new_(&text)
+        let tokens = match lexer.tokenize():
+            Ok(tokens) => tokens
+            Err(error) =>
+                let diagnostics = diagnostics_from_error(&text, &error)
+                await (*_self).client.publish_diagnostics(uri.clone(), diagnostics, version)
+                ()
+                await (*_self).docs.update_analysis(&uri, none)
+                ()
+                return
+        let span_mapper = SpanMapper__new_(&text)
+        let file_name = uri.path()
+        let mut parser = Parser__new_(&tokens, &span_mapper, file_name)
+        let program = match parser.parse():
+            Ok(program) => program
+            Err(error) =>
+                let diagnostics = diagnostics_from_error(&text, &error)
+                await (*_self).client.publish_diagnostics(uri.clone(), diagnostics, version)
+                ()
+                await (*_self).docs.update_analysis(&uri, none)
+                ()
+                return
+        let typed_program = match types__check(&program, &span_mapper, file_name):
+            Ok(typed_program) => typed_program
+            Err(error) =>
+                let diagnostics = diagnostics_from_error(&text, &error)
+                await (*_self).client.publish_diagnostics(uri.clone(), diagnostics, version)
+                ()
+                await (*_self).docs.update_analysis(&uri, none)
+                ()
+                return
+        let mut diagnostics = target_specific_diagnostics(&uri, &text, &typed_program)
+        if (!diagnostics.is_empty()):
+            await (*_self).client.publish_diagnostics(uri.clone(), diagnostics.clone(), version)
+            ()
+            ()
+            ()
+            ()
+        let analysis = DocumentAnalysis__from_program(&text, &program, &tokens)
+        await (*_self).docs.update_analysis(&uri, Option::Some(analysis))
+        ()
+        match await (*_self).docs.get_analysis(&uri):
+            Some(analysis) =>
+                (await (*_self).workspace_index.write()).insert(uri.clone(), WorkspaceEntry { text: text.clone(), analysis: analysis })
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        if diagnostics.is_empty():
+            diagnostics = []
+            ()
+            ()
+            ()
+            ()
+        await (*_self).client.publish_diagnostics(uri, diagnostics, version)
+        ()
+
+
+pub fn run_server():
+    let stdin = tokio__io__stdin()
+    let stdout = tokio__io__stdout()
+    let (service, socket) = LspService__new_(fn(client): Backend { client: client, docs: DocumentStore__default_(), workspace_roots: RwLock__new_(Vec__new_()), workspace_index: RwLock__new_(HashMap__new_()) })
+    await Server__new_(stdin, stdout, socket).serve(service)
+    ()
+
+fn diagnostics_from_error(text: String, error: &KainError) -> Array<Diagnostic>:
+    match error:
+        KainError::Lexer { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Parser { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Type { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Effect { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Borrow { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Codegen { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::CodegenWithLocation { message: message, span: span } => [basic_diagnostic(text, (*span), message.clone(), DiagnosticSeverity__ERROR, none)]
+        KainError::Runtime { message: message } => [Diagnostic { range: Range__default_(), severity: Option::Some(DiagnosticSeverity__ERROR), code: none, code_description: none, source: Option::Some(("KAIN").to_string()), message: message.clone(), related_information: none, tags: none, data: none }]
+        KainError::Io(_) => []
+        KainError::Multi(errors) => errors.iter().flat_map(fn(inner): diagnostics_from_error(text, inner)).collect()
+        KainError::Enhanced { kind: kind, code: code, location: location, context: context, message: message, suggestion: suggestion } =>
+            let spec = diagnostic_registry__spec_for_code((*code))
+            let severity = match kind:
+                ErrorKind::Validation => DiagnosticSeverity__WARNING
+                _ => DiagnosticSeverity__ERROR
+            let span = match location:
+                Some((line_, column)) => line_col_to_span(text, (*line_), (*column))
+                _ => Span__default_()
+            let mut lines = [message.clone()]
+            if (!context.is_empty()):
+                lines.push(f"Context: {context}")
+                ()
+                ()
+                ()
+                ()
+            let suggestion_text = suggestion.clone().or_else(fn(): spec.default_suggestion.map(fn(value): value.to_string()))
+            match suggestion_text:
+                Some(suggestion) =>
+                    lines.push(f"Help: {suggestion}")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match spec.docs_key:
+                Some(docs_key) =>
+                    lines.push(f"Reference: {docs_key}")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            [Diagnostic { range: span_to_range(text, span), severity: Option::Some(severity), code: Option::Some(NumberOrString::String(spec.code_str.to_string())), code_description: none, source: Option::Some(("KAIN").to_string()), message: lines.join("\n"), related_information: none, tags: none, data: none }]
+
+fn basic_diagnostic(text: String, span: Span, message: String, severity: DiagnosticSeverity, code: Option<NumberOrString>) -> Diagnostic:
+    Diagnostic { range: span_to_range(text, span), severity: Option::Some(severity), code: code, code_description: none, source: Option::Some(("KAIN").to_string()), message: message, related_information: none, tags: none, data: none }
+
+fn apply_change(text: String, range: &Range, new_text: String) -> Option<String>:
+    let start = position_to_offset(text, &(*range).start)?
+    let end = position_to_offset(text, &(*range).end)?
+    if ((start > end) || (end > text.len())):
+        return none
+    let mut result = (fn(__kain_ctor_arg0): String__new_())((text.len() + new_text.len()))
+    result.push_str(&text[..start])
+    ()
+    result.push_str(new_text)
+    ()
+    result.push_str(&text[end..])
+    ()
+    Option::Some(result)
+
+fn position_to_offset(text: String, position: &Position) -> Option<usize>:
+    let mut line_ = 0
+    let mut character = 0
+    for selfhost_for_item in text.char_indices():
+        let (offset, ch) = selfhost_for_item
+        if ((line_ == (*position).line_) && (character == (*position).character)):
+            return Option::Some(offset)
+        if (ch == "\n"):
+            if ((line_ == (*position).line_) && ((*position).character == character)):
+                return Option::Some(offset)
+            line_ = (line_ + 1)
+            ()
+            character = 0
+            ()
+        else:
+            character = (character + ch.len_utf16() as u32)
+            ()
+    ()
+    if ((line_ == (*position).line_) && (character == (*position).character)):
+        Option::Some(text.len())
+    elif ((line_ == (*position).line_) && ((*position).character >= character)):
+        Option::Some(text.len())
+    else:
+        none
+
+fn offset_to_position(text: String, offset: usize) -> Position:
+    let mut line_ = 0
+    let mut character = 0
+    for selfhost_for_item in text.char_indices():
+        let (idx, ch) = selfhost_for_item
+        if (idx >= offset):
+            break
+        if (ch == "\n"):
+            line_ = (line_ + 1)
+            ()
+            character = 0
+            ()
+        else:
+            character = (character + ch.len_utf16() as u32)
+            ()
+    ()
+    Position { line_: line_, character: character }
+
+fn span_to_range(text: String, span: Span) -> Range:
+    Range { start: offset_to_position(text, span.start.min(text.len())), end: offset_to_position(text, span.end.min(text.len())) }
+
+fn line_col_to_span(text: String, line_: usize, column: usize) -> Span:
+    let zero_based_line = line_.saturating_sub(1) as u32
+    let zero_based_column = column.saturating_sub(1) as u32
+    let start = position_to_offset(text, &Position { line_: zero_based_line, character: zero_based_column }).unwrap_or(0)
+    Span__new_(start, start)
+
+fn find_identifier_range(text: String, name: String, span_hint: Option<Span>) -> Option<Range>:
+    let bytes = text.as_bytes()
+    if (bytes.is_empty() || name.is_empty()):
+        return none
+    let (start, end) = match span_hint:
+        Some(span) => (span.start.min(text.len()), span.end.min(text.len()))
+        _ => (0, text.len())
+    let window = &text[start..end]
+    match window.find(name):
+        Some(index) =>
+            let absolute = (start + index)
+            return Option::Some(span_to_range(text, Span__new_(absolute, (absolute + name.len()))))
+        _ =>
+            ()
+            ()
+    match text.find(name):
+        Some(index) => return Option::Some(span_to_range(text, Span__new_(index, (index + name.len()))))
+        _ =>
+            ()
+            ()
+    none
+
+fn find_ident_at_offset(text: String, offset: usize) -> Option<(String, Range)>:
+    if (offset > text.len()):
+        return none
+    let bytes = text.as_bytes()
+    let mut start = offset
+    let mut end = offset
+    while ((start > 0) && is_ident_char(bytes[(start - 1)] as Char)):
+        start = (start - 1)
+        ()
+    ()
+    while ((end < bytes.len()) && is_ident_char(bytes[end] as Char)):
+        end = (end + 1)
+        ()
+    ()
+    if (start == end):
+        return none
+    let ident = String__from_utf8_lossy(&bytes[start..end]).to_string()
+    Option::Some((ident, span_to_range(text, Span__new_(start, end))))
+
+fn find_completion_prefix(text: String, offset: usize) -> Option<String>:
+    if (offset > text.len()):
+        return none
+    let bytes = text.as_bytes()
+    let mut start = offset
+    while ((start > 0) && is_ident_char(bytes[(start - 1)] as Char)):
+        start = (start - 1)
+        ()
+    ()
+    Option::Some(String__from_utf8_lossy(&bytes[start..offset]).to_string())
+
+fn is_ident_char(c: Char) -> Bool:
+    (c.is_alphanumeric() || (c == "_"))
+
+fn collect_occurrences(text: String, tokens: &[Token]) -> Map<String, Array<Range>>:
+    let mut occurrences = HashMap__new_()
+    for token in tokens:
+        match &token.kind:
+            TokenKind::Ident(name) =>
+                occurrences.entry(name.clone()).or_insert_with(Vec__new_).push(span_to_range(text, token.span))
+                ()
+            _ => ()
+    ()
+    occurrences
+
+fn collect_kain_files(root: &std::path::Path) -> Array<std::path::PathBuf>:
+    let mut files = Vec__new_()
+    let mut stack = [root.to_path_buf()]
+    loop:
+        match stack.pop():
+            Some(dir) =>
+                let Ok(entries) = std__fs__read_dir(&dir)
+                for entry in entries.flatten():
+                    let path = entry.path()
+                    if path.is_dir():
+                        let name = path.file_name().and_then(fn(v): v.to_str()).unwrap_or_default()
+                        if (none):
+                            continue
+                        stack.push(path)
+                        ()
+                    elif path.extension().and_then(fn(ext): ext.to_str()).map(fn(ext): ext.eq_ignore_ascii_case("kn")).unwrap_or(false):
+                        files.push(path)
+                        ()
+            _ => break
+    ()
+    files
+
+fn find_manifest_dir_for_path(path: &std::path::Path) -> Option<std::path::PathBuf>:
+    let mut current = path.parent()
+    loop:
+        match current:
+            Some(dir) =>
+                if (dir.join("KAIN.toml").exists() || dir.join("kain.toml").exists()):
+                    return Option::Some(dir.to_path_buf())
+                current = dir.parent()
+                ()
+            _ => break
+    ()
+    none
+
+fn target_specific_diagnostics(uri: &Url, text: String, typed_program: &TypedProgram) -> Array<Diagnostic>:
+    let Ok(path) = uri.to_file_path()
+    let Some(manifest_dir) = find_manifest_dir_for_path(&path)
+    let Ok(manifest) = packager__load_manifest(&manifest_dir)
+    let mut diagnostics = Vec__new_()
+    let span_mapper = SpanMapper__new_(text)
+    let filename = path.to_string_lossy().to_string()
+    let targets = manifest_targets(&manifest)
+    let has_shaders = (*typed_program).items.iter().any(fn(item): none)
+    if ((manifest.ue5.is_some() || targets.contains("ue5")) || targets.contains("ue5editor")):
+        match ue5__validate_program(typed_program, &span_mapper, &filename):
+            Err(error) =>
+                diagnostics.extend(diagnostics_from_error(text, &error))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    if (has_shaders && targets.contains("usf")):
+        match ue5_shaders__generate_usf(typed_program):
+            Err(error) =>
+                diagnostics.extend(diagnostics_from_error(text, &error))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    if (has_shaders && targets.contains("hlsl")):
+        match gpu__generate_hlsl(typed_program):
+            Err(error) =>
+                diagnostics.extend(diagnostics_from_error(text, &error))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    if (has_shaders && targets.contains("spirv")):
+        match gpu__generate_spirv(typed_program):
+            Err(error) =>
+                diagnostics.extend(diagnostics_from_error(text, &error))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    if targets.contains("wasm"):
+        match web__generate_wasm(typed_program):
+            Err(error) =>
+                diagnostics.extend(diagnostics_from_error(text, &error))
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    diagnostics
+
+fn manifest_targets(manifest: &PackageManifest) -> Set<String>:
+    let mut targets = HashSet__new_()
+    for target in &(*manifest).build.targets:
+        targets.insert(target.to_ascii_lowercase())
+        ()
+    ()
+    if (*manifest).ue5.is_some():
+        targets.insert(("ue5").to_string())
+        ()
+        ()
+        ()
+        ()
+    targets
+
+fn find_call_context(text: String, offset: usize) -> Option<(String, usize)>:
+    if (offset > text.len()):
+        return none
+    let bytes = text.as_bytes()
+    let mut depth = 0
+    let mut idx = offset
+    while (idx > 0):
+        idx = (idx - 1)
+        ()
+        match bytes[idx] as Char:
+            ")" => depth = (depth + 1)
+            "(" =>
+                if (depth == 0):
+                    let callee = extract_callee_name(text, idx)?
+                    let active = active_argument_index(&text[(idx + 1)..offset])
+                    return Option::Some((callee, active))
+                depth = (depth - 1)
+                ()
+            _ => ()
+    ()
+    none
+
+fn extract_callee_name(text: String, paren_offset: usize) -> Option<String>:
+    if (paren_offset == 0):
+        return none
+    let bytes = text.as_bytes()
+    let mut end = paren_offset
+    while ((end > 0) && bytes[(end - 1)].is_ascii_whitespace()):
+        end = (end - 1)
+        ()
+    ()
+    let mut start = end
+    while (start > 0):
+        let c = bytes[(start - 1)] as Char
+        if ((is_ident_char(c) || (c == ":")) || (c == ".")):
+            start = (start - 1)
+            ()
+        else:
+            break
+    ()
+    if (start == end):
+        return none
+    let raw = &text[start..end]
+    raw.split(&([":", "."])[..]).filter(fn(part): (!part.is_empty())).next_back().map(fn(part): part.to_string())
+
+fn active_argument_index(slice: String) -> usize:
+    let mut depth_paren = 0
+    let mut depth_brace = 0
+    let mut depth_bracket = 0
+    let mut count = 0
+    for ch in slice.chars():
+        match ch:
+            "(" => depth_paren = (depth_paren + 1)
+            ")" => depth_paren = (depth_paren - 1)
+            "{" => depth_brace = (depth_brace + 1)
+            "}" => depth_brace = (depth_brace - 1)
+            "[" => depth_bracket = (depth_bracket + 1)
+            "]" => depth_bracket = (depth_bracket - 1)
+            "," if (((depth_paren == 0) && (depth_brace == 0)) && (depth_bracket == 0)) => count = (count + 1)
+            _ => ()
+    ()
+    count
+
+fn completion_kind_to_symbol_kind(kind: AnalysisCompletionKind) -> SymbolKind:
+    match kind:
+        AnalysisCompletionKind::Function => SymbolKind__FUNCTION
+        AnalysisCompletionKind::Method => SymbolKind__METHOD
+        AnalysisCompletionKind::Struct => SymbolKind__STRUCT
+        AnalysisCompletionKind::Enum => SymbolKind__ENUM
+        AnalysisCompletionKind::EnumMember => SymbolKind__ENUM_MEMBER
+        AnalysisCompletionKind::Trait => SymbolKind__INTERFACE
+        AnalysisCompletionKind::Variable => SymbolKind__VARIABLE
+        AnalysisCompletionKind::Field => SymbolKind__FIELD
+        AnalysisCompletionKind::Constant => SymbolKind__CONSTANT
+        AnalysisCompletionKind::Module => SymbolKind__MODULE
+        AnalysisCompletionKind::Macro => SymbolKind__FUNCTION
+        AnalysisCompletionKind::TypeAlias => SymbolKind__TYPE_PARAMETER
+
+fn format_document_text(text: String) -> String:
+    let mut output = Vec__new_()
+    let mut indent = 0
+    for raw_line in text.lines():
+        let trimmed_end = raw_line.trim_end()
+        let trimmed = trimmed_end.trim_start()
+        if trimmed.is_empty():
+            output.push(String__new_())
+            ()
+            continue
+        if starts_dedent_line(trimmed):
+            indent = indent.saturating_sub(1)
+            ()
+            ()
+            ()
+            ()
+        let prefix = ("    ").repeat(indent)
+        output.push(f"{prefix}{trimmed}")
+        ()
+        if opens_block_line(trimmed):
+            indent = (indent + 1)
+            ()
+    ()
+    let mut formatted = output.join("\n")
+    if (text.ends_with("\n") || (!formatted.is_empty())):
+        formatted.push("\n")
+        ()
+        ()
+        ()
+        ()
+    formatted
+
+fn starts_dedent_line(line_: String) -> Bool:
+    (line_.starts_with("else") || line_.starts_with("elif"))
+
+fn opens_block_line(line_: String) -> Bool:
+    let prefixes = ["fn ", "if ", "elif ", "else", "match ", "for ", "while ", "loop", "component ", "shader ", "actor ", "struct ", "enum ", "trait ", "impl", "comptime", "test ", "@graph_editor", "@graph_runtime", "@state_machine", "@async_task", "@editor_module"]
+    (line_.ends_with(":") && prefixes.iter().any(fn(prefix): line_.starts_with(prefix)))
+
+fn missing_colon_code_action(uri: &Url, text: String, diagnostic: &Diagnostic) -> Option<CodeAction>:
+    let line_index = (*diagnostic).range.start.line_ as usize
+    let line_text = (text.lines().nth(line_index)?).trim_end()
+    let trimmed = line_text.trim_start()
+    if (trimmed.ends_with(":") || (!opens_block_line_candidate(trimmed))):
+        return none
+    if (!(*diagnostic).message.to_ascii_lowercase().contains("expected")):
+        return none
+    let insert_at = Position { line_: (*diagnostic).range.start.line_, character: line_text.encode_utf16().count() as u32 }
+    Option::Some(CodeAction { title: ("Insert missing ':'").to_string(), kind: Option::Some(CodeActionKind__QUICKFIX), diagnostics: Option::Some([diagnostic.clone()]), edit: Option::Some(WorkspaceEdit { changes: Option::Some(HashMap__from([(uri.clone(), [TextEdit { range: Range { start: insert_at, end: insert_at }, new_text: (":").to_string() }])])), document_changes: none, change_annotations: none }), command: none, is_preferred: Option::Some(true), disabled: none, data: none })
+
+fn opens_block_line_candidate(line_: String) -> Bool:
+    let prefixes = ["fn ", "if ", "elif ", "else", "match ", "for ", "while ", "loop", "component ", "shader ", "actor ", "struct ", "enum ", "trait ", "impl", "comptime", "test ", "@graph_editor", "@graph_runtime", "@state_machine", "@async_task", "@editor_module"]
+    prefixes.iter().any(fn(prefix): line_.starts_with(prefix))
+
+fn keyword_completion_items() -> Array<CompletionItem>:
+    KEYWORD_ITEMS.iter().map(fn(label): CompletionItem { label: ((*label)).to_string(), kind: Option::Some(CompletionItemKind__KEYWORD), detail: Option::Some(("KAIN keyword").to_string()), ..CompletionItem__default_() }).collect()
+
+fn effect_completion_items() -> Array<CompletionItem>:
+    EFFECT_ITEMS.iter().map(fn(label): CompletionItem { label: ((*label)).to_string(), kind: Option::Some(CompletionItemKind__ENUM_MEMBER), detail: Option::Some(("KAIN effect").to_string()), ..CompletionItem__default_() }).collect()
+
+fn type_completion_items() -> Array<CompletionItem>:
+    TYPE_ITEMS.iter().map(fn(label): CompletionItem { label: ((*label)).to_string(), kind: Option::Some(CompletionItemKind__CLASS), detail: Option::Some(("KAIN built-in type").to_string()), ..CompletionItem__default_() }).collect()
+
+fn stdlib_completion_items() -> Array<CompletionItem>:
+    STDLIB_ITEMS.iter().map(fn(label): CompletionItem { label: ((*label)).to_string(), kind: Option::Some(CompletionItemKind__FUNCTION), detail: Option::Some(("KAIN stdlib").to_string()), ..CompletionItem__default_() }).collect()
+
+fn dedupe_completion_items(items: &mut Array<CompletionItem>):
+    let mut seen = HashMap__new_()
+    items.retain(fn(item): none)
+    ()
+
+fn semantic_token_type_for_lexical(token: &TokenKind) -> Option<u32>:
+    let token_type = match token:
+        TokenKind::Fn => SemanticTokenType__KEYWORD
+        TokenKind::Let => SemanticTokenType__KEYWORD
+        TokenKind::Mut => SemanticTokenType__KEYWORD
+        TokenKind::Var => SemanticTokenType__KEYWORD
+        TokenKind::Const => SemanticTokenType__KEYWORD
+        TokenKind::If => SemanticTokenType__KEYWORD
+        TokenKind::Else => SemanticTokenType__KEYWORD
+        TokenKind::Elif => SemanticTokenType__KEYWORD
+        TokenKind::Match => SemanticTokenType__KEYWORD
+        TokenKind::For => SemanticTokenType__KEYWORD
+        TokenKind::While => SemanticTokenType__KEYWORD
+        TokenKind::Loop => SemanticTokenType__KEYWORD
+        TokenKind::Break => SemanticTokenType__KEYWORD
+        TokenKind::Continue => SemanticTokenType__KEYWORD
+        TokenKind::Return => SemanticTokenType__KEYWORD
+        TokenKind::Await => SemanticTokenType__KEYWORD
+        TokenKind::In => SemanticTokenType__KEYWORD
+        TokenKind::With => SemanticTokenType__KEYWORD
+        TokenKind::As => SemanticTokenType__KEYWORD
+        TokenKind::TypeKw => SemanticTokenType__KEYWORD
+        TokenKind::Struct => SemanticTokenType__KEYWORD
+        TokenKind::Enum => SemanticTokenType__KEYWORD
+        TokenKind::Trait => SemanticTokenType__KEYWORD
+        TokenKind::Impl => SemanticTokenType__KEYWORD
+        TokenKind::Pub => SemanticTokenType__KEYWORD
+        TokenKind::Mod => SemanticTokenType__KEYWORD
+        TokenKind::Use => SemanticTokenType__KEYWORD
+        TokenKind::SelfLower => SemanticTokenType__KEYWORD
+        TokenKind::SelfUpper => SemanticTokenType__KEYWORD
+        TokenKind::True => SemanticTokenType__KEYWORD
+        TokenKind::False => SemanticTokenType__KEYWORD
+        TokenKind::None => SemanticTokenType__KEYWORD
+        TokenKind::Component => SemanticTokenType__KEYWORD
+        TokenKind::Shader => SemanticTokenType__KEYWORD
+        TokenKind::Actor => SemanticTokenType__KEYWORD
+        TokenKind::State => SemanticTokenType__KEYWORD
+        TokenKind::Spawn => SemanticTokenType__KEYWORD
+        TokenKind::Send => SemanticTokenType__KEYWORD
+        TokenKind::Receive => SemanticTokenType__KEYWORD
+        TokenKind::Emit => SemanticTokenType__KEYWORD
+        TokenKind::Comptime => SemanticTokenType__KEYWORD
+        TokenKind::Macro => SemanticTokenType__KEYWORD
+        TokenKind::Vertex => SemanticTokenType__KEYWORD
+        TokenKind::Fragment => SemanticTokenType__KEYWORD
+        TokenKind::Test => SemanticTokenType__KEYWORD
+        TokenKind::Pure_ => SemanticTokenType__KEYWORD
+        TokenKind::Io => SemanticTokenType__KEYWORD
+        TokenKind::AsyncKw => SemanticTokenType__KEYWORD
+        TokenKind::Async_ => SemanticTokenType__KEYWORD
+        TokenKind::Gpu => SemanticTokenType__KEYWORD
+        TokenKind::Reactive_ => SemanticTokenType__KEYWORD
+        TokenKind::Unsafe_ => SemanticTokenType__KEYWORD
+        TokenKind::String(_) => SemanticTokenType__STRING
+        TokenKind::FString(_) => SemanticTokenType__STRING
+        TokenKind::Char(_) => SemanticTokenType__STRING
+        TokenKind::Int(_) => SemanticTokenType__NUMBER
+        TokenKind::Float(_) => SemanticTokenType__NUMBER
+        TokenKind::Plus => SemanticTokenType__OPERATOR
+        TokenKind::Minus => SemanticTokenType__OPERATOR
+        TokenKind::Star => SemanticTokenType__OPERATOR
+        TokenKind::Slash => SemanticTokenType__OPERATOR
+        TokenKind::Percent => SemanticTokenType__OPERATOR
+        TokenKind::Power => SemanticTokenType__OPERATOR
+        TokenKind::EqEq => SemanticTokenType__OPERATOR
+        TokenKind::NotEq => SemanticTokenType__OPERATOR
+        TokenKind::Lt => SemanticTokenType__OPERATOR
+        TokenKind::Gt => SemanticTokenType__OPERATOR
+        TokenKind::LtEq => SemanticTokenType__OPERATOR
+        TokenKind::GtEq => SemanticTokenType__OPERATOR
+        TokenKind::And => SemanticTokenType__OPERATOR
+        TokenKind::Or => SemanticTokenType__OPERATOR
+        TokenKind::Not => SemanticTokenType__OPERATOR
+        TokenKind::Amp => SemanticTokenType__OPERATOR
+        TokenKind::Pipe => SemanticTokenType__OPERATOR
+        TokenKind::Caret => SemanticTokenType__OPERATOR
+        TokenKind::Tilde => SemanticTokenType__OPERATOR
+        TokenKind::Shl => SemanticTokenType__OPERATOR
+        TokenKind::Shr => SemanticTokenType__OPERATOR
+        TokenKind::Eq => SemanticTokenType__OPERATOR
+        TokenKind::PlusEq => SemanticTokenType__OPERATOR
+        TokenKind::MinusEq => SemanticTokenType__OPERATOR
+        TokenKind::StarEq => SemanticTokenType__OPERATOR
+        TokenKind::SlashEq => SemanticTokenType__OPERATOR
+        TokenKind::PercentEq => SemanticTokenType__OPERATOR
+        TokenKind::AmpEq => SemanticTokenType__OPERATOR
+        TokenKind::PipeEq => SemanticTokenType__OPERATOR
+        TokenKind::CaretEq => SemanticTokenType__OPERATOR
+        TokenKind::ShlEq => SemanticTokenType__OPERATOR
+        TokenKind::ShrEq => SemanticTokenType__OPERATOR
+        TokenKind::Dot => SemanticTokenType__OPERATOR
+        TokenKind::DotDot => SemanticTokenType__OPERATOR
+        TokenKind::DotDotDot => SemanticTokenType__OPERATOR
+        TokenKind::Colon => SemanticTokenType__OPERATOR
+        TokenKind::ColonColon => SemanticTokenType__OPERATOR
+        TokenKind::Arrow => SemanticTokenType__OPERATOR
+        TokenKind::FatArrow => SemanticTokenType__OPERATOR
+        TokenKind::At => SemanticTokenType__OPERATOR
+        TokenKind::QuestionQuestion => SemanticTokenType__OPERATOR
+        TokenKind::QuestionDot => SemanticTokenType__OPERATOR
+        TokenKind::Question => SemanticTokenType__OPERATOR
+        _ => return none
+    Option::Some(semantic_type_index(token_type))
+
+fn encode_semantic_tokens(text: String, tokens: &[SemanticTokenAbsolute]) -> Array<SemanticToken>:
+    let mut encoded = Vec__new_()
+    let mut previous_line = 0
+    let mut previous_start = 0
+    for token in tokens:
+        let start = offset_to_position(text, token.start)
+        let end = offset_to_position(text, token.end)
+        if (start.line_ != end.line_):
+            continue
+        let length = end.character.saturating_sub(start.character)
+        if (length == 0):
+            continue
+        let delta_line = start.line_.saturating_sub(previous_line)
+        let delta_start = if (delta_line == 0):
+            start.character.saturating_sub(previous_start)
+        else:
+            start.character
+        encoded.push(SemanticToken { delta_line: delta_line, delta_start: delta_start, length: length, token_type: token.token_type, token_modifiers_bitset: token.token_modifiers })
+        ()
+        previous_line = start.line_
+        ()
+        previous_start = start.character
+        ()
+    ()
+    encoded
+
+fn semantic_type_index(target: SemanticTokenType) -> u32:
+    TOKEN_TYPES.iter().position(fn(item): ((*item) == target)).unwrap_or(0) as u32
+
+fn range_start_offset(text: String, range: Range) -> usize:
+    position_to_offset(text, &range.start).unwrap_or(0)
+
+fn range_end_offset(text: String, range: Range) -> usize:
+    position_to_offset(text, &range.end).unwrap_or(0)
+
+fn format_fn_signature(function: &Function) -> String:
+    let params = (*function).params.iter().map(fn(param): f"{param.name}: {format_type(&param.ty)}").collect().join(", ")
+    let ret = (*function).return_type.map(format_type).unwrap_or_else(fn(): ("()").to_string())
+    let effects = if (*function).effects.is_empty():
+        String__new_()
+    else:
+        " with {(*function).effects.iter().map(fn(effect): effect).collect().join(\", \")}"
+    f"fn {(*function).name}({params}) -> {ret}{effects}"
+
+fn format_trait_method_signature(method: &TraitMethod) -> String:
+    let params = (*method).params.iter().map(fn(param): f"{param.name}: {format_type(&param.ty)}").collect().join(", ")
+    let ret = (*method).return_type.map(format_type).unwrap_or_else(fn(): ("()").to_string())
+    f"fn {(*method).name}({params}) -> {ret}"
+
+fn format_type(ty: &Type) -> String:
+    match ty:
+        Type::Named { name: name, generics: generics } => if generics.is_empty(): name.clone() else: "{name}<{generics.iter().map(format_type).collect().join(\", \")}>"
+        Type::Tuple(items, _) => "({items.iter().map(format_type).collect().join(\", \")})"
+        Type::Array(inner, size, _) => f"[{format_type(inner)}; {size}]"
+        Type::Slice(inner, _) => f"[{format_type(inner)}]"
+        Type::Ref { mutable_: mutable_, inner: inner } => if (*mutable_): f"&mut {format_type(inner)}" else: f"&{format_type(inner)}"
+        Type::Ptr { mutable_: mutable_, inner: inner } => if (*mutable_): f"PtrMut<{format_type(inner)}>" else: f"Ptr<{format_type(inner)}>"
+        Type::Function { params: params, return_type: return_type, effects: effects } =>
+            let effects = if effects.is_empty():
+                String__new_()
+            else:
+                " with {effects.iter().map(fn(effect): effect).collect().join(\", \")}"
+            "fn({params.iter().map(format_type).collect().join(\", \")}) -> {format_type(return_type)}{effects}"
+        Type::Option(inner, _) => f"Option<{format_type(inner)}>"
+        Type::Result(ok, err, _) => f"Result<{format_type(ok)}, {format_type(err)}>"
+        Type::Infer(_) => ("_").to_string()
+        Type::Never(_) => ("Never").to_string()
+        Type::Unit(_) => ("Unit").to_string()
+        Type::Impl { trait_name: trait_name, generics: generics } => if generics.is_empty(): f"impl {trait_name}" else: "impl {trait_name}<{generics.iter().map(format_type).collect().join(\", \")}>"
+
+fn format_type_name(name: String, generics: &[ast::Generic]) -> String:
+    if generics.is_empty():
+        name.to_string()
+    else:
+        "{name}<{generics.iter().map(fn(generic): generic.name.clone()).collect().join(\", \")}>"
+
+fn format_shader_stage(stage: ast::ShaderStage) -> String:
+    match stage:
+        ast__ShaderStage::Vertex => "vertex"
+        ast__ShaderStage::Fragment => "fragment"
+        ast__ShaderStage::Compute => "compute"
+        ast__ShaderStage::Surface => "surface"
+
+fn format_visibility(visibility: Visibility, detail: String) -> String:
+    match visibility:
+        Visibility::Public => f"pub {detail}"
+        Visibility::Private => detail.to_string()
+        Visibility::Crate => f"crate {detail}"
+        Visibility::Super => f"super {detail}"
+
+fn default_range_pair() -> (Range, Range):
+    (Range__default_(), Range__default_())
+

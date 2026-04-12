@@ -1,0 +1,776 @@
+use super::CImportOptions
+
+use crate::ImportError
+
+use crate::Result
+
+use lang_c::ast::TranslationUnit
+
+use lang_c::driver::parse
+
+use lang_c::driver::parse_preprocessed
+
+use lang_c::driver::Config
+
+use lang_c::span::Span as CSpan
+
+use std::collections::HashSet
+
+use std::path::Path
+
+use std::process::Command
+
+@derive(Debug, Clone)
+pub struct ParsedCTranslationUnit:
+    unit: lang_c::ast::TranslationUnit
+    layout: CSourceLayoutMetadata
+
+@derive(Debug, Clone, Default)
+pub struct CSourceLayoutMetadata:
+    source: String
+    line_starts: Array<usize>
+    pack_align_by_line: Array<Option<usize>>
+
+impl Default for CSourceLayoutMetadata:
+    pub fn default_() -> CSourceLayoutMetadata:
+        CSourceLayoutMetadata { source: String__new_(), line_starts: Vec__new_(), pack_align_by_line: Vec__new_() }
+
+
+impl CSourceLayoutMetadata:
+    pub fn from_source(source: String) -> CSourceLayoutMetadata:
+        let source = source.to_string()
+        let line_starts = compute_line_starts(&source)
+        let pack_align_by_line = collect_pack_align_by_line(&strip_c_comments(source.as_str()))
+        CSourceLayoutMetadata { source: source, line_starts: line_starts, pack_align_by_line: pack_align_by_line }
+
+    pub fn pack_align_bits_for_span(_self: &CSourceLayoutMetadata, span: lang_c::span::Span) -> Option<usize>:
+        let line_ = (*_self).line_for_offset(span.start)?
+        (*_self).pack_align_by_line.get(line_.saturating_sub(1)).and_then(fn(align): (*align)).map(fn(bytes): bytes.saturating_mul(8))
+
+    pub fn has_packed_attr_for_span(_self: &CSourceLayoutMetadata, span: lang_c::span::Span) -> Bool:
+        normalized_span_snippet(*_self, span).is_some_and(fn(snippet): (((snippet.contains("__attribute__((") && snippet.contains("packed"))) || snippet.contains("__packed")))
+
+    pub fn explicit_type_align_bits_for_span(_self: &CSourceLayoutMetadata, span: lang_c::span::Span) -> Option<usize>:
+        let snippet = normalized_span_snippet(*_self, span)?
+        parse_attr_align_bytes(snippet.as_str()).map(fn(bytes): bytes.saturating_mul(8))
+
+    fn line_for_offset(_self: &CSourceLayoutMetadata, offset: usize) -> Option<usize>:
+        if (*_self).line_starts.is_empty():
+            return none
+        let idx = match (*_self).line_starts.binary_search(&offset):
+            Ok(idx) => idx
+            Err(0) => 0
+            Err(idx) => idx.saturating_sub(1)
+        Option::Some((idx + 1))
+
+    fn snippet_for_span(_self: &CSourceLayoutMetadata, span: lang_c::span::Span) -> Option<String>:
+        if (span.start >= (*_self).source.len()):
+            return none
+        let end = span.end.min((*_self).source.len())
+        (*_self).source.get(range(span.start, end))
+
+
+pub fn parse_c_file_with_metadata(path: &std::path::Path, options: &CImportOptions) -> Result<ParsedCTranslationUnit, Error>:
+    let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
+    let layout = CSourceLayoutMetadata__from_source(&source)
+    let config = build_driver_config(options)
+    let defined_symbols = collect_defined_symbols(options)
+    let direct_source = sanitize_for_preprocessed_parse(&source, false, &defined_symbols)
+    match lang_c__driver__parse_preprocessed(&config, direct_source):
+        Ok(parse_result) => Result::Ok(ParsedCTranslationUnit { unit: parse_result.unit, layout: layout })
+        Err(direct_err) =>
+            match lang_c__driver__parse(&config, path):
+                Ok(parse_result) => Result::Ok(ParsedCTranslationUnit { unit: parse_result.unit, layout: layout })
+                Err(primary_err) =>
+                    let stripped = sanitize_for_preprocessed_parse(&source, true, &defined_symbols)
+                    match lang_c__driver__parse_preprocessed(&config, stripped):
+                        Ok(parse_result) => Result::Ok(ParsedCTranslationUnit { unit: parse_result.unit, layout: layout })
+                        Err(fallback_err) => Result::Err(ImportError::CParseError(f"direct source parse failed: {direct_err}; primary parse failed: {primary_err}; fallback parse failed: {fallback_err}"))
+
+fn compute_line_starts(source: String) -> Array<usize>:
+    let mut starts = [0]
+    for selfhost_for_item in source.char_indices():
+        let (idx, ch) = selfhost_for_item
+        if ((ch == "\n") && ((idx + 1) < source.len())):
+            starts.push((idx + 1))
+            ()
+    ()
+    starts
+
+fn normalized_span_snippet(metadata: &CSourceLayoutMetadata, span: lang_c::span::Span) -> Option<String>:
+    let snippet = metadata.snippet_for_span(span)?
+    Option::Some(snippet.chars().filter(fn(ch): (!ch.is_whitespace())).collect().to_ascii_lowercase())
+
+fn parse_attr_align_bytes(normalized_snippet: String) -> Option<usize>:
+    for marker in ["aligned(", "__declspec(align(", "alignas("]:
+        match normalized_snippet.find(marker):
+            Some(idx) =>
+                let start = (idx + marker.len())
+                let digits = normalized_snippet[start..].chars().take_while(fn(ch): ch.is_ascii_digit()).collect()
+                match digits.parse():
+                    Ok(value) =>
+                        if (value > 0):
+                            return Option::Some(value)
+                    _ => ()
+            _ => ()
+    ()
+    none
+
+fn collect_pack_align_by_line(source: String) -> Array<Option<usize>>:
+    let mut current = none
+    let mut stack = Vec__new_()
+    let mut by_line = Vec__new_()
+    for line_ in source.lines():
+        let trimmed = line_.trim_start()
+        match parse_pack_directive(trimmed):
+            Some(directive) =>
+                match directive:
+                    PackDirective::Push { id: id, next: next } =>
+                        stack.push(PackFrame { id: id, previous: current })
+                        ()
+                        current = next.or_(current)
+                        ()
+                        ()
+                        ()
+                        ()
+                    PackDirective::Pop { id: id } =>
+                        current = pop_pack_frame(&mut stack, id).unwrap_or(none)
+                        ()
+                        ()
+                        ()
+                        ()
+                    PackDirective::Set(next) =>
+                        current = next
+                        ()
+                        ()
+                        ()
+                        ()
+                by_line.push(current)
+                ()
+                continue
+            _ =>
+                ()
+                ()
+        by_line.push(current)
+        ()
+    ()
+    by_line
+
+enum PackDirective:
+    Push { id: Option<String>, next: Option<usize> }
+    Pop { id: Option<String> }
+    Set(Option<usize>)
+
+@derive(Debug, Clone)
+struct PackFrame:
+    id: Option<String>
+    previous: Option<usize>
+
+fn pop_pack_frame(stack: &mut Array<PackFrame>, id: Option<String>) -> Option<Option<usize>>:
+    match id:
+        None => stack.pop().map(fn(frame): frame.previous)
+        Some(target) =>
+            let idx = stack.iter().rposition(fn(frame): (frame.id == Option::Some(target.as_str())))?
+            let frame = stack.remove(idx)
+            stack.truncate(idx)
+            ()
+            Option::Some(frame.previous)
+
+fn parse_pack_directive(line_: String) -> Option<PackDirective>:
+    let normalized = line_.replace(" ", "").to_ascii_lowercase()
+    if (!normalized.starts_with("#pragmapack")):
+        return none
+    let start = normalized.find("(")?
+    let end = normalized.rfind(")")?
+    let inner = &normalized[(start + 1)..end]
+    if inner.is_empty():
+        return Option::Some(PackDirective::Set(none))
+    let parts = inner.split(",").map(str__trim).filter(fn(part): (!part.is_empty())).collect()
+    if parts.is_empty():
+        return Option::Some(PackDirective::Set(none))
+    match parts[0]:
+        "push" =>
+            let id = parts.iter().skip(1).find(fn(part): part.parse().is_err()).map(fn(part): ((*part)).to_string())
+            let next = parts.iter().skip(1).find_map(fn(part): part.parse().ok()).filter(fn(value): ((*value) > 0))
+            Option::Some(PackDirective::Push { id: id, next: next })
+        "pop" =>
+            let id = parts.iter().skip(1).find(fn(part): part.parse().is_err()).map(fn(part): ((*part)).to_string())
+            Option::Some(PackDirective::Pop { id: id })
+        _ => parts[0].parse().ok().filter(fn(value): ((*value) > 0)).map(fn(value): PackDirective::Set(Option::Some(value)))
+
+fn build_driver_config(options: &CImportOptions) -> lang_c::driver::Config:
+    let mut config = match &(*options).cpp_command:
+        Some(cpp_command) =>
+            if cpp_command.to_ascii_lowercase().contains("clang"):
+                let mut cfg = Config__with_clang()
+                cfg.cpp_command = cpp_command.clone()
+                ()
+                cfg
+            else:
+                let mut cfg = Config__with_gcc()
+                cfg.cpp_command = cpp_command.clone()
+                ()
+                cfg
+        _ =>
+            if command_exists("clang"):
+                Config__with_clang()
+            elif command_exists("gcc"):
+                Config__with_gcc()
+            else:
+                Config__default_()
+    for include_path in &(*options).include_paths:
+        config.cpp_options.push(f"-I{include_path}")
+        ()
+    ()
+    for define in &(*options).defines:
+        if define.starts_with("-D"):
+            config.cpp_options.push(define.clone())
+            ()
+        else:
+            config.cpp_options.push(f"-D{define}")
+            ()
+    ()
+    config.cpp_options.extend((*options).cpp_options.iter().cloned())
+    ()
+    config
+
+fn command_exists(command: String) -> Bool:
+    Command__new_(command).arg("--version").output().is_ok()
+
+fn collect_defined_symbols(options: &CImportOptions) -> Set<String>:
+    let mut defined = HashSet__new_()
+    for entry in &(*options).defines:
+        match parse_define_symbol(entry):
+            Some(sym) =>
+                defined.insert(sym)
+                ()
+            _ => ()
+    ()
+    for entry in &(*options).cpp_options:
+        match entry.strip_prefix("-D").and_then(parse_define_symbol):
+            Some(sym) =>
+                defined.insert(sym)
+                ()
+            _ => ()
+    ()
+    defined
+
+fn parse_define_symbol(raw: String) -> Option<String>:
+    let normalized = raw.trim().trim_start_matches("-D").trim()
+    if normalized.is_empty():
+        return none
+    let symbol = normalized.split("=").next().unwrap_or("").trim()
+    if symbol.is_empty():
+        none
+    else:
+        Option::Some(symbol.to_string())
+
+@derive(Debug, Clone, Copy)
+struct ConditionalFrame:
+    parent_active: Bool
+    currently_active: Bool
+    branch_taken: Bool
+
+fn conditional_active(stack: &[ConditionalFrame]) -> Bool:
+    stack.last().map(fn(f): f.currently_active).unwrap_or(true)
+
+fn eval_preprocessor_expr(expr: String, defined_symbols: &Set<String>) -> Bool:
+    enum Tok:
+        LParen
+        RParen
+        Not
+        AndAnd
+        OrOr
+        Num(i64)
+
+    fn parse_number(text: String) -> i64:
+        match text.strip_prefix("0x").or_else(fn(): text.strip_prefix("0X")):
+            Some(hex) => i64__from_str_radix(hex, 16).unwrap_or(0)
+            _ => text.parse().unwrap_or(0)
+
+    let chars: Array<Char> = expr.chars().collect()
+    let mut i = 0
+    let mut tokens = Vec__new_()
+    while (i < chars.len()):
+        let c = chars[i]
+        if c.is_whitespace():
+            i = (i + 1)
+            ()
+            continue
+        if (c == "("):
+            tokens.push(Tok__LParen)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if (c == ")"):
+            tokens.push(Tok__RParen)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if (c == "!"):
+            tokens.push(Tok__Not)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if (((c == "&") && ((i + 1) < chars.len())) && (chars[(i + 1)] == "&")):
+            tokens.push(Tok__AndAnd)
+            ()
+            i = (i + 2)
+            ()
+            continue
+        if (((c == "|") && ((i + 1) < chars.len())) && (chars[(i + 1)] == "|")):
+            tokens.push(Tok__OrOr)
+            ()
+            i = (i + 2)
+            ()
+            continue
+        if (c.is_ascii_alphabetic() || (c == "_")):
+            let start = i
+            i = (i + 1)
+            ()
+            while ((i < chars.len()) && ((chars[i].is_ascii_alphanumeric() || (chars[i] == "_")))):
+                i = (i + 1)
+                ()
+            ()
+            let ident: String = chars[start..i].iter().collect()
+            if (ident == "defined"):
+                while ((i < chars.len()) && chars[i].is_whitespace()):
+                    i = (i + 1)
+                    ()
+                ()
+                let symbol = if ((i < chars.len()) && (chars[i] == "(")):
+                    i = (i + 1)
+                    ()
+                    while ((i < chars.len()) && chars[i].is_whitespace()):
+                        i = (i + 1)
+                        ()
+                    ()
+                    let start_sym = i
+                    while ((i < chars.len()) && ((chars[i].is_ascii_alphanumeric() || (chars[i] == "_")))):
+                        i = (i + 1)
+                        ()
+                    ()
+                    let sym: String = chars[start_sym..i].iter().collect()
+                    while ((i < chars.len()) && chars[i].is_whitespace()):
+                        i = (i + 1)
+                        ()
+                    ()
+                    if ((i < chars.len()) && (chars[i] == ")")):
+                        i = (i + 1)
+                        ()
+                        ()
+                        ()
+                        ()
+                    sym
+                else:
+                    let start_sym = i
+                    while ((i < chars.len()) && ((chars[i].is_ascii_alphanumeric() || (chars[i] == "_")))):
+                        i = (i + 1)
+                        ()
+                    ()
+                    chars[start_sym..i].iter().collect()
+                let is_defined = defined_symbols.contains(symbol.as_str())
+                tokens.push(Tok::Num(if is_defined: 1 else: 0))
+                ()
+                ()
+                ()
+                ()
+            else:
+                let is_defined = defined_symbols.contains(ident.as_str())
+                tokens.push(Tok::Num(if is_defined: 1 else: 0))
+                ()
+                ()
+                ()
+                ()
+            continue
+        if c.is_ascii_digit():
+            let start = i
+            if (((c == "0") && ((i + 1) < chars.len())) && (((chars[(i + 1)] == "x") || (chars[(i + 1)] == "X")))):
+                i = (i + 2)
+                ()
+                while ((i < chars.len()) && chars[i].is_ascii_hexdigit()):
+                    i = (i + 1)
+                    ()
+                ()
+                ()
+            else:
+                i = (i + 1)
+                ()
+                while ((i < chars.len()) && chars[i].is_ascii_digit()):
+                    i = (i + 1)
+                    ()
+                ()
+                ()
+            let raw_num: String = chars[start..i].iter().collect()
+            tokens.push(Tok::Num(parse_number(&raw_num)))
+            ()
+            continue
+        i = (i + 1)
+        ()
+    ()
+    struct Parser<a>:
+        tokens: &a [Tok]
+        pos: usize
+
+    impl<a> Parser<a>:
+        fn peek(_self: &Parser<a>) -> Option<Tok>:
+            (*_self).tokens.get((*_self).pos).copied()
+
+        fn bump(_self: &mut Parser<a>) -> Option<Tok>:
+            let tok = (*_self).peek()
+            if tok.is_some():
+                (*_self).pos = ((*_self).pos + 1)
+                ()
+                ()
+                ()
+                ()
+            tok
+
+        fn parse_or(_self: &mut Parser<a>) -> Bool:
+            let mut lhs = (*_self).parse_and()
+            while none:
+                (*_self).bump()
+                ()
+                lhs = (lhs || (*_self).parse_and())
+                ()
+            ()
+            lhs
+
+        fn parse_and(_self: &mut Parser<a>) -> Bool:
+            let mut lhs = (*_self).parse_unary()
+            while none:
+                (*_self).bump()
+                ()
+                lhs = (lhs && (*_self).parse_unary())
+                ()
+            ()
+            lhs
+
+        fn parse_unary(_self: &mut Parser<a>) -> Bool:
+            if (none):
+                (*_self).bump()
+                ()
+                (!(*_self).parse_unary())
+            else:
+                (*_self).parse_primary()
+
+        fn parse_primary(_self: &mut Parser<a>) -> Bool:
+            match (*_self).bump():
+                Some(Tok::Num(n)) => (n != 0)
+                Some(Tok::LParen) =>
+                    let value = (*_self).parse_or()
+                    if (none):
+                        (*_self).bump()
+                        ()
+                        ()
+                        ()
+                        ()
+                    value
+                _ => false
+
+
+    let mut parser = Parser { tokens: &tokens, pos: 0 }
+    parser.parse_or()
+
+fn sanitize_for_preprocessed_parse(source: String, include_fallback_prelude: Bool, defined_symbols: &Set<String>) -> String:
+    let source = source.trim_start_matches("\u{feff}")
+    let without_comments = strip_c_comments(source)
+    let prelude_len = if include_fallback_prelude:
+        (FALLBACK_PRELUDE.len() + 1)
+    else:
+        0
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(((without_comments.len() + prelude_len) + 16))
+    if include_fallback_prelude:
+        out_.push_str(FALLBACK_PRELUDE)
+        ()
+        out_.push("\n")
+        ()
+        ()
+        ()
+        ()
+    let mut conditional_stack: Array<ConditionalFrame> = Vec__new_()
+    for line_ in without_comments.lines():
+        let trimmed = line_.trim_start()
+        if trimmed.starts_with("#"):
+            match trimmed.strip_prefix("#ifdef"):
+                Some(rest) =>
+                    let symbol = rest.trim()
+                    let parent_active = conditional_active(&conditional_stack)
+                    let cond = defined_symbols.contains(symbol)
+                    conditional_stack.push(ConditionalFrame { parent_active: parent_active, currently_active: (parent_active && cond), branch_taken: cond })
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    match trimmed.strip_prefix("#ifndef"):
+                        Some(rest) =>
+                            let symbol = rest.trim()
+                            let parent_active = conditional_active(&conditional_stack)
+                            let cond = (!defined_symbols.contains(symbol))
+                            conditional_stack.push(ConditionalFrame { parent_active: parent_active, currently_active: (parent_active && cond), branch_taken: cond })
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            match trimmed.strip_prefix("#if"):
+                                Some(rest) =>
+                                    let expr = rest.trim()
+                                    let parent_active = conditional_active(&conditional_stack)
+                                    let cond = eval_preprocessor_expr(expr, defined_symbols)
+                                    conditional_stack.push(ConditionalFrame { parent_active: parent_active, currently_active: (parent_active && cond), branch_taken: cond })
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                                _ =>
+                                    match trimmed.strip_prefix("#elif"):
+                                        Some(rest) =>
+                                            let expr = rest.trim()
+                                            match conditional_stack.last_mut():
+                                                Some(frame) =>
+                                                    if ((!frame.parent_active) || frame.branch_taken):
+                                                        frame.currently_active = false
+                                                        ()
+                                                        ()
+                                                        ()
+                                                        ()
+                                                    else:
+                                                        let cond = eval_preprocessor_expr(expr, defined_symbols)
+                                                        frame.currently_active = cond
+                                                        ()
+                                                        if cond:
+                                                            frame.branch_taken = true
+                                                            ()
+                                                            ()
+                                                            ()
+                                                            ()
+                                                        ()
+                                                    ()
+                                                _ =>
+                                                    ()
+                                                    ()
+                                            ()
+                                        _ =>
+                                            if trimmed.starts_with("#else"):
+                                                match conditional_stack.last_mut():
+                                                    Some(frame) =>
+                                                        frame.currently_active = (frame.parent_active && (!frame.branch_taken))
+                                                        ()
+                                                        frame.branch_taken = true
+                                                        ()
+                                                        ()
+                                                        ()
+                                                        ()
+                                                    _ =>
+                                                        ()
+                                                        ()
+                                                ()
+                                            elif trimmed.starts_with("#endif"):
+                                                conditional_stack.pop()
+                                                ()
+                                                ()
+                                                ()
+                                                ()
+            out_.push_str(&blank_like(line_))
+            ()
+            out_.push("\n")
+            ()
+            continue
+        if (!conditional_active(&conditional_stack)):
+            out_.push_str(&blank_like(line_))
+            ()
+            out_.push("\n")
+            ()
+            continue
+        let line_ = strip_fallback_annotations(line_)
+        out_.push_str(&line_)
+        ()
+        out_.push("\n")
+        ()
+    ()
+    out_
+
+fn strip_fallback_annotations(line_: String) -> String:
+    const TOKENS: Array<String> = ["UNUSED", "ALIGNED8", "ALIGNED16", "ALIGNED32"]
+
+    let mut bytes = line_.as_bytes().to_vec()
+    let upper = line_.to_ascii_uppercase()
+    for token in TOKENS:
+        let mut start_at = 0
+        loop:
+            match upper[start_at..].find(token):
+                Some(found) =>
+                    let idx = (start_at + found)
+                    let end = (idx + token.len())
+                    let prev_ok = ((idx == 0) || ((!line_.as_bytes()[(idx - 1)].is_ascii_alphanumeric()) && (line_.as_bytes()[(idx - 1)] != 95)))
+                    let next_ok = ((end == line_.len()) || ((!line_.as_bytes()[end].is_ascii_alphanumeric()) && (line_.as_bytes()[end] != 95)))
+                    if (prev_ok && next_ok):
+                        for slot in &mut bytes[idx..end]:
+                            (*slot) = 32
+                            ()
+                        ()
+                        ()
+                    start_at = end
+                    ()
+                _ => break
+    ()
+    strip_leading_uppercase_declaration_macros(&mut bytes)
+    ()
+    String__from_utf8(bytes).unwrap_or_else(fn(_): line_.to_string())
+
+fn strip_leading_uppercase_declaration_macros(bytes: &mut [u8]):
+    let len = bytes.len()
+    let mut idx = 0
+    while ((idx < len) && bytes[idx].is_ascii_whitespace()):
+        idx = (idx + 1)
+        ()
+    ()
+    loop:
+        let start = idx
+        while ((idx < len) && ((bytes[idx].is_ascii_alphanumeric() || (bytes[idx] == 95)))):
+            idx = (idx + 1)
+            ()
+        ()
+        if (idx == start):
+            break
+        let token = std__str__from_utf8(&bytes[start..idx]).unwrap_or("")
+        let looks_like_macro = (token.chars().all(fn(ch): ((ch.is_ascii_uppercase() || (ch == "_")) || ch.is_ascii_digit())) && token.chars().any(fn(ch): ch.is_ascii_uppercase()))
+        if (!looks_like_macro):
+            break
+        for slot in &mut bytes[start..idx]:
+            (*slot) = 32
+            ()
+        ()
+        while ((idx < len) && bytes[idx].is_ascii_whitespace()):
+            idx = (idx + 1)
+            ()
+
+fn blank_like(line_: String) -> String:
+    line_.chars().map(fn(ch): if (ch == "\t"): "\t" else: " ").collect()
+
+const FALLBACK_PRELUDE: String = "\ntypedef signed char int8_t;\ntypedef short int16_t;\ntypedef int int32_t;\ntypedef long long int64_t;\ntypedef unsigned char uint8_t;\ntypedef unsigned short uint16_t;\ntypedef unsigned int uint32_t;\ntypedef unsigned long long uint64_t;\ntypedef long long intptr_t;\ntypedef unsigned long long uintptr_t;\ntypedef unsigned long long size_t;\ntypedef signed char s8;\ntypedef short s16;\ntypedef int s32;\ntypedef long long s64;\ntypedef unsigned char u8;\ntypedef unsigned short u16;\ntypedef unsigned int u32;\ntypedef unsigned long long u64;\ntypedef float f32;\ntypedef double f64;\ntypedef int bool;\ntypedef struct FILE FILE;\ntypedef struct OSPfs OSPfs;\ntypedef struct OSMesgQueue OSMesgQueue;\ntypedef struct OSPifRam OSPifRam;\ntypedef struct OSMesg OSMesg;\ntypedef struct OSThread OSThread;\ntypedef struct OSTimer OSTimer;\ntypedef struct __OSContRamReadFormat __OSContRamReadFormat;\n"
+
+fn strip_c_comments(input: String) -> String:
+    let bytes = input.as_bytes()
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(input.len())
+    let mut i = 0
+    let mut in_string = false
+    let mut in_char = false
+    while (i < bytes.len()):
+        let c = bytes[i] as Char
+        let next = if ((i + 1) < bytes.len()):
+            Option::Some(bytes[(i + 1)] as Char)
+        else:
+            none
+        if in_string:
+            out_.push(c)
+            ()
+            if (c == "\\"):
+                match next:
+                    Some(n) =>
+                        out_.push(n)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    _ =>
+                        ()
+                        ()
+                ()
+            elif (c == "\""):
+                in_string = false
+                ()
+                ()
+                ()
+                ()
+            i = (i + 1)
+            ()
+            continue
+        if in_char:
+            out_.push(c)
+            ()
+            if (c == "\\"):
+                match next:
+                    Some(n) =>
+                        out_.push(n)
+                        ()
+                        i = (i + 2)
+                        ()
+                        continue
+                    _ =>
+                        ()
+                        ()
+                ()
+            elif (c == "'"):
+                in_char = false
+                ()
+                ()
+                ()
+                ()
+            i = (i + 1)
+            ()
+            continue
+        if (c == "\""):
+            in_string = true
+            ()
+            out_.push(c)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if (c == "'"):
+            in_char = true
+            ()
+            out_.push(c)
+            ()
+            i = (i + 1)
+            ()
+            continue
+        if ((c == "/") && (next == Option::Some("/"))):
+            out_.push(" ")
+            ()
+            out_.push(" ")
+            ()
+            i = (i + 2)
+            ()
+            while ((i < bytes.len()) && (bytes[i] as Char != "\n")):
+                out_.push(" ")
+                ()
+                i = (i + 1)
+                ()
+            ()
+            continue
+        if ((c == "/") && (next == Option::Some("*"))):
+            out_.push(" ")
+            ()
+            out_.push(" ")
+            ()
+            i = (i + 2)
+            ()
+            while ((i + 1) < bytes.len()):
+                if ((bytes[i] as Char == "*") && (bytes[(i + 1)] as Char == "/")):
+                    out_.push(" ")
+                    ()
+                    out_.push(" ")
+                    ()
+                    i = (i + 2)
+                    ()
+                    break
+                out_.push(if (bytes[i] as Char == "\n"): "\n" else: " ")
+                ()
+                i = (i + 1)
+                ()
+            ()
+            continue
+        out_.push(c)
+        ()
+        i = (i + 1)
+        ()
+    ()
+    out_
+

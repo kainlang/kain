@@ -1,0 +1,933 @@
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use serde::Serialize
+
+use std::collections::HashMap
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+@derive(Debug, Clone)
+pub struct ImportTypeScriptBatchOptions:
+    recursive: Bool
+    flat: Bool
+    include_filters: Array<String>
+    exclude_filters: Array<String>
+    fail_fast: Bool
+    report_json: Option<std::path::PathBuf>
+
+@derive(Debug, Clone)
+struct ImportDiscoveryPolicy:
+    ignored_dir_names: &static [String]
+    ignored_file_name_fragments: &static [String]
+    allowed_extensions: &static [String]
+
+impl Default for ImportDiscoveryPolicy:
+    fn default_() -> ImportDiscoveryPolicy:
+        ImportDiscoveryPolicy { ignored_dir_names: &["_out", "_single_out", "_batch_out", "dist", "build", "node_modules"], ignored_file_name_fragments: &[".generated."], allowed_extensions: &["ts", "tsx", "mts", "cts"] }
+
+
+impl Default for ImportTypeScriptBatchOptions:
+    fn default_() -> ImportTypeScriptBatchOptions:
+        ImportTypeScriptBatchOptions { recursive: true, flat: false, include_filters: Vec__new_(), exclude_filters: Vec__new_(), fail_fast: false, report_json: none }
+
+
+impl ImportDiscoveryPolicy:
+    fn should_descend(_self: &ImportDiscoveryPolicy, path: &std::path::Path) -> Bool:
+        let Some(name) = path.file_name().and_then(fn(name): name.to_str())
+        (!(*_self).ignored_dir_names.iter().any(fn(ignored): name.eq_ignore_ascii_case(ignored)))
+
+    fn should_include_file(_self: &ImportDiscoveryPolicy, path: &std::path::Path) -> Bool:
+        let Some(file_name) = path.file_name().and_then(fn(name): name.to_str())
+        if (*_self).ignored_file_name_fragments.iter().any(fn(fragment_): file_name.to_ascii_lowercase().contains(fragment_)):
+            return false
+        let Some(ext) = path.extension().and_then(fn(ext): ext.to_str())
+        (*_self).allowed_extensions.iter().any(fn(allowed): ext.eq_ignore_ascii_case(allowed))
+
+
+@derive(Debug, Default)
+struct ImportTypeScriptSummary:
+    discovered_files: usize
+    imported_files: usize
+    skipped_files: usize
+    failed_files: Array<(std::path::PathBuf, String)>
+
+impl Default for ImportTypeScriptSummary:
+    pub fn default_() -> ImportTypeScriptSummary:
+        ImportTypeScriptSummary { discovered_files: 0, imported_files: 0, skipped_files: 0, failed_files: Vec__new_() }
+
+
+@derive(Debug, serde__Serialize)
+struct ImportTypeScriptFailureEntry:
+    file: String
+    error: String
+
+@derive(Debug, serde__Serialize)
+struct ImportTypeScriptFailureReport:
+    input_path: String
+    output_path: Option<String>
+    target: Option<String>
+    recursive: Bool
+    flat: Bool
+    include_filters: Array<String>
+    exclude_filters: Array<String>
+    discovered_files: usize
+    imported_files: usize
+    skipped_files: usize
+    failed_files: Array<ImportTypeScriptFailureEntry>
+    generated_kain_path: Option<String>
+    compiled_output_path: Option<String>
+    generated_at_utc: String
+
+pub fn import_typescript(input: &std::path::Path, output: Option<&std::path::Path>, target: Option<String>) -> Result<(), KainError>:
+    import_typescript_with_batch(input, output, target, &ImportTypeScriptBatchOptions__default_())
+
+pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std::path::Path>, target: Option<String>, batch: &ImportTypeScriptBatchOptions) -> Result<(), KainError>:
+    let resolved_output = match output:
+        Some(path) => Option::Some(path.to_path_buf())
+        None if input.is_dir() => Option::Some(input.with_extension("kn"))
+        None => none
+    let (program, summary) = import_path_to_program(input, batch)?
+    if (input.is_dir() && (summary.imported_files == 0)):
+        maybe_write_failure_report(input, resolved_output, target, batch, &summary, none, none)?
+        ()
+        return Result::Err(KainError__runtime(build_no_import_detail(&summary)))
+    let kain_source = generate_kain_source(&program)?
+    let mut generated_kain_path = none
+    match resolved_output:
+        Some(out_path) =>
+            std__fs__write(out_path, &kain_source).map_err(fn(e): KainError__runtime(f"Failed to write output: {e}"))?
+            ()
+            generated_kain_path = Option::Some(out_path.to_path_buf())
+            ()
+            println(f"Generated KAIN source: {out_path.display()} ({kain_source.len()} bytes)")
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    let mut compiled_output_path = none
+    match target:
+        Some(target_str) =>
+            let compile_target = parse_compile_target(target_str).ok_or_else(fn(): KainError__runtime(f"Unknown target: {target_str}"))?
+            println(f"Compiling to target: {target_str}")
+            let compiled = compile_(&kain_source, compile_target).map_err(fn(e): KainError__runtime(f"Compilation failed: {e}"))?
+            let compiled_output = match resolved_output:
+                Some(out_) => out_.with_extension(target_extension(compile_target))
+                _ => input.with_extension(target_extension(compile_target))
+            std__fs__write(&compiled_output, &compiled).map_err(fn(e): KainError__runtime(f"Failed to write compiled output: {e}"))?
+            ()
+            compiled_output_path = Option::Some(compiled_output.clone())
+            ()
+            println(f"Compiled output: {compiled_output.display()} ({compiled.len()} bytes)")
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    println("Import complete")
+    println(f"  Functions: {count_items(&program.items, fn(item): none)}")
+    println(f"  Structs: {count_items(&program.items, fn(item): none)}")
+    println(f"  Enums: {count_items(&program.items, fn(item): none)}")
+    println(f"  Impls: {count_items(&program.items, fn(item): none)}")
+    println(f"  Type aliases: {count_items(&program.items, fn(item): none)}")
+    if input.is_dir():
+        println(f"  TypeScript files: discovered {summary.discovered_files}, imported {summary.imported_files}, skipped {summary.skipped_files}, failed {summary.failed_files.len()}")
+        if (!summary.failed_files.is_empty()):
+            println("  Failed files:")
+            for selfhost_for_item in summary.failed_files.iter().take(20):
+                let (path, error) = selfhost_for_item
+                println(f"    - {path.display()}: {error}")
+            ()
+            if (summary.failed_files.len() > 20):
+                println(f"    ... {(summary.failed_files.len() - 20)} more")
+                ()
+                ()
+            ()
+        ()
+    maybe_write_failure_report(input, resolved_output, target, batch, &summary, generated_kain_path, compiled_output_path)?
+    ()
+    Result::Ok(())
+
+fn import_path_to_program(input: &std::path::Path, batch: &ImportTypeScriptBatchOptions) -> Result<(kain_core::ast::Program, ImportTypeScriptSummary), KainError>:
+    if input.is_file():
+        let program = kain_import__import_typescript(input).map_err(fn(e): KainError__runtime(f"TypeScript import failed: {e}"))?
+        return Result::Ok((program, ImportTypeScriptSummary { discovered_files: 1, imported_files: 1, ..ImportTypeScriptSummary__default_() }))
+    if (!input.is_dir()):
+        return Result::Err(KainError__runtime(f"Input is neither file nor directory: {input.display()}"))
+    let mut candidates = Vec__new_()
+    let discovery_policy = ImportDiscoveryPolicy__default_()
+    collect_typescript_files(input, (*batch).recursive, &discovery_policy, &mut candidates)?
+    ()
+    candidates.sort()
+    ()
+    let mut summary = ImportTypeScriptSummary { discovered_files: candidates.len(), ..ImportTypeScriptSummary__default_() }
+    let mut merged_items = Vec__new_()
+    let mut module_name_counts: Map<String, usize> = HashMap__new_()
+    let normalized_includes = normalize_filters(&(*batch).include_filters)
+    let normalized_excludes = normalize_filters(&(*batch).exclude_filters)
+    for file in candidates:
+        let rel = file.strip_prefix(input).unwrap_or(file.as_path())
+        if (!path_matches_filters(rel, &normalized_includes, &normalized_excludes)):
+            summary.skipped_files = (summary.skipped_files + 1)
+            ()
+            continue
+        match kain_import__import_typescript(&file):
+            Ok(program) =>
+                summary.imported_files = (summary.imported_files + 1)
+                ()
+                if (*batch).flat:
+                    merged_items.extend(program.items)
+                    ()
+                else:
+                    let base_name = sanitize_module_name(rel)
+                    let entry = module_name_counts.entry(base_name.clone()).or_insert(0)
+                    (*entry) = ((*entry) + 1)
+                    ()
+                    let module_name = if ((*entry) == 1):
+                        base_name
+                    else:
+                        f"{base_name}_{(*entry)}"
+                    merged_items.push(kain_core__ast__Item::Mod(kain_core::ast::Mod { name: module_name, inline_: Option::Some(program.items), visibility: kain_core__ast__Visibility__Public, span: Span__default_() }))
+                    ()
+            Err(err) =>
+                summary.failed_files.push((file.clone(), compact_error_message(&err.to_string())))
+                ()
+                if (*batch).fail_fast:
+                    return Result::Err(KainError__runtime(f"TypeScript import failed: {file.display()}: {err}"))
+    ()
+    Result::Ok((kain_core::ast::Program { items: merged_items, span: Span__default_() }, summary))
+
+fn build_no_import_detail(summary: &ImportTypeScriptSummary) -> String:
+    if (*summary).failed_files.is_empty():
+        return ("No TypeScript source files matched include/exclude filters").to_string()
+    let previews = (*summary).failed_files.iter().take(5).map(fn(__kain_closure_arg0): f"{__kain_closure_arg0.__kain_tuple_0.display()}: {__kain_closure_arg0.__kain_tuple_1}").collect()
+    "All matching TypeScript files failed to import (e.g. {previews.join(\" | \")})"
+
+fn maybe_write_failure_report(input: &std::path::Path, output: Option<&std::path::Path>, target: Option<String>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary, generated_kain_path: Option<&std::path::Path>, compiled_output_path: Option<&std::path::Path>) -> Result<(), KainError>:
+    let Some(report_path) = resolve_report_path(input, output, batch, summary)
+    let report = ImportTypeScriptFailureReport { input_path: input.display().to_string(), output_path: output.map(fn(p): p.display().to_string()), target: target.map(str__to_string), recursive: (*batch).recursive, flat: (*batch).flat, include_filters: (*batch).include_filters.clone(), exclude_filters: (*batch).exclude_filters.clone(), discovered_files: (*summary).discovered_files, imported_files: (*summary).imported_files, skipped_files: (*summary).skipped_files, failed_files: (*summary).failed_files.iter().map(fn(__kain_closure_arg1): ImportTypeScriptFailureEntry { file: __kain_closure_arg1.__kain_tuple_0.display().to_string(), error: __kain_closure_arg1.__kain_tuple_1.clone() }).collect(), generated_kain_path: generated_kain_path.map(fn(p): p.display().to_string()), compiled_output_path: compiled_output_path.map(fn(p): p.display().to_string()), generated_at_utc: Utc__now().to_rfc3339() }
+    match report_path.parent():
+        Some(parent) =>
+            if (!parent.as_os_str().is_empty()):
+                std__fs__create_dir_all(parent).map_err(fn(e): KainError__runtime(f"Failed to create report directory {parent.display()}: {e}"))?
+                ()
+                ()
+                ()
+                ()
+            ()
+        _ =>
+            ()
+            ()
+    let json = serde_json__to_string_pretty(&report).map_err(fn(e): KainError__runtime(f"Failed to serialize import report: {e}"))?
+    std__fs__write(&report_path, json).map_err(fn(e): KainError__runtime(f"Failed to write import report: {e}"))?
+    ()
+    println(f"Failure report JSON: {report_path.display()}")
+    Result::Ok(())
+
+fn resolve_report_path(input: &std::path::Path, output: Option<&std::path::Path>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary) -> Option<std::path::PathBuf>:
+    match &(*batch).report_json:
+        Some(path) => return Option::Some(path.clone())
+        _ =>
+            ()
+            ()
+    if (input.is_dir() && (!(*summary).failed_files.is_empty())):
+        return Option::Some(output.map(fn(out_): out_.with_extension("import_report.json")).unwrap_or_else(fn(): input.with_extension("import_report.json")))
+    none
+
+fn compact_error_message(raw: String) -> String:
+    let flattened = raw.lines().take(2).map(str__trim).filter(fn(line_): (!line_.is_empty())).collect().join(" | ")
+    let mut compact = if flattened.is_empty():
+        raw.trim().to_string()
+    else:
+        flattened
+    const LIMIT: usize = 320
+
+    if (compact.len() > LIMIT):
+        compact.truncate(LIMIT)
+        ()
+        compact.push_str("...")
+        ()
+        ()
+        ()
+        ()
+    compact
+
+fn collect_typescript_files(root: &std::path::Path, recursive: Bool, discovery_policy: &ImportDiscoveryPolicy, out_: &mut Array<std::path::PathBuf>) -> Result<(), KainError>:
+    let entries = std__fs__read_dir(root).map_err(fn(e): KainError__runtime(f"Failed to read directory {root.display()}: {e}"))?
+    for entry in entries:
+        let entry = entry.map_err(fn(e): KainError__runtime(f"Failed to read directory entry: {e}"))?
+        let path = entry.path()
+        if path.is_dir():
+            if (recursive && discovery_policy.should_descend(&path)):
+                collect_typescript_files(&path, recursive, discovery_policy, out_)?
+                ()
+                ()
+                ()
+                ()
+            continue
+        if discovery_policy.should_include_file(&path):
+            out_.push(path)
+            ()
+    ()
+    Result::Ok(())
+
+fn normalize_filters(filters: &[String]) -> Array<String>:
+    filters.iter().map(fn(f): f.trim().replace("\\", "/").to_ascii_lowercase()).filter(fn(f): (!f.is_empty())).collect()
+
+fn path_matches_filters(path: &std::path::Path, includes: &[String], excludes: &[String]) -> Bool:
+    let normalized = path.to_string_lossy().replace("\\", "/").to_ascii_lowercase()
+    if ((!includes.is_empty()) && (!includes.iter().any(fn(inc): normalized.contains(inc)))):
+        return false
+    (!excludes.iter().any(fn(exc): normalized.contains(exc)))
+
+fn sanitize_module_name(path: &std::path::Path) -> String:
+    let mut parts = Vec__new_()
+    let mut saw_file_name = false
+    for component_ in path.components():
+        let raw = component_.as_os_str().to_string_lossy()
+        let mut part = raw.to_string()
+        if ((!saw_file_name) && part.contains(".")):
+            part = path.file_stem().and_then(fn(s): s.to_str()).unwrap_or("module").to_string()
+            ()
+            saw_file_name = true
+            ()
+            ()
+            ()
+            ()
+        elif path.file_name().is_some_and(fn(f): (f == component_.as_os_str())):
+            part = path.file_stem().and_then(fn(s): s.to_str()).unwrap_or("module").to_string()
+            ()
+            saw_file_name = true
+            ()
+            ()
+            ()
+            ()
+        let sanitized = part.chars().map(fn(ch): if ch.is_ascii_alphanumeric(): ch.to_ascii_lowercase() else: "_").collect()
+        if (!sanitized.is_empty()):
+            parts.push(sanitized)
+            ()
+    ()
+    let mut name = parts.join("_")
+    while name.contains("__"):
+        name = name.replace("__", "_")
+        ()
+    ()
+    name = name.trim_matches("_").to_string()
+    ()
+    if name.is_empty():
+        return ("module").to_string()
+    if name.chars().next().is_some_and(fn(c): c.is_ascii_digit()):
+        return f"m_{name}"
+    name
+
+fn generate_kain_source(program: &kain_core::ast::Program) -> Result<String, KainError>:
+    use std::fmt::Write
+
+    let mut output = String__new_()
+    __kain_writeln_fmt!(output, "# Generated from TypeScript source by kain import-ts").map_err(fn(e): KainError__runtime(f"Failed to generate source: {e}"))?
+    ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to generate source: {e}"))?
+    ()
+    for item in &(*program).items:
+        write_item(&mut output, item, 0)?
+        ()
+    ()
+    Result::Ok(output)
+
+fn write_item(output: String, item: &kain_core::ast::Item, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    match item:
+        kain_core__ast__Item::Function(func) => write_function(output, func, indent)
+        kain_core__ast__Item::Component(component_) => write_component(output, component_, indent)
+        kain_core__ast__Item::Struct(st) => write_struct(output, st, indent)
+        kain_core__ast__Item::Enum(en) => write_enum(output, en, indent)
+        kain_core__ast__Item::TypeAlias(alias) =>
+            write_line(output, indent, &f"type {alias.name} = {type_to_string(&alias.target)}")?
+            ()
+            __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write type alias: {e}"))
+        kain_core__ast__Item::Const(item) =>
+            write_line(output, indent, &f"const {(*item).name}: {type_to_string(&(*item).ty)} = {expr_to_string(&(*item).value)}")?
+            ()
+            __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write const: {e}"))
+        kain_core__ast__Item::Impl(imp) => write_impl(output, imp, indent)
+        kain_core__ast__Item::Mod(module) =>
+            write_line(output, indent, &f"mod {module.name}:")?
+            ()
+            match &module.inline_:
+                Some(children) =>
+                    for child in children:
+                        write_item(output, child, (indent + 1))?
+                        ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write module: {e}"))
+        _ => Result::Ok(())
+
+fn write_function(output: String, func: &kain_core::ast::Function, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    let mut signature = f"fn {(*func).name}("
+    for selfhost_for_item in (*func).params.iter().enumerate():
+        let (index, param) = selfhost_for_item
+        if (index > 0):
+            signature.push_str(", ")
+            ()
+            ()
+            ()
+            ()
+        signature.push_str(&f"{param.name}: {type_to_string(&param.ty)}")
+        ()
+    ()
+    signature.push(")")
+    ()
+    match &(*func).return_type:
+        Some(ret_ty) =>
+            signature.push_str(&f" -> {type_to_string(ret_ty)}")
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    signature.push(":")
+    ()
+    write_line(output, indent, &signature)?
+    ()
+    write_block(output, &(*func).body, (indent + 1))?
+    ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write function: {e}"))?
+    ()
+    Result::Ok(())
+
+fn write_component(output: String, component_: &kain_core::ast::Component, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    let mut signature = f"component {component_.name}("
+    for selfhost_for_item in component_.props.iter().enumerate():
+        let (index, prop) = selfhost_for_item
+        if (index > 0):
+            signature.push_str(", ")
+            ()
+            ()
+            ()
+            ()
+        signature.push_str(&f"{prop.name}: {type_to_string(&prop.ty)}")
+        ()
+    ()
+    signature.push(")")
+    ()
+    if (!component_.effects.is_empty()):
+        signature.push_str(&f" with {effects_to_string(&component_.effects)}")
+        ()
+        ()
+        ()
+        ()
+    signature.push(":")
+    ()
+    write_line(output, indent, &signature)?
+    ()
+    for state_ in &component_.state_:
+        let weak_prefix = if state_.weak_:
+            "weak "
+        else:
+            ""
+        write_line(output, (indent + 1), &f"{weak_prefix}state {state_.name}: {type_to_string(&state_.ty)} = {expr_to_string_with_indent(&state_.initial, (indent + 1))}")?
+        ()
+    ()
+    for method in &component_.methods:
+        write_function(output, method, (indent + 1))?
+        ()
+    ()
+    write_line(output, (indent + 1), &f"render {jsx_to_string(&component_.body)}")?
+    ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write component: {e}"))?
+    ()
+    Result::Ok(())
+
+fn write_struct(output: String, st: &kain_core::ast::Struct, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    write_line(output, indent, &f"struct {(*st).name}:")?
+    ()
+    if (*st).fields.is_empty():
+        write_line(output, (indent + 1), "pass")?
+        ()
+        ()
+        ()
+        ()
+    else:
+        for field in &(*st).fields:
+            let mut line_ = f"{field.name}: {type_to_string(&field.ty)}"
+            match &field.default_:
+                Some(default_) =>
+                    line_.push_str(&f" = {expr_to_string_with_indent(default_, (indent + 1))}")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            write_line(output, (indent + 1), &line_)?
+            ()
+        ()
+        ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write struct: {e}"))?
+    ()
+    Result::Ok(())
+
+fn write_enum(output: String, en: &kain_core::ast::Enum, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    write_line(output, indent, &f"enum {(*en).name}:")?
+    ()
+    if (*en).variants.is_empty():
+        write_line(output, (indent + 1), "pass")?
+        ()
+        ()
+        ()
+        ()
+    else:
+        for variant in &(*en).variants:
+            let line_ = match &variant.fields:
+                kain_core__ast__VariantFields::Unit => variant.name.clone()
+                kain_core__ast__VariantFields::Tuple(types) =>
+                    let fields = types.iter().map(type_to_string).collect().join(", ")
+                    f"{variant.name}({fields})"
+                kain_core__ast__VariantFields::Struct(fields) =>
+                    let fields = fields.iter().map(fn(field): f"{field.name}: {type_to_string(&field.ty)}").collect().join(", ")
+                    "{variant.name} { {fields} }"
+            write_line(output, (indent + 1), &line_)?
+            ()
+        ()
+        ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write enum: {e}"))?
+    ()
+    Result::Ok(())
+
+fn write_impl(output: String, imp: &kain_core::ast::Impl, indent: usize) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    let header = match &(*imp).trait_name:
+        Some(trait_name) => f"impl {trait_name} for {type_to_string(&(*imp).target_type)}:"
+        None => f"impl {type_to_string(&(*imp).target_type)}:"
+    write_line(output, indent, &header)?
+    ()
+    if (*imp).methods.is_empty():
+        write_line(output, (indent + 1), "pass")?
+        ()
+        ()
+        ()
+        ()
+    else:
+        for method in &(*imp).methods:
+            write_function(output, method, (indent + 1))?
+            ()
+        ()
+        ()
+    __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to write impl: {e}"))?
+    ()
+    Result::Ok(())
+
+fn write_block(output: String, block: &kain_core::ast::Block, indent: usize) -> Result<(), KainError>:
+    if (*block).stmts.is_empty():
+        write_line(output, indent, "pass")?
+        ()
+        return Result::Ok(())
+    for stmt in &(*block).stmts:
+        write_stmt(output, stmt, indent)?
+        ()
+    ()
+    Result::Ok(())
+
+fn write_stmt(output: String, stmt: &kain_core::ast::Stmt, indent: usize) -> Result<(), KainError>:
+    match stmt:
+        kain_core__ast__Stmt::Let { pattern: pattern, ty: ty, value: value } =>
+            let mut line_ = f"let {pattern_to_string(pattern)}"
+            match ty:
+                Some(ty) =>
+                    line_.push_str(&f": {type_to_string(ty)}")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match value:
+                Some(value) =>
+                    line_.push_str(" = ")
+                    ()
+                    line_.push_str(&expr_to_string_with_indent(value, indent))
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            write_line(output, indent, &line_)
+        kain_core__ast__Stmt::Expr(kain_core__ast__Expr::Block(block, _)) => write_block(output, block, indent)
+        kain_core__ast__Stmt::Expr(expr) => write_line(output, indent, &expr_to_string_with_indent(expr, indent))
+        kain_core__ast__Stmt::Return(Some(expr), _) => write_line(output, indent, &f"return {expr_to_string_with_indent(expr, indent)}")
+        kain_core__ast__Stmt::Return(None, _) => write_line(output, indent, "return")
+        kain_core__ast__Stmt::Break(Some(expr), _) => write_line(output, indent, &f"break {expr_to_string_with_indent(expr, indent)}")
+        kain_core__ast__Stmt::Break(None, _) => write_line(output, indent, "break")
+        kain_core__ast__Stmt::Continue(_) => write_line(output, indent, "continue")
+        kain_core__ast__Stmt::While { condition: condition, body: body } =>
+            write_line(output, indent, &f"while {expr_to_string_with_indent(condition, indent)}:")?
+            ()
+            write_block(output, body, (indent + 1))
+        kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body } =>
+            write_line(output, indent, &f"for {pattern_to_string(binding)} in {expr_to_string_with_indent(iter, indent)}:")?
+            ()
+            write_block(output, body, (indent + 1))
+        kain_core__ast__Stmt::Loop { body: body } =>
+            write_line(output, indent, "loop:")?
+            ()
+            write_block(output, body, (indent + 1))
+        kain_core__ast__Stmt::Item(item) => write_item(output, item, indent)
+
+fn write_line(output: String, indent: usize, line_: String) -> Result<(), KainError>:
+    use std::fmt::Write
+
+    let mut lines = line_.lines()
+    match lines.next():
+        Some(first) =>
+            __kain_writeln_fmt!(output, "{(\"    \").repeat(indent)}{first}").map_err(fn(e): KainError__runtime(f"Failed to generate source: {e}"))?
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            __kain_writeln_fmt!(output, "").map_err(fn(e): KainError__runtime(f"Failed to generate source: {e}"))?
+            ()
+            return Result::Ok(())
+    for rest in lines:
+        __kain_writeln_fmt!(output, rest).map_err(fn(e): KainError__runtime(f"Failed to generate source: {e}"))?
+        ()
+    ()
+    Result::Ok(())
+
+fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String:
+    match pattern:
+        kain_core__ast__Pattern::Wildcard(_) => ("_").to_string()
+        kain_core__ast__Pattern::Binding { name: name, mutable_: mutable_ } => if (*mutable_): f"mut {name}" else: name.clone()
+        kain_core__ast__Pattern::Tuple(patterns, _) =>
+            let items = patterns.iter().map(pattern_to_string).collect().join(", ")
+            f"({items})"
+        kain_core__ast__Pattern::Literal(expr) => expr_to_string(expr)
+        _ => ("_").to_string()
+
+fn expr_to_string(expr: &kain_core::ast::Expr) -> String:
+    expr_to_string_with_indent(expr, 0)
+
+fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> String:
+    match expr:
+        kain_core__ast__Expr::Int(value, _) => value.to_string()
+        kain_core__ast__Expr::Float(value, _) => value.to_string()
+        kain_core__ast__Expr::String(value, _) => value
+        kain_core__ast__Expr::FString(parts, _) => parts.iter().map(fn(part): expr_to_string_with_indent(part, indent)).collect().join(" + ")
+        kain_core__ast__Expr::Bool(value, _) => value.to_string()
+        kain_core__ast__Expr::None(_) => ("none").to_string()
+        kain_core__ast__Expr::Ident(name, _) => name.clone()
+        kain_core__ast__Expr::Binary { left: left, op: op, right: right } => f"({expr_to_string_with_indent(left, indent)} {binary_op_to_string((*op))} {expr_to_string_with_indent(right, indent)})"
+        kain_core__ast__Expr::Unary { op: op, operand: operand } => f"({unary_op_to_string((*op))}{expr_to_string_with_indent(operand, indent)})"
+        kain_core__ast__Expr::Call { callee: callee, args: args } =>
+            let callee = expr_to_string_with_indent(callee, indent)
+            let args = args.iter().map(fn(arg): call_arg_to_string_with_indent(arg, (indent + 1))).collect()
+            render_call_like(&callee, &args, indent)
+        kain_core__ast__Expr::MethodCall { receiver: receiver, method: method, args: args } =>
+            let callee = f"{expr_to_string_with_indent(receiver, indent)}.{method}"
+            let args = args.iter().map(fn(arg): call_arg_to_string_with_indent(arg, (indent + 1))).collect()
+            render_call_like(&callee, &args, indent)
+        kain_core__ast__Expr::Field { object: object, field: field } => f"{expr_to_string_with_indent(object, indent)}.{field}"
+        kain_core__ast__Expr::Index { object: object, index: index } => f"{expr_to_string_with_indent(object, indent)}[{expr_to_string_with_indent(index, indent)}]"
+        kain_core__ast__Expr::Assign { target: target, value: value } => f"{expr_to_string_with_indent(target, indent)} = {expr_to_string_with_indent(value, indent)}"
+        kain_core__ast__Expr::Array(items, _) =>
+            let items = items.iter().map(fn(item): expr_to_string_with_indent(item, indent)).collect().join(", ")
+            f"[{items}]"
+        kain_core__ast__Expr::Tuple(items, _) =>
+            let items = items.iter().map(fn(item): expr_to_string_with_indent(item, indent)).collect().join(", ")
+            f"({items})"
+        kain_core__ast__Expr::Struct { name: name, fields: fields } =>
+            let fields = fields.iter().map(fn(__kain_closure_arg2): f"{__kain_closure_arg2.__kain_tuple_0}: {expr_to_string_with_indent(__kain_closure_arg2.__kain_tuple_1, indent)}").collect().join(", ")
+            "{name} { {fields} }"
+        kain_core__ast__Expr::AggregateInit { ty: ty, fields: fields } =>
+            let _ = (ty, fields, indent)
+            ("Any()").to_string()
+        kain_core__ast__Expr::Cast { value: value, target: target } => f"({expr_to_string_with_indent(value, indent)} as {type_to_string(target)})"
+        kain_core__ast__Expr::Await(value, _) => f"(await {expr_to_string_with_indent(value, indent)})"
+        kain_core__ast__Expr::AsyncBlock(value, _) => f"(async {expr_to_string_with_indent(value, indent)})"
+        kain_core__ast__Expr::Try(value, _) => f"({expr_to_string_with_indent(value, indent)}?)"
+        kain_core__ast__Expr::Paren(value, _) => f"({expr_to_string_with_indent(value, indent)})"
+        kain_core__ast__Expr::JSX(node, _) => jsx_to_string(node)
+        kain_core__ast__Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } => if_expr_to_string(condition, then_branch, else_branch, indent)
+        kain_core__ast__Expr::Lambda { params: params, return_type: return_type, body: body } => lambda_to_string(params, return_type, body, indent)
+        kain_core__ast__Expr::Block(block, _) => block_expr_to_string(block, indent)
+        kain_core__ast__Expr::Return(Some(value), _) => f"return {expr_to_string_with_indent(value, indent)}"
+        kain_core__ast__Expr::Return(None, _) => ("return").to_string()
+        kain_core__ast__Expr::Break(Some(value), _) => f"break {expr_to_string_with_indent(value, indent)}"
+        kain_core__ast__Expr::Break(None, _) => ("break").to_string()
+        kain_core__ast__Expr::Continue(_) => ("continue").to_string()
+        _ => ("none").to_string()
+
+fn jsx_to_string(node: &kain_core::ast::JSXNode) -> String:
+    match node:
+        kain_core__ast__JSXNode::Element { tag: tag, attributes: attributes, children: children } =>
+            let attrs = jsx_attrs_to_string(attributes)
+            if children.is_empty():
+                f"<{tag}{attrs} />"
+            else:
+                let children = children.iter().map(jsx_to_string).collect().join("")
+                f"<{tag}{attrs}>{children}</{tag}>"
+        kain_core__ast__JSXNode::Text(text, _) => text.clone()
+        kain_core__ast__JSXNode::Expression(expr) => "{{expr_to_string(expr)}}"
+        kain_core__ast__JSXNode::ComponentCall { name: name, props: props, children: children } =>
+            let attrs = jsx_attrs_to_string(props)
+            if children.is_empty():
+                f"<{name}{attrs} />"
+            else:
+                let children = children.iter().map(jsx_to_string).collect().join("")
+                f"<{name}{attrs}>{children}</{name}>"
+        kain_core__ast__JSXNode::For { binding: binding, iter: iter, body: body } => "{for {binding} in {expr_to_string(iter)}: {jsx_to_string(body)}}"
+        kain_core__ast__JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+            let else_suffix = else_branch.map(fn(node): f" else: {jsx_to_string(node)}").unwrap_or_default()
+            "{if {expr_to_string(condition)}: {jsx_to_string(then_branch)}{else_suffix}}"
+        kain_core__ast__JSXNode::Fragment(children, _) =>
+            let children = children.iter().map(jsx_to_string).collect().join("")
+            f"<Fragment>{children}</Fragment>"
+
+fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String:
+    if attrs.is_empty():
+        return String__new_()
+    let rendered = attrs.iter().map(fn(attr): none).collect().join(" ")
+    f" {rendered}"
+
+fn effects_to_string(effects: &[kain_core::effects::Effect]) -> String:
+    effects.iter().map(fn(effect): none).collect().join(", ")
+
+fn call_arg_to_string(arg: &kain_core::ast::CallArg) -> String:
+    call_arg_to_string_with_indent(arg, 0)
+
+fn call_arg_to_string_with_indent(arg: &kain_core::ast::CallArg, indent: usize) -> String:
+    match &(*arg).name:
+        Some(name) => f"{name} = {expr_to_string_with_indent(&(*arg).value, indent)}"
+        None => expr_to_string_with_indent(&(*arg).value, indent)
+
+fn render_call_like(callee: String, args: &[String], indent: usize) -> String:
+    if args.is_empty():
+        return f"{callee}()"
+    if args.iter().all(fn(arg): (!arg.contains("\n"))):
+        return "{callee}({args.join(\", \")})"
+    let body_indent = ("    ").repeat((indent + 1))
+    let closing_indent = ("    ").repeat(indent)
+    let rendered_args = args.iter().map(fn(arg): indent_multiline(arg, &body_indent)).collect().join(",\n")
+    f"{callee}(\n{rendered_args}\n{closing_indent})"
+
+fn indent_multiline(text: String, prefix: String) -> String:
+    text.lines().map(fn(line_): f"{prefix}{line_}").collect().join("\n")
+
+fn block_to_string(block: &kain_core::ast::Block, indent: usize) -> String:
+    if (*block).stmts.is_empty():
+        return "{(\"    \").repeat(indent)}pass"
+    (*block).stmts.iter().map(fn(stmt): stmt_to_string(stmt, indent)).collect().join("\n")
+
+fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String:
+    let prefix = ("    ").repeat(indent)
+    match stmt:
+        kain_core__ast__Stmt::Let { pattern: pattern, ty: ty, value: value } =>
+            let mut line_ = f"{prefix}let {pattern_to_string(pattern)}"
+            match ty:
+                Some(ty) =>
+                    line_.push_str(&f": {type_to_string(ty)}")
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match value:
+                Some(value) =>
+                    line_.push_str(" = ")
+                    ()
+                    line_.push_str(&expr_to_string_with_indent(value, indent))
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            line_
+        kain_core__ast__Stmt::Expr(kain_core__ast__Expr::Block(block, _)) => block_to_string(block, indent)
+        kain_core__ast__Stmt::Expr(expr) => f"{prefix}{expr_to_string_with_indent(expr, indent)}"
+        kain_core__ast__Stmt::Return(Some(expr), _) => f"{prefix}return {expr_to_string_with_indent(expr, indent)}"
+        kain_core__ast__Stmt::Return(None, _) => f"{prefix}return"
+        kain_core__ast__Stmt::Break(Some(expr), _) => f"{prefix}break {expr_to_string_with_indent(expr, indent)}"
+        kain_core__ast__Stmt::Break(None, _) => f"{prefix}break"
+        kain_core__ast__Stmt::Continue(_) => f"{prefix}continue"
+        kain_core__ast__Stmt::While { condition: condition, body: body } => f"{prefix}while {expr_to_string_with_indent(condition, indent)}:\n{block_to_string(body, (indent + 1))}"
+        kain_core__ast__Stmt::For { binding: binding, iter: iter, body: body } => f"{prefix}for {pattern_to_string(binding)} in {expr_to_string_with_indent(iter, indent)}:\n{block_to_string(body, (indent + 1))}"
+        kain_core__ast__Stmt::Loop { body: body } => f"{prefix}loop:\n{block_to_string(body, (indent + 1))}"
+        kain_core__ast__Stmt::Item(item) => item_to_string(item, indent)
+
+fn item_to_string(item: &kain_core::ast::Item, indent: usize) -> String:
+    let mut output = String__new_()
+    let _ = write_item(&mut output, item, indent)
+    output.trim_end().to_string()
+
+fn block_expr_to_string(block: &kain_core::ast::Block, indent: usize) -> String:
+    let _ = (block, indent)
+    ("none").to_string()
+
+fn lambda_to_string(params: &[kain_core::ast::Param], return_type: Option<&kain_core::ast::Type>, body: &kain_core::ast::Expr, indent: usize) -> String:
+    let params = params.iter().map(fn(param): f"{param.name}: {type_to_string(&param.ty)}").collect().join(", ")
+    let ret = return_type.map(fn(ty): f" -> {type_to_string(ty)}").unwrap_or_default()
+    match body:
+        kain_core__ast__Expr::Block(block, _) => f"fn({params}){ret}:\n{block_to_string(block, (indent + 1))}"
+        _ => f"fn({params}){ret}: {expr_to_string_with_indent(body, indent)}"
+
+fn if_expr_to_string(condition: &kain_core::ast::Expr, then_branch: &kain_core::ast::Block, else_branch: Option<&kain_core::ast::ElseBranch>, indent: usize) -> String:
+    let prefix = ("    ").repeat(indent)
+    let mut out_ = f"if {expr_to_string_with_indent(condition, indent)}:\n{block_to_string(then_branch, (indent + 1))}"
+    match else_branch:
+        Some(else_branch) =>
+            out_.push("\n")
+            ()
+            out_.push_str(&else_branch_to_string(else_branch, indent, &prefix))
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    out_
+
+fn else_branch_to_string(else_branch: &kain_core::ast::ElseBranch, indent: usize, prefix: String) -> String:
+    match else_branch:
+        kain_core__ast__ElseBranch::Else(block) => f"{prefix}else:\n{block_to_string(block, (indent + 1))}"
+        kain_core__ast__ElseBranch::ElseIf(condition, block, nested) =>
+            let mut out_ = f"{prefix}else if {expr_to_string_with_indent(condition, indent)}:\n{block_to_string(block, (indent + 1))}"
+            match nested:
+                Some(nested) =>
+                    out_.push("\n")
+                    ()
+                    out_.push_str(&else_branch_to_string(nested, indent, prefix))
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            out_
+
+fn binary_op_to_string(op: kain_core::ast::BinaryOp) -> String:
+    match op:
+        kain_core__ast__BinaryOp::Add => "+"
+        kain_core__ast__BinaryOp::Sub => "-"
+        kain_core__ast__BinaryOp::Mul => "*"
+        kain_core__ast__BinaryOp::Div => "/"
+        kain_core__ast__BinaryOp::Mod => "%"
+        kain_core__ast__BinaryOp::Pow => "**"
+        kain_core__ast__BinaryOp::Eq => "=="
+        kain_core__ast__BinaryOp::Ne => "!="
+        kain_core__ast__BinaryOp::Lt => "<"
+        kain_core__ast__BinaryOp::Gt => ">"
+        kain_core__ast__BinaryOp::Le => "<="
+        kain_core__ast__BinaryOp::Ge => ">="
+        kain_core__ast__BinaryOp::And => "&&"
+        kain_core__ast__BinaryOp::Or => "||"
+        kain_core__ast__BinaryOp::BitAnd => "&"
+        kain_core__ast__BinaryOp::BitOr => "|"
+        kain_core__ast__BinaryOp::BitXor => "^"
+        kain_core__ast__BinaryOp::Shl => "<<"
+        kain_core__ast__BinaryOp::Shr => ">>"
+        kain_core__ast__BinaryOp::Assign => "="
+        kain_core__ast__BinaryOp::AddAssign => "+="
+        kain_core__ast__BinaryOp::SubAssign => "-="
+        kain_core__ast__BinaryOp::MulAssign => "*="
+        kain_core__ast__BinaryOp::DivAssign => "/="
+        kain_core__ast__BinaryOp::Range => ".."
+        kain_core__ast__BinaryOp::RangeInclusive => "..="
+
+fn unary_op_to_string(op: kain_core::ast::UnaryOp) -> String:
+    match op:
+        kain_core__ast__UnaryOp::Neg => "-"
+        kain_core__ast__UnaryOp::Not => "!"
+        kain_core__ast__UnaryOp::BitNot => "~"
+        kain_core__ast__UnaryOp::Ref => "&"
+        kain_core__ast__UnaryOp::RefMut => "&mut "
+        kain_core__ast__UnaryOp::Deref => "*"
+
+fn type_to_string(ty: &kain_core::ast::Type) -> String:
+    match ty:
+        kain_core__ast__Type::Named { name: name, generics: generics } =>
+            let name = sanitize_type_name(name)
+            if generics.is_empty():
+                name
+            else:
+                let args = generics.iter().map(type_to_string).collect().join(", ")
+                f"{name}<{args}>"
+        kain_core__ast__Type::Tuple(types, _) =>
+            let types = types.iter().map(type_to_string).collect().join(", ")
+            f"({types})"
+        kain_core__ast__Type::Array(inner, size, _) => f"[{type_to_string(inner)}; {size}]"
+        kain_core__ast__Type::Slice(inner, _) => f"[{type_to_string(inner)}]"
+        kain_core__ast__Type::Ref { mutable_: mutable_, inner: inner } => if (*mutable_): f"&mut {type_to_string(inner)}" else: f"&{type_to_string(inner)}"
+        kain_core__ast__Type::Ptr { mutable_: mutable_, inner: inner } => if (*mutable_): f"ptr_mut<{type_to_string(inner)}>" else: f"ptr<{type_to_string(inner)}>"
+        kain_core__ast__Type::Function {  } => ("Any").to_string()
+        kain_core__ast__Type::Option(inner, _) => f"Option<{type_to_string(inner)}>"
+        kain_core__ast__Type::Result(ok, err, _) => f"{type_to_string(ok)}!{type_to_string(err)}"
+        kain_core__ast__Type::Infer(_) => ("Any").to_string()
+        kain_core__ast__Type::Never(_) => ("!").to_string()
+        kain_core__ast__Type::Unit(_) => ("()").to_string()
+        kain_core__ast__Type::Impl { trait_name: trait_name, generics: generics } =>
+            let trait_name = sanitize_type_name(trait_name)
+            if generics.is_empty():
+                f"impl {trait_name}"
+            else:
+                let args = generics.iter().map(type_to_string).collect().join(", ")
+                f"impl {trait_name}<{args}>"
+
+fn sanitize_type_name(name: String) -> String:
+    let sanitized = name.chars().map(fn(ch): if (ch.is_ascii_alphanumeric() || (ch == "_")): ch else: "_").collect()
+    if (sanitized.is_empty() || (sanitized == "_")):
+        ("Any").to_string()
+    else:
+        sanitized
+
+fn count_items<F>(items: &[kain_core::ast::Item], predicate: F) -> usize:
+    let mut total = 0
+    for item in items:
+        if predicate(item):
+            total = (total + 1)
+            ()
+            ()
+            ()
+            ()
+        match item:
+            kain_core__ast__Item::Mod(module) =>
+                match &module.inline_:
+                    Some(children) =>
+                        total = (total + count_items(children, predicate))
+                        ()
+                    _ => ()
+            _ => ()
+    ()
+    total
+

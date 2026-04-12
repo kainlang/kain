@@ -1,0 +1,130 @@
+use kain_core::ast::ShaderStage
+
+use kain_core::ast::Type
+
+use kain_core::types::TypedItem
+
+use kain_core::types::TypedProgram
+
+use serde::Deserialize
+
+use serde::Serialize
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct RustGpuArtifactOutput:
+    shaders: Array<RustGpuShaderArtifact>
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct RustGpuShaderArtifact:
+    name: String
+    stage: RustGpuShaderStage
+    entry_point: String
+    inputs: Array<RustGpuInputArtifact>
+    bindings: Array<RustGpuBindingArtifact>
+    output_type: String
+
+pub enum RustGpuShaderStage:
+    Vertex
+    Fragment
+    Compute
+    Surface
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct RustGpuInputArtifact:
+    name: String
+    ty: String
+
+@derive(Debug, Clone, serde__Serialize, serde__Deserialize)
+pub struct RustGpuBindingArtifact:
+    name: String
+    binding: u32
+    descriptor_set: u32
+    ty: String
+    kind: RustGpuBindingKind
+
+pub enum RustGpuBindingKind:
+    StorageBuffer
+    Sampler2D
+    Uniform
+    LocalSize
+    SpecializationConstant
+
+pub fn collect_gpu_artifacts(program: &kain_core::types::TypedProgram) -> RustGpuArtifactOutput:
+    let shaders = (*program).items.iter().filter_map(fn(item): none).collect()
+    RustGpuArtifactOutput { shaders: shaders }
+
+pub fn collect_gpu_artifacts_json(program: &kain_core::types::TypedProgram) -> Result<String, serde_json::Error>:
+    serde_json__to_string_pretty(&collect_gpu_artifacts(program))
+
+pub fn format_gpu_type(ty: &kain_core::ast::Type) -> String:
+    match ty:
+        kain_core__ast__Type::Named { name: name, generics: generics } =>
+            if generics.is_empty():
+                name.clone()
+            else:
+                let generics = generics.iter().map(format_gpu_type).collect().join(", ")
+                f"{name}<{generics}>"
+        kain_core__ast__Type::Tuple(types, _) =>
+            let types = types.iter().map(format_gpu_type).collect().join(", ")
+            f"({types})"
+        kain_core__ast__Type::Array(inner, size, _) => f"[{format_gpu_type(inner)}; {size}]"
+        kain_core__ast__Type::Slice(inner, _) => f"[{format_gpu_type(inner)}]"
+        kain_core__ast__Type::Ref { mutable_: mutable_, inner: inner } => if (*mutable_): f"&mut {format_gpu_type(inner)}" else: f"&{format_gpu_type(inner)}"
+        kain_core__ast__Type::Ptr { mutable_: mutable_, inner: inner } => if (*mutable_): f"*mut {format_gpu_type(inner)}" else: f"*const {format_gpu_type(inner)}"
+        kain_core__ast__Type::Function { params: params, return_type: return_type } =>
+            let params = params.iter().map(format_gpu_type).collect().join(", ")
+            f"fn({params}) -> {format_gpu_type(return_type)}"
+        kain_core__ast__Type::Option(inner, _) => f"Option<{format_gpu_type(inner)}>"
+        kain_core__ast__Type::Result(ok, err, _) => f"Result<{format_gpu_type(ok)}, {format_gpu_type(err)}>"
+        kain_core__ast__Type::Infer(_) => ("_").to_string()
+        kain_core__ast__Type::Never(_) => ("!").to_string()
+        kain_core__ast__Type::Unit(_) => ("()").to_string()
+        kain_core__ast__Type::Impl { trait_name: trait_name, generics: generics } =>
+            if generics.is_empty():
+                f"impl {trait_name}"
+            else:
+                let generics = generics.iter().map(format_gpu_type).collect().join(", ")
+                f"impl {trait_name}<{generics}>"
+
+fn map_shader_stage(stage: kain_core::ast::ShaderStage) -> RustGpuShaderStage:
+    match stage:
+        kain_core__ast__ShaderStage::Vertex => RustGpuShaderStage__Vertex
+        kain_core__ast__ShaderStage::Fragment => RustGpuShaderStage__Fragment
+        kain_core__ast__ShaderStage::Compute => RustGpuShaderStage__Compute
+        kain_core__ast__ShaderStage::Surface => RustGpuShaderStage__Surface
+
+fn classify_binding(name: String, ty: &kain_core::ast::Type) -> RustGpuBindingKind:
+    if is_local_size_param(name):
+        RustGpuBindingKind__LocalSize
+    elif is_specialization_constant(name):
+        RustGpuBindingKind__SpecializationConstant
+    elif is_sampler_2d(ty):
+        RustGpuBindingKind__Sampler2D
+    elif is_storage_buffer(ty):
+        RustGpuBindingKind__StorageBuffer
+    else:
+        RustGpuBindingKind__Uniform
+
+fn is_sampler_2d(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "Sampler2D") => true
+        _ => false
+
+fn is_storage_buffer(ty: &kain_core::ast::Type) -> Bool:
+    match ty:
+        kain_core__ast__Type::Named { name: name } if (name == "StorageBuffer") => true
+        _ => false
+
+fn is_local_size_param(name: String) -> Bool:
+    match name:
+        "LOCAL_SIZE_X" => true
+        "LOCAL_SIZE_Y" => true
+        "LOCAL_SIZE_Z" => true
+        _ => false
+
+fn is_specialization_constant(name: String) -> Bool:
+    let uppercase = name.chars().all(fn(ch): (!ch.is_ascii_lowercase()))
+    let has_separator = name.contains("_")
+    let has_known_prefix = (["CFG_", "ENABLE_", "USE_", "WITH_", "HAS_", "ALLOW_", "SUPPORT_"]).iter().any(fn(prefix): name.starts_with(prefix))
+    (has_known_prefix || (((uppercase && has_separator) && (name.len() >= 4))))
+

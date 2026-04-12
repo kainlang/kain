@@ -1,0 +1,17 @@
+use crate::types::TypedProgram
+
+@doc(doc = " Shader complexity analysis result")
+pub struct ShaderComplexity:
+    alu_ops: u32
+    texture_samples: u32
+    branches: u32
+
+impl ShaderComplexity:
+    pub fn generate_report(_self: &ShaderComplexity, shader_name: String) -> String:
+        f"[{shader_name}] ALU: {(*_self).alu_ops}, Tex: {(*_self).texture_samples}, Branches: {(*_self).branches}\n"
+
+
+@doc(doc = " Analyze shaders in a typed program and return complexity reports")
+pub fn analyze_shader(_program: &TypedProgram) -> Array<(String, ShaderComplexity)>:
+    Vec__new_()
+

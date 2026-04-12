@@ -1,0 +1,106 @@
+use transformer::TypeScriptTransformer
+
+use crate::ImportError
+
+use crate::Result
+
+use kain_core::ast::Program
+
+use std::path::Path
+
+@doc(doc = " Import a single TypeScript source file into KAIN AST.")
+@doc(doc = "")
+@doc(doc = " # Example")
+@doc(doc = " ```bash")
+@doc(doc = " kain import-ts ./src/app.ts --output src/app.kn")
+@doc(doc = " ```")
+pub fn import_typescript_file(path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
+    let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
+    import_typescript_source(&source, path)
+
+@doc(doc = " Compatibility alias matching the requirements document naming.")
+pub fn import_ts_file(path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
+    import_typescript_file(path)
+
+@doc(doc = " Import TypeScript source from a string (useful for testing and REPL use).")
+pub fn import_typescript_source(source: String, path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
+    let module = parser__parse_typescript(source, path)?
+    let mut tx = TypeScriptTransformer__new_()
+    tx.transform(module)
+
+@doc(doc = " Import multiple TypeScript files into a single merged KAIN program (flat mode).")
+@doc(doc = "")
+@doc(doc = " All symbols land in top-level scope.")
+pub fn import_typescript_project(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:
+    let mut all_items = Vec__new_()
+    let span = Span__default_()
+    for path in paths:
+        let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
+        let module = parser__parse_typescript(&source, path)?
+        let mut tx = TypeScriptTransformer__new_()
+        let program = tx.transform(module)?
+        all_items.extend(program.items)
+        ()
+    ()
+    Result::Ok(kain_core::ast::Program { items: all_items, span: span })
+
+@doc(doc = " Compatibility alias matching the requirements document naming.")
+pub fn import_ts_project(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:
+    import_typescript_project(paths)
+
+@doc(doc = " Recursively collect and import all `.ts` files under a directory.")
+@doc(doc = "")
+@doc(doc = " `flat = true`  → all symbols merged into one top-level scope")
+@doc(doc = " `flat = false` → each file wrapped in a `mod <name>:` block")
+pub fn import_typescript_dir(dir: &std::path::Path, flat: Bool) -> Result<kain_core::ast::Program, Error>:
+    let files = collect_typescript_files(dir)?
+    let paths: Array<&std::path::Path> = files.iter().map(fn(p): p.as_path()).collect()
+    if flat:
+        import_typescript_project(&paths)
+    else:
+        import_typescript_project_modular(&paths)
+
+@doc(doc = " Import with per-file module wrapping.")
+fn import_typescript_project_modular(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:
+    use kain_core::ast::Item
+
+    use kain_core::ast::Mod
+
+    let mut top_items = Vec__new_()
+    let span = Span__default_()
+    for path in paths:
+        let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
+        let module = parser__parse_typescript(&source, path)?
+        let mut tx = TypeScriptTransformer__new_()
+        let program = tx.transform(module)?
+        let mod_name = path.file_stem().and_then(fn(s): s.to_str()).unwrap_or("unknown").to_string()
+        top_items.push(kain_core__ast__Item::Mod(kain_core::ast::Mod { name: mod_name, inline_: Option::Some(program.items), visibility: kain_core__ast__Visibility__Public, span: span }))
+        ()
+    ()
+    Result::Ok(kain_core::ast::Program { items: top_items, span: span })
+
+fn collect_typescript_files(dir: &std::path::Path) -> Result<Array<path::PathBuf>, Error>:
+    let mut files = Vec__new_()
+    collect_typescript_files_into(dir, &mut files)?
+    ()
+    files.sort()
+    ()
+    Result::Ok(files)
+
+fn collect_typescript_files_into(dir: &std::path::Path, files: &mut Array<path::PathBuf>) -> Result<(), Error>:
+    for entry in (std__fs__read_dir(dir).map_err(ImportError__IoError)?):
+        let entry = entry.map_err(ImportError__IoError)?
+        let path = entry.path()
+        if path.is_dir():
+            collect_typescript_files_into(&path, files)?
+            ()
+        else:
+            match path.extension().and_then(fn(e): e.to_str()):
+                Some(ext) =>
+                    if ((ext == "ts") || (ext == "tsx")):
+                        files.push(path)
+                        ()
+                _ => ()
+    ()
+    Result::Ok(())
+

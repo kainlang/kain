@@ -1,0 +1,3307 @@
+use crate::ast::*
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use crate::language_features::runtime_supports_binary_op
+
+use crate::lexer::Lexer
+
+use crate::parser::Parser
+
+use crate::types::TypedItem
+
+use crate::types::TypedProgram
+
+use crate::ui::eval_jsx
+
+use crate::ui::VNode
+
+use flume::Sender
+
+use once_cell::sync::Lazy
+
+use std::any::Any
+
+use std::collections::BTreeMap
+
+use std::collections::HashMap
+
+use std::fmt
+
+use std::sync::Arc
+
+use std::sync::RwLock
+
+pub type EnvExtensionRegistrar = fn(&mut Env) -> ()
+
+const ENV_EXTENSION_REGISTRARS: std::sync::RwLock<Map<String, EnvExtensionRegistrar>> = (fn(): RwLock__new_(BTreeMap__new_()))()
+
+fn lowered_impl_function_names(type_name: String, method_name: String) -> [String; 2]:
+    [f"{type_name}_{method_name}", f"{type_name}__{method_name}"]
+
+fn module_scoped_name(module_path: &[String], item_name: String) -> String:
+    let mut parts = module_path.to_vec()
+    parts.push(item_name.to_string())
+    ()
+    parts.join("__")
+
+fn selfhost_enum_variant_alias_name(enum_name: String, variant_name: String) -> String:
+    f"{enum_name}__{variant_name}"
+
+pub fn register_env_extension(name: impl Into<String>, registrar: EnvExtensionRegistrar):
+    ENV_EXTENSION_REGISTRARS.write().unwrap().insert(name.into(), registrar)
+    ()
+
+pub enum Value:
+    Unit
+    Bool(Bool)
+    Int(i64)
+    Float(f64)
+    String(String)
+    Array(std::sync::Arc<std::sync::RwLock<Array<Value>>>)
+    Tuple(Array<Value>)
+    Struct(String, std::sync::Arc<std::sync::RwLock<Map<String, Value>>>)
+    HostObject(String, std::sync::Arc<impl Any>)
+    Function(String)
+    Patch(String)
+    Law(String)
+    Converge(String)
+    Orchestrate(String)
+    NativeFn(String, fn(&mut Env, Array<Value>) -> Result<Value, KainError>)
+    ActorRef(ActorRef)
+    None
+    Return(Box<Value>)
+    Break(Option<Box<Value>>)
+    Continue
+    Result(Bool, Box<Value>)
+    Closure(Array<String>, Box<Expr>, Array<Map<String, Value>>)
+    StructConstructor(String, Array<String>)
+    JSX(VNode)
+    EnumVariant(String, String, Array<Value>)
+    Poll(Bool, Option<Box<Value>>)
+    Future(String, std::sync::Arc<std::sync::RwLock<Map<String, Value>>>)
+
+pub type NativeFn = fn(&mut Env, Array<Value>) -> Result<Value, KainError>
+
+impl std::fmt::Debug for Value:
+    fn fmt(_self: &Value, f: &mut std::fmt::Formatter<_>) -> Result<(), Error>:
+        match *_self:
+            Value::Unit => __kain_write_fmt!(f, "Unit")
+            Value::Bool(b) => __kain_write_fmt!(f, f"Bool({b})")
+            Value::Int(i) => __kain_write_fmt!(f, f"Int({i})")
+            Value::Float(fl) => __kain_write_fmt!(f, f"Float({fl})")
+            Value::String(s) => __kain_write_fmt!(f, f"String({s})")
+            Value::Array(arr) => __kain_write_fmt!(f, f"Array({arr})")
+            Value::Tuple(t) => __kain_write_fmt!(f, f"Tuple({t})")
+            Value::Struct(name, fields) => __kain_write_fmt!(f, f"Struct({name}, {fields})")
+            Value::HostObject(name, _) => __kain_write_fmt!(f, f"HostObject({name})")
+            Value::Function(name) => __kain_write_fmt!(f, f"Function({name})")
+            Value::Patch(name) => __kain_write_fmt!(f, f"Patch({name})")
+            Value::Law(name) => __kain_write_fmt!(f, f"Law({name})")
+            Value::Converge(name) => __kain_write_fmt!(f, f"Converge({name})")
+            Value::Orchestrate(name) => __kain_write_fmt!(f, f"Orchestrate({name})")
+            Value::NativeFn(name, _) => __kain_write_fmt!(f, f"NativeFn({name})")
+            Value::StructConstructor(name, _) => __kain_write_fmt!(f, f"StructConstructor({name})")
+            Value::ActorRef(r) => __kain_write_fmt!(f, f"ActorRef({r})")
+            Value::None => __kain_write_fmt!(f, "None")
+            Value::Return(v) => __kain_write_fmt!(f, f"Return({v})")
+            Value::Result(ok, v) => if (*ok): __kain_write_fmt!(f, f"Ok({v})") else: __kain_write_fmt!(f, f"Err({v})")
+            Value::Closure(params, _, _) => __kain_write_fmt!(f, f"Closure({params})")
+            Value::JSX(node) => __kain_write_fmt!(f, f"JSX({node})")
+            Value::EnumVariant(e, v, _) => __kain_write_fmt!(f, f"{e}::{v}")
+            Value::Poll(ready, val) => if (*ready): __kain_write_fmt!(f, f"Poll::Ready({val})") else: __kain_write_fmt!(f, "Poll::Pending")
+            Value::Future(name, _) => __kain_write_fmt!(f, f"Future<{name}>")
+            Value::Break(v) => __kain_write_fmt!(f, f"Break({v})")
+            Value::Continue => __kain_write_fmt!(f, "Continue")
+
+
+impl std::fmt::Display for Value:
+    fn fmt(_self: &Value, f: &mut std::fmt::Formatter<_>) -> Result<(), Error>:
+        match *_self:
+            Value::Unit => __kain_write_fmt!(f, "()")
+            Value::Bool(b) => __kain_write_fmt!(f, b)
+            Value::Int(i) => __kain_write_fmt!(f, i)
+            Value::Float(fl) => __kain_write_fmt!(f, fl)
+            Value::String(s) => __kain_write_fmt!(f, s)
+            Value::Array(arr) =>
+                __kain_write_fmt!(f, "[")?
+                ()
+                let arr = arr.read().unwrap()
+                for selfhost_for_item in arr.iter().enumerate():
+                    let (i, v) = selfhost_for_item
+                    if (i > 0):
+                        __kain_write_fmt!(f, ", ")?
+                        ()
+                        ()
+                        ()
+                        ()
+                    __kain_write_fmt!(f, v)?
+                    ()
+                ()
+                __kain_write_fmt!(f, "]")
+            Value::Tuple(t) =>
+                __kain_write_fmt!(f, "(")?
+                ()
+                for selfhost_for_item in t.iter().enumerate():
+                    let (i, v) = selfhost_for_item
+                    if (i > 0):
+                        __kain_write_fmt!(f, ", ")?
+                        ()
+                        ()
+                        ()
+                        ()
+                    __kain_write_fmt!(f, v)?
+                    ()
+                ()
+                __kain_write_fmt!(f, ")")
+            Value::Struct(name, fields) =>
+                __kain_write_fmt!(f, "{name} {")?
+                ()
+                let fields = fields.read().unwrap()
+                for selfhost_for_item in fields.iter().enumerate():
+                    let (i, (k, v)) = selfhost_for_item
+                    if (i > 0):
+                        __kain_write_fmt!(f, ", ")?
+                        ()
+                        ()
+                        ()
+                        ()
+                    __kain_write_fmt!(f, f"{k}: {v}")?
+                    ()
+                ()
+                __kain_write_fmt!(f, "}")
+            Value::HostObject(name, _) => __kain_write_fmt!(f, f"<host {name}>")
+            Value::Function(name) => __kain_write_fmt!(f, f"<fn {name}>")
+            Value::Patch(name) => __kain_write_fmt!(f, f"<patch {name}>")
+            Value::Law(name) => __kain_write_fmt!(f, f"<law {name}>")
+            Value::Converge(name) => __kain_write_fmt!(f, f"<converge {name}>")
+            Value::Orchestrate(name) => __kain_write_fmt!(f, f"<orchestrate {name}>")
+            Value::NativeFn(name, _) => __kain_write_fmt!(f, f"<native fn {name}>")
+            Value::StructConstructor(name, _) => __kain_write_fmt!(f, f"<constructor {name}>")
+            Value::ActorRef(r) => __kain_write_fmt!(f, f"<actor {r.id}>")
+            Value::None => __kain_write_fmt!(f, "none")
+            Value::Return(v) => __kain_write_fmt!(f, v)
+            Value::Result(ok, v) => if (*ok): __kain_write_fmt!(f, f"Ok({v})") else: __kain_write_fmt!(f, f"Err({v})")
+            Value::Closure(_, _, _) => __kain_write_fmt!(f, "<closure>")
+            Value::JSX(node) => __kain_write_fmt!(f, node)
+            Value::EnumVariant(enum_name, variant, fields) =>
+                if fields.is_empty():
+                    __kain_write_fmt!(f, f"{enum_name}::{variant}")
+                else:
+                    __kain_write_fmt!(f, f"{enum_name}::{variant}(")?
+                    ()
+                    for selfhost_for_item in fields.iter().enumerate():
+                        let (i, v) = selfhost_for_item
+                        if (i > 0):
+                            __kain_write_fmt!(f, ", ")?
+                            ()
+                            ()
+                            ()
+                            ()
+                        __kain_write_fmt!(f, v)?
+                        ()
+                    ()
+                    __kain_write_fmt!(f, ")")
+            Value::Poll(ready, val) => if (*ready): none else: __kain_write_fmt!(f, "Poll::Pending")
+            Value::Future(name, _) => __kain_write_fmt!(f, f"<future {name}>")
+            Value::Break(v) =>
+                match v:
+                    Some(val) => __kain_write_fmt!(f, f"<break {val}>")
+                    _ => __kain_write_fmt!(f, "<break>")
+            Value::Continue => __kain_write_fmt!(f, "<continue>")
+
+
+impl Value:
+    pub fn host_object(label: impl Into<String>, object: std::sync::Arc<impl Any>) -> Value:
+        Value::HostObject(label.into(), object)
+
+    pub fn downcast_host_object<T>(_self: &Value) -> Option<std::sync::Arc<T>>:
+        match *_self:
+            Value::HostObject(_, object) => object.clone().downcast().ok()
+            _ => none
+
+    pub fn host_object_label(_self: &Value) -> Option<String>:
+        match *_self:
+            Value::HostObject(label, _) => Option::Some(label.as_str())
+            _ => none
+
+
+@doc(doc = " Reference to an actor")
+@derive(Debug, Clone)
+pub struct ActorRef:
+    id: u64
+    sender: flume::Sender<Message>
+
+@doc(doc = " Message for actor communication")
+@derive(Debug, Clone)
+pub struct Message:
+    name: String
+    args: Array<Value>
+
+enum ExecutionLane:
+    Interpret
+    Test
+
+@derive(Debug, Clone)
+struct ActivePatchFrame:
+    name: String
+    mutation_paths: Array<String>
+    undo_mode: String
+    changes: Array<ActivePatchChange>
+
+enum PatchMutationTarget:
+    StructField { fields: std::sync::Arc<std::sync::RwLock<Map<String, Value>>>, field: String }
+    ArrayIndex { values: std::sync::Arc<std::sync::RwLock<Array<Value>>>, index: usize }
+
+@derive(Debug, Clone)
+struct ActivePatchChange:
+    path: String
+    target: PatchMutationTarget
+    old_value: Value
+    new_value: Value
+
+@derive(Debug, Clone)
+pub struct PatchMutationRecord:
+    path: String
+    old_value: Value
+    new_value: Value
+
+@derive(Debug, Clone)
+pub struct PatchCollaborationEvent:
+    event_id: String
+    patch_name: String
+    mutation_paths: Array<String>
+    undo_mode: String
+
+@derive(Debug, Clone)
+struct ReplayablePatchRecord:
+    name: String
+    undo_mode: String
+    changes: Array<ActivePatchChange>
+
+@derive(Debug, Clone)
+pub struct PatchRuntimeRecord:
+    name: String
+    mutation_paths: Array<String>
+    undo_mode: String
+    changes: Array<PatchMutationRecord>
+    collaboration_event: String
+
+@doc(doc = " Interpreter environment")
+@derive(Clone)
+pub struct Env:
+    scopes: Array<Map<String, Value>>
+    functions: Map<String, Function>
+    function_inline_scopes: Map<String, Map<String, Value>>
+    patches: Map<String, PatchDef>
+    laws: Map<String, LawDef>
+    patch_undo_modes: Map<String, String>
+    converges: Map<String, ConvergeDef>
+    orchestrates: Map<String, OrchestrateDef>
+    worlds: Map<String, std::sync::Arc<std::sync::RwLock<Map<String, Value>>>>
+    components: Map<String, Component>
+    inline_modules: Map<String, Array<Item>>
+    methods: Map<String, Map<String, Function>>
+    actors: Map<u64, flume::Sender<Message>>
+    next_actor_id: u64
+    actor_defs: Map<String, Actor>
+    self_actor_id: Option<u64>
+    execution_lane: ExecutionLane
+    active_capabilities: Array<String>
+    active_patch_frames: Array<ActivePatchFrame>
+    patch_records: Array<PatchRuntimeRecord>
+    patch_replay_catalog: Array<ReplayablePatchRecord>
+    replayable_patch_history: Array<ReplayablePatchRecord>
+    undone_patch_records: Array<ReplayablePatchRecord>
+    patch_collaboration_events: Array<PatchCollaborationEvent>
+    extension_state: Map<String, std::sync::Arc<impl Any>>
+
+impl Env:
+    pub fn new_() -> Env:
+        let mut env = Env { scopes: [HashMap__new_()], functions: HashMap__new_(), function_inline_scopes: HashMap__new_(), patches: HashMap__new_(), laws: HashMap__new_(), patch_undo_modes: HashMap__new_(), converges: HashMap__new_(), orchestrates: HashMap__new_(), worlds: HashMap__new_(), components: HashMap__new_(), inline_modules: HashMap__new_(), methods: HashMap__new_(), actors: HashMap__new_(), next_actor_id: 1, actor_defs: HashMap__new_(), self_actor_id: none, execution_lane: ExecutionLane__Interpret, active_capabilities: [("patch.transactions").to_string(), ("converge.dispatch").to_string(), ("orchestrate.pipeline").to_string(), ("host.runtime.interpret").to_string()], active_patch_frames: Vec__new_(), patch_records: Vec__new_(), patch_replay_catalog: Vec__new_(), replayable_patch_history: Vec__new_(), undone_patch_records: Vec__new_(), patch_collaboration_events: Vec__new_(), extension_state: HashMap__new_() }
+        env.register_stdlib()
+        ()
+        env.register_net_stdlib()
+        ()
+        env.register_json_stdlib()
+        ()
+        env.register_kos_bridge()
+        ()
+        env.apply_registered_extensions()
+        ()
+        env
+
+    fn apply_registered_extensions(_self: &mut Env):
+        let registrars = ENV_EXTENSION_REGISTRARS.read().unwrap().values().copied().collect()
+        for registrar in registrars:
+            registrar(*_self)
+            ()
+
+    pub fn set_extension_state(_self: &mut Env, key: impl Into<String>, state_: std::sync::Arc<impl Any>):
+        (*_self).extension_state.insert(key.into(), state_)
+        ()
+
+    pub fn get_extension_state<T>(_self: &Env, key: String) -> Option<std::sync::Arc<T>>:
+        (*_self).extension_state.get(key).cloned().and_then(fn(state_): state_.downcast().ok())
+
+    pub fn register_kos_bridge(_self: &mut Env):
+        (*_self).define_native("spawn_cube", fn(_env, args): none)
+        ()
+        (*_self).define_native("spawn_native_viewport", fn(_env, args): none)
+        ()
+        (*_self).define_native("spawn_native_sculpt_lab", fn(_env, args): none)
+        ()
+        (*_self).define_native("native_config_string", fn(_env, args): none)
+        ()
+        (*_self).define_native("native_config_int", fn(_env, args): none)
+        ()
+        (*_self).define_native("native_config_float", fn(_env, args): none)
+        ()
+        (*_self).define_native("native_config_flag", fn(_env, args): none)
+        ()
+
+    pub fn register_net_stdlib(_self: &mut Env):
+        (*_self).define_native("http_get", fn(_env, args): none)
+        ()
+        (*_self).define_native("http_post_json", fn(_env, args): none)
+        ()
+
+    pub fn register_json_stdlib(_self: &mut Env):
+        (*_self).define_native("json_parse", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_string", fn(_env, args): none)
+        ()
+
+    pub fn register_stdlib(_self: &mut Env):
+        (*_self).define(("None").to_string(), Value__None)
+        ()
+        (*_self).define(("none").to_string(), Value__None)
+        ()
+        (*_self).define_native("Some", fn(_env, args): none)
+        ()
+        (*_self).define_native("print", fn(_env, args): none)
+        ()
+        (*_self).define_native("println", fn(_env, args): none)
+        ()
+        (*_self).define_native("eprint", fn(_env, args): none)
+        ()
+        (*_self).define_native("eprintln", fn(_env, args): none)
+        ()
+        (*_self).define_native("min", fn(_env, args): none)
+        ()
+        (*_self).define_native("max", fn(_env, args): none)
+        ()
+        (*_self).define_native("abs", fn(_env, args): none)
+        ()
+        (*_self).define_native("sqrt", fn(_env, args): none)
+        ()
+        (*_self).define_native("random", fn(_env, _args): none)
+        ()
+        (*_self).define_native("sleep", fn(_env, args): none)
+        ()
+        (*_self).define_native("len", fn(_env, args): none)
+        ()
+        (*_self).define_native("ord", fn(_env, args): none)
+        ()
+        (*_self).define_native("chr", fn(_env, args): none)
+        ()
+        (*_self).define_native("first", fn(_env, args): none)
+        ()
+        (*_self).define_native("last", fn(_env, args): none)
+        ()
+        (*_self).define_native("push", fn(_env, args): none)
+        ()
+        (*_self).define_native("range", fn(_env, args): none)
+        ()
+        (*_self).define_native("first", fn(_env, args): none)
+        ()
+        (*_self).define_native("last", fn(_env, args): none)
+        ()
+        (*_self).define_native("reverse", fn(_env, args): none)
+        ()
+        (*_self).define_native("sum", fn(_env, args): none)
+        ()
+        (*_self).define_native("type_of", fn(_env, args): none)
+        ()
+        (*_self).define_native("variant_of", fn(_env, args): none)
+        ()
+        (*_self).define_native("variant_field", fn(_env, args): none)
+        ()
+        (*_self).define_native("str", fn(_env, args): none)
+        ()
+        (*_self).define_native("int", fn(_env, args): none)
+        ()
+        (*_self).define_native("float", fn(_env, args): none)
+        ()
+        (*_self).define_native("ok", fn(_env, args): none)
+        ()
+        (*_self).define_native("err", fn(_env, args): none)
+        ()
+        (*_self).define_native("sleep", fn(_env, args): none)
+        ()
+        (*_self).define_native("now", fn(_env, _args): none)
+        ()
+        (*_self).define_native("map", fn(env, args): none)
+        ()
+        (*_self).define_native("filter", fn(env, args): none)
+        ()
+        (*_self).define_native("reduce", fn(env, args): none)
+        ()
+        (*_self).define_native("foreach", fn(env, args): none)
+        ()
+        (*_self).define_native("read_file", fn(_env, args): none)
+        ()
+        (*_self).define_native("write_file", fn(_env, args): none)
+        ()
+        (*_self).define_native("split", fn(_env, args): none)
+        ()
+        (*_self).define_native("join", fn(_env, args): none)
+        ()
+        (*_self).define_native("trim", fn(_env, args): none)
+        ()
+        (*_self).define_native("to_upper", fn(_env, args): none)
+        ()
+        (*_self).define_native("upper", fn(_env, args): none)
+        ()
+        (*_self).define_native("to_lower", fn(_env, args): none)
+        ()
+        (*_self).define_native("lower", fn(_env, args): none)
+        ()
+        (*_self).define_native("contains", fn(_env, args): none)
+        ()
+        (*_self).define_native("starts_with", fn(_env, args): none)
+        ()
+        (*_self).define_native("ends_with", fn(_env, args): none)
+        ()
+        (*_self).define_native("replace", fn(_env, args): none)
+        ()
+        (*_self).define_native("char_at", fn(_env, args): none)
+        ()
+        (*_self).define_native("substring", fn(_env, args): none)
+        ()
+        (*_self).define_native("send", fn(_env, args): none)
+        ()
+        (*_self).define_native("sleep", fn(_env, args): none)
+        ()
+        (*_self).define_native("time", fn(_env, _args): none)
+        ()
+        (*_self).define_native("exit", fn(_env, args): none)
+        ()
+        (*_self).define_native("env", fn(_env, args): none)
+        ()
+        (*_self).define_native("assert", fn(_env, args): none)
+        ()
+        (*_self).define_native("panic", fn(_env, args): none)
+        ()
+        (*_self).define_native("dbg", fn(_env, args): none)
+        ()
+        (*_self).define_native("int", fn(_env, args): none)
+        ()
+        (*_self).define_native("float", fn(_env, args): none)
+        ()
+        (*_self).define_native("str", fn(_env, args): none)
+        ()
+        (*_self).define_native("to_string", fn(_env, args): none)
+        ()
+        (*_self).define_native("bool", fn(_env, args): none)
+        ()
+        (*_self).define_native("to_int", fn(_env, args): none)
+        ()
+        (*_self).define_native("sqrt", fn(_env, args): none)
+        ()
+        (*_self).define_native("sin", fn(_env, args): none)
+        ()
+        (*_self).define_native("cos", fn(_env, args): none)
+        ()
+        (*_self).define_native("tan", fn(_env, args): none)
+        ()
+        (*_self).define_native("read_line", fn(_env, _args): none)
+        ()
+        (*_self).define_native("stdout_write", fn(_env, args): none)
+        ()
+        (*_self).define_native("stdin_read_exact", fn(_env, args): none)
+        ()
+        (*_self).define_native("file_exists", fn(_env, args): none)
+        ()
+        (*_self).define_native("patch_history", fn(env, _args): Result::Ok(runtime_array_value(env.patch_records().iter().map(runtime_patch_record_value).collect())))
+        ()
+        (*_self).define_native("patch_collaboration_events", fn(env, _args): Result::Ok(runtime_array_value(env.patch_collaboration_events().iter().map(runtime_patch_collaboration_event_value).collect())))
+        ()
+        (*_self).define_native("patch_undo_last", fn(env, _args): Result::Ok(Value::Bool(env.undo_last_patch()?)))
+        ()
+        (*_self).define_native("patch_replay_last", fn(env, _args): Result::Ok(Value::Bool(env.replay_last_undone_patch()?)))
+        ()
+        (*_self).define_native("patch_replay", fn(env, args): none)
+        ()
+        (*_self).define_native("block_on", fn(env, args): none)
+        ()
+        (*_self).define_native("spawn_task", fn(env, args): none)
+        ()
+        (*_self).define_native("poll_once", fn(env, args): none)
+        ()
+        (*_self).define_native("is_ready", fn(_env, args): none)
+        ()
+        (*_self).define_native("is_pending", fn(_env, args): none)
+        ()
+        (*_self).define_native("unwrap_ready", fn(_env, args): none)
+        ()
+
+    fn define_native(_self: &mut Env, name: String, func: NativeFn):
+        (*_self).register_native_fn(name, func)
+        ()
+
+    pub fn register_native_fn(_self: &mut Env, name: impl Into<String>, func: NativeFn):
+        let name = name.into()
+        (*_self).scopes[0].insert(name.clone(), Value::NativeFn(name, func))
+        ()
+
+    pub fn register_component(_self: &mut Env, component_: Component):
+        (*_self).components.insert(component_.name.clone(), component_)
+        ()
+
+    fn set_execution_lane(_self: &mut Env, lane: ExecutionLane):
+        (*_self).execution_lane = lane
+        ()
+        (*_self).active_capabilities.retain(fn(capability): ((capability != "host.runtime.interpret") && (capability != "host.runtime.test")))
+        ()
+        (*_self).active_capabilities.push(none)
+        ()
+
+    fn register_patch_value(_self: &mut Env, patch: &PatchDef, undo_mode: String):
+        (*_self).patches.insert((*patch).name.clone(), patch.clone())
+        ()
+        (*_self).patch_undo_modes.insert((*patch).name.clone(), undo_mode)
+        ()
+        (*_self).define((*patch).name.clone(), Value::Patch((*patch).name.clone()))
+        ()
+
+    fn register_law_value(_self: &mut Env, law: &LawDef):
+        (*_self).laws.insert((*law).name.clone(), law.clone())
+        ()
+        (*_self).define((*law).name.clone(), Value::Law((*law).name.clone()))
+        ()
+
+    fn register_converge_value(_self: &mut Env, converge: &ConvergeDef):
+        (*_self).converges.insert((*converge).name.clone(), converge.clone())
+        ()
+        (*_self).define((*converge).name.clone(), Value::Converge((*converge).name.clone()))
+        ()
+
+    fn register_orchestrate_value(_self: &mut Env, orchestrate: &OrchestrateDef):
+        (*_self).orchestrates.insert((*orchestrate).name.clone(), orchestrate.clone())
+        ()
+        (*_self).define((*orchestrate).name.clone(), Value::Orchestrate((*orchestrate).name.clone()))
+        ()
+
+    fn register_world_value(_self: &mut Env, world: &WorldDef) -> Result<(), KainError>:
+        let mut state_values = HashMap__new_()
+        for state_ in &(*world).states:
+            let value = eval_expr(*_self, &state_.initial)?
+            state_values.insert(state_.name.clone(), value)
+            ()
+        ()
+        let world_value = Arc__new_(RwLock__new_(state_values))
+        (*_self).worlds.insert((*world).name.clone(), world_value.clone())
+        ()
+        (*_self).define((*world).name.clone(), Value::Struct((*world).name.clone(), world_value))
+        ()
+        Result::Ok(())
+
+    pub fn patch_records(_self: &Env) -> &[PatchRuntimeRecord]:
+        &(*_self).patch_records
+
+    pub fn patch_collaboration_events(_self: &Env) -> &[PatchCollaborationEvent]:
+        &(*_self).patch_collaboration_events
+
+    fn begin_active_patch(_self: &mut Env, name: String):
+        let undo_mode = (*_self).patch_undo_modes.get(name).cloned().unwrap_or_else(fn(): ("best_effort").to_string())
+        (*_self).active_patch_frames.push(ActivePatchFrame { name: name.to_string(), mutation_paths: Vec__new_(), undo_mode: undo_mode, changes: Vec__new_() })
+        ()
+
+    fn record_patch_change(_self: &mut Env, change: ActivePatchChange):
+        match (*_self).active_patch_frames.last_mut():
+            Some(frame) =>
+                frame.mutation_paths.push(change.path.clone())
+                ()
+                frame.changes.push(change)
+                ()
+            _ => ()
+
+    fn finish_active_patch(_self: &mut Env):
+        match (*_self).active_patch_frames.pop():
+            Some(mut frame) =>
+                frame.mutation_paths.sort()
+                ()
+                frame.mutation_paths.dedup()
+                ()
+                let collaboration_event = f"patch.{frame.name}.applied"
+                let changes = frame.changes.iter().map(fn(change): PatchMutationRecord { path: change.path.clone(), old_value: change.old_value.clone(), new_value: change.new_value.clone() }).collect()
+                let replayable_record = ReplayablePatchRecord { name: frame.name.clone(), undo_mode: frame.undo_mode.clone(), changes: frame.changes }
+                (*_self).patch_records.push(PatchRuntimeRecord { name: frame.name, mutation_paths: frame.mutation_paths, undo_mode: frame.undo_mode, changes: changes, collaboration_event: collaboration_event.clone() })
+                ()
+                (*_self).patch_replay_catalog.push(replayable_record.clone())
+                ()
+                (*_self).replayable_patch_history.push(replayable_record.clone())
+                ()
+                (*_self).undone_patch_records.clear()
+                ()
+                (*_self).patch_collaboration_events.push(PatchCollaborationEvent { event_id: collaboration_event, patch_name: replayable_record.name, mutation_paths: (*_self).patch_records.last().map(fn(record): record.mutation_paths.clone()).unwrap_or_default(), undo_mode: replayable_record.undo_mode })
+                ()
+            _ => ()
+
+    fn cancel_active_patch(_self: &mut Env) -> Result<(), KainError>:
+        match (*_self).active_patch_frames.pop():
+            Some(frame) =>
+                if (frame.undo_mode == "reversible"):
+                    for change in frame.changes.iter().rev():
+                        apply_patch_change_value(change, false)?
+                        ()
+                    ()
+                    ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+    fn undo_last_patch(_self: &mut Env) -> Result<Bool, KainError>:
+        let Some(record) = (*_self).replayable_patch_history.iter().rposition(fn(record): (record.undo_mode == "reversible")).map(fn(index): (*_self).replayable_patch_history.remove(index))
+        for change in record.changes.iter().rev():
+            apply_patch_change_value(change, false)?
+            ()
+        ()
+        (*_self).undone_patch_records.push(record)
+        ()
+        Result::Ok(true)
+
+    fn replay_last_undone_patch(_self: &mut Env) -> Result<Bool, KainError>:
+        let Some(record) = (*_self).undone_patch_records.pop()
+        for change in &record.changes:
+            apply_patch_change_value(change, true)?
+            ()
+        ()
+        (*_self).replayable_patch_history.push(record)
+        ()
+        Result::Ok(true)
+
+    fn replay_patch_record(_self: &mut Env, index: usize) -> Result<Bool, KainError>:
+        let Some(record) = (*_self).patch_replay_catalog.get(index).cloned()
+        for change in &record.changes:
+            apply_patch_change_value(change, true)?
+            ()
+        ()
+        (*_self).replayable_patch_history.push(record)
+        ()
+        Result::Ok(true)
+
+    pub fn register_program_items(_self: &mut Env, program: &Program) -> Result<(), KainError>:
+        for item in &(*program).items:
+            (*_self).register_item(item)?
+            ()
+        ()
+        Result::Ok(())
+
+    pub fn register_typed_program(_self: &mut Env, program: &TypedProgram) -> Result<(), KainError>:
+        for item in &(*program).items:
+            match item:
+                TypedItem::Mod(module) =>
+                    (*_self).register_inline_module(&module.ast, &[])?
+                    ()
+                _ => ()
+        ()
+        for item in &(*program).items:
+            (*_self).register_typed_item(item)?
+            ()
+        ()
+        Result::Ok(())
+
+    fn register_item(_self: &mut Env, item: &Item) -> Result<(), KainError>:
+        match item:
+            Item::Use(u) =>
+                load_module(*_self, u)?
+                ()
+            Item::Mod(module) =>
+                (*_self).register_inline_module(module, &[])?
+                ()
+            Item::Function(f) =>
+                (*_self).functions.insert(f.name.clone(), f.clone())
+                ()
+                (*_self).define(f.name.clone(), Value::Function(f.name.clone()))
+                ()
+                ()
+                ()
+                ()
+            Item::Patch(patch) =>
+                (*_self).register_patch_value(patch, infer_patch_undo_mode(patch))
+                ()
+                ()
+                ()
+                ()
+            Item::Law(law) =>
+                (*_self).register_law_value(law)
+                ()
+                ()
+                ()
+                ()
+            Item::Converge(converge) =>
+                (*_self).register_converge_value(converge)
+                ()
+                ()
+                ()
+                ()
+            Item::World(world) =>
+                (*_self).register_world_value(world)?
+                ()
+                ()
+                ()
+                ()
+            Item::Orchestrate(orchestrate) =>
+                (*_self).register_orchestrate_value(orchestrate)
+                ()
+                ()
+                ()
+                ()
+            Item::Component(c) =>
+                (*_self).register_component(c.clone())
+                ()
+            Item::Struct(s) =>
+                let field_names = s.fields.iter().map(fn(field): field.name.clone()).collect()
+                (*_self).define(s.name.clone(), Value::StructConstructor(s.name.clone(), field_names))
+                ()
+                ()
+                ()
+                ()
+            Item::Enum(e) =>
+                for variant in &e.variants:
+                    let variant_name = f"{e.name}::{variant.name}"
+                    (*_self).define(variant_name.clone(), Value::Function(variant_name.clone()))
+                    ()
+                    let alias = selfhost_enum_variant_alias_name(&e.name, &variant.name)
+                    let alias_value = match &variant.fields:
+                        VariantFields::Unit => Value::EnumVariant(e.name.clone(), variant.name.clone(), Vec__new_())
+                        VariantFields::Tuple(_) => Value::Function(variant_name)
+                        VariantFields::Struct(_) => Value::Function(variant_name)
+                    (*_self).define(alias, alias_value)
+                    ()
+                ()
+                ()
+            Item::Actor(a) =>
+                (*_self).actor_defs.insert(a.name.clone(), a.clone())
+                ()
+                ()
+                ()
+                ()
+            Item::Const(c) =>
+                let value = eval_expr(*_self, &c.value)?
+                (*_self).define(c.name.clone(), value)
+                ()
+                ()
+                ()
+                ()
+            Item::Impl(i) =>
+                match &i.target_type:
+                    Type::Named { name: name } =>
+                        let lowered_fns: Array<(String, Function)> = i.methods.iter().flat_map(fn(method): lowered_impl_function_names(name, &method.name).into_iter().map(fn(lowered_name): (lowered_name, method.clone()))).collect()
+                        for selfhost_for_item in lowered_fns:
+                            let (lowered_name, method) = selfhost_for_item
+                            (*_self).functions.insert(lowered_name.clone(), method)
+                            ()
+                            (*_self).define(lowered_name.clone(), Value::Function(lowered_name))
+                            ()
+                        ()
+                        let type_methods = (*_self).methods.entry(name.clone()).or_default()
+                        for method in &i.methods:
+                            type_methods.insert(method.name.clone(), method.clone())
+                            ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            Item::Comptime(_) => ()
+            Item::Macro(_) => ()
+            Item::Test(_) => ()
+            Item::Trait(_) => ()
+            Item::TypeAlias(_) => ()
+            Item::Shader(_) => ()
+            Item::MaterialGraph(_) => ()
+            Item::MaterialFunction(_) => ()
+            Item::GraphEditor(_) => ()
+            Item::GraphRuntime(_) => ()
+            Item::StateMachine(_) => ()
+            Item::AsyncTask(_) => ()
+            Item::EditorModule(_) => ()
+            Item::GameplayTags(_) => ()
+            Item::GameplayAbility(_) => ()
+            Item::GameplayEffect(_) => ()
+            Item::GameplayCue(_) => ()
+            Item::AbilityTask(_) => ()
+            Item::TargetActor(_) => ()
+        Result::Ok(())
+
+    fn register_typed_item(_self: &mut Env, item: &TypedItem) -> Result<(), KainError>:
+        match item:
+            TypedItem::Use(u) =>
+                load_module(*_self, &u.ast)?
+                ()
+            TypedItem::Mod(module) =>
+                for child in &module.items:
+                    (*_self).register_typed_item(child)?
+                    ()
+                ()
+                ()
+            TypedItem::Function(f) =>
+                (*_self).functions.insert(f.ast.name.clone(), f.ast.clone())
+                ()
+                (*_self).define(f.ast.name.clone(), Value::Function(f.ast.name.clone()))
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Patch(patch) =>
+                (*_self).register_patch_value(&patch.ast, none)
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Law(law) =>
+                (*_self).register_law_value(&law.ast)
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Converge(converge) =>
+                (*_self).register_converge_value(&converge.ast)
+                ()
+                ()
+                ()
+                ()
+            TypedItem::World(world) =>
+                (*_self).register_world_value(&world.ast)?
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Orchestrate(orchestrate) =>
+                (*_self).register_orchestrate_value(&orchestrate.ast)
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Component(c) =>
+                (*_self).register_component(c.ast.clone())
+                ()
+            TypedItem::Struct(s) =>
+                let field_names = s.ast.fields.iter().map(fn(field): field.name.clone()).collect()
+                (*_self).define(s.ast.name.clone(), Value::StructConstructor(s.ast.name.clone(), field_names))
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Enum(e) =>
+                for variant in &e.ast.variants:
+                    let variant_name = f"{e.ast.name}::{variant.name}"
+                    (*_self).define(variant_name.clone(), Value::Function(variant_name.clone()))
+                    ()
+                    let alias = selfhost_enum_variant_alias_name(&e.ast.name, &variant.name)
+                    let alias_value = match &variant.fields:
+                        VariantFields::Unit => Value::EnumVariant(e.ast.name.clone(), variant.name.clone(), Vec__new_())
+                        VariantFields::Tuple(_) => Value::Function(variant_name)
+                        VariantFields::Struct(_) => Value::Function(variant_name)
+                    (*_self).define(alias, alias_value)
+                    ()
+                ()
+                ()
+            TypedItem::Actor(a) =>
+                (*_self).actor_defs.insert(a.ast.name.clone(), a.ast.clone())
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Const(c) =>
+                let value = eval_expr(*_self, &c.ast.value)?
+                (*_self).define(c.ast.name.clone(), value)
+                ()
+                ()
+                ()
+                ()
+            TypedItem::Impl(i) =>
+                match &i.ast.target_type:
+                    Type::Named { name: name } =>
+                        let lowered_fns: Array<(String, Function)> = i.ast.methods.iter().flat_map(fn(method): lowered_impl_function_names(name, &method.name).into_iter().map(fn(lowered_name): (lowered_name, method.clone()))).collect()
+                        for selfhost_for_item in lowered_fns:
+                            let (lowered_name, method) = selfhost_for_item
+                            (*_self).functions.insert(lowered_name.clone(), method)
+                            ()
+                            (*_self).define(lowered_name.clone(), Value::Function(lowered_name))
+                            ()
+                        ()
+                        let type_methods = (*_self).methods.entry(name.clone()).or_default()
+                        for method in &i.ast.methods:
+                            type_methods.insert(method.name.clone(), method.clone())
+                            ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            TypedItem::Comptime(_) => ()
+            TypedItem::Shader(_) => ()
+            TypedItem::Macro(_) => ()
+            TypedItem::Trait(_) => ()
+            TypedItem::Test(_) => ()
+            TypedItem::TypeAlias(_) => ()
+            TypedItem::MaterialGraph(_) => ()
+            TypedItem::MaterialFunction(_) => ()
+            TypedItem::GraphEditor(_) => ()
+            TypedItem::GraphRuntime(_) => ()
+            TypedItem::StateMachine(_) => ()
+            TypedItem::AsyncTask(_) => ()
+            TypedItem::EditorModule(_) => ()
+            TypedItem::GameplayTags(_) => ()
+            TypedItem::GameplayAbility(_) => ()
+            TypedItem::GameplayEffect(_) => ()
+            TypedItem::GameplayCue(_) => ()
+        Result::Ok(())
+
+    pub fn define(_self: &mut Env, name: String, value: Value):
+        (*_self).scopes.last_mut().unwrap().insert(name, value)
+        ()
+
+    fn register_inline_module(_self: &mut Env, module: &Mod, parent_path: &[String]) -> Result<(), KainError>:
+        let mut full_path = parent_path.to_vec()
+        full_path.push((*module).name.clone())
+        ()
+        let module_key = full_path.join("/")
+        match &(*module).inline_:
+            Some(children) =>
+                (*_self).inline_modules.insert(module_key, children.clone())
+                ()
+                (*_self).register_inline_module_aliases(children, &full_path)?
+                ()
+                for child in children:
+                    match child:
+                        Item::Mod(nested) =>
+                            (*_self).register_inline_module(nested, &full_path)?
+                            ()
+                        _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        Result::Ok(())
+
+    fn register_inline_module_aliases(_self: &mut Env, items: &[Item], module_path: &[String]) -> Result<(), KainError>:
+        for item in items:
+            match item:
+                Item::Function(f) =>
+                    let alias = module_scoped_name(module_path, &f.name)
+                    (*_self).functions.insert(alias.clone(), f.clone())
+                    ()
+                    (*_self).define(alias.clone(), Value::Function(alias))
+                    ()
+                Item::Const(c) =>
+                    let alias = module_scoped_name(module_path, &c.name)
+                    let value = eval_expr(*_self, &c.value)?
+                    (*_self).define(alias, value)
+                    ()
+                Item::Mod(module) =>
+                    match &module.inline_:
+                        Some(children) =>
+                            let mut nested_path = module_path.to_vec()
+                            nested_path.push(module.name.clone())
+                            ()
+                            (*_self).register_inline_module_aliases(children, &nested_path)?
+                            ()
+                        _ => ()
+                _ => ()
+        ()
+        let scope_bindings = (*_self).inline_module_scope_bindings(items, module_path)
+        for item in items:
+            match item:
+                Item::Function(f) =>
+                    let alias = module_scoped_name(module_path, &f.name)
+                    (*_self).function_inline_scopes.insert(alias, scope_bindings.clone())
+                    ()
+                _ => ()
+        ()
+        Result::Ok(())
+
+    fn inline_module_scope_bindings(_self: &Env, items: &[Item], module_path: &[String]) -> Map<String, Value>:
+        let mut bindings = HashMap__new_()
+        for item in items:
+            match item:
+                Item::Function(f) =>
+                    let alias = module_scoped_name(module_path, &f.name)
+                    bindings.insert(f.name.clone(), Value::Function(alias))
+                    ()
+                Item::Const(c) =>
+                    let alias = module_scoped_name(module_path, &c.name)
+                    match (*_self).lookup_value(&alias):
+                        Some(value) =>
+                            bindings.insert(c.name.clone(), value)
+                            ()
+                        _ => ()
+                _ => ()
+        ()
+        bindings
+
+    pub fn define_global(_self: &mut Env, name: impl Into<String>, value: Value):
+        (*_self).scopes[0].insert(name.into(), value)
+        ()
+
+    pub fn lookup_value(_self: &Env, name: String) -> Option<Value>:
+        (*_self).lookup(name).cloned()
+
+    pub fn call_named_function(_self: &mut Env, name: String, args: Array<Value>) -> Result<Value, KainError>:
+        let func = (*_self).lookup(name).cloned().ok_or_else(fn(): KainError__runtime(f"Function not found: {name}"))?
+        call_function(*_self, func, args)
+
+    fn assign(_self: &mut Env, name: String, value: Value) -> Result<(), KainError>:
+        for scope in (*_self).scopes.iter_mut().rev():
+            if scope.contains_key(name):
+                scope.insert(name.to_string(), value)
+                ()
+                return Result::Ok(())
+        ()
+        Result::Err(KainError__runtime(f"Undefined variable '{name}'"))
+
+    fn lookup(_self: &Env, name: String) -> Option<&Value>:
+        for scope in (*_self).scopes.iter().rev():
+            match scope.get(name):
+                Some(v) => return Option::Some(v)
+                _ => ()
+        ()
+        none
+
+    pub fn lookup_component(_self: &Env, name: String) -> Option<&Component>:
+        (*_self).components.get(name)
+
+    pub fn push_scope(_self: &mut Env):
+        (*_self).scopes.push(HashMap__new_())
+        ()
+
+    pub fn pop_scope(_self: &mut Env):
+        (*_self).scopes.pop()
+        ()
+
+
+@doc(doc = " Interpret the program")
+pub fn interpret(program: &TypedProgram) -> Result<Value, KainError>:
+    let mut env = Env__new_()
+    interpret_with_env(&mut env, program)
+
+pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> Result<Value, KainError>:
+    env.set_execution_lane(ExecutionLane__Interpret)
+    ()
+    env.register_typed_program(program)?
+    ()
+    env.apply_registered_extensions()
+    ()
+    if (*env).functions.contains_key("main"):
+        env.call_named_function("main", Vec__new_())
+    else:
+        Result::Ok(Value__Unit)
+
+fn find_stdlib_roots() -> Array<path::PathBuf>:
+    let mut roots = Vec__new_()
+    match std__env__var_("KAIN_STDLIB_PATH"):
+        Ok(env_path) =>
+            let p = PathBuf__from(env_path)
+            roots.push(p)
+            ()
+            ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_exe():
+        Ok(exe_path) =>
+            match exe_path.parent().map(fn(p): p.to_path_buf()):
+                Some(mut dir) =>
+                    loop:
+                        roots.push(dir.join("stdlib"))
+                        ()
+                        if (!dir.pop()):
+                            break
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    match std__env__current_dir():
+        Ok(mut dir) =>
+            loop:
+                roots.push(dir.join("stdlib"))
+                ()
+                if (!dir.pop()):
+                    break
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    roots
+
+fn load_module(env: &mut Env, u: &Use) -> Result<(), KainError>:
+    let path = (*u).path.join("/")
+    match (load_inline_module(env, u)?):
+        Some(items) =>
+            for item in items:
+                env.register_item(&item)?
+                ()
+            ()
+            return Result::Ok(())
+        _ =>
+            ()
+            ()
+    if (path == "stdlib"):
+        return Result::Ok(())
+    let file_path = if (path.starts_with("std/") || path.starts_with("stdlib/")):
+        let module_name = path.trim_start_matches("std/").trim_start_matches("stdlib/")
+        let mut file_path = none
+        for root in find_stdlib_roots():
+            let candidate = root.join(f"{module_name}.kn")
+            if candidate.exists():
+                file_path = Option::Some(candidate)
+                ()
+                break
+        ()
+        file_path.ok_or_else(fn(): KainError__runtime(f"Stdlib module not found: {module_name}"))?
+    else:
+        let base_path = Path__new_(&path)
+        let possible_paths = [base_path.with_extension("kn"), PathBuf__from(f"src/{path}.kn"), PathBuf__from(f"{path}.kn"), base_path.with_extension("god")]
+        possible_paths.iter().find(fn(p): p.exists()).cloned().ok_or_else(fn(): KainError__runtime(f"Module not found: {path} (tried: {possible_paths.iter().map(fn(p): p.display().to_string()).collect()})"))?
+    let source = std__fs__read_to_string(&file_path).map_err(fn(e): KainError__runtime(f"Failed to read module {path}: {e}"))?
+    let lexer = Lexer__new_(&source)
+    let tokens = lexer.tokenize()?
+    let span_mapper = SpanMapper__new_(&source)
+    let filename = file_path.to_string_lossy().to_string()
+    let mut parser = Parser__new_(&tokens, &span_mapper, &filename)
+    let program = parser.parse()?
+    for item in program.items:
+        env.register_item(&item)?
+        ()
+    ()
+    Result::Ok(())
+
+fn load_inline_module(env: &mut Env, u: &Use) -> Result<Option<Array<Item>>, KainError>:
+    let direct_path = (*u).path.join("/")
+    if (*u).glob:
+        return Result::Ok((*env).inline_modules.get(&direct_path).cloned())
+    match (*env).inline_modules.get(&direct_path).cloned():
+        Some(items) => return Result::Ok(Option::Some(items))
+        _ =>
+            ()
+            ()
+    if ((*u).path.len() < 2):
+        return Result::Ok(none)
+    let module_path = (*u).path[..((*u).path.len() - 1)].join("/")
+    let item_name = (*u).path.last().unwrap()
+    let Some(items) = (*env).inline_modules.get(&module_path)
+    let selected = items.iter().find(fn(item): inline_item_name(item).is_some_and(fn(name): (name == item_name))).cloned()
+    match selected:
+        Some(item) => Result::Ok(Option::Some([apply_use_alias(item, (*u).alias)?]))
+        None => Result::Err(KainError__runtime(f"Inline module item not found: {direct_path}"))
+
+fn inline_item_name(item: &Item) -> Option<String>:
+    match item:
+        Item::Function(f) => Option::Some(&f.name)
+        Item::Component(c) => Option::Some(&c.name)
+        Item::Struct(s) => Option::Some(&s.name)
+        Item::Enum(e) => Option::Some(&e.name)
+        Item::Actor(a) => Option::Some(&a.name)
+        Item::Const(c) => Option::Some(&c.name)
+        Item::Macro(m) => Option::Some(&m.name)
+        Item::TypeAlias(alias) => Option::Some(&alias.name)
+        Item::Mod(module) => Option::Some(&module.name)
+        _ => none
+
+fn apply_use_alias(item: Item, alias: Option<String>) -> Result<Item, KainError>:
+    let Some(alias) = alias
+    match &mut item:
+        Item::Function(f) =>
+            f.name = alias.to_string()
+            ()
+        Item::Component(c) =>
+            c.name = alias.to_string()
+            ()
+        Item::Struct(s) =>
+            s.name = alias.to_string()
+            ()
+        Item::Enum(e) =>
+            e.name = alias.to_string()
+            ()
+        Item::Actor(a) =>
+            a.name = alias.to_string()
+            ()
+        Item::Const(c) =>
+            c.name = alias.to_string()
+            ()
+        Item::Macro(m) =>
+            m.name = alias.to_string()
+            ()
+        Item::TypeAlias(t) =>
+            t.name = alias.to_string()
+            ()
+        Item::Mod(m) =>
+            m.name = alias.to_string()
+            ()
+        other => return Result::Err(KainError__runtime(f"Inline alias is not supported for item: {other}"))
+    Result::Ok(item)
+
+pub fn eval_block(env: &mut Env, block: &Block) -> Result<Value, KainError>:
+    for stmt in &(*block).stmts:
+        let result = eval_stmt(env, stmt)?
+        match &result:
+            Value::Return(_) => return Result::Ok(result)
+            Value::Break(_) => return Result::Ok(result)
+            Value::Continue => return Result::Ok(result)
+            _ => ()
+    ()
+    Result::Ok(Value__Unit)
+
+fn eval_stmt(env: &mut Env, stmt: &Stmt) -> Result<Value, KainError>:
+    match stmt:
+        Stmt::Expr(expr) =>
+            let val = eval_expr(env, expr)?
+            match &val:
+                Value::Return(_) => return Result::Ok(val)
+                Value::Break(_) => return Result::Ok(val)
+                Value::Continue => return Result::Ok(val)
+                _ => ()
+            Result::Ok(Value__Unit)
+        Stmt::Let { pattern: pattern, value: value } =>
+            let val = match value:
+                Some(expr) => eval_expr(env, expr)?
+                _ => Value__None
+            match val:
+                Value::Return(_) => return Result::Ok(val)
+                _ =>
+                    ()
+                    ()
+            match pattern:
+                Pattern::Binding { name: name } =>
+                    env.define(name.clone(), val)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            Result::Ok(Value__Unit)
+        Stmt::Return(expr, _) =>
+            let val = match expr:
+                Some(e) => eval_expr(env, e)?
+                _ => Value__Unit
+            match val:
+                Value::Return(_) => return Result::Ok(val)
+                _ =>
+                    ()
+                    ()
+            Result::Ok(Value::Return(Box__new_(val)))
+        Stmt::For { binding: binding, iter: iter, body: body } =>
+            let iter_val = eval_expr(env, iter)?
+            match iter_val:
+                Value::Return(_) => return Result::Ok(iter_val)
+                _ =>
+                    ()
+                    ()
+            match iter_val:
+                Value::Array(arr) =>
+                    let arr = arr.read().unwrap().clone()
+                    for val in arr.iter():
+                        env.push_scope()
+                        ()
+                        match binding:
+                            Pattern::Binding { name: name } =>
+                                env.define(name.clone(), val.clone())
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        let res = eval_block(env, body)?
+                        env.pop_scope()
+                        ()
+                        match res:
+                            Value::Return(_) => return Result::Ok(res)
+                            Value::Break(_) => break
+                            Value::Continue => continue
+                            _ => ()
+                    ()
+                    ()
+                _ =>
+                    match iter_val:
+                        Value::String(s) =>
+                            for c in s.chars():
+                                env.push_scope()
+                                ()
+                                match binding:
+                                    Pattern::Binding { name: name } =>
+                                        env.define(name.clone(), Value::String(c.to_string()))
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                let res = eval_block(env, body)?
+                                env.pop_scope()
+                                ()
+                                match res:
+                                    Value::Return(_) => return Result::Ok(res)
+                                    Value::Break(_) => break
+                                    Value::Continue => continue
+                                    _ => ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+            Result::Ok(Value__Unit)
+        Stmt::While { condition: condition, body: body } =>
+            loop:
+                let cond = eval_expr(env, condition)?
+                match cond:
+                    Value::Return(_) => return Result::Ok(cond)
+                    _ =>
+                        ()
+                        ()
+                match cond:
+                    Value::Bool(false) => break
+                    _ =>
+                        ()
+                        ()
+                let res = eval_block(env, body)?
+                match res:
+                    Value::Return(_) => return Result::Ok(res)
+                    Value::Break(_) => break
+                    Value::Continue => continue
+                    _ => ()
+            ()
+            Result::Ok(Value__Unit)
+        Stmt::Loop { body: body } =>
+            loop:
+                let res = eval_block(env, body)?
+                match res:
+                    Value::Return(_) => return Result::Ok(res)
+                    Value::Break(val) => return Result::Ok(val.map(fn(v): (*v)).unwrap_or(Value__Unit))
+                    Value::Continue => continue
+                    _ => ()
+        Stmt::Break(expr, _) =>
+            let val = match expr:
+                Some(e) => Option::Some(Box__new_(eval_expr(env, e)?))
+                _ =>
+                    none
+            Result::Ok(Value::Break(val))
+        Stmt::Continue(_) => Result::Ok(Value__Continue)
+        _ => Result::Ok(Value__Unit)
+
+fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> Result<(), KainError>:
+    match target:
+        Expr::Ident(name, _) =>
+            env.assign(name, value)?
+            ()
+            Result::Ok(())
+        Expr::Field { object: object, field: field } =>
+            let obj_val = eval_expr(env, object)?
+            match obj_val:
+                Value::Struct(_, fields) =>
+                    let old_value = fields.read().unwrap().get(field).cloned().unwrap_or(Value__None)
+                    fields.write().unwrap().insert(field.clone(), value.clone())
+                    ()
+                    match runtime_patch_target_path(target):
+                        Some(path) =>
+                            env.record_patch_change(ActivePatchChange { path: path, target: PatchMutationTarget::StructField { fields: fields.clone(), field: field.clone() }, old_value: old_value, new_value: value })
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    match obj_val:
+                        Value::ActorRef(r) =>
+                            match (*env).self_actor_id:
+                                Some(self_id) =>
+                                    if (self_id == r.id):
+                                        return env.assign(field, value)
+                                    ()
+                                _ =>
+                                    ()
+                                    ()
+                            return Result::Err(KainError__runtime("Cannot assign to remote actor fields"))
+                        _ => return Result::Err(KainError__runtime("Field assignment only supported on structs"))
+            Result::Ok(())
+        Expr::Index { object: object, index: index } =>
+            let obj_val = eval_expr(env, object)?
+            let idx_val = eval_expr(env, index)?
+            match (obj_val, idx_val):
+                (Value::Array(values), Value::Int(i)) =>
+                    let i = i as usize
+                    let mut array_values = values.write().unwrap()
+                    if (i < array_values.len()):
+                        let old_value = array_values[i].clone()
+                        array_values[i] = value.clone()
+                        ()
+                        match runtime_patch_target_path(target):
+                            Some(path) =>
+                                env.record_patch_change(ActivePatchChange { path: path, target: PatchMutationTarget::ArrayIndex { values: values.clone(), index: i }, old_value: old_value, new_value: value })
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    else:
+                        return Result::Err(KainError__runtime("Index out of bounds"))
+                    ()
+                _ => return Result::Err(KainError__runtime("Index assignment only supported on arrays with int index"))
+            Result::Ok(())
+        _ => Result::Err(KainError__runtime("Invalid assignment target"))
+
+fn eval_else_branch(env: &mut Env, else_branch: &ElseBranch) -> Result<Value, KainError>:
+    match else_branch:
+        ElseBranch::Else(block) => eval_block(env, block)
+        ElseBranch::ElseIf(condition, then_branch, nested_else_branch) =>
+            let condition_value = eval_expr(env, condition)?
+            match condition_value:
+                Value::Return(_) => return Result::Ok(condition_value)
+                _ =>
+                    ()
+                    ()
+            match condition_value:
+                Value::Bool(true) => eval_block(env, then_branch)
+                Value::Bool(false) =>
+                    match nested_else_branch:
+                        Some(next_branch) => eval_else_branch(env, next_branch)
+                        None => Result::Ok(Value__Unit)
+                _ => Result::Err(KainError__runtime("Type error: if condition must evaluate to Bool"))
+
+pub fn eval_expr(env: &mut Env, expr: &Expr) -> Result<Value, KainError>:
+    match expr:
+        Expr::MethodCall { receiver: receiver, method: method, args: args, span: _ } =>
+            let obj_val = eval_expr(env, receiver)?
+            match obj_val:
+                Value::Return(_) => return Result::Ok(obj_val)
+                _ =>
+                    ()
+                    ()
+            let mut arg_vals = Vec__new_()
+            for arg in args:
+                let v = eval_expr(env, &arg.value)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                arg_vals.push(v)
+                ()
+            ()
+            match obj_val:
+                Value::Struct(name, _) =>
+                    if (name == "Map"):
+                        match method.as_str():
+                            "iter" =>
+                                if (!arg_vals.is_empty()):
+                                    return Result::Err(KainError__runtime("Map.iter expects no arguments"))
+                                match &obj_val:
+                                    Value::Struct(_, fields) =>
+                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg6): Value::Tuple([Value::String(__kain_closure_arg6.__kain_tuple_0.clone()), __kain_closure_arg6.__kain_tuple_1.clone()])).collect()
+                                        return Result::Ok(runtime_array_value(items))
+                                    _ =>
+                                        ()
+                                        ()
+                                ()
+                            _ => ()
+                        ()
+                    let func_name = f"{name}_{method}"
+                    match (*env).functions.get(&func_name).cloned():
+                        Some(func) =>
+                            env.push_scope()
+                            ()
+                            env.define(("self").to_string(), obj_val)
+                            ()
+                            let param_iter = if func.params.first().map(fn(p): (p.name == "self")).unwrap_or(false):
+                                func.params.iter().skip(1)
+                            else:
+                                func.params.iter().skip(0)
+                            if (param_iter.len() != arg_vals.len()):
+                                return Result::Err(KainError__runtime(f"Method {func_name} arg mismatch"))
+                            for selfhost_for_item in param_iter.zip(arg_vals.into_iter()):
+                                let (param, arg) = selfhost_for_item
+                                env.define(param.name.clone(), arg)
+                                ()
+                            ()
+                            let result = eval_block(env, &func.body)?
+                            env.pop_scope()
+                            ()
+                            match result:
+                                Value::Return(v) => Result::Ok((*v))
+                                v => Result::Ok(v)
+                        _ => if (method == "to_string"): if (!arg_vals.is_empty()): Result::Err(KainError__runtime(f"{name}.to_string expects no arguments")) else: Result::Ok(Value::String(obj_val.to_string())) else: Result::Err(KainError__runtime(f"Method {method} not found for type {name}"))
+                Value::Future(name, _) =>
+                    if (name == "Map"):
+                        match method.as_str():
+                            "iter" =>
+                                if (!arg_vals.is_empty()):
+                                    return Result::Err(KainError__runtime("Map.iter expects no arguments"))
+                                match &obj_val:
+                                    Value::Struct(_, fields) =>
+                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg6): Value::Tuple([Value::String(__kain_closure_arg6.__kain_tuple_0.clone()), __kain_closure_arg6.__kain_tuple_1.clone()])).collect()
+                                        return Result::Ok(runtime_array_value(items))
+                                    _ =>
+                                        ()
+                                        ()
+                                ()
+                            _ => ()
+                        ()
+                    let func_name = f"{name}_{method}"
+                    match (*env).functions.get(&func_name).cloned():
+                        Some(func) =>
+                            env.push_scope()
+                            ()
+                            env.define(("self").to_string(), obj_val)
+                            ()
+                            let param_iter = if func.params.first().map(fn(p): (p.name == "self")).unwrap_or(false):
+                                func.params.iter().skip(1)
+                            else:
+                                func.params.iter().skip(0)
+                            if (param_iter.len() != arg_vals.len()):
+                                return Result::Err(KainError__runtime(f"Method {func_name} arg mismatch"))
+                            for selfhost_for_item in param_iter.zip(arg_vals.into_iter()):
+                                let (param, arg) = selfhost_for_item
+                                env.define(param.name.clone(), arg)
+                                ()
+                            ()
+                            let result = eval_block(env, &func.body)?
+                            env.pop_scope()
+                            ()
+                            match result:
+                                Value::Return(v) => Result::Ok((*v))
+                                v => Result::Ok(v)
+                        _ => if (method == "to_string"): if (!arg_vals.is_empty()): Result::Err(KainError__runtime(f"{name}.to_string expects no arguments")) else: Result::Ok(Value::String(obj_val.to_string())) else: Result::Err(KainError__runtime(f"Method {method} not found for type {name}"))
+                Value::Int(value) =>
+                    match method.as_str():
+                        "to_string" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Int.to_string expects no arguments"))
+                            Result::Ok(Value::String(obj_val.to_string()))
+                        "min" => eval_i64_binary_method(value, &arg_vals, method, i64__min)
+                        "max" => eval_i64_binary_method(value, &arg_vals, method, i64__max)
+                        "div_ceil" => eval_i64_div_ceil_method(value, &arg_vals, method)
+                        "saturating_add" => eval_i64_binary_method(value, &arg_vals, method, i64__saturating_add)
+                        "saturating_sub" => eval_i64_binary_method(value, &arg_vals, method, i64__saturating_sub)
+                        "saturating_mul" => eval_i64_binary_method(value, &arg_vals, method, i64__saturating_mul)
+                        "wrapping_add" => eval_i64_binary_method(value, &arg_vals, method, i64__wrapping_add)
+                        "wrapping_sub" => eval_i64_binary_method(value, &arg_vals, method, i64__wrapping_sub)
+                        "wrapping_mul" => eval_i64_binary_method(value, &arg_vals, method, i64__wrapping_mul)
+                        "wrapping_shl" => eval_i64_shift_method(value, &arg_vals, method, i64__wrapping_shl)
+                        "wrapping_shr" => eval_i64_shift_method(value, &arg_vals, method, i64__wrapping_shr)
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on Int"))
+                Value::Float(value) =>
+                    match method.as_str():
+                        "to_string" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Float.to_string expects no arguments"))
+                            Result::Ok(Value::String(obj_val.to_string()))
+                        "min" => eval_f64_binary_method(value, &arg_vals, method, f64__min)
+                        "max" => eval_f64_binary_method(value, &arg_vals, method, f64__max)
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on Float"))
+                Value::None =>
+                    match method.as_str():
+                        "cloned" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime(f"Option.{method} expects no arguments"))
+                            Result::Ok(Value__None)
+                        "copied" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime(f"Option.{method} expects no arguments"))
+                            Result::Ok(Value__None)
+                        "take" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Option.take expects no arguments"))
+                            Result::Ok(Value__None)
+                        "filter" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.filter expects 1 argument"))
+                            Result::Ok(Value__None)
+                        "or" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.or expects 1 argument"))
+                            Result::Ok(arg_vals[0].clone())
+                        "or_" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.or expects 1 argument"))
+                            Result::Ok(arg_vals[0].clone())
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on Option"))
+                Value::EnumVariant(enum_name, variant, fields) if (enum_name == "Option") =>
+                    match method.as_str():
+                        "cloned" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime(f"Option.{method} expects no arguments"))
+                            Result::Ok(obj_val)
+                        "copied" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime(f"Option.{method} expects no arguments"))
+                            Result::Ok(obj_val)
+                        "take" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Option.take expects no arguments"))
+                            if ((variant == "Some") && (fields.len() == 1)):
+                                eval_assignment(env, receiver, Value__None)?
+                                ()
+                                Result::Ok(obj_val)
+                            else:
+                                Result::Ok(Value__None)
+                        "filter" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.filter expects 1 argument"))
+                            if ((variant == "Some") && (fields.len() == 1)):
+                                match (call_function(env, arg_vals[0].clone(), [fields[0].clone()])?):
+                                    Value::Bool(true) => Result::Ok(obj_val)
+                                    Value::Bool(false) => Result::Ok(Value__None)
+                                    other => Result::Err(KainError__runtime(f"Option.filter predicate must return Bool, found {runtime_value_kind(&other)}"))
+                            else:
+                                Result::Ok(Value__None)
+                        "or" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.or expects 1 argument"))
+                            if ((variant == "Some") && (fields.len() == 1)):
+                                Result::Ok(obj_val)
+                            else:
+                                Result::Ok(arg_vals[0].clone())
+                        "or_" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("Option.or expects 1 argument"))
+                            if ((variant == "Some") && (fields.len() == 1)):
+                                Result::Ok(obj_val)
+                            else:
+                                Result::Ok(arg_vals[0].clone())
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on Option"))
+                Value::Array(_) =>
+                    match method.as_str():
+                        "to_string" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Array.to_string expects no arguments"))
+                            Result::Ok(Value::String(obj_val.to_string()))
+                        "push" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("push expects 1 argument"))
+                            match obj_val:
+                                Value::Array(arr) =>
+                                    arr.write().unwrap().push(arg_vals[0].clone())
+                                    ()
+                                    Result::Ok(Value__Unit)
+                                _ => panic("unreachable!")
+                        "first" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("first expects no arguments"))
+                            match obj_val:
+                                Value::Array(arr) => Result::Ok(arr.read().unwrap().first().cloned().unwrap_or(Value__None))
+                                _ => panic("unreachable!")
+                        "last" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("last expects no arguments"))
+                            match obj_val:
+                                Value::Array(arr) => Result::Ok(arr.read().unwrap().last().cloned().unwrap_or(Value__None))
+                                _ => panic("unreachable!")
+                        "pop" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("pop expects no arguments"))
+                            match obj_val:
+                                Value::Array(arr) => Result::Ok(arr.write().unwrap().pop().unwrap_or(Value__None))
+                                _ => panic("unreachable!")
+                        "len" =>
+                            match obj_val:
+                                Value::Array(arr) => Result::Ok(Value::Int(arr.read().unwrap().len() as i64))
+                                _ => panic("unreachable!")
+                        "binary_search" =>
+                            if (arg_vals.len() != 1):
+                                return Result::Err(KainError__runtime("binary_search expects 1 argument"))
+                            match obj_val:
+                                Value::Array(arr) => eval_array_binary_search(&arr.read().unwrap(), &arg_vals[0])
+                                _ => panic("unreachable!")
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on Array"))
+                Value::String(text) =>
+                    match method.as_str():
+                        "to_string" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("String.to_string expects no arguments"))
+                            Result::Ok(Value::String(text.clone()))
+                        "len" => Result::Ok(Value::Int(text.len() as i64))
+                        "push_str" =>
+                            let suffix = expect_single_string_arg(&arg_vals, method)?
+                            let mut updated = text.clone()
+                            updated.push_str(suffix)
+                            ()
+                            eval_assignment(env, receiver, Value::String(updated))?
+                            ()
+                            Result::Ok(Value__Unit)
+                        "repeat" =>
+                            let count = (*expect_single_int_arg(&arg_vals, method)?)
+                            if (count < 0):
+                                return Result::Err(KainError__runtime("String.repeat expects a non-negative count"))
+                            Result::Ok(Value::String(text.repeat(count as usize)))
+                        _ => Result::Err(KainError__runtime(f"Method {method} not found on String"))
+                _ if (method == "to_string") => if (!arg_vals.is_empty()): Result::Err(KainError__runtime("to_string expects no arguments")) else: Result::Ok(Value::String(obj_val.to_string()))
+                _ => Result::Err(KainError__runtime(f"Method calls not supported on this type: {obj_val}"))
+        Expr::Call { callee: callee, args: args } =>
+            match callee:
+                Expr::Field { object: object, field: field } =>
+                    match object:
+                        Expr::Ident(type_name, _) =>
+                            let method = (*env).methods.get(type_name).and_then(fn(m): m.get(field)).cloned()
+                            match method:
+                                Some(method) =>
+                                    let mut arg_vals = Vec__new_()
+                                    for arg in args:
+                                        let v = eval_expr(env, &arg.value)?
+                                        match v:
+                                            Value::Return(_) => return Result::Ok(v)
+                                            _ =>
+                                                ()
+                                                ()
+                                        arg_vals.push(v)
+                                        ()
+                                    ()
+                                    env.push_scope()
+                                    ()
+                                    for selfhost_for_item in method.params.iter().zip(arg_vals.into_iter()):
+                                        let (param, arg) = selfhost_for_item
+                                        env.define(param.name.clone(), arg)
+                                        ()
+                                    ()
+                                    let result = eval_block(env, &method.body)
+                                    env.pop_scope()
+                                    ()
+                                    return none
+                                _ =>
+                                    ()
+                                    ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    let obj_val = eval_expr(env, object)?
+                    match obj_val:
+                        Value::Return(_) => return Result::Ok(obj_val)
+                        _ =>
+                            ()
+                            ()
+                    let type_name = match &obj_val:
+                        Value::Struct(name, _) => Option::Some(name.clone())
+                        _ => none
+                    match type_name:
+                        Some(type_name) =>
+                            let method = (*env).methods.get(&type_name).and_then(fn(m): m.get(field)).cloned()
+                            match method:
+                                Some(method) =>
+                                    let mut arg_vals = Vec__new_()
+                                    for arg in args:
+                                        let v = eval_expr(env, &arg.value)?
+                                        match v:
+                                            Value::Return(_) => return Result::Ok(v)
+                                            _ =>
+                                                ()
+                                                ()
+                                        arg_vals.push(v)
+                                        ()
+                                    ()
+                                    env.push_scope()
+                                    ()
+                                    env.define(("self").to_string(), obj_val)
+                                    ()
+                                    let params_iter = match method.params.first():
+                                        Some(first) => if (first.name == "self"): method.params.iter().skip(1) else: method.params.iter().skip(0)
+                                        _ => method.params.iter().skip(0)
+                                    for selfhost_for_item in params_iter.zip(arg_vals.into_iter()):
+                                        let (param, arg) = selfhost_for_item
+                                        env.define(param.name.clone(), arg)
+                                        ()
+                                    ()
+                                    let result = eval_block(env, &method.body)
+                                    env.pop_scope()
+                                    ()
+                                    return none
+                                _ =>
+                                    ()
+                                    ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            let func_val = none
+            let mut arg_vals = Vec__new_()
+            for arg in args:
+                let v = eval_expr(env, &arg.value)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                arg_vals.push(v)
+                ()
+            ()
+            call_function(env, func_val, arg_vals)
+        Expr::StageCall { runtime: runtime, function: function, args: args } =>
+            let mut arg_vals = Vec__new_()
+            for arg in args:
+                let value = eval_expr(env, &arg.value)?
+                match value:
+                    Value::Return(_) => return Result::Ok(value)
+                    _ =>
+                        ()
+                        ()
+                arg_vals.push(value)
+                ()
+            ()
+            execute_stage_call(env, (*runtime), function, arg_vals)
+        Expr::Try(inner, _) =>
+            let val = eval_expr(env, inner)?
+            match val:
+                Value::Return(_) => return Result::Ok(val)
+                _ =>
+                    ()
+                    ()
+            match val:
+                Value::Result(true, v) => Result::Ok((*v))
+                Value::Result(false, e) => Result::Ok(Value::Return(Box__new_(Value::Result(false, e))))
+                Value::None => Result::Ok(Value::Return(Box__new_(Value__None)))
+                Value::EnumVariant(enum_name, variant, fields) if (((enum_name == "Option") && (variant == "Some")) && (fields.len() == 1)) => Result::Ok(fields[0].clone())
+                Value::EnumVariant(enum_name, variant, _) if ((enum_name == "Option") && (variant == "None")) => Result::Ok(Value::Return(Box__new_(Value__None)))
+                _ => Result::Err(KainError__runtime("Type error: expected Result or Option for ? operator"))
+        Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+            let cond = eval_expr(env, condition)?
+            match cond:
+                Value::Return(_) => return Result::Ok(cond)
+                _ =>
+                    ()
+                    ()
+            match cond:
+                Value::Bool(true) => eval_block(env, then_branch)
+                _ =>
+                    match else_branch:
+                        Some(eb) => eval_else_branch(env, eb)
+                        _ => Result::Ok(Value__Unit)
+        Expr::Match { scrutinee: scrutinee, arms: arms } =>
+            let val = eval_expr(env, scrutinee)?
+            match val:
+                Value::Return(_) => return Result::Ok(val)
+                _ =>
+                    ()
+                    ()
+            for arm in arms:
+                if pattern_matches(&arm.pattern, &val):
+                    env.push_scope()
+                    ()
+                    bind_pattern(env, &arm.pattern, &val)
+                    ()
+                    let res = eval_expr(env, &arm.body)?
+                    env.pop_scope()
+                    ()
+                    return Result::Ok(res)
+            ()
+            Result::Ok(Value__Unit)
+        Expr::MacroCall { name: name, args: args } =>
+            match name.as_str():
+                "vec" =>
+                    let mut vals = Vec__new_()
+                    for arg in args:
+                        let v = eval_expr(env, arg)?
+                        match v:
+                            Value::Return(_) => return Result::Ok(v)
+                            _ =>
+                                ()
+                                ()
+                        vals.push(v)
+                        ()
+                    ()
+                    Result::Ok(Value::Array(Arc__new_(RwLock__new_(vals))))
+                "format" =>
+                    let mut res = String__new_()
+                    for arg in args:
+                        let v = eval_expr(env, arg)?
+                        res.push_str(&v)
+                        ()
+                    ()
+                    Result::Ok(Value::String(res))
+                "__kain_write_fmt" =>
+                    if (args.len() != 2):
+                        return Result::Err(KainError__runtime(f"{name}: expected destination and message"))
+                    let message = eval_expr(env, &args[1])?
+                    let suffix = if (name == "__kain_writeln_fmt"):
+                        "\n"
+                    else:
+                        ""
+                    Result::Ok(Value::String(f"{message}{suffix}"))
+                "__kain_writeln_fmt" =>
+                    if (args.len() != 2):
+                        return Result::Err(KainError__runtime(f"{name}: expected destination and message"))
+                    let message = eval_expr(env, &args[1])?
+                    let suffix = if (name == "__kain_writeln_fmt"):
+                        "\n"
+                    else:
+                        ""
+                    Result::Ok(Value::String(f"{message}{suffix}"))
+                "type_name" =>
+                    match args.first():
+                        Some(arg) =>
+                            let v = eval_expr(env, arg)?
+                            let type_name = match v:
+                                Value::Unit => "unit"
+                                Value::Bool(_) => "bool"
+                                Value::Int(_) => "int"
+                                Value::Float(_) => "float"
+                                Value::String(_) => "string"
+                                Value::Array(_) => "array"
+                                Value::Tuple(_) => "tuple"
+                                Value::Struct(name, _) => return Result::Ok(Value::String(name.clone()))
+                                Value::HostObject(name, _) => return Result::Ok(Value::String(name.clone()))
+                                Value::Function(_) => "function"
+                                Value::Patch(_) => "patch"
+                                Value::Law(_) => "law"
+                                Value::Converge(_) => "converge"
+                                Value::Orchestrate(_) => "orchestrate"
+                                Value::NativeFn(_, _) => "native_fn"
+                                Value::StructConstructor(_, _) => "struct_constructor"
+                                Value::ActorRef(_) => "actor"
+                                Value::None => "none"
+                                Value::Return(_) => "return"
+                                Value::Result(_, _) => "result"
+                                Value::Closure(_, _, _) => "closure"
+                                Value::JSX(_) => "jsx"
+                                Value::EnumVariant(enum_name, _, _) => return Result::Ok(Value::String(enum_name.clone()))
+                                Value::Poll(_, _) => "poll"
+                                Value::Future(name, _) => return Result::Ok(Value::String(f"Future<{name}>"))
+                                Value::Break(_) => "break"
+                                Value::Continue => "continue"
+                            Result::Ok(Value::String(type_name.to_string()))
+                        _ => Result::Err(KainError__runtime("type_name! requires an argument"))
+                _ => Result::Err(KainError__runtime(f"Unknown macro: {name}!"))
+        Expr::Assign { target: target, value: value } =>
+            let v = eval_expr(env, value)?
+            match v:
+                Value::Return(_) => return Result::Ok(v)
+                _ =>
+                    ()
+                    ()
+            eval_assignment(env, target, v)?
+            ()
+            Result::Ok(Value__Unit)
+        Expr::Int(n, _) => Result::Ok(Value::Int((*n)))
+        Expr::Float(n, _) => Result::Ok(Value::Float((*n)))
+        Expr::String(s, _) => Result::Ok(Value::String(s.clone()))
+        Expr::FString(parts, _) =>
+            let mut result = String__new_()
+            for part in parts:
+                let val = eval_expr(env, part)?
+                match val:
+                    Value::Return(_) => return Result::Ok(val)
+                    _ =>
+                        ()
+                        ()
+                result.push_str(&val)
+                ()
+            ()
+            Result::Ok(Value::String(result))
+        Expr::Bool(b, _) => Result::Ok(Value::Bool((*b)))
+        Expr::None(_) => Result::Ok(Value__None)
+        Expr::Lambda { params: params, body: body } =>
+            let param_names = params.iter().map(fn(p): p.name.clone()).collect()
+            Result::Ok(Value::Closure(param_names, body.clone(), (*env).scopes.clone()))
+        Expr::Ident(name, span) => env.lookup(name).cloned().ok_or_else(fn(): KainError__runtime(f"Undefined: {name}"))
+        Expr::Binary { left: left, op: op, right: right } =>
+            let l = eval_expr(env, left)?
+            match l:
+                Value::Return(_) => return Result::Ok(l)
+                _ =>
+                    ()
+                    ()
+            let r = eval_expr(env, right)?
+            match r:
+                Value::Return(_) => return Result::Ok(r)
+                _ =>
+                    ()
+                    ()
+            eval_binop((*op), l, r)
+        Expr::Unary { op: op, operand: operand } =>
+            let v = eval_expr(env, operand)?
+            match v:
+                Value::Return(_) => return Result::Ok(v)
+                _ =>
+                    ()
+                    ()
+            match (op, v):
+                (UnaryOp::Neg, Value::Int(n)) => Result::Ok(Value::Int((-n)))
+                (UnaryOp::Neg, Value::Float(n)) => Result::Ok(Value::Float((-n)))
+                (UnaryOp::Not, Value::Bool(b)) => Result::Ok(Value::Bool((!b)))
+                (UnaryOp::BitNot, Value::Int(n)) => Result::Ok(Value::Int((!n)))
+                _ => Result::Err(KainError__runtime("Invalid unary operation"))
+        Expr::Array(elements, _) =>
+            let mut vals = Vec__new_()
+            for elem in elements:
+                let v = eval_expr(env, elem)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                vals.push(v)
+                ()
+            ()
+            Result::Ok(Value::Array(Arc__new_(RwLock__new_(vals))))
+        Expr::Index { object: object, index: index } =>
+            let obj = eval_expr(env, object)?
+            match obj:
+                Value::Return(_) => return Result::Ok(obj)
+                _ =>
+                    ()
+                    ()
+            match index:
+                Expr::Range { start: start, end: end } =>
+                    let start_idx = match start:
+                        Some(expr) =>
+                            match (eval_expr(env, expr)?):
+                                Value::Int(i) => i.max(0) as usize
+                                value => return Result::Ok(value)
+                                _ => return Result::Err(KainError__runtime("Range index start must evaluate to an Int"))
+                        None => 0
+                    let end_idx = match end:
+                        Some(expr) =>
+                            match (eval_expr(env, expr)?):
+                                Value::Int(i) => Option::Some(i.max(0) as usize)
+                                value => return Result::Ok(value)
+                                _ => return Result::Err(KainError__runtime("Range index end must evaluate to an Int"))
+                        None => none
+                    return none
+                _ =>
+                    ()
+                    ()
+            let idx = eval_expr(env, index)?
+            match idx:
+                Value::Return(_) => return Result::Ok(idx)
+                _ =>
+                    ()
+                    ()
+            match (obj, idx):
+                (Value::Array(arr), Value::Int(i)) =>
+                    let i = i as usize
+                    let arr = arr.read().unwrap()
+                    if (i < arr.len()):
+                        Result::Ok(arr[i].clone())
+                    else:
+                        Result::Err(KainError__runtime(f"Index out of bounds: {i}"))
+                (Value::String(s), Value::Int(i)) =>
+                    let i = i as usize
+                    if (i < s.len()):
+                        Result::Ok(Value::String(s.chars().nth(i).unwrap().to_string()))
+                    else:
+                        Result::Err(KainError__runtime(f"Index out of bounds: {i}"))
+                _ => Result::Err(KainError__runtime("Index operator requires array/string and int"))
+        Expr::Struct { name: name, fields: fields, rest: rest } =>
+            let mut field_vals = match rest:
+                Some(rest) =>
+                    match (eval_expr(env, rest)?):
+                        Value::Return(value) => return Result::Ok(Value::Return(value))
+                        Value::Struct(_, fields) => fields.read().unwrap().clone()
+                        Value::None => HashMap__new_()
+                        other => return Result::Err(KainError__runtime(f"Struct update syntax requires a struct value, found {other}"))
+                _ => HashMap__new_()
+            for selfhost_for_item in fields:
+                let (k, expr) = selfhost_for_item
+                let v = eval_expr(env, expr)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                field_vals.insert(k.clone(), v)
+                ()
+            ()
+            Result::Ok(Value::Struct(name.clone(), Arc__new_(RwLock__new_(field_vals))))
+        Expr::AggregateInit { ty: ty, fields: fields } =>
+            let mut field_vals = HashMap__new_()
+            for selfhost_for_item in fields:
+                let (k, expr) = selfhost_for_item
+                let v = eval_expr(env, expr)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                field_vals.insert(k.clone(), v)
+                ()
+            ()
+            let name = match ty:
+                Type::Named { name: name } => name.clone()
+                _ => ("<aggregate>").to_string()
+            Result::Ok(Value::Struct(name, Arc__new_(RwLock__new_(field_vals))))
+        Expr::JSX(node, _) => ui__eval_jsx(env, node)
+        Expr::Field { object: object, field: field } =>
+            let obj_val = eval_expr(env, object)?
+            match obj_val:
+                Value::Return(_) => return Result::Ok(obj_val)
+                _ =>
+                    ()
+                    ()
+            match obj_val:
+                Value::Struct(_, fields) =>
+                    let fields = fields.read().unwrap()
+                    fields.get(field).cloned().ok_or_else(fn(): KainError__runtime(f"Field not found: {field}"))
+                Value::Tuple(items) =>
+                    let index = match field.as_str():
+                        "x" => 0
+                        "r" => 0
+                        "y" => 1
+                        "g" => 1
+                        "z" => 2
+                        "b" => 2
+                        "w" => 3
+                        "a" => 3
+                        _ =>
+                            match field.strip_prefix("__kain_tuple_"):
+                                Some(index) => index.parse().map_err(fn(_): KainError__runtime(f"Field access on tuple uses unknown field {field}"))?
+                                None => return Result::Err(KainError__runtime(f"Field access on tuple uses unknown field {field}"))
+                    items.get(index).cloned().ok_or_else(fn(): KainError__runtime(f"Tuple field not found: {field}"))
+                Value::ActorRef(r) =>
+                    match (*env).self_actor_id:
+                        Some(self_id) =>
+                            if (self_id == r.id):
+                                return env.lookup(field).cloned().ok_or_else(fn(): KainError__runtime(f"Actor field not found: {field}"))
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    if (field == "id"):
+                        return Result::Ok(Value::Int(r.id as i64))
+                    Result::Err(KainError__runtime("Actor fields not accessible"))
+                _ => Result::Err(KainError__runtime(f"Field access on non-struct value: {obj_val}"))
+        Expr::Tuple(elements, _) =>
+            let mut vals = Vec__new_()
+            for elem in elements:
+                let v = eval_expr(env, elem)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                vals.push(v)
+                ()
+            ()
+            Result::Ok(Value::Tuple(vals))
+        Expr::Spawn { actor_: actor_, init: init } =>
+            let actor_def = (*env).actor_defs.get(actor_).cloned().ok_or_else(fn(): KainError__runtime(f"Unknown actor: {actor_}"))?
+            let mut init_vals = HashMap__new_()
+            for selfhost_for_item in init:
+                let (field, expr) = selfhost_for_item
+                let v = eval_expr(env, expr)?
+                match v:
+                    Value::Return(_) => return Result::Ok(v)
+                    _ =>
+                        ()
+                        ()
+                init_vals.insert(field.clone(), v)
+                ()
+            ()
+            let (tx, rx) = flume__unbounded()
+            let id = (*env).next_actor_id
+            (*env).next_actor_id = ((*env).next_actor_id + 1)
+            ()
+            let sender = tx.clone()
+            (*env).actors.insert(id, sender.clone())
+            ()
+            let functions = (*env).functions.clone()
+            let function_inline_scopes = (*env).function_inline_scopes.clone()
+            let components = (*env).components.clone()
+            let actor_defs = (*env).actor_defs.clone()
+            let inline_modules = (*env).inline_modules.clone()
+            let methods = (*env).methods.clone()
+            let patches = (*env).patches.clone()
+            let patch_undo_modes = (*env).patch_undo_modes.clone()
+            let laws = (*env).laws.clone()
+            let converges = (*env).converges.clone()
+            let orchestrates = (*env).orchestrates.clone()
+            let worlds = (*env).worlds.clone()
+            let global_scope = (*env).scopes.first().cloned().unwrap_or_default()
+            let actor_name = actor_.clone()
+            let self_sender = tx.clone()
+            let execution_lane = (*env).execution_lane
+            let active_capabilities = (*env).active_capabilities.clone()
+            std__thread__spawn_(fn(): none)
+            ()
+            Result::Ok(Value::ActorRef(ActorRef { id: id, sender: sender }))
+        Expr::SendMsg { target: target, message: message, data: data } =>
+            let actor_val = eval_expr(env, target)?
+            match actor_val:
+                Value::Return(_) => return Result::Ok(actor_val)
+                _ =>
+                    ()
+                    ()
+            match actor_val:
+                Value::ActorRef(r) =>
+                    let mut msg_args = Vec__new_()
+                    for selfhost_for_item in data:
+                        let (name_2, expr) = selfhost_for_item
+                        let v = eval_expr(env, expr)?
+                        msg_args.push(v)
+                        ()
+                    ()
+                    let msg = Message { name: message.clone(), args: msg_args }
+                    let _ = r.sender.send_(msg)
+                    Result::Ok(Value__Unit)
+                _ => Result::Err(KainError__runtime("send target must be an actor"))
+        Expr::Block(block, _) => eval_block(env, block)
+        Expr::Return(expr, _) =>
+            let val = match expr:
+                Some(e) => eval_expr(env, e)?
+                _ => Value__Unit
+            Result::Ok(Value::Return(Box__new_(val)))
+        Expr::Ref { value: value } => eval_expr(env, value)
+        Expr::AddrOf { value: value } => eval_expr(env, value)
+        Expr::Deref(inner, _) => eval_expr(env, inner)
+        Expr::PtrOffset { pointer: pointer } => eval_expr(env, pointer)
+        Expr::MemLoad { pointer: pointer } => eval_expr(env, pointer)
+        Expr::MemStore { value: value } =>
+            let evaluated = eval_expr(env, value)?
+            match evaluated:
+                Value::Return(_) => return Result::Ok(evaluated)
+                _ =>
+                    ()
+                    ()
+            Result::Ok(Value__Unit)
+        Expr::SizeOfType { target: target } => Result::Ok(Value::Int(none))
+        Expr::AlignOfType { target: target } => Result::Ok(Value::Int(none))
+        Expr::Alloca { ty: ty } => Result::Ok(none)
+        Expr::Uninit {  } => Result::Ok(Value__None)
+        Expr::Alloc { zeroed: zeroed } => Result::Ok(if (*zeroed): Value::Int(0) else: Value__None)
+        Expr::Realloc {  } => Result::Ok(Value::Int(0))
+        Expr::Paren(inner, _) => eval_expr(env, inner)
+        Expr::Await(future_expr, span) =>
+            let future_val = eval_expr(env, future_expr)?
+            match future_val:
+                Value::Return(_) => return Result::Ok(future_val)
+                _ =>
+                    ()
+                    ()
+            poll_future_to_completion(env, future_val)
+        Expr::AsyncBlock(body, _) => eval_expr(env, body)
+        Expr::EnumVariant { enum_name: enum_name, variant: variant, fields: fields } =>
+            match (*env).methods.get(enum_name).cloned():
+                Some(type_methods) =>
+                    match type_methods.get(variant).cloned():
+                        Some(method) =>
+                            let arg_vals: Array<Value> = match fields:
+                                EnumVariantFields::Unit => Vec__new_()
+                                EnumVariantFields::Tuple(exprs) =>
+                                    let mut vals = Vec__new_()
+                                    for e in exprs:
+                                        let v = eval_expr(env, e)?
+                                        match v:
+                                            Value::Return(_) => return Result::Ok(v)
+                                            _ =>
+                                                ()
+                                                ()
+                                        vals.push(v)
+                                        ()
+                                    ()
+                                    vals
+                                EnumVariantFields::Struct(named_fields) =>
+                                    let mut vals = Vec__new_()
+                                    for selfhost_for_item in named_fields:
+                                        let (_, e) = selfhost_for_item
+                                        let v = eval_expr(env, e)?
+                                        match v:
+                                            Value::Return(_) => return Result::Ok(v)
+                                            _ =>
+                                                ()
+                                                ()
+                                        vals.push(v)
+                                        ()
+                                    ()
+                                    vals
+                            env.push_scope()
+                            ()
+                            for selfhost_for_item in method.params.iter().zip(arg_vals.into_iter()):
+                                let (param, arg) = selfhost_for_item
+                                env.define(param.name.clone(), arg)
+                                ()
+                            ()
+                            let result = eval_block(env, &method.body)?
+                            env.pop_scope()
+                            ()
+                            return none
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            let lowered_name = f"{enum_name}_{variant}"
+            match (*env).functions.get(&lowered_name).cloned():
+                Some(func) =>
+                    let arg_vals: Array<Value> = match fields:
+                        EnumVariantFields::Unit => Vec__new_()
+                        EnumVariantFields::Tuple(exprs) =>
+                            let mut vals = Vec__new_()
+                            for e in exprs:
+                                let v = eval_expr(env, e)?
+                                match v:
+                                    Value::Return(_) => return Result::Ok(v)
+                                    _ =>
+                                        ()
+                                        ()
+                                vals.push(v)
+                                ()
+                            ()
+                            vals
+                        EnumVariantFields::Struct(named_fields) =>
+                            let mut vals = Vec__new_()
+                            for selfhost_for_item in named_fields:
+                                let (_, e) = selfhost_for_item
+                                let v = eval_expr(env, e)?
+                                match v:
+                                    Value::Return(_) => return Result::Ok(v)
+                                    _ =>
+                                        ()
+                                        ()
+                                vals.push(v)
+                                ()
+                            ()
+                            vals
+                    env.push_scope()
+                    ()
+                    for selfhost_for_item in func.params.iter().zip(arg_vals.into_iter()):
+                        let (param, arg) = selfhost_for_item
+                        env.define(param.name.clone(), arg)
+                        ()
+                    ()
+                    let result = eval_block(env, &func.body)?
+                    env.pop_scope()
+                    ()
+                    return none
+                _ =>
+                    ()
+                    ()
+            let field_vals = match fields:
+                EnumVariantFields::Unit => Vec__new_()
+                EnumVariantFields::Tuple(exprs) =>
+                    let mut vals = Vec__new_()
+                    for e in exprs:
+                        let v = eval_expr(env, e)?
+                        match v:
+                            Value::Return(_) => return Result::Ok(v)
+                            _ =>
+                                ()
+                                ()
+                        vals.push(v)
+                        ()
+                    ()
+                    vals
+                EnumVariantFields::Struct(named_fields) =>
+                    let mut vals = Vec__new_()
+                    for selfhost_for_item in named_fields:
+                        let (_, e) = selfhost_for_item
+                        let v = eval_expr(env, e)?
+                        match v:
+                            Value::Return(_) => return Result::Ok(v)
+                            _ =>
+                                ()
+                                ()
+                        vals.push(v)
+                        ()
+                    ()
+                    vals
+            if (enum_name == "Poll"):
+                match variant.as_str():
+                    "Ready" =>
+                        let inner = if field_vals.is_empty():
+                            none
+                        else:
+                            Option::Some(Box__new_(field_vals.into_iter().next().unwrap_or(Value__Unit)))
+                        Result::Ok(Value::Poll(true, inner))
+                    "Pending" => Result::Ok(Value::Poll(false, none))
+                    _ => Result::Ok(Value::EnumVariant(enum_name.clone(), variant.clone(), field_vals))
+            else:
+                Result::Ok(Value::EnumVariant(enum_name.clone(), variant.clone(), field_vals))
+        Expr::Break(expr, _) =>
+            let val = match expr:
+                Some(e) => Option::Some(Box__new_(eval_expr(env, e)?))
+                _ =>
+                    none
+            Result::Ok(Value::Break(val))
+        Expr::Continue(_) => Result::Ok(Value__Continue)
+        _ => Result::Err(KainError__runtime(f"Expression not supported in runtime: {expr}"))
+
+fn call_function(env: &mut Env, func: Value, args: Array<Value>) -> Result<Value, KainError>:
+    match func:
+        Value::Function(name) =>
+            let Some(f) = (*env).functions.get(&name).cloned()
+            if (f.params.len() != args.len()):
+                return Result::Err(KainError__runtime(f"Argument mismatch: expected {f.params.len()}, got {args.len()}"))
+            let inline_scope = (*env).function_inline_scopes.get(&name).cloned()
+            match &inline_scope:
+                Some(bindings) =>
+                    env.push_scope()
+                    ()
+                    for selfhost_for_item in bindings:
+                        let (binding_name, binding_value) = selfhost_for_item
+                        env.define(binding_name.clone(), binding_value.clone())
+                        ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            env.push_scope()
+            ()
+            for selfhost_for_item in f.params.iter().zip(args.into_iter()):
+                let (param, arg) = selfhost_for_item
+                env.define(param.name.clone(), arg)
+                ()
+            ()
+            let result = eval_block(env, &f.body)?
+            env.pop_scope()
+            ()
+            if inline_scope.is_some():
+                env.pop_scope()
+                ()
+                ()
+                ()
+                ()
+            match result:
+                Value::Return(v) => Result::Ok((*v))
+                v => Result::Ok(v)
+        Value::Patch(name) => execute_patch_call(env, &name, args)
+        Value::Law(name) => execute_law_call(env, &name, args)
+        Value::Converge(name) => execute_converge_call(env, &name, args)
+        Value::Orchestrate(name) => execute_orchestrate_call(env, &name, args)
+        Value::NativeFn(_, f) => f(env, args)
+        Value::Closure(params, body, captured) =>
+            if (params.len() != args.len()):
+                return Result::Err(KainError__runtime("Closure arg mismatch"))
+            let old_scopes = (*env).scopes.clone()
+            (*env).scopes = captured
+            ()
+            env.push_scope()
+            ()
+            for selfhost_for_item in params.iter().zip(args.into_iter()):
+                let (name, arg) = selfhost_for_item
+                env.define(name.clone(), arg)
+                ()
+            ()
+            let result = eval_expr(env, &body)?
+            env.pop_scope()
+            ()
+            (*env).scopes = old_scopes
+            ()
+            match result:
+                Value::Return(v) => Result::Ok((*v))
+                v => Result::Ok(v)
+        Value::StructConstructor(name, fields) =>
+            if (fields.len() != args.len()):
+                return Result::Err(KainError__runtime(f"Struct constructor for {name} expected {fields.len()} arguments, got {args.len()}"))
+            let mut field_vals = HashMap__new_()
+            for selfhost_for_item in args.into_iter().enumerate():
+                let (i, val) = selfhost_for_item
+                field_vals.insert(fields[i].clone(), val)
+                ()
+            ()
+            Result::Ok(Value::Struct(name, Arc__new_(RwLock__new_(field_vals))))
+        _ => Result::Err(KainError__runtime("Not a function"))
+
+fn execute_patch_call(env: &mut Env, name: String, args: Array<Value>) -> Result<Value, KainError>:
+    let patch = (*env).patches.get(name).cloned().ok_or_else(fn(): KainError__runtime(f"Patch not found: {name}"))?
+    if (patch.params.len() != args.len()):
+        return Result::Err(KainError__runtime(f"Patch {name} expected {patch.params.len()} arguments, got {args.len()}"))
+    env.begin_active_patch(name)
+    ()
+    env.push_scope()
+    ()
+    for selfhost_for_item in patch.params.iter().zip(args.into_iter()):
+        let (param, arg) = selfhost_for_item
+        env.define(param.name.clone(), arg)
+        ()
+    ()
+    let result = eval_block(env, &patch.body)
+    env.pop_scope()
+    ()
+    let result = match result:
+        Ok(result) => result
+        Err(error) =>
+            env.cancel_active_patch()?
+            ()
+            return Result::Err(error)
+    env.finish_active_patch()
+    ()
+    match result:
+        Value::Return(v) => Result::Ok((*v))
+        value => Result::Ok(value)
+
+fn execute_law_call(env: &mut Env, name: String, args: Array<Value>) -> Result<Value, KainError>:
+    let law = (*env).laws.get(name).cloned().ok_or_else(fn(): KainError__runtime(f"Law not found: {name}"))?
+    if (law.params.len() != args.len()):
+        return Result::Err(KainError__runtime(f"Law {name} expected {law.params.len()} arguments, got {args.len()}"))
+    let result = execute_function_body(env, &law.params, &law.body, args)?
+    match result:
+        Value::Bool(_) => Result::Ok(result)
+        other => Result::Err(KainError__runtime(f"Law {name} must return Bool at runtime, found {other}"))
+
+fn execute_converge_call(env: &mut Env, name: String, args: Array<Value>) -> Result<Value, KainError>:
+    let converge = (*env).converges.get(name).cloned().ok_or_else(fn(): KainError__runtime(f"Converge definition not found: {name}"))?
+    if (converge.params.len() != args.len()):
+        return Result::Err(KainError__runtime(f"Converge {name} expected {converge.params.len()} arguments, got {args.len()}"))
+    let selected_lane = select_converge_lane(env, &converge)
+    let selected_result = execute_function_body(env, &converge.params, &selected_lane.body, args.clone())?
+    match converge.verify_random_count:
+        Some(sample_count) =>
+            verify_converge_selected_against_spec(env, &converge, selected_lane, &args, &selected_result, "call")?
+            ()
+            for sample_index in range(0, sample_count):
+                let sample_args = synthesize_converge_sample_args(&converge, sample_index)?
+                let sample_result = execute_function_body(env, &converge.params, &selected_lane.body, sample_args.clone())?
+                verify_converge_selected_against_spec(env, &converge, selected_lane, &sample_args, &sample_result, &f"sample {(sample_index + 1)}")?
+                ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(selected_result)
+
+fn execute_orchestrate_call(env: &mut Env, name: String, args: Array<Value>) -> Result<Value, KainError>:
+    let orchestrate = (*env).orchestrates.get(name).cloned().ok_or_else(fn(): KainError__runtime(f"Orchestrate definition not found: {name}"))?
+    if (orchestrate.params.len() != args.len()):
+        return Result::Err(KainError__runtime(f"Orchestrate {name} expected {orchestrate.params.len()} arguments, got {args.len()}"))
+    execute_function_body(env, &orchestrate.params, &orchestrate.body, args)
+
+fn execute_stage_call(env: &mut Env, runtime: OrchestrateStageRuntime, function: String, args: Array<Value>) -> Result<Value, KainError>:
+    match runtime:
+        OrchestrateStageRuntime::Kain => env.call_named_function(function, args)
+        OrchestrateStageRuntime::Rust => execute_rust_stage_call(env, function, args)
+        OrchestrateStageRuntime::Python => execute_python_stage_call(env, function, args)
+        OrchestrateStageRuntime::Node => execute_node_stage_call(env, function, args)
+
+fn execute_rust_stage_call(env: &mut Env, function: String, args: Array<Value>) -> Result<Value, KainError>:
+    match env.lookup_value(function):
+        Some(Value::NativeFn(_, native)) => native(env, args)
+        Some(other) => Result::Err(KainError__runtime(f"Rust orchestrate stage '{function}' must resolve to a native function, found {runtime_value_kind(&other)}"))
+        None => Result::Err(KainError__runtime(f"Rust orchestrate stage '{function}' was not registered as a native function"))
+
+fn execute_python_stage_call(env: &mut Env, function: String, args: Array<Value>) -> Result<Value, KainError>:
+    if env.lookup_value("py_call").is_none():
+        return Result::Err(KainError__runtime("Python orchestrate stage requested but python bridge is not registered"))
+    let args_value = runtime_array_value(args)
+    match function.rsplit_once("::"):
+        Some((module_name, attr_name)) =>
+            let module = env.call_named_function("py_import", [Value::String(module_name.replace("::", "."))])?
+            env.call_named_function("py_call", [module, Value::String(attr_name.to_string()), args_value])
+        _ => env.call_named_function("py_call", [Value::String(function.to_string()), args_value])
+
+fn execute_node_stage_call(env: &mut Env, function: String, args: Array<Value>) -> Result<Value, KainError>:
+    if env.lookup_value("js_call").is_none():
+        return Result::Err(KainError__runtime("Node orchestrate stage requested but node bridge is not registered"))
+    let args_value = runtime_array_value(args)
+    match function.rsplit_once("::"):
+        Some((module_name, attr_name)) =>
+            let module_import_builtin = if env.lookup_value("js_import_raw").is_some():
+                "js_import_raw"
+            else:
+                "js_import"
+            let module = env.call_named_function(module_import_builtin, [Value::String(module_name.to_string())])?
+            env.call_named_function("js_call_method", [module, Value::String(attr_name.to_string()), args_value])
+        _ => env.call_named_function("js_call", [Value::String(function.to_string()), args_value])
+
+fn execute_function_body(env: &mut Env, params: &[Param], body: &Block, args: Array<Value>) -> Result<Value, KainError>:
+    env.push_scope()
+    ()
+    for selfhost_for_item in params.iter().zip(args.into_iter()):
+        let (param, arg) = selfhost_for_item
+        env.define(param.name.clone(), arg)
+        ()
+    ()
+    let result = eval_block(env, body)?
+    env.pop_scope()
+    ()
+    match result:
+        Value::Return(v) => Result::Ok((*v))
+        value => Result::Ok(value)
+
+fn select_converge_lane(env: &Env, converge: &ConvergeDef) -> &ConvergeLane:
+    for lane in &converge.fast_lanes:
+        match lane.selector.as_ref():
+            Some(selector) =>
+                if converge_selector_matches(env, selector):
+                    return lane
+            None => return lane
+    &converge.spec_lane
+
+fn verify_converge_selected_against_spec(env: &mut Env, converge: &ConvergeDef, selected_lane: &ConvergeLane, args: &[Value], selected_result: &Value, verification_label: String) -> Result<(), KainError>:
+    let spec_result = execute_function_body(env, &(*converge).params, &(*converge).spec_lane.body, args.to_vec())?
+    if runtime_values_semantically_equal(selected_result, &spec_result):
+        return Result::Ok(())
+    Result::Err(KainError__runtime(f"Converge verification failed for {(*converge).name} during {verification_label}: selected lane '{(*selected_lane).lane_name}' diverged from spec '{(*converge).spec_lane.lane_name}'"))
+
+fn synthesize_converge_sample_args(converge: &ConvergeDef, sample_index: u32) -> Result<Array<Value>, Error>:
+    let mut synthesizer = DeterministicValueSynthesizer__new_(stable_converge_sample_seed(&converge.name, sample_index))
+    let mut args = Vec__new_()
+    for param in &converge.params:
+        args.push(synthesize_value_for_type(&param.ty, &mut synthesizer)?)
+    Ok(args)
+
+fn stable_converge_sample_seed(name: String, sample_index: u32) -> u64:
+    let mut hash = 0
+    for byte in name.as_bytes():
+        hash = (hash ^ u64__from((*byte)))
+        ()
+        hash = hash.wrapping_mul(1099511628211)
+        ()
+    ()
+    (hash ^ u64__from(sample_index).wrapping_mul(0))
+
+struct DeterministicValueSynthesizer:
+    state_: u64
+
+impl DeterministicValueSynthesizer:
+    fn new_(seed: u64) -> DeterministicValueSynthesizer:
+        DeterministicValueSynthesizer { state_: seed.max(1) }
+
+    fn next_u64(_self: &mut DeterministicValueSynthesizer) -> u64:
+        (*_self).state_ = ((*_self).state_ ^ ((*_self).state_ << 13))
+        ()
+        (*_self).state_ = ((*_self).state_ ^ ((*_self).state_ >> 7))
+        ()
+        (*_self).state_ = ((*_self).state_ ^ ((*_self).state_ << 17))
+        ()
+        (*_self).state_
+
+    fn next_bool(_self: &mut DeterministicValueSynthesizer) -> Bool:
+        (((*_self).next_u64() & 1) == 0)
+
+
+fn synthesize_value_for_type(ty: &Type, synthesizer: &mut DeterministicValueSynthesizer) -> Result<Value, KainError>:
+    match ty:
+        Type::Named { name: name, generics: generics } =>
+            match name.as_str():
+                "Bool" => Result::Ok(Value::Bool(synthesizer.next_bool()))
+                "Int" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "i8" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "i16" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "i32" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "i64" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "i128" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "isize" => Result::Ok(Value::Int(((((synthesizer.next_u64() % 2001)) as i64) - 1000)))
+                "UInt" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "u8" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "u16" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "u32" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "u64" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "u128" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "usize" => Result::Ok(Value::Int(((synthesizer.next_u64() % 2001)) as i64))
+                "Float" => Result::Ok(Value::Float((((((synthesizer.next_u64() % 20001)) as f64 / 100)) - 100)))
+                "f32" => Result::Ok(Value::Float((((((synthesizer.next_u64() % 20001)) as f64 / 100)) - 100)))
+                "f64" => Result::Ok(Value::Float((((((synthesizer.next_u64() % 20001)) as f64 / 100)) - 100)))
+                "Char" =>
+                    let offset = ((synthesizer.next_u64() % 95)) as u32
+                    Result::Ok(Value::String(char__from_u32((32 + offset)).unwrap().to_string()))
+                "Array" if (generics.len() == 1) =>
+                    let len = ((((synthesizer.next_u64() % 3)) + 1)) as usize
+                    let mut values = (fn(__kain_ctor_arg0): Vec__new_())(len)
+                    for _ in range(0, len):
+                        values.push(synthesize_value_for_type(&generics[0], synthesizer)?)
+                        ()
+                    ()
+                    Result::Ok(runtime_array_value(values))
+                "Option" if (generics.len() == 1) => if synthesizer.next_bool(): Result::Ok(Value__None) else: synthesize_value_for_type(&generics[0], synthesizer)
+                other => Result::Err(KainError__runtime(f"verify random(n) does not support synthesized values for type {other}"))
+        Type::Tuple(items, _) =>
+            let mut values = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+            for item in items:
+                values.push(synthesize_value_for_type(item, synthesizer)?)
+                ()
+            ()
+            Result::Ok(Value::Tuple(values))
+        Type::Array(inner, len, _) =>
+            let mut values = (fn(__kain_ctor_arg0): Vec__new_())((*len))
+            for _ in range(0, (*len)):
+                values.push(synthesize_value_for_type(inner, synthesizer)?)
+                ()
+            ()
+            Result::Ok(runtime_array_value(values))
+        Type::Option(inner, _) => if synthesizer.next_bool(): Result::Ok(Value__None) else: synthesize_value_for_type(inner, synthesizer)
+        other => Result::Err(KainError__runtime(f"verify random(n) does not support synthesized values for type {other}"))
+
+fn runtime_value_kind(value: &Value) -> String:
+    match value:
+        Value::Unit => "unit"
+        Value::Bool(_) => "bool"
+        Value::Int(_) => "int"
+        Value::Float(_) => "float"
+        Value::String(_) => "string"
+        Value::Array(_) => "array"
+        Value::Tuple(_) => "tuple"
+        Value::Struct(_, _) => "struct"
+        Value::HostObject(_, _) => "host_object"
+        Value::Function(_) => "function"
+        Value::Patch(_) => "patch"
+        Value::Law(_) => "law"
+        Value::Converge(_) => "converge"
+        Value::Orchestrate(_) => "orchestrate"
+        Value::NativeFn(_, _) => "native_function"
+        Value::ActorRef(_) => "actor"
+        Value::None => "none"
+        Value::Return(_) => "return"
+        Value::Break(_) => "break"
+        Value::Continue => "continue"
+        Value::Result(_, _) => "result"
+        Value::Closure(_, _, _) => "closure"
+        Value::StructConstructor(_, _) => "struct_constructor"
+        Value::JSX(_) => "jsx"
+        Value::EnumVariant(_, _, _) => "enum_variant"
+        Value::Poll(_, _) => "poll"
+        Value::Future(_, _) => "future"
+
+fn expect_single_int_arg<a>(args: &a [Value], method: String) -> Result<&a i64, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime(f"{method} expects exactly one argument"))
+    match &args[0]:
+        Value::Int(value) => Result::Ok(value)
+        other => Result::Err(KainError__runtime(f"{method} expects an Int argument, found {runtime_value_kind(other)}"))
+
+fn expect_single_float_arg<a>(args: &a [Value], method: String) -> Result<&a f64, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime(f"{method} expects exactly one argument"))
+    match &args[0]:
+        Value::Float(value) => Result::Ok(value)
+        other => Result::Err(KainError__runtime(f"{method} expects a Float argument, found {runtime_value_kind(other)}"))
+
+fn expect_single_string_arg<a>(args: &a [Value], method: String) -> Result<String, KainError>:
+    if (args.len() != 1):
+        return Result::Err(KainError__runtime(f"{method} expects exactly one argument"))
+    match &args[0]:
+        Value::String(value) => Result::Ok(value)
+        other => Result::Err(KainError__runtime(f"{method} expects a String argument, found {runtime_value_kind(other)}"))
+
+fn eval_i64_binary_method(receiver: i64, args: &[Value], method: String, op: fn(i64, i64) -> i64) -> Result<Value, KainError>:
+    let rhs = (*expect_single_int_arg(args, method)?)
+    Result::Ok(Value::Int(op(receiver, rhs)))
+
+fn eval_i64_div_ceil_method(receiver: i64, args: &[Value], method: String) -> Result<Value, KainError>:
+    let rhs = (*expect_single_int_arg(args, method)?)
+    if (rhs == 0):
+        return Result::Err(KainError__runtime(f"{method} does not allow division by zero"))
+    let quotient = (receiver / rhs)
+    let remainder = (receiver % rhs)
+    let needs_round_up = ((remainder != 0) && ((((remainder > 0)) == ((rhs > 0)))))
+    Result::Ok(Value::Int(if needs_round_up: (quotient + 1) else: quotient))
+
+fn eval_i64_shift_method(receiver: i64, args: &[Value], method: String, op: fn(i64, u32) -> i64) -> Result<Value, KainError>:
+    let rhs = (*expect_single_int_arg(args, method)?)
+    let shift = u32__try_from(rhs).map_err(fn(_): KainError__runtime(f"{method} expects a non-negative Int shift count, found {rhs}"))?
+    Result::Ok(Value::Int(op(receiver, shift)))
+
+fn eval_f64_binary_method(receiver: f64, args: &[Value], method: String, op: fn(f64, f64) -> f64) -> Result<Value, KainError>:
+    let rhs = (*expect_single_float_arg(args, method)?)
+    Result::Ok(Value::Float(op(receiver, rhs)))
+
+fn eval_array_binary_search(values: &[Value], needle: &Value) -> Result<Value, KainError>:
+    let result = match needle:
+        Value::Int(target) => values.binary_search_by(fn(value): none)
+        Value::String(target) => values.binary_search_by(fn(value): none)
+        Value::Bool(target) => values.binary_search_by(fn(value): none)
+        other => return Result::Err(KainError__runtime(f"binary_search does not support {runtime_value_kind(other)} needles"))
+    match result:
+        Ok(index) => Result::Ok(Value::Result(true, Box__new_(Value::Int(index as i64))))
+        Err(index) => Result::Ok(Value::Result(false, Box__new_(Value::Int(index as i64))))
+
+fn converge_selector_matches(env: &Env, selector: &ConvergeSelector) -> Bool:
+    match selector:
+        ConvergeSelector::Target(target) =>
+            match (*env).execution_lane:
+                ExecutionLane::Interpret => (target == "interpret")
+                ExecutionLane::Test => (target == "test")
+        ConvergeSelector::Capability(capability) => (*env).active_capabilities.iter().any(fn(entry): (entry == capability))
+
+fn runtime_values_semantically_equal(left: &Value, right: &Value) -> Bool:
+    match (left, right):
+        (Value::Unit, Value::Unit) => true
+        (Value::None, Value::None) => true
+        (Value::Continue, Value::Continue) => true
+        (Value::Bool(left), Value::Bool(right)) => (left == right)
+        (Value::Int(left), Value::Int(right)) => (left == right)
+        (Value::Float(left), Value::Float(right)) => (((left - right)).abs() <= 0.000001)
+        (Value::String(left), Value::String(right)) => (left == right)
+        (Value::Tuple(left), Value::Tuple(right)) => ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg7): runtime_values_semantically_equal(__kain_closure_arg7.__kain_tuple_0, __kain_closure_arg7.__kain_tuple_1)))
+        (Value::Array(left), Value::Array(right)) =>
+            let left = left.read().unwrap()
+            let right = right.read().unwrap()
+            ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg8): runtime_values_semantically_equal(__kain_closure_arg8.__kain_tuple_0, __kain_closure_arg8.__kain_tuple_1)))
+        (Value::Struct(left_name, left_fields), Value::Struct(right_name, right_fields)) =>
+            if (left_name != right_name):
+                return false
+            let left_fields = left_fields.read().unwrap()
+            let right_fields = right_fields.read().unwrap()
+            ((left_fields.len() == right_fields.len()) && left_fields.iter().all(fn(__kain_closure_arg9): right_fields.get(__kain_closure_arg9.__kain_tuple_0).is_some_and(fn(right_value): runtime_values_semantically_equal(__kain_closure_arg9.__kain_tuple_1, right_value))))
+        (Value::EnumVariant(left_enum, left_variant, left_fields), Value::EnumVariant(right_enum, right_variant, right_fields)) => ((((left_enum == right_enum) && (left_variant == right_variant)) && (left_fields.len() == right_fields.len())) && left_fields.iter().zip(right_fields.iter()).all(fn(__kain_closure_arg10): runtime_values_semantically_equal(__kain_closure_arg10.__kain_tuple_0, __kain_closure_arg10.__kain_tuple_1)))
+        (Value::Return(left), Value::Return(right)) => runtime_values_semantically_equal(left, right)
+        (Value::Break(Some(left)), Value::Break(Some(right))) => runtime_values_semantically_equal(left, right)
+        (Value::Break(None), Value::Break(None)) => true
+        (Value::Result(left_ok, left_value), Value::Result(right_ok, right_value)) => ((left_ok == right_ok) && runtime_values_semantically_equal(left_value, right_value))
+        (Value::Poll(left_ready, left_value), Value::Poll(right_ready, right_value)) => ((left_ready == right_ready) && none)
+        _ => false
+
+fn infer_patch_undo_mode(patch: &PatchDef) -> String:
+    if block_contains_runtime_best_effort_effects(&(*patch).body):
+        ("best_effort").to_string()
+    else:
+        ("reversible").to_string()
+
+fn block_contains_runtime_best_effort_effects(block: &Block) -> Bool:
+    (*block).stmts.iter().any(stmt_contains_runtime_best_effort_effects)
+
+fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> Bool:
+    match stmt:
+        Stmt::Expr(expr) => expr_contains_runtime_best_effort_effects(expr)
+        Stmt::Let { value: value } => value.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value))
+        Stmt::Return(value, _) => value.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value))
+        Stmt::Break(value, _) => value.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value))
+        Stmt::For { iter: iter, body: body } => (expr_contains_runtime_best_effort_effects(iter) || block_contains_runtime_best_effort_effects(body))
+        Stmt::While { condition: condition, body: body } => (expr_contains_runtime_best_effort_effects(condition) || block_contains_runtime_best_effort_effects(body))
+        Stmt::Loop { body: body } => block_contains_runtime_best_effort_effects(body)
+        Stmt::Item(_) => false
+        Stmt::Continue(_) => false
+
+fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> Bool:
+    match expr:
+        Expr::Call {  } => true
+        Expr::MethodCall {  } => true
+        Expr::StageCall {  } => true
+        Expr::Spawn {  } => true
+        Expr::SendMsg {  } => true
+        Expr::Await(_, _) => true
+        Expr::AsyncBlock(_, _) => true
+        Expr::Assign { target: target, value: value } => (expr_contains_runtime_best_effort_effects(target) || expr_contains_runtime_best_effort_effects(value))
+        Expr::Binary { left: left, right: right } => (expr_contains_runtime_best_effort_effects(left) || expr_contains_runtime_best_effort_effects(right))
+        Expr::Unary { operand: operand } => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Try(operand, _) => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Ref { value: operand } => expr_contains_runtime_best_effort_effects(operand)
+        Expr::AddrOf { value: operand } => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Deref(operand, _) => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Paren(operand, _) => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Comptime(operand, _) => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Cast { value: operand } => expr_contains_runtime_best_effort_effects(operand)
+        Expr::Field { object: object } => expr_contains_runtime_best_effort_effects(object)
+        Expr::Index { object: object, index: index } => (expr_contains_runtime_best_effort_effects(object) || expr_contains_runtime_best_effort_effects(index))
+        Expr::Struct { fields: fields, rest: rest } => (fields.iter().any(fn(__kain_closure_arg11): expr_contains_runtime_best_effort_effects(__kain_closure_arg11.__kain_tuple_1)) || rest.is_some_and(fn(rest): expr_contains_runtime_best_effort_effects(rest)))
+        Expr::AggregateInit { fields: fields } => fields.iter().any(fn(__kain_closure_arg12): expr_contains_runtime_best_effort_effects(__kain_closure_arg12.__kain_tuple_1))
+        Expr::EnumVariant { fields: fields } =>
+            match fields:
+                EnumVariantFields::Tuple(values) => values.iter().any(expr_contains_runtime_best_effort_effects)
+                EnumVariantFields::Struct(values) => values.iter().any(fn(__kain_closure_arg13): expr_contains_runtime_best_effort_effects(__kain_closure_arg13.__kain_tuple_1))
+                EnumVariantFields::Unit => false
+        Expr::Array(values, _) => values.iter().any(expr_contains_runtime_best_effort_effects)
+        Expr::Tuple(values, _) => values.iter().any(expr_contains_runtime_best_effort_effects)
+        Expr::FString(values, _) => values.iter().any(expr_contains_runtime_best_effort_effects)
+        Expr::Range { start: start, end: end } => (start.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value)) || end.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value)))
+        Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } => ((expr_contains_runtime_best_effort_effects(condition) || block_contains_runtime_best_effort_effects(then_branch)) || else_branch.is_some_and(fn(branch): none))
+        Expr::Match { scrutinee: scrutinee, arms: arms } => (expr_contains_runtime_best_effort_effects(scrutinee) || arms.iter().any(fn(arm): (arm.guard.is_some_and(fn(guard): expr_contains_runtime_best_effort_effects(guard)) || expr_contains_runtime_best_effort_effects(&arm.body))))
+        Expr::Lambda { body: body } => expr_contains_runtime_best_effort_effects(body)
+        Expr::PtrOffset { pointer: pointer, offset: offset } => (expr_contains_runtime_best_effort_effects(pointer) || expr_contains_runtime_best_effort_effects(offset))
+        Expr::MemLoad { pointer: pointer } => expr_contains_runtime_best_effort_effects(pointer)
+        Expr::MemStore { pointer: pointer, value: value } => (expr_contains_runtime_best_effort_effects(pointer) || expr_contains_runtime_best_effort_effects(value))
+        Expr::Return(value, _) => value.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value))
+        Expr::Break(value, _) => value.is_some_and(fn(value): expr_contains_runtime_best_effort_effects(value))
+        Expr::Block(block, _) => block_contains_runtime_best_effort_effects(block)
+        Expr::JSX(_, _) => false
+        Expr::MacroCall {  } => false
+        Expr::Int(_, _) => false
+        Expr::Float(_, _) => false
+        Expr::String(_, _) => false
+        Expr::Bool(_, _) => false
+        Expr::None(_) => false
+        Expr::Ident(_, _) => false
+        Expr::Alloca {  } => false
+        Expr::Uninit {  } => false
+        Expr::Alloc {  } => false
+        Expr::Realloc {  } => false
+        Expr::SizeOfType {  } => false
+        Expr::AlignOfType {  } => false
+        Expr::Continue(_) => false
+
+fn runtime_patch_target_path(target: &Expr) -> Option<String>:
+    match target:
+        Expr::Ident(name, _) => Option::Some(name.clone())
+        Expr::Field { object: object, field: field } => runtime_patch_target_path(object).map(fn(base): f"{base}.{field}")
+        Expr::Index { object: object, index: index } => runtime_patch_target_path(object).map(fn(base): none)
+        Expr::Deref(inner, _) => runtime_patch_target_path(inner)
+        _ => none
+
+fn apply_patch_change_value(change: &ActivePatchChange, use_new_value: Bool) -> Result<(), KainError>:
+    let value = if use_new_value:
+        (*change).new_value.clone()
+    else:
+        (*change).old_value.clone()
+    match &(*change).target:
+        PatchMutationTarget::StructField { fields: fields, field: field } =>
+            fields.write().unwrap().insert(field.clone(), value)
+            ()
+            Result::Ok(())
+        PatchMutationTarget::ArrayIndex { values: values, index: index } =>
+            let mut items = values.write().unwrap()
+            if ((*index) >= items.len()):
+                return Result::Err(KainError__runtime(f"Patch replay target '{(*change).path}' no longer exists at index {index}"))
+            items[(*index)] = value
+            ()
+            Result::Ok(())
+
+fn runtime_array_value(values: Array<Value>) -> Value:
+    Value::Array(Arc__new_(RwLock__new_(values)))
+
+fn runtime_string_array_value(values: &[String]) -> Value:
+    runtime_array_value(values.iter().cloned().map(fn(__kain_closure_arg14): Value::String(__kain_closure_arg14)).collect())
+
+fn runtime_struct_value(name: String, fields: Array<(String, Value)>) -> Value:
+    let mut values = HashMap__new_()
+    for selfhost_for_item in fields:
+        let (field, value) = selfhost_for_item
+        values.insert(field, value)
+        ()
+    ()
+    Value::Struct(name.to_string(), Arc__new_(RwLock__new_(values)))
+
+fn runtime_patch_mutation_record_value(change: &PatchMutationRecord) -> Value:
+    runtime_struct_value("PatchMutationRecord", [(("path").to_string(), Value::String((*change).path.clone())), (("old_value").to_string(), (*change).old_value.clone()), (("new_value").to_string(), (*change).new_value.clone())])
+
+fn runtime_patch_record_value(record: &PatchRuntimeRecord) -> Value:
+    runtime_struct_value("PatchRuntimeRecord", [(("name").to_string(), Value::String((*record).name.clone())), (("mutation_paths").to_string(), runtime_string_array_value(&(*record).mutation_paths)), (("undo_mode").to_string(), Value::String((*record).undo_mode.clone())), (("collaboration_event").to_string(), Value::String((*record).collaboration_event.clone())), (("changes").to_string(), runtime_array_value((*record).changes.iter().map(runtime_patch_mutation_record_value).collect()))])
+
+fn runtime_patch_collaboration_event_value(event: &PatchCollaborationEvent) -> Value:
+    runtime_struct_value("PatchCollaborationEvent", [(("event_id").to_string(), Value::String((*event).event_id.clone())), (("patch_name").to_string(), Value::String((*event).patch_name.clone())), (("mutation_paths").to_string(), runtime_string_array_value(&(*event).mutation_paths)), (("undo_mode").to_string(), Value::String((*event).undo_mode.clone()))])
+
+fn eval_binop(op: BinaryOp, left: Value, right: Value) -> Result<Value, KainError>:
+    match (op, &left, &right):
+        (BinaryOp::Add, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Int((a + b)))
+        (BinaryOp::Sub, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Int((a - b)))
+        (BinaryOp::Mul, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Int((a * b)))
+        (BinaryOp::Div, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Int((a / b)))
+        (BinaryOp::Mod, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Int((a % b)))
+        (BinaryOp::Add, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Float((a + b)))
+        (BinaryOp::Sub, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Float((a - b)))
+        (BinaryOp::Mul, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Float((a * b)))
+        (BinaryOp::Div, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Float((a / b)))
+        (BinaryOp::Add, Value::String(a), Value::String(b)) => Result::Ok(Value::String((a.to_owned() + b)))
+        (BinaryOp::Eq, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a == b)))
+        (BinaryOp::Ne, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a != b)))
+        (BinaryOp::Eq, Value::String(a), Value::String(b)) => Result::Ok(Value::Bool((a == b)))
+        (BinaryOp::Ne, Value::String(a), Value::String(b)) => Result::Ok(Value::Bool((a != b)))
+        (BinaryOp::Eq, Value::Bool(a), Value::Bool(b)) => Result::Ok(Value::Bool((a == b)))
+        (BinaryOp::Ne, Value::Bool(a), Value::Bool(b)) => Result::Ok(Value::Bool((a != b)))
+        (BinaryOp::Lt, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((a < b)))
+        (BinaryOp::Gt, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((a > b)))
+        (BinaryOp::Le, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((a <= b)))
+        (BinaryOp::Ge, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((a >= b)))
+        (BinaryOp::Eq, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((((a - b)).abs() < f64__EPSILON)))
+        (BinaryOp::Ne, Value::Float(a), Value::Float(b)) => Result::Ok(Value::Bool((((a - b)).abs() >= f64__EPSILON)))
+        (BinaryOp::Lt, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a < b)))
+        (BinaryOp::Gt, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a > b)))
+        (BinaryOp::Le, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a <= b)))
+        (BinaryOp::Ge, Value::Int(a), Value::Int(b)) => Result::Ok(Value::Bool((a >= b)))
+        (BinaryOp::And, Value::Bool(a), Value::Bool(b)) => Result::Ok(Value::Bool(((*a) && (*b))))
+        (BinaryOp::Or, Value::Bool(a), Value::Bool(b)) => Result::Ok(Value::Bool(((*a) || (*b))))
+        (BinaryOp::BitAnd, Value::Int(a), Value::Int(b)) if language_features__runtime_supports_binary_op(BinaryOp__BitAnd) => Result::Ok(Value::Int((a & b)))
+        (BinaryOp::BitOr, Value::Int(a), Value::Int(b)) if language_features__runtime_supports_binary_op(BinaryOp__BitOr) => Result::Ok(Value::Int((a | b)))
+        (BinaryOp::BitXor, Value::Int(a), Value::Int(b)) if language_features__runtime_supports_binary_op(BinaryOp__BitXor) => Result::Ok(Value::Int((a ^ b)))
+        (BinaryOp::Shl, Value::Int(a), Value::Int(b)) if language_features__runtime_supports_binary_op(BinaryOp__Shl) =>
+            let shift = (((*b) as u32) & 63)
+            Result::Ok(Value::Int(a.wrapping_shl(shift)))
+        (BinaryOp::Shr, Value::Int(a), Value::Int(b)) if language_features__runtime_supports_binary_op(BinaryOp__Shr) =>
+            let shift = (((*b) as u32) & 63)
+            Result::Ok(Value::Int(a.wrapping_shr(shift)))
+        (BinaryOp::Eq, Value::None, Value::None) => Result::Ok(Value::Bool(true))
+        (BinaryOp::Ne, Value::None, Value::None) => Result::Ok(Value::Bool(false))
+        (BinaryOp::Eq, Value::Unit, Value::Unit) => Result::Ok(Value::Bool(true))
+        (BinaryOp::Ne, Value::Unit, Value::Unit) => Result::Ok(Value::Bool(false))
+        (BinaryOp::Eq, _, _) => Result::Ok(Value::Bool(false))
+        (BinaryOp::Ne, _, _) => Result::Ok(Value::Bool(true))
+        _ => Result::Err(KainError__runtime(f"Type mismatch in binary operation: {left} {op} {right}"))
+
+fn pattern_matches(pattern: &Pattern, value: &Value) -> Bool:
+    match pattern:
+        Pattern::Wildcard(_) => true
+        Pattern::Binding {  } => true
+        Pattern::Literal(Expr::Int(n, _)) =>
+            match value:
+                Value::Int(v) if ((*v) == (*n)) => true
+                _ => false
+        Pattern::Literal(Expr::String(s, _)) =>
+            match value:
+                Value::String(v) if (v == s) => true
+                _ => false
+        Pattern::Literal(Expr::Bool(b, _)) =>
+            match value:
+                Value::Bool(v) if ((*v) == (*b)) => true
+                _ => false
+        Pattern::Literal(Expr::None(_)) =>
+            match value:
+                Value::None => true
+                _ => false
+        Pattern::Variant { variant: variant, fields: fields } =>
+            match value:
+                Value::Poll(ready, val) =>
+                    if ((*variant) == "Ready"):
+                        if (!ready):
+                            return false
+                        match fields:
+                            VariantPatternFields::Tuple(pats) =>
+                                if (pats.len() == 1):
+                                    return none
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        return false
+                    elif ((*variant) == "Pending"):
+                        return (!ready)
+                    return false
+                _ =>
+                    ()
+                    ()
+            match value:
+                Value::EnumVariant(_, v_name, v_fields) =>
+                    if (variant != v_name):
+                        return false
+                    match fields:
+                        VariantPatternFields::Unit => v_fields.is_empty()
+                        VariantPatternFields::Tuple(pats) =>
+                            if (pats.len() != v_fields.len()):
+                                return false
+                            pats.iter().zip(v_fields.iter()).all(fn(__kain_closure_arg15): pattern_matches(__kain_closure_arg15.__kain_tuple_0, __kain_closure_arg15.__kain_tuple_1))
+                        _ => false
+                _ => false
+        _ => false
+
+fn bind_pattern(env: &mut Env, pattern: &Pattern, value: &Value):
+    match pattern:
+        Pattern::Binding { name: name } =>
+            env.define(name.clone(), value.clone())
+            ()
+        Pattern::Variant { variant: variant, fields: fields } =>
+            match value:
+                Value::Poll(ready, val) =>
+                    if (((*variant) == "Ready") && (*ready)):
+                        match fields:
+                            VariantPatternFields::Tuple(pats) =>
+                                if (pats.len() == 1):
+                                    match val:
+                                        Some(v) =>
+                                            bind_pattern(env, &pats[0], v)
+                                            ()
+                                        _ => ()
+                            _ => ()
+                _ =>
+                    match value:
+                        Value::EnumVariant(_, _, v_fields) =>
+                            match fields:
+                                VariantPatternFields::Tuple(pats) =>
+                                    for selfhost_for_item in pats.iter().zip(v_fields.iter()):
+                                        let (p, v) = selfhost_for_item
+                                        bind_pattern(env, p, v)
+                                        ()
+                                _ => ()
+                        _ => ()
+        _ => ()
+
+@doc(doc = " Run all tests in the program")
+pub fn run_tests(program: &TypedProgram) -> Result<(), KainError>:
+    println("\n Running Tests...\n")
+    let mut passed = 0
+    let mut failed = 0
+    let mut failure_messages = Vec__new_()
+    let mut env = Env__new_()
+    env.set_execution_lane(ExecutionLane__Test)
+    ()
+    env.register_typed_program(program)?
+    ()
+    env.apply_registered_extensions()
+    ()
+    for item in &(*program).items:
+        match item:
+            types__TypedItem::Test(test_) =>
+                print(f"test {test_.ast.name} ... ")
+                env.push_scope()
+                ()
+                match eval_block(&mut env, &test_.ast.body):
+                    Ok(_) =>
+                        println("ok")
+                        passed = (passed + 1)
+                        ()
+                        ()
+                        ()
+                        ()
+                    Err(e) =>
+                        println("FAILED")
+                        println(f"  Error: {e}")
+                        failed = (failed + 1)
+                        ()
+                        failure_messages.push(f"{test_.ast.name}: {e}")
+                        ()
+                        ()
+                        ()
+                        ()
+                env.pop_scope()
+                ()
+            _ => ()
+    ()
+    println("\nTest result: {if (failed == 0): \"ok\" else: \"FAILED\"}. {passed} passed; {failed} failed")
+    if (failed > 0):
+        Result::Err(KainError__runtime("Some tests failed: {failure_messages.join(\"; \")}"))
+    else:
+        Result::Ok(())
+
+@doc(doc = " Poll a future repeatedly until it returns Ready")
+fn poll_future_to_completion(env: &mut Env, future_val: Value) -> Result<Value, KainError>:
+    let max_iterations = 100000
+    let mut iterations = 0
+    let current_future = future_val
+    loop:
+        iterations = (iterations + 1)
+        ()
+        if (iterations > max_iterations):
+            return Result::Err(KainError__runtime("Async timeout: future did not complete"))
+        let poll_result = poll_future_once(env, current_future.clone())?
+        match extract_poll_result(&poll_result):
+            PollState::Ready(val) => return Result::Ok(val)
+            PollState::Pending =>
+                std__thread__sleep(Duration__from_micros(10))
+                ()
+                continue
+            PollState::NotAPoll => return Result::Ok(poll_result)
+
+@doc(doc = " Poll a future exactly once and return the Poll result")
+fn poll_future_once(env: &mut Env, future_val: Value) -> Result<Value, KainError>:
+    match &future_val:
+        Value::Future(struct_name, state_) =>
+            let poll_fn_name = f"{struct_name}_poll"
+            match (*env).functions.get(&poll_fn_name).cloned():
+                Some(poll_fn) =>
+                    let struct_val = Value::Struct(struct_name.clone(), state_.clone())
+                    env.push_scope()
+                    ()
+                    env.define(("self").to_string(), struct_val.clone())
+                    ()
+                    match poll_fn.params.first():
+                        Some(first_param) =>
+                            env.define(first_param.name.clone(), struct_val)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    let result = eval_block(env, &poll_fn.body)?
+                    env.pop_scope()
+                    ()
+                    let actual_result = match result:
+                        Value::Return(v) => (*v)
+                        v => v
+                    Result::Ok(normalize_poll_result(actual_result))
+                _ => Result::Ok(Value::Poll(true, Option::Some(Box__new_(Value__Unit))))
+        Value::Struct(struct_name, _) =>
+            let poll_fn_name = f"{struct_name}_poll"
+            match (*env).functions.get(&poll_fn_name).cloned():
+                Some(poll_fn) =>
+                    env.push_scope()
+                    ()
+                    env.define(("self").to_string(), future_val.clone())
+                    ()
+                    match poll_fn.params.first():
+                        Some(first_param) =>
+                            env.define(first_param.name.clone(), future_val.clone())
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    let result = eval_block(env, &poll_fn.body)?
+                    env.pop_scope()
+                    ()
+                    let actual_result = match result:
+                        Value::Return(v) => (*v)
+                        v => v
+                    Result::Ok(normalize_poll_result(actual_result))
+                _ => Result::Ok(Value::Poll(true, Option::Some(Box__new_(future_val))))
+        Value::Poll(_, _) => Result::Ok(future_val)
+        Value::EnumVariant(enum_name, _, _) if (enum_name == "Poll") => Result::Ok(normalize_poll_result(future_val))
+        _ => Result::Ok(Value::Poll(true, Option::Some(Box__new_(future_val))))
+
+enum PollState:
+    Ready(Value)
+    Pending
+    NotAPoll
+
+@doc(doc = " Extract the poll state from a value")
+fn extract_poll_result(val: &Value) -> PollState:
+    match val:
+        Value::Poll(true, Some(inner)) => PollState::Ready((*inner.clone()))
+        Value::Poll(true, None) => PollState::Ready(Value__Unit)
+        Value::Poll(false, _) => PollState__Pending
+        Value::EnumVariant(enum_name, variant, fields) if (enum_name == "Poll") =>
+            match variant.as_str():
+                "Ready" => if fields.is_empty(): PollState::Ready(Value__Unit) else: PollState::Ready(fields[0].clone())
+                "Pending" => PollState__Pending
+                _ => PollState__NotAPoll
+        Value::Struct(name, fields) =>
+            if name.contains("Ready"):
+                let fields_guard = fields.read().unwrap()
+                match fields_guard.get("0").or_(fields_guard.get("value")).or_(fields_guard.values().next()):
+                    Some(val) => PollState::Ready(val.clone())
+                    _ => PollState::Ready(Value__Unit)
+            elif name.contains("Pending"):
+                PollState__Pending
+            else:
+                PollState__NotAPoll
+        Value::Tuple(elems) if (elems.len() >= 1) =>
+            match &elems[0]:
+                Value::String(tag) =>
+                    match tag.as_str():
+                        "Ready" if (elems.len() >= 2) => PollState::Ready(elems[1].clone())
+                        "Ready" => PollState::Ready(Value__Unit)
+                        "Pending" => PollState__Pending
+                        _ => PollState__NotAPoll
+                _ => PollState__NotAPoll
+        _ => PollState__NotAPoll
+
+@doc(doc = " Normalize various poll representations to our standard Value::Poll")
+fn normalize_poll_result(val: Value) -> Value:
+    match extract_poll_result(&val):
+        PollState::Ready(inner) => Value::Poll(true, Option::Some(Box__new_(inner)))
+        PollState::Pending => Value::Poll(false, none)
+        PollState::NotAPoll => val
+

@@ -1,0 +1,1885 @@
+use super::config::Ue5Config
+
+use super::post_process
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use kain_core::diagnostics::enhance_error_with_location
+
+use kain_core::diagnostics::SpanMapper
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+use std::fs
+
+use std::path::PathBuf
+
+@doc(doc = " Helper function to enhance codegen errors with file:line:col location information")
+@doc(doc = " Takes a Result from codegen and enhances any KainError::Codegen with location data")
+fn enhance_codegen_result<T>(result: Result<T, KainError>, span_mapper: &kain_core::diagnostics::SpanMapper, file_path: String) -> Result<T, KainError>:
+    result.map_err(fn(e): kain_core__diagnostics__enhance_error_with_location(e, span_mapper, file_path))
+
+@doc(doc = " Metadata for a single generated binary asset, collected during the build")
+@doc(doc = " for bulk-registration into AssetRegistry.bin.")
+@cfg(feature = "ue5")
+struct GeneratedAsset:
+    package_name: String
+    asset_name: String
+    class_path: String
+
+@doc(doc = " Build UE5 plugin from KAIN.toml configuration")
+pub fn build_ue5_plugin() -> Result<(), KainError>:
+    build_ue5_plugin_with_options(false)
+
+@doc(doc = " Build UE5 plugin with options (embed KAIN markers, etc.)")
+pub fn build_ue5_plugin_with_options(embed_kain: Bool) -> Result<(), KainError>:
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let (manifest, ue5_config) = match load_manifest(&cwd):
+        Ok(manifest) =>
+            let ue5_config = (manifest.ue5.ok_or_else(fn(): KainError__runtime("No [ue5] section in KAIN.toml"))?).clone()
+            (Option::Some(manifest), ue5_config)
+        Err(_) =>
+            println("ℹ\u{fe0f}  No KAIN.toml found, using auto-detection...")
+            println()
+            let config = create_default_config(&cwd)?
+            (none, config)
+    println(f"🚀 Building UE5 Plugin: {ue5_config.plugin_name}")
+    println(f"📍 Plugin directory: {ue5_config.plugin_dir.display()}")
+    println()
+    let (typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors) = load_and_parse_sources(&ue5_config, manifest, &cwd)?
+    let layout = plugin_layout__setup(&ue5_config, &cwd, &typed_program, (!all_shader_names.is_empty()), (!graph_editors.is_empty()))?
+    let shader_names = if ue5_config.shaders.is_empty():
+        all_shader_names
+    else:
+        ue5_config.shaders.clone()
+    codegen__compile_shaders(&layout, &ue5_config, &typed_program, &shader_names)?
+    ()
+    println(f"DEBUG: After shader compilation, target_actors.len() = {target_actors.len()}")
+    let mut generated_assets: Array<GeneratedAsset> = Vec__new_()
+    if (!material_graphs.is_empty()):
+        println()
+        println(f"🎨 Generating {material_graphs.len()} materials...")
+        let surface_shader_hlsl: Map<String, String> = none
+        if (!surface_shader_hlsl.is_empty()):
+            println(f"   🔗 Shader bridge: {surface_shader_hlsl.len()} Surface shader(s) available for material injection")
+            ()
+            ()
+        let mat_content_dir = layout.plugin_root.join("Content").join("Materials")
+        match std__fs__create_dir_all(&mat_content_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create materials content dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let mut converted_graphs = Vec__new_()
+        for mat_def in &material_graphs:
+            match convert_material_graph(mat_def, &surface_shader_hlsl):
+                Ok(graph) =>
+                    match ue5_materials__material_serializer__serialize_material_graph(&graph, KainEngineTarget__default_()):
+                        Ok(bytes) =>
+                            let path = mat_content_dir.join(f"{graph.name}.uasset")
+                            match std__fs__write(&path, &bytes):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write .uasset for {graph.name}: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ Binary material asset: {graph.name} ({bytes.len()} bytes)")
+                                    generated_assets.push(GeneratedAsset { package_name: f"/Game/Materials/{graph.name}", asset_name: graph.name.clone(), class_path: "/Script/Engine.Material" })
+                                    ()
+                                    ()
+                                    ()
+                                    ()
+                            ()
+                        Err(e) =>
+                            println(f"   ℹ️  Binary generation failed for {graph.name}: {e}")
+                            println("       Falling back to C++ factory...")
+                            ()
+                            ()
+                    converted_graphs.push(graph)
+                    ()
+                Err(e) => eprintln(f"   ⚠️  Failed to convert material {mat_def.name}: {e}")
+        ()
+        if (!converted_graphs.is_empty()):
+            material_gen__generate_material_factories(&ue5_config.plugin_name, &converted_graphs, &layout.private_dir)?
+            ()
+            ()
+            ()
+            ()
+        println()
+        ()
+        ()
+    if (!material_functions.is_empty()):
+        println()
+        println(f"🔧 Generating {material_functions.len()} material functions...")
+        let func_content_dir = layout.plugin_root.join("Content").join("Materials").join("Functions")
+        match std__fs__create_dir_all(&func_content_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create material functions content dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for func_def in &material_functions:
+            match convert_material_function(func_def):
+                Ok(func_ir) =>
+                    match ue5_materials__material_function_builder__serialize_material_function(&func_ir):
+                        Ok(bytes) =>
+                            let path = func_content_dir.join(f"MF_{func_def.name}.uasset")
+                            match std__fs__write(&path, &bytes):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write .uasset for {func_def.name}: {e}")
+                                _ =>
+                                    println(f"   ✓ Material function: MF_{func_def.name} ({bytes.len()} bytes)")
+                                    generated_assets.push(GeneratedAsset { package_name: f"/Game/Materials/Functions/MF_{func_def.name}", asset_name: f"MF_{func_def.name}", class_path: "/Script/Engine.MaterialFunction" })
+                                    ()
+                        Err(e) => eprintln(f"   ⚠️  Failed to serialize material function {func_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert material function {func_def.name}: {e}")
+        ()
+        println()
+        ()
+        ()
+    if (!graph_editors.is_empty()):
+        println()
+        println(f"📊 Generating {graph_editors.len()} graph editors...")
+        let graph_content_dir = layout.plugin_root.join("Content").join("Graphs")
+        match std__fs__create_dir_all(&graph_content_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create graphs content dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let (runtime_graphs, editor_graphs): (Array<_>, Array<_>) = graph_editors.iter().partition(fn(g): g.attributes.iter().any(fn(a): (a.name == "runtime_graph")))
+        for graph_def in &editor_graphs:
+            match ue5_graphs__generate_graph_editor(graph_def, &ue5_config.plugin_name):
+                Ok(output) =>
+                    if (!output.uasset.is_empty()):
+                        let uasset_path = graph_content_dir.join(f"{graph_def.name}.uasset")
+                        match std__fs__write(&uasset_path, &output.uasset):
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to write .uasset for {graph_def.name}: {e}")
+                                ()
+                                ()
+                            _ =>
+                                println(f"   ✓ Graph editor asset: {graph_def.name} ({output.uasset.len()} bytes)")
+                                generated_assets.push(GeneratedAsset { package_name: f"/Game/Graphs/{graph_def.name}", asset_name: graph_def.name.clone(), class_path: "/Script/Engine.EdGraph" })
+                                ()
+                                ()
+                                ()
+                                ()
+                        ()
+                    if (!output.header.is_empty()):
+                        let header_path = match layout.editor_public_dir:
+                            Some(editor_pub) => editor_pub.join(f"{graph_def.name}Factory.h")
+                            _ => layout.public_dir.join(f"{graph_def.name}Factory.h")
+                        match std__fs__write(&header_path, &output.header):
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to write factory header for {graph_def.name}: {e}")
+                                ()
+                                ()
+                            _ =>
+                                println(f"   ✓ Factory header: {graph_def.name}Factory.h")
+                                ()
+                                ()
+                        ()
+                    if (!output.source.is_empty()):
+                        let source_path = match layout.editor_private_dir:
+                            Some(editor_priv) => editor_priv.join(f"{graph_def.name}Factory.cpp")
+                            _ => layout.private_dir.join(f"{graph_def.name}Factory.cpp")
+                        match std__fs__write(&source_path, &output.source):
+                            Err(e) => eprintln(f"   ⚠️  Failed to write factory source for {graph_def.name}: {e}")
+                            _ => println(f"   ✓ Factory source: {graph_def.name}Factory.cpp")
+                Err(e) => eprintln(f"   ⚠️  Failed to generate graph editor {graph_def.name}: {e}")
+        ()
+        if (!runtime_graphs.is_empty()):
+            println()
+            println(f"⚡ Generating {runtime_graphs.len()} runtime graph(s)...")
+            for graph_def in &runtime_graphs:
+                match ue5_graphs__convert_runtime_graph(graph_def):
+                    Ok(runtime_ir) =>
+                        let mut graph_editor = GraphEditor__new_(&runtime_ir.name)
+                        for node_data in &runtime_ir.node_types:
+                            let node_type = ue5_graphs::NodeType { name: node_data.name.clone(), category: node_data.category.clone(), inputs: node_data.input_pins.iter().map(fn(p): ue5_graphs::PinDefinition { name: p.name.clone(), pin_type: none, is_array: p.is_array, default_value: p.default_value.clone(), tooltip: p.tooltip.clone() }).collect(), outputs: node_data.output_pins.iter().map(fn(p): ue5_graphs::PinDefinition { name: p.name.clone(), pin_type: none, is_array: p.is_array, default_value: p.default_value.clone(), tooltip: p.tooltip.clone() }).collect(), properties: node_data.properties.iter().map(fn(prop): ue5_graphs::PropertyDefinition { name: prop.name.clone(), property_type: prop.property_type, default_value: prop.default_value.clone() }).collect(), color: node_data.color, icon: node_data.icon.clone(), tooltip: node_data.tooltip.clone(), execution_logic: none }
+                            graph_editor.add_node_type(node_type)
+                            ()
+                        ()
+                        let node_gen = NodeDataGenerator__new_(&graph_editor, &ue5_config.plugin_name)
+                        match node_gen.generate():
+                            Ok(node_output) =>
+                                let public_dir = layout.public_dir.clone()
+                                match std__fs__create_dir_all(&public_dir):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to create Public dir: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                let pin_data_path = public_dir.join(&node_output.pin_data_header.field_0)
+                                match std__fs__write(&pin_data_path, &node_output.pin_data_header.field_1):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to write pin data header: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        println(f"   ✓ Pin data: {node_output.pin_data_header.field_0}")
+                                        ()
+                                        ()
+                                for selfhost_for_item in &node_output.node_data_headers:
+                                    let (filename, header) = selfhost_for_item
+                                    let path = public_dir.join(filename)
+                                    match std__fs__write(&path, header):
+                                        Err(e) => eprintln(f"   ⚠️  Failed to write node data header {filename}: {e}")
+                                        _ => println(f"   ✓ Node data: {filename}")
+                                ()
+                                let private_dir = layout.private_dir.clone()
+                                match std__fs__create_dir_all(&private_dir):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to create Private dir: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                for selfhost_for_item in &node_output.node_data_sources:
+                                    let (filename, source) = selfhost_for_item
+                                    let path = private_dir.join(filename)
+                                    match std__fs__write(&path, source):
+                                        Err(e) => eprintln(f"   ⚠️  Failed to write node data source {filename}: {e}")
+                                        _ => println(f"   ✓ Node data: {filename}")
+                                ()
+                                ()
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to generate node data for {runtime_ir.name}: {e}")
+                                ()
+                                ()
+                        let instance_gen = InstanceGenerator__new_(&graph_editor, &ue5_config.plugin_name)
+                        match instance_gen.generate():
+                            Ok(instance_output) =>
+                                let public_dir = layout.public_dir.clone()
+                                let private_dir = layout.private_dir.clone()
+                                let header_path = public_dir.join(&instance_output.instance_header.field_0)
+                                match std__fs__write(&header_path, &instance_output.instance_header.field_1):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to write instance header: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        println(f"   ✓ Instance: {instance_output.instance_header.field_0}")
+                                        ()
+                                        ()
+                                let source_path = private_dir.join(&instance_output.instance_source.field_0)
+                                match std__fs__write(&source_path, &instance_output.instance_source.field_1):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to write instance source: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        println(f"   ✓ Instance: {instance_output.instance_source.field_0}")
+                                        ()
+                                        ()
+                                ()
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to generate instance for {runtime_ir.name}: {e}")
+                                ()
+                                ()
+                        match ue5_graphs__generate_graph_data_header(&graph_editor, &ue5_config.plugin_name):
+                            Ok(header) =>
+                                let public_dir = layout.public_dir.clone()
+                                let path = public_dir.join(f"{runtime_ir.name}GraphData.h")
+                                match std__fs__write(&path, &header):
+                                    Err(e) =>
+                                        eprintln(f"   ⚠️  Failed to write graph data header: {e}")
+                                        ()
+                                        ()
+                                    _ =>
+                                        println(f"   ✓ Graph data: {runtime_ir.name}GraphData.h")
+                                        ()
+                                        ()
+                                ()
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to generate graph data header: {e}")
+                                ()
+                                ()
+                        match ue5_graphs__generate_graph_data_source(&graph_editor, &ue5_config.plugin_name):
+                            Ok(source) =>
+                                let private_dir = layout.private_dir.clone()
+                                let path = private_dir.join(f"{runtime_ir.name}GraphData.cpp")
+                                match std__fs__write(&path, &source):
+                                    Err(e) => eprintln(f"   ⚠️  Failed to write graph data source: {e}")
+                                    _ => println(f"   ✓ Graph data: {runtime_ir.name}GraphData.cpp")
+                            Err(e) => eprintln(f"   ⚠️  Failed to generate graph data source: {e}")
+                    Err(e) => eprintln(f"   ⚠️  Failed to convert runtime graph {graph_def.name}: {e}")
+            ()
+            ()
+        println()
+        ()
+        ()
+    if (!graph_runtimes.is_empty()):
+        println()
+        println(f"⚡ Generating {graph_runtimes.is_empty()} runtime graph system(s)...")
+        for graph_runtime_def in &graph_runtimes:
+            println(f"   📊 Processing runtime graph: {graph_runtime_def.name}")
+            match ue5_graphs__convert_graph_runtime_to_ir(graph_runtime_def):
+                Ok(runtime_ir) =>
+                    let mut graph_editor = GraphEditor__new_(&runtime_ir.name)
+                    for node_data in &runtime_ir.node_types:
+                        let node_type = ue5_graphs::NodeType { name: node_data.name.clone(), category: node_data.category.clone(), inputs: node_data.input_pins.iter().map(fn(p): ue5_graphs::PinDefinition { name: p.name.clone(), pin_type: none, is_array: p.is_array, default_value: p.default_value.clone(), tooltip: p.tooltip.clone() }).collect(), outputs: node_data.output_pins.iter().map(fn(p): ue5_graphs::PinDefinition { name: p.name.clone(), pin_type: none, is_array: p.is_array, default_value: p.default_value.clone(), tooltip: p.tooltip.clone() }).collect(), properties: node_data.properties.iter().map(fn(prop): ue5_graphs::PropertyDefinition { name: prop.name.clone(), property_type: prop.property_type, default_value: prop.default_value.clone() }).collect(), color: node_data.color, icon: node_data.icon.clone(), tooltip: node_data.tooltip.clone(), execution_logic: none }
+                        graph_editor.add_node_type(node_type)
+                        ()
+                    ()
+                    let node_gen = NodeDataGenerator__new_(&graph_editor, &ue5_config.plugin_name)
+                    match node_gen.generate():
+                        Ok(node_output) =>
+                            let pin_data_path = layout.public_dir.join(&node_output.pin_data_header.field_0)
+                            match std__fs__write(&pin_data_path, &node_output.pin_data_header.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write pin data header: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {node_output.pin_data_header.field_0}")
+                                    ()
+                                    ()
+                            let pin_data_src_path = layout.private_dir.join(&node_output.pin_data_source.field_0)
+                            match std__fs__write(&pin_data_src_path, &node_output.pin_data_source.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write pin data source: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {node_output.pin_data_source.field_0}")
+                                    ()
+                                    ()
+                            let base_header_path = layout.public_dir.join(&node_output.base_header.field_0)
+                            match std__fs__write(&base_header_path, &node_output.base_header.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write base node data header: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {node_output.base_header.field_0}")
+                                    ()
+                                    ()
+                            let base_source_path = layout.private_dir.join(&node_output.base_source.field_0)
+                            match std__fs__write(&base_source_path, &node_output.base_source.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write base node data source: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {node_output.base_source.field_0}")
+                                    ()
+                                    ()
+                            for selfhost_for_item in &node_output.node_data_headers:
+                                let (filename, header) = selfhost_for_item
+                                let path = layout.public_dir.join(filename)
+                                match std__fs__write(&path, header):
+                                    Err(e) => eprintln(f"      ⚠️  Failed to write node data header {filename}: {e}")
+                                    _ => println(f"      ✓ {filename}")
+                            ()
+                            for selfhost_for_item in &node_output.node_data_sources:
+                                let (filename, source) = selfhost_for_item
+                                let path = layout.private_dir.join(filename)
+                                match std__fs__write(&path, source):
+                                    Err(e) => eprintln(f"      ⚠️  Failed to write node data source {filename}: {e}")
+                                    _ => println(f"      ✓ {filename}")
+                            ()
+                            ()
+                        Err(e) =>
+                            eprintln(f"      ⚠️  Failed to generate node data for {runtime_ir.name}: {e}")
+                            ()
+                            ()
+                    let instance_gen = InstanceGenerator__new_(&graph_editor, &ue5_config.plugin_name)
+                    match instance_gen.generate():
+                        Ok(instance_output) =>
+                            let header_path = layout.public_dir.join(&instance_output.instance_header.field_0)
+                            match std__fs__write(&header_path, &instance_output.instance_header.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write instance header: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {instance_output.instance_header.field_0}")
+                                    ()
+                                    ()
+                            let source_path = layout.private_dir.join(&instance_output.instance_source.field_0)
+                            match std__fs__write(&source_path, &instance_output.instance_source.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write instance source: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {instance_output.instance_source.field_0}")
+                                    ()
+                                    ()
+                            ()
+                        Err(e) =>
+                            eprintln(f"      ⚠️  Failed to generate instance for {runtime_ir.name}: {e}")
+                            ()
+                            ()
+                    let asset_gen = AssetGenerator__new_(&graph_editor, &ue5_config.plugin_name)
+                    match asset_gen.generate():
+                        Ok(asset_output) =>
+                            let asset_header_path = layout.public_dir.join(&asset_output.asset_header.field_0)
+                            match std__fs__write(&asset_header_path, &asset_output.asset_header.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write asset header: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {asset_output.asset_header.field_0}")
+                                    ()
+                                    ()
+                            let asset_source_path = layout.private_dir.join(&asset_output.asset_source.field_0)
+                            match std__fs__write(&asset_source_path, &asset_output.asset_source.field_1):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write asset source: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {asset_output.asset_source.field_0}")
+                                    ()
+                                    ()
+                            ()
+                        Err(e) =>
+                            eprintln(f"      ⚠️  Failed to generate asset for {runtime_ir.name}: {e}")
+                            ()
+                            ()
+                    match ue5_graphs__generate_graph_data_header(&graph_editor, &ue5_config.plugin_name):
+                        Ok(header) =>
+                            let path = layout.public_dir.join(f"{runtime_ir.name}GraphData.h")
+                            match std__fs__write(&path, &header):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write graph data header: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {runtime_ir.name}GraphData.h")
+                                    ()
+                                    ()
+                            ()
+                        Err(e) =>
+                            eprintln(f"      ⚠️  Failed to generate graph data header: {e}")
+                            ()
+                            ()
+                    match ue5_graphs__generate_graph_data_source(&graph_editor, &ue5_config.plugin_name):
+                        Ok(source) =>
+                            let path = layout.private_dir.join(f"{runtime_ir.name}GraphData.cpp")
+                            match std__fs__write(&path, &source):
+                                Err(e) =>
+                                    eprintln(f"      ⚠️  Failed to write graph data source: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"      ✓ {runtime_ir.name}GraphData.cpp")
+                                    ()
+                                    ()
+                            ()
+                        Err(e) =>
+                            eprintln(f"      ⚠️  Failed to generate graph data source: {e}")
+                            ()
+                            ()
+                    println(f"      ✅ Runtime graph system complete: {runtime_ir.name}")
+                Err(e) =>
+                    eprintln(f"      ❌ Failed to convert runtime graph {graph_runtime_def.name} to IR: {e}")
+                    eprintln(f"         Error: {e}")
+        ()
+        println()
+        ()
+        ()
+    let actors: Array<&kain_core::ast::Actor> = typed_program.items.iter().filter_map(fn(item): none).collect()
+    if (!actors.is_empty()):
+        println(f"📐 Generating Blueprints for {actors.len()} actors...")
+        let bp_content_dir = layout.plugin_root.join("Content").join("Blueprints")
+        match std__fs__create_dir_all(&bp_content_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create blueprints content dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let factory_dir = layout.private_dir.join("Generated").join("Factories")
+        match std__fs__create_dir_all(&factory_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create factory dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for actor_ in actors:
+            match ue5_blueprints__conversion__from_ast(actor_):
+                Ok(bp_ir) =>
+                    match ue5_blueprints__generate_uasset(&bp_ir):
+                        Ok(Some(bytes)) =>
+                            let path = bp_content_dir.join(f"{bp_ir.name}.uasset")
+                            match std__fs__write(&path, &bytes):
+                                Ok(_) =>
+                                    println(f"   ✓ Binary blueprint: {bp_ir.name} ({bytes.len()} bytes)")
+                                    generated_assets.push(GeneratedAsset { package_name: f"/Game/Blueprints/{bp_ir.name}", asset_name: bp_ir.name.clone(), class_path: "/Script/Engine.Blueprint" })
+                                    ()
+                                Err(e) => eprintln(f"   ⚠️  Failed to write .uasset for {bp_ir.name}: {e}")
+                        Ok(None) =>
+                            println(f"   ℹ️  {bp_ir.name} has event graph, using C++ factory fallback.")
+                            let (header, source) = ue5_blueprints__generate_factory(&bp_ir)
+                            let h_path = factory_dir.join(f"{bp_ir.name}Factory.h")
+                            let cpp_path = factory_dir.join(f"{bp_ir.name}Factory.cpp")
+                            let _ = std__fs__write(&h_path, header)
+                            let _ = std__fs__write(&cpp_path, source)
+                        Err(e) => eprintln(f"   ❌ Blueprint generation error for {bp_ir.name}: {e}")
+                Err(e) => eprintln(f"   ❌ Failed to convert actor {actor_.name} to blueprint IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    ()
+    use ue5_editor::data_asset_writer::fields_from_struct
+
+    use ue5_editor::data_asset_writer::resolve_data_asset_class
+
+    use ue5_editor::data_asset_writer::write_data_asset
+
+    let data_asset_structs: Array<&kain_core::ast::Struct> = typed_program.items.iter().filter_map(fn(item): none).collect()
+    if (!data_asset_structs.is_empty()):
+        println(f"📦 Generating {data_asset_structs.len()} DataAsset(s)...")
+        let da_content_dir = layout.plugin_root.join("Content").join("DataAssets")
+        match std__fs__create_dir_all(&da_content_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create DataAssets content dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let engine_ver = ue5_config.engine_version.and_then(parse_engine_version).unwrap_or_else(fn(): KainEngineTarget__default_().as_serializer_version())
+        for st in data_asset_structs:
+            let class_path = ue5_editor__data_asset_writer__resolve_data_asset_class(&st.attributes)
+            let fields = ue5_editor__data_asset_writer__fields_from_struct(st)
+            let asset_name = &st.name
+            match ue5_editor__data_asset_writer__write_data_asset(asset_name, &class_path, &fields, engine_ver):
+                Ok(bytes) =>
+                    let path = da_content_dir.join(f"{asset_name}.uasset")
+                    match std__fs__write(&path, &bytes):
+                        Ok(_) =>
+                            println(f"   ✓ DataAsset: {asset_name} ({bytes.len()} bytes, class: {class_path})")
+                            generated_assets.push(GeneratedAsset { package_name: f"/Game/DataAssets/{asset_name}", asset_name: asset_name.clone(), class_path: "/Script/Engine.DataAsset" })
+                            ()
+                        Err(e) => eprintln(f"   ⚠️  Failed to write DataAsset {asset_name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to generate DataAsset {asset_name}: {e}")
+        ()
+        println()
+        ()
+        ()
+    ()
+    if (!gameplay_tags.is_empty()):
+        println()
+        println(f"🏷️  Generating {gameplay_tags.len()} GameplayTags namespace(s)...")
+        let tags_config_dir = layout.plugin_root.join("Config").join("Tags")
+        match std__fs__create_dir_all(&tags_config_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Config/Tags dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match GameplayTagsIR__from_ast(gameplay_tags.clone()):
+            Ok(tags_ir) =>
+                match ue5_gas__tags_codegen__generate(&tags_ir, &ue5_config.plugin_name):
+                    Ok(output) =>
+                        let header_path = layout.public_dir.join("GameplayTags.h")
+                        match std__fs__write(&header_path, &output.header):
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to write GameplayTags.h: {e}")
+                                ()
+                                ()
+                            _ =>
+                                println(f"   ✓ GameplayTags.h ({output.header.lines().count()} lines)")
+                                ()
+                                ()
+                        let impl_path = layout.private_dir.join("GameplayTags.cpp")
+                        match std__fs__write(&impl_path, &output.implementation):
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to write GameplayTags.cpp: {e}")
+                                ()
+                                ()
+                            _ =>
+                                println(f"   ✓ GameplayTags.cpp ({output.implementation.lines().count()} lines)")
+                                ()
+                                ()
+                        let ini_path = tags_config_dir.join("DefaultGameplayTags.ini")
+                        match std__fs__write(&ini_path, &output.ini_file):
+                            Err(e) =>
+                                eprintln(f"   ⚠️  Failed to write DefaultGameplayTags.ini: {e}")
+                                ()
+                                ()
+                            _ =>
+                                println(f"   ✓ DefaultGameplayTags.ini ({tags_ir.all_tags().len()} tags)")
+                                ()
+                                ()
+                        ()
+                    Err(e) =>
+                        eprintln(f"   ⚠️  Failed to generate GameplayTags: {e}")
+                        ()
+                        ()
+                ()
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to convert GameplayTags to IR: {e}")
+                ()
+                ()
+        println()
+        ()
+        ()
+    if (!gameplay_abilities.is_empty()):
+        println()
+        println(f"⚡ Generating {gameplay_abilities.len()} GameplayAbility(ies)...")
+        let abilities_public_dir = layout.public_dir.join("Abilities")
+        let abilities_private_dir = layout.private_dir.join("Abilities")
+        match std__fs__create_dir_all(&abilities_public_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Abilities public dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match std__fs__create_dir_all(&abilities_private_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Abilities private dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for ability_def in &gameplay_abilities:
+            match GameplayAbilityIR__from_ast(ability_def):
+                Ok(ability_ir) =>
+                    match ue5_gas__ability_codegen__generate(&ability_ir, &ue5_config.plugin_name):
+                        Ok(output) =>
+                            let header_path = abilities_public_dir.join(f"{ability_def.name}.h")
+                            match std__fs__write(&header_path, &output.header):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write {ability_def.name}.h: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ {ability_def.name}.h ({output.header.lines().count()} lines)")
+                                    ()
+                                    ()
+                            let source_path = abilities_private_dir.join(f"{ability_def.name}.cpp")
+                            match std__fs__write(&source_path, &output.source):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write {ability_def.name}.cpp: {e}")
+                                _ => println(f"   ✓ {ability_def.name}.cpp ({output.source.lines().count()} lines)")
+                        Err(e) => eprintln(f"   ⚠️  Failed to generate ability {ability_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert ability {ability_def.name} to IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    if (!gameplay_effects.is_empty()):
+        println()
+        println(f"💥 Generating {gameplay_effects.len()} GameplayEffect(s)...")
+        let effects_public_dir = layout.public_dir.join("Effects")
+        let effects_private_dir = layout.private_dir.join("Effects")
+        match std__fs__create_dir_all(&effects_public_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Effects public dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match std__fs__create_dir_all(&effects_private_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Effects private dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for effect_def in &gameplay_effects:
+            match GameplayEffectIR__from_ast(effect_def):
+                Ok(effect_ir) =>
+                    match ue5_gas__effect_codegen__generate(&effect_ir, &ue5_config.plugin_name):
+                        Ok(output) =>
+                            let header_path = effects_public_dir.join(f"{effect_def.name}.h")
+                            match std__fs__write(&header_path, &output.header):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write {effect_def.name}.h: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ {effect_def.name}.h ({output.header.lines().count()} lines)")
+                                    ()
+                                    ()
+                            let source_path = effects_private_dir.join(f"{effect_def.name}.cpp")
+                            match std__fs__write(&source_path, &output.source):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write {effect_def.name}.cpp: {e}")
+                                _ => println(f"   ✓ {effect_def.name}.cpp ({output.source.lines().count()} lines)")
+                        Err(e) => eprintln(f"   ⚠️  Failed to generate effect {effect_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert effect {effect_def.name} to IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    if (!gameplay_cues.is_empty()):
+        println()
+        println(f"🎬 Generating {gameplay_cues.len()} GameplayCue(s)...")
+        let cues_public_dir = layout.public_dir.join("Cues")
+        let cues_private_dir = layout.private_dir.join("Cues")
+        match std__fs__create_dir_all(&cues_public_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Cues public dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match std__fs__create_dir_all(&cues_private_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Cues private dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for cue_def in &gameplay_cues:
+            match GameplayCueIR__from_ast(cue_def):
+                Ok(cue_ir) =>
+                    match ue5_gas__cue_codegen__generate(&cue_ir, &ue5_config.plugin_name):
+                        Ok(output) =>
+                            let header_path = cues_public_dir.join(f"{cue_def.name}.h")
+                            match std__fs__write(&header_path, &output.header):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write {cue_def.name}.h: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ {cue_def.name}.h ({output.header.lines().count()} lines)")
+                                    ()
+                                    ()
+                            let source_path = cues_private_dir.join(f"{cue_def.name}.cpp")
+                            match std__fs__write(&source_path, &output.source):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write {cue_def.name}.cpp: {e}")
+                                _ => println(f"   ✓ {cue_def.name}.cpp ({output.source.lines().count()} lines)")
+                        Err(e) => eprintln(f"   ⚠️  Failed to generate cue {cue_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert cue {cue_def.name} to IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    if (!ability_tasks.is_empty()):
+        println()
+        println(f"⚡ Generating {ability_tasks.len()} AbilityTask(s)...")
+        let tasks_public_dir = layout.public_dir.join("Tasks")
+        let tasks_private_dir = layout.private_dir.join("Tasks")
+        match std__fs__create_dir_all(&tasks_public_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Tasks public dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match std__fs__create_dir_all(&tasks_private_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Tasks private dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for task_def in &ability_tasks:
+            match AbilityTaskIR__from_ast(task_def):
+                Ok(task_ir) =>
+                    match ue5_gas__task_codegen__generate(&task_ir, &ue5_config.plugin_name):
+                        Ok(output) =>
+                            let header_path = tasks_public_dir.join(f"{task_def.name}.h")
+                            match std__fs__write(&header_path, &output.header):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write {task_def.name}.h: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ {task_def.name}.h ({output.header.lines().count()} lines)")
+                                    ()
+                                    ()
+                            let source_path = tasks_private_dir.join(f"{task_def.name}.cpp")
+                            match std__fs__write(&source_path, &output.source):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write {task_def.name}.cpp: {e}")
+                                _ => println(f"   ✓ {task_def.name}.cpp ({output.source.lines().count()} lines)")
+                        Err(e) => eprintln(f"   ⚠️  Failed to generate task {task_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert task {task_def.name} to IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    println(f"DEBUG: target_actors.len() = {target_actors.len()}")
+    if (!target_actors.is_empty()):
+        println()
+        println(f"🎯 Generating {target_actors.len()} TargetActor(s)...")
+        let targeting_public_dir = layout.public_dir.join("Targeting")
+        let targeting_private_dir = layout.private_dir.join("Targeting")
+        match std__fs__create_dir_all(&targeting_public_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Targeting public dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match std__fs__create_dir_all(&targeting_private_dir):
+            Err(e) =>
+                eprintln(f"   ⚠️  Failed to create Targeting private dir: {e}")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for target_def in &target_actors:
+            match TargetActorIR__from_ast(target_def):
+                Ok(target_ir) =>
+                    match ue5_gas__target_codegen__generate(&target_ir, &ue5_config.plugin_name):
+                        Ok(output) =>
+                            let header_path = targeting_public_dir.join(f"{target_def.name}.h")
+                            match std__fs__write(&header_path, &output.header):
+                                Err(e) =>
+                                    eprintln(f"   ⚠️  Failed to write {target_def.name}.h: {e}")
+                                    ()
+                                    ()
+                                _ =>
+                                    println(f"   ✓ {target_def.name}.h ({output.header.lines().count()} lines)")
+                                    ()
+                                    ()
+                            let source_path = targeting_private_dir.join(f"{target_def.name}.cpp")
+                            match std__fs__write(&source_path, &output.source):
+                                Err(e) => eprintln(f"   ⚠️  Failed to write {target_def.name}.cpp: {e}")
+                                _ => println(f"   ✓ {target_def.name}.cpp ({output.source.lines().count()} lines)")
+                        Err(e) => eprintln(f"   ⚠️  Failed to generate target {target_def.name}: {e}")
+                Err(e) => eprintln(f"   ⚠️  Failed to convert target {target_def.name} to IR: {e}")
+        ()
+        println()
+        ()
+        ()
+    use ue5_config::generate_config_code_typed
+
+    let module_api = f"{ue5_config.plugin_name.to_uppercase()}_API"
+    match ue5_config__generate_config_code_typed(&typed_program, &ue5_config.plugin_name, &module_api):
+        Ok(config_files) =>
+            if (!config_files.is_empty()):
+                println()
+                println("⚙\u{fe0f}  Generating {config_files.iter().filter(fn(f): f.path.ends_with(\".h\")).count()} config class(es)...")
+                for file in &config_files:
+                    let dest = if file.path.ends_with(".h"):
+                        layout.public_dir.join(Path__new_(&file.path).file_name().unwrap_or_default())
+                    elif file.path.ends_with(".cpp"):
+                        layout.private_dir.join(Path__new_(&file.path).file_name().unwrap_or_default())
+                    else:
+                        let config_dir = layout.plugin_root.join("Config")
+                        let _ = std__fs__create_dir_all(&config_dir)
+                        config_dir.join(Path__new_(&file.path).file_name().unwrap_or_default())
+                    match std__fs__write(&dest, &file.content):
+                        Ok(_) => println(f"   ✓ Config: {dest.file_name().unwrap_or_default().to_string_lossy()}")
+                        Err(e) => eprintln(f"   ⚠️  Failed to write config file {file.path}: {e}")
+                ()
+                println()
+                ()
+                ()
+            ()
+        Err(e) =>
+            eprintln(f"   ⚠️  Config codegen failed: {e}")
+            ()
+            ()
+    ()
+    println()
+    if ue5_config.modular_output:
+        println("🎯 Generating modular plugin files (per-file output)...")
+        let has_gas_features = ((((((!gameplay_tags.is_empty()) || (!gameplay_abilities.is_empty())) || (!gameplay_effects.is_empty())) || (!gameplay_cues.is_empty())) || (!ability_tasks.is_empty())) || (!target_actors.is_empty()))
+        let (master_header_path, delegate_count, mut type_headers) = codegen__generate_headers(&layout, &ue5_config, &typed_program, &symbol_source_map)?
+        for runtime_def in &graph_runtimes:
+            type_headers.insert(runtime_def.name.clone(), f"{runtime_def.name}Instance.h")
+            ()
+        ()
+        let runtime_manifest = codegen__generate_runtime_items(&layout, &ue5_config, &typed_program, &shader_names, &type_headers, &master_header_path, &symbol_source_map, embed_kain, has_gas_features)?
+        codegen__generate_stdlib_functions(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path, has_gas_features)?
+        ()
+        codegen__generate_blueprint_library(&layout, &ue5_config, &typed_program, &type_headers, &master_header_path)?
+        ()
+        let editor_manifest = codegen__generate_editor_items(&layout, &ue5_config, &typed_program, &master_header_path, &symbol_source_map)?
+        println()
+        println("   ✅ Master header finalized with all module includes")
+        let has_shaders = (!shader_names.is_empty())
+        let has_material_factories = (!material_graphs.is_empty())
+        codegen__generate_module_registration(&layout, &ue5_config, &typed_program, has_shaders, has_material_factories)?
+        ()
+        codegen__write_cross_module_manifests(&layout, &ue5_config, &runtime_manifest, &editor_manifest)?
+        ()
+        ()
+        ()
+        ()
+    else:
+        codegen__generate_monolithic(&layout, &ue5_config, &typed_program)?
+        ()
+        ()
+        ()
+        ()
+    let has_shaders = (!shader_names.is_empty())
+    let mut module_graph = ModuleGraph__new_()
+    let module_graph_path = none
+    if module_graph_path.exists():
+        match std__fs__read_to_string(&module_graph_path):
+            Ok(data) =>
+                match module_graph.load(&data):
+                    Ok(()) =>
+                        let (mods, types, headers) = module_graph.stats()
+                        println(f"📊 Module graph loaded: {mods} modules, {types} types, {headers} headers")
+                        println(f"   📍 From: {module_graph_path.display()}")
+                        ()
+                        ()
+                    Err(e) =>
+                        eprintln(f"⚠️  module_graph.json parse error: {e}")
+                        ()
+            Err(e) =>
+                eprintln(f"⚠️  Could not read module_graph.json: {e}")
+                ()
+        ()
+    else:
+        println("ℹ\u{fe0f}  module_graph.json not found — Build.cs will use feature-based fallback")
+        println("   Run: python unreal/scripts/module_graph_extractor.py <UE_SOURCE_DIR>")
+        ()
+        ()
+    let description = manifest.and_then(fn(m): m.package.description.clone())
+    let has_gameplay_tags = (!gameplay_tags.is_empty())
+    let has_gameplay_abilities = (!gameplay_abilities.is_empty())
+    let has_gameplay_effects = (!gameplay_effects.is_empty())
+    let has_gameplay_cues = (!gameplay_cues.is_empty())
+    let has_ability_tasks = (!ability_tasks.is_empty())
+    let has_target_actors = (!target_actors.is_empty())
+    let has_gas_features = (((((has_gameplay_tags || has_gameplay_abilities) || has_gameplay_effects) || has_gameplay_cues) || has_ability_tasks) || has_target_actors)
+    codegen__write_plugin_files(&layout, &ue5_config, &description, has_shaders, has_gas_features, &module_graph, &typed_program)?
+    ()
+    use super::registry_writer::register_assets
+
+    use super::registry_writer::AssetEntry
+
+    if (!generated_assets.is_empty()):
+        println(f"📋 Updating AssetRegistry.bin ({generated_assets.len()} assets)...")
+        let registry_path = layout.plugin_root.join("Content").join("AssetRegistry.bin")
+        let engine_ver = ue5_config.engine_version.and_then(parse_engine_version).unwrap_or_else(fn(): KainEngineTarget__default_().as_serializer_version())
+        let entries: Array<AssetEntry> = generated_assets.iter().map(fn(a): AssetEntry__new_(&a.package_name, &a.asset_name, a.class_path)).collect()
+        match registry_writer__register_assets(&registry_path, &entries, engine_ver):
+            Ok(()) =>
+                println(f"   ✓ AssetRegistry.bin updated: {registry_path.display()}")
+                ()
+            Err(e) =>
+                eprintln(f"   ⚠️  AssetRegistry update failed (non-fatal): {e}")
+                ()
+        println()
+        ()
+        ()
+    ()
+    println()
+    println("🔬 Validating generated C++ code...")
+    match cpp_validator__validate_cpp_with_resharper(&layout.plugin_root):
+        Ok(()) => ()
+        Err(e) =>
+            eprintln(f"   ⚠️  ReSharper validation failed: {e}")
+            println("   🔄 Falling back to basic validation...")
+            cpp_validator__validate_cpp_basic(&layout.plugin_root)?
+            ()
+            ()
+            ()
+            ()
+    println()
+    println()
+    println("✅ Plugin build complete!")
+    println(f"📍 Location: {layout.plugin_root.display()}")
+    println()
+    if ue5_config.modular_output:
+        println(f"💡 Modular compilation: {user_source_files.len()} user files + {stdlib_files.len()} stdlib files → {user_source_files.len()} C++ modules")
+        ()
+        ()
+    else:
+        println(f"💡 Multi-file compilation: {user_source_files.len()} user files + {stdlib_files.len()} stdlib files combined")
+        ()
+        ()
+    println(f"⚡ Total shaders: {shader_names.len()}")
+    println(f"📦 Binary assets stamped: {generated_assets.len()}")
+    Result::Ok(())
+
+@doc(doc = " Load stdlib + user source files, parse, validate, and type-check.")
+@doc(doc = " Returns (typed_program, shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes).")
+fn parse_use_root_modules(source: String) -> Set<String>:
+    let mut roots = HashSet__new_()
+    for line_ in source.lines():
+        let trimmed = line_.trim()
+        if (!trimmed.starts_with("use ")):
+            continue
+        let mut rest = trimmed.trim_start_matches("use").trim()
+        match rest.find(" as "):
+            Some(idx) =>
+                rest = &rest[..idx]
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match rest.find("#"):
+            Some(idx) =>
+                rest = &rest[..idx]
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        let root = rest.split("::").next().and_then(fn(s): s.split("/").next()).unwrap_or("").trim()
+        if ((!root.is_empty()) && (root != "*")):
+            roots.insert(root.to_string())
+            ()
+    ()
+    roots
+
+fn stdlib_module_name(path: &std::path::PathBuf) -> Option<String>:
+    path.file_stem().map(fn(s): s.to_string_lossy().to_string())
+
+fn load_and_parse_sources(ue5_config: &Ue5Config, manifest: Option<&config::PackageManifest>, cwd: &std::path::PathBuf) -> Result<(kain_core::types::TypedProgram, Array<String>, Array<std::path::PathBuf>, Array<std::path::PathBuf>, Map<String, std::path::PathBuf>, Array<kain_core::ast::MaterialGraphDef>, Array<kain_core::ast::MaterialFunctionDef>, Array<kain_core::ast::GraphEditorDef>, Array<kain_core::ast::GraphRuntimeDef>, Array<kain_core::ast::GameplayTagsNamespace>, Array<kain_core::ast::GameplayAbilityDef>, Array<kain_core::ast::GameplayEffectDef>, Array<kain_core::ast::GameplayCueDef>, Array<kain_core::ast::AbilityTaskDef>, Array<kain_core::ast::TargetActorDef>), KainError>:
+    let mut all_source_files = Vec__new_()
+    let mut stdlib_files = Vec__new_()
+    let user_source_files = if (*ue5_config).sources.is_empty():
+        match manifest:
+            Some(m) => [m.build.entry.clone()]
+            _ => return Result::Err(KainError__runtime("No source files specified and no KAIN.toml found"))
+    else:
+        (*ue5_config).sources.clone()
+    let user_source_paths: Array<std::path::PathBuf> = user_source_files.iter().map(fn(f): cwd.join(f)).collect()
+    let mut imported_roots: Set<String> = HashSet__new_()
+    for user_path in &user_source_paths:
+        match std__fs__read_to_string(user_path):
+            Ok(src) =>
+                imported_roots.extend(parse_use_root_modules(&src))
+                ()
+            _ => ()
+    ()
+    const ALWAYS_INCLUDE_STDLIB_MODULES: Array<String> = ["common", "components", "patterns"]
+
+    let has_explicit_stdlib_imports = imported_roots.iter().any(fn(name): ALWAYS_INCLUDE_STDLIB_MODULES.iter().all(fn(always): (name != always)))
+    let stdlib_search_paths: Array<std::path::PathBuf> = match &(*ue5_config).stdlib_path:
+        Some(custom_path) => [custom_path.clone()]
+        _ =>
+            match std__env__var_("KAIN_STDLIB_PATH"):
+                Ok(env_path) => [PathBuf__from(env_path)]
+                _ =>
+                    let mut roots = Vec__new_()
+                    match std__env__current_dir():
+                        Ok(mut current) =>
+                            loop:
+                                let kain_stdlib = current.join("Kain").join("stdlib")
+                                if (kain_stdlib.exists() && kain_stdlib.is_dir()):
+                                    roots.push(kain_stdlib)
+                                    ()
+                                    break
+                                let stdlib_dir = current.join("stdlib")
+                                if (stdlib_dir.exists() && stdlib_dir.is_dir()):
+                                    let ue5_subdir = stdlib_dir.join("ue5")
+                                    if (ue5_subdir.exists() && ue5_subdir.is_dir()):
+                                        roots.push(stdlib_dir)
+                                        ()
+                                        break
+                                    ()
+                                match current.parent():
+                                    Some(parent) =>
+                                        current = parent.to_path_buf()
+                                        ()
+                                    _ => break
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    roots
+    for stdlib_root in stdlib_search_paths:
+        let ue5_path = stdlib_root.join("ue5")
+        let search_path = if (ue5_path.exists() && ue5_path.is_dir()):
+            ue5_path
+        else:
+            stdlib_root.clone()
+        if search_path.exists():
+            match std__fs__read_dir(&search_path):
+                Ok(entries) =>
+                    for entry in entries:
+                        match entry:
+                            Ok(entry) =>
+                                let path = entry.path()
+                                if path.extension().map_or(false, fn(e): (e == "kn")):
+                                    match path.file_name():
+                                        Some(name) =>
+                                            if name.to_string_lossy().to_lowercase().contains("readme"):
+                                                continue
+                                            ()
+                                        _ =>
+                                            ()
+                                            ()
+                                    let include_file = if has_explicit_stdlib_imports:
+                                        match stdlib_module_name(&path):
+                                            Some(module_name) => (imported_roots.contains(&module_name) || ALWAYS_INCLUDE_STDLIB_MODULES.iter().any(fn(m): ((*m) == module_name)))
+                                            _ => false
+                                    else:
+                                        true
+                                    if include_file:
+                                        stdlib_files.push(path)
+                                        ()
+                            _ => ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            if (!stdlib_files.is_empty()):
+                println(f"📚 Loaded stdlib from: {search_path.display()}")
+                break
+    ()
+    stdlib_files.sort()
+    ()
+    for stdlib_file in &stdlib_files:
+        all_source_files.push(stdlib_file.clone())
+        ()
+    ()
+    for user_path in &user_source_paths:
+        all_source_files.push(user_path.clone())
+        ()
+    ()
+    println(f"📁 Source files: {all_source_files.len()} (stdlib: {stdlib_files.len()}, user: {user_source_files.len()})")
+    if has_explicit_stdlib_imports:
+        let mut imported_list: Array<String> = imported_roots.iter().cloned().collect()
+        imported_list.sort()
+        ()
+        println("   🎯 Import-aware stdlib mode: {imported_list.join(\", \")}")
+        ()
+        ()
+    println("   📚 Stdlib files:")
+    for selfhost_for_item in stdlib_files.iter().enumerate():
+        let (i, file) = selfhost_for_item
+        match file.file_name():
+            Some(name) => println(f"      {(i + 1)}. {name.to_string_lossy()}")
+            _ => ()
+    ()
+    println("   📝 User files:")
+    for selfhost_for_item in user_source_files.iter().enumerate():
+        let (i, file) = selfhost_for_item
+        println(f"      {(i + 1)}. {file.display()}")
+    ()
+    println()
+    let mut all_asts = Vec__new_()
+    let mut all_shader_names = Vec__new_()
+    let mut symbol_source_map: Map<String, std::path::PathBuf> = HashMap__new_()
+    let mut all_span_mappers: Array<(String, kain_core::diagnostics::SpanMapper)> = Vec__new_()
+    let mut all_parse_errors: Array<String> = Vec__new_()
+    println("🔍 Validating source files...")
+    for source_path in &all_source_files:
+        if (!source_path.exists()):
+            all_parse_errors.push(f"❌ Source file not found: {source_path.display()}")
+            ()
+            continue
+        let file_source = std__fs__read_to_string(&source_path).map_err(fn(e): KainError::Io(e))?
+        let tokens = match Lexer__new_(&file_source).tokenize():
+            Ok(t) => t
+            Err(e) =>
+                all_parse_errors.push(f"❌ Syntax error in {source_path.display()}: {e}")
+                ()
+                continue
+        let span_mapper = SpanMapper__new_(&file_source)
+        let file_name = source_path.file_name().and_then(fn(n): n.to_str()).unwrap_or("<unknown>")
+        let ast = match Parser__new_(&tokens, &span_mapper, file_name).parse():
+            Ok(a) => a
+            Err(e) =>
+                let file_name_str = source_path.file_name().map(fn(n): n.to_string_lossy().to_string()).unwrap_or_else(fn(): source_path.display().to_string())
+                match e:
+                    kain_core__error__KainError::Multi(errors) =>
+                        for individual_error in errors:
+                            let err_str = individual_error.to_string()
+                            let formatted_error = post_process__format_error_with_location(&file_source, &err_str, file_name_str.clone())
+                            all_parse_errors.push(f"❌ Parse error in {source_path.display()}:{formatted_error}")
+                            ()
+                        ()
+                        ()
+                    _ =>
+                        let err_str = e.to_string()
+                        let formatted_error = post_process__format_error_with_location(&file_source, &err_str, file_name_str.clone())
+                        all_parse_errors.push(f"❌ Parse error in {source_path.display()}:{formatted_error}")
+                        ()
+                        ()
+                        ()
+                        ()
+                continue
+        match post_process__extract_shader_names(&file_source):
+            Ok(names) =>
+                all_shader_names.extend(names)
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match source_path.file_name():
+            Some(name) =>
+                println(f"   ✓ {name.to_string_lossy()} validated")
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        for item in &ast.items:
+            match ast_item_symbol_name(item):
+                Some(symbol) =>
+                    symbol_source_map.insert(symbol, source_path.clone())
+                    ()
+                _ => ()
+        ()
+        all_span_mappers.push((file_name.to_string(), span_mapper))
+        ()
+        all_asts.push(ast)
+        ()
+    ()
+    if (!all_parse_errors.is_empty()):
+        let count = all_parse_errors.len()
+        let body = all_parse_errors.join("\n\n")
+        return Result::Err(KainError__runtime(f"{count} parse error(s) found:\n\n{body}"))
+    println()
+    let mut merged = kain_core::ast::Program { items: Vec__new_(), span: kain_core::Span { start: 0, end: 0 } }
+    let stdlib_ast_count = stdlib_files.len()
+    let mut user_defined_names: Set<String> = HashSet__new_()
+    for ast in all_asts.iter().skip(stdlib_ast_count):
+        for item in &ast.items:
+            match ast_item_symbol_name(item):
+                Some(name) =>
+                    user_defined_names.insert(name)
+                    ()
+                _ => ()
+    ()
+    let mut user_type_refs: Set<String> = HashSet__new_()
+    for ast in all_asts.iter().skip(stdlib_ast_count):
+        for item in &ast.items:
+            let refs = kain_core__ast__collect_referenced_type_names(item)
+            user_type_refs.extend(refs)
+            ()
+    ()
+    let mut stdlib_item_names: Set<String> = HashSet__new_()
+    let mut stdlib_deps: Map<String, Set<String>> = HashMap__new_()
+    for ast in all_asts.iter().take(stdlib_ast_count):
+        for item in &ast.items:
+            match ast_item_symbol_name(item):
+                Some(name) =>
+                    stdlib_item_names.insert(name.clone())
+                    ()
+                    let refs = kain_core__ast__collect_referenced_type_names(item)
+                    stdlib_deps.insert(name, refs)
+                    ()
+                _ => ()
+    ()
+    let mut reachable: Set<String> = HashSet__new_()
+    let mut worklist: Array<String> = user_type_refs.iter().filter(fn(name): stdlib_item_names.contains((*name))).cloned().collect()
+    for name in &user_defined_names:
+        reachable.insert(name.clone())
+        ()
+    ()
+    loop:
+        match worklist.pop():
+            Some(name) =>
+                if (!reachable.insert(name.clone())):
+                    continue
+                match stdlib_deps.get(&name):
+                    Some(deps) =>
+                        for dep in deps:
+                            if (stdlib_item_names.contains(dep) && (!reachable.contains(dep))):
+                                worklist.push(dep.clone())
+                                ()
+                    _ => ()
+            _ => break
+    ()
+    let total_stdlib_items: usize = all_asts.iter().take(stdlib_ast_count).map(fn(ast): ast.items.len()).sum()
+    let mut stdlib_deduped = 0
+    let mut stdlib_pruned = 0
+    for ast in all_asts.iter().take(stdlib_ast_count):
+        for item in &ast.items:
+            match ast_item_symbol_name(item):
+                Some(name) =>
+                    if user_defined_names.contains(&name):
+                        stdlib_deduped = (stdlib_deduped + 1)
+                        ()
+                        continue
+                    if (!reachable.contains(&name)):
+                        stdlib_pruned = (stdlib_pruned + 1)
+                        ()
+                        continue
+                    ()
+                _ =>
+                    ()
+                    ()
+            merged.items.push(item.clone())
+            ()
+    ()
+    for ast in all_asts.iter().skip(stdlib_ast_count):
+        merged.items.extend(ast.items.iter().cloned())
+        ()
+    ()
+    let stdlib_kept = ((total_stdlib_items - stdlib_deduped) - stdlib_pruned)
+    if ((stdlib_deduped > 0) || (stdlib_pruned > 0)):
+        println(f"   ℹ️  Stdlib merge: {total_stdlib_items} total → {stdlib_kept} kept ({stdlib_pruned} pruned by tree-shake, {stdlib_deduped} shadowed by user code)")
+        ()
+        ()
+    ()
+    let material_graphs: Array<kain_core::ast::MaterialGraphDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let material_functions: Array<kain_core::ast::MaterialFunctionDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let graph_editors: Array<kain_core::ast::GraphEditorDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let graph_runtimes: Array<kain_core::ast::GraphRuntimeDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let gameplay_tags: Array<kain_core::ast::GameplayTagsNamespace> = merged.items.iter().filter_map(fn(item): none).collect()
+    let gameplay_abilities: Array<kain_core::ast::GameplayAbilityDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let gameplay_effects: Array<kain_core::ast::GameplayEffectDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let gameplay_cues: Array<kain_core::ast::GameplayCueDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let ability_tasks: Array<kain_core::ast::AbilityTaskDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    let target_actors: Array<kain_core::ast::TargetActorDef> = merged.items.iter().filter_map(fn(item): none).collect()
+    merged.items.retain(fn(item): (!none))
+    ()
+    println("🔍 Type checking merged program...")
+    let (first_filename, first_span_mapper) = all_span_mappers.first().ok_or_else(fn(): KainError__runtime("No source files to compile"))?
+    let typed_program = match kain_core__types__check(&merged, first_span_mapper, first_filename):
+        Ok(tp) =>
+            println("   ✓ Type checking passed")
+            tp
+        Err(e) => return Result::Err(KainError__runtime(f"❌ Type error in merged program: {e}"))
+    println()
+    println("🔄 Monomorphizing generic functions...")
+    let mono_ast = match kain_core__monomorphize__monomorphize(&typed_program):
+        Ok(ma) =>
+            println("   ✓ Monomorphization complete")
+            ma
+        Err(e) => return Result::Err(KainError__runtime(f"❌ Monomorphization error: {e}"))
+    let typed_program = kain_core::types::TypedProgram { items: mono_ast.items }
+    println()
+    println("🔬 Running Unreal Semantic Validator (Oracle)...")
+    let kb = EngineKnowledge__new_()
+    let mut uht = UhtRules__new_()
+    let uht_path = Path__new_("unreal/metadata/uht_rules.json")
+    if uht_path.exists():
+        match std__fs__read_to_string(uht_path):
+            Ok(data) =>
+                let _ = uht.load(&data)
+                ()
+            _ =>
+                ()
+                ()
+        ()
+    match ue5__ue5__oracle__validate_program_full(&typed_program, &kb, &uht, first_span_mapper, first_filename):
+        Ok(()) =>
+            println("   ✓ Oracle validation passed")
+            ()
+            ()
+        Err(e) => return Result::Err(e)
+    println()
+    Result::Ok((typed_program, all_shader_names, stdlib_files, user_source_files, symbol_source_map, material_graphs, material_functions, graph_editors, graph_runtimes, gameplay_tags, gameplay_abilities, gameplay_effects, gameplay_cues, ability_tasks, target_actors))
+
+fn ast_item_symbol_name(item: &kain_core::ast::Item) -> Option<String>:
+    match item:
+        kain_core__ast__Item::Function(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Component(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Shader(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Actor(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Struct(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Enum(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Trait(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::TypeAlias(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::Const(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::MaterialGraph(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::MaterialFunction(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::GraphEditor(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::GraphRuntime(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::StateMachine(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::AsyncTask(v) => Option::Some(v.name.clone())
+        kain_core__ast__Item::EditorModule(v) => Option::Some(v.name.clone())
+        _ => none
+
+@doc(doc = " Map an engine version string from KAIN.toml to a raw `EngineVersion` value.")
+@doc(doc = "")
+@doc(doc = " Delegates through [`KainEngineTarget`] so that each supported version")
+@doc(doc = " (5.0 – 5.7) maps to its **true native** `EngineVersion`, not a capped")
+@doc(doc = " fallback. Accepts formats like `\"5.4\"`, `\"UE5_4\"`, `\"VER_UE5_4\"`.")
+@cfg(feature = "ue5")
+fn parse_engine_version(s: String) -> Option<unreal_asset_base::engine_version::EngineVersion>:
+    use ue5_asset_utils::KainEngineTarget
+
+    let s = s.trim()
+    let normalised = match s.strip_prefix("VER_UE"):
+        Some(rest) => rest.replace("_", ".")
+        _ =>
+            match s.strip_prefix("UE"):
+                Some(rest) => rest.replace("_", ".")
+                _ => s.to_string()
+    KainEngineTarget__from_str(normalised.trim()).map(fn(t): t.as_serializer_version())
+
+@doc(doc = " Convert AST MaterialGraphDef to IR MaterialGraph.")
+@doc(doc = "")
+@doc(doc = " `surface_shaders` maps shader name → pre-emitted HLSL body for Surface-stage")
+@doc(doc = " shaders. When a `call(shader_name)` node is encountered in the graph, the")
+@doc(doc = " corresponding HLSL is embedded as a `MaterialNodeType::CustomHLSL` node")
+@doc(doc = " instead of resolving as an unknown function.")
+@cfg(feature = "ue5")
+fn convert_material_graph(def: &kain_core::ast::MaterialGraphDef, surface_shaders: &Map<String, String>) -> Result<ue5_materials::MaterialGraph, KainError>:
+    use std::collections::HashMap
+
+    use ue5_materials::BlendMode
+
+    use ue5_materials::MaterialDomain
+
+    use ue5_materials::MaterialGraph
+
+    use ue5_materials::MaterialInput
+
+    use ue5_materials::MaterialInputType
+
+    use ue5_materials::MaterialNode
+
+    use ue5_materials::MaterialNodeType
+
+    use ue5_materials::MaterialOutputs
+
+    use ue5_materials::MaterialProperties
+
+    use ue5_materials::ShadingModel
+
+    let mut blend_mode = ue5_materials__BlendMode__Opaque
+    let mut shading_model = ue5_materials__ShadingModel__DefaultLit
+    for attr in &(*def).attributes:
+        if (attr.name == "material_graph"):
+            for arg in &attr.args:
+                match arg:
+                    kain_core__ast__Expr::Binary { left: left, right: right } =>
+                        match &(*(*left)):
+                            kain_core__ast__Expr::Ident(name, _) =>
+                                match &(*(*right)):
+                                    kain_core__ast__Expr::Ident(value, _) =>
+                                        match name.as_str():
+                                            "blend_mode" =>
+                                                blend_mode = none
+                                                ()
+                                            "shading_model" =>
+                                                shading_model = none
+                                                ()
+                                            _ => ()
+                                    _ => ()
+                            _ => ()
+                    _ => ()
+    ()
+    let inputs: Array<ue5_materials::MaterialInput> = (*def).inputs.iter().map(fn(input): ue5_materials::MaterialInput { name: input.name.clone(), input_type: map_material_input_type(&input.ty), default_value: input.default_.map(fn(e): e), is_dynamic: false }).collect()
+    let mut node_counter: usize = 0
+    let mut nodes: Array<ue5_materials::MaterialNode> = Vec__new_()
+    let mut scope: Map<String, String> = HashMap__new_()
+    let col_width = 300
+    let row_height = 200
+    for selfhost_for_item in (*def).inputs.iter().enumerate():
+        let (row, input) = selfhost_for_item
+        let x = (-800)
+        let y = (row as i32 * row_height)
+        let id = f"param_{input.name}"
+        let node_type = match &input.ty:
+            kain_core__ast__Type::Named { name: name } =>
+                match name.as_str():
+                    "Texture2D" => ue5_materials__MaterialNodeType::TextureSampleParameter2D { param_name: input.name.clone(), default_texture: none, uv_input: none }
+                    "Float" => ue5_materials__MaterialNodeType::ScalarParameter { name: input.name.clone(), default_: input.default_.and_then(fn(e): none).unwrap_or(0) }
+                    "Vec3" => ue5_materials__MaterialNodeType::VectorParameter { name: input.name.clone(), default_: [1, 1, 1] }
+                    "Vec4" => ue5_materials__MaterialNodeType::VectorParameter { name: input.name.clone(), default_: [1, 1, 1] }
+                    _ => ue5_materials__MaterialNodeType::ScalarParameter { name: input.name.clone(), default_: 0 }
+            _ => ue5_materials__MaterialNodeType::ScalarParameter { name: input.name.clone(), default_: 0 }
+        nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: node_type, position: (x, y) })
+        ()
+        scope.insert(input.name.clone(), id)
+        ()
+    ()
+    for selfhost_for_item in (*def).body.iter().enumerate():
+        let (stmt_idx, stmt) = selfhost_for_item
+        match stmt:
+            kain_core__ast__MaterialStatement::Let { name: name, value: value } =>
+                let x = ((-500) + (stmt_idx as i32 * col_width))
+                let y = 0
+                let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, surface_shaders)
+                scope.insert(name.clone(), node_id)
+                ()
+            _ => ()
+    ()
+    let mut outputs = MaterialOutputs__default_()
+    for output in &(*def).outputs:
+        let node_id = emit_expr(&output.value, 400, 0, &mut node_counter, &mut nodes, &scope, surface_shaders)
+        match output.name.as_str():
+            "base_color" => outputs.base_color = Option::Some(node_id)
+            "metallic" => outputs.metallic = Option::Some(node_id)
+            "specular" => outputs.specular = Option::Some(node_id)
+            "roughness" => outputs.roughness = Option::Some(node_id)
+            "emissive" => outputs.emissive = Option::Some(node_id)
+            "opacity" => outputs.opacity = Option::Some(node_id)
+            "normal" => outputs.normal = Option::Some(node_id)
+            "ambient_occlusion" => outputs.ambient_occlusion = Option::Some(node_id)
+            "world_position_offset" => outputs.world_position_offset = Option::Some(node_id)
+            _ => ()
+    ()
+    let properties = ue5_materials::MaterialProperties { domain: ue5_materials__MaterialDomain__Surface, blend_mode: blend_mode, shading_model: shading_model, two_sided: false, expose_parameters: false }
+    let uses_vertex_shader = outputs.world_position_offset.is_some()
+    Result::Ok(ue5_materials::MaterialGraph { name: (*def).name.clone(), inputs: inputs, outputs: outputs, properties: properties, nodes: nodes, is_dynamic: false, dynamic_parameters: Vec__new_(), uses_vertex_shader: uses_vertex_shader, vertex_displacement_scale: none })
+
+@doc(doc = " Recursively emit material nodes for an expression, returning the node_id of the root.")
+@doc(doc = " If the expression is a simple identifier already in scope, returns that node_id directly.")
+@doc(doc = "")
+@doc(doc = " `surface_shaders` maps KAIN Surface shader names to their pre-emitted HLSL bodies.")
+@doc(doc = " When a function call matches a shader name, it is injected as a `CustomHLSL` node.")
+@cfg(feature = "ue5")
+fn emit_expr(expr: &kain_core::ast::Expr, x: i32, y: i32, counter: &mut usize, nodes: &mut Array<ue5_materials::MaterialNode>, scope: &Map<String, String>, surface_shaders: &Map<String, String>) -> String:
+    use kain_core::ast::BinaryOp
+
+    use kain_core::ast::Expr
+
+    use ue5_materials::MaterialNode
+
+    use ue5_materials::MaterialNodeType
+
+    match expr:
+        kain_core__ast__Expr::Ident(name, _) =>
+            match scope.get(name.as_str()):
+                Some(id) => return id.clone()
+                _ =>
+                    ()
+                    ()
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::ScalarParameter { name: name.clone(), default_: 0 }, position: (x, y) })
+            ()
+            id
+        kain_core__ast__Expr::Float(v, _) =>
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::ConstantFloat { value: (*v) as f32 }, position: (x, y) })
+            ()
+            id
+        kain_core__ast__Expr::Int(v, _) =>
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::ConstantFloat { value: (*v) as f32 }, position: (x, y) })
+            ()
+            id
+        kain_core__ast__Expr::Binary { left: left, op: op, right: right } =>
+            let a = emit_expr(left, (x - 200), (y - 100), counter, nodes, scope, surface_shaders)
+            let b = emit_expr(right, (x - 200), (y + 100), counter, nodes, scope, surface_shaders)
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            let node_type = match op:
+                kain_core__ast__BinaryOp::Mul => ue5_materials__MaterialNodeType::Multiply { a: a, b: b }
+                kain_core__ast__BinaryOp::Add => ue5_materials__MaterialNodeType::Add { a: a, b: b }
+                kain_core__ast__BinaryOp::Sub => ue5_materials__MaterialNodeType::Subtract { a: a, b: b }
+                kain_core__ast__BinaryOp::Div => ue5_materials__MaterialNodeType::Divide { a: a, b: b }
+                _ => ue5_materials__MaterialNodeType::Multiply { a: a, b: b }
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: node_type, position: (x, y) })
+            ()
+            id
+        kain_core__ast__Expr::Call { callee: callee, args: args } =>
+            let func_name = match &(*(*callee)):
+                kain_core__ast__Expr::Ident(n, _) => n.as_str()
+                _ => ""
+            if ((func_name == "texture_coordinate") || (func_name == "uv")):
+                let index = match args.first():
+                    Some(first) =>
+                        match &first.value:
+                            kain_core__ast__Expr::Int(v, _) => (*v) as u32
+                            _ => 0
+                    _ => 0
+                let id = f"node_{counter}"
+                (*counter) = ((*counter) + 1)
+                ()
+                nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::TextureCoordinate { index: index, tiling: [1, 1] }, position: (x, y) })
+                ()
+                return id
+            let arg_ids: Array<String> = args.iter().enumerate().map(fn(__kain_closure_arg0): none).collect()
+            if (func_name == "sample"):
+                match (arg_ids.get(0), arg_ids.get(1)):
+                    (Some(tex_id), Some(uv_id)) =>
+                        for n in nodes.iter_mut():
+                            if (&n.id == tex_id):
+                                match n.node_type:
+                                    ue5_materials__MaterialNodeType::TextureSampleParameter2D { uv_input: mut uv_input } =>
+                                        (*uv_input) = Option::Some(uv_id.clone())
+                                        ()
+                                        ()
+                                        ()
+                                        ()
+                                    _ =>
+                                        ()
+                                        ()
+                                break
+                        ()
+                        return tex_id.clone()
+                    _ =>
+                        ()
+                        ()
+                ()
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            let node_type = match func_name:
+                "lerp" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    let alpha = arg_ids.get(2).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Lerp { a: a, b: b, alpha: alpha }
+                "mix" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    let alpha = arg_ids.get(2).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Lerp { a: a, b: b, alpha: alpha }
+                "clamp" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    let min = arg_ids.get(1).cloned().unwrap_or(input.clone())
+                    let max = arg_ids.get(2).cloned().unwrap_or(input.clone())
+                    ue5_materials__MaterialNodeType::Clamp { input: input, min: min, max: max }
+                "saturate" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    let min = arg_ids.get(1).cloned().unwrap_or(input.clone())
+                    let max = arg_ids.get(2).cloned().unwrap_or(input.clone())
+                    ue5_materials__MaterialNodeType::Clamp { input: input, min: min, max: max }
+                "multiply" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Multiply { a: a, b: b }
+                "add" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Add { a: a, b: b }
+                "dot" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Dot { a: a, b: b }
+                "power" =>
+                    let base = arg_ids.get(0).cloned().unwrap_or_default()
+                    let exponent = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Power { base: base, exponent: exponent }
+                "pow" =>
+                    let base = arg_ids.get(0).cloned().unwrap_or_default()
+                    let exponent = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Power { base: base, exponent: exponent }
+                "mask_r" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: ("R").to_string() }
+                "mask_g" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: ("G").to_string() }
+                "mask_b" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: ("B").to_string() }
+                "mask_a" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: ("A").to_string() }
+                "mask_rgb" =>
+                    let input = arg_ids.get(0).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: ("RGB").to_string() }
+                "append" =>
+                    let a = arg_ids.get(0).cloned().unwrap_or_default()
+                    let b = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Append { a: a, b: b }
+                "fresnel" =>
+                    let exponent = arg_ids.get(0).cloned().unwrap_or_default()
+                    let base_reflect_fraction = arg_ids.get(1).cloned().unwrap_or_default()
+                    ue5_materials__MaterialNodeType::Fresnel { exponent: exponent, base_reflect_fraction: base_reflect_fraction }
+                name if surface_shaders.contains_key(name) =>
+                    use ue5_materials::CustomInput
+
+                    use ue5_materials::CustomOutputType
+
+                    let hlsl_body = surface_shaders.get(name).cloned().unwrap_or_default()
+                    let inputs: Array<ue5_materials::CustomInput> = arg_ids.iter().enumerate().map(fn(__kain_closure_arg1): ue5_materials::CustomInput { name: f"In{__kain_closure_arg1.__kain_tuple_0}", input_type: ue5_materials__CustomOutputType__Float3 }).collect()
+                    ue5_materials__MaterialNodeType::CustomHLSL { code: hlsl_body, output_type: ue5_materials__CustomOutputType__Float3, inputs: inputs }
+                _ => ue5_materials__MaterialNodeType::ScalarParameter { name: func_name.to_string(), default_: 0 }
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: node_type, position: (x, y) })
+            ()
+            id
+        kain_core__ast__Expr::Field { object: object, field: field } =>
+            let input = emit_expr(object, (x - 200), y, counter, nodes, scope, surface_shaders)
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            let mask = match field.as_str():
+                "r" => "R"
+                "x" => "R"
+                "g" => "G"
+                "y" => "G"
+                "b" => "B"
+                "z" => "B"
+                "a" => "A"
+                "w" => "A"
+                "rg" => "RG"
+                "xy" => "RG"
+                "rgb" => "RGB"
+                "xyz" => "RGB"
+                "rgba" => "RGBA"
+                "xyzw" => "RGBA"
+                _ => "RGB"
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::ComponentMask { input: input, mask: mask.to_string() }, position: (x, y) })
+            ()
+            id
+        _ =>
+            let id = f"node_{counter}"
+            (*counter) = ((*counter) + 1)
+            ()
+            nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: ue5_materials__MaterialNodeType::ConstantFloat { value: 0 }, position: (x, y) })
+            ()
+            id
+
+@doc(doc = " Map KAIN type to material input type")
+@doc(doc = " Convert AST MaterialFunctionDef to IR MaterialFunction.")
+@doc(doc = " Material functions are reusable node graphs that can be called from materials.")
+@cfg(feature = "ue5")
+fn convert_material_function(def: &kain_core::ast::MaterialFunctionDef) -> Result<ue5_materials::MaterialFunction, KainError>:
+    use std::collections::HashMap
+
+    use ue5_materials::MaterialFunction
+
+    use ue5_materials::MaterialFunctionInput
+
+    use ue5_materials::MaterialInputType
+
+    use ue5_materials::MaterialNode
+
+    use ue5_materials::MaterialNodeType
+
+    let inputs: Array<ue5_materials::MaterialFunctionInput> = (*def).inputs.iter().map(fn(input): ue5_materials::MaterialFunctionInput { name: input.name.clone(), input_type: map_material_input_type(&input.ty), default_value: input.default_.map(fn(e): e) }).collect()
+    let mut node_counter: usize = 0
+    let mut nodes: Array<ue5_materials::MaterialNode> = Vec__new_()
+    let mut scope: Map<String, String> = HashMap__new_()
+    let col_width = 300
+    let row_height = 200
+    for selfhost_for_item in (*def).inputs.iter().enumerate():
+        let (row, input) = selfhost_for_item
+        let x = (-800)
+        let y = (row as i32 * row_height)
+        let id = f"input_{input.name}"
+        let node_type = ue5_materials__MaterialNodeType::ConstantFloat { value: 0 }
+        nodes.push(ue5_materials::MaterialNode { id: id.clone(), node_type: node_type, position: (x, y) })
+        ()
+        scope.insert(input.name.clone(), id)
+        ()
+    ()
+    for selfhost_for_item in (*def).body.iter().enumerate():
+        let (stmt_idx, stmt) = selfhost_for_item
+        match stmt:
+            kain_core__ast__MaterialStatement::Let { name: name, value: value } =>
+                let x = ((-500) + (stmt_idx as i32 * col_width))
+                let y = 0
+                let surface_shaders = HashMap__new_()
+                let node_id = emit_expr(value, x, y, &mut node_counter, &mut nodes, &scope, &surface_shaders)
+                scope.insert(name.clone(), node_id)
+                ()
+            _ => ()
+    ()
+    let surface_shaders = HashMap__new_()
+    let output_node_id = emit_expr(&(*def).output, 400, 0, &mut node_counter, &mut nodes, &scope, &surface_shaders)
+    Result::Ok(ue5_materials::MaterialFunction { name: (*def).name.clone(), inputs: inputs, nodes: nodes, output: output_node_id, description: f"Material function: {(*def).name}" })
+
+@doc(doc = " Map KAIN type to material input type")
+@cfg(feature = "ue5")
+fn map_material_input_type(ty: &kain_core::ast::Type) -> ue5_materials::MaterialInputType:
+    use ue5_materials::MaterialInputType
+
+    match ty:
+        kain_core__ast__Type::Named { name: name } =>
+            match name.as_str():
+                "Float" => ue5_materials__MaterialInputType__Float
+                "Vec2" => ue5_materials__MaterialInputType__Vec2
+                "Vec3" => ue5_materials__MaterialInputType__Vec3
+                "Vec4" => ue5_materials__MaterialInputType__Vec4
+                _ => ue5_materials__MaterialInputType__Float
+        _ => ue5_materials__MaterialInputType__Float
+
+@doc(doc = " Create default UE5 config by auto-detecting .kn files and plugin name")
+fn create_default_config(cwd: &std::path::PathBuf) -> Result<Ue5Config, KainError>:
+    let plugin_name = detect_plugin_name_from_dir(cwd)?
+    let sources = find_kn_files(cwd)?
+    if sources.is_empty():
+        return Result::Err(KainError__runtime("No .kn files found in current directory. Please create a .kn file or add a KAIN.toml configuration."))
+    println(f"📁 Found {sources.len()} .kn file(s):")
+    for src in &sources:
+        match src.file_name():
+            Some(name) => println(f"   - {name.to_string_lossy()}")
+            _ => ()
+    ()
+    println()
+    Result::Ok(Ue5Config { plugin_name: plugin_name, plugin_dir: cwd.to_path_buf(), sources: sources, shaders: [], copyright: none, modular_output: true, stdlib_path: none, engine_version: none, modules: Vec__new_(), plugin_dependencies: Vec__new_() })
+
+@doc(doc = " Detect plugin name from .uplugin file or directory name")
+fn detect_plugin_name_from_dir(cwd: &std::path::PathBuf) -> Result<String, KainError>:
+    match std__fs__read_dir(cwd):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                let path = entry.path()
+                if path.extension().map_or(false, fn(e): (e == "uplugin")):
+                    match path.file_stem():
+                        Some(stem) =>
+                            let name = stem.to_string_lossy().to_string()
+                            println(f"🔍 Detected plugin name from .uplugin: {name}")
+                            return Result::Ok(name)
+                        _ => ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match cwd.file_name():
+        Some(dir_name) =>
+            let name = dir_name.to_string_lossy().to_string()
+            println(f"🔍 Using directory name as plugin name: {name}")
+            return Result::Ok(name)
+        _ =>
+            ()
+            ()
+    Result::Err(KainError__runtime("Could not determine plugin name. Please create a KAIN.toml or .uplugin file."))
+
+@doc(doc = " Find all .kn files in the current directory (non-recursive)")
+fn find_kn_files(cwd: &std::path::PathBuf) -> Result<Array<std::path::PathBuf>, KainError>:
+    let mut kn_files = Vec__new_()
+    match std__fs__read_dir(cwd):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                let path = entry.path()
+                if (path.is_file() && path.extension().map_or(false, fn(e): (e == "kn"))):
+                    match path.file_name():
+                        Some(name) =>
+                            let name_str = name.to_string_lossy().to_uppercase()
+                            if name_str.contains("README"):
+                                continue
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    kn_files.push(path)
+                    ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    kn_files.sort()
+    ()
+    Result::Ok(kn_files)
+

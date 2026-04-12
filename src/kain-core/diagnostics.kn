@@ -1,0 +1,138 @@
+use crate::error::KainError
+
+use crate::span::Span
+
+@doc(doc = " Source location with file, line, and column information")
+@derive(Debug, Clone, Copy, PartialEq, Eq)
+pub struct SourceLocation<a>:
+    file: String
+    line_: usize
+    col: usize
+
+impl<a> SourceLocation<a>:
+    pub fn new_(file: String, line_: usize, col: usize) -> SourceLocation<a>:
+        SourceLocation { file: file, line_: line_, col: col }
+
+
+@doc(doc = " Maps byte offsets (spans) to human-readable source locations")
+pub struct SpanMapper:
+    source: String
+    line_starts: Array<usize>
+
+impl SpanMapper:
+    pub fn new_(source: String) -> SpanMapper:
+        let mut line_starts = [0]
+        for selfhost_for_item in source.char_indices():
+            let (idx, ch) = selfhost_for_item
+            if (ch == "\n"):
+                line_starts.push((idx + 1))
+                ()
+        ()
+        SpanMapper { source: source.to_string(), line_starts: line_starts }
+
+    pub fn span_to_location<a>(_self: &SpanMapper, span: Span, file: String) -> SourceLocation<a>:
+        if (*_self).line_starts.is_empty():
+            return SourceLocation__new_(file, 1, 1)
+        let start = span.start.min((*_self).source.len())
+        let line_idx = match (*_self).line_starts.binary_search(&start):
+            Ok(idx) => idx
+            Err(idx) => idx.saturating_sub(1)
+        let line_start = (*_self).line_starts[line_idx]
+        let col = start.saturating_sub(line_start)
+        SourceLocation__new_(file, (line_idx + 1), (col + 1))
+
+    pub fn source(_self: &SpanMapper) -> String:
+        &(*_self).source
+
+
+@doc(doc = " Diagnostic renderer for pretty error messages")
+pub struct Diagnostics<a>:
+    source: String
+    filename: String
+
+impl<a> Diagnostics<a>:
+    pub fn new_(source: String, filename: String) -> Diagnostics<a>:
+        Diagnostics { source: source, filename: filename }
+
+    pub fn format_error(_self: &Diagnostics<a>, error: &KainError) -> String:
+        match error:
+            KainError::Lexer { message: message, span: span } => (*_self).format_with_context("Lexer Error", message, (*span))
+            KainError::Parser { message: message, span: span } => (*_self).format_with_context("Parse Error", message, (*span))
+            KainError::Type { message: message, span: span } => (*_self).format_with_context("Type Error", message, (*span))
+            KainError::Effect { message: message, span: span } => (*_self).format_with_context("Effect Error", message, (*span))
+            KainError::Borrow { message: message, span: span } => (*_self).format_with_context("Borrow Error", message, (*span))
+            KainError::Codegen { message: message, span: span } => (*_self).format_with_context("Codegen Error", message, (*span))
+            KainError::CodegenWithLocation { message: message, file: file, line_: line_, col: col } => f"\n[1;31merror[Codegen][0m: {message}\n  [1;34m-->[0m {file}:{line_}:{col}\n"
+            KainError::Runtime { message: message } => f"\n[1;31merror[0m: {message}\n"
+            KainError::Io(e) => f"\n[1;31merror[0m: IO error: {e}\n"
+            KainError::Enhanced {  } => f"\n{error}\n"
+            KainError::Multi(errors) =>
+                let mut output = f"\n[1;31merror[0m: {errors.len()} error(s) found:\n"
+                for selfhost_for_item in errors.iter().enumerate():
+                    let (i, err) = selfhost_for_item
+                    output.push_str(&f"\n--- [{(i + 1)}/{errors.len()}] ---\n")
+                    ()
+                    output.push_str(&(*_self).format_error(err))
+                    ()
+                ()
+                output
+
+    fn format_with_context(_self: &Diagnostics<a>, error_type: String, message: String, span: Span) -> String:
+        let (line_num, col, line_content) = (*_self).get_line_info(span)
+        let mut output = String__new_()
+        output.push_str(&f"\n[1;31merror[{error_type}][0m: {message}\n")
+        ()
+        output.push_str(&f"  [1;34m-->[0m {(*_self).filename}:{line_num}:{col}\n")
+        ()
+        output.push_str("   \u{1b}[1;34m|\u{1b}[0m\n")
+        ()
+        output.push_str(&f"[1;34m{line_num} |[0m {line_content}\n")
+        ()
+        let pointer_offset = col.saturating_sub(1)
+        let content_len = line_content.len()
+        let remaining_len = content_len.saturating_sub(pointer_offset)
+        let span_len = span.end.saturating_sub(span.start)
+        let pointer_len = span_len.min(remaining_len).max(1)
+        output.push_str(&"   \u{1b}[1;34m|\u{1b}[0m {(\" \").repeat(pointer_offset)}\u{1b}[1;31m{(\"^\").repeat(pointer_len)}\u{1b}[0m\n")
+        ()
+        output.push_str("   \u{1b}[1;34m|\u{1b}[0m\n")
+        ()
+        output
+
+    fn get_line_info(_self: &Diagnostics<a>, span: Span) -> (usize, usize, String):
+        let mut line_num = 1
+        let mut line_start = 0
+        let start = span.start.min((*_self).source.len())
+        for selfhost_for_item in (*_self).source.char_indices():
+            let (i, c) = selfhost_for_item
+            if (i >= start):
+                break
+            if (c == "\n"):
+                line_num = (line_num + 1)
+                ()
+                line_start = (i + 1)
+                ()
+        ()
+        let col = (start.saturating_sub(line_start) + 1)
+        let line_end = if (start < (*_self).source.len()):
+            (*_self).source[start..].find("\n").map(fn(i): (start + i)).unwrap_or((*_self).source.len())
+        else:
+            (*_self).source.len()
+        let line_start = line_start.min((*_self).source.len())
+        let line_content = &(*_self).source[line_start..line_end]
+        (line_num, col, line_content)
+
+
+@doc(doc = " Format an error without source context (for runtime errors)")
+pub fn format_simple_error(error: &KainError) -> String:
+    error.to_string()
+
+@doc(doc = " Convert a KainError with span to one with file:line:col location")
+@doc(doc = " This is used to enhance codegen errors with human-readable locations")
+pub fn enhance_error_with_location(error: KainError, span_mapper: &SpanMapper, file: String) -> KainError:
+    match error:
+        KainError::Codegen { message: message, span: span } =>
+            let loc = span_mapper.span_to_location(span, file)
+            KainError__codegen_with_location(message, loc.file, loc.line_, loc.col, span)
+        other => other
+

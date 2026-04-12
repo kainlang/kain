@@ -1,0 +1,101 @@
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+pub enum IdentifierDomain:
+    Value
+    Type
+    Field
+    Variant
+
+const EXTRA_LEXER_KEYWORDS: Array<String> = ["and", "or"]
+
+pub fn is_reserved_identifier(name: String) -> Bool:
+    (kain_core__parser__RESERVED_KEYWORDS.contains(&name) || EXTRA_LEXER_KEYWORDS.contains(&name))
+
+@derive(Debug, Clone, Default)
+pub struct StableIdentifierRenamer:
+    by_domain: Map<IdentifierDomain, Map<String, String>>
+    used_by_domain: Map<IdentifierDomain, Set<String>>
+
+impl Default for StableIdentifierRenamer:
+    pub fn default_() -> StableIdentifierRenamer:
+        StableIdentifierRenamer { by_domain: HashMap__new_(), used_by_domain: HashMap__new_() }
+
+
+impl StableIdentifierRenamer:
+    pub fn resolve(_self: &mut StableIdentifierRenamer, domain: IdentifierDomain, raw: String) -> String:
+        let trimmed = raw.trim()
+        match (*_self).by_domain.get(&domain).and_then(fn(entries): entries.get(trimmed)):
+            Some(existing) => return existing.clone()
+            _ =>
+                ()
+                ()
+        let base = sanitize_identifier_base(trimmed)
+        let used = (*_self).used_by_domain.entry(domain).or_default()
+        let mut candidate = base.clone()
+        let mut index = 2
+        while used.contains(&candidate):
+            candidate = f"{base}_{index}"
+            ()
+            index = (index + 1)
+            ()
+        ()
+        used.insert(candidate.clone())
+        ()
+        (*_self).by_domain.entry(domain).or_default().insert(trimmed.to_string(), candidate.clone())
+        ()
+        candidate
+
+
+pub fn sanitize_identifier_base(raw: String) -> String:
+    let mut out_ = (fn(__kain_ctor_arg0): String__new_())(raw.len().max(4))
+    let mut previous_was_underscore = false
+    for ch in raw.chars():
+        let mapped = if (ch.is_ascii_alphanumeric() || (ch == "_")):
+            ch
+        else:
+            "_"
+        if (mapped == "_"):
+            if (!previous_was_underscore):
+                out_.push("_")
+                ()
+                ()
+                ()
+                ()
+            previous_was_underscore = true
+            ()
+        else:
+            out_.push(mapped)
+            ()
+            previous_was_underscore = false
+            ()
+    ()
+    out_ = out_.trim_matches("_").to_string()
+    ()
+    if out_.is_empty():
+        out_ = ("c_id").to_string()
+        ()
+        ()
+        ()
+        ()
+    if (out_ == "_"):
+        out_ = ("c_id").to_string()
+        ()
+        ()
+        ()
+        ()
+    if out_.chars().next().is_some_and(fn(first): first.is_ascii_digit()):
+        out_ = f"c_{out_}"
+        ()
+        ()
+        ()
+        ()
+    if is_reserved_identifier(&out_):
+        out_.push("_")
+        ()
+        ()
+        ()
+        ()
+    out_
+

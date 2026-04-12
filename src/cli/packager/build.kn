@@ -1,0 +1,65 @@
+use std::fs
+
+use std::path::PathBuf
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use crate::rust_build
+
+use crate::compile_
+
+use crate::parse_compile_target
+
+use crate::target_extension
+
+use super::config::PackageManifest
+
+pub fn build_project(target_overrides: Option<Array<String>>) -> Result<(), KainError>:
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let manifest = load_manifest(&cwd)?
+    let targets = match target_overrides:
+        Some(overrides) => overrides.clone()
+        _ => manifest.build.targets.clone()
+    if targets.is_empty():
+        return Result::Err(KainError__runtime("No build targets specified"))
+    build_targets(&manifest, &cwd, &targets)
+
+pub fn build_rust_project() -> Result<(), KainError>:
+    let cwd = std__env__current_dir().unwrap_or_else(fn(_): PathBuf__from("."))
+    let manifest = load_manifest(&cwd)?
+    let config = manifest.r_rust.clone().unwrap_or_default()
+    let entry_path = cwd.join(&manifest.build.entry)
+    if (!entry_path.exists()):
+        return Result::Err(KainError__runtime(f"Entry file not found: {entry_path.display()}"))
+    let output_root = config.output.clone().map(fn(path): if path.is_absolute(): path else: cwd.join(path)).unwrap_or_else(fn(): cwd.join(&manifest.build.output).join("rust"))
+    let written = rust_build__run_rust_build_pipeline(&entry_path, Option::Some(&output_root), Option::Some(&config))?
+    for path in written:
+        println(f"   ✓ {path.display()}")
+    ()
+    Result::Ok(())
+
+fn build_targets(manifest: &PackageManifest, cwd: &std::path::PathBuf, targets: &[String]) -> Result<(), KainError>:
+    let output_dir = cwd.join(&(*manifest).build.output)
+    std__fs__create_dir_all(&output_dir).map_err(KainError__Io)?
+    ()
+    let entry_path = cwd.join(&(*manifest).build.entry)
+    if (!entry_path.exists()):
+        return Result::Err(KainError__runtime(f"Entry file not found: {entry_path.display()}"))
+    let source = std__fs__read_to_string(&entry_path).map_err(KainError__Io)?
+    for target_str in targets:
+        let target = parse_target(target_str)?
+        println(f"🎯 Building for target: {target}")
+        let output = compile_(&source, target)?
+        let ext = target_extension(target)
+        let output_file = output_dir.join(f"{(*manifest).package.name}.{ext}")
+        std__fs__write(&output_file, output).map_err(KainError__Io)?
+        ()
+        println(f"   ✓ {output_file.display()}")
+    ()
+    Result::Ok(())
+
+fn parse_target(s: String) -> Result<kain_core::CompileTarget, KainError>:
+    parse_compile_target(s).ok_or_else(fn(): KainError__runtime(f"Unknown target: {s}"))
+

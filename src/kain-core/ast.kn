@@ -1,0 +1,2401 @@
+use crate::effects::Effect
+
+use crate::span::Span
+
+use std::fmt
+
+pub const COMPUTE_PLAN_BINDING_NAMES: Array<String> = ["compute", "compute_plan"]
+
+pub const COMPUTE_TENSOR_DEFAULT_CONTRACT: String = "kain.shared.buffer"
+
+pub const COMPUTE_TENSOR_DEFAULT_ROLE: String = "state"
+
+pub const COMPUTE_STREAM_DEFAULT_CONTRACT: String = "kain.shared.buffer"
+
+pub const COMPUTE_STREAM_DEFAULT_CADENCE: String = "continuous"
+
+pub const COMPUTE_PLAN_CAPABILITY_KEY: String = "gpu.compute-plan"
+
+@doc(doc = " A complete KAIN program/module")
+@derive(Debug, Clone, PartialEq)
+pub struct Program:
+    items: Array<Item>
+    span: Span
+
+pub enum Item:
+    Function(Function)
+    Patch(PatchDef)
+    Law(LawDef)
+    Converge(ConvergeDef)
+    World(WorldDef)
+    Orchestrate(OrchestrateDef)
+    Component(Component)
+    Shader(Shader)
+    Actor(Actor)
+    Struct(Struct)
+    Enum(Enum)
+    Trait(Trait)
+    Impl(Impl)
+    TypeAlias(TypeAlias)
+    Use(Use)
+    Mod(Mod)
+    Const(Const)
+    Comptime(ComptimeBlock)
+    Macro(MacroDef)
+    Test(TestDef)
+    MaterialGraph(MaterialGraphDef)
+    MaterialFunction(MaterialFunctionDef)
+    GraphEditor(GraphEditorDef)
+    GraphRuntime(GraphRuntimeDef)
+    StateMachine(StateMachineDef)
+    AsyncTask(AsyncTaskDef)
+    EditorModule(EditorModuleDef)
+    GameplayTags(GameplayTagsNamespace)
+    GameplayAbility(GameplayAbilityDef)
+    GameplayEffect(GameplayEffectDef)
+    GameplayCue(GameplayCueDef)
+    AbilityTask(AbilityTaskDef)
+    TargetActor(TargetActorDef)
+
+@derive(Debug, Clone, PartialEq)
+pub struct TestDef:
+    name: String
+    body: Block
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct PatchDef:
+    name: String
+    params: Array<Param>
+    return_type: Option<Type>
+    body: Block
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct LawDef:
+    name: String
+    params: Array<Param>
+    return_type: Type
+    body: Block
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct ConvergeDef:
+    name: String
+    params: Array<Param>
+    return_type: Option<Type>
+    spec_lane: ConvergeLane
+    fast_lanes: Array<ConvergeLane>
+    verify_random_count: Option<u32>
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum ConvergeLaneKind:
+    Spec
+    Fast
+
+pub enum ConvergeSelector:
+    Target(String)
+    Capability(String)
+
+@derive(Debug, Clone, PartialEq)
+pub struct ConvergeLane:
+    kind: ConvergeLaneKind
+    lane_name: String
+    selector: Option<ConvergeSelector>
+    body: Block
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct WorldDef:
+    name: String
+    states: Array<WorldStateSlot>
+    surfaces: Array<WorldSurfaceProjection>
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct WorldStateSlot:
+    name: String
+    ty: Type
+    initial: Expr
+    span: Span
+
+pub enum WorldSurfaceKind:
+    NativeUi
+    Viewport3d
+    Web
+    Ue5
+
+impl WorldSurfaceKind:
+    pub fn as_str(_self: &WorldSurfaceKind) -> String:
+        match *_self:
+            WorldSurfaceKind::NativeUi => "native_ui"
+            WorldSurfaceKind::Viewport3d => "viewport3d"
+            WorldSurfaceKind::Web => "web"
+            WorldSurfaceKind::Ue5 => "ue5"
+
+
+@derive(Debug, Clone, PartialEq)
+pub struct WorldSurfaceProjection:
+    kind: WorldSurfaceKind
+    expr: Expr
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct OrchestrateDef:
+    name: String
+    params: Array<Param>
+    return_type: Option<Type>
+    body: Block
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum OrchestrateStageRuntime:
+    Kain
+    Rust
+    Python
+    Node
+
+impl OrchestrateStageRuntime:
+    pub fn as_str(_self: &OrchestrateStageRuntime) -> String:
+        match *_self:
+            OrchestrateStageRuntime::Kain => "kain"
+            OrchestrateStageRuntime::Rust => "rust"
+            OrchestrateStageRuntime::Python => "python"
+            OrchestrateStageRuntime::Node => "node"
+
+
+@doc(doc = " Function attribute/decorator (e.g., @wasm, @js, @inline)")
+@derive(Debug, Clone, PartialEq)
+pub struct Attribute:
+    name: String
+    args: Array<Expr>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Function:
+    name: String
+    generics: Array<Generic>
+    params: Array<Param>
+    return_type: Option<Type>
+    effects: Array<Effect>
+    body: Block
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Param:
+    name: String
+    ty: Type
+    mutable_: Bool
+    default_: Option<Expr>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Generic:
+    name: String
+    bounds: Array<TypeBound>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct TypeBound:
+    trait_name: String
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Component:
+    name: String
+    props: Array<Param>
+    state_: Array<StateDecl>
+    methods: Array<Function>
+    effects: Array<Effect>
+    body: JSXNode
+    visibility: Visibility
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct StateDecl:
+    name: String
+    ty: Type
+    initial: Expr
+    weak_: Bool
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum JSXNode:
+    Element { tag: String, attributes: Array<JSXAttribute>, children: Array<JSXNode>, span: Span }
+    Expression(Box<Expr>)
+    Text(String, Span)
+    ComponentCall { name: String, props: Array<JSXAttribute>, children: Array<JSXNode>, span: Span }
+    For { binding: String, iter: Box<Expr>, body: Box<JSXNode>, span: Span }
+    If { condition: Box<Expr>, then_branch: Box<JSXNode>, else_branch: Option<Box<JSXNode>>, span: Span }
+    Fragment(Array<JSXNode>, Span)
+
+@derive(Debug, Clone, PartialEq)
+pub struct JSXAttribute:
+    name: String
+    value: JSXAttrValue
+    span: Span
+
+pub enum JSXAttrValue:
+    String(String)
+    Expr(Expr)
+    Bool(Bool)
+
+@derive(Debug, Clone, PartialEq)
+pub struct Shader:
+    name: String
+    stage: ShaderStage
+    inputs: Array<Param>
+    outputs: Type
+    uniforms: Array<Uniform>
+    body: Block
+    span: Span
+
+pub enum ShaderStage:
+    Vertex
+    Fragment
+    Compute
+    Surface
+
+@derive(Debug, Clone, PartialEq)
+pub struct Uniform:
+    name: String
+    ty: Type
+    binding: u32
+    span: Span
+
+@doc(doc = " Explicit compute metadata authored in a compute shader's `comptime` block.")
+@doc(doc = "")
+@doc(doc = " Convention:")
+@doc(doc = " Legacy form:")
+@doc(doc = " `let compute = ([dispatch_x, dispatch_y, dispatch_z], [tensor_plans], [node_plans])`")
+@doc(doc = "")
+@doc(doc = " Extended form:")
+@doc(doc = " `let compute = ([wg_x, wg_y, wg_z], [dispatch_x, dispatch_y, dispatch_z], [tensor_plans], [stream_plans], [node_plans])`")
+@doc(doc = "")
+@doc(doc = " Tensor plans are tuples of:")
+@doc(doc = " `(\"binding\", \"element_type\", [\"shape\", \"dims\"], \"role\", \"contract\")`")
+@doc(doc = " with `role` defaulting to `state` and `contract` defaulting to")
+@doc(doc = " `kain.shared.buffer`.")
+@doc(doc = "")
+@doc(doc = " Stream plans are tuples of:")
+@doc(doc = " `(\"binding\", \"direction\", \"cadence\", \"contract\")`")
+@doc(doc = " with `cadence` defaulting to `continuous` and `contract` defaulting to")
+@doc(doc = " `kain.shared.buffer`.")
+@doc(doc = "")
+@doc(doc = " Neural node plans are tuples of:")
+@doc(doc = " `(\"node_key\", \"op\", [\"inputs\"], [\"outputs\"], stateful)`")
+@doc(doc = " with `stateful` defaulting to `false`.")
+@derive(Debug, Clone, PartialEq, Eq, Default)
+pub struct ComputeMetadata:
+    workgroup_size: Option<[u32; 3]>
+    dispatch_size: [u32; 3]
+    tensor_plans: Array<ComputeTensorPlan>
+    stream_plans: Option<Array<ComputeStreamPlan>>
+    neural_node_plans: Array<ComputeNeuralNodePlan>
+
+impl Default for ComputeMetadata:
+    pub fn default_() -> ComputeMetadata:
+        ComputeMetadata { workgroup_size: none, dispatch_size: [], tensor_plans: Vec__new_(), stream_plans: none, neural_node_plans: Vec__new_() }
+
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct ComputeTensorPlan:
+    key: String
+    element_type: String
+    shape: Array<String>
+    role: String
+    contract: String
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct ComputeStreamPlan:
+    key: String
+    direction: String
+    cadence: String
+    contract: String
+
+@derive(Debug, Clone, PartialEq, Eq)
+pub struct ComputeNeuralNodePlan:
+    key: String
+    op: String
+    inputs: Array<String>
+    outputs: Array<String>
+    stateful: Bool
+
+pub enum ComputeMetadataError:
+    MissingDispatchPlan
+    InvalidPlanShape(String)
+    InvalidDispatchShape(String)
+    InvalidTensorPlan(String)
+    InvalidNeuralNodePlan(String)
+
+impl std::fmt::Display for ComputeMetadataError:
+    fn fmt(_self: &ComputeMetadataError, f: &mut std::fmt::Formatter<_>) -> Result<(), Error>:
+        match *_self:
+            ComputeMetadataError::MissingDispatchPlan => __kain_write_fmt!(f, "compute plan is missing a dispatch size")
+            ComputeMetadataError::InvalidPlanShape(message) => __kain_write_fmt!(f, f"invalid compute plan structure: {message}")
+            ComputeMetadataError::InvalidDispatchShape(message) => __kain_write_fmt!(f, f"invalid dispatch size: {message}")
+            ComputeMetadataError::InvalidTensorPlan(message) => __kain_write_fmt!(f, f"invalid tensor plan: {message}")
+            ComputeMetadataError::InvalidNeuralNodePlan(message) => __kain_write_fmt!(f, f"invalid neural node plan: {message}")
+
+
+impl error::Error for ComputeMetadataError:
+    fn __selfhost_empty_impl__():
+        let __selfhost_empty = none
+
+impl Shader:
+    pub fn explicit_compute_metadata(_self: &Shader) -> Result<Option<ComputeMetadata>, ComputeMetadataError>:
+        extract_compute_metadata_from_block(&(*_self).body)
+
+
+fn extract_compute_metadata_from_block(block: &Block) -> Result<Option<ComputeMetadata>, ComputeMetadataError>:
+    for stmt in &(*block).stmts:
+        match stmt:
+            Stmt::Item(item) =>
+                match item:
+                    Item::Comptime(comptime_) =>
+                        match (extract_compute_metadata_from_comptime_block(&comptime_.body)?):
+                            Some(metadata) => return Result::Ok(Option::Some(metadata))
+                            _ => ()
+                    _ => ()
+            _ => ()
+    ()
+    Result::Ok(none)
+
+fn extract_compute_metadata_from_comptime_block(block: &Block) -> Result<Option<ComputeMetadata>, ComputeMetadataError>:
+    for stmt in &(*block).stmts:
+        match stmt:
+            Stmt::Let { pattern: Pattern::Binding { name: name }, value: Some(expr) } =>
+                if is_compute_plan_binding(name):
+                    return parse_compute_metadata_expr(expr).map(fn(metadata): Option::Some(metadata))
+                else:
+                    ()
+            Stmt::Item(item) =>
+                match item:
+                    Item::Comptime(comptime_) =>
+                        match (extract_compute_metadata_from_comptime_block(&comptime_.body)?):
+                            Some(metadata) => return Result::Ok(Option::Some(metadata))
+                            _ => ()
+                    _ => ()
+            _ => ()
+    Result::Ok(none)
+
+fn is_compute_plan_binding(name: String) -> Bool:
+    match name:
+        "compute" => true
+        "compute_plan" => true
+        _ => false
+
+fn parse_compute_metadata_expr(expr: &Expr) -> Result<ComputeMetadata, ComputeMetadataError>:
+    let tuple_items = match expr:
+        Expr::Tuple(items, _) => items
+        Expr::Array(items, _) => items
+        Expr::Paren(inner, _) => return parse_compute_metadata_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidPlanShape(("expected a tuple or array with either (dispatch, tensors, nodes) or (workgroup, dispatch, tensors, streams, nodes)").to_string()))
+    let (workgroup_size, dispatch_expr, tensor_expr, stream_expr, node_expr) = match tuple_items.as_slice():
+        [dispatch_expr, tensor_expr, node_expr] => (none, dispatch_expr, tensor_expr, none, node_expr)
+        [workgroup_expr, dispatch_expr, tensor_expr, stream_expr, node_expr] => (Option::Some(parse_workgroup_size_expr(workgroup_expr)?), dispatch_expr, tensor_expr, Option::Some(stream_expr), node_expr)
+        _ => return Result::Err(ComputeMetadataError::InvalidPlanShape(f"expected 3 entries (dispatch, tensors, nodes) or 5 entries (workgroup, dispatch, tensors, streams, nodes), found {tuple_items.len()}"))
+    let dispatch_size = parse_dispatch_size_expr(dispatch_expr)?
+    let tensor_plans = parse_tensor_plan_list_expr(tensor_expr)?
+    let stream_plans = match stream_expr:
+        Some(expr) => Option::Some(parse_stream_plan_list_expr(expr)?)
+        _ =>
+            none
+    let neural_node_plans = parse_neural_node_plan_list_expr(node_expr)?
+    Result::Ok(ComputeMetadata { workgroup_size: workgroup_size, dispatch_size: dispatch_size, tensor_plans: tensor_plans, stream_plans: stream_plans, neural_node_plans: neural_node_plans })
+
+fn parse_workgroup_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataError>:
+    parse_dimension_triplet_expr(expr, "workgroup").map_err(fn(__kain_closure_arg1): ComputeMetadataError::InvalidPlanShape(__kain_closure_arg1))
+
+fn parse_dispatch_size_expr(expr: &Expr) -> Result<[u32; 3], ComputeMetadataError>:
+    parse_dimension_triplet_expr(expr, "dispatch").map_err(fn(__kain_closure_arg2): ComputeMetadataError::InvalidDispatchShape(__kain_closure_arg2))
+
+fn parse_dimension_triplet_expr(expr: &Expr, label: String) -> Result<[u32; 3], String>:
+    let items = match expr:
+        Expr::Array(items, _) => items
+        Expr::Tuple(items, _) => items
+        Expr::Paren(inner, _) => return parse_dimension_triplet_expr(inner, label)
+        _ => return Result::Err(("expected an array or tuple of three integers").to_string())
+    if (items.len() != 3):
+        return Result::Err(f"expected exactly 3 dimensions, found {items.len()}")
+    let mut dispatch = [0, 0, 0]
+    for selfhost_for_item in items.iter().enumerate():
+        let (index, item) = selfhost_for_item
+        let value = match item:
+            Expr::Int(n, _) if (((*n) >= 0) && ((*n) <= u32__MAX as i64)) => (*n) as u32
+            Expr::Paren(inner, _) =>
+                match &(*(*inner)):
+                    Expr::Int(n, _) if (((*n) >= 0) && ((*n) <= u32__MAX as i64)) => (*n) as u32
+                    _ => return Result::Err(f"{label} dimension {index} must be a non-negative integer literal")
+            _ => return Result::Err(f"{label} dimension {index} must be a non-negative integer literal")
+        dispatch[index] = value
+        ()
+    ()
+    Result::Ok(dispatch)
+
+fn parse_tensor_plan_list_expr(expr: &Expr) -> Result<Array<ComputeTensorPlan>, ComputeMetadataError>:
+    let items = match expr:
+        Expr::Array(items, _) => items
+        Expr::Tuple(items, _) => items
+        Expr::Paren(inner, _) => return parse_tensor_plan_list_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidTensorPlan(("expected an array or tuple of tensor plan entries").to_string()))
+    let mut plans = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+    for item in items:
+        plans.push(parse_tensor_plan_expr(item)?)
+        ()
+    ()
+    Result::Ok(plans)
+
+fn parse_tensor_plan_expr(expr: &Expr) -> Result<ComputeTensorPlan, ComputeMetadataError>:
+    let fields = match expr:
+        Expr::Tuple(items, _) => items
+        Expr::Array(items, _) => items
+        Expr::Paren(inner, _) => return parse_tensor_plan_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidTensorPlan(("expected tensor plan to be a tuple or array").to_string()))
+    if (fields.len() < 3):
+        return Result::Err(ComputeMetadataError::InvalidTensorPlan(("tensor plan needs at least binding, element type, and shape").to_string()))
+    let key = expr_to_plan_string(&fields[0]).map_err(fn(__kain_closure_arg3): ComputeMetadataError::InvalidTensorPlan(__kain_closure_arg3))?
+    let element_type = expr_to_plan_string(&fields[1]).map_err(fn(__kain_closure_arg4): ComputeMetadataError::InvalidTensorPlan(__kain_closure_arg4))?
+    let shape = parse_string_list_expr(&fields[2]).map_err(fn(__kain_closure_arg5): ComputeMetadataError::InvalidTensorPlan(__kain_closure_arg5))?
+    let role = match fields.get(3):
+        Some(expr) => expr_to_plan_string(expr).map_err(fn(__kain_closure_arg6): ComputeMetadataError::InvalidTensorPlan(__kain_closure_arg6))?
+        _ => COMPUTE_TENSOR_DEFAULT_ROLE.to_string()
+    let contract = match fields.get(4):
+        Some(expr) => expr_to_plan_string(expr).map_err(fn(__kain_closure_arg7): ComputeMetadataError::InvalidTensorPlan(__kain_closure_arg7))?
+        _ => COMPUTE_TENSOR_DEFAULT_CONTRACT.to_string()
+    Result::Ok(ComputeTensorPlan { key: key, element_type: element_type, shape: shape, role: role, contract: contract })
+
+fn parse_stream_plan_list_expr(expr: &Expr) -> Result<Array<ComputeStreamPlan>, ComputeMetadataError>:
+    let items = match expr:
+        Expr::Array(items, _) => items
+        Expr::Tuple(items, _) => items
+        Expr::Paren(inner, _) => return parse_stream_plan_list_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidPlanShape(("expected an array or tuple of stream plan entries").to_string()))
+    let mut plans = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+    for item in items:
+        plans.push(parse_stream_plan_expr(item)?)
+        ()
+    ()
+    Result::Ok(plans)
+
+fn parse_stream_plan_expr(expr: &Expr) -> Result<ComputeStreamPlan, ComputeMetadataError>:
+    let fields = match expr:
+        Expr::Tuple(items, _) => items
+        Expr::Array(items, _) => items
+        Expr::Paren(inner, _) => return parse_stream_plan_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidPlanShape(("expected stream plan to be a tuple or array").to_string()))
+    if (fields.len() < 2):
+        return Result::Err(ComputeMetadataError::InvalidPlanShape(("stream plan needs at least binding and direction").to_string()))
+    let key = expr_to_plan_string(&fields[0]).map_err(fn(__kain_closure_arg8): ComputeMetadataError::InvalidPlanShape(__kain_closure_arg8))?
+    let direction = expr_to_plan_string(&fields[1]).map_err(fn(__kain_closure_arg9): ComputeMetadataError::InvalidPlanShape(__kain_closure_arg9))?
+    let cadence = match fields.get(2):
+        Some(expr) => expr_to_plan_string(expr).map_err(fn(__kain_closure_arg10): ComputeMetadataError::InvalidPlanShape(__kain_closure_arg10))?
+        _ => COMPUTE_STREAM_DEFAULT_CADENCE.to_string()
+    let contract = match fields.get(3):
+        Some(expr) => expr_to_plan_string(expr).map_err(fn(__kain_closure_arg11): ComputeMetadataError::InvalidPlanShape(__kain_closure_arg11))?
+        _ => COMPUTE_STREAM_DEFAULT_CONTRACT.to_string()
+    Result::Ok(ComputeStreamPlan { key: key, direction: direction, cadence: cadence, contract: contract })
+
+fn parse_neural_node_plan_list_expr(expr: &Expr) -> Result<Array<ComputeNeuralNodePlan>, ComputeMetadataError>:
+    let items = match expr:
+        Expr::Array(items, _) => items
+        Expr::Tuple(items, _) => items
+        Expr::Paren(inner, _) => return parse_neural_node_plan_list_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidNeuralNodePlan(("expected an array or tuple of neural node plan entries").to_string()))
+    let mut plans = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+    for item in items:
+        plans.push(parse_neural_node_plan_expr(item)?)
+        ()
+    ()
+    Result::Ok(plans)
+
+fn parse_neural_node_plan_expr(expr: &Expr) -> Result<ComputeNeuralNodePlan, ComputeMetadataError>:
+    let fields = match expr:
+        Expr::Tuple(items, _) => items
+        Expr::Array(items, _) => items
+        Expr::Paren(inner, _) => return parse_neural_node_plan_expr(inner)
+        _ => return Result::Err(ComputeMetadataError::InvalidNeuralNodePlan(("expected neural node plan to be a tuple or array").to_string()))
+    if (fields.len() < 4):
+        return Result::Err(ComputeMetadataError::InvalidNeuralNodePlan(("neural node plan needs at least key, op, inputs, and outputs").to_string()))
+    let key = expr_to_plan_string(&fields[0]).map_err(fn(__kain_closure_arg12): ComputeMetadataError::InvalidNeuralNodePlan(__kain_closure_arg12))?
+    let op = expr_to_plan_string(&fields[1]).map_err(fn(__kain_closure_arg13): ComputeMetadataError::InvalidNeuralNodePlan(__kain_closure_arg13))?
+    let inputs = parse_string_list_expr(&fields[2]).map_err(fn(__kain_closure_arg14): ComputeMetadataError::InvalidNeuralNodePlan(__kain_closure_arg14))?
+    let outputs = parse_string_list_expr(&fields[3]).map_err(fn(__kain_closure_arg15): ComputeMetadataError::InvalidNeuralNodePlan(__kain_closure_arg15))?
+    let stateful = match fields.get(4):
+        Some(expr) => parse_bool_expr(expr).map_err(fn(__kain_closure_arg16): ComputeMetadataError::InvalidNeuralNodePlan(__kain_closure_arg16))?
+        _ => false
+    Result::Ok(ComputeNeuralNodePlan { key: key, op: op, inputs: inputs, outputs: outputs, stateful: stateful })
+
+fn parse_string_list_expr(expr: &Expr) -> Result<Array<String>, String>:
+    let items = match expr:
+        Expr::Array(items, _) => items
+        Expr::Tuple(items, _) => items
+        Expr::Paren(inner, _) => return parse_string_list_expr(inner)
+        _ => return Result::Err(("expected an array or tuple of strings").to_string())
+    let mut values = (fn(__kain_ctor_arg0): Vec__new_())(items.len())
+    for item in items:
+        values.push(expr_to_plan_string(item)?)
+        ()
+    ()
+    Result::Ok(values)
+
+fn parse_bool_expr(expr: &Expr) -> Result<Bool, String>:
+    match expr:
+        Expr::Bool(value, _) => Result::Ok((*value))
+        Expr::Paren(inner, _) => parse_bool_expr(inner)
+        _ => Result::Err(("expected a boolean literal").to_string())
+
+fn expr_to_plan_string(expr: &Expr) -> Result<String, String>:
+    match expr:
+        Expr::String(value, _) => Result::Ok(value.clone())
+        Expr::Ident(value, _) => Result::Ok(value.clone())
+        Expr::Int(value, _) => Result::Ok(value.to_string())
+        Expr::Float(value, _) => Result::Ok(value.to_string())
+        Expr::Bool(value, _) => Result::Ok(value.to_string())
+        Expr::None(_) => Result::Ok(("none").to_string())
+        Expr::Field { object: object, field: field } => Result::Ok(f"{expr_to_plan_string(object)?}.{field}")
+        Expr::Paren(inner, _) => expr_to_plan_string(inner)
+        Expr::Array(items, _) =>
+            let rendered = items.iter().map(expr_to_plan_string).collect()?
+            Result::Ok(rendered.join(", "))
+        Expr::Tuple(items, _) =>
+            let rendered = items.iter().map(expr_to_plan_string).collect()?
+            Result::Ok(rendered.join(", "))
+        Expr::Call { callee: callee, args: args } =>
+            let mut rendered_args = (fn(__kain_ctor_arg0): Vec__new_())(args.len())
+            for arg in args:
+                let rendered_value = expr_to_plan_string(&arg.value)?
+                match &arg.name:
+                    Some(name) =>
+                        rendered_args.push(f"{name}={rendered_value}")
+                        ()
+                    _ =>
+                        rendered_args.push(rendered_value)
+                        ()
+            ()
+            Result::Ok("{expr_to_plan_string(callee)?}({rendered_args.join(\", \")})")
+        other => Result::Err(f"unsupported expression shape: {other}")
+
+@derive(Debug, Clone, PartialEq)
+pub struct Actor:
+    name: String
+    state_: Array<StateDecl>
+    handlers: Array<MessageHandler>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct MessageHandler:
+    message_type: String
+    params: Array<Param>
+    body: Block
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Struct:
+    name: String
+    generics: Array<Generic>
+    fields: Array<Field>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Field:
+    name: String
+    ty: Type
+    attributes: Array<Attribute>
+    visibility: Visibility
+    default_: Option<Expr>
+    weak_: Bool
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Enum:
+    name: String
+    generics: Array<Generic>
+    variants: Array<Variant>
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Variant:
+    name: String
+    fields: VariantFields
+    span: Span
+
+pub enum VariantFields:
+    Unit
+    Tuple(Array<Type>)
+    Struct(Array<Field>)
+
+@derive(Debug, Clone, PartialEq)
+pub struct Trait:
+    name: String
+    generics: Array<Generic>
+    supertraits: Array<Type>
+    methods: Array<TraitMethod>
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct TraitMethod:
+    name: String
+    params: Array<Param>
+    return_type: Option<Type>
+    effects: Array<Effect>
+    default_impl: Option<Block>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Impl:
+    generics: Array<Generic>
+    trait_name: Option<String>
+    trait_generics: Array<Type>
+    target_type: Type
+    methods: Array<Function>
+    span: Span
+
+pub enum PointerProvenance:
+    Raw
+    ImportedC
+    ImportedAsm
+    LoweredRef
+
+pub enum Type:
+    Named { name: String, generics: Array<Type>, span: Span }
+    Tuple(Array<Type>, Span)
+    Array(Box<Type>, usize, Span)
+    Slice(Box<Type>, Span)
+    Ref { mutable_: Bool, inner: Box<Type>, lifetime: Option<String>, span: Span }
+    Ptr { mutable_: Bool, inner: Box<Type>, provenance: PointerProvenance, span: Span }
+    Function { params: Array<Type>, return_type: Box<Type>, effects: Array<Effect>, span: Span }
+    Option(Box<Type>, Span)
+    Result(Box<Type>, Box<Type>, Span)
+    Infer(Span)
+    Never(Span)
+    Unit(Span)
+    Impl { trait_name: String, generics: Array<Type>, span: Span }
+
+impl Type:
+    pub fn span(_self: &Type) -> Span:
+        match _self:
+            Type::Named { span: span } => span.clone()
+            Type::Tuple(_, span) => span.clone()
+            Type::Array(_, _, span) => span.clone()
+            Type::Slice(_, span) => span.clone()
+            Type::Ref { span: span } => span.clone()
+            Type::Ptr { span: span } => span.clone()
+            Type::Function { span: span } => span.clone()
+            Type::Option(_, span) => span.clone()
+            Type::Result(_, _, span) => span.clone()
+            Type::Infer(span) => span.clone()
+            Type::Never(span) => span.clone()
+            Type::Unit(span) => span.clone()
+            Type::Impl { span: span } => span.clone()
+
+    pub fn contains_raw_ptr(_self: &Type) -> Bool:
+        match *_self:
+            Type::Ptr {  } => true
+            Type::Named { generics: generics } => generics.iter().any(fn(ty): ty.contains_raw_ptr())
+            Type::Tuple(types, _) => types.iter().any(fn(ty): ty.contains_raw_ptr())
+            Type::Array(inner, _, _) => inner.contains_raw_ptr()
+            Type::Slice(inner, _) => inner.contains_raw_ptr()
+            Type::Ref { inner: inner } => inner.contains_raw_ptr()
+            Type::Option(inner, _) => inner.contains_raw_ptr()
+            Type::Function { params: params, return_type: return_type } => (params.iter().any(fn(ty): ty.contains_raw_ptr()) || return_type.contains_raw_ptr())
+            Type::Result(ok, err, _) => (ok.contains_raw_ptr() || err.contains_raw_ptr())
+            Type::Impl { generics: generics } => generics.iter().any(fn(ty): ty.contains_raw_ptr())
+            Type::Infer(_) => false
+            Type::Never(_) => false
+            Type::Unit(_) => false
+
+
+@derive(Debug, Clone, PartialEq)
+pub struct TypeAlias:
+    name: String
+    generics: Array<Generic>
+    target: Type
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Use:
+    path: Array<String>
+    alias: Option<String>
+    glob: Bool
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Mod:
+    name: String
+    inline_: Option<Array<Item>>
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Const:
+    name: String
+    ty: Type
+    value: Expr
+    visibility: Visibility
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct ComptimeBlock:
+    body: Block
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct MacroDef:
+    name: String
+    params: Array<MacroParam>
+    body: MacroBody
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct MacroParam:
+    name: String
+    kind: MacroParamKind
+    span: Span
+
+pub enum MacroParamKind:
+    Expr
+    Type
+    Ident
+    Block
+    Token
+    Repetition(Box<MacroParamKind>)
+
+pub enum MacroBody:
+    Tokens(Array<MacroToken>)
+    Block(Block)
+
+@derive(Debug, Clone, PartialEq)
+pub struct MacroToken:
+    content: String
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct Block:
+    stmts: Array<Stmt>
+    span: Span
+
+pub enum Stmt:
+    Let { pattern: Pattern, ty: Option<Type>, value: Option<Expr>, span: Span }
+    Expr(Expr)
+    Return(Option<Expr>, Span)
+    Break(Option<Expr>, Span)
+    Continue(Span)
+    For { binding: Pattern, iter: Expr, body: Block, span: Span }
+    While { condition: Expr, body: Block, span: Span }
+    Loop { body: Block, span: Span }
+    Item(Box<Item>)
+
+pub enum Expr:
+    Int(i64, Span)
+    Float(f64, Span)
+    String(String, Span)
+    FString(Array<Expr>, Span)
+    Bool(Bool, Span)
+    None(Span)
+    Ident(String, Span)
+    MacroCall { name: String, args: Array<Expr>, span: Span }
+    Binary { left: Box<Expr>, op: BinaryOp, right: Box<Expr>, span: Span }
+    Unary { op: UnaryOp, operand: Box<Expr>, span: Span }
+    Call { callee: Box<Expr>, args: Array<CallArg>, span: Span }
+    StageCall { runtime: OrchestrateStageRuntime, function: String, args: Array<CallArg>, span: Span }
+    MethodCall { receiver: Box<Expr>, method: String, args: Array<CallArg>, span: Span }
+    Field { object: Box<Expr>, field: String, span: Span }
+    Index { object: Box<Expr>, index: Box<Expr>, span: Span }
+    Assign { target: Box<Expr>, value: Box<Expr>, span: Span }
+    Struct { name: String, fields: Array<(String, Expr)>, rest: Option<Box<Expr>>, span: Span }
+    AggregateInit { ty: Type, fields: Array<(String, Expr)>, zero_fill_rest: Bool, span: Span }
+    EnumVariant { enum_name: String, variant: String, fields: EnumVariantFields, span: Span }
+    Array(Array<Expr>, Span)
+    Tuple(Array<Expr>, Span)
+    Range { start: Option<Box<Expr>>, end: Option<Box<Expr>>, inclusive: Bool, span: Span }
+    If { condition: Box<Expr>, then_branch: Block, else_branch: Option<Box<ElseBranch>>, span: Span }
+    Match { scrutinee: Box<Expr>, arms: Array<MatchArm>, span: Span }
+    Lambda { params: Array<Param>, return_type: Option<Type>, body: Box<Expr>, span: Span }
+    Ref { mutable_: Bool, value: Box<Expr>, span: Span }
+    AddrOf { value: Box<Expr>, pointee_ty: Option<Type>, span: Span }
+    Deref(Box<Expr>, Span)
+    PtrOffset { pointer: Box<Expr>, offset: Box<Expr>, element_ty: Option<Type>, span: Span }
+    MemLoad { pointer: Box<Expr>, load_ty: Option<Type>, span: Span }
+    MemStore { pointer: Box<Expr>, value: Box<Expr>, store_ty: Option<Type>, span: Span }
+    SizeOfType { target: Type, span: Span }
+    AlignOfType { target: Type, span: Span }
+    Alloca { ty: Type, span: Span }
+    Uninit { ty: Type, span: Span }
+    Alloc { size: Box<Expr>, ty: Option<Type>, zeroed: Bool, span: Span }
+    Realloc { pointer: Box<Expr>, size: Box<Expr>, ty: Option<Type>, zeroed_new: Bool, span: Span }
+    Cast { value: Box<Expr>, target: Type, span: Span }
+    Try(Box<Expr>, Span)
+    Await(Box<Expr>, Span)
+    AsyncBlock(Box<Expr>, Span)
+    Spawn { actor_: String, init: Array<(String, Expr)>, span: Span }
+    SendMsg { target: Box<Expr>, message: String, data: Array<(String, Expr)>, span: Span }
+    Comptime(Box<Expr>, Span)
+    Block(Block, Span)
+    JSX(JSXNode, Span)
+    Paren(Box<Expr>, Span)
+    Return(Option<Box<Expr>>, Span)
+    Break(Option<Box<Expr>>, Span)
+    Continue(Span)
+
+impl Expr:
+    pub fn span(_self: &Expr) -> Span:
+        match _self:
+            Expr::Int(_, s) => s.clone()
+            Expr::Float(_, s) => s.clone()
+            Expr::String(_, s) => s.clone()
+            Expr::FString(_, s) => s.clone()
+            Expr::Bool(_, s) => s.clone()
+            Expr::None(s) => s.clone()
+            Expr::Ident(_, s) => s.clone()
+            Expr::Binary { span: s } => s.clone()
+            Expr::Unary { span: s } => s.clone()
+            Expr::Call { span: s } => s.clone()
+            Expr::MethodCall { span: s } => s.clone()
+            Expr::Field { span: s } => s.clone()
+            Expr::Index { span: s } => s.clone()
+            Expr::Struct { span: s } => s.clone()
+            Expr::AggregateInit { span: s } => s.clone()
+            Expr::EnumVariant { span: s } => s.clone()
+            Expr::Array(_, s) => s.clone()
+            Expr::Tuple(_, s) => s.clone()
+            Expr::Range { span: s } => s.clone()
+            Expr::If { span: s } => s.clone()
+            Expr::Match { span: s } => s.clone()
+            Expr::Lambda { span: s } => s.clone()
+            Expr::Ref { span: s } => s.clone()
+            Expr::AddrOf { span: s } => s.clone()
+            Expr::Deref(_, s) => s.clone()
+            Expr::PtrOffset { span: s } => s.clone()
+            Expr::MemLoad { span: s } => s.clone()
+            Expr::MemStore { span: s } => s.clone()
+            Expr::SizeOfType { span: s } => s.clone()
+            Expr::AlignOfType { span: s } => s.clone()
+            Expr::Alloca { span: s } => s.clone()
+            Expr::Uninit { span: s } => s.clone()
+            Expr::Alloc { span: s } => s.clone()
+            Expr::Realloc { span: s } => s.clone()
+            Expr::Cast { span: s } => s.clone()
+            Expr::Try(_, s) => s.clone()
+            Expr::Await(_, s) => s.clone()
+            Expr::Spawn { span: s } => s.clone()
+            Expr::SendMsg { span: s } => s.clone()
+            Expr::Comptime(_, s) => s.clone()
+            Expr::MacroCall { span: s } => s.clone()
+            Expr::Block(_, s) => s.clone()
+            Expr::JSX(_, s) => s.clone()
+            Expr::Assign { span: s } => s.clone()
+            Expr::Paren(_, s) => s.clone()
+            Expr::Return(_, s) => s.clone()
+            Expr::Break(_, s) => s.clone()
+            Expr::Continue(s) => s.clone()
+
+
+pub enum EnumVariantFields:
+    Unit
+    Tuple(Array<Expr>)
+    Struct(Array<(String, Expr)>)
+
+@derive(Debug, Clone, PartialEq)
+pub struct CallArg:
+    name: Option<String>
+    value: Expr
+    span: Span
+
+pub enum ElseBranch:
+    Else(Block)
+    ElseIf(Box<Expr>, Block, Option<Box<ElseBranch>>)
+
+@derive(Debug, Clone, PartialEq)
+pub struct MatchArm:
+    pattern: Pattern
+    guard: Option<Expr>
+    body: Expr
+    span: Span
+
+pub enum Pattern:
+    Wildcard(Span)
+    Literal(Expr)
+    Binding { name: String, mutable_: Bool, span: Span }
+    Struct { name: String, fields: Array<(String, Pattern)>, rest: Bool, span: Span }
+    Tuple(Array<Pattern>, Span)
+    Variant { enum_name: Option<String>, variant: String, fields: VariantPatternFields, span: Span }
+    Slice { patterns: Array<Pattern>, rest: Option<String>, span: Span }
+    Or(Array<Pattern>, Span)
+    Range { start: Option<Box<Expr>>, end: Option<Box<Expr>>, inclusive: Bool, span: Span }
+
+pub enum VariantPatternFields:
+    Unit
+    Tuple(Array<Pattern>)
+    Struct(Array<(String, Pattern)>)
+
+pub enum BinaryOp:
+    Add
+    Sub
+    Mul
+    Div
+    Mod
+    Pow
+    Eq
+    Ne
+    Lt
+    Gt
+    Le
+    Ge
+    And
+    Or
+    BitAnd
+    BitOr
+    BitXor
+    Shl
+    Shr
+    Assign
+    AddAssign
+    SubAssign
+    MulAssign
+    DivAssign
+    Range
+    RangeInclusive
+
+pub enum UnaryOp:
+    Neg
+    Not
+    BitNot
+    Ref
+    RefMut
+    Deref
+
+pub enum Visibility:
+    Private
+    Public
+    Crate
+    Super
+
+impl Default for Visibility:
+    pub fn default_() -> Visibility:
+        Visibility__Private
+
+
+@doc(doc = " Material graph definition: `@material_graph Name: inputs, body, outputs`")
+@derive(Debug, Clone, PartialEq)
+pub struct MaterialGraphDef:
+    name: String
+    attributes: Array<Attribute>
+    inputs: Array<MaterialInput>
+    body: Array<MaterialStatement>
+    outputs: Array<MaterialOutput>
+    span: Span
+
+@doc(doc = " Material input parameter with optional default value")
+@derive(Debug, Clone, PartialEq)
+pub struct MaterialInput:
+    name: String
+    ty: Type
+    default_: Option<Expr>
+    span: Span
+
+pub enum MaterialStatement:
+    Let { name: String, value: Expr, span: Span }
+
+@doc(doc = " Material output pin (base_color, emissive, roughness, etc.)")
+@derive(Debug, Clone, PartialEq)
+pub struct MaterialOutput:
+    name: String
+    value: Expr
+    span: Span
+
+@doc(doc = " Material function definition: `@material_function Name: inputs, body, output`")
+@doc(doc = " Material functions are reusable node graphs that can be called from materials.")
+@derive(Debug, Clone, PartialEq)
+pub struct MaterialFunctionDef:
+    name: String
+    attributes: Array<Attribute>
+    inputs: Array<MaterialInput>
+    body: Array<MaterialStatement>
+    output: Expr
+    span: Span
+
+@doc(doc = " Graph editor definition: `@graph_editor Name: node_types, schema`")
+@derive(Debug, Clone, PartialEq)
+pub struct GraphEditorDef:
+    name: String
+    attributes: Array<Attribute>
+    node_types: Array<NodeTypeDef>
+    schema: Option<GraphSchemaDef>
+    span: Span
+
+@doc(doc = " Node type definition within a graph editor")
+@derive(Debug, Clone, PartialEq)
+pub struct NodeTypeDef:
+    name: String
+    category: Option<String>
+    inputs: Array<PinDef>
+    outputs: Array<PinDef>
+    properties: Array<PropertyDef>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Pin definition for node inputs/outputs")
+@derive(Debug, Clone, PartialEq)
+pub struct PinDef:
+    name: String
+    ty: Type
+    is_array: Bool
+    default_: Option<Expr>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Property definition for node configuration")
+@derive(Debug, Clone, PartialEq)
+pub struct PropertyDef:
+    name: String
+    ty: Type
+    default_: Option<Expr>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Graph schema definition for connection rules and validation")
+@derive(Debug, Clone, PartialEq)
+pub struct GraphSchemaDef:
+    rules: Array<SchemaRule>
+    span: Span
+
+@doc(doc = " Schema rule for graph validation")
+@derive(Debug, Clone, PartialEq)
+pub struct SchemaRule:
+    name: String
+    condition: Expr
+    span: Span
+
+@doc(doc = " Graph runtime definition: `@graph_runtime Name: graph_data, node_data, instance, pins`")
+@doc(doc = " Generates runtime graph classes (GraphData, NodeData, Instance, PinData) for UE5.")
+@derive(Debug, Clone, PartialEq)
+pub struct GraphRuntimeDef:
+    name: String
+    attributes: Array<Attribute>
+    graph_data: Option<GraphDataDef>
+    node_types: Array<NodeDataDef>
+    instance: Option<GraphInstanceDef>
+    pin_config: Option<PinConfigDef>
+    span: Span
+
+@doc(doc = " Graph data container definition")
+@derive(Debug, Clone, PartialEq)
+pub struct GraphDataDef:
+    properties: Array<Field>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Node data definition for runtime graph nodes")
+@derive(Debug, Clone, PartialEq)
+pub struct NodeDataDef:
+    name: String
+    base_class: Option<String>
+    input_pins: Array<PinDef>
+    output_pins: Array<PinDef>
+    properties: Array<Field>
+    methods: Array<Function>
+    execute_logic: Option<Block>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Graph instance definition for runtime execution")
+@derive(Debug, Clone, PartialEq)
+pub struct GraphInstanceDef:
+    state_: Array<Field>
+    methods: Array<Function>
+    delegates: Array<DelegateDef>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Pin configuration for graph connections")
+@derive(Debug, Clone, PartialEq)
+pub struct PinConfigDef:
+    properties: Array<Field>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Delegate definition for graph events")
+@derive(Debug, Clone, PartialEq)
+pub struct DelegateDef:
+    name: String
+    params: Array<Param>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Network synchronization definition for replicated components")
+@doc(doc = " Generates network replication code with interpolation, extrapolation, and compression")
+@derive(Debug, Clone, PartialEq)
+pub struct NetworkSyncDef:
+    component_name: String
+    replicated_properties: Array<ReplicatedProperty>
+    config: NetworkConfig
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Replicated property with synchronization mode")
+@derive(Debug, Clone, PartialEq)
+pub struct ReplicatedProperty:
+    name: String
+    ty: Type
+    mode: ReplicationMode
+    compression: Option<CompressionSettings>
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum ReplicationMode:
+    Simple
+    Interpolated { back_time: f32 }
+    Extrapolated { limit: f32 }
+    Compressed { threshold: f32 }
+
+@doc(doc = " Compression settings for replicated properties")
+@derive(Debug, Clone, PartialEq)
+pub struct CompressionSettings:
+    threshold: f32
+    use_half_float: Bool
+
+@doc(doc = " Network configuration for component")
+@derive(Debug, Clone, PartialEq)
+pub struct NetworkConfig:
+    snap_threshold: Option<f32>
+    send_rate: Option<f32>
+    owner_time_sync: Bool
+
+impl Default for NetworkConfig:
+    fn default_() -> NetworkConfig:
+        NetworkConfig { snap_threshold: Option::Some(500), send_rate: Option::Some(10), owner_time_sync: true }
+
+
+@doc(doc = " State machine definition: `@state_machine struct Name: states`")
+@doc(doc = " Generates state machine runtime class with state enum, transitions, and update logic")
+@derive(Debug, Clone, PartialEq)
+pub struct StateMachineDef:
+    name: String
+    states: Array<StateDef>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " State definition within a state machine")
+@derive(Debug, Clone, PartialEq)
+pub struct StateDef:
+    name: String
+    is_entry: Bool
+    animation: Option<String>
+    properties: Array<Field>
+    transitions: Array<TransitionDef>
+    on_enter: Option<Block>
+    on_exit: Option<Block>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Transition definition between states")
+@derive(Debug, Clone, PartialEq)
+pub struct TransitionDef:
+    to_state: String
+    condition: Option<Block>
+    priority: i32
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Async task definition for offloading heavy computations to worker threads")
+@doc(doc = " Generates task queue class with thread pool, task class with DoWork method,")
+@doc(doc = " and completion callback dispatching to main thread")
+@derive(Debug, Clone, PartialEq)
+pub struct AsyncTaskDef:
+    name: String
+    input_fields: Array<Field>
+    output_fields: Array<Field>
+    callback: Option<AsyncTaskCallback>
+    do_work: Option<Block>
+    priority: Option<i32>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Callback definition for async task completion")
+@derive(Debug, Clone, PartialEq)
+pub struct AsyncTaskCallback:
+    name: String
+    thread: AsyncTaskThread
+    params: Array<Param>
+    body: Block
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum AsyncTaskThread:
+    Main
+    Worker
+
+@doc(doc = " Editor module definition for extending the UE5 editor")
+@doc(doc = " Generates IModuleInterface subclass with IMPLEMENT_MODULE macro,")
+@doc(doc = " menu extensions, toolbar extensions, and editor ticker registration")
+@derive(Debug, Clone, PartialEq)
+pub struct EditorModuleDef:
+    name: String
+    menu_entries: Array<MenuEntryDef>
+    toolbar_buttons: Array<ToolbarButtonDef>
+    toolbar_widgets: Array<ToolbarWidgetDef>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Menu entry definition for editor menu extensions")
+@derive(Debug, Clone, PartialEq)
+pub struct MenuEntryDef:
+    path: String
+    label: String
+    method: Function
+    icon: Option<String>
+    tooltip: Option<String>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Toolbar button definition for editor toolbar extensions")
+@derive(Debug, Clone, PartialEq)
+pub struct ToolbarButtonDef:
+    section: String
+    label: Option<String>
+    icon: String
+    method: Function
+    tooltip: Option<String>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Toolbar widget definition for custom editor toolbar widgets")
+@derive(Debug, Clone, PartialEq)
+pub struct ToolbarWidgetDef:
+    section: String
+    position: ToolbarPosition
+    widget_type: String
+    attributes: Array<Attribute>
+    span: Span
+
+pub enum ToolbarPosition:
+    Before
+    After
+    Start
+    End
+
+use std::collections::HashSet
+
+@doc(doc = " Collect all type names referenced by an AST Item.")
+@doc(doc = " Returns a set of raw type name strings (e.g. \"Vec3\", \"QuestStatus\", \"Actor\").")
+pub fn collect_referenced_type_names(item: &Item) -> Set<String>:
+    let mut names = HashSet__new_()
+    collect_type_names_from_item(item, &mut names)
+    ()
+    names
+
+@doc(doc = " Master dispatcher: walks all fields of an Item variant that may contain type references.")
+fn collect_type_names_from_item(item: &Item, out_: &mut Set<String>):
+    match item:
+        Item::Function(f) =>
+            for p in &f.params:
+                collect_type_names_from_type(&p.ty, out_)
+                ()
+                match &p.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            match &f.return_type:
+                Some(ret) =>
+                    collect_type_names_from_type(ret, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_block(&f.body, out_)
+            ()
+            for attr in &f.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::Patch(patch) =>
+            for param in &patch.params:
+                collect_type_names_from_type(&param.ty, out_)
+                ()
+                match &param.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            match &patch.return_type:
+                Some(ret) =>
+                    collect_type_names_from_type(ret, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_block(&patch.body, out_)
+            ()
+            for attr in &patch.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::Law(law) =>
+            for param in &law.params:
+                collect_type_names_from_type(&param.ty, out_)
+                ()
+                match &param.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            collect_type_names_from_type(&law.return_type, out_)
+            ()
+            collect_type_names_from_block(&law.body, out_)
+            ()
+            for attr in &law.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::Converge(converge) =>
+            for param in &converge.params:
+                collect_type_names_from_type(&param.ty, out_)
+                ()
+                match &param.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            match &converge.return_type:
+                Some(ret) =>
+                    collect_type_names_from_type(ret, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_block(&converge.spec_lane.body, out_)
+            ()
+            for lane in &converge.fast_lanes:
+                collect_type_names_from_block(&lane.body, out_)
+                ()
+            ()
+            for attr in &converge.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::World(world) =>
+            for state_ in &world.states:
+                collect_type_names_from_type(&state_.ty, out_)
+                ()
+                collect_type_names_from_expr(&state_.initial, out_)
+                ()
+            ()
+            for surface in &world.surfaces:
+                collect_type_names_from_expr(&surface.expr, out_)
+                ()
+            ()
+            for attr in &world.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::Orchestrate(orchestrate) =>
+            for param in &orchestrate.params:
+                collect_type_names_from_type(&param.ty, out_)
+                ()
+                match &param.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            match &orchestrate.return_type:
+                Some(ret) =>
+                    collect_type_names_from_type(ret, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_block(&orchestrate.body, out_)
+            ()
+            for attr in &orchestrate.attributes:
+                for arg in &attr.args:
+                    collect_type_names_from_expr(arg, out_)
+                    ()
+        Item::Struct(s) =>
+            for f in &s.fields:
+                collect_type_names_from_type(&f.ty, out_)
+                ()
+                match &f.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            for method in &s.methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::Enum(e) =>
+            for v in &e.variants:
+                match &v.fields:
+                    VariantFields::Unit => ()
+                    VariantFields::Tuple(types) =>
+                        for ty in types:
+                            collect_type_names_from_type(ty, out_)
+                            ()
+                    VariantFields::Struct(fields) =>
+                        for f in fields:
+                            collect_type_names_from_type(&f.ty, out_)
+                            ()
+        Item::Actor(a) =>
+            for s in &a.state_:
+                collect_type_names_from_type(&s.ty, out_)
+                ()
+                collect_type_names_from_expr(&s.initial, out_)
+                ()
+            ()
+            for handler in &a.handlers:
+                out_.insert(handler.message_type.clone())
+                ()
+                for p in &handler.params:
+                    collect_type_names_from_type(&p.ty, out_)
+                    ()
+                ()
+                collect_type_names_from_block(&handler.body, out_)
+                ()
+            ()
+            for method in &a.methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::Component(c) =>
+            for p in &c.props:
+                collect_type_names_from_type(&p.ty, out_)
+                ()
+            ()
+            for s in &c.state_:
+                collect_type_names_from_type(&s.ty, out_)
+                ()
+                collect_type_names_from_expr(&s.initial, out_)
+                ()
+            ()
+            for method in &c.methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+            ()
+            collect_type_names_from_jsx(&c.body, out_)
+            ()
+        Item::Shader(s) =>
+            for p in &s.inputs:
+                collect_type_names_from_type(&p.ty, out_)
+                ()
+            ()
+            collect_type_names_from_type(&s.outputs, out_)
+            ()
+            for u in &s.uniforms:
+                collect_type_names_from_type(&u.ty, out_)
+                ()
+            ()
+            collect_type_names_from_block(&s.body, out_)
+            ()
+        Item::TypeAlias(ta) =>
+            collect_type_names_from_type(&ta.target, out_)
+            ()
+        Item::Const(c) =>
+            collect_type_names_from_type(&c.ty, out_)
+            ()
+            collect_type_names_from_expr(&c.value, out_)
+            ()
+        Item::Trait(t) =>
+            for method in &t.methods:
+                for p in &method.params:
+                    collect_type_names_from_type(&p.ty, out_)
+                    ()
+                ()
+                match &method.return_type:
+                    Some(ret) =>
+                        collect_type_names_from_type(ret, out_)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match &method.default_impl:
+                    Some(body) =>
+                        collect_type_names_from_block(body, out_)
+                        ()
+                    _ => ()
+        Item::Impl(i) =>
+            match &i.trait_name:
+                Some(trait_name) =>
+                    out_.insert(trait_name.clone())
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_type(&i.target_type, out_)
+            ()
+            for method in &i.methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::Comptime(b) =>
+            collect_type_names_from_block(&b.body, out_)
+            ()
+        Item::Macro(m) =>
+            match &m.body:
+                MacroBody::Block(block) => collect_type_names_from_block(block, out_)
+                MacroBody::Tokens(_) => ()
+        Item::Test(t) =>
+            collect_type_names_from_block(&t.body, out_)
+            ()
+        Item::MaterialGraph(mg) =>
+            for input in &mg.inputs:
+                collect_type_names_from_type(&input.ty, out_)
+                ()
+                match &input.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            for stmt in &mg.body:
+                match stmt:
+                    MaterialStatement::Let { value: value } =>
+                        collect_type_names_from_expr(value, out_)
+                        ()
+            ()
+            for output in &mg.outputs:
+                collect_type_names_from_expr(&output.value, out_)
+                ()
+        Item::MaterialFunction(mf) =>
+            for input in &mf.inputs:
+                collect_type_names_from_type(&input.ty, out_)
+                ()
+                match &input.default_:
+                    Some(default_) =>
+                        collect_type_names_from_expr(default_, out_)
+                        ()
+                    _ => ()
+            ()
+            for stmt in &mf.body:
+                match stmt:
+                    MaterialStatement::Let { value: value } =>
+                        collect_type_names_from_expr(value, out_)
+                        ()
+            ()
+            collect_type_names_from_expr(&mf.output, out_)
+            ()
+        Item::GraphEditor(ge) =>
+            for nt in &ge.node_types:
+                for pin in &nt.inputs:
+                    collect_type_names_from_type(&pin.ty, out_)
+                    ()
+                    match &pin.default_:
+                        Some(default_) =>
+                            collect_type_names_from_expr(default_, out_)
+                            ()
+                        _ => ()
+                ()
+                for pin in &nt.outputs:
+                    collect_type_names_from_type(&pin.ty, out_)
+                    ()
+                    match &pin.default_:
+                        Some(default_) =>
+                            collect_type_names_from_expr(default_, out_)
+                            ()
+                        _ => ()
+                ()
+                for prop in &nt.properties:
+                    collect_type_names_from_type(&prop.ty, out_)
+                    ()
+                    match &prop.default_:
+                        Some(default_) =>
+                            collect_type_names_from_expr(default_, out_)
+                            ()
+                        _ => ()
+            ()
+            match &ge.schema:
+                Some(schema) =>
+                    for rule in &schema.rules:
+                        collect_type_names_from_expr(&rule.condition, out_)
+                        ()
+                _ => ()
+        Item::GraphRuntime(gr) =>
+            match &gr.graph_data:
+                Some(gd) =>
+                    for f in &gd.properties:
+                        collect_type_names_from_type(&f.ty, out_)
+                        ()
+                    ()
+                    for method in &gd.methods:
+                        collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                        ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            for nd in &gr.node_types:
+                match &nd.base_class:
+                    Some(base) =>
+                        out_.insert(base.clone())
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                for pin in &nd.input_pins:
+                    collect_type_names_from_type(&pin.ty, out_)
+                    ()
+                ()
+                for pin in &nd.output_pins:
+                    collect_type_names_from_type(&pin.ty, out_)
+                    ()
+                ()
+                for f in &nd.properties:
+                    collect_type_names_from_type(&f.ty, out_)
+                    ()
+                ()
+                for method in &nd.methods:
+                    collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                    ()
+                ()
+                match &nd.execute_logic:
+                    Some(logic) =>
+                        collect_type_names_from_block(logic, out_)
+                        ()
+                    _ => ()
+            ()
+            match &gr.instance:
+                Some(inst) =>
+                    for f in &inst.state_:
+                        collect_type_names_from_type(&f.ty, out_)
+                        ()
+                    ()
+                    for method in &inst.methods:
+                        collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                        ()
+                    ()
+                    for delegate in &inst.delegates:
+                        for p in &delegate.params:
+                            collect_type_names_from_type(&p.ty, out_)
+                            ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &gr.pin_config:
+                Some(pc) =>
+                    for f in &pc.properties:
+                        collect_type_names_from_type(&f.ty, out_)
+                        ()
+                    ()
+                    for method in &pc.methods:
+                        collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                        ()
+                _ => ()
+        Item::StateMachine(sm) =>
+            for state_ in &sm.states:
+                for f in &state_.properties:
+                    collect_type_names_from_type(&f.ty, out_)
+                    ()
+                ()
+                for transition in &state_.transitions:
+                    match &transition.condition:
+                        Some(cond) =>
+                            collect_type_names_from_block(cond, out_)
+                            ()
+                        _ => ()
+                ()
+                match &state_.on_enter:
+                    Some(on_enter) =>
+                        collect_type_names_from_block(on_enter, out_)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                match &state_.on_exit:
+                    Some(on_exit) =>
+                        collect_type_names_from_block(on_exit, out_)
+                        ()
+                    _ => ()
+        Item::AsyncTask(at) =>
+            for f in &at.input_fields:
+                collect_type_names_from_type(&f.ty, out_)
+                ()
+            ()
+            for f in &at.output_fields:
+                collect_type_names_from_type(&f.ty, out_)
+                ()
+            ()
+            match &at.do_work:
+                Some(do_work) =>
+                    collect_type_names_from_block(do_work, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &at.callback:
+                Some(callback) =>
+                    for p in &callback.params:
+                        collect_type_names_from_type(&p.ty, out_)
+                        ()
+                    ()
+                    collect_type_names_from_block(&callback.body, out_)
+                    ()
+                _ => ()
+        Item::EditorModule(em) =>
+            for entry in &em.menu_entries:
+                collect_type_names_from_item(&Item::Function(entry.method.clone()), out_)
+                ()
+            ()
+            for btn in &em.toolbar_buttons:
+                collect_type_names_from_item(&Item::Function(btn.method.clone()), out_)
+                ()
+        Item::GameplayTags(_) => ()
+        Item::GameplayAbility(ability) =>
+            for method in &ability.methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::GameplayEffect(_) => ()
+        Item::GameplayCue(cue) =>
+            for field in &cue.state_fields:
+                collect_type_names_from_type(&field.ty, out_)
+                ()
+            ()
+            match &cue.on_execute:
+                Some(on_execute) =>
+                    collect_type_names_from_item(&Item::Function(on_execute.clone()), out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &cue.on_add:
+                Some(on_add) =>
+                    collect_type_names_from_item(&Item::Function(on_add.clone()), out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &cue.on_remove:
+                Some(on_remove) =>
+                    collect_type_names_from_item(&Item::Function(on_remove.clone()), out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &cue.while_active:
+                Some(while_active) =>
+                    collect_type_names_from_item(&Item::Function(while_active.clone()), out_)
+                    ()
+                _ => ()
+        Item::AbilityTask(task) =>
+            for field in &task.state_fields:
+                collect_type_names_from_type(&field.ty, out_)
+                ()
+            ()
+            match &task.activate_method:
+                Some(activate) =>
+                    collect_type_names_from_item(&Item::Function(activate.clone()), out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match &task.on_destroy_method:
+                Some(on_destroy) =>
+                    collect_type_names_from_item(&Item::Function(on_destroy.clone()), out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            for method in &task.custom_methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::TargetActor(target) =>
+            match &target.filter:
+                Some(filter) =>
+                    match &filter.custom_filter_method:
+                        Some(custom_filter) =>
+                            collect_type_names_from_item(&Item::Function(custom_filter.clone()), out_)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            for method in &target.custom_methods:
+                collect_type_names_from_item(&Item::Function(method.clone()), out_)
+                ()
+        Item::Use(_) => ()
+        Item::Mod(_) => ()
+
+@doc(doc = " Recursively collect type names from a Type AST node.")
+fn collect_type_names_from_type(ty: &Type, out_: &mut Set<String>):
+    match ty:
+        Type::Named { name: name, generics: generics } =>
+            out_.insert(name.clone())
+            ()
+            for g in generics:
+                collect_type_names_from_type(g, out_)
+                ()
+        Type::Tuple(types, _) =>
+            for t in types:
+                collect_type_names_from_type(t, out_)
+                ()
+        Type::Array(inner, _, _) =>
+            collect_type_names_from_type(inner, out_)
+            ()
+        Type::Slice(inner, _) =>
+            collect_type_names_from_type(inner, out_)
+            ()
+        Type::Ref { inner: inner } =>
+            collect_type_names_from_type(inner, out_)
+            ()
+        Type::Ptr { inner: inner } =>
+            collect_type_names_from_type(inner, out_)
+            ()
+        Type::Function { params: params, return_type: return_type } =>
+            for p in params:
+                collect_type_names_from_type(p, out_)
+                ()
+            ()
+            collect_type_names_from_type(return_type, out_)
+            ()
+        Type::Option(inner, _) =>
+            collect_type_names_from_type(inner, out_)
+            ()
+        Type::Result(ok, err, _) =>
+            collect_type_names_from_type(ok, out_)
+            ()
+            collect_type_names_from_type(err, out_)
+            ()
+        Type::Impl { trait_name: trait_name, generics: generics } =>
+            out_.insert(trait_name.clone())
+            ()
+            for g in generics:
+                collect_type_names_from_type(g, out_)
+                ()
+        Type::Infer(_) => ()
+        Type::Never(_) => ()
+        Type::Unit(_) => ()
+
+@doc(doc = " Recursively collect type names from an Expr AST node.")
+fn collect_type_names_from_expr(expr: &Expr, out_: &mut Set<String>):
+    match expr:
+        Expr::Cast { value: value, target: target } =>
+            collect_type_names_from_expr(value, out_)
+            collect_type_names_from_type(target, out_)
+        Expr::Struct { name: name, fields: fields, rest: rest } =>
+            out_.insert(name.clone())
+            for field in fields:
+                let (_, field_expr) = field
+                collect_type_names_from_expr(field_expr, out_)
+            match rest:
+                Some(rest_expr) => collect_type_names_from_expr(rest_expr, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::AggregateInit { ty: ty, fields: fields } =>
+            collect_type_names_from_type(ty, out_)
+            for field in fields:
+                let (_, field_expr) = field
+                collect_type_names_from_expr(field_expr, out_)
+        Expr::EnumVariant { enum_name: enum_name, fields: fields } =>
+            out_.insert(enum_name.clone())
+            match fields:
+                EnumVariantFields::Unit =>
+                    let __selfhost_empty = none
+                EnumVariantFields::Tuple(exprs) =>
+                    for e in exprs:
+                        collect_type_names_from_expr(e, out_)
+                EnumVariantFields::Struct(field_pairs) =>
+                    for field_pair in field_pairs:
+                        let (_, field_expr) = field_pair
+                        collect_type_names_from_expr(field_expr, out_)
+        Expr::Spawn { actor_: actor_, init: init } =>
+            out_.insert(actor_.clone())
+            for init_entry in init:
+                let (_, init_expr) = init_entry
+                collect_type_names_from_expr(init_expr, out_)
+        Expr::Call { callee: callee, args: args } =>
+            collect_type_names_from_expr(callee, out_)
+            for arg in args:
+                collect_type_names_from_expr(&arg.value, out_)
+        Expr::MethodCall { receiver: receiver, args: args } =>
+            collect_type_names_from_expr(receiver, out_)
+            for arg in args:
+                collect_type_names_from_expr(&arg.value, out_)
+        Expr::Field { object: object } => collect_type_names_from_expr(object, out_)
+        Expr::Index { object: object, index: index } =>
+            collect_type_names_from_expr(object, out_)
+            collect_type_names_from_expr(index, out_)
+        Expr::Binary { left: left, right: right } =>
+            collect_type_names_from_expr(left, out_)
+            collect_type_names_from_expr(right, out_)
+        Expr::Unary { operand: operand } => collect_type_names_from_expr(operand, out_)
+        Expr::Assign { target: target, value: value } =>
+            collect_type_names_from_expr(target, out_)
+            collect_type_names_from_expr(value, out_)
+        Expr::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+            collect_type_names_from_expr(condition, out_)
+            collect_type_names_from_block(then_branch, out_)
+            match else_branch:
+                Some(else_b) => collect_type_names_from_else_branch(else_b, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::Match { scrutinee: scrutinee, arms: arms } =>
+            collect_type_names_from_expr(scrutinee, out_)
+            for arm in arms:
+                collect_type_names_from_pattern(&arm.pattern, out_)
+                match &arm.guard:
+                    Some(guard) => collect_type_names_from_expr(guard, out_)
+                    _ =>
+                        let __selfhost_empty = none
+                collect_type_names_from_expr(&arm.body, out_)
+        Expr::Lambda { params: params, return_type: return_type, body: body } =>
+            for p in params:
+                collect_type_names_from_type(&p.ty, out_)
+            match return_type:
+                Some(ret) => collect_type_names_from_type(ret, out_)
+                _ =>
+                    let __selfhost_empty = none
+            collect_type_names_from_expr(body, out_)
+        Expr::Array(exprs, _) =>
+            for e in exprs:
+                collect_type_names_from_expr(e, out_)
+        Expr::Tuple(exprs, _) =>
+            for e in exprs:
+                collect_type_names_from_expr(e, out_)
+        Expr::FString(exprs, _) =>
+            for e in exprs:
+                collect_type_names_from_expr(e, out_)
+        Expr::MacroCall { args: args } =>
+            for arg in args:
+                collect_type_names_from_expr(arg, out_)
+        Expr::SendMsg { target: target, data: data } =>
+            collect_type_names_from_expr(target, out_)
+            for data_entry in data:
+                let (_, data_expr) = data_entry
+                collect_type_names_from_expr(data_expr, out_)
+        Expr::Block(block, _) => collect_type_names_from_block(block, out_)
+        Expr::Range { start: start, end: end } =>
+            match start:
+                Some(s) => collect_type_names_from_expr(s, out_)
+                _ =>
+                    let __selfhost_empty = none
+            match end:
+                Some(e) => collect_type_names_from_expr(e, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::Ref { value: value } => collect_type_names_from_expr(value, out_)
+        Expr::AddrOf { value: value } => collect_type_names_from_expr(value, out_)
+        Expr::Deref(inner, _) => collect_type_names_from_expr(inner, out_)
+        Expr::Try(inner, _) => collect_type_names_from_expr(inner, out_)
+        Expr::Await(inner, _) => collect_type_names_from_expr(inner, out_)
+        Expr::Comptime(inner, _) => collect_type_names_from_expr(inner, out_)
+        Expr::Paren(inner, _) => collect_type_names_from_expr(inner, out_)
+        Expr::PtrOffset { pointer: pointer, offset: offset, element_ty: element_ty } =>
+            collect_type_names_from_expr(pointer, out_)
+            collect_type_names_from_expr(offset, out_)
+            match element_ty:
+                Some(ty) => collect_type_names_from_type(ty, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::MemLoad { pointer: pointer, load_ty: load_ty } =>
+            collect_type_names_from_expr(pointer, out_)
+            match load_ty:
+                Some(ty) => collect_type_names_from_type(ty, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::MemStore { pointer: pointer, value: value, store_ty: store_ty } =>
+            collect_type_names_from_expr(pointer, out_)
+            collect_type_names_from_expr(value, out_)
+            match store_ty:
+                Some(ty) => collect_type_names_from_type(ty, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::SizeOfType { target: target } => collect_type_names_from_type(target, out_)
+        Expr::AlignOfType { target: target } => collect_type_names_from_type(target, out_)
+        Expr::Alloca { ty: target } => collect_type_names_from_type(target, out_)
+        Expr::Uninit { ty: target } => collect_type_names_from_type(target, out_)
+        Expr::Alloc { size: size, ty: ty } =>
+            collect_type_names_from_expr(size, out_)
+            match ty:
+                Some(ty) => collect_type_names_from_type(ty, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::Realloc { pointer: pointer, size: size, ty: ty } =>
+            collect_type_names_from_expr(pointer, out_)
+            collect_type_names_from_expr(size, out_)
+            match ty:
+                Some(ty) => collect_type_names_from_type(ty, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Expr::Return(Some(inner), _) => collect_type_names_from_expr(inner, out_)
+        Expr::Break(Some(inner), _) => collect_type_names_from_expr(inner, out_)
+        Expr::JSX(node, _) => collect_type_names_from_jsx(node, out_)
+        _ =>
+            let __selfhost_empty = none
+
+@doc(doc = " Recursively collect type names from a Block.")
+fn collect_type_names_from_block(block: &Block, out_: &mut Set<String>):
+    for stmt in &(*block).stmts:
+        collect_type_names_from_stmt(stmt, out_)
+        ()
+
+@doc(doc = " Recursively collect type names from a Stmt.")
+fn collect_type_names_from_stmt(stmt: &Stmt, out_: &mut Set<String>):
+    match stmt:
+        Stmt::Let { ty: ty, value: value, pattern: pattern } =>
+            match ty:
+                Some(ty) =>
+                    collect_type_names_from_type(ty, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            match value:
+                Some(val) =>
+                    collect_type_names_from_expr(val, out_)
+                    ()
+                    ()
+                    ()
+                    ()
+                _ =>
+                    ()
+                    ()
+            collect_type_names_from_pattern(pattern, out_)
+            ()
+        Stmt::Expr(expr) =>
+            collect_type_names_from_expr(expr, out_)
+            ()
+        Stmt::Return(Some(expr), _) =>
+            collect_type_names_from_expr(expr, out_)
+            ()
+        Stmt::For { iter: iter, body: body, binding: binding } =>
+            collect_type_names_from_pattern(binding, out_)
+            ()
+            collect_type_names_from_expr(iter, out_)
+            ()
+            collect_type_names_from_block(body, out_)
+            ()
+        Stmt::While { condition: condition, body: body } =>
+            collect_type_names_from_expr(condition, out_)
+            ()
+            collect_type_names_from_block(body, out_)
+            ()
+        Stmt::Loop { body: body } =>
+            collect_type_names_from_block(body, out_)
+            ()
+        Stmt::Item(item) =>
+            collect_type_names_from_item(item, out_)
+            ()
+        Stmt::Return(None, _) => ()
+        Stmt::Break(_, _) => ()
+        Stmt::Continue(_) => ()
+
+@doc(doc = " Collect type names from else branches.")
+fn collect_type_names_from_else_branch(branch: &ElseBranch, out_: &mut Set<String>):
+    match branch:
+        ElseBranch::Else(block) =>
+            collect_type_names_from_block(block, out_)
+            ()
+        ElseBranch::ElseIf(cond, block, next) =>
+            collect_type_names_from_expr(cond, out_)
+            ()
+            collect_type_names_from_block(block, out_)
+            ()
+            match next:
+                Some(next_else) =>
+                    collect_type_names_from_else_branch(next_else, out_)
+                    ()
+                _ => ()
+
+@doc(doc = " Collect type names from patterns (destructuring may reference types).")
+fn collect_type_names_from_pattern(pattern: &Pattern, out_: &mut Set<String>):
+    match pattern:
+        Pattern::Variant { enum_name: enum_name, fields: fields } =>
+            match enum_name:
+                Some(name) =>
+                    let __selfhost_insert = out_.insert(name.clone())
+                _ =>
+                    let __selfhost_empty = none
+            match fields:
+                VariantPatternFields::Tuple(patterns) =>
+                    for p in patterns:
+                        collect_type_names_from_pattern(p, out_)
+                _ =>
+                    let __selfhost_empty = none
+        Pattern::Tuple(patterns, _) =>
+            for p in patterns:
+                collect_type_names_from_pattern(p, out_)
+        Pattern::Or(patterns, _) =>
+            for p in patterns:
+                collect_type_names_from_pattern(p, out_)
+        Pattern::Slice { patterns: patterns } =>
+            for p in patterns:
+                collect_type_names_from_pattern(p, out_)
+        Pattern::Literal(expr) => collect_type_names_from_expr(expr, out_)
+        _ =>
+            let __selfhost_empty = none
+
+@doc(doc = " Collect type names from JSX nodes.")
+fn collect_type_names_from_jsx(node: &JSXNode, out_: &mut Set<String>):
+    match node:
+        JSXNode::Element { children: children, attributes: attributes } =>
+            for attr in attributes:
+                match &attr.value:
+                    JSXAttrValue::Expr(e) => collect_type_names_from_expr(e, out_)
+                    _ => ()
+            ()
+            for child in children:
+                collect_type_names_from_jsx(child, out_)
+                ()
+        JSXNode::ComponentCall { name: name, props: props, children: children } =>
+            out_.insert(name.clone())
+            ()
+            for prop in props:
+                match &prop.value:
+                    JSXAttrValue::Expr(e) => collect_type_names_from_expr(e, out_)
+                    _ => ()
+            ()
+            for child in children:
+                collect_type_names_from_jsx(child, out_)
+                ()
+        JSXNode::Expression(expr) =>
+            collect_type_names_from_expr(expr, out_)
+            ()
+        JSXNode::For { iter: iter, body: body } =>
+            collect_type_names_from_expr(iter, out_)
+            ()
+            collect_type_names_from_jsx(body, out_)
+            ()
+        JSXNode::If { condition: condition, then_branch: then_branch, else_branch: else_branch } =>
+            collect_type_names_from_expr(condition, out_)
+            ()
+            collect_type_names_from_jsx(then_branch, out_)
+            ()
+            match else_branch:
+                Some(else_b) =>
+                    collect_type_names_from_jsx(else_b, out_)
+                    ()
+                _ => ()
+        JSXNode::Fragment(children, _) =>
+            for child in children:
+                collect_type_names_from_jsx(child, out_)
+                ()
+        JSXNode::Text(_, _) => ()
+
+@doc(doc = " GameplayTags namespace definition")
+@doc(doc = " Syntax: @gameplay_tags namespace Name: tag_hierarchy")
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayTagsNamespace:
+    name: String
+    children: Array<GameplayTagNode>
+    span: Span
+
+@doc(doc = " Individual tag node in the hierarchy")
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayTagNode:
+    name: String
+    full_path: String
+    comment: Option<String>
+    children: Array<GameplayTagNode>
+    span: Span
+
+@doc(doc = " Gameplay Ability definition for UE5 Gameplay Ability System")
+@doc(doc = " Syntax: @ability struct Name: policies, tags, lifecycle_hooks")
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayAbilityDef:
+    name: String
+    instancing_policy: Option<String>
+    replication_policy: Option<String>
+    net_execution_policy: Option<String>
+    ability_tags: Array<String>
+    activation_required_tags: Array<String>
+    activation_blocked_tags: Array<String>
+    activation_owned_tags: Array<String>
+    cancel_abilities_with_tag: Array<String>
+    block_abilities_with_tag: Array<String>
+    cost_effect: Option<String>
+    cooldown_effect: Option<String>
+    methods: Array<Function>
+    attributes: Array<Attribute>
+    span: Span
+
+@doc(doc = " Gameplay Effect definition for UE5 Gameplay Ability System")
+@doc(doc = " Syntax: @gameplay_effect struct Name: duration, modifiers, tags")
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayEffectDef:
+    name: String
+    duration_policy: Option<String>
+    duration_magnitude: Option<f32>
+    period: Option<f32>
+    execute_on_application: Bool
+    modifiers: Array<GameplayEffectModifier>
+    stacking_type: Option<String>
+    stacking_limit: Option<i32>
+    owned_tags: Array<String>
+    granted_tags: Array<String>
+    application_required_tags: Array<String>
+    application_ignored_tags: Array<String>
+    ongoing_required_tags: Array<String>
+    ongoing_ignored_tags: Array<String>
+    removal_required_tags: Array<String>
+    removal_ignored_tags: Array<String>
+    attributes: Array<Attribute>
+    span: Span
+
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayEffectModifier:
+    attribute: String
+    operation: String
+    magnitude: f32
+    span: Span
+
+@doc(doc = " Gameplay cue definition (cosmetic events)")
+@doc(doc = " Syntax: @gameplay_cue struct Name: tag, type, lifecycle_hooks")
+@derive(Debug, Clone, PartialEq)
+pub struct GameplayCueDef:
+    name: String
+    attributes: Array<Attribute>
+    tag: String
+    cue_type: CueType
+    auto_destroy: Bool
+    state_fields: Array<Field>
+    on_execute: Option<Function>
+    on_add: Option<Function>
+    on_remove: Option<Function>
+    while_active: Option<Function>
+    span: Span
+
+pub enum CueType:
+    Static
+    Actor
+
+impl Default for CueType:
+    fn default_() -> CueType:
+        CueType__Static
+
+
+@doc(doc = " Ability Task Definition")
+@doc(doc = " Syntax: @ability_task struct Name: delegates, state, lifecycle_hooks")
+@derive(Debug, Clone, PartialEq)
+pub struct AbilityTaskDef:
+    name: String
+    attributes: Array<Attribute>
+    delegates: Array<TaskDelegateDef>
+    state_fields: Array<Field>
+    activate_method: Option<Function>
+    on_destroy_method: Option<Function>
+    custom_methods: Array<Function>
+    span: Span
+
+@doc(doc = " Ability Task Delegate Definition")
+@derive(Debug, Clone, PartialEq)
+pub struct TaskDelegateDef:
+    name: String
+    delegate_type: String
+    span: Span
+
+@doc(doc = " Target Actor Definition")
+@doc(doc = " Syntax: @target_actor struct Name: trace_type, filters, reticle")
+@derive(Debug, Clone, PartialEq)
+pub struct TargetActorDef:
+    name: String
+    attributes: Array<Attribute>
+    trace_type: TraceType
+    max_range: Option<f64>
+    trace_channel: Option<String>
+    filter: Option<TargetFilter>
+    reticle_class: Option<String>
+    custom_methods: Array<Function>
+    span: Span
+
+pub enum TraceType:
+    Line
+    Sphere
+    Cone
+    TraceBox
+    Cylinder
+
+impl Default for TraceType:
+    fn default_() -> TraceType:
+        TraceType__Line
+
+
+@doc(doc = " Target Filter")
+@derive(Debug, Clone, PartialEq)
+pub struct TargetFilter:
+    self_filter: Option<String>
+    required_actor_class: Option<String>
+    require_tags: Array<String>
+    ignore_tags: Array<String>
+    custom_filter_method: Option<Function>
+    span: Span
+

@@ -34,6 +34,8 @@ Validation:
   - Produced a `hard_fail` report, but still emitted 71 mirrored files plus `source_correspondence_manifest.json` across `kain-core`, `kain-import`, `kain-sys-codegen`, and `cli`.
 - `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --profile-path /tmp/kain_selfhost_source_profile_validation.json --output-dir /tmp/kain_selfhost_phase2_force_roundtrip_validation --assemble-stage2 false --build-stage2 false --force`
   - Previously this lane died at the first roundtrip/codegen failure. Under `--force` it now emitted aggregate bundles and a full correspondence/report artifact set for all four phase2 crates before returning `hard_fail`.
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir ouroboros/out/selfhost/phase2_repo_src --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force`
+  - Materialized the first live repo-root canonical mirror tree under `src/` with 71 generated `.kn` files while still returning `hard_fail` because the `cli` slice keeps its `extern crate` strict-import rejections.
 
 Design decisions:
 

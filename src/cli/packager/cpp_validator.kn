@@ -1,0 +1,273 @@
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use std::path::Path
+
+use std::path::PathBuf
+
+use std::process::Command
+
+@doc(doc = " Find ReSharper inspectcode.exe on the system")
+pub fn find_inspectcode() -> Option<std::path::PathBuf>:
+    let locations = [PathBuf__from("C:\\Tools\\ReSharper.CLI\\inspectcode.exe"), PathBuf__from("C:\\Tools\\JetBrains.ReSharper.CommandLineTools.2025.3.3\\inspectcode.exe"), PathBuf__from("C:\\Program Files\\JetBrains\\ReSharper.CLI\\inspectcode.exe"), PathBuf__from("C:\\Program Files (x86)\\JetBrains\\ReSharper.CLI\\inspectcode.exe"), which__which("inspectcode").ok()?]
+    locations.into_iter().find(fn(p): p.exists())
+
+@doc(doc = " Validate generated C++ code with ReSharper C++ analyzer")
+pub fn validate_cpp_with_resharper(plugin_dir: &std::path::Path) -> Result<(), KainError>:
+    let inspectcode = match find_inspectcode():
+        Some(path) =>
+            println(f"   🔍 Found ReSharper CLI: {path.display()}")
+            path
+        None =>
+            println("   ⚠\u{fe0f}  ReSharper CLI not found (skipping advanced C++ validation)")
+            println("      Install to C:\\Tools\\ReSharper.CLI\\ for better error detection")
+            return Result::Ok(())
+    let source_dir = plugin_dir.join("Source")
+    if (!source_dir.exists()):
+        return Result::Err(KainError__runtime("Source directory not found"))
+    println("   🔬 Running ReSharper C++ analysis...")
+    let output_file = plugin_dir.join("resharper_report.xml")
+    let output = Command__new_(&inspectcode).arg(source_dir.to_str().unwrap()).arg(f"--output={output_file.display()}").arg("--severity=WARNING").arg("--format=Xml").arg("--no-build").output().map_err(fn(e): KainError__runtime(f"Failed to run inspectcode: {e}"))?
+    if (!output.status.success()):
+        let stderr = String__from_utf8_lossy(&output.stderr)
+        if ((output.status.code() == Option::Some(1)) && output_file.exists()):
+            parse_resharper_report(&output_file)?
+            ()
+            ()
+            ()
+            ()
+        else:
+            return Result::Err(KainError__runtime(f"ReSharper analysis failed:\n{stderr}"))
+        ()
+    else:
+        println("      ✅ No C++ issues found")
+        ()
+        ()
+    let _ = std__fs__remove_file(&output_file)
+    Result::Ok(())
+
+@doc(doc = " Parse ReSharper XML report and display errors/warnings")
+fn parse_resharper_report(report_path: &std::path::Path) -> Result<(), KainError>:
+    use quick_xml::events::Event
+
+    use quick_xml::Reader
+
+    let xml_content = std__fs__read_to_string(report_path).map_err(fn(e): KainError__runtime(f"Failed to read report: {e}"))?
+    let mut reader = Reader__from_str(&xml_content)
+    let mut buf = Vec__new_()
+    let mut issues = Vec__new_()
+    let mut current_issue: Option<CppIssue> = none
+    loop:
+        match reader.read_event_into(&mut buf):
+            Ok(quick_xml__events__Event::Start(e)) =>
+                match e.name():
+                    [73, 115, 115, 117, 101] =>
+                        let mut issue = CppIssue__default_()
+                        for attr in e.attributes():
+                            match attr:
+                                Ok(attr) =>
+                                    match attr.key:
+                                        [84, 121, 112, 101, 73, 100] => issue.type_id = String__from_utf8_lossy(&attr.value).to_string()
+                                        [70, 105, 108, 101] => issue.file = String__from_utf8_lossy(&attr.value).to_string()
+                                        [76, 105, 110, 101] => issue.line_ = String__from_utf8_lossy(&attr.value).parse().unwrap_or(0)
+                                        [77, 101, 115, 115, 97, 103, 101] => issue.message = String__from_utf8_lossy(&attr.value).to_string()
+                                        [83, 101, 118, 101, 114, 105, 116, 121] => issue.severity = String__from_utf8_lossy(&attr.value).to_string()
+                                        _ => ()
+                                _ => ()
+                        ()
+                        current_issue = Option::Some(issue)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => ()
+            Ok(quick_xml__events__Event::Empty(e)) =>
+                match e.name():
+                    [73, 115, 115, 117, 101] =>
+                        let mut issue = CppIssue__default_()
+                        for attr in e.attributes():
+                            match attr:
+                                Ok(attr) =>
+                                    match attr.key:
+                                        [84, 121, 112, 101, 73, 100] => issue.type_id = String__from_utf8_lossy(&attr.value).to_string()
+                                        [70, 105, 108, 101] => issue.file = String__from_utf8_lossy(&attr.value).to_string()
+                                        [76, 105, 110, 101] => issue.line_ = String__from_utf8_lossy(&attr.value).parse().unwrap_or(0)
+                                        [77, 101, 115, 115, 97, 103, 101] => issue.message = String__from_utf8_lossy(&attr.value).to_string()
+                                        [83, 101, 118, 101, 114, 105, 116, 121] => issue.severity = String__from_utf8_lossy(&attr.value).to_string()
+                                        _ => ()
+                                _ => ()
+                        ()
+                        current_issue = Option::Some(issue)
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ => ()
+            Ok(quick_xml__events__Event::End(e)) =>
+                if (e.name() == [73, 115, 115, 117, 101]):
+                    match current_issue.take():
+                        Some(issue) =>
+                            issues.push(issue)
+                            ()
+                            ()
+                            ()
+                            ()
+                        _ =>
+                            ()
+                            ()
+                    ()
+                ()
+            Ok(quick_xml__events__Event::Eof) => break
+            Err(e) => return Result::Err(KainError__runtime(f"XML parse error: {e}"))
+            _ => ()
+        buf.clear()
+        ()
+    ()
+    if (!issues.is_empty()):
+        println(f"      ⚠️  Found {issues.len()} C++ issues:")
+        for issue in issues.iter().take(10):
+            println(f"         {issue.file}:{issue.line_} - {issue.message} ({issue.type_id})")
+        ()
+        if (issues.len() > 10):
+            println(f"         ... and {(issues.len() - 10)} more")
+            ()
+            ()
+        ()
+    Result::Ok(())
+
+@derive(Default)
+struct CppIssue:
+    type_id: String
+    file: String
+    line_: usize
+    message: String
+    severity: String
+
+impl Default for CppIssue:
+    pub fn default_() -> CppIssue:
+        CppIssue { type_id: String__new_(), file: String__new_(), line_: 0, message: String__new_(), severity: String__new_() }
+
+
+@doc(doc = " Fallback: Basic C++ validation without ReSharper")
+pub fn validate_cpp_basic(plugin_dir: &std::path::Path) -> Result<(), KainError>:
+    println("   🔍 Running basic C++ validation...")
+    let source_dir = plugin_dir.join("Source")
+    if (!source_dir.exists()):
+        return Result::Ok(())
+    let headers = find_headers(&source_dir)?
+    let mut errors = Vec__new_()
+    for header in headers:
+        let content = std__fs__read_to_string(&header).map_err(fn(e): KainError__runtime(f"Failed to read {header.display()}: {e}"))?
+        check_struct_class_consistency(&content, &header, &mut errors)
+        ()
+        check_missing_generated_body(&content, &header, &mut errors)
+        ()
+    ()
+    if (!errors.is_empty()):
+        println(f"      ⚠️  Found {errors.len()} potential issues:")
+        for error in errors.iter().take(5):
+            println(f"         {error}")
+        ()
+        if (errors.len() > 5):
+            println(f"         ... and {(errors.len() - 5)} more")
+            ()
+            ()
+        ()
+    else:
+        println("      ✅ No obvious issues found")
+        ()
+        ()
+    Result::Ok(())
+
+fn find_headers(dir: &std::path::Path) -> Result<Array<std::path::PathBuf>, KainError>:
+    let mut headers = Vec__new_()
+    match std__fs__read_dir(dir):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                let path = entry.path()
+                if path.is_dir():
+                    headers.extend(find_headers(&path)?)
+                    ()
+                elif (path.extension().and_then(fn(s): s.to_str()) == Option::Some("h")):
+                    headers.push(path)
+                    ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(headers)
+
+fn check_struct_class_consistency(content: String, path: &std::path::Path, errors: &mut Array<String>):
+    use std::collections::HashMap
+
+    let mut forward_decls: Map<String, String> = HashMap__new_()
+    let mut definitions: Map<String, String> = HashMap__new_()
+    for line_ in content.lines():
+        let trimmed = line_.trim()
+        match trimmed.strip_prefix("class "):
+            Some(rest) =>
+                match rest.split(";").next():
+                    Some(name) =>
+                        forward_decls.insert(name.trim().to_string(), "class")
+                        ()
+                        ()
+                        ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+                ()
+            _ =>
+                match trimmed.strip_prefix("struct "):
+                    Some(rest) =>
+                        match rest.split(";").next():
+                            Some(name) =>
+                                forward_decls.insert(name.trim().to_string(), "struct")
+                                ()
+                                ()
+                                ()
+                                ()
+                            _ =>
+                                ()
+                                ()
+                        ()
+                    _ =>
+                        ()
+                        ()
+        if (trimmed.starts_with("class ") && trimmed.contains("_API ")):
+            match trimmed.split("_API ").nth(1):
+                Some(name) =>
+                    match name.split_whitespace().next():
+                        Some(name) =>
+                            definitions.insert(name.to_string(), "class")
+                            ()
+                        _ => ()
+                _ => ()
+        elif (trimmed.starts_with("struct ") && trimmed.contains("_API ")):
+            match trimmed.split("_API ").nth(1):
+                Some(name) =>
+                    match name.split_whitespace().next():
+                        Some(name) =>
+                            definitions.insert(name.to_string(), "struct")
+                            ()
+                        _ => ()
+                _ => ()
+    ()
+    for selfhost_for_item in forward_decls:
+        let (name, fwd_type) = selfhost_for_item
+        match definitions.get(&name):
+            Some(def_type) =>
+                if (fwd_type != def_type):
+                    errors.push(f"{path.display()}:\n   Type '{name}' forward declared as '{fwd_type}' but defined as '{def_type}'")
+                    ()
+            _ => ()
+
+fn check_missing_generated_body(content: String, path: &std::path::Path, errors: &mut Array<String>):
+    let has_uclass = (content.contains("UCLASS(") || content.contains("USTRUCT("))
+    let has_generated_body = (content.contains("GENERATED_BODY()") || content.contains("GENERATED_USTRUCT_BODY()"))
+    if (has_uclass && (!has_generated_body)):
+        errors.push(f"{path.display()}:\n   UCLASS/USTRUCT found but GENERATED_BODY() is missing")
+        ()
+

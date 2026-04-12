@@ -1,0 +1,206 @@
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use crate::span::Span
+
+use logos::Logos
+
+pub enum TokenKind:
+    Fn
+    Let
+    Mut
+    Var
+    Const
+    If
+    Else
+    Elif
+    Match
+    For
+    While
+    Loop
+    Break
+    Continue
+    Return
+    Await
+    In
+    With
+    As
+    TypeKw
+    Struct
+    Enum
+    Trait
+    Impl
+    Pub
+    Mod
+    Use
+    SelfLower
+    SelfUpper
+    True
+    False
+    None
+    Component
+    Shader
+    Actor
+    State
+    Spawn
+    Send
+    Receive
+    Emit
+    Comptime
+    Macro
+    Vertex
+    Fragment
+    Test
+    Pure_
+    Io
+    AsyncKw
+    Async_
+    Gpu
+    Reactive_
+    Unsafe_
+    Int(i64)
+    Float(f64)
+    String(String)
+    FString(String)
+    Char(String)
+    Ident(String)
+    PlusPlus
+    MinusMinus
+    Plus
+    Minus
+    Star
+    Slash
+    Percent
+    Power
+    EqEq
+    NotEq
+    Lt
+    Gt
+    LtEq
+    GtEq
+    And
+    Or
+    Not
+    Amp
+    Pipe
+    Caret
+    Tilde
+    Shl
+    Shr
+    Eq
+    PlusEq
+    MinusEq
+    StarEq
+    SlashEq
+    PercentEq
+    AmpEq
+    PipeEq
+    CaretEq
+    ShlEq
+    ShrEq
+    LParen
+    RParen
+    LBracket
+    RBracket
+    LBrace
+    RBrace
+    Comma
+    Dot
+    DotDot
+    DotDotDot
+    Colon
+    ColonColon
+    Semi
+    Arrow
+    FatArrow
+    At
+    QuestionQuestion
+    QuestionDot
+    Question
+    LtSlash
+    Newline(String)
+    Comment
+    HashComment
+    Indent
+    Dedent
+    Eof
+
+@derive(Debug, Clone, PartialEq)
+pub struct Token:
+    kind: TokenKind
+    span: Span
+
+impl Token:
+    pub fn new_(kind: TokenKind, span: Span) -> Token:
+        Token { kind: kind, span: span }
+
+
+pub struct Lexer<a>:
+    source: String
+
+impl<a> Lexer<a>:
+    pub fn new_(source: String) -> Lexer<a>:
+        Lexer { source: source }
+
+    pub fn tokenize(_self: &Lexer<a>) -> Result<Array<Token>, KainError>:
+        __kain_bootstrap_lex_tokens(&(*_self).source)
+
+    fn process_indentation(_self: &Lexer<a>, raw: Array<Token>) -> Result<Array<Token>, KainError>:
+        let mut result = Vec__new_()
+        let mut indent_stack = [0]
+        let mut iter = raw.into_iter().peekable()
+        loop:
+            match iter.next():
+                Some(token) =>
+                    match &token.kind:
+                        TokenKind::Newline(ws) =>
+                            match iter.peek():
+                                Some(next) =>
+                                    match &next.kind:
+                                        TokenKind::Newline(_) =>
+                                            continue
+                                        _ =>
+                                            ()
+                                _ =>
+                                    ()
+                            let mut indent: usize = 0
+                            for indent_char in ws[1..].chars():
+                                if (indent_char == "\t"):
+                                    indent = (indent + 4)
+                                else:
+                                    indent = (indent + 1)
+                            let current = (*indent_stack.last().unwrap())
+                            if (indent > current):
+                                indent_stack.push(indent)
+                                result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))
+                                result.push(Token__new_(TokenKind__Indent, token.span))
+                            elif (indent < current):
+                                result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))
+                                while ((indent_stack.len() > 1) && ((*indent_stack.last().unwrap()) > indent)):
+                                    indent_stack.pop()
+                                    result.push(Token__new_(TokenKind__Dedent, token.span))
+                            else:
+                                result.push(Token__new_(TokenKind::Newline(ws.clone()), token.span))
+                        _ =>
+                            result.push(token)
+                _ =>
+                    break
+        let final_span = result.last().map(fn(t): t.span).unwrap_or(Span__new_(0, 0))
+        while (indent_stack.len() > 1):
+            indent_stack.pop()
+            result.push(Token__new_(TokenKind__Dedent, final_span))
+        result.push(Token__new_(TokenKind__Eof, final_span))
+        Result::Ok(result)
+
+
+fn unescape(s: String) -> String:
+    let mut result = (fn(__kain_ctor_arg0): String__new_())(s.len())
+    let mut chars = s.chars()
+    loop:
+        match chars.next():
+            Some(c) => if (c == "\\"): none else: none
+            _ => break
+    ()
+    result
+

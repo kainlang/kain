@@ -1,0 +1,350 @@
+use super::config::Ue5Config
+
+use super::plugin_layout::PluginLayout
+
+use crate::error::KainError
+
+use crate::error::KainResult
+
+use std::collections::HashMap
+
+use std::collections::HashSet
+
+use std::fs
+
+use std::path::Path
+
+use std::path::PathBuf
+
+@doc(doc = " Inject KAIN file(s) into an existing plugin without overwriting")
+pub fn inject_into_plugin(inputs: &[std::path::PathBuf], plugin_dir: Option<&std::path::PathBuf>, plugin_name: Option<String>, force: Bool, dry_run: Bool) -> Result<(), KainError>:
+    println("💉 KAIN Surgical Injection Mode")
+    println()
+    let uplugin_dir = detect_plugin_dir(plugin_dir)?
+    println(f"📍 Plugin directory: {uplugin_dir.display()}")
+    let detected_plugin_name = detect_plugin_name(&uplugin_dir, plugin_name)?
+    println(f"📦 Plugin name: {detected_plugin_name}")
+    let plugin_root = find_source_root(&uplugin_dir)?
+    println(f"📂 Source root: {plugin_root.display()}")
+    println()
+    let existing_files = scan_existing_files(&plugin_root)?
+    println(f"📊 Existing files: {existing_files.len()}")
+    println()
+    println(f"🔍 Parsing {inputs.len()} input file(s)...")
+    let mut all_sources = Vec__new_()
+    for input in inputs:
+        println(f"   - {input.display()}")
+        let source = std__fs__read_to_string(input).map_err(fn(e): KainError__runtime(f"Failed to read {input.display()}: {e}"))?
+        all_sources.push((input.clone(), source))
+        ()
+    ()
+    println()
+    println("🔨 Parsing and type-checking...")
+    let mut merged_items = Vec__new_()
+    let mut all_span_mappers = Vec__new_()
+    for selfhost_for_item in &all_sources:
+        let (path, source) = selfhost_for_item
+        let tokens = Lexer__new_(source).tokenize().map_err(fn(e): KainError__parse_error(f"Lexer error in {path.display()}: {e}"))?
+        let span_mapper = SpanMapper__new_(source)
+        let file_name = path.file_name().and_then(fn(n): n.to_str()).unwrap_or("<unknown>")
+        let ast = Parser__new_(&tokens, &span_mapper, file_name).parse().map_err(fn(e): KainError__parse_error(f"Parse error in {path.display()}: {e}"))?
+        merged_items.extend(ast.items)
+        ()
+        all_span_mappers.push((file_name.to_string(), span_mapper))
+        ()
+    ()
+    let merged_ast = kain_core::ast::Program { items: merged_items, span: Span__default_() }
+    let (first_filename, first_span_mapper) = all_span_mappers.first().ok_or_else(fn(): KainError__runtime("No source files to compile"))?
+    let typed_program = kain_core__types__check(&merged_ast, first_span_mapper, first_filename).map_err(fn(e): KainError__runtime(f"Type check failed: {e}"))?
+    println(f"   ✓ Parsed {typed_program.items.len()} items")
+    println()
+    println("🔍 Running Oracle validation...")
+    ue5__ue5__oracle__validate_program(&typed_program, first_span_mapper, first_filename).map_err(fn(e): KainError__runtime(f"Oracle validation failed: {e}"))?
+    ()
+    println("   ✓ Validation passed")
+    let ue5_config = Ue5Config { plugin_name: detected_plugin_name.clone(), plugin_dir: plugin_root.clone(), sources: inputs.to_vec(), shaders: Vec__new_(), copyright: none, modular_output: true, stdlib_path: none, engine_version: none, modules: Vec__new_(), plugin_dependencies: Vec__new_() }
+    println()
+    println("📂 Analyzing plugin structure...")
+    let layout = plugin_layout__detect_existing(&plugin_root, &detected_plugin_name)?
+    println("   ✓ Detected layout: {if layout.needs_split: \"split (runtime + editor)\" else: \"single module\"}")
+    println()
+    println("⚙\u{fe0f}  Generating code...")
+    let generated_files = generate_injection_files(&layout, &ue5_config, &typed_program)?
+    println(f"   ✓ Generated {generated_files.len()} files")
+    println()
+    println("🔍 Checking for conflicts...")
+    let conflicts = check_conflicts(&generated_files, &existing_files, force)?
+    if (!conflicts.is_empty()):
+        println(f"   ⚠️  {conflicts.len()} file(s) will be overwritten (--force enabled)")
+        for conflict in &conflicts:
+            println(f"      - {conflict}")
+        ()
+        ()
+    else:
+        println("   ✓ No conflicts detected")
+        ()
+        ()
+    println()
+    if dry_run:
+        println("🔍 DRY RUN - Files that would be generated:")
+        for selfhost_for_item in &generated_files:
+            let (filename, _) = selfhost_for_item
+            println(f"   - {filename}")
+        ()
+        ()
+    else:
+        println("📝 Writing files...")
+        write_injection_files(&plugin_root, &generated_files)?
+        ()
+        let new_includes: Array<String> = generated_files.keys().filter(fn(f): f.ends_with(".h")).cloned().collect()
+        if (!new_includes.is_empty()):
+            update_master_header(&plugin_root, &detected_plugin_name, &new_includes, dry_run)?
+            ()
+            ()
+            ()
+            ()
+        ()
+    println()
+    println("✅ Injection complete!")
+    println(f"📍 Plugin: {plugin_root.display()}")
+    println(f"📦 Files: {generated_files.len()}")
+    Result::Ok(())
+
+@doc(doc = " Detect plugin directory by looking for .uplugin file")
+fn detect_plugin_dir(explicit_dir: Option<&std::path::PathBuf>) -> Result<std::path::PathBuf, KainError>:
+    match explicit_dir:
+        Some(dir) =>
+            if dir.exists():
+                return Result::Ok(dir.clone())
+            else:
+                return Result::Err(KainError__runtime(f"Specified plugin directory does not exist: {dir.display()}"))
+            ()
+        _ =>
+            ()
+            ()
+    let cwd = std__env__current_dir().map_err(fn(e): KainError__runtime(f"Failed to get current directory: {e}"))?
+    let mut current = cwd.clone()
+    for _ in range(0, 5):
+        match std__fs__read_dir(&current):
+            Ok(entries) =>
+                for entry in entries.flatten():
+                    match entry.path().extension():
+                        Some(ext) =>
+                            if (ext == "uplugin"):
+                                return Result::Ok(current)
+                        _ => ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        match current.parent():
+            Some(parent) =>
+                current = parent.to_path_buf()
+                ()
+            _ => break
+    ()
+    Result::Err(KainError__runtime("Could not find plugin directory. No .uplugin file found in current directory or parents.\nUse --plugin-dir to specify explicitly."))
+
+@doc(doc = " Find the actual plugin root where Source/ directory exists")
+@doc(doc = " Handles both flat (plugin_dir/Source/) and nested (plugin_dir/PluginName/Source/) structures")
+fn find_source_root(uplugin_dir: &std::path::Path) -> Result<std::path::PathBuf, KainError>:
+    let flat_source = uplugin_dir.join("Source")
+    if flat_source.exists():
+        return Result::Ok(uplugin_dir.to_path_buf())
+    match std__fs__read_dir(uplugin_dir):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                let path = entry.path()
+                if path.is_dir():
+                    let nested_source = path.join("Source")
+                    if nested_source.exists():
+                        return Result::Ok(path)
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Err(KainError__runtime(f"Could not find Source directory. Expected either:\n- {uplugin_dir.display()}/Source/\n- {uplugin_dir.display()}/PluginName/Source/"))
+
+@doc(doc = " Detect plugin name from .uplugin file or directory name")
+fn detect_plugin_name(plugin_dir: &std::path::Path, explicit_name: Option<String>) -> Result<String, KainError>:
+    match explicit_name:
+        Some(name) => return Result::Ok(name.to_string())
+        _ =>
+            ()
+            ()
+    match std__fs__read_dir(plugin_dir):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                match entry.path().extension():
+                    Some(ext) =>
+                        if (ext == "uplugin"):
+                            match entry.path().file_stem():
+                                Some(stem) =>
+                                    match stem.to_str():
+                                        Some(name) => return Result::Ok(name.to_string())
+                                        _ => ()
+                                _ => ()
+                    _ => ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    match plugin_dir.file_name():
+        Some(dir_name) =>
+            match dir_name.to_str():
+                Some(name) => return Result::Ok(name.to_string())
+                _ =>
+                    ()
+                    ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Err(KainError__runtime("Could not detect plugin name. Use --plugin to specify explicitly."))
+
+@doc(doc = " Scan existing files in the plugin to detect conflicts")
+fn scan_existing_files(plugin_root: &std::path::Path) -> Result<Set<String>, KainError>:
+    let mut files = HashSet__new_()
+    let source_dir = plugin_root.join("Source")
+    if source_dir.exists():
+        scan_directory_recursive(&source_dir, &mut files)?
+        ()
+        ()
+        ()
+        ()
+    Result::Ok(files)
+
+@doc(doc = " Recursively scan directory and collect filenames")
+fn scan_directory_recursive(dir: &std::path::Path, files: &mut Set<String>) -> Result<(), KainError>:
+    match std__fs__read_dir(dir):
+        Ok(entries) =>
+            for entry in entries.flatten():
+                let path = entry.path()
+                if path.is_dir():
+                    scan_directory_recursive(&path, files)?
+                    ()
+                else:
+                    match path.file_name():
+                        Some(filename) =>
+                            match filename.to_str():
+                                Some(name) =>
+                                    files.insert(name.to_string())
+                                    ()
+                                _ => ()
+                        _ => ()
+            ()
+            ()
+        _ =>
+            ()
+            ()
+    Result::Ok(())
+
+@doc(doc = " Check for file conflicts before injection")
+fn check_conflicts(generated_files: &Map<String, String>, existing_files: &Set<String>, force: Bool) -> Result<Array<String>, KainError>:
+    let mut conflicts = Vec__new_()
+    for filename in generated_files.keys():
+        if existing_files.contains(filename):
+            conflicts.push(filename.clone())
+            ()
+    ()
+    if ((!conflicts.is_empty()) && (!force)):
+        let conflict_list = conflicts.join("\n   - ")
+        return Result::Err(KainError__runtime(f"File conflicts detected:\n   - {conflict_list}\n\nUse --force to overwrite existing files."))
+    Result::Ok(conflicts)
+
+@doc(doc = " Update master header by appending new includes")
+fn update_master_header(plugin_root: &std::path::Path, plugin_name: String, new_includes: &[String], dry_run: Bool) -> Result<(), KainError>:
+    let source_dir = plugin_root.join("Source")
+    let master_header_path = source_dir.join("Public").join(f"{plugin_name}.h")
+    if (!master_header_path.exists()):
+        println(f"   ⚠️  Master header not found: {master_header_path.display()}")
+        return Result::Ok(())
+    if dry_run:
+        println(f"   [DRY RUN] Would update master header: {master_header_path.display()}")
+        for include in new_includes:
+            println(f"      + #include \"{include}\"")
+        ()
+        return Result::Ok(())
+    let mut content = std__fs__read_to_string(&master_header_path).map_err(fn(e): KainError::Io(e))?
+    for include in new_includes:
+        let include_line = f"#include \"{include}\"\n"
+        if (!content.contains(&include_line)):
+            content.push_str(&include_line)
+            ()
+    ()
+    std__fs__write(&master_header_path, content).map_err(fn(e): KainError::Io(e))?
+    ()
+    println(f"   ✓ Updated master header: {master_header_path.display()}")
+    Result::Ok(())
+
+@doc(doc = " Generate files for injection (per-item modular output)")
+fn generate_injection_files(_layout: &PluginLayout, config: &Ue5Config, program: &kain_core::types::TypedProgram) -> Result<Map<String, String>, KainError>:
+    let mut files = HashMap__new_()
+    let mut type_headers = HashMap__new_()
+    for item in &(*program).items:
+        let (item_name, output_name) = match item:
+            kain_core__types__TypedItem::Actor(a) => (&a.ast.name, ue5__naming__to_actor_name(&a.ast.name))
+            kain_core__types__TypedItem::Component(c) => (&c.ast.name, ue5__naming__to_component_name(&c.ast.name))
+            kain_core__types__TypedItem::Struct(s) => (&s.ast.name, ue5__naming__to_struct_name(&s.ast.name))
+            kain_core__types__TypedItem::Enum(e) => (&e.ast.name, ue5__naming__to_enum_name(&e.ast.name))
+            _ => continue
+        type_headers.insert(item_name.clone(), f"{output_name}.h")
+        ()
+    ()
+    for item in &(*program).items:
+        match item:
+            kain_core__types__TypedItem::Struct(s) =>
+                let is_editor_struct = s.ast.attributes.iter().any(fn(a): ue5_editor__is_editor_attribute(&a.name))
+                if is_editor_struct:
+                    continue
+                ()
+            _ =>
+                ()
+                ()
+        match item:
+            kain_core__types__TypedItem::TypeAlias(alias) =>
+                if (none):
+                    continue
+                ()
+            _ =>
+                ()
+                ()
+        let (item_name, output_name) = match item:
+            kain_core__types__TypedItem::Actor(a) => (&a.ast.name, ue5__naming__to_actor_name(&a.ast.name))
+            kain_core__types__TypedItem::Component(c) => (&c.ast.name, ue5__naming__to_component_name(&c.ast.name))
+            kain_core__types__TypedItem::Struct(s) => (&s.ast.name, ue5__naming__to_struct_name(&s.ast.name))
+            kain_core__types__TypedItem::Enum(e) => (&e.ast.name, ue5__naming__to_enum_name(&e.ast.name))
+            _ => continue
+        match ue5__generate_filtered_typed(program, &(*config).plugin_name, Option::Some(&output_name), Option::Some(item_name.clone()), (*config).copyright, type_headers.clone(), none, false, false):
+            Ok(ue5_output) =>
+                files.insert(f"{output_name}.h", ue5_output.header)
+                ()
+                let has_implementation = ue5_output.source.lines().any(fn(line_): none)
+                if has_implementation:
+                    files.insert(f"{output_name}.cpp", ue5_output.source)
+                    ()
+            Err(e) => eprintln(f"   ⚠️  Failed to generate {output_name}: {e}")
+    ()
+    Result::Ok(files)
+
+@doc(doc = " Write generated files to plugin directory")
+fn write_injection_files(plugin_root: &std::path::Path, files: &Map<String, String>) -> Result<(), KainError>:
+    let source_dir = plugin_root.join("Source")
+    for selfhost_for_item in files:
+        let (filename, content) = selfhost_for_item
+        let target_dir = if filename.ends_with(".h"):
+            source_dir.join("Public")
+        else:
+            source_dir.join("Private")
+        std__fs__create_dir_all(&target_dir).map_err(fn(e): KainError::Io(e))?
+        ()
+        let target_path = target_dir.join(filename)
+        std__fs__write(&target_path, content).map_err(fn(e): KainError::Io(e))?
+        ()
+        println(f"   ✓ {target_path.display()}")
+    ()
+    Result::Ok(())
+
