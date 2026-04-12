@@ -2788,6 +2788,10 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
     }
 
     let self_ty = ResolvedType::Struct(c.name.clone(), props.clone());
+    env.push_scope();
+    for (name, ty) in &props {
+        env.define(name.clone(), ty.clone());
+    }
     for state in &c.state {
         let state_ty = resolve_type_in_env(env, &state.ty)?;
         let initial_ty = infer_expr_type(env, &state.initial, None)?;
@@ -2798,6 +2802,7 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
             state.initial.span(),
             "component state initializer",
         )?;
+        env.define(state.name.clone(), state_ty);
     }
 
     for method in &c.methods {
@@ -2805,6 +2810,7 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
     }
 
     check_jsx_semantics(env, &c.body, None)?;
+    env.pop_scope();
 
     Ok(TypedComponent {
         ast: c.clone(),
@@ -8968,6 +8974,41 @@ fn describe(kind: lexer::TokenKind) -> String:
         )
         .expect("Set should resolve");
         assert_eq!(set_ty, selfhost_set_type());
+    }
+
+    #[test]
+    fn typecheck_binds_component_props_in_render_scope() {
+        let source = r#"
+component Hello(name: String):
+    render <h1>{name}</h1>
+"#;
+
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        let span_mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("source should parse");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("component render should resolve prop bindings");
+    }
+
+    #[test]
+    fn typecheck_binds_component_props_and_state_in_component_scope() {
+        let source = r#"
+component Hello(name: String):
+    state label: String = name
+    render <h1>{label}</h1>
+"#;
+
+        let tokens = Lexer::new(source).tokenize().expect("source should lex");
+        let span_mapper = SpanMapper::new(source);
+        let program = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("source should parse");
+
+        check(&program, &span_mapper, "<test>")
+            .expect("component state should resolve against component-local bindings");
     }
 
     #[test]
