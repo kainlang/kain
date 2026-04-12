@@ -2221,7 +2221,22 @@ fn infer_expr_type_with_expected(
         });
     }
 
-    infer_expr_type(env, expr, ctx)
+    let inferred = infer_expr_type(env, expr, ctx)?;
+    if let Some(expected_ty) = expected {
+        if types_compatible(expected_ty, &inferred) {
+            return Ok(inferred);
+        }
+        if let ResolvedType::Ref {
+            mutable: false,
+            inner,
+        } = expected_ty
+        {
+            if types_compatible(inner.as_ref(), &inferred) {
+                return Ok(expected_ty.clone());
+            }
+        }
+    }
+    Ok(inferred)
 }
 
 fn check_block_semantics(
@@ -3175,6 +3190,41 @@ fn infer_method_call_type(
     span: Span,
 ) -> KainResult<ResolvedType> {
     match receiver_ty {
+        ResolvedType::Ref { mutable, inner } => {
+            if let ResolvedType::Array(item_ty, _) = inner.as_ref() {
+                if method == "as_slice" {
+                    if args.is_empty() {
+                        return Ok(ResolvedType::Ref {
+                            mutable: *mutable,
+                            inner: Box::new(ResolvedType::Slice(Box::new(item_ty.as_ref().clone()))),
+                        });
+                    }
+                    return Err(env.type_error("Array.as_slice expects no arguments".to_string(), span));
+                }
+            }
+            if matches!(inner.as_ref(), ResolvedType::Array(_, _)) && method == "push" && !*mutable {
+                return Err(env.type_error(
+                    "Array.push requires a mutable receiver".to_string(),
+                    span,
+                ));
+            }
+            match inner.as_ref() {
+                ResolvedType::Array(_, _)
+                | ResolvedType::Slice(_)
+                | ResolvedType::String
+                | ResolvedType::Option(_)
+                | ResolvedType::Result(_, _) => {
+                    infer_method_call_type(env, ctx, inner.as_ref(), method, args, span)
+                }
+                _ => Err(env.type_error(
+                    format!(
+                        "Method call requires a receiver with known methods, found {}",
+                        describe_type(receiver_ty)
+                    ),
+                    span,
+                )),
+            }
+        }
         ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) => {
             if let Some(method_ty) = env.lookup_method(name, method).cloned() {
                 if let ResolvedType::Function {
@@ -3270,7 +3320,51 @@ fn infer_method_call_type(
                 }
                 Ok(ResolvedType::Bool)
             }
+            "as_slice" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Slice(Box::new(inner.as_ref().clone())))
+                } else {
+                    Err(env.type_error("Array.as_slice expects no arguments", span))
+                }
+            }
+            "get" => infer_index_lookup_method(env, ctx, inner.as_ref(), args, span, "Array.get"),
             _ => Err(env.type_error(format!("Unknown method '{}' on Array", method), span)),
+        },
+        ResolvedType::Slice(inner) => match method {
+            "len" => Ok(ResolvedType::Int(IntSize::I64)),
+            "contains" => {
+                if args.len() != 1 {
+                    return Err(env.type_error("Slice.contains expects exactly one argument", span));
+                }
+                let expected_borrowed = ResolvedType::Ref {
+                    mutable: false,
+                    inner: Box::new(inner.as_ref().clone()),
+                };
+                let arg_ty = infer_expr_type_with_expected(
+                    env,
+                    &args[0].value,
+                    ctx,
+                    Some(&expected_borrowed),
+                )?;
+                let stripped_arg_ty = peel_shared_refs(&arg_ty);
+                if !types_compatible(inner.as_ref(), &arg_ty)
+                    && !types_compatible(&expected_borrowed, &arg_ty)
+                    && !types_compatible(inner.as_ref(), stripped_arg_ty)
+                {
+                    return Err(env.type_error(
+                        format!(
+                            "slice contains expected {} or {}, found {}",
+                            describe_type(inner.as_ref()),
+                            describe_type(&expected_borrowed),
+                            describe_type(&arg_ty)
+                        ),
+                        args[0].span,
+                    ));
+                }
+                Ok(ResolvedType::Bool)
+            }
+            "get" => infer_index_lookup_method(env, ctx, inner.as_ref(), args, span, "Slice.get"),
+            _ => Err(env.type_error(format!("Unknown method '{}' on Slice", method), span)),
         },
         ResolvedType::Option(inner) => match method {
             "map" => infer_builtin_transform_method(
@@ -3332,9 +3426,28 @@ fn infer_method_call_type(
             }
             _ => Err(env.type_error(format!("Unknown method '{}' on Result", method), span)),
         },
-        ResolvedType::String => match method {
-            "len" => Ok(ResolvedType::Int(IntSize::I64)),
-            _ => Err(env.type_error(format!("Unknown method '{}' on String", method), span)),
+        ResolvedType::Int(_)
+        | ResolvedType::Float(_)
+        | ResolvedType::Bool
+        | ResolvedType::Char
+        | ResolvedType::String => match method {
+            "len" if matches!(receiver_ty, ResolvedType::String) => {
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "to_string" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::String)
+                } else {
+                    Err(env.type_error(
+                        format!("{}.to_string expects no arguments", describe_type(receiver_ty)),
+                        span,
+                    ))
+                }
+            }
+            _ => Err(env.type_error(
+                format!("Unknown method '{}' on {}", method, describe_type(receiver_ty)),
+                span,
+            )),
         },
         ResolvedType::Unknown => Ok(ResolvedType::Unknown),
         other => Err(env.type_error(
@@ -3345,6 +3458,39 @@ fn infer_method_call_type(
             span,
         )),
     }
+}
+
+fn infer_index_lookup_method(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    inner_ty: &ResolvedType,
+    args: &[CallArg],
+    span: Span,
+    method_name: &str,
+) -> KainResult<ResolvedType> {
+    if args.len() != 1 {
+        return Err(env.type_error(
+            format!("{method_name} expects exactly one argument"),
+            span,
+        ));
+    }
+    let index_ty = infer_expr_type_with_expected(
+        env,
+        &args[0].value,
+        ctx,
+        Some(&ResolvedType::Int(IntSize::I64)),
+    )?;
+    ensure_type_compatible(
+        env,
+        &ResolvedType::Int(IntSize::I64),
+        &index_ty,
+        args[0].span,
+        method_name,
+    )?;
+    Ok(ResolvedType::Option(Box::new(ResolvedType::Ref {
+        mutable: false,
+        inner: Box::new(inner_ty.clone()),
+    })))
 }
 
 fn peel_shared_refs<'a>(ty: &'a ResolvedType) -> &'a ResolvedType {
@@ -3663,17 +3809,17 @@ fn bind_pattern_types(env: &mut TypeEnv, pattern: &Pattern, ty: &ResolvedType) -
             Ok(())
         }
         Pattern::Slice { patterns, rest, .. } => {
-            let item_ty = match ty {
-                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
-                    inner.as_ref().clone()
-                }
+            let item_ty = match pattern_match_subject_type(ty) {
+                ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => inner.as_ref().clone(),
                 _ => ResolvedType::Unknown,
             };
             for pattern in patterns {
-                bind_pattern_types(env, pattern, &item_ty)?;
+                let bound_ty = borrowed_pattern_binding_type(ty, &item_ty);
+                bind_pattern_types(env, pattern, &bound_ty)?;
             }
             if let Some(rest_name) = rest {
-                env.define(rest_name.clone(), ResolvedType::Slice(Box::new(item_ty)));
+                let rest_ty = borrowed_pattern_binding_type(ty, &ResolvedType::Slice(Box::new(item_ty)));
+                env.define(rest_name.clone(), rest_ty);
             }
             Ok(())
         }
@@ -3919,7 +4065,12 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
                 inner: actual_inner,
             },
         ) => {
-            (!expected_mutable || *actual_mutable) && types_compatible(expected_inner, actual_inner)
+            (!expected_mutable || *actual_mutable)
+                && if *expected_mutable {
+                    types_compatible(expected_inner, actual_inner)
+                } else {
+                    types_compatible(expected_inner, peel_shared_refs(actual_inner))
+                }
         }
         (
             ResolvedType::Ptr {
@@ -5170,5 +5321,260 @@ mod tests {
         )
         .expect("Array.contains should typecheck");
         assert_eq!(result, ResolvedType::Bool);
+    }
+
+    #[test]
+    fn typecheck_allows_array_contains_with_redundant_shared_borrow() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let string_ref = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(ResolvedType::String),
+        };
+        env.define("name".to_string(), string_ref);
+        let array_ty = ResolvedType::Array(Box::new(ResolvedType::String), 2);
+
+        let result = infer_method_call_type(
+            &mut env,
+            None,
+            &array_ty,
+            "contains",
+            &[CallArg {
+                name: None,
+                value: Expr::Ref {
+                    mutable: false,
+                    value: Box::new(Expr::Ident("name".to_string(), span)),
+                    span,
+                },
+                span,
+            }],
+            span,
+        )
+        .expect("Array.contains should accept redundant shared borrows");
+        assert_eq!(result, ResolvedType::Bool);
+    }
+
+    #[test]
+    fn typecheck_allows_primitive_to_string_methods() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+
+        let stringified_int = infer_method_call_type(
+            &mut env,
+            None,
+            &ResolvedType::Int(IntSize::I64),
+            "to_string",
+            &[],
+            span,
+        )
+        .expect("Int.to_string should typecheck");
+        assert_eq!(stringified_int, ResolvedType::String);
+
+        let stringified_string = infer_method_call_type(
+            &mut env,
+            None,
+            &ResolvedType::String,
+            "to_string",
+            &[],
+            span,
+        )
+        .expect("String.to_string should typecheck");
+        assert_eq!(stringified_string, ResolvedType::String);
+    }
+
+    #[test]
+    fn typecheck_allows_borrowed_array_as_slice_and_get() {
+        let span = Span::default();
+        let span_mapper = SpanMapper::new("");
+        let mut env = TypeEnv::new(&span_mapper, "<test>");
+        let borrowed_array = ResolvedType::Ref {
+            mutable: false,
+            inner: Box::new(ResolvedType::Array(Box::new(ResolvedType::String), 2)),
+        };
+
+        let slice_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &borrowed_array,
+            "as_slice",
+            &[],
+            span,
+        )
+        .expect("borrowed arrays should expose as_slice");
+        assert_eq!(
+            slice_ty,
+            ResolvedType::Ref {
+                mutable: false,
+                inner: Box::new(ResolvedType::Slice(Box::new(ResolvedType::String))),
+            }
+        );
+
+        let get_ty = infer_method_call_type(
+            &mut env,
+            None,
+            &slice_ty,
+            "get",
+            &[CallArg {
+                name: None,
+                value: Expr::Int(1, span),
+                span,
+            }],
+            span,
+        )
+        .expect("slices should expose get");
+        assert_eq!(
+            get_ty,
+            ResolvedType::Option(Box::new(ResolvedType::Ref {
+                mutable: false,
+                inner: Box::new(ResolvedType::String),
+            }))
+        );
+    }
+
+    #[test]
+    fn typecheck_borrowed_slice_patterns_bind_borrowed_items() {
+        let span = Span::default();
+        let string_slice_ref = Type::Ref {
+            mutable: false,
+            inner: Box::new(Type::Slice(
+                Box::new(Type::Named {
+                    name: "String".to_string(),
+                    generics: vec![],
+                    span,
+                }),
+                span,
+            )),
+            lifetime: None,
+            span,
+        };
+        let program = Program {
+            items: vec![Item::Function(Function {
+                name: "inspect".to_string(),
+                generics: vec![],
+                params: vec![Param {
+                    name: "items".to_string(),
+                    ty: string_slice_ref,
+                    mutable: false,
+                    default: None,
+                    span,
+                }],
+                return_type: None,
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::Match {
+                        scrutinee: Box::new(Expr::Ident("items".to_string(), span)),
+                        arms: vec![
+                            MatchArm {
+                                pattern: Pattern::Slice {
+                                    patterns: vec![Pattern::Binding {
+                                        name: "first".to_string(),
+                                        mutable: false,
+                                        span,
+                                    }],
+                                    rest: None,
+                                    span,
+                                },
+                                guard: None,
+                                body: Expr::Call {
+                                    callee: Box::new(Expr::Ident(
+                                        "is_compute_plan_binding".to_string(),
+                                        span,
+                                    )),
+                                    args: vec![CallArg {
+                                        name: None,
+                                        value: Expr::Ident("first".to_string(), span),
+                                        span,
+                                    }],
+                                    span,
+                                },
+                                span,
+                            },
+                            MatchArm {
+                                pattern: Pattern::Wildcard(span),
+                                guard: None,
+                                body: Expr::Bool(false, span),
+                                span,
+                            },
+                        ],
+                        span,
+                    })],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            })],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check_with_extra_globals(
+            &program,
+            &span_mapper,
+            "<test>",
+            [(
+                "is_compute_plan_binding".to_string(),
+                ResolvedType::Function {
+                    params: vec![ResolvedType::Ref {
+                        mutable: false,
+                        inner: Box::new(ResolvedType::String),
+                    }],
+                    ret: Box::new(ResolvedType::Bool),
+                    effects: EffectSet::new(),
+                },
+            )],
+        )
+        .expect("borrowed slice patterns should keep borrowed item types");
+    }
+
+    #[test]
+    fn typecheck_allows_autoref_for_shared_string_arguments() {
+        let span = Span::default();
+        let program = Program {
+            items: vec![Item::Function(Function {
+                name: "inspect".to_string(),
+                generics: vec![],
+                params: vec![],
+                return_type: None,
+                effects: vec![],
+                body: Block {
+                    stmts: vec![Stmt::Expr(Expr::Call {
+                        callee: Box::new(Expr::Ident("is_compute_plan_binding".to_string(), span)),
+                        args: vec![CallArg {
+                            name: None,
+                            value: Expr::String("dispatch".to_string(), span),
+                            span,
+                        }],
+                        span,
+                    })],
+                    span,
+                },
+                visibility: Visibility::Private,
+                attributes: vec![],
+                span,
+            })],
+            span,
+        };
+
+        let span_mapper = SpanMapper::new("");
+        check_with_extra_globals(
+            &program,
+            &span_mapper,
+            "<test>",
+            [(
+                "is_compute_plan_binding".to_string(),
+                ResolvedType::Function {
+                    params: vec![ResolvedType::Ref {
+                        mutable: false,
+                        inner: Box::new(ResolvedType::String),
+                    }],
+                    ret: Box::new(ResolvedType::Bool),
+                    effects: EffectSet::new(),
+                },
+            )],
+        )
+        .expect("shared-reference arguments should autoref compatible string values");
     }
 }
