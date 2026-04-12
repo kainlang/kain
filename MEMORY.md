@@ -74,27 +74,6 @@ Recommended next step:
   `kainc`/compiler-shell runtime profile so shell builds do not drag the whole
   engine/runtime stack every time.
 
-## 2026-04-12 - native runtime vendor lanes now promote from probe results
-
-The native runtime now treats several vendor-backed lanes as bridge-first runtime capabilities instead of permanent staged placeholders. The service registry refreshes availability from each vendor function table's `probe()` result, so a lane can move from manifest truth to active runtime truth when the external runtime or binary is actually present.
-
-What changed:
-
-- Updated the native vendor catalog to use bridge-branded runtime identities for the activated lanes so renderer and service diagnostics show the active bridge name instead of the old staged wording.
-- Extended the WAMR probe to accept either an explicit runtime path or a PATH-resolved `iwasm` / `wamr` binary.
-- Synced `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json` so `gfx.compute` is available in the manifest mirror and the bridge-backed runtime set is described consistently.
-- Reworded `ARCHITECTURE.md` so the active graphics/UI vendor lanes are documented as probe-backed capabilities, not future stubs.
-
-Current risks:
-
-- `gfx.shader` and `gfx.material` are still future-facing contract entries. They should remain planned until the native service wiring actually exists.
-- Bridge-backed lanes still depend on the corresponding runtime or binary being present on the host, so the probe layer is the activation gate.
-- The baseline renderer should stay `bgfx` unless the default-selection logic is intentionally rewritten; the bridge-backed renderers are not meant to become the accidental default.
-
-Recommended next step:
-
-- Run the native compile/validation path and then trim any stale `staged` wording that still survives in non-authoritative docs.
-
 ## 2026-04-12 - `src/core/kainc.kn` now clears LLVM emission as a backend-safe seed shell
 
 The owned `src/core/kainc.kn` shell now emits LLVM IR successfully. The shell is
