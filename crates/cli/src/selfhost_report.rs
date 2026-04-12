@@ -70,6 +70,7 @@ pub struct SelfHostPhase1Report {
     pub repo_root: String,
     pub profile_path: String,
     pub profile_name: String,
+    pub force_mode: bool,
     pub inventory_dir: String,
     pub inventory_inputs: Vec<InventoryInputEvidence>,
     pub output_dir: String,
@@ -91,6 +92,7 @@ pub struct SelfHostPhase1Report {
     pub stage2_build_log_path: Option<String>,
     pub stage2_build_success: Option<bool>,
     pub stage2_build_exit_code: Option<i32>,
+    pub stage2_error: Option<String>,
     pub final_phase_status: SelfHostPhaseStatus,
 }
 
@@ -103,6 +105,7 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
         "- Profile: `{}` (`{}`)\n",
         report.profile_name, report.profile_path
     ));
+    out.push_str(&format!("- Force mode: `{}`\n", report.force_mode));
     out.push_str(&format!("- Inventory dir: `{}`\n", report.inventory_dir));
     if report.inventory_inputs.is_empty() {
         out.push_str("- Inventory inputs: `none`\n");
@@ -175,6 +178,9 @@ pub fn render_phase_markdown(title: &str, report: &SelfHostPhase1Report) -> Stri
     }
     if let Some(exit_code) = report.stage2_build_exit_code {
         out.push_str(&format!("- Stage2 build exit code: `{}`\n", exit_code));
+    }
+    if let Some(stage2_error) = &report.stage2_error {
+        out.push_str(&format!("- Stage2 error: `{}`\n", stage2_error));
     }
     out.push('\n');
 

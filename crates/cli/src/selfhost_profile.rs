@@ -276,7 +276,10 @@ mod tests {
         let profile = SelfHostSourceProfile::default();
         let repo_root = Path::new("/tmp/kain");
         let output_dir = Path::new("/tmp/out");
-        assert_eq!(profile.canonical_source_root(repo_root), repo_root.join("src"));
+        assert_eq!(
+            profile.canonical_source_root(repo_root),
+            repo_root.join("src")
+        );
         assert_eq!(
             profile.output_mirror_root(output_dir),
             output_dir.join("mirror").join("src")

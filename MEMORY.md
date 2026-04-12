@@ -1,5 +1,56 @@
 # MEMORY
 
+## 2026-04-12 - selfhost now emits a profile-driven file mirror tree and can keep partial artifacts under `--force`
+
+The selfhost lane is no longer structurally centered on one generated `.kn` per crate. It now emits a file-preserving Kain mirror tree, a source-correspondence manifest, split roundtrip Rust trees, and a stage2 workspace assembled from those per-file artifacts. The CLI also now has a `--force` mode so phase runs keep later artifacts instead of aborting on the first crate that fails.
+
+What changed:
+
+- Extended the Rust selfhost importer in `crates/kain-import/src/rust/selfhost.rs`
+  - The detailed selfhost result now exposes one typed `Program` per imported Rust module/file instead of only the crate aggregate.
+- Added `crates/cli/src/selfhost_profile.rs`
+  - Introduced the data-driven `SelfHostSourceProfile` model for canonical source roots, output mirror roots, roundtrip roots, stage2 workspace roots, and phase slices.
+- Added `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`
+  - The default selfhost source profile now defines the canonical `src/<crate>/...` mirror contract and the phase1/phase2 crate waves.
+- Reworked `crates/cli/src/selfhost.rs`
+  - Phase1 and phase2 now build one mirror plan per Rust source file.
+  - The pipeline writes canonical Kain mirrors, output-local mirror copies, aggregate compatibility bundles, and a `source_correspondence_manifest.json`.
+  - Phase2 roundtrip Rust is split back into `roundtrip_rust/<crate>/src/...` instead of staying as a single flat file.
+  - Stage2 workspace assembly now copies those split source trees into `stage2_workspace/crates/<crate>/src/...`.
+  - Added true boolean control for `--emit-roundtrip-rust`, `--assemble-stage2`, and `--build-stage2`.
+  - Added `--force` so selfhost continues emitting later crate artifacts and report evidence after earlier crate failures.
+- Updated `crates/cli/src/selfhost_report.rs`
+  - Reports now record profile roots, source-correspondence manifest paths, mirror counts, roundtrip tree roots, force mode, and stage2 error state.
+- Updated `crates/cli/Cargo.toml`
+  - Wired `kain-c-ffi` into the CLI crate so the current `main.rs` import path builds during full-bin validation.
+
+Validation:
+
+- `cargo test -p cli --lib default_profile_maps_phase_slices -- --nocapture`
+- `cargo test -p cli --lib build_file_mirror_plans_preserves_file_level_paths -- --nocapture`
+- `cargo test -p cli --lib write_roundtrip_rust_tree_splits_inline_modules_into_real_files -- --nocapture`
+- `cargo run -q -p cli --bin kain -- selfhost phase1 --inventory-dir ouroboros/docs/selfhost/inventories --profile-path /tmp/kain_selfhost_source_profile_validation.json --output-dir /tmp/kain_selfhost_phase1_validation`
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --profile-path /tmp/kain_selfhost_source_profile_validation.json --output-dir /tmp/kain_selfhost_phase2_mirror_validation --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false`
+  - Produced a `hard_fail` report, but still emitted 71 mirrored files plus `source_correspondence_manifest.json` across `kain-core`, `kain-import`, `kain-sys-codegen`, and `cli`.
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --profile-path /tmp/kain_selfhost_source_profile_validation.json --output-dir /tmp/kain_selfhost_phase2_force_roundtrip_validation --assemble-stage2 false --build-stage2 false --force`
+  - Previously this lane died at the first roundtrip/codegen failure. Under `--force` it now emitted aggregate bundles and a full correspondence/report artifact set for all four phase2 crates before returning `hard_fail`.
+
+Design decisions:
+
+- Treated the file-preserving mirror tree as the primary structural artifact and kept aggregate `.kn` / `.roundtrip.rs` outputs only as a compatibility bridge for the still-single-source frontend/codegen lane.
+- Kept `--force` honest: it preserves artifact generation and reporting, but it does not hide failure. Final status stays `hard_fail` when import, roundtrip, or stage2 errors remain.
+- Allowed force-mode stage2 assembly to assemble only crates that actually produced roundtrip Rust, instead of aborting the whole lane on missing earlier outputs.
+
+Current risks:
+
+- The active frontend still compiles one source string at a time, so true multi-file Kain compilation has not landed yet.
+- Phase2 is still not green. The current force-mode validation shows roundtrip/type errors in `kain-core`, `kain-import`, and `kain-sys-codegen`, plus strict `extern crate` rejections in `cli`.
+- `ARCHITECTURE.md` still contains some legacy `M:/Code/Kain` link targets even though the durable selfhost story is now checkout-relative and Linux-safe.
+
+Recommended next step:
+
+- Remove the current phase2 blockers one crate family at a time, but keep using the file mirror tree plus `--force` so every rerun leaves behind a full artifact graph and not just the first failure site.
+
 # 2026-04-12 - material_atrium now compiles through the LLVM/native executable lane
 
 The `material_atrium_showcase` smoke now compiles through Kain's LLVM/native executable lane into a standalone native binary under `smoketest/3D/material_atrium_showcase/llvm-native/`, but Linux still uses the Qt shell as the visible compatibility presenter. The authored smoke stays source-first and Kain-owned; the remaining gap is a real non-Rust native host that can present the LLVM executable directly on Linux.

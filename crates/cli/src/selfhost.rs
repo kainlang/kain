@@ -1,7 +1,5 @@
 use crate::error::{KainError, KainResult};
-use crate::selfhost_profile::{
-    default_selfhost_source_profile_path, SelfHostSourceProfile,
-};
+use crate::selfhost_profile::{default_selfhost_source_profile_path, SelfHostSourceProfile};
 use crate::selfhost_report::{
     render_phase_markdown, CratePhase1Result, InventoryInputEvidence, MacroFinding,
     SelfHostPhase1Report, SelfHostPhaseStatus, Stage2WorkspaceCrateEvidence, TraitDynSummary,
@@ -78,9 +76,6 @@ struct SelfHostFileCorrespondence {
 
 #[derive(Debug, Clone)]
 struct SelfHostCrateEmissionArtifacts {
-    aggregate_bundle_path: Option<PathBuf>,
-    canonical_kain_root: Option<PathBuf>,
-    output_kain_root: Option<PathBuf>,
     mirrored_file_count: usize,
 }
 
@@ -88,7 +83,6 @@ struct SelfHostCrateEmissionArtifacts {
 struct CrateRoundtripRustArtifacts {
     aggregate_rust_path: PathBuf,
     source_tree_root: PathBuf,
-    lib_rs_path: PathBuf,
     main_rs_path: Option<PathBuf>,
     file_count: usize,
 }
@@ -136,8 +130,11 @@ pub enum SelfHostCommand {
         #[arg(long)]
         profile_path: Option<PathBuf>,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         emit_bundles: bool,
+
+        #[arg(long)]
+        force: bool,
     },
     Phase2 {
         #[arg(long)]
@@ -149,17 +146,20 @@ pub enum SelfHostCommand {
         #[arg(long)]
         profile_path: Option<PathBuf>,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         emit_bundles: bool,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         emit_roundtrip_rust: bool,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         assemble_stage2: bool,
 
-        #[arg(long, default_value_t = true)]
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         build_stage2: bool,
+
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -170,7 +170,8 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             output_dir,
             profile_path,
             emit_bundles,
-        } => run_phase1(inventory_dir, output_dir, profile_path, emit_bundles),
+            force,
+        } => run_phase1(inventory_dir, output_dir, profile_path, emit_bundles, force),
         SelfHostCommand::Phase2 {
             inventory_dir,
             output_dir,
@@ -179,6 +180,7 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             emit_roundtrip_rust,
             assemble_stage2,
             build_stage2,
+            force,
         } => run_phase2(
             inventory_dir,
             output_dir,
@@ -187,6 +189,7 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
             emit_roundtrip_rust,
             assemble_stage2,
             build_stage2,
+            force,
         ),
     }
 }
@@ -196,6 +199,7 @@ fn run_phase1(
     output_dir: Option<PathBuf>,
     profile_path: Option<PathBuf>,
     emit_bundles: bool,
+    force: bool,
 ) -> KainResult<()> {
     run_phase(
         "phase1",
@@ -206,6 +210,7 @@ fn run_phase1(
         false,
         false,
         false,
+        force,
     )
 }
 
@@ -217,6 +222,7 @@ fn run_phase2(
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,
     build_stage2: bool,
+    force: bool,
 ) -> KainResult<()> {
     run_phase(
         "phase2",
@@ -227,6 +233,7 @@ fn run_phase2(
         emit_roundtrip_rust,
         assemble_stage2,
         build_stage2,
+        force,
     )
 }
 
@@ -239,11 +246,15 @@ fn run_phase(
     emit_roundtrip_rust: bool,
     assemble_stage2: bool,
     build_stage2: bool,
+    force: bool,
 ) -> KainResult<()> {
     let repo_root = find_repo_root(&std::env::current_dir().map_err(KainError::Io)?)?;
     let inventory_dir = inventory_dir.unwrap_or_else(|| default_inventory_dir(&repo_root));
     let output_dir =
         output_dir.unwrap_or_else(|| default_output_dir_for_phase(&repo_root, phase_name));
+    let profile_path =
+        profile_path.unwrap_or_else(|| default_selfhost_source_profile_path(&repo_root));
+    let profile = SelfHostSourceProfile::load(&profile_path)?;
     let inventory_inputs = collect_inventory_input_evidence(&inventory_dir)?;
     let inventories = load_inventories(&inventory_dir)?;
     let mut options = RustSelfHostOptions::from_inventory_dir(&inventory_dir).map_err(|err| {
@@ -259,123 +270,209 @@ fn run_phase(
         ))
     })?;
 
-    let crates_processed = match phase_name {
-        "phase2" if !inventories.module_map.phase2_slice.is_empty() => {
-            inventories.module_map.phase2_slice.clone()
-        }
-        _ => inventories.module_map.initial_slice.clone(),
-    };
+    let crates_processed = resolve_crates_for_phase(&profile, &inventories.module_map, phase_name);
     let mut modules_discovered: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut crate_results = Vec::new();
     let mut all_rejected = Vec::new();
     let mut all_required_preserved = Vec::new();
-    let mut roundtrip_rust_outputs = BTreeMap::<String, PathBuf>::new();
+    let mut roundtrip_rust_outputs = BTreeMap::<String, CrateRoundtripRustArtifacts>::new();
+    let mut source_correspondence_crates = Vec::new();
+    let canonical_source_root = profile.canonical_source_root(&repo_root);
+    let output_mirror_root = profile.output_mirror_root(&output_dir);
+    let roundtrip_rust_root = profile.roundtrip_rust_root(&output_dir);
 
     for crate_name in &crates_processed {
         let crate_root = repo_root.join("crates").join(crate_name);
-        if !crate_root.exists() {
-            return Err(KainError::runtime(format!(
-                "Initial self-host slice crate not found: {}",
-                crate_root.display()
-            )));
-        }
-
         let rejected_macros_found = macro_findings_for(
             crate_name,
             &inventories.macro_inventory,
             &inventories.allowlist.macro_policy.reject,
         );
-        let import_result = kain_import::import_rust_selfhost_dir_detailed(&crate_root, &options);
 
         let mut diagnostics = Vec::new();
         let mut import_success = true;
         let mut import_error = None;
         let mut output_kn_path = None;
+        let canonical_kain_root = canonical_source_root.join(crate_name);
+        let output_kain_root = output_mirror_root.join(crate_name);
+        let roundtrip_tree_root = roundtrip_rust_root.join(crate_name);
+        let mut aggregate_roundtrip_rust_path = None;
+        let mut roundtrip_rust_tree_root = None;
+        let mut mirrored_file_count = 0usize;
         let mut item_count = 0usize;
         let mut required_direct_lowering_still_preserved = Vec::new();
         let mut discovered_modules = Vec::new();
 
-        match import_result {
-            Ok(result) => {
-                discovered_modules = result
-                    .graph
-                    .modules
-                    .iter()
-                    .map(|module| {
-                        module
-                            .file_path
-                            .strip_prefix(&repo_root)
-                            .unwrap_or(&module.file_path)
-                            .display()
-                            .to_string()
-                    })
-                    .collect::<Vec<_>>();
-                modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
+        let mut file_plans = Vec::new();
+        let mut aggregate_bundle_path: Option<PathBuf> = None;
+        let mut aggregate_roundtrip_path: Option<PathBuf> = None;
 
-                let program = result.program;
-                diagnostics.extend(result.diagnostics);
-                item_count = program.items.len();
-                required_direct_lowering_still_preserved = preserved_required_macro_findings(
-                    crate_name,
-                    &program,
-                    &inventories.allowlist.phase1_required_direct_lowering,
-                );
-                if !required_direct_lowering_still_preserved.is_empty() {
-                    diagnostics.push(format!(
-                        "required direct-lower macros preserved: {}",
-                        required_direct_lowering_still_preserved
+        if !crate_root.exists() {
+            import_success = false;
+            let message = format!(
+                "Initial self-host slice crate not found: {}",
+                crate_root.display()
+            );
+            diagnostics.push(message.clone());
+            import_error = Some(message.clone());
+            if !force {
+                return Err(KainError::runtime(message));
+            }
+        } else {
+            let import_result =
+                kain_import::import_rust_selfhost_dir_detailed(&crate_root, &options);
+            let crate_processing = (|| -> KainResult<()> {
+                match import_result {
+                    Ok(result) => {
+                        discovered_modules = result
+                            .graph
+                            .modules
                             .iter()
-                            .map(|finding| format!(
-                                "{}({})",
-                                finding.macro_name, finding.occurrence_count
-                            ))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                }
-                if !diagnostics.is_empty() {
-                    import_success = false;
-                }
-                if result.rejected {
-                    import_error = Some(format!(
-                        "self-host import rejected {} diagnostic(s)",
-                        diagnostics.len()
-                    ));
-                }
-                if emit_bundles {
-                    let bundle_path = output_dir.join(format!("{}.kn", crate_name));
-                    let rendered = render_program(&program)?;
-                    fs::write(&bundle_path, &rendered).map_err(|err| {
-                        KainError::runtime(format!(
-                            "Failed to write self-host bundle {}: {}",
-                            bundle_path.display(),
-                            err
-                        ))
-                    })?;
-                    output_kn_path = Some(bundle_path.display().to_string());
-                    if emit_roundtrip_rust {
-                        let roundtrip_path =
-                            output_dir.join(format!("{}.roundtrip.rs", crate_name));
-                        let rust_source = compile_kn_source_to_rust(&rendered)?;
-                        fs::write(&roundtrip_path, rust_source).map_err(|err| {
-                            KainError::runtime(format!(
-                                "Failed to write self-host roundtrip Rust {}: {}",
-                                roundtrip_path.display(),
-                                err
-                            ))
-                        })?;
-                        roundtrip_rust_outputs.insert(crate_name.clone(), roundtrip_path);
+                            .map(|module| {
+                                module
+                                    .file_path
+                                    .strip_prefix(&repo_root)
+                                    .unwrap_or(&module.file_path)
+                                    .display()
+                                    .to_string()
+                            })
+                            .collect::<Vec<_>>();
+                        modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
+
+                        file_plans = build_file_mirror_plans(
+                            &crate_root,
+                            crate_name,
+                            &result.module_programs,
+                            &canonical_source_root,
+                            &output_mirror_root,
+                            &roundtrip_rust_root,
+                        )?;
+                        mirrored_file_count = file_plans.len();
+
+                        let program = result.program;
+                        diagnostics.extend(result.diagnostics);
+                        item_count = program.items.len();
+                        required_direct_lowering_still_preserved = preserved_required_macro_findings(
+                            crate_name,
+                            &program,
+                            &inventories.allowlist.phase1_required_direct_lowering,
+                        );
+                        if !required_direct_lowering_still_preserved.is_empty() {
+                            diagnostics.push(format!(
+                                "required direct-lower macros preserved: {}",
+                                required_direct_lowering_still_preserved
+                                    .iter()
+                                    .map(|finding| format!(
+                                        "{}({})",
+                                        finding.macro_name, finding.occurrence_count
+                                    ))
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ));
+                        }
+                        if !diagnostics.is_empty() {
+                            import_success = false;
+                        }
+                        if result.rejected {
+                            import_error = Some(format!(
+                                "self-host import rejected {} diagnostic(s)",
+                                diagnostics.len()
+                            ));
+                        }
+
+                        let rendered = if emit_bundles || emit_roundtrip_rust {
+                            Some(render_program(&program)?)
+                        } else {
+                            None
+                        };
+
+                        if emit_bundles {
+                            let emission =
+                                emit_selfhost_kain_mirrors(&result.module_programs, &file_plans)?;
+                            mirrored_file_count = emission.mirrored_file_count;
+                            let bundle_path =
+                                output_dir.join(profile.aggregate_bundle_file_name(crate_name));
+                            let rendered = rendered.as_ref().expect("rendered aggregate bundle");
+                            fs::write(&bundle_path, rendered).map_err(|err| {
+                                KainError::runtime(format!(
+                                    "Failed to write self-host bundle {}: {}",
+                                    bundle_path.display(),
+                                    err
+                                ))
+                            })?;
+                            output_kn_path = Some(bundle_path.display().to_string());
+                            aggregate_bundle_path = Some(bundle_path);
+                        }
+
+                        if emit_roundtrip_rust {
+                            let rendered = rendered.as_ref().expect("rendered aggregate bundle");
+                            let roundtrip_path = output_dir
+                                .join(profile.aggregate_roundtrip_file_name(crate_name));
+                            let rust_source = compile_kn_source_to_rust(rendered)?;
+                            fs::write(&roundtrip_path, &rust_source).map_err(|err| {
+                                KainError::runtime(format!(
+                                    "Failed to write self-host roundtrip Rust {}: {}",
+                                    roundtrip_path.display(),
+                                    err
+                                ))
+                            })?;
+                            let roundtrip_artifacts = write_roundtrip_rust_tree(
+                                crate_name,
+                                &crate_root,
+                                &roundtrip_rust_root,
+                                &roundtrip_path,
+                                &rust_source,
+                                &file_plans,
+                                &profile,
+                            )?;
+                            aggregate_roundtrip_rust_path = Some(
+                                roundtrip_artifacts
+                                    .aggregate_rust_path
+                                    .display()
+                                    .to_string(),
+                            );
+                            roundtrip_rust_tree_root =
+                                Some(roundtrip_artifacts.source_tree_root.display().to_string());
+                            aggregate_roundtrip_path = Some(roundtrip_path);
+                            roundtrip_rust_outputs.insert(crate_name.clone(), roundtrip_artifacts);
+                        }
+                        Ok(())
+                    }
+                    Err(err) => {
+                        import_success = false;
+                        let message = format!("{err}");
+                        diagnostics.extend(expand_import_diagnostics(&message));
+                        import_error = Some(message);
+                        modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
+                        Ok(())
                     }
                 }
-            }
-            Err(err) => {
+            })();
+
+            if let Err(err) = crate_processing {
                 import_success = false;
                 let message = format!("{err}");
-                diagnostics.extend(expand_import_diagnostics(&message));
-                import_error = Some(message);
-                modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
+                diagnostics.push(message.clone());
+                if import_error.is_none() {
+                    import_error = Some(message.clone());
+                }
+                if !force {
+                    return Err(err);
+                }
             }
         }
+
+        source_correspondence_crates.push(build_crate_source_correspondence(
+            crate_name,
+            &crate_root,
+            &file_plans,
+            aggregate_bundle_path.as_deref(),
+            aggregate_roundtrip_path.as_deref(),
+            &canonical_kain_root,
+            &output_kain_root,
+            &roundtrip_tree_root,
+            &profile,
+        ));
 
         if !modules_discovered.contains_key(crate_name) {
             modules_discovered.insert(crate_name.clone(), discovered_modules.clone());
@@ -392,6 +489,11 @@ fn run_phase(
             import_success,
             import_error,
             output_kn_path,
+            canonical_kain_root: Some(canonical_kain_root.display().to_string()),
+            output_kain_root: Some(output_kain_root.display().to_string()),
+            aggregate_roundtrip_rust_path,
+            roundtrip_rust_tree_root,
+            mirrored_file_count,
             item_count,
             rejected_macros_found,
             required_direct_lowering_still_preserved,
@@ -408,27 +510,90 @@ fn run_phase(
     let mut stage2_build_log_path = None;
     let mut stage2_build_success = None;
     let mut stage2_build_exit_code = None;
+    let mut stage2_error = None;
+    let source_correspondence_manifest = SelfHostSourceCorrespondenceManifest {
+        generated_at_utc: Utc::now().to_rfc3339(),
+        phase_name: phase_name.to_string(),
+        repo_root: repo_root.display().to_string(),
+        profile_path: profile_path.display().to_string(),
+        profile_name: profile.name.clone(),
+        canonical_source_root: canonical_source_root.display().to_string(),
+        output_mirror_root: output_mirror_root.display().to_string(),
+        roundtrip_rust_root: roundtrip_rust_root.display().to_string(),
+        crates: source_correspondence_crates,
+    };
+    let source_correspondence_manifest_path =
+        profile.source_correspondence_manifest_path(&output_dir);
+    write_source_correspondence_manifest(
+        &source_correspondence_manifest_path,
+        &source_correspondence_manifest,
+    )?;
+    let source_correspondence_file_count = source_correspondence_manifest
+        .crates
+        .iter()
+        .map(|crate_entry| crate_entry.mirrored_files.len())
+        .sum();
 
     if assemble_stage2 {
-        let stage2_assembly = assemble_stage2_workspace(
-            &repo_root,
-            &output_dir.join("stage2_workspace"),
-            &crates_processed,
-            &roundtrip_rust_outputs,
-        )?;
-        stage2_workspace_path = Some(stage2_assembly.workspace_path.display().to_string());
-        stage2_workspace_crates = stage2_assembly.crates;
+        let stage2_crates_to_assemble = if force {
+            crates_processed
+                .iter()
+                .filter(|crate_name| roundtrip_rust_outputs.contains_key(*crate_name))
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            crates_processed.clone()
+        };
 
-        if build_stage2 {
-            let build_result = build_stage2_workspace(&stage2_assembly.workspace_path)?;
-            stage2_build_success = Some(build_result.success);
-            stage2_build_artifact = build_result
-                .artifact_path
-                .map(|path| path.display().to_string());
-            stage2_build_log_path = Some(build_result.log_path.display().to_string());
-            stage2_build_exit_code = build_result.exit_code;
-            if !build_result.success {
-                final_phase_status = SelfHostPhaseStatus::HardFail;
+        if stage2_crates_to_assemble.is_empty() {
+            final_phase_status = SelfHostPhaseStatus::HardFail;
+            stage2_error = Some(
+                "No roundtrip Rust outputs were available for stage2 workspace assembly"
+                    .to_string(),
+            );
+        } else {
+            match assemble_stage2_workspace(
+                &repo_root,
+                &profile.stage2_workspace_dir(&output_dir),
+                &stage2_crates_to_assemble,
+                &roundtrip_rust_outputs,
+            ) {
+                Ok(stage2_assembly) => {
+                    stage2_workspace_path =
+                        Some(stage2_assembly.workspace_path.display().to_string());
+                    stage2_workspace_crates = stage2_assembly.crates;
+
+                    if build_stage2 {
+                        match build_stage2_workspace(&stage2_assembly.workspace_path) {
+                            Ok(build_result) => {
+                                stage2_build_success = Some(build_result.success);
+                                stage2_build_artifact = build_result
+                                    .artifact_path
+                                    .map(|path| path.display().to_string());
+                                stage2_build_log_path =
+                                    Some(build_result.log_path.display().to_string());
+                                stage2_build_exit_code = build_result.exit_code;
+                                if !build_result.success {
+                                    final_phase_status = SelfHostPhaseStatus::HardFail;
+                                }
+                            }
+                            Err(err) => {
+                                final_phase_status = SelfHostPhaseStatus::HardFail;
+                                stage2_error = Some(format!("{err}"));
+                                if !force {
+                                    return Err(err);
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    final_phase_status = SelfHostPhaseStatus::HardFail;
+                    stage2_error = Some(format!("{err}"));
+                    if !force {
+                        return Err(err);
+                    }
+                }
             }
         }
     }
@@ -436,9 +601,19 @@ fn run_phase(
     let report = SelfHostPhase1Report {
         generated_at_utc: Utc::now().to_rfc3339(),
         repo_root: repo_root.display().to_string(),
+        profile_path: profile_path.display().to_string(),
+        profile_name: profile.name.clone(),
+        force_mode: force,
         inventory_dir: inventory_dir.display().to_string(),
         inventory_inputs,
         output_dir: output_dir.display().to_string(),
+        canonical_source_root: canonical_source_root.display().to_string(),
+        output_mirror_root: output_mirror_root.display().to_string(),
+        roundtrip_rust_root: roundtrip_rust_root.display().to_string(),
+        source_correspondence_manifest_path: source_correspondence_manifest_path
+            .display()
+            .to_string(),
+        source_correspondence_file_count,
         crates_processed,
         modules_discovered,
         diagnostics_by_category,
@@ -452,6 +627,7 @@ fn run_phase(
         stage2_build_log_path,
         stage2_build_success,
         stage2_build_exit_code,
+        stage2_error,
         final_phase_status: final_phase_status.clone(),
     };
 
@@ -467,6 +643,396 @@ fn run_phase(
             Err(KainError::runtime(format!("Self-host {phase_name} failed")))
         }
     }
+}
+
+fn resolve_crates_for_phase(
+    profile: &SelfHostSourceProfile,
+    module_map: &ModuleMapInventory,
+    phase_name: &str,
+) -> Vec<String> {
+    if let Some(profile_crates) = profile.crates_for_phase(phase_name) {
+        if !profile_crates.is_empty() {
+            return profile_crates.to_vec();
+        }
+    }
+
+    match phase_name {
+        "phase2" if !module_map.phase2_slice.is_empty() => module_map.phase2_slice.clone(),
+        _ => module_map.initial_slice.clone(),
+    }
+}
+
+fn write_source_correspondence_manifest(
+    path: &Path,
+    manifest: &SelfHostSourceCorrespondenceManifest,
+) -> KainResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to create source correspondence manifest dir {}: {}",
+                parent.display(),
+                err
+            ))
+        })?;
+    }
+    let json = serde_json::to_string_pretty(manifest).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to serialize source correspondence manifest {}: {}",
+            path.display(),
+            err
+        ))
+    })?;
+    fs::write(path, json).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write source correspondence manifest {}: {}",
+            path.display(),
+            err
+        ))
+    })
+}
+
+fn build_file_mirror_plans(
+    crate_root: &Path,
+    crate_name: &str,
+    module_programs: &[RustSelfHostModuleProgram],
+    canonical_source_root: &Path,
+    output_mirror_root: &Path,
+    roundtrip_rust_root: &Path,
+) -> KainResult<Vec<SelfHostFileMirrorPlan>> {
+    let mut plans = Vec::with_capacity(module_programs.len());
+    for module_program in module_programs {
+        let rust_source_relative_path =
+            rust_source_relative_path(crate_root, &module_program.module.file_path)?;
+        let canonical_kain_relative_path =
+            canonical_kain_relative_path(&rust_source_relative_path)?;
+        let source_kind = rust_source_kind_for_relative_path(&rust_source_relative_path);
+        let module_path = module_path_for_relative_path(&rust_source_relative_path);
+
+        plans.push(SelfHostFileMirrorPlan {
+            module_name: module_program.module.module_name.clone(),
+            rust_source_path: module_program.module.file_path.clone(),
+            rust_source_relative_path: rust_source_relative_path.clone(),
+            canonical_kain_path: canonical_source_root
+                .join(crate_name)
+                .join(&canonical_kain_relative_path),
+            output_kain_path: output_mirror_root
+                .join(crate_name)
+                .join(&canonical_kain_relative_path),
+            stage2_roundtrip_rust_path: roundtrip_rust_root
+                .join(crate_name)
+                .join(&rust_source_relative_path),
+            module_path,
+            source_kind,
+        });
+    }
+    plans.sort_by(|left, right| {
+        left.rust_source_relative_path
+            .cmp(&right.rust_source_relative_path)
+    });
+    Ok(plans)
+}
+
+fn rust_source_relative_path(crate_root: &Path, file_path: &Path) -> KainResult<PathBuf> {
+    file_path
+        .strip_prefix(crate_root)
+        .map(Path::to_path_buf)
+        .map_err(|_| {
+            KainError::runtime(format!(
+                "Self-host source file {} is not inside crate root {}",
+                file_path.display(),
+                crate_root.display()
+            ))
+        })
+}
+
+fn canonical_kain_relative_path(rust_source_relative_path: &Path) -> KainResult<PathBuf> {
+    let rust_relative = rust_source_relative_path
+        .strip_prefix("src")
+        .unwrap_or(rust_source_relative_path);
+    let Some(file_name) = rust_relative.file_name() else {
+        return Err(KainError::runtime(format!(
+            "Cannot derive canonical Kain path from {}",
+            rust_source_relative_path.display()
+        )));
+    };
+    let mut relative = rust_relative.to_path_buf();
+    let mut output_name = PathBuf::from(file_name);
+    output_name.set_extension("kn");
+    relative.set_file_name(output_name);
+    Ok(relative)
+}
+
+fn rust_source_kind_for_relative_path(relative_path: &Path) -> SelfHostRustSourceKind {
+    let trimmed = relative_path.strip_prefix("src").unwrap_or(relative_path);
+    let file_name = trimmed.file_name().and_then(|value| value.to_str());
+    let parent_is_root = trimmed
+        .parent()
+        .map_or(true, |parent| parent.as_os_str().is_empty());
+    match file_name {
+        Some("lib.rs") if parent_is_root => SelfHostRustSourceKind::LibRoot,
+        Some("main.rs") if parent_is_root => SelfHostRustSourceKind::MainRoot,
+        Some("mod.rs") => SelfHostRustSourceKind::ModuleDirectoryRoot,
+        _ => SelfHostRustSourceKind::ModuleFile,
+    }
+}
+
+fn module_path_for_relative_path(relative_path: &Path) -> Vec<String> {
+    let trimmed = relative_path.strip_prefix("src").unwrap_or(relative_path);
+    let mut segments = trimmed
+        .iter()
+        .filter_map(|part| part.to_str())
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if let Some(last) = segments.last_mut() {
+        match last.as_str() {
+            "lib.rs" | "main.rs" => {
+                segments.pop();
+            }
+            "mod.rs" => {
+                segments.pop();
+            }
+            other if other.ends_with(".rs") => {
+                *last = other.trim_end_matches(".rs").to_string();
+            }
+            _ => {}
+        }
+    }
+    segments
+}
+
+fn emit_selfhost_kain_mirrors(
+    module_programs: &[RustSelfHostModuleProgram],
+    file_plans: &[SelfHostFileMirrorPlan],
+) -> KainResult<SelfHostCrateEmissionArtifacts> {
+    let mut programs_by_source_path = BTreeMap::new();
+    for module_program in module_programs {
+        programs_by_source_path.insert(
+            module_program.module.file_path.clone(),
+            &module_program.program,
+        );
+    }
+
+    for plan in file_plans {
+        let Some(program) = programs_by_source_path.get(&plan.rust_source_path) else {
+            return Err(KainError::runtime(format!(
+                "Missing module program for self-host mirror {}",
+                plan.rust_source_path.display()
+            )));
+        };
+        let rendered = render_program(program)?;
+        write_selfhost_text_file(
+            &plan.canonical_kain_path,
+            &rendered,
+            "self-host canonical Kain mirror",
+        )?;
+        write_selfhost_text_file(
+            &plan.output_kain_path,
+            &rendered,
+            "self-host output Kain mirror",
+        )?;
+    }
+
+    Ok(SelfHostCrateEmissionArtifacts {
+        mirrored_file_count: file_plans.len(),
+    })
+}
+
+fn write_selfhost_text_file(path: &Path, content: &str, label: &str) -> KainResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to create {} parent directory {}: {}",
+                label,
+                parent.display(),
+                err
+            ))
+        })?;
+    }
+    fs::write(path, content).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write {} {}: {}",
+            label,
+            path.display(),
+            err
+        ))
+    })
+}
+
+fn build_crate_source_correspondence(
+    crate_name: &str,
+    crate_root: &Path,
+    file_plans: &[SelfHostFileMirrorPlan],
+    aggregate_bundle_path: Option<&Path>,
+    aggregate_roundtrip_rust_path: Option<&Path>,
+    canonical_kain_root: &Path,
+    output_kain_root: &Path,
+    roundtrip_tree_root: &Path,
+    profile: &SelfHostSourceProfile,
+) -> SelfHostCrateCorrespondence {
+    let mirrored_files = file_plans
+        .iter()
+        .map(|plan| SelfHostFileCorrespondence {
+            module_name: plan.module_name.clone(),
+            rust_source_path: plan.rust_source_path.display().to_string(),
+            rust_source_relative_path: plan.rust_source_relative_path.display().to_string(),
+            canonical_kain_path: plan.canonical_kain_path.display().to_string(),
+            output_kain_path: plan.output_kain_path.display().to_string(),
+            stage2_roundtrip_rust_path: plan.stage2_roundtrip_rust_path.display().to_string(),
+            module_path: plan.module_path.clone(),
+            source_kind: plan.source_kind.as_str().to_string(),
+            ownership_state: profile.ownership.default_file_ownership_state.clone(),
+            stage2_roundtrip_strategy: match plan.source_kind {
+                SelfHostRustSourceKind::MainRoot => {
+                    profile.ownership.synthesized_main_root_strategy.clone()
+                }
+                _ => profile.ownership.roundtrip_strategy.clone(),
+            },
+        })
+        .collect();
+
+    SelfHostCrateCorrespondence {
+        crate_name: crate_name.to_string(),
+        crate_root: crate_root.display().to_string(),
+        aggregate_bundle_path: aggregate_bundle_path.map(|path| path.display().to_string()),
+        aggregate_roundtrip_rust_path: aggregate_roundtrip_rust_path
+            .map(|path| path.display().to_string()),
+        canonical_kain_root: canonical_kain_root.display().to_string(),
+        output_kain_root: output_kain_root.display().to_string(),
+        roundtrip_rust_tree_root: roundtrip_tree_root.display().to_string(),
+        mirrored_files,
+    }
+}
+
+fn write_roundtrip_rust_tree(
+    crate_name: &str,
+    _crate_root: &Path,
+    roundtrip_rust_root: &Path,
+    aggregate_rust_path: &Path,
+    rust_source: &str,
+    file_plans: &[SelfHostFileMirrorPlan],
+    _profile: &SelfHostSourceProfile,
+) -> KainResult<CrateRoundtripRustArtifacts> {
+    let parsed_file = syn::parse_file(rust_source).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to parse generated roundtrip Rust for {}: {}",
+            crate_name, err
+        ))
+    })?;
+    let crate_roundtrip_root = roundtrip_rust_root.join(crate_name);
+    let src_root = crate_roundtrip_root.join("src");
+    fs::create_dir_all(&src_root).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to create roundtrip Rust source root {}: {}",
+            src_root.display(),
+            err
+        ))
+    })?;
+
+    let lib_rs_path = src_root.join("lib.rs");
+    let mut module_plans_by_path = BTreeMap::new();
+    let has_main_root = file_plans
+        .iter()
+        .any(|plan| plan.source_kind == SelfHostRustSourceKind::MainRoot);
+    for plan in file_plans {
+        if matches!(
+            plan.source_kind,
+            SelfHostRustSourceKind::ModuleFile | SelfHostRustSourceKind::ModuleDirectoryRoot
+        ) {
+            module_plans_by_path.insert(plan.module_path.clone(), plan);
+        }
+    }
+
+    let mut written_files = BTreeSet::new();
+    write_split_roundtrip_rust_file(
+        &lib_rs_path,
+        &[],
+        parsed_file.items,
+        &module_plans_by_path,
+        &mut written_files,
+    )?;
+
+    let mut main_rs_path = None;
+    if has_main_root {
+        let main_path = src_root.join("main.rs");
+        write_selfhost_text_file(&main_path, "include!(\"lib.rs\");\n", "stage2 main.rs")?;
+        written_files.insert(main_path.clone());
+        main_rs_path = Some(main_path);
+    }
+
+    Ok(CrateRoundtripRustArtifacts {
+        aggregate_rust_path: aggregate_rust_path.to_path_buf(),
+        source_tree_root: crate_roundtrip_root,
+        main_rs_path,
+        file_count: written_files.len(),
+    })
+}
+
+fn write_split_roundtrip_rust_file(
+    file_path: &Path,
+    current_module_path: &[String],
+    input_items: Vec<syn::Item>,
+    module_plans_by_path: &BTreeMap<Vec<String>, &SelfHostFileMirrorPlan>,
+    written_files: &mut BTreeSet<PathBuf>,
+) -> KainResult<()> {
+    let mut file_items = Vec::new();
+
+    for item in input_items {
+        match item {
+            syn::Item::Mod(mut item_mod) => {
+                let Some((brace, inline_items)) = item_mod.content.take() else {
+                    file_items.push(syn::Item::Mod(item_mod));
+                    continue;
+                };
+                let mut next_path = current_module_path.to_vec();
+                next_path.push(item_mod.ident.to_string());
+                if let Some(plan) = module_plans_by_path.get(&next_path) {
+                    let mut declaration = item_mod.clone();
+                    declaration.content = None;
+                    declaration.semi = Some(Default::default());
+                    file_items.push(syn::Item::Mod(declaration));
+                    write_split_roundtrip_rust_file(
+                        &plan.stage2_roundtrip_rust_path,
+                        &next_path,
+                        inline_items,
+                        module_plans_by_path,
+                        written_files,
+                    )?;
+                } else {
+                    item_mod.content = Some((brace, inline_items));
+                    file_items.push(syn::Item::Mod(item_mod));
+                }
+            }
+            other => file_items.push(other),
+        }
+    }
+
+    write_pretty_syn_file(file_path, file_items)?;
+    written_files.insert(file_path.to_path_buf());
+    Ok(())
+}
+
+fn write_pretty_syn_file(path: &Path, items: Vec<syn::Item>) -> KainResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to create roundtrip Rust parent directory {}: {}",
+                parent.display(),
+                err
+            ))
+        })?;
+    }
+    let rendered = prettyplease::unparse(&syn::File {
+        shebang: None,
+        attrs: Vec::new(),
+        items,
+    });
+    fs::write(path, rendered).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write roundtrip Rust source file {}: {}",
+            path.display(),
+            err
+        ))
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -1190,12 +1756,25 @@ fn print_summary(phase_name: &str, report: &SelfHostPhase1Report) {
     println!("🧬 Self-host {}", phase_name);
     println!("   Crates: {}", report.crates_processed.join(", "));
     println!(
+        "   Profile: {} ({})",
+        report.profile_name, report.profile_path
+    );
+    if report.force_mode {
+        println!("   Force mode: true");
+    }
+    println!(
         "   Status: {}",
         match report.final_phase_status {
             SelfHostPhaseStatus::Pass => "pass",
             SelfHostPhaseStatus::SoftFail => "soft_fail",
             SelfHostPhaseStatus::HardFail => "hard_fail",
         }
+    );
+    println!("   Canonical source root: {}", report.canonical_source_root);
+    println!("   Output mirror root: {}", report.output_mirror_root);
+    println!(
+        "   Source correspondence manifest: {}",
+        report.source_correspondence_manifest_path
     );
     if let Some(path) = &report.stage2_workspace_path {
         println!("   Stage2 workspace: {}", path);
@@ -1211,6 +1790,9 @@ fn print_summary(phase_name: &str, report: &SelfHostPhase1Report) {
     }
     if let Some(exit_code) = report.stage2_build_exit_code {
         println!("   Stage2 build exit code: {}", exit_code);
+    }
+    if let Some(stage2_error) = &report.stage2_error {
+        println!("   Stage2 error: {}", stage2_error);
     }
     println!(
         "   Report JSON: {}",
@@ -1250,7 +1832,7 @@ fn assemble_stage2_workspace(
     repo_root: &Path,
     workspace_dir: &Path,
     crates_processed: &[String],
-    roundtrip_rust_outputs: &BTreeMap<String, PathBuf>,
+    roundtrip_rust_outputs: &BTreeMap<String, CrateRoundtripRustArtifacts>,
 ) -> KainResult<Stage2WorkspaceAssembly> {
     let workspace_dir = prepare_stage2_workspace_dir(workspace_dir)?;
     fs::create_dir_all(workspace_dir.join("crates")).map_err(|err| {
@@ -1281,17 +1863,16 @@ fn assemble_stage2_workspace(
     let mut stage2_workspace_crates = Vec::with_capacity(crates_processed.len());
 
     for crate_name in crates_processed {
-        let roundtrip_path = roundtrip_rust_outputs.get(crate_name).ok_or_else(|| {
+        let roundtrip_artifacts = roundtrip_rust_outputs.get(crate_name).ok_or_else(|| {
             KainError::runtime(format!(
                 "Missing roundtrip Rust output for stage2 crate {crate_name}"
             ))
         })?;
         let crate_dir = workspace_dir.join("crates").join(crate_name);
-        let src_dir = crate_dir.join("src");
-        fs::create_dir_all(&src_dir).map_err(|err| {
+        fs::create_dir_all(&crate_dir).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to create stage2 crate dir {}: {}",
-                src_dir.display(),
+                crate_dir.display(),
                 err
             ))
         })?;
@@ -1318,32 +1899,32 @@ fn assemble_stage2_workspace(
             ))
         })?;
 
-        let rust_source = fs::read_to_string(roundtrip_path).map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to read roundtrip Rust {}: {}",
-                roundtrip_path.display(),
-                err
-            ))
-        })?;
-        let lib_rs_path = src_dir.join("lib.rs");
-        fs::write(&lib_rs_path, &rust_source).map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to write stage2 lib.rs for {}: {}",
-                crate_name, err
-            ))
-        })?;
-        let mut main_rs_path = None;
-        if crate_name == "cli" {
-            let main_path = src_dir.join("main.rs");
-            fs::write(&main_path, "include!(\"lib.rs\");\n").map_err(|err| {
-                KainError::runtime(format!("Failed to write stage2 main.rs for cli: {}", err))
+        let source_tree_src_dir = roundtrip_artifacts.source_tree_root.join("src");
+        let stage2_src_dir = crate_dir.join("src");
+        copy_directory_recursive(&source_tree_src_dir, &stage2_src_dir)?;
+
+        let aggregate_source_metadata = fs::metadata(&roundtrip_artifacts.aggregate_rust_path)
+            .map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to stat roundtrip Rust {}: {}",
+                    roundtrip_artifacts.aggregate_rust_path.display(),
+                    err
+                ))
             })?;
-            main_rs_path = Some(main_path.display().to_string());
-        }
+        let lib_rs_path = stage2_src_dir.join("lib.rs");
+        let main_rs_path = roundtrip_artifacts
+            .main_rs_path
+            .as_ref()
+            .map(|_| stage2_src_dir.join("main.rs").display().to_string());
         stage2_workspace_crates.push(Stage2WorkspaceCrateEvidence {
             crate_name: crate_name.clone(),
-            source_roundtrip_path: roundtrip_path.display().to_string(),
-            source_roundtrip_byte_size: rust_source.len() as u64,
+            source_roundtrip_path: roundtrip_artifacts
+                .aggregate_rust_path
+                .display()
+                .to_string(),
+            source_roundtrip_byte_size: aggregate_source_metadata.len(),
+            source_tree_root: roundtrip_artifacts.source_tree_root.display().to_string(),
+            roundtrip_file_count: roundtrip_artifacts.file_count,
             manifest_path: stage2_manifest_path.display().to_string(),
             lib_rs_path: lib_rs_path.display().to_string(),
             main_rs_path,
@@ -1354,6 +1935,47 @@ fn assemble_stage2_workspace(
         workspace_path: workspace_dir,
         crates: stage2_workspace_crates,
     })
+}
+
+fn copy_directory_recursive(source_dir: &Path, target_dir: &Path) -> KainResult<()> {
+    if !source_dir.exists() {
+        return Err(KainError::runtime(format!(
+            "Roundtrip Rust source tree does not exist: {}",
+            source_dir.display()
+        )));
+    }
+    fs::create_dir_all(target_dir).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to create stage2 source directory {}: {}",
+            target_dir.display(),
+            err
+        ))
+    })?;
+    for entry in fs::read_dir(source_dir).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to read roundtrip Rust source directory {}: {}",
+            source_dir.display(),
+            err
+        ))
+    })? {
+        let entry = entry.map_err(KainError::Io)?;
+        let source_path = entry.path();
+        let target_path = target_dir.join(entry.file_name());
+        let metadata = entry.metadata().map_err(KainError::Io)?;
+        if metadata.is_dir() {
+            copy_directory_recursive(&source_path, &target_path)?;
+        } else {
+            fs::copy(&source_path, &target_path).map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to copy roundtrip Rust file {} to {}: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    err
+                ))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn prepare_stage2_workspace_dir(base_dir: &Path) -> KainResult<PathBuf> {
@@ -1645,8 +2267,11 @@ fn repair_selfhost_bundle(source: String) -> String {
         ]
         .join("\n")
     });
-    let source = repair_named_function_block(&source, "fn synthesize_converge_sample_args(", |_| {
-        [
+    let source = repair_named_function_block(
+        &source,
+        "fn synthesize_converge_sample_args(",
+        |_| {
+            [
             "fn synthesize_converge_sample_args(converge: &ConvergeDef, sample_index: u32) -> Result<Array<Value>, Error>:",
             "    let mut synthesizer = DeterministicValueSynthesizer__new_(stable_converge_sample_seed(&converge.name, sample_index))",
             "    let mut args = Vec__new_()",
@@ -1655,7 +2280,8 @@ fn repair_selfhost_bundle(source: String) -> String {
             "    Ok(args)",
         ]
         .join("\n")
-    });
+        },
+    );
     let source = repair_named_function_block(
         &source,
         "fn extract_compute_metadata_from_comptime_block(",
@@ -2197,7 +2823,11 @@ fn write_function(
     {
         write_line(output, indent + 1, "let mut result = Vec__new_()")?;
         write_line(output, indent + 1, "let mut indent_stack = [0]")?;
-        write_line(output, indent + 1, "let mut iter = raw.into_iter().peekable()")?;
+        write_line(
+            output,
+            indent + 1,
+            "let mut iter = raw.into_iter().peekable()",
+        )?;
         write_line(output, indent + 1, "loop:")?;
         write_line(output, indent + 2, "match iter.next():")?;
         write_line(output, indent + 3, "Some(token) =>")?;
@@ -2213,11 +2843,7 @@ fn write_function(
         write_line(output, indent + 7, "_ =>")?;
         write_line(output, indent + 8, "()")?;
         write_line(output, indent + 6, "let mut indent: usize = 0")?;
-        write_line(
-            output,
-            indent + 6,
-            "for indent_char in ws[1..].chars():",
-        )?;
+        write_line(output, indent + 6, "for indent_char in ws[1..].chars():")?;
         write_line(output, indent + 7, "if (indent_char == \"\\t\"):")?;
         write_line(output, indent + 8, "indent = (indent + 4)")?;
         write_line(output, indent + 7, "else:")?;
@@ -4739,7 +5365,10 @@ fn write_match_arm(output: &mut String, arm: &MatchArm, indent: usize) -> KainRe
             return write_line(
                 output,
                 indent,
-                &format!("{pattern} if {} => {inline_body}", inline_expr_to_string(guard)),
+                &format!(
+                    "{pattern} if {} => {inline_body}",
+                    inline_expr_to_string(guard)
+                ),
             );
         }
         write_line(
@@ -4903,7 +5532,13 @@ fn inline_expr_to_string(expr: &Expr) -> String {
                     .map(|value| inline_expr_to_string(value))
                     .unwrap_or_default();
                 let sep = if *inclusive { "..=" } else { ".." };
-                format!("{}[{}{}{}]", inline_expr_postfix_base(object), start, sep, end)
+                format!(
+                    "{}[{}{}{}]",
+                    inline_expr_postfix_base(object),
+                    start,
+                    sep,
+                    end
+                )
             } else {
                 format!(
                     "{}[{}]",
@@ -5969,5 +6604,193 @@ fn untouched_afterwards():
 
         let rendered = render_program(&program).expect("lexer tokenize should render");
         assert!(rendered.contains("__kain_bootstrap_lex_tokens(&(*_self).source)"));
+    }
+
+    #[test]
+    fn build_file_mirror_plans_preserves_file_level_paths() {
+        let span = kain_core::span::Span::default();
+        let crate_root = PathBuf::from("/tmp/kain/crates/kain-import");
+        let module_programs = vec![
+            RustSelfHostModuleProgram {
+                module: kain_import::rust::RustModuleNode {
+                    module_name: "crate".to_string(),
+                    file_path: crate_root.join("src/lib.rs"),
+                },
+                program: Program {
+                    items: Vec::new(),
+                    span,
+                },
+            },
+            RustSelfHostModuleProgram {
+                module: kain_import::rust::RustModuleNode {
+                    module_name: "rust".to_string(),
+                    file_path: crate_root.join("src/rust/mod.rs"),
+                },
+                program: Program {
+                    items: Vec::new(),
+                    span,
+                },
+            },
+            RustSelfHostModuleProgram {
+                module: kain_import::rust::RustModuleNode {
+                    module_name: "rust::transformer".to_string(),
+                    file_path: crate_root.join("src/rust/transformer.rs"),
+                },
+                program: Program {
+                    items: Vec::new(),
+                    span,
+                },
+            },
+        ];
+
+        let plans = build_file_mirror_plans(
+            &crate_root,
+            "kain-import",
+            &module_programs,
+            Path::new("/repo/src"),
+            Path::new("/out/mirror/src"),
+            Path::new("/out/roundtrip_rust"),
+        )
+        .expect("mirror plans should build");
+
+        assert_eq!(plans.len(), 3);
+        assert_eq!(
+            plans[0].canonical_kain_path,
+            PathBuf::from("/repo/src/kain-import/lib.kn")
+        );
+        assert_eq!(
+            plans[1].canonical_kain_path,
+            PathBuf::from("/repo/src/kain-import/rust/mod.kn")
+        );
+        assert_eq!(
+            plans[2].canonical_kain_path,
+            PathBuf::from("/repo/src/kain-import/rust/transformer.kn")
+        );
+        assert_eq!(plans[0].module_path, Vec::<String>::new());
+        assert_eq!(plans[1].module_path, vec!["rust".to_string()]);
+        assert_eq!(
+            plans[2].module_path,
+            vec!["rust".to_string(), "transformer".to_string()]
+        );
+        assert_eq!(plans[0].source_kind, SelfHostRustSourceKind::LibRoot);
+        assert_eq!(
+            plans[1].source_kind,
+            SelfHostRustSourceKind::ModuleDirectoryRoot
+        );
+        assert_eq!(plans[2].source_kind, SelfHostRustSourceKind::ModuleFile);
+    }
+
+    #[test]
+    fn write_roundtrip_rust_tree_splits_inline_modules_into_real_files() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let roundtrip_root = temp_dir.path().join("roundtrip_rust");
+        let aggregate_path = temp_dir.path().join("kain-core.roundtrip.rs");
+        let rust_source = r#"
+pub struct Root;
+
+pub mod parser {
+    pub fn parse() {}
+}
+
+pub mod nested {
+    pub struct Node;
+
+    pub mod deep {
+        pub fn helper() {}
+    }
+}
+
+fn main() {}
+"#;
+
+        let file_plans = vec![
+            SelfHostFileMirrorPlan {
+                module_name: "crate".to_string(),
+                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/lib.rs"),
+                rust_source_relative_path: PathBuf::from("src/lib.rs"),
+                canonical_kain_path: temp_dir.path().join("src/kain-core/lib.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/kain-core/lib.kn"),
+                stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/lib.rs"),
+                module_path: Vec::new(),
+                source_kind: SelfHostRustSourceKind::LibRoot,
+            },
+            SelfHostFileMirrorPlan {
+                module_name: "main".to_string(),
+                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/main.rs"),
+                rust_source_relative_path: PathBuf::from("src/main.rs"),
+                canonical_kain_path: temp_dir.path().join("src/kain-core/main.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/kain-core/main.kn"),
+                stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/main.rs"),
+                module_path: Vec::new(),
+                source_kind: SelfHostRustSourceKind::MainRoot,
+            },
+            SelfHostFileMirrorPlan {
+                module_name: "parser".to_string(),
+                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/parser.rs"),
+                rust_source_relative_path: PathBuf::from("src/parser.rs"),
+                canonical_kain_path: temp_dir.path().join("src/kain-core/parser.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/kain-core/parser.kn"),
+                stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/parser.rs"),
+                module_path: vec!["parser".to_string()],
+                source_kind: SelfHostRustSourceKind::ModuleFile,
+            },
+            SelfHostFileMirrorPlan {
+                module_name: "nested".to_string(),
+                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/nested/mod.rs"),
+                rust_source_relative_path: PathBuf::from("src/nested/mod.rs"),
+                canonical_kain_path: temp_dir.path().join("src/kain-core/nested/mod.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/kain-core/nested/mod.kn"),
+                stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/nested/mod.rs"),
+                module_path: vec!["nested".to_string()],
+                source_kind: SelfHostRustSourceKind::ModuleDirectoryRoot,
+            },
+            SelfHostFileMirrorPlan {
+                module_name: "nested::deep".to_string(),
+                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/nested/deep.rs"),
+                rust_source_relative_path: PathBuf::from("src/nested/deep.rs"),
+                canonical_kain_path: temp_dir.path().join("src/kain-core/nested/deep.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/kain-core/nested/deep.kn"),
+                stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/nested/deep.rs"),
+                module_path: vec!["nested".to_string(), "deep".to_string()],
+                source_kind: SelfHostRustSourceKind::ModuleFile,
+            },
+        ];
+
+        let artifacts = write_roundtrip_rust_tree(
+            "kain-core",
+            Path::new("/repo/crates/kain-core"),
+            &roundtrip_root,
+            &aggregate_path,
+            rust_source,
+            &file_plans,
+            &SelfHostSourceProfile::default(),
+        )
+        .expect("roundtrip tree should split");
+
+        assert_eq!(artifacts.file_count, 5);
+        let lib_source =
+            fs::read_to_string(roundtrip_root.join("kain-core/src/lib.rs")).expect("lib.rs");
+        let parser_source =
+            fs::read_to_string(roundtrip_root.join("kain-core/src/parser.rs")).expect("parser.rs");
+        let nested_source = fs::read_to_string(roundtrip_root.join("kain-core/src/nested/mod.rs"))
+            .expect("nested/mod.rs");
+        let deep_source = fs::read_to_string(roundtrip_root.join("kain-core/src/nested/deep.rs"))
+            .expect("nested/deep.rs");
+        let main_source =
+            fs::read_to_string(roundtrip_root.join("kain-core/src/main.rs")).expect("main.rs");
+
+        assert!(lib_source.contains("pub struct Root;"));
+        assert!(lib_source.contains("pub mod parser;"));
+        assert!(lib_source.contains("pub mod nested;"));
+        assert!(lib_source.contains("fn main() {}"));
+        assert!(parser_source.contains("pub fn parse() {}"));
+        assert!(nested_source.contains("pub struct Node;"));
+        assert!(nested_source.contains("pub mod deep;"));
+        assert!(deep_source.contains("pub fn helper() {}"));
+        assert_eq!(main_source, "include!(\"lib.rs\");\n");
+        assert_eq!(
+            artifacts.main_rs_path,
+            Some(roundtrip_root.join("kain-core/src/main.rs"))
+        );
     }
 }

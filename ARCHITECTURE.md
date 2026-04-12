@@ -1,6 +1,6 @@
 # Kain Architecture
 
-This file is the durable repo overview for `M:\Code\Kain`.
+This file is the durable repo overview for the current Kain checkout.
 It is the fast way for future agents to understand what Kain is, where the important code lives, and which architectural rules matter enough to preserve.
 
 ## What Kain Is
@@ -57,6 +57,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
+- [src](src): canonical selfhost Kain mirror tree; the selfhost pipeline can emit one `.kn` file per Rust source file under `src/<crate>/...`
+- [ouroboros](ouroboros): selfhost control-plane manifests, repair tooling, inventories, reports, and pipeline automation
 
 ## Key Crates
 
@@ -115,6 +117,23 @@ Current native-ui packaging rule for C ABI imports:
 
 - `kain-c-ffi` is no longer only an `Interpret`/`Test` lane concern. The Rust/native-ui packaging lane now emits packaged bridge manifests, copies bridge/shared-library sidecars into the app artifact set, and has the generated native app launcher load those packaged bridges before boot.
 - This does not mean the current native UI host is a full general-purpose Kain interpreter. The lane is still bundle-driven; the packaging change makes foreign bridge dependencies explicit and shippable rather than hidden behind cache-local host-backed behavior.
+
+### Selfhost mirror pipeline
+
+The current selfhost lane is no longer only a crate-level bundle export. It now has a file-preserving mirror pipeline:
+
+- `crates/kain-import` imports Rust selfhost crates per source file/module and exposes per-file typed `Program` results.
+- `crates/cli/src/selfhost.rs` consumes those file-level imports through a data-driven `SelfHostSourceProfile`.
+- The default profile lives at `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`.
+- Phase output now emits three aligned artifact families:
+  - canonical Kain mirrors under `src/<crate>/...` or the profile-configured canonical root
+  - output-local mirror copies under `<phase-output>/mirror/src/<crate>/...`
+  - a `source_correspondence_manifest.json` that records exact Rust-to-Kain path correspondence per file
+- Phase2 still writes aggregate `<crate>.kn` and `<crate>.roundtrip.rs` compatibility artifacts because the active frontend/codegen path is still single-source-string oriented.
+- Phase2 roundtrip Rust is then split back into a file-preserving tree under `<phase-output>/roundtrip_rust/<crate>/src/...`, and stage2 workspace assembly copies that tree into `stage2_workspace/crates/<crate>/src/...`.
+- `kain selfhost phase1|phase2 --force` keeps emitting mirrors, manifests, aggregate bundles, and any later-crate artifacts even when earlier crates fail. The command still reports `hard_fail`, but it no longer discards the partial artifact graph.
+
+The important rule is: the file-preserving mirror tree is now the primary structural artifact, while the aggregate `.kn`/`.roundtrip.rs` files are temporary compatibility bridges until Kain grows a true multi-file frontend.
 
 ### Compute pipeline flow
 
@@ -231,6 +250,8 @@ Typical commands:
 - `kain gpu-artifacts <file.kn> --output <dir>`
 - `kain selfhost phase1`
 - `kain selfhost phase2` for the bounded self-host repair lane
+- `kain selfhost phase2 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false` for mirror-only validation without forcing the roundtrip/build lane
+- `kain selfhost phase2 --force` to keep partial selfhost artifacts even when one crate trips the current phase2 blockers
 - `kain omni build`
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
