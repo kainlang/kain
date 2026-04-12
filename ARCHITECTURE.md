@@ -189,7 +189,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 
 ## Important Folders By Intent
 
-- [runtime/native](/M:/Code/Kain/runtime/native): canonical C runtime and ABI/service floor
+- [runtime/native](/M:/Code/Kain/runtime/native): canonical C runtime and ABI/service floor; manifest-driven vendor incorporation stays Kain-owned here even when implementation comes from `runtime/thirdparty`
 - [runtime/thirdparty](/M:/Code/Kain/runtime/thirdparty): curated vendor bundle for Kainized runtime incorporation; upstream engines live here, but Kain-owned wrappers, service keys, and contracts stay under `runtime/native`
 - [runtime/conformance](/M:/Code/Kain/runtime/conformance): lane-level conformance harnesses
 - [runtime/parallel](/M:/Code/Kain/runtime/parallel): Rust/Zig companion runtime work that must stay aligned with the native runtime doctrine
@@ -262,6 +262,8 @@ If the debug CLI is missing:
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - Runtime conformance harnesses that compile `kain_runtime_services.c` or `kain_runtime_contract.c` in isolation must also compile `runtime/native/src/vendor/kain_runtime_vendor_lane.c` or define `KAIN_RUNTIME_VENDOR_STUBS_ONLY=1`; the service catalog now has real vendor-backed function-table references.
+- The native runtime now has two companion metadata surfaces: `runtime/native_runtime.toml` is the manifest/build truth, and `runtime/native_runtime_metadata.json` is the tooling-facing reflection of that truth. When services, platforms, defines, sources, or link dependencies change, update both together.
+- Platform-specific vendor support should be expressed explicitly in the manifest rather than implied by global defines. The native runtime manifest now carries shared `defines` plus per-platform `windows_defines`, `linux_defines`, and `macos_defines`; prefer those over leaking POSIX-only flags into Windows builds.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.

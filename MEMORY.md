@@ -1,5 +1,47 @@
 # MEMORY
 
+## 2026-04-11 - native runtime metadata and platform truth were resynchronized after the vendor slice
+
+The first vendor-backed runtime slice landed cleanly on Linux, but the manifest and tooling metadata drifted immediately afterward. This follow-up pass brought the native runtime companion metadata back into sync and widened the new vendor lane so Windows development is represented explicitly instead of being treated like a Linux-only accident.
+
+What changed:
+
+- Re-synced the native runtime manifest, CLI manifest loader, compile script, and metadata JSON
+  - Updated `crates/cli/src/main.rs` so the manifest parser understands platform-specific define lists through `windows_defines`, `linux_defines`, and `macos_defines`.
+  - Updated `runtime/compile_native_runtime.sh` to honor those platform-specific define lists instead of treating POSIX-oriented defines as globally applicable.
+  - Rebuilt `runtime/native_runtime_metadata.json` so it reflects the current vendor-backed service families, source groupings, link dependencies, and per-service platform scope from `runtime/native_runtime.toml`.
+- Tightened vendor/platform truth for the new service families
+  - Updated `runtime/native_runtime.toml` so the vendor-backed `io.*`, `script.quickjs`, `audio.*`, `wasm.*`, and `allocator.*` families declare `platforms = ["windows", "linux"]` instead of looking globally available.
+  - Moved libuv-specific compile flags out of shared `defines` and into `windows_defines` / `linux_defines`.
+  - Added the Windows libuv source graph plus the required extra Windows link libraries so the manifest can describe a real Windows vendor lane rather than only the Linux build.
+  - Updated `runtime/native/include/kain_runtime_vendor_lane.h` and `runtime/native/src/vendor/kain_runtime_vendor_lane.c` so libuv-backed services are allowed on Windows as well as Linux.
+- Strengthened docs around metadata durability
+  - Updated `runtime/README.md`, `runtime/changelogs/NATIVE_RUNTIME_METADATA.md`, and `ARCHITECTURE.md` to make the TOML/JSON companion rule explicit and to document the platform-specific define model.
+
+Validation completed:
+
+- `cargo test -q -p cli runtime_manifest_resolves_relative_paths -- --nocapture`
+- `cargo run -q -p kain-runtime-parallel -- json`
+- `./runtime/compile_native_runtime.sh`
+- `./runtime/validate_native_runtime.sh`
+  - full suite passed again after the manifest/metadata sync: CLI build, native runtime compilation, LLVM/raw-native fixtures, and native runtime conformance
+
+Design decisions:
+
+- Treated `native_runtime.toml` as the primary build/runtime truth and `native_runtime_metadata.json` as a required tooling mirror, not as an eventually-consistent doc artifact.
+- Chose explicit per-service platform declaration instead of overloading `status = "available"` to mean "maybe, depending on hidden macros".
+- Extended the libuv-backed lane to Windows in the manifest/build model now, even though Linux remains the only deeply validated host at the moment.
+
+Current risks:
+
+- Windows support is now modeled directly in the manifest and vendor lane, but it has not yet been proven by the same end-to-end runtime validation depth as Linux on this host.
+- The tooling metadata is synchronized again, but there is still no automated guard that diff-checks TOML service declarations against the JSON companion file.
+- `wasm.runtime.full` and `wasm.wasi` remain staged/planned surfaces; the metadata now says so more honestly, but the runtime still needs the real WAMR source selection and compile proof.
+
+Recommended next step:
+
+- Add an automated metadata parity check between `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json`, then run a Windows-native compile/validation pass so the newly declared Windows vendor lane is proven instead of only modeled.
+
 ## 2026-04-11 - first native vendor incorporation slice is now live in the manifest-driven C runtime
 
 The native runtime is no longer only planning around third-party vendors; the first real vendor-backed service slice is wired into `runtime/native`, compiled through the manifest-driven bundle, and validated end to end on Linux.
