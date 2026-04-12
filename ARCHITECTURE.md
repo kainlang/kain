@@ -57,7 +57,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
-- [src](src): canonical selfhost Kain mirror tree; the selfhost pipeline can emit one `.kn` file per Rust source file under `src/<crate>/...`
+- [src](src): top-level selfhost Kain mirror tree; the selfhost pipeline can emit one `.kn` file per Rust source file under `src/<crate>/...`
+- [src/core](src/core): canonical owned Kain core surface; this is the active self-hosted language tree
 - [ouroboros](ouroboros): selfhost control-plane manifests, repair tooling, inventories, reports, and pipeline automation
 
 ## Key Crates
@@ -122,6 +123,7 @@ Current native-ui packaging rule for C ABI imports:
 
 The current selfhost lane is no longer only a crate-level bundle export. It now has a file-preserving mirror pipeline:
 
+- The active owned language surface lives under `src/core`; treat that folder as the canonical hand-authored core tree for the current bootstrap/selfhost wave.
 - `crates/kain-import` imports Rust selfhost crates per source file/module and exposes per-file typed `Program` results.
 - `crates/cli/src/selfhost.rs` consumes those file-level imports through a data-driven `SelfHostSourceProfile`.
 - The default profile lives at `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`.
