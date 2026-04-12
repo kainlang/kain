@@ -4522,16 +4522,19 @@ fn write_match_arm(output: &mut String, arm: &MatchArm, indent: usize) -> KainRe
 
     let pattern = pattern_to_string(&arm.pattern);
     if let Some(guard) = &arm.guard {
-        write_line(output, indent, &format!("{pattern} =>"))?;
+        if let Some(inline_body) = inline_match_arm_body(&arm.body) {
+            return write_line(
+                output,
+                indent,
+                &format!("{pattern} if {} => {inline_body}", inline_expr_to_string(guard)),
+            );
+        }
         write_line(
             output,
-            indent + 1,
-            &format!("if {}:", inline_expr_to_string(guard)),
+            indent,
+            &format!("{pattern} if {} =>", inline_expr_to_string(guard)),
         )?;
-        write_expr_prefixed(output, "", &arm.body, indent + 2)?;
-        write_line(output, indent + 1, "else:")?;
-        write_line(output, indent + 2, "none")?;
-        return Ok(());
+        return write_expr_prefixed(output, "", &arm.body, indent + 1);
     }
     if let Some(inline_body) = inline_match_arm_body(&arm.body) {
         write_line(output, indent, &format!("{pattern} => {inline_body}"))

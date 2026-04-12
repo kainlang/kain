@@ -690,6 +690,71 @@ impl RustTransformer {
         self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path))
     }
 
+    fn resolved_value_ident(&mut self, resolved: &[String]) -> String {
+        if resolved.len() == 1 {
+            self.rename_value(&resolved[0])
+        } else {
+            resolved.join("::")
+        }
+    }
+
+    fn build_rewritten_constructor_call(
+        &mut self,
+        resolved: &[String],
+        evaluated_args: Vec<Expr>,
+    ) -> Expr {
+        let constructor = Expr::Call {
+            callee: Box::new(Expr::Ident(self.resolved_value_ident(resolved), S)),
+            args: Vec::new(),
+            span: S,
+        };
+        if evaluated_args.is_empty() {
+            return constructor;
+        }
+        let params = (0..evaluated_args.len())
+            .map(|index| Param {
+                name: format!("__kain_ctor_arg{index}"),
+                ty: Type::Infer(S),
+                mutable: false,
+                default: None,
+                span: S,
+            })
+            .collect();
+        let args = evaluated_args
+            .into_iter()
+            .map(|value| CallArg {
+                name: None,
+                value,
+                span: S,
+            })
+            .collect();
+        Expr::Call {
+            callee: Box::new(Expr::Lambda {
+                params,
+                return_type: None,
+                body: Box::new(constructor),
+                span: S,
+            }),
+            args,
+            span: S,
+        }
+    }
+
+    fn lower_known_constructor_call(
+        &mut self,
+        path: &syn::Path,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+    ) -> Option<Result<Expr>> {
+        let resolved = self.resolved_path_segments(path);
+        let rewritten = rewrite_associated_constructor_path(&resolved, args.len())?;
+        Some(
+            args.iter()
+                .map(|expr| self.transform_expr(expr).map(|value| self.peel_expr_wrapper(value)))
+                .collect::<Result<Vec<_>>>()
+                .map(|evaluated_args| self.build_rewritten_constructor_call(&rewritten, evaluated_args)),
+        )
+    }
+
     fn builtin_variant_shape(
         &self,
         resolved: &[String],
@@ -2076,6 +2141,11 @@ impl RustTransformer {
             // ── Function call ─────────────────────────────────────────────
             syn::Expr::Call(c) => {
                 if let syn::Expr::Path(path) = c.func.as_ref() {
+                    if let Some(constructor_expr) =
+                        self.lower_known_constructor_call(&path.path, &c.args)
+                    {
+                        return constructor_expr;
+                    }
                     if let Some(variant_expr) = self.lower_variant_call_expr(&path.path, &c.args) {
                         return variant_expr;
                     }
@@ -3407,6 +3477,46 @@ impl RustTransformer {
 
 const S: Span = Span { start: 0, end: 0 };
 
+#[derive(Clone, Copy)]
+struct AssociatedConstructorRewrite {
+    source_path: &'static [&'static str],
+    target_path: &'static [&'static str],
+    exact_arg_count: usize,
+}
+
+const ASSOCIATED_CONSTRUCTOR_REWRITES: &[AssociatedConstructorRewrite] = &[
+    AssociatedConstructorRewrite {
+        source_path: &["Vec", "with_capacity"],
+        target_path: &["Vec", "new"],
+        exact_arg_count: 1,
+    },
+    AssociatedConstructorRewrite {
+        source_path: &["String", "with_capacity"],
+        target_path: &["String", "new"],
+        exact_arg_count: 1,
+    },
+    AssociatedConstructorRewrite {
+        source_path: &["HashMap", "with_capacity"],
+        target_path: &["HashMap", "new"],
+        exact_arg_count: 1,
+    },
+    AssociatedConstructorRewrite {
+        source_path: &["std", "collections", "HashMap", "with_capacity"],
+        target_path: &["std", "collections", "HashMap", "new"],
+        exact_arg_count: 1,
+    },
+    AssociatedConstructorRewrite {
+        source_path: &["HashSet", "with_capacity"],
+        target_path: &["HashSet", "new"],
+        exact_arg_count: 1,
+    },
+    AssociatedConstructorRewrite {
+        source_path: &["std", "collections", "HashSet", "with_capacity"],
+        target_path: &["std", "collections", "HashSet", "new"],
+        exact_arg_count: 1,
+    },
+];
+
 fn visibility(vis: &syn::Visibility) -> Visibility {
     match vis {
         syn::Visibility::Public(_) => Visibility::Public,
@@ -3440,6 +3550,30 @@ fn path_to_ident(path: &syn::Path) -> String {
         .map(|s| s.ident.to_string())
         .collect::<Vec<_>>()
         .join("::")
+}
+
+fn rewrite_associated_constructor_path(
+    resolved: &[String],
+    arg_count: usize,
+) -> Option<Vec<String>> {
+    ASSOCIATED_CONSTRUCTOR_REWRITES
+        .iter()
+        .find(|rewrite| {
+            rewrite.exact_arg_count == arg_count
+                && rewrite.source_path.len() == resolved.len()
+                && rewrite
+                    .source_path
+                    .iter()
+                    .zip(resolved.iter())
+                    .all(|(expected, actual)| *expected == actual)
+        })
+        .map(|rewrite| {
+            rewrite
+                .target_path
+                .iter()
+                .map(|segment| (*segment).to_string())
+                .collect()
+        })
 }
 
 fn collect_enum_variant_shapes(
@@ -4261,6 +4395,64 @@ mod tests {
             callee.as_ref(),
             Expr::Ident(path, _) if path == "crate::diagnostics::SpanMapper::new"
         ));
+    }
+
+    #[test]
+    fn lowers_capacity_constructors_to_supported_zero_arg_forms() {
+        let program = transform_source(
+            r#"
+            use std::collections::{HashMap, HashSet};
+
+            fn demo() {
+                let values = Vec::with_capacity(4);
+                let text = String::with_capacity(8);
+                let fields = HashMap::<String, String>::with_capacity(2);
+                let names = HashSet::<String>::with_capacity(3);
+            }
+            "#,
+        );
+
+        assert!(program.items.iter().any(|item| matches!(item, Item::Use(_))));
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        for (stmt, expected_path) in func.body.stmts.iter().zip([
+            "Vec::new",
+            "String::new",
+            "std::collections::HashMap::new",
+            "std::collections::HashSet::new",
+        ]) {
+            let Stmt::Let {
+                value:
+                    Some(Expr::Call {
+                        callee,
+                        args: outer_args,
+                        ..
+                    }),
+                ..
+            } = stmt
+            else {
+                panic!("expected constructor rewrite call");
+            };
+            assert_eq!(outer_args.len(), 1, "capacity argument should still evaluate");
+            let Expr::Lambda { body, .. } = callee.as_ref() else {
+                panic!("expected constructor rewrite lambda");
+            };
+            let Expr::Call { callee, args, .. } = body.as_ref() else {
+                panic!("expected constructor rewrite body call");
+            };
+            assert!(args.is_empty(), "rewritten constructors should drop capacity args");
+            assert!(matches!(
+                callee.as_ref(),
+                Expr::Ident(path, _) if path == expected_path
+            ));
+        }
     }
 
     #[test]

@@ -905,16 +905,15 @@ fn expr_to_plan_string(expr: &Expr) -> Result<String, String> {
             Ok(rendered.join(", "))
         }
         Expr::Call { callee, args, .. } => {
-            let rendered_args = args
-                .iter()
-                .map(|arg| {
-                    if let Some(name) = &arg.name {
-                        Ok(format!("{}={}", name, expr_to_plan_string(&arg.value)?))
-                    } else {
-                        expr_to_plan_string(&arg.value)
-                    }
-                })
-                .collect::<Result<Vec<_>, String>>()?;
+            let mut rendered_args = Vec::with_capacity(args.len());
+            for arg in args {
+                let rendered_value = expr_to_plan_string(&arg.value)?;
+                if let Some(name) = &arg.name {
+                    rendered_args.push(format!("{name}={rendered_value}"));
+                } else {
+                    rendered_args.push(rendered_value);
+                }
+            }
             Ok(format!(
                 "{}({})",
                 expr_to_plan_string(callee)?,
@@ -1109,8 +1108,8 @@ impl Type {
     pub fn contains_raw_ptr(&self) -> bool {
         match self {
             Type::Ptr { .. } => true,
-            Type::Named { generics, .. } => generics.iter().any(Self::contains_raw_ptr),
-            Type::Tuple(types, _) => types.iter().any(Self::contains_raw_ptr),
+            Type::Named { generics, .. } => generics.iter().any(|ty| ty.contains_raw_ptr()),
+            Type::Tuple(types, _) => types.iter().any(|ty| ty.contains_raw_ptr()),
             Type::Array(inner, _, _)
             | Type::Slice(inner, _)
             | Type::Ref { inner, .. }
@@ -1119,9 +1118,9 @@ impl Type {
                 params,
                 return_type,
                 ..
-            } => params.iter().any(Self::contains_raw_ptr) || return_type.contains_raw_ptr(),
+            } => params.iter().any(|ty| ty.contains_raw_ptr()) || return_type.contains_raw_ptr(),
             Type::Result(ok, err, _) => ok.contains_raw_ptr() || err.contains_raw_ptr(),
-            Type::Impl { generics, .. } => generics.iter().any(Self::contains_raw_ptr),
+            Type::Impl { generics, .. } => generics.iter().any(|ty| ty.contains_raw_ptr()),
             Type::Infer(_) | Type::Never(_) | Type::Unit(_) => false,
         }
     }

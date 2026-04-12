@@ -4838,6 +4838,12 @@ impl<'a> Parser<'a> {
             }
             let arm_start = self.current_span();
             let pattern = self.parse_pattern()?;
+            let guard = if self.check(TokenKind::If) {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
             self.expect(TokenKind::FatArrow)?;
 
             // Parse arm body - check if it starts with newline (multi-line body)
@@ -4894,7 +4900,7 @@ impl<'a> Parser<'a> {
 
             arms.push(MatchArm {
                 pattern,
-                guard: None,
+                guard,
                 body,
                 span: self.current_span(),
             });
@@ -8964,5 +8970,23 @@ mod tests {
             }
             other => panic!("expected nested JSX component prop, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_match_arm_guards() {
+        let program = parse_program(
+            "fn inspect(value: Int):\n    match value:\n        n if n > 0 => true\n        _ => false\n",
+        )
+        .expect("program should parse guarded match arms");
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+        let Stmt::Expr(Expr::Match { arms, .. }) = &function.body.stmts[0] else {
+            panic!("expected match expression");
+        };
+        assert_eq!(arms.len(), 2);
+        assert!(arms[0].guard.is_some());
+        assert!(arms[1].guard.is_none());
     }
 }
