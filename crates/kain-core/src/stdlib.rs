@@ -407,6 +407,16 @@ impl StdLib {
             "Unit",
             "Send message",
         );
+        lib.add_fn(
+            "ask",
+            &[
+                ("actor", "ActorRef"),
+                ("message", "String"),
+                ("request", "Any"),
+            ],
+            "Any",
+            "Send a message to an actor and wait for the first reply",
+        );
 
         // UI
         lib.add_fn(
@@ -1071,6 +1081,7 @@ mod tests {
         assert!(stdlib.functions.contains_key("sqrt"));
         assert!(stdlib.functions.contains_key("vec3"));
         assert!(stdlib.functions.contains_key("push"));
+        assert!(stdlib.functions.contains_key("ask"));
     }
 
     #[test]

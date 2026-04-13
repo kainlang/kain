@@ -621,6 +621,17 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::String], ResolvedType::Never),
     );
     env.define_global(
+        "ask".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
         "read_file".into(),
         builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
     );

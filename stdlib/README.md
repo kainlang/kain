@@ -15,6 +15,8 @@ This repo also now includes an early non-UE5 wrapper layer for embedded Python a
 - `stdlib/javascript/`: first-party wrappers over the JavaScript / Node bridge
 - `stdlib/interop/`: neutral shared contracts for cross-runtime image and buffer payloads
 - `stdlib/dcc/`: Kain-native image, tensor, and mesh semantics on top of Python-backed data
+- `stdlib/gen_server.kn`: tiny actor-server helpers that layer request/reply
+  ergonomics on top of `spawn`, `send`, and the native `ask` primitive
 
 Those modules are documented separately in [`stdlib/python/README.md`](./python/README.md), [`stdlib/javascript/README.md`](./javascript/README.md), [`stdlib/interop/README.md`](./interop/README.md), and [`stdlib/dcc/README.md`](./dcc/README.md).
 
