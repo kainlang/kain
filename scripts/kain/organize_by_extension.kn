@@ -1,0 +1,108 @@
+fn resolve_root_input() -> String:
+    match std__env__var_("KAIN_ORGANIZE_ROOT").ok():
+        Some(value) =>
+            if value.trim().is_empty():
+                ".".to_string()
+            else:
+                value
+        _ =>
+            ".".to_string()
+
+fn parse_truthy_env(name: String) -> Bool:
+    match std__env__var_(&name).ok():
+        Some(value) =>
+            match value.trim().to_ascii_lowercase().as_str():
+                "1" => true
+                "true" => true
+                "yes" => true
+                "on" => true
+                _ => false
+        _ =>
+            false
+
+fn extension_group(path: &PathBuf) -> String:
+    match path.extension().and_then(fn(ext): ext.to_str()):
+        Some(ext) =>
+            let group = ext.trim().to_ascii_lowercase()
+            if group.is_empty():
+                "no_extension".to_string()
+            else:
+                group
+        _ =>
+            "no_extension".to_string()
+
+pub fn main() -> Int:
+    let root_input = resolve_root_input()
+    let root = PathBuf {}.join(root_input.clone())
+    let apply = parse_truthy_env("KAIN_ORGANIZE_APPLY".to_string())
+    let mode = if apply: ("apply").to_string() else: ("dry-run").to_string()
+    println(f"Scanning {root_input} ({mode})")
+
+    let entries = match std__fs__read_dir(&root):
+        Ok(entries) => entries
+        Err(e) =>
+            eprintln(f"Failed to read {root_input}: {e}")
+            return 1
+
+    let mut moved_count = 0
+    let mut skipped_count = 0
+
+    for entry in entries:
+        let entry = match entry:
+            Ok(value) => value
+            Err(e) =>
+                eprintln(f"Skipping unreadable entry in {root_input}: {e}")
+                skipped_count = skipped_count + 1
+                continue
+
+        let path = entry.path()
+        if (!path.is_file()):
+            continue
+
+        let file_name = match path.file_name():
+            Some(name) => name
+            _ =>
+                skipped_count = skipped_count + 1
+                continue
+        let group = extension_group(&path)
+        let target_dir = root.join(&group)
+        let target_path = target_dir.join(&file_name)
+
+        if target_path.exists():
+            eprintln(f"Skipping {file_name}; destination already exists in {group}")
+            skipped_count = skipped_count + 1
+            continue
+
+        if (!apply):
+            println(f"Would move {file_name} -> {group}/")
+            continue
+
+        match std__fs__create_dir_all(&target_dir):
+            Err(e) =>
+                eprintln(f"Failed to create destination folder for {group}: {e}")
+                skipped_count = skipped_count + 1
+                continue
+            _ =>
+                ()
+
+        match std__fs__copy(&path, &target_path):
+            Err(e) =>
+                eprintln(f"Failed to copy {file_name} into {group}: {e}")
+                skipped_count = skipped_count + 1
+                continue
+            _ =>
+                ()
+
+        match std__fs__remove_file(&path):
+            Err(e) =>
+                eprintln(f"Copied {file_name} into {group} but could not remove original: {e}")
+                skipped_count = skipped_count + 1
+                continue
+            _ =>
+                ()
+
+        println(f"Moved {file_name} -> {group}/")
+        moved_count = moved_count + 1
+
+    println(f"Done. Moved {moved_count} file(s); skipped {skipped_count}.")
+    return 0

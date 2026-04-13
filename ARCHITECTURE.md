@@ -55,7 +55,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [README.md](/M:/Code/Kain/README.md): repo-level operating brief
 - [repomap.md](/M:/Code/Kain/repomap.md): top-level folder map
 - [MEMORY.md](/M:/Code/Kain/MEMORY.md): durable architectural task memory
-- [scripts](/M:/Code/Kain/scripts): directory-only operational tree. `scripts/docs/` holds the indexes and guide docs; `scripts/linux/`, `scripts/windows/`, `scripts/python/`, `scripts/rust/`, and `scripts/tests/` hold the executable helpers and fixtures.
+- [scripts](/M:/Code/Kain/scripts): directory-only operational tree. `scripts/docs/` holds the indexes and guide docs; `scripts/kain/` holds executable KAIN filesystem automation; `scripts/linux/`, `scripts/windows/`, `scripts/python/`, `scripts/rust/`, and `scripts/tests/` hold the other executable helpers and fixtures.
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
 - [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs
 - [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): legacy UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance

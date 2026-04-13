@@ -1,5 +1,48 @@
 # MEMORY
 
+# 2026-04-12 - KAIN utility scripts added under scripts/kain
+
+The repo now has a small KAIN-authored filesystem automation lane under
+`scripts/kain/`.
+
+What changed:
+
+- Added `scripts/kain/append_text_to_file.kn` for appending text to a file with
+  parent-directory creation.
+- Added `scripts/kain/organize_by_extension.kn` for dry-run or apply-mode file
+  organization by extension.
+- Added `scripts/kain/README.md` as the usage guide and environment-variable
+  contract for the new lane.
+- Updated the scripts index and durable architecture notes so the new KAIN lane
+  is visible to future agents.
+
+Why:
+
+- The language already has the filesystem and environment builtins needed for
+  repo-local automation, so a KAIN script lane is a natural fit for small
+  maintenance tasks.
+- Keeping these as `.kn` programs makes the repo dogfood its own language for
+  simple automation instead of defaulting back to shell or Python for every
+  repetitive edit.
+
+Validation:
+
+- `scripts/kain/append_text_to_file.kn` and `scripts/kain/organize_by_extension.kn`
+  are written against the existing `std__fs__*`, `std__env__*`, and path helper
+  surface used elsewhere in the repo.
+
+Current risk:
+
+- The organizer script relies on `std__fs__copy` plus `std__fs__remove_file`
+  for movement because the language/runtime surface does not yet expose a
+  dedicated rename primitive in the code I inspected. If those builtins change,
+  this lane should be rechecked.
+
+Recommended next step:
+
+- Add more focused KAIN utilities only when they solve a real repetitive task
+  and keep the env-var contract documented in the folder README.
+
 # 2026-04-12 - scripts tree reorganized into directory-only root
 
 The `scripts/` directory was flattened into purpose-based subtrees so the root
