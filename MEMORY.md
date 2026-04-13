@@ -24,30 +24,6 @@ Recommended next step:
 
 - Continue phase2 against the same inventory profile and chase the new front blocker after `cli`.
 
-# 2026-04-12 - extern crate lowering now shares the external module diagnostic lane
-
-The Rust importer previously surfaced `syn::Item::ExternCrate` under a one-off `extern_crate_decl` class, which the selfhost allowlist did not recognize. That class now folds into `external_mod_decl`, matching the existing `allow_external_mod_decls` path and letting `cli` import cleanly during phase2.
-
-What changed:
-
-- `crates/kain-import/src/rust/transformer.rs` now emits `class:external_mod_decl` for `extern crate ...`.
-- The mirrored Kain source under `src/rust-import/kain-import/rust/transformer.kn` was updated to stay in sync.
-- Added a regression test covering `extern crate ue5;` classification.
-
-Validation:
-
-- `cargo test -p kain-import external_mod_decl -- --nocapture`
-- `cargo test -p kain-import selfhost::tests::keeps_external_mod_decls_compatibility_flag -- --nocapture`
-- `cargo run -q -p cli --bin kain -- selfhost phase2 --inventory-dir ouroboros/docs/selfhost/inventories --output-dir /tmp/kain_selfhost_importfix --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force`
-
-Current risk:
-
-- The broader selfhost lane is still bridge-first, but this specific import blocker is cleared. The next failure, if any, will be a different crate or a later stage2 assembly/build issue.
-
-Recommended next step:
-
-- Continue phase2 against the same inventory profile and chase the new front blocker after `cli`.
-
 # 2026-04-12 - native runtime cache moved to a repo-local host cache and now prebuilds vendor archives
 
 The manifest-driven native runtime no longer ties object reuse to the current

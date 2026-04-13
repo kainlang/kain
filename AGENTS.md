@@ -1,5 +1,8 @@
 # AGENTS.md
 
+
+FOR new agents - start with /home/ephemara/Dev/Kain/guides
+
 ## Engineering Principles
 
 - Optimize for LLM and AI readability. Prefer explicit structure, self-explanatory naming, and code that a strong model can understand and continue without guesswork.
