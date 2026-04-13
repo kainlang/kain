@@ -72,10 +72,10 @@ These importers are part of the language surface, not a side tool.
 
 ## 6. Use The Example Lanes
 
-- [guides/examples/smoketest.md](/home/ephemara/Dev/Kain/guides/examples/smoketest.md) for proof surfaces and regression lanes.
-- [guides/examples/apps.md](/home/ephemara/Dev/Kain/guides/examples/apps.md) for product-shaped app workflows.
-- [guides/examples/unreal-plugins.md](/home/ephemara/Dev/Kain/guides/examples/unreal-plugins.md) for UE5 plugin generation and engine integration.
-- [guides/examples/kn-library.md](/home/ephemara/Dev/Kain/guides/examples/kn-library.md) for corpus-style language examples.
+- [docs/examples/README.md](/home/ephemara/Dev/Kain/docs/examples/README.md) for the runnable example ladder and validator.
+- [docs/examples/11_ultimate_kain_pipeline.kn](/home/ephemara/Dev/Kain/docs/examples/11_ultimate_kain_pipeline.kn) for the capstone local pipeline.
+- [docs/examples/09_ue5_authoring_gallery.kn](/home/ephemara/Dev/Kain/docs/examples/09_ue5_authoring_gallery.kn) for the current UE5-authored surface that proves on this checkout.
+- [docs/kn_library/README.md](/home/ephemara/Dev/Kain/docs/kn_library/README.md) for corpus-style language mining after you understand the validated examples.
 
 ## 7. What To Read Next
 

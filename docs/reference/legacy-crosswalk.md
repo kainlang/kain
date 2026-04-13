@@ -22,10 +22,10 @@ Rule of thumb: if a topic exists in current code, trust the live source and the 
 | Fabric pipeline concepts, runtime kinds, and report output | [guides/pipelines/fabric.md](/home/ephemara/Dev/Kain/guides/pipelines/fabric.md) |
 | UE5 project layout, module inference, validation, and generated outputs | [guides/ue5/overview.md](/home/ephemara/Dev/Kain/guides/ue5/overview.md) |
 | Workspace crate roles and boundaries | [guides/crates/](/home/ephemara/Dev/Kain/guides/crates/) |
-| Smoke lanes and proof surfaces | [guides/examples/smoketest.md](/home/ephemara/Dev/Kain/guides/examples/smoketest.md) |
-| Product apps and prototype workbenches | [guides/examples/apps.md](/home/ephemara/Dev/Kain/guides/examples/apps.md) |
-| UE5 plugin examples and lane proofs | [guides/examples/unreal-plugins.md](/home/ephemara/Dev/Kain/guides/examples/unreal-plugins.md) |
-| Curated corpus and language mining examples | [guides/examples/kn-library.md](/home/ephemara/Dev/Kain/guides/examples/kn-library.md) |
+| Smoke lanes, workflow examples, and proof surfaces | [docs/examples/README.md](/home/ephemara/Dev/Kain/docs/examples/README.md) |
+| Product-shaped local pipeline examples | [docs/examples/11_ultimate_kain_pipeline.kn](/home/ephemara/Dev/Kain/docs/examples/11_ultimate_kain_pipeline.kn) |
+| UE5-authored item gallery for the current checkout | [docs/examples/09_ue5_authoring_gallery.kn](/home/ephemara/Dev/Kain/docs/examples/09_ue5_authoring_gallery.kn) |
+| Curated corpus and language mining examples | [docs/kn_library/README.md](/home/ephemara/Dev/Kain/docs/kn_library/README.md) |
 | Feature, command, target, and glossary lookup | [guides/reference/](/home/ephemara/Dev/Kain/guides/reference/) |
 
 ## Legacy Terms And Where They Land
@@ -39,9 +39,9 @@ Rule of thumb: if a topic exists in current code, trust the live source and the 
 | Omni manifests and staged import orchestration | [guides/cli/selfhost-omni-fabric-lsp.md](/home/ephemara/Dev/Kain/guides/cli/selfhost-omni-fabric-lsp.md) and [guides/pipelines/omni.md](/home/ephemara/Dev/Kain/guides/pipelines/omni.md) |
 | Fabric manifests, runtime adapters, and contract validation | [guides/cli/selfhost-omni-fabric-lsp.md](/home/ephemara/Dev/Kain/guides/cli/selfhost-omni-fabric-lsp.md) and [guides/pipelines/fabric.md](/home/ephemara/Dev/Kain/guides/pipelines/fabric.md) |
 | C, Rust, TypeScript, and assembly import workflows | [guides/cli/importers.md](/home/ephemara/Dev/Kain/guides/cli/importers.md) |
-| UE5 packaging, plugin generation, and inject flows | [guides/cli/native-ui-and-packaging.md](/home/ephemara/Dev/Kain/guides/cli/native-ui-and-packaging.md) and [guides/examples/unreal-plugins.md](/home/ephemara/Dev/Kain/guides/examples/unreal-plugins.md) |
+| UE5 packaging, plugin generation, and inject flows | [guides/cli/native-ui-and-packaging.md](/home/ephemara/Dev/Kain/guides/cli/native-ui-and-packaging.md) and [docs/examples/09_ue5_authoring_gallery.kn](/home/ephemara/Dev/Kain/docs/examples/09_ue5_authoring_gallery.kn) |
 | Native UI and app bundle materialization | [guides/cli/native-ui-and-packaging.md](/home/ephemara/Dev/Kain/guides/cli/native-ui-and-packaging.md) |
-| Compiler-owned intents (`law`, `patch`, `converge`, `world`, `orchestrate`) | [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md), [guides/runtime/effects-io-async-and-patching.md](/home/ephemara/Dev/Kain/guides/runtime/effects-io-async-and-patching.md), and [guides/examples/smoketest.md](/home/ephemara/Dev/Kain/guides/examples/smoketest.md) |
+| Compiler-owned intents (`law`, `patch`, `converge`, `world`, `orchestrate`) | [guides/runtime/compiler-owned-intents.md](/home/ephemara/Dev/Kain/guides/runtime/compiler-owned-intents.md), [guides/runtime/effects-io-async-and-patching.md](/home/ephemara/Dev/Kain/guides/runtime/effects-io-async-and-patching.md), and [docs/examples/08_world_patch_law_converge_and_local_orchestrate.kn](/home/ephemara/Dev/Kain/docs/examples/08_world_patch_law_converge_and_local_orchestrate.kn) |
 | Function, trait, and impl semantics | [guides/syntax-and-semantics/functions-traits-and-impls.md](/home/ephemara/Dev/Kain/guides/syntax-and-semantics/functions-traits-and-impls.md) |
 
 ## Historical Only Unless Code Says Otherwise

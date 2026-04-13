@@ -12,6 +12,7 @@ The repo's documentation is deliberately split by trust level and reader intent:
 - `guides/pipelines/` holds the conceptual Omni and Fabric orchestration pages.
 - `guides/ue5/` holds the conceptual Unreal-facing authoring and packaging pages.
 - `docs/` is legacy support material and may lag behind the code; do not promote it back to the source of truth.
+- `docs/examples/` is the deliberate exception inside `docs/`: it is now a runnable, manifest-driven Kain source suite with real `.kn` files plus a validator, and it exists to give agents a locally proven authoring ladder.
 - `smoketest/`, `apps/`, `unreal_plugins/`, and `kn_library/` are workflow, proof, and corpus surfaces that support the guide tree rather than replace it.
 
 When the docs and code disagree, treat the mismatch as a signal to update the canonical guide tree from source rather than to copy the stale wording forward.
@@ -67,6 +68,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): legacy doctrine, plans, pipeline notes, validation notes, and research
+- [docs/examples](/M:/Code/Kain/docs/examples): runnable example ladder built from real `.kn` files, with `examples_manifest.json` and `validate_examples.py` as the durable validation surface for future agents
 - [guides](/M:/Code/Kain/guides): canonical long-form language, runtime, CLI, and reference guides
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [website](/M:/Code/Kain/website): the official KAIN public site, data-driven launch surface, and browser playground; this is now the canonical website dogfood for the public-site archetype
@@ -85,7 +87,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 - `guides/README.md` is the top-level reader map for the canonical guide tree.
 - `guides/quickstart.md` should stay short and point outward to the deeper pages, not become a second manual.
-- `guides/examples/*` are workflow pages: they explain what each repo lane proves and where to look next.
+- `docs/examples/README.md` is the operator-facing entrypoint for the runnable example ladder, and `docs/examples/examples_manifest.json` is the machine-readable source of truth for validation commands and coverage tags.
+- `docs/examples/validate_examples.py` is the canonical way to prove the local example ladder. Keep per-example validation metadata in the manifest rather than scattering it across prose pages.
 - `guides/pipelines/*` and `guides/ue5/*` are conceptual deep-dive pages for orchestration and Unreal-facing authoring. Keep the CLI pages focused on command syntax and keep the conceptual pages focused on data models, validation, and outputs.
 - `guides/syntax-and-semantics/functions-traits-and-impls.md` is the canonical chapter for function signatures, traits, and impl blocks.
 - `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, and `orchestrate`.
@@ -336,6 +339,8 @@ If the debug CLI is missing:
 ## Common Errors
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
+- The PATH `kain` launcher can drift from the repo-local binary. Before trusting the docs example suite, run `./target/debug/kain doctor` or call `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`.
+- `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Fresh Linux and macOS clones should start with the root `install_kain.py` bootstrapper. It is now the cross-platform entrypoint that resolves or installs LLVM, repopulates `toolchain/llvm/bin`, builds `kain`, installs `kain` and `kn`, and emits shell activation scripts under `generated/`.
 - Fresh clones may not include a populated `toolchain/llvm/bin/clang.exe` even though older docs and helper scripts reference it. When that happens, install LLVM separately and point `KAIN_CLANG_PATH` at the external `clang.exe`; `scripts/windows/sync-kain-source-of-truth.ps1` now falls back to PATH and `C:\Program Files\LLVM\bin\clang.exe` before assuming the vendored drop exists.
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.

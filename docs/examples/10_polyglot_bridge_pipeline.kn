@@ -1,0 +1,38 @@
+world PolyglotStudio:
+    state revision: Int = 2
+    surface native_ui => App
+    surface web => App
+    surface viewport3d => "PolyglotPreview"
+    surface ue5 => "PolyglotBridge"
+
+component App():
+    render <panel title="Polyglot Bridge">
+        <text role="caption">A single authored pipeline can lower into rust, js, and ts while keeping the same staged intent.</text>
+    </panel>
+
+patch stamp_revision(studio: PolyglotStudio, delta: Int) -> Int:
+    studio.revision = studio.revision + delta
+    return studio.revision
+
+converge bridge_seed(value: Int) -> Int:
+    spec reference:
+        return value + 2
+    fast interpret_lane when target("interpret"):
+        return value + 2
+    fast dispatch_lane when capability("converge.dispatch"):
+        return value + 2
+
+fn stage_gain(value: Int) -> Int:
+    return value + 3
+
+orchestrate bridge_pipeline(value: Int) -> Int:
+    let seeded: Int = kain bridge_seed(value)
+    let compiled: Int = rust stage_gain(seeded)
+    let scripted: Int = python stage_gain(compiled)
+    let web_ready: Int = node stage_gain(scripted)
+    return web_ready
+
+fn main() -> Int:
+    let studio = PolyglotStudio
+    let stamped = stamp_revision(studio, 4)
+    return bridge_pipeline(stamped)

@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "suite_name": "ultimate_kain_examples",
+  "default_kain_binary": "./target/debug/kain",
+  "notes": [
+    "This suite is built from repo-local proof surfaces and validated against the current checkout.",
+    "The validator uses KAIN_DOCS_EXAMPLE_ROOT for scratch files so filesystem examples stay deterministic."
+  ],
+  "examples": [
+    {
+      "path": "00_hello_and_cli.kn",
+      "title": "Hello And CLI",
+      "validation_class": "must_pass_local",
+      "coverage": ["functions", "const", "string interpolation", "cli entrypoint"],
+      "next_example": "01_types_structs_enums_patterns.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "01_types_structs_enums_patterns.kn",
+      "title": "Types Structs Enums Patterns",
+      "validation_class": "must_pass_local",
+      "coverage": ["type aliases", "struct literals", "enums", "match"],
+      "next_example": "02_modules_traits_impls_and_comptime.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "02_modules_traits_impls_and_comptime.kn",
+      "title": "Modules Traits Impls And Comptime",
+      "validation_class": "must_pass_local",
+      "coverage": ["use", "mod", "trait", "impl", "comptime"],
+      "next_example": "03_collections_strings_filesystem.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "03_collections_strings_filesystem.kn",
+      "title": "Collections Strings Filesystem",
+      "validation_class": "must_pass_local",
+      "coverage": ["strings", "path helpers", "read_dir", "read_file", "write_file", "copy_file", "remove_file"],
+      "next_example": "04_async_actors_and_gen_server.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "04_async_actors_and_gen_server.kn",
+      "title": "Async Actors And GenServer",
+      "validation_class": "must_pass_local",
+      "coverage": ["actors", "spawn", "send", "gen_server_start_link", "ask"],
+      "next_example": "05_components_ui_and_theme.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "05_components_ui_and_theme.kn",
+      "title": "Components UI And Theme",
+      "validation_class": "must_pass_local",
+      "coverage": ["component", "theme", "tokens", "panels", "slot layout"],
+      "next_example": "06_shader_compute_and_gpu_artifacts.kn",
+      "operations": [
+        { "kind": "build", "target": "rust" }
+      ]
+    },
+    {
+      "path": "06_shader_compute_and_gpu_artifacts.kn",
+      "title": "Shader Compute And GPU Artifacts",
+      "validation_class": "must_pass_local",
+      "coverage": ["fragment shaders", "compute shaders", "gpu-artifacts", "hlsl"],
+      "next_example": "07_low_level_memory_and_layout.kn",
+      "operations": [
+        { "kind": "build", "target": "hlsl" },
+        { "kind": "gpu-artifacts" }
+      ]
+    },
+    {
+      "path": "07_low_level_memory_and_layout.kn",
+      "title": "Low Level Memory And Layout",
+      "validation_class": "must_pass_local",
+      "coverage": ["ptr", "alloc_zeroed", "mem_store", "mem_load", "ptr_offset", "sizeof_type"],
+      "next_example": "08_world_patch_law_converge_and_local_orchestrate.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "08_world_patch_law_converge_and_local_orchestrate.kn",
+      "title": "World Patch Law Converge And Local Orchestrate",
+      "validation_class": "must_pass_local",
+      "coverage": ["world", "surface", "patch", "law", "converge", "orchestrate", "local runtime stage"],
+      "next_example": "09_ue5_authoring_gallery.kn",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    },
+    {
+      "path": "09_ue5_authoring_gallery.kn",
+      "title": "UE5 Authoring Gallery",
+      "validation_class": "must_pass_local",
+      "coverage": ["@gameplay_tags", "@graph_editor", "@graph_runtime", "@state_machine", "@material_graph", "@ability", "@gameplay_effect", "@gameplay_cue"],
+      "next_example": "10_polyglot_bridge_pipeline.kn",
+      "operations": [
+        { "kind": "build", "target": "rust" }
+      ],
+      "known_limitations": [
+        "Direct `-t ue5` validation is intentionally excluded here because stdlib/ue5 currently fails to resolve `max` during stdlib load in this checkout.",
+        "@target_actor and @ability_task remain parser-level references but are not yet accepted by the general typechecker on the Rust lane."
+      ]
+    },
+    {
+      "path": "10_polyglot_bridge_pipeline.kn",
+      "title": "Polyglot Bridge Pipeline",
+      "validation_class": "must_pass_local",
+      "coverage": ["polyglot orchestrate staging", "rust stage", "python stage", "node stage", "multi-surface world"],
+      "next_example": "11_ultimate_kain_pipeline.kn",
+      "operations": [
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ],
+      "known_limitations": [
+        "This example is build-first because foreign runtime stages are compiled into target lanes but are not locally executed by `kain run` in the interpreter."
+      ]
+    },
+    {
+      "path": "11_ultimate_kain_pipeline.kn",
+      "title": "Ultimate Kain Pipeline",
+      "validation_class": "must_pass_local",
+      "coverage": ["data model", "trait impl", "actor coordination", "filesystem staging", "component", "world", "patch", "law", "converge", "orchestrate"],
+      "next_example": "done",
+      "operations": [
+        { "kind": "run" },
+        { "kind": "build", "target": "rust" },
+        { "kind": "build", "target": "js" },
+        { "kind": "build", "target": "ts" }
+      ]
+    }
+  ]
+}

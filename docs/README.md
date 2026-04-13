@@ -98,10 +98,7 @@ These files define the truth that the guides are derived from:
 | `crates/runtime-and-host.md` | Host stack, FFI, embedding, and bridge crates |
 | `crates/ui-gpu-3d.md` | UI, GPU, native desktop, and 3D runtime crates |
 | `crates/ue5-and-targets.md` | UE5 and target-adapter crates |
-| `examples/smoketest.md` | Runtime proof matrix and smoke lanes |
-| `examples/apps.md` | First-class applications and prototypes |
-| `examples/unreal-plugins.md` | UE5 plugin examples and archived lanes |
-| `examples/kn-library.md` | Corpus library and curated source examples |
+| `examples/README.md` | Runnable `.kn` example ladder, validator, and manifest |
 | `reference/feature-matrix.md` | Coverage matrix for every major feature family |
 | `reference/command-matrix.md` | CLI command matrix and canonical command entrypoints |
 | `reference/target-matrix.md` | Compile targets, aliases, and output families |

@@ -1,5 +1,67 @@
 # MEMORY
 
+# 2026-04-13 - docs/examples replaced with a runnable manifest-driven Kain source suite
+
+The old prose-only `docs/examples` pages were replaced with a real example
+ladder made of brand-new `.kn` files, a machine-readable manifest, and a single
+validator script so future agents have one honest place to learn current Kain
+authoring.
+
+What changed:
+
+- Replaced the deleted markdown-only example pages under `docs/examples/` with
+  twelve real Kain source files:
+  - `00_hello_and_cli.kn`
+  - `01_types_structs_enums_patterns.kn`
+  - `02_modules_traits_impls_and_comptime.kn`
+  - `03_collections_strings_filesystem.kn`
+  - `04_async_actors_and_gen_server.kn`
+  - `05_components_ui_and_theme.kn`
+  - `06_shader_compute_and_gpu_artifacts.kn`
+  - `07_low_level_memory_and_layout.kn`
+  - `08_world_patch_law_converge_and_local_orchestrate.kn`
+  - `09_ue5_authoring_gallery.kn`
+  - `10_polyglot_bridge_pipeline.kn`
+  - `11_ultimate_kain_pipeline.kn`
+- Added `docs/examples/examples_manifest.json` as the data-driven registry for
+  coverage tags, next-example links, local validation classes, and canonical
+  commands.
+- Added `docs/examples/validate_examples.py` as the single validation entrypoint
+  for the suite.
+- Added `docs/examples/README.md` as the human-facing index and updated the
+  surrounding docs pointers in `docs/README.md`, `docs/quickstart.md`,
+  `docs/reference/legacy-crosswalk.md`, and `docs/kn_library/README.md`.
+- Updated `ARCHITECTURE.md` so future agents know `docs/examples/` is now the
+  one intentional exception inside the otherwise legacy `docs/` tree.
+
+Validation:
+
+- `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`
+- The full suite passed locally, including:
+  - `run` lanes for interpreter-backed examples
+  - `build -t rust/js/ts` on the text-backend examples
+  - `build -t hlsl` plus `gpu-artifacts` on the shader example
+
+Important behavior notes:
+
+- The validator should prefer `./target/debug/kain` over a potentially stale
+  PATH launcher; this repo has already shown launcher drift in practice.
+- `09_ue5_authoring_gallery.kn` is intentionally validated through the Rust
+  backend only. The current checkout still fails on direct `-t ue5` loads
+  because `stdlib/ue5` does not resolve `max` correctly.
+- `@target_actor` and `@ability_task` remain known work-in-progress surfaces for
+  the general typechecker, so they are documented as local limits rather than
+  being smuggled into the “validated” suite.
+- `10_polyglot_bridge_pipeline.kn` is build-first by design: foreign
+  `orchestrate` stages compile into Rust/JS/TS targets, but they are not run by
+  the local interpreter.
+
+Recommended next step:
+
+- If the UE5 stdlib load bug is repaired, extend the validator and manifest so
+  `09_ue5_authoring_gallery.kn` can grow a real `-t ue5` proof lane instead of
+  stopping at the Rust backend.
+
 # 2026-04-12 - tiny GenServer-style stdlib layer added on top of actors
 
 The repo now has a small KAIN-authored actor-service helper under

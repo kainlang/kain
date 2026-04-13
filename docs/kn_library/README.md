@@ -4,8 +4,8 @@
 **Total Files:** 88
 **Total Lines:** 13,663
 
-Canonical corpus guidance lives in [`../guides/examples/kn-library.md`](../guides/examples/kn-library.md)
-and the root guide tree at [`../guides/README.md`](../guides/README.md).
+Canonical example guidance lives in [`../examples/README.md`](../examples/README.md)
+and the root guide tree at [`../README.md`](../README.md).
 
 ## Purpose
 

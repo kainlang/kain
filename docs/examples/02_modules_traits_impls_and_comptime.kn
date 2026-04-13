@@ -1,0 +1,33 @@
+use std/env
+
+mod reporting:
+    fn compose_summary(name: String, total: Int) -> String:
+        return f"{name}:{total}"
+
+trait SummaryLine:
+    fn summary_line(_self: Self_) -> String:
+        let __trait_placeholder = none
+
+struct BuildSummary:
+    name: String
+    success_count: Int
+    warning_count: Int
+
+impl BuildSummary:
+    fn total_messages(_self: Self_) -> Int:
+        return _self.success_count + _self.warning_count
+
+impl SummaryLine for BuildSummary:
+    fn summary_line(_self: Self_) -> String:
+        return reporting::compose_summary(_self.name, _self.total_messages())
+
+comptime:
+    println("compiling 02_modules_traits_impls_and_comptime")
+
+fn main() -> Int:
+    let requested_mode = env("KAIN_EXAMPLE_MODE").trim()
+    let summary = BuildSummary { name: "example-suite", success_count: 3, warning_count: 1 }
+    println(summary.summary_line())
+    if len(requested_mode) == 0:
+        return 0
+    return 0

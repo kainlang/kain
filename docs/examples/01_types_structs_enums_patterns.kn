@@ -1,0 +1,38 @@
+type AssetLabel = String
+
+enum AssetKind:
+    Script
+    Material
+    UiBundle
+
+enum ReviewState:
+    Draft
+    Review
+    Published
+
+struct ArtifactRecord:
+    label: AssetLabel
+    kind: AssetKind
+    state: ReviewState
+    revision: Int
+
+fn kind_name(kind: AssetKind) -> String:
+    match kind:
+        AssetKind::Script => "script"
+        AssetKind::Material => "material"
+        AssetKind::UiBundle => "ui_bundle"
+        _ => "unknown"
+
+fn state_weight(state: ReviewState) -> Int:
+    match state:
+        ReviewState::Draft => 1
+        ReviewState::Review => 2
+        ReviewState::Published => 3
+        _ => 0
+
+fn main() -> Int:
+    let record = ArtifactRecord { label: "docs/examples", kind: AssetKind::UiBundle, state: ReviewState::Review, revision: 3 }
+    println(f"{record.label}:{kind_name(record.kind)}:r{record.revision}")
+    if state_weight(record.state) == 2:
+        return 0
+    return 1

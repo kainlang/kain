@@ -1,0 +1,9 @@
+const SUITE_NAME: String = "ultimate-kain-docs"
+
+fn banner() -> String:
+    return f"{SUITE_NAME}: hello from kain"
+
+fn main() -> Int:
+    println(banner())
+    println("This file is the first smoke for kain run and text backends.")
+    return 0
