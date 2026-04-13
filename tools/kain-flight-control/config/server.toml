@@ -1,0 +1,303 @@
+[workspace]
+root_env = "KAIN_REPO_ROOT"
+cache_dir = ".kain/flight-control-cache"
+log_level = "info"
+
+[[sources]]
+id = "architecture"
+path = "ARCHITECTURE.md"
+kind = "markdown"
+description = "Durable repo overview."
+tags = ["architecture", "repo"]
+
+[[sources]]
+id = "memory"
+path = "MEMORY.md"
+kind = "markdown"
+description = "Durable task memory for recent architectural changes and recurring lessons."
+tags = ["memory", "repo"]
+
+[[sources]]
+id = "runtime_metadata"
+path = "runtime/native_runtime_metadata.json"
+kind = "json"
+description = "Machine-readable native runtime metadata, service catalog, and source groups."
+tags = ["runtime", "metadata"]
+
+[[sources]]
+id = "runtime_validation_guide"
+path = "runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md"
+kind = "markdown"
+description = "Canonical native runtime validation guide."
+tags = ["runtime", "validation"]
+
+[[sources]]
+id = "runtime_conformance_readme"
+path = "runtime/conformance/README.md"
+kind = "markdown"
+description = "Native runtime conformance harness guide."
+tags = ["runtime", "conformance"]
+
+[[sources]]
+id = "runtime_fixtures_readme"
+path = "runtime/fixtures/README.md"
+kind = "markdown"
+description = "LLVM/native fixture guide and executable proof lane."
+tags = ["runtime", "fixtures"]
+
+[[sources]]
+id = "selfhost_source_profile"
+path = "ouroboros/docs/selfhost/metadata/selfhost_source_profile.json"
+kind = "json"
+description = "Canonical selfhost source profile."
+tags = ["selfhost", "profile"]
+
+[[sources]]
+id = "selfhost_module_map"
+path = "ouroboros/docs/selfhost/inventories/module_map.json"
+kind = "json"
+description = "Selfhost crate and module inventory."
+tags = ["selfhost", "inventory"]
+
+[[sources]]
+id = "crates_flowgraph"
+path = "crates/flowgraph.json"
+kind = "json"
+description = "Machine-readable crate graph and lane hints."
+tags = ["crates", "graph"]
+
+[[commands]]
+id = "cargo_test_kain_core_runtime_contract"
+description = "Run the focused kain-core runtime contract tests."
+tags = ["runtime", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["runtime_contract_json"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "kain-core", "runtime_contract"]
+  cwd = "."
+
+[[commands]]
+id = "cargo_test_kain_driver_native_app"
+description = "Run the focused kain-driver native app tests."
+tags = ["runtime", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "kain-driver", "native_app"]
+  cwd = "."
+
+[[commands]]
+id = "runtime_fixtures"
+description = "Run the LLVM/raw-native fixture validation suite."
+tags = ["runtime", "fixtures", "validation"]
+timeout_seconds = 1800
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "bash"
+  args = ["./runtime/fixtures/validate_all.sh"]
+  cwd = "."
+
+[[commands]]
+id = "runtime_conformance"
+description = "Run the native runtime conformance harness family."
+tags = ["runtime", "conformance", "validation"]
+timeout_seconds = 1800
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "bash"
+  args = ["./runtime/conformance/run_all.sh"]
+  cwd = "."
+
+[[commands]]
+id = "runtime_full_validation"
+description = "Run the full native runtime validation suite."
+tags = ["runtime", "validation", "full"]
+timeout_seconds = 3600
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "bash"
+  args = ["./runtime/validate_native_runtime.sh"]
+  cwd = "."
+
+[[commands]]
+id = "selfhost_profile_phase_slices"
+description = "Run the selfhost phase-slice mapping test."
+tags = ["selfhost", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["source_correspondence_manifest"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "cli", "--lib", "default_profile_maps_phase_slices", "--", "--nocapture"]
+  cwd = "."
+
+[[commands]]
+id = "selfhost_profile_relative_roots"
+description = "Run the selfhost relative-root resolution test."
+tags = ["selfhost", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["source_correspondence_manifest"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "cli", "--lib", "default_profile_resolves_relative_roots", "--", "--nocapture"]
+  cwd = "."
+
+[[commands]]
+id = "selfhost_file_mirror_plans"
+description = "Run the selfhost file-mirror planning test."
+tags = ["selfhost", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["source_correspondence_manifest"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "cli", "--lib", "build_file_mirror_plans_preserves_file_level_paths", "--", "--nocapture"]
+  cwd = "."
+
+[[commands]]
+id = "selfhost_roundtrip_split"
+description = "Run the selfhost roundtrip split-tree test."
+tags = ["selfhost", "cargo", "test"]
+timeout_seconds = 1200
+artifact_ids = ["source_correspondence_manifest"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = ["test", "-p", "cli", "--lib", "write_roundtrip_rust_tree_splits_inline_modules_into_real_files", "--", "--nocapture"]
+  cwd = "."
+
+[[commands]]
+id = "selfhost_phase2_mirror"
+description = "Run the mirror-only selfhost phase2 lane and keep forced artifacts."
+tags = ["selfhost", "cargo", "phase2", "validation"]
+timeout_seconds = 3600
+artifact_ids = ["source_correspondence_manifest"]
+
+  [[commands.platform]]
+  os = "default"
+  command = "cargo"
+  args = [
+    "run",
+    "-q",
+    "-p",
+    "cli",
+    "--bin",
+    "kain",
+    "--",
+    "selfhost",
+    "phase2",
+    "--emit-roundtrip-rust",
+    "false",
+    "--assemble-stage2",
+    "false",
+    "--build-stage2",
+    "false",
+    "--force",
+    "--output-dir",
+    ".kain/flight-control/selfhost-phase2"
+  ]
+  cwd = "."
+
+[[pairings]]
+id = "runtime_manifest_metadata"
+description = "Keep the native runtime TOML manifest and JSON metadata mirror in sync."
+left_path = "runtime/native_runtime.toml"
+right_path = "runtime/native_runtime_metadata.json"
+compare_kind = "runtime_manifest_metadata"
+
+[[artifacts]]
+id = "runtime_contract_json"
+description = "Compiler-emitted runtime contract bundle."
+path_globs = ["**/*.runtime_contract.json", "**/kain_runtime_contract.json"]
+parse_kind = "runtime_contract_json"
+
+[[artifacts]]
+id = "realtime_app_json"
+description = "Compiler-emitted realtime application bundle."
+path_globs = ["**/*.realtime_app.json", "**/kain_realtime_app_bundle.json"]
+parse_kind = "realtime_app_json"
+
+[[artifacts]]
+id = "source_correspondence_manifest"
+description = "Selfhost source correspondence manifest."
+path_globs = ["**/source_correspondence_manifest.json"]
+parse_kind = "source_correspondence_manifest"
+
+[[lanes]]
+id = "runtime"
+label = "Native Runtime"
+description = "Runtime manifest, fixtures, conformance, and compiled native validation lane."
+path_globs = ["runtime/**"]
+goal_keywords = ["runtime", "native runtime", "conformance", "fixtures", "abi", "validation"]
+source_ids = [
+  "architecture",
+  "memory",
+  "runtime_metadata",
+  "runtime_validation_guide",
+  "runtime_conformance_readme",
+  "runtime_fixtures_readme"
+]
+command_ids = [
+  "cargo_test_kain_core_runtime_contract",
+  "cargo_test_kain_driver_native_app",
+  "runtime_fixtures",
+  "runtime_conformance"
+]
+full_command_ids = ["runtime_full_validation"]
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]
+
+[[lanes]]
+id = "selfhost"
+label = "Selfhost"
+description = "Phase1/phase2 selfhost mirror planning, source profile, and inventory lane."
+path_globs = [
+  "ouroboros/docs/selfhost/**",
+  "ouroboros/out/selfhost/**",
+  "crates/cli/src/selfhost.rs",
+  "crates/cli/src/selfhost_profile.rs",
+  "crates/kain-import/src/rust/selfhost.rs",
+  "src/.rustimport/**"
+]
+goal_keywords = ["selfhost", "phase2", "mirror", "roundtrip", "source profile", "inventory"]
+source_ids = [
+  "architecture",
+  "memory",
+  "selfhost_source_profile",
+  "selfhost_module_map",
+  "crates_flowgraph"
+]
+command_ids = [
+  "selfhost_profile_phase_slices",
+  "selfhost_profile_relative_roots",
+  "selfhost_file_mirror_plans",
+  "selfhost_roundtrip_split"
+]
+full_command_ids = ["selfhost_phase2_mirror"]
+artifact_ids = ["source_correspondence_manifest"]
+
+[[lanes]]
+id = "compiler_core"
+label = "Compiler Core"
+description = "Core compiler, CLI, and driver lane that feeds runtime and selfhost flows."
+path_globs = ["crates/kain-core/**", "crates/cli/**", "crates/kain-driver/**"]
+goal_keywords = ["compiler", "driver", "bundle", "codegen", "typed program", "cli"]
+source_ids = ["architecture", "memory", "crates_flowgraph"]
+command_ids = ["cargo_test_kain_core_runtime_contract", "cargo_test_kain_driver_native_app"]
+artifact_ids = ["runtime_contract_json", "realtime_app_json"]

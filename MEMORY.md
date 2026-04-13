@@ -1,5 +1,59 @@
 # MEMORY
 
+# 2026-04-13 - Kain Flight Control MCP server added as a portable repo-native control plane
+
+The repo now has a local MCP sidecar under `tools/kain-flight-control/` so
+agents can stop rediscovering Kain lane ownership, validation commands, and
+paired metadata rules by hand.
+
+What changed:
+
+- Added a new Go module at `tools/kain-flight-control/` with a stdio MCP server
+  entrypoint plus a small Python launcher.
+- Added root `mcp.json` and `codex.config.toml` templates that launch the
+  server through `KAIN_REPO_ROOT` instead of a checkout-specific absolute path.
+- Added `tools/kain-flight-control/config/server.toml` as the machine-readable
+  registry for workspace/env settings, canonical source files, allowlisted
+  validation commands, artifact parsers, lane routing rules, and paired-surface
+  consistency checks.
+- Implemented the deterministic MCP tool surface: `resolve_lane`,
+  `context_pack`, `plan_validation`, `run_validation`, `inspect_artifact`,
+  `triage_failure`, and `check_pairing`.
+- Seeded the first runtime and selfhost lanes from existing repo truth such as
+  `runtime/native_runtime_metadata.json`,
+  `runtime/changelogs/NATIVE_RUNTIME_VALIDATION.md`,
+  `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`,
+  `ouroboros/docs/selfhost/inventories/module_map.json`, and
+  `crates/flowgraph.json`.
+- Added tests covering config loading, repo-root resolution, lane planning,
+  allowlist enforcement, artifact parsing, pairing drift detection, triage
+  classification, and MCP `initialize` / `tools/list` / `tools/call`.
+
+Validation:
+
+- `cd tools/kain-flight-control && go test ./...`
+- `cd tools/kain-flight-control && python3 -m py_compile launcher.py`
+
+Important behavior notes:
+
+- The server is intentionally a controlled-exec MCP. It does not expose a
+  generic shell tool; every runnable command must be declared in
+  `config/server.toml`.
+- The launcher prefers a built binary under `tools/kain-flight-control/bin/`
+  and falls back to `go run` for first-run convenience.
+- Pairing drift for the native runtime is now machine-checkable through
+  `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json`.
+- The current validation cache is command-keyed and repo-state-aware, but still
+  intentionally conservative; the main speedup in v1 comes from lane routing
+  and smaller allowlisted check selection, not from a fully global artifact
+  cache.
+
+Recommended next step:
+
+- Extend `server.toml` with more Kain-native lanes such as Fabric, UI/native,
+  importer repair, and website/public-site validation before adding more code
+  paths to the server itself.
+
 # 2026-04-13 - docs/examples replaced with a runnable manifest-driven Kain source suite
 
 The old prose-only `docs/examples` pages were replaced with a real example
