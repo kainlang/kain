@@ -114,3 +114,5 @@ website/
 /apps/*/native-app/kain_runtime_compatibility.json
 /apps/*/native-app/kain_runtime_contract.json
 /apps/*/native-app/kain_runtime_version.json
+.reference/
+/.reference/
