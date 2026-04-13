@@ -5,6 +5,7 @@
 **/debug/
 **/debug/**
 /smoketest/3D/
+zender/
 smoketest/3D/
 !/smoketest/3D/intent_forge_quartet/
 !/smoketest/3D/intent_forge_quartet/.gitignore
