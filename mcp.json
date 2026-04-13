@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "kain-flight-control": {
+      "command": "python3",
+      "args": [
+        "${KAIN_REPO_ROOT}/tools/kain-flight-control/launcher.py"
+      ],
+      "cwd": "${KAIN_REPO_ROOT}",
+      "env": {
+        "KAIN_REPO_ROOT": "${KAIN_REPO_ROOT}"
+      }
+    }
+  }
+}
