@@ -105,7 +105,10 @@ function Resolve-Python312Path {
     return $null
 }
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = git rev-parse --show-toplevel
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoRoot)) {
+    throw "Unable to resolve repository root."
+}
 $installRoot = if ($env:CARGO_HOME) {
     $env:CARGO_HOME
 } else {

@@ -1,5 +1,46 @@
 # MEMORY
 
+# 2026-04-12 - scripts tree reorganized into directory-only root
+
+The `scripts/` directory was flattened into purpose-based subtrees so the root
+no longer contains files.
+
+What changed:
+
+- Moved human-facing docs into `scripts/docs/`.
+- Moved Bash entrypoints into `scripts/linux/`.
+- Moved Windows wrappers into `scripts/windows/`.
+- Kept Python utilities in `scripts/python/` and moved the remaining root
+  Python helpers there.
+- Moved the Rust build helper into `scripts/rust/` and the UE5 sample input
+  into `scripts/tests/`.
+
+Why:
+
+- The root `scripts/` directory now stays directory-only, which makes the tree
+  easier for agents to scan and prevents loose root-level helpers from
+  accumulating.
+
+Validation:
+
+- Verified `scripts/` root contains only subdirectories.
+- Updated repo-wide references in docs, hooks, architecture notes, and CLI
+  messages to the new paths.
+
+Current risk:
+
+- A few historical notes outside the active tree still mention the old flat
+  `scripts/...` layout. Those are archival and do not affect the current
+  checkout, but they may be confusing if read out of context.
+- The round-trip demo script still uses a legacy plugin target name. The path
+  move is complete, but that demo input may need a future refresh if it is meant
+  to be runnable end-to-end.
+
+Recommended next step:
+
+- Keep future script additions inside the new subtrees and update the docs index
+  if a new category appears.
+
 # 2026-04-12 - extern crate lowering now shares the external module diagnostic lane
 
 The Rust importer previously surfaced `syn::Item::ExternCrate` under a one-off `extern_crate_decl` class, which the selfhost allowlist did not recognize. That class now folds into `external_mod_decl`, matching the existing `allow_external_mod_decls` path and letting `cli` import cleanly during phase2.

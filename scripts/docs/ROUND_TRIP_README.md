@@ -43,7 +43,7 @@ class VOXELFORGE_API AVoxelChunk : public AActor
 The `cpp_to_kain.py` tool extracts KAIN source from marked C++:
 
 ```bash
-python tools/cpp_to_kain.py Factory/VoxelForgePro/Source/ --output recovered.kn
+python scripts/python/cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --output recovered.kn
 ```
 
 Output:
@@ -63,7 +63,7 @@ actor VoxelChunk:
 Compile the extracted KAIN and compare with original C++:
 
 ```bash
-python tools/cpp_to_kain.py Factory/VoxelForgePro/Source/ --validate
+python scripts/python/cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --validate
 ```
 
 This:
@@ -78,7 +78,7 @@ This:
 
 **Option 1: CLI flag (recommended)**
 ```bash
-cd Factory/Example
+cd unreal_plugins/VoxelForgePro/VoxelForgePro
 kain build --ue5 --embed-kain
 ```
 
@@ -93,12 +93,12 @@ marker_style = "block"  # or "inline"
 
 **Basic extraction:**
 ```bash
-python tools/cpp_to_kain.py Factory/Example/Source/ --output example.kn
+python scripts/python/cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --output example.kn
 ```
 
 **With statistics:**
 ```bash
-python tools/cpp_to_kain.py Factory/Example/Source/ --output example.kn --stats
+python scripts/python/cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --output example.kn --stats
 ```
 
 Output:
@@ -126,7 +126,7 @@ Shaders found:    3
 
 **Full validation:**
 ```bash
-python tools/cpp_to_kain.py Factory/Example/Source/ --validate
+python scripts/python/cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --validate
 ```
 
 Output:
@@ -204,8 +204,8 @@ Extract clean KAIN from all Factory plugins:
 for plugin in Factory/*/; do
     plugin_name=$(basename "$plugin")
     echo "Extracting $plugin_name..."
-    
-    python tools/cpp_to_kain.py "$plugin/Source/" \
+
+    python scripts/python/cpp_to_kain.py "$plugin/Source/" \
         --output "examples/${plugin_name}.kn"
 done
 
@@ -237,7 +237,7 @@ jobs:
         run: |
           for plugin in Factory/*/; do
             echo "Testing $plugin..."
-            python tools/cpp_to_kain.py "$plugin/Source/" --validate
+            python scripts/python/cpp_to_kain.py "$plugin/Source/" --validate
           done
 ```
 
@@ -251,7 +251,7 @@ cd Factory/BrokenPlugin
 kain build --ue5 --embed-kain
 
 # Extract to see what KAIN thinks it generated
-python ../../tools/cpp_to_kain.py Source/ --output debug.kn
+python ../../scripts/python/cpp_to_kain.py Source/ --output debug.kn
 
 # Compare with original
 diff debug.kn broken_plugin.kn
@@ -262,7 +262,7 @@ diff debug.kn broken_plugin.kn
 Generate docs with side-by-side KAIN/C++:
 
 ```bash
-python tools/generate_docs.py Factory/Example/Source/ \
+python tools/generate_docs.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ \
     --output docs/examples/ \
     --format markdown \
     --side-by-side

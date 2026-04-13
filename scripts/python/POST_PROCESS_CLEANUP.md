@@ -101,8 +101,8 @@ But this should NOT be needed - Oracle is more comprehensive.
 
 ## Files Modified
 
-- `kain/python/post_process.py` - Removed validation plugins, updated docs
-- `kain/python/POST_PROCESS_CLEANUP.md` - This file (documentation)
+- `kain/scripts/python/post_process.py` - Removed validation plugins, updated docs
+- `kain/scripts/python/POST_PROCESS_CLEANUP.md` - This file (documentation)
 
 ## Related Systems
 

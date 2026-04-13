@@ -878,7 +878,7 @@ Relevant pieces:
 - `crates/kain-selfhost`
 - `crates/kain-driver`
 - `crates/kain-core`
-- `scripts/kain_linux_pipeline.sh`
+- `scripts/linux/kain_linux_pipeline.sh`
 
 The current repo direction still includes Project Ouroboros style flows, but it now sits alongside a much larger runtime/interop stack than earlier README versions suggested.
 

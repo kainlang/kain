@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-  ./scripts/kain_linux_pipeline.sh [smoke|selfhost|all] [options]
+  ./scripts/linux/kain_linux_pipeline.sh [smoke|selfhost|all] [options]
 
 Modes:
   smoke      Sync a minimal Linux validation stage and run cargo/FFI smoke proofs.
@@ -21,14 +21,13 @@ Options:
   --help                  Show this help text.
 
 Examples:
-  ./scripts/kain_linux_pipeline.sh smoke
-  ./scripts/kain_linux_pipeline.sh selfhost --inventory-dir /abs/path/to/inventories
-  ./scripts/kain_linux_pipeline.sh all --phase phase1 --writeback
+  ./scripts/linux/kain_linux_pipeline.sh smoke
+  ./scripts/linux/kain_linux_pipeline.sh selfhost --inventory-dir /abs/path/to/inventories
+  ./scripts/linux/kain_linux_pipeline.sh all --phase phase1 --writeback
 EOF
 }
 
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-source_repo="$(cd -- "${script_dir}/.." && pwd)"
+source_repo="$(git rev-parse --show-toplevel)"
 repo_name="$(basename -- "${source_repo}")"
 mode="smoke"
 phase="both"
@@ -98,6 +97,7 @@ require_command() {
 
 require_command cargo
 require_command rustc
+require_command git
 require_command python3
 require_command node
 require_command npm

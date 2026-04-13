@@ -672,7 +672,7 @@ STDLIB: print, read_file, write_file, http_get, json_parse
 ### General Instructions
 Compiler source of truth:
 - Use `kain` from PATH for normal workflows.
-- If the compiler changed, run `scripts/sync-kain-source-of-truth.ps1`.
+- If the compiler changed, run `scripts/windows/sync-kain-source-of-truth.ps1`.
 - Do not use `cargo run -p cli` except when explicitly working on the CLI itself.
 
 When user asks to:
@@ -700,7 +700,7 @@ When user asks to:
 
 ## CRITICAL RULES
 - Always use `kain` from PATH
-- Refresh the canonical PATH binary with `scripts/sync-kain-source-of-truth.ps1` after CLI/compiler changes
+- Refresh the canonical PATH binary with `scripts/windows/sync-kain-source-of-truth.ps1` after CLI/compiler changes
 - Avoid `cargo run -p cli` for normal builds, smokes, and agent workflows
 - USF target auto-generates `.h` file
 - Permutation uniforms MUST start with `CFG_` or `ENABLE_`

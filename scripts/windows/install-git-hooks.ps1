@@ -17,4 +17,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Git hooks path configured to .githooks"
-Write-Host "Pre-commit hook now runs scripts/check-stale-artifacts.ps1"
+Write-Host "Pre-commit hook now runs scripts/windows/check-stale-artifacts.ps1"

@@ -455,7 +455,7 @@ pub fn generate_filtered(
 /// - Generating LLM training examples from working plugins
 /// - Debugging what KAIN generated for specific C++ patterns
 ///
-/// See `Kain/tools/ROUND_TRIP_README.md` for usage details.
+/// See `Kain/scripts/docs/ROUND_TRIP_README.md` for usage details.
 pub fn generate_filtered_typed(
     program: &TypedProgram,
     module_name: &str,

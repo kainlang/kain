@@ -407,7 +407,7 @@ pub fn generate_filtered(program: &kain_core::MonomorphizedProgram, module_name:
 @doc(doc = " - Generating LLM training examples from working plugins")
 @doc(doc = " - Debugging what KAIN generated for specific C++ patterns")
 @doc(doc = "")
-@doc(doc = " See `Kain/tools/ROUND_TRIP_README.md` for usage details.")
+@doc(doc = " See `Kain/scripts/docs/ROUND_TRIP_README.md` for usage details.")
 pub fn generate_filtered_typed(program: &kain_core::TypedProgram, module_name: String, output_name: Option<String>, target_item: Option<String>, copyright: Option<String>, type_to_header: Map<String, String>, shader_file_names: Option<Array<String>>, embed_kain: Bool, has_gas_features: Bool) -> Result<Ue5Output, KainError>:
     let mut gen = Ue5Gen__new_(module_name, output_name, copyright, target_item, type_to_header.clone())
     gen.shader_file_names = shader_file_names.unwrap_or_default()

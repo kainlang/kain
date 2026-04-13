@@ -8,14 +8,16 @@
 
 set -e  # Exit on error
 
+repo_root="$(git rev-parse --show-toplevel)"
+
 echo "🔄 KAIN Round-Trip Compiler Test"
 echo "================================"
 echo ""
 
 # Configuration
-TEST_PLUGIN="Factory/Example"
+TEST_PLUGIN="${repo_root}/unreal_plugins/VoxelForgePro/VoxelForgePro"
 KAIN_BINARY="kain"
-OUTPUT_DIR="tools/round_trip_test"
+OUTPUT_DIR="${repo_root}/generated/round_trip_test"
 
 # Check if kain binary exists
 if ! command -v $KAIN_BINARY &> /dev/null; then
@@ -43,12 +45,12 @@ echo "⚠️  Note: --embed-kain flag not yet implemented"
 echo "   Testing extraction on existing C++ (without markers)"
 echo ""
 
-cd ../..
+cd "$repo_root"
 
 # Step 2: Extract KAIN from C++
 echo "Step 2: Extracting KAIN from C++..."
 echo "------------------------------------"
-python3 tools/cpp_to_kain.py "$TEST_PLUGIN/Source/" \
+python3 "$repo_root/scripts/python/cpp_to_kain.py" "$TEST_PLUGIN/Source/" \
     --output "$OUTPUT_DIR/recovered.kn"
 
 if [ $? -eq 0 ]; then
@@ -72,7 +74,7 @@ echo ""
 # Step 4: Validate round-trip (if markers exist)
 echo "Step 4: Validating round-trip..."
 echo "--------------------------------"
-python3 tools/cpp_to_kain.py "$TEST_PLUGIN/Source/" --validate
+python3 "$repo_root/scripts/python/cpp_to_kain.py" "$TEST_PLUGIN/Source/" --validate
 
 if [ $? -eq 0 ]; then
     echo "✅ Round-trip validation succeeded"
@@ -94,4 +96,4 @@ echo "1. Implement --embed-kain flag in CLI"
 echo "2. Wire kain_markers module into codegen"
 echo "3. Re-run this test with markers enabled"
 echo ""
-echo "See tools/ROUND_TRIP_README.md for details"
+echo "See $repo_root/scripts/docs/ROUND_TRIP_README.md for details"

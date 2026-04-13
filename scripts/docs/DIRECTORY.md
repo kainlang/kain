@@ -44,14 +44,14 @@ kain/
 │   └── cli/                         # CLI binary + packager
 ├── unreal/
 │   ├── metadata/                    # JSON databases (21K types, 2.3K widgets, 7.2K functions)
-│   └── scripts/                     # Workspace scripts and helpers (extractors, repair, Linux pipeline)
+│   └── scripts/                     # Workspace scripts and helpers organized by docs/, linux/, python/, rust/, tests/, and windows/
 ├── testing/                         # Test plugins
 │   ├── Phase3/SlateTest4/           # ACTIVE: "Ulta" comprehensive test
 │   ├── Phase4/                      # Shader tests
 │   └── BestExample/                 # Feature reference
 ├── docs/                            # Documentation (you are here)
 ├── kn_library/                      # KAIN code examples and corpus
-└── python/                          # Post-processors and validators
+└── python/                          # Post-processors, validators, and utility scripts
 ```
 
 
@@ -398,7 +398,7 @@ match target {
 | `crates/ue5/src/ue5/oracle.rs` | Semantic validation | New validation rules |
 | `crates/cli/src/packager/uplugin_gen.rs` | .uplugin generation | Plugin metadata changes |
 | `crates/cli/src/packager/build_cs_gen.rs` | Build.cs generation | Module dependency changes |
-| `python/post_process.py` | C++ cleanup | Formatting issues |
+| `scripts/python/post_process.py` | C++ cleanup | Formatting issues |
 
 ### Configuration Files
 
@@ -1106,7 +1106,7 @@ Packager orchestrates (packager/ue5_pipeline.rs)
     ↓
 Codegen generates C++ (codegen_ue5.rs, editor/codegen.rs, etc.)
     ↓
-Post-processor cleans up (python/post_process.py)
+Post-processor cleans up (scripts/python/post_process.py)
     ↓
 Output files written to Source/
 ```
@@ -1277,9 +1277,9 @@ material MyMaterial:
 ### Tools
 - `unreal/scripts/corpus_extractor.py` - Extract engine metadata
 - `unreal/scripts/shader_extractor.py` - Extract shader metadata
-- `python/post_process.py` - C++ cleanup
-- `python/ue5_validator.py` - Validate generated code
-- `scripts/kain_linux_pipeline.sh` - Linux staging, smoke, and selfhost helper
+- `scripts/python/post_process.py` - C++ cleanup
+- `scripts/python/ue5_validator.py` - Validate generated code
+- `scripts/linux/kain_linux_pipeline.sh` - Linux staging, smoke, and selfhost helper
 
 ---
 

@@ -4,8 +4,8 @@ C++ → KAIN Decompiler
 Extracts KAIN source from KAIN-generated C++ files with embedded markers.
 
 Usage:
-    python cpp_to_kain.py Factory/Example/Source/ --output recovered.kn
-    python cpp_to_kain.py Factory/Example/Source/ --validate  # Round-trip test
+    python cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --output recovered.kn
+    python cpp_to_kain.py unreal_plugins/VoxelForgePro/VoxelForgePro/Source/ --validate  # Round-trip test
 """
 
 import re
@@ -231,7 +231,7 @@ def main():
     parser.add_argument(
         'source_dir',
         type=Path,
-        help='Directory containing C++ source files (e.g., Factory/Example/Source/)'
+        help='Directory containing C++ source files (e.g., unreal_plugins/VoxelForgePro/VoxelForgePro/Source/)'
     )
     parser.add_argument(
         '--output', '-o',

@@ -2211,7 +2211,7 @@ fn print_doctor(active_launcher: LauncherKind) {
             println!(" Warning: active kain comes from a repo target directory.");
             if cfg!(windows) {
                 println!(
-                    "          Refresh/install a stable PATH binary with scripts/sync-kain-source-of-truth.ps1."
+                    "          Refresh/install a stable PATH binary with scripts/windows/sync-kain-source-of-truth.ps1."
                 );
             } else {
                 println!(

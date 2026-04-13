@@ -8,7 +8,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoRoot)) {
     Write-Error "Unable to resolve repository root."
 }
 
-$scriptPath = Join-Path $repoRoot "scripts/check-stale-artifacts.ps1"
+$scriptPath = Join-Path $repoRoot "scripts/windows/check-stale-artifacts.ps1"
 if (-not (Test-Path $scriptPath)) {
     Write-Error "Missing stale-artifact guard script at $scriptPath"
 }

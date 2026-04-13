@@ -18,7 +18,7 @@ pip install sentence-transformers lancedb pyarrow
 
 ## Usage
 
-1. **Edit plugin directories** in `intelligence_scanner.py`:
+1. **Edit plugin directories** in `scripts/python/intelligence_scanner.py`:
 ```python
 plugin_dirs = [
     "D:/UE5Plugins/Marketplace",
@@ -29,7 +29,7 @@ plugin_dirs = [
 
 2. **Run scanner**:
 ```bash
-python scripts/intelligence_scanner.py
+python scripts/python/intelligence_scanner.py
 ```
 
 3. **Wait** (could take 30min - 2 hours for thousands of plugins)
