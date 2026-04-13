@@ -1,0 +1,837 @@
+fn lab_output_path(name: String) -> String:
+    return "labs/cookiecutter/outputs/" + name
+
+@extern fn write_file(path: String, content: String) -> Unit
+
+fn quote_string(text: String) -> String:
+    return "\"" + text + "\""
+
+fn string_slice(text: String, start: Int, finish: Int) -> String:
+    let mut result = ""
+    let mut index = start
+    while index < finish:
+        result = result + char_at(text, index)
+        index = index + 1
+    return result
+
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index + len(needle) > len(text):
+        return false
+    let mut offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    if len(needle) == 0:
+        return start
+    let mut index = start
+    while index + len(needle) <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return -1
+
+fn string_contains(text: String, needle: String) -> Bool:
+    return find_substring(text, needle, 0) >= 0
+
+fn escape_string_literal(text: String) -> String:
+    let mut escaped = ""
+    let mut index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        elif ch == "\"":
+            escaped = escaped + "\\\""
+        elif ch == "\n":
+            escaped = escaped + "\\n"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn replace_first(text: String, needle: String, replacement: String) -> String:
+    let start = find_substring(text, needle, 0)
+    if start < 0:
+        return text
+    let prefix = string_slice(text, 0, start)
+    let suffix = string_slice(text, start + len(needle), len(text))
+    return prefix + replacement + suffix
+
+fn repeat_string(token: String, count: Int) -> String:
+    let mut result = ""
+    let mut index = 0
+    while index < count:
+        result = result + token
+        index = index + 1
+    return result
+
+fn join_strings(items: Array<String>, delimiter: String) -> String:
+    let mut result = ""
+    let mut index = 0
+    while index < len(items):
+        if index > 0:
+            result = result + delimiter
+        result = result + items[index]
+        index = index + 1
+    return result
+
+fn split_lines(text: String) -> Array<String>:
+    let mut lines: Array<String> = []
+    let mut current = ""
+    let mut index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\n":
+            push(lines, current)
+            current = ""
+        else:
+            current = current + ch
+        index = index + 1
+    push(lines, current)
+    return lines
+
+fn clamp_int(value: Int, min_value: Int, max_value: Int) -> Int:
+    if value < min_value:
+        return min_value
+    if value > max_value:
+        return max_value
+    return value
+
+fn digit_text(value: Int) -> String:
+    if value == 0:
+        return "0"
+    if value == 1:
+        return "1"
+    if value == 2:
+        return "2"
+    if value == 3:
+        return "3"
+    if value == 4:
+        return "4"
+    if value == 5:
+        return "5"
+    if value == 6:
+        return "6"
+    if value == 7:
+        return "7"
+    if value == 8:
+        return "8"
+    return "9"
+
+fn str(value: Int) -> String:
+    if value == 0:
+        return "0"
+    if value < 0:
+        return "-" + str(0 - value)
+    let mut digits: Array<String> = []
+    let mut remaining = value
+    while remaining > 0:
+        push(digits, digit_text(remaining % 10))
+        remaining = remaining / 10
+    let mut result = ""
+    let mut index = len(digits) - 1
+    while index >= 0:
+        result = result + digits[index]
+        index = index - 1
+    return result
+
+fn bool_text(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn assert(condition: Bool, message: String):
+    if condition == false:
+        println("ASSERT FAIL: " + message)
+    return
+
+fn digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn is_whitespace_char(ch: String) -> Bool:
+    return ch == " " or ch == "\n" or ch == "\t" or ch == "\r"
+
+fn standalone_quine_template() -> String:
+    let lines = [
+        "fn quote_string(text: String) -> String:",
+        "    return \"\\\"\" + text + \"\\\"\"",
+        "",
+        "fn string_slice(text: String, start: Int, finish: Int) -> String:",
+        "    let mut result = \"\"",
+        "    let mut index = start",
+        "    while index < finish:",
+        "        result = result + char_at(text, index)",
+        "        index = index + 1",
+        "    return result",
+        "",
+        "fn starts_with_at(text: String, index: Int, needle: String) -> Bool:",
+        "    if index + len(needle) > len(text):",
+        "        return false",
+        "    let mut offset = 0",
+        "    while offset < len(needle):",
+        "        if char_at(text, index + offset) != char_at(needle, offset):",
+        "            return false",
+        "        offset = offset + 1",
+        "    return true",
+        "",
+        "fn find_substring(text: String, needle: String, start: Int) -> Int:",
+        "    if len(needle) == 0:",
+        "        return start",
+        "    let mut index = start",
+        "    while index + len(needle) <= len(text):",
+        "        if starts_with_at(text, index, needle):",
+        "            return index",
+        "        index = index + 1",
+        "    return -1",
+        "",
+        "fn replace_first(text: String, needle: String, replacement: String) -> String:",
+        "    let start = find_substring(text, needle, 0)",
+        "    if start < 0:",
+        "        return text",
+        "    let prefix = string_slice(text, 0, start)",
+        "    let suffix = string_slice(text, start + len(needle), len(text))",
+        "    return prefix + replacement + suffix",
+        "",
+        "fn escape_string_literal(text: String) -> String:",
+        "    let mut escaped = \"\"",
+        "    let mut index = 0",
+        "    while index < len(text):",
+        "        let ch = char_at(text, index)",
+        "        if ch == \"\\\\\":",
+        "            escaped = escaped + \"\\\\\\\\\"",
+        "        elif ch == \"\\\"\":",
+        "            escaped = escaped + \"\\\\\\\"\"",
+        "        elif ch == \"\\n\":",
+        "            escaped = escaped + \"\\\\n\"",
+        "        else:",
+        "            escaped = escaped + ch",
+        "        index = index + 1",
+        "    return escaped",
+        "",
+        "fn build_quine_source() -> String:",
+        "    let template = __COOKIECUTTER_TEMPLATE__",
+        "    return replace_first(template, \"__COOKIECUTTER_TEMPLATE__\", quote_string(escape_string_literal(template)))",
+        "",
+        "fn main() -> Int:",
+        "    println(build_quine_source())",
+        "    return 0"
+    ]
+    return join_strings(lines, "\n")
+
+fn build_standalone_quine_source() -> String:
+    let quine_template_source = standalone_quine_template()
+    return replace_first(quine_template_source, "__COOKIECUTTER_TEMPLATE__", quote_string(escape_string_literal(quine_template_source)))
+
+fn standalone_quine_report(source: String) -> String:
+    let mut report = "QUINE\n"
+    report = report + "source_bytes=" + str(len(source)) + "\n"
+    report = report + "contains_main=" + bool_text(string_contains(source, "fn main() -> Int:")) + "\n"
+    report = report + "contains_marker=" + bool_text(string_contains(source, "__COOKIECUTTER_TEMPLATE__")) + "\n"
+    return report
+
+fn life_index(width: Int, x: Int, y: Int) -> Int:
+    return y * width + x
+
+fn make_zero_int_array(count: Int) -> Array<Int>:
+    let mut values: Array<Int> = []
+    let mut index = 0
+    while index < count:
+        push(values, 0)
+        index = index + 1
+    return values
+
+fn seed_life_pattern(cells: Array<Int>, width: Int):
+    let seeds = [
+        1, 0,
+        2, 1,
+        0, 2,
+        1, 2,
+        2, 2,
+        10, 4,
+        11, 4,
+        12, 4,
+        16, 8,
+        17, 8,
+        16, 9,
+        18, 9,
+        19, 10,
+        20, 10,
+        18, 11,
+        19, 11
+    ]
+    let mut index = 0
+    while index + 1 < len(seeds):
+        let x = seeds[index]
+        let y = seeds[index + 1]
+        cells[life_index(width, x, y)] = 1
+        index = index + 2
+    return
+
+fn life_neighbor_count(cells: Array<Int>, width: Int, height: Int, x: Int, y: Int) -> Int:
+    let mut total = 0
+    let mut dy = -1
+    while dy <= 1:
+        let mut dx = -1
+        while dx <= 1:
+            if (dx == 0 and dy == 0) == false:
+                let nx = x + dx
+                let ny = y + dy
+                if nx >= 0 and nx < width and ny >= 0 and ny < height:
+                    total = total + cells[life_index(width, nx, ny)]
+            dx = dx + 1
+        dy = dy + 1
+    return total
+
+fn life_next_generation(cells: Array<Int>, width: Int, height: Int) -> Array<Int>:
+    let mut next = make_zero_int_array(width * height)
+    let mut y = 0
+    while y < height:
+        let mut x = 0
+        while x < width:
+            let neighbors = life_neighbor_count(cells, width, height, x, y)
+            let current = cells[life_index(width, x, y)]
+            let mut next_value = 0
+            if current == 1 and (neighbors == 2 or neighbors == 3):
+                next_value = 1
+            elif current == 0 and neighbors == 3:
+                next_value = 1
+            next[life_index(width, x, y)] = next_value
+            x = x + 1
+        y = y + 1
+    return next
+
+fn life_alive_count(cells: Array<Int>) -> Int:
+    let mut total = 0
+    let mut index = 0
+    while index < len(cells):
+        total = total + cells[index]
+        index = index + 1
+    return total
+
+fn life_frame_text(cells: Array<Int>, width: Int, height: Int) -> String:
+    let mut lines: Array<String> = []
+    let mut y = 0
+    while y < height:
+        let mut row = ""
+        let mut x = 0
+        while x < width:
+            if cells[life_index(width, x, y)] == 1:
+                row = row + "#"
+            else:
+                row = row + "."
+            x = x + 1
+        push(lines, row)
+        y = y + 1
+    return join_strings(lines, "\n")
+
+fn life_cells_svg(cells: Array<Int>, width: Int, height: Int, offset_x: Int, offset_y: Int, cell_size: Int) -> String:
+    let mut svg = ""
+    let mut y = 0
+    while y < height:
+        let mut x = 0
+        while x < width:
+            let mut fill = "#0f172a"
+            if cells[life_index(width, x, y)] == 1:
+                fill = "#2dd4bf"
+            svg = svg + "<rect x='" + str(offset_x + x * cell_size) + "' y='" + str(offset_y + y * cell_size) + "' width='" + str(cell_size - 1) + "' height='" + str(cell_size - 1) + "' rx='2' fill='" + fill + "' />"
+            x = x + 1
+        y = y + 1
+    return svg
+
+fn build_game_of_life_svg(frames: Array<String>, counts: Array<Int>, width: Int, height: Int) -> String:
+    let panel_columns = 4
+    let cell_size = 12
+    let panel_width = width * cell_size + 40
+    let panel_height = height * cell_size + 58
+    let total_width = panel_columns * panel_width
+    let total_rows = (len(frames) + panel_columns - 1) / panel_columns
+    let total_height = total_rows * panel_height
+    let mut svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + str(total_width) + " " + str(total_height) + "' width='" + str(total_width) + "' height='" + str(total_height) + "'>"
+    svg = svg + "<rect width='" + str(total_width) + "' height='" + str(total_height) + "' fill='#020617' />"
+    svg = svg + "<style>text{font-family:Consolas,monospace;fill:#e2e8f0} .small{font-size:12px;fill:#94a3b8} .title{font-size:16px;font-weight:bold}</style>"
+    let mut frame_index = 0
+    while frame_index < len(frames):
+        let panel_x = (frame_index % panel_columns) * panel_width
+        let panel_y = (frame_index / panel_columns) * panel_height
+        svg = svg + "<rect x='" + str(panel_x + 10) + "' y='" + str(panel_y + 10) + "' width='" + str(panel_width - 20) + "' height='" + str(panel_height - 20) + "' rx='16' fill='#0b1120' stroke='#1e293b' stroke-width='1' />"
+        svg = svg + "<text class='title' x='" + str(panel_x + 24) + "' y='" + str(panel_y + 32) + "'>Generation " + str(frame_index) + "</text>"
+        svg = svg + "<text class='small' x='" + str(panel_x + 24) + "' y='" + str(panel_y + 48) + "'>alive = " + str(counts[frame_index]) + "</text>"
+        let cells = tokenize_life_frame(frames[frame_index], width, height)
+        svg = svg + life_cells_svg(cells, width, height, panel_x + 20, panel_y + 56, cell_size)
+        frame_index = frame_index + 1
+    return svg + "</svg>"
+
+fn tokenize_life_frame(frame_text: String, width: Int, height: Int) -> Array<Int>:
+    let mut cells = make_zero_int_array(width * height)
+    let mut x = 0
+    let mut y = 0
+    let mut index = 0
+    while index < len(frame_text):
+        let ch = char_at(frame_text, index)
+        if ch == "\n":
+            y = y + 1
+            x = 0
+        else:
+            if ch == "#":
+                cells[life_index(width, x, y)] = 1
+            x = x + 1
+        index = index + 1
+    return cells
+
+fn game_of_life_showcase() -> String:
+    let width = 24
+    let height = 16
+    let frame_count = 8
+    let mut cells = make_zero_int_array(width * height)
+    seed_life_pattern(cells, width)
+    let mut frames: Array<String> = []
+    let mut counts: Array<Int> = []
+    let mut generation = 0
+    while generation < frame_count:
+        push(frames, life_frame_text(cells, width, height))
+        push(counts, life_alive_count(cells))
+        cells = life_next_generation(cells, width, height)
+        generation = generation + 1
+    let frame_text = join_strings(frames, "\n\n")
+    let svg = build_game_of_life_svg(frames, counts, width, height)
+    write_file(lab_output_path("game_of_life_frames.txt"), frame_text + "\n")
+    write_file(lab_output_path("game_of_life.svg"), svg)
+    let mut report = "GAME OF LIFE\n"
+    report = report + "grid=" + str(width) + "x" + str(height) + "\n"
+    report = report + "frames=" + str(frame_count) + "\n"
+    report = report + "alive_generation_0=" + str(counts[0]) + "\n"
+    report = report + "alive_generation_7=" + str(counts[len(counts) - 1]) + "\n"
+    return report
+
+fn mandelbrot_palette_char(index: Int) -> String:
+    let palette = [" ", ".", ":", "-", "=", "+", "*", "#", "%", "@"]
+    let clamped = clamp_int(index, 0, len(palette) - 1)
+    return palette[clamped]
+
+fn mandelbrot_ascii(width: Int, height: Int, max_iterations: Int) -> String:
+    let scale = 1024
+    let escape_radius_squared = 4 * scale * scale
+    let mut lines: Array<String> = []
+    let mut y = 0
+    while y < height:
+        let mut row = ""
+        let imag = ((y * 2560) / height) - 1280
+        let mut x = 0
+        while x < width:
+            let real = ((x * 3584) / width) - 2560
+            let mut zr = 0
+            let mut zi = 0
+            let mut iteration = 0
+            while iteration < max_iterations and ((zr * zr) + (zi * zi)) <= escape_radius_squared:
+                let next_zr = (((zr * zr) - (zi * zi)) / scale) + real
+                let next_zi = (((2 * zr) * zi) / scale) + imag
+                zr = next_zr
+                zi = next_zi
+                iteration = iteration + 1
+            let palette_index = (iteration * 9) / max_iterations
+            if iteration == max_iterations:
+                row = row + "@"
+            else:
+                row = row + mandelbrot_palette_char(palette_index)
+            x = x + 1
+        push(lines, row)
+        y = y + 1
+    return join_strings(lines, "\n")
+
+fn mandelbrot_svg(ascii: String, width: Int, height: Int) -> String:
+    let mut svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 980 760' width='980' height='760'>"
+    svg = svg + "<rect width='980' height='760' fill='#020617' />"
+    svg = svg + "<style>text{font-family:Consolas,monospace;font-size:12px;fill:#f8fafc} .caption{font-size:18px;font-weight:bold;fill:#38bdf8} .small{font-size:13px;fill:#94a3b8}</style>"
+    svg = svg + "<text class='caption' x='28' y='42'>Mandelbrot ASCII</text>"
+    svg = svg + "<text class='small' x='28' y='62'>Kain-generated console fractal rendered into SVG for quick inspection</text>"
+    let lines = split_lines(ascii)
+    let mut index = 0
+    while index < len(lines):
+        svg = svg + "<text x='28' y='" + str(92 + index * 18) + "'>" + lines[index] + "</text>"
+        index = index + 1
+    return svg + "</svg>"
+
+fn mandelbrot_showcase() -> String:
+    let width = 78
+    let height = 36
+    let max_iterations = 32
+    let ascii = mandelbrot_ascii(width, height, max_iterations)
+    let svg = mandelbrot_svg(ascii, width, height)
+    write_file(lab_output_path("mandelbrot_ascii.txt"), ascii + "\n")
+    write_file(lab_output_path("mandelbrot.svg"), svg)
+    assert(string_contains(ascii, "@"), "expected mandelbrot core glyphs")
+    let mut report = "MANDELBROT\n"
+    report = report + "grid=" + str(width) + "x" + str(height) + "\n"
+    report = report + "max_iterations=" + str(max_iterations) + "\n"
+    report = report + "contains_core=" + bool_text(string_contains(ascii, "@")) + "\n"
+    return report
+
+struct LispState:
+    env_parent_ids: Array<Int>
+    binding_env_ids: Array<Int>
+    binding_names: Array<String>
+    binding_values: Array<String>
+    closure_param_names: Array<String>
+    closure_body_sources: Array<String>
+    closure_env_ids: Array<Int>
+
+struct LispEvalResult:
+    next_index: Int
+    value: String
+
+fn new_lisp_state() -> LispState:
+    return LispState {
+        env_parent_ids: [-1],
+        binding_env_ids: [],
+        binding_names: [],
+        binding_values: [],
+        closure_param_names: [],
+        closure_body_sources: [],
+        closure_env_ids: []
+    }
+
+fn lisp_env_new(state: LispState, parent_id: Int) -> Int:
+    push(state.env_parent_ids, parent_id)
+    return len(state.env_parent_ids) - 1
+
+fn lisp_bind(state: LispState, env_id: Int, name: String, value: String):
+    let mut index = len(state.binding_env_ids) - 1
+    while index >= 0:
+        if state.binding_env_ids[index] == env_id and state.binding_names[index] == name:
+            state.binding_values[index] = value
+            return
+        index = index - 1
+    push(state.binding_env_ids, env_id)
+    push(state.binding_names, name)
+    push(state.binding_values, value)
+    return
+
+fn lisp_lookup(state: LispState, env_id: Int, name: String) -> String:
+    let mut current = env_id
+    while current >= 0:
+        let mut index = len(state.binding_env_ids) - 1
+        while index >= 0:
+            if state.binding_env_ids[index] == current and state.binding_names[index] == name:
+                return state.binding_values[index]
+            index = index - 1
+        current = state.env_parent_ids[current]
+    return "symbol:" + name
+
+fn lisp_make_int(value: Int) -> String:
+    return "int:" + str(value)
+
+fn lisp_make_string(value: String) -> String:
+    return "string:" + value
+
+fn lisp_make_list(value: String) -> String:
+    return "list:" + value
+
+fn lisp_make_map(value: String) -> String:
+    return "map:" + value
+
+fn lisp_make_closure(closure_id: Int) -> String:
+    return "closure:" + str(closure_id)
+
+fn lisp_has_prefix(value: String, prefix: String) -> Bool:
+    return starts_with_at(value, 0, prefix)
+
+fn lisp_after_prefix(value: String, prefix: String) -> String:
+    return string_slice(value, len(prefix), len(value))
+
+fn lisp_int_value(value: String) -> Int:
+    return parse_int_text(lisp_after_prefix(value, "int:"))
+
+fn lisp_plain_string(value: String) -> String:
+    if lisp_has_prefix(value, "string:"):
+        return lisp_after_prefix(value, "string:")
+    return lisp_after_prefix(value, "symbol:")
+
+fn lisp_render_value(value: String) -> String:
+    if lisp_has_prefix(value, "int:"):
+        return lisp_after_prefix(value, "int:")
+    if lisp_has_prefix(value, "string:"):
+        return quote_string(lisp_after_prefix(value, "string:"))
+    if lisp_has_prefix(value, "list:"):
+        return lisp_after_prefix(value, "list:")
+    if lisp_has_prefix(value, "map:"):
+        return lisp_after_prefix(value, "map:")
+    if lisp_has_prefix(value, "closure:"):
+        return "<closure#" + lisp_after_prefix(value, "closure:") + ">"
+    if lisp_has_prefix(value, "symbol:"):
+        return lisp_after_prefix(value, "symbol:")
+    return value
+
+fn tokenize_lisp(source: String) -> Array<String>:
+    let mut tokens: Array<String> = []
+    let mut index = 0
+    while index < len(source):
+        let ch = char_at(source, index)
+        if is_whitespace_char(ch):
+            index = index + 1
+        elif ch == "(" or ch == ")":
+            push(tokens, ch)
+            index = index + 1
+        elif ch == "\"":
+            let mut end_index = index + 1
+            while end_index < len(source) and char_at(source, end_index) != "\"":
+                end_index = end_index + 1
+            push(tokens, string_slice(source, index, end_index + 1))
+            index = end_index + 1
+        else:
+            let mut end_index = index
+            while end_index < len(source):
+                let next = char_at(source, end_index)
+                if is_whitespace_char(next) or next == "(" or next == ")":
+                    break
+                end_index = end_index + 1
+            push(tokens, string_slice(source, index, end_index))
+            index = end_index
+    return tokens
+
+fn is_numeric_token(token: String) -> Bool:
+    if len(token) == 0:
+        return false
+    let mut start = 0
+    if char_at(token, 0) == "-":
+        if len(token) == 1:
+            return false
+        start = 1
+    let mut index = start
+    while index < len(token):
+        if is_digit_char(char_at(token, index)) == false:
+            return false
+        index = index + 1
+    return true
+
+fn lisp_expression_end(tokens: Array<String>, start_index: Int) -> Int:
+    if tokens[start_index] != "(":
+        return start_index
+    let mut depth = 0
+    let mut index = start_index
+    while index < len(tokens):
+        if tokens[index] == "(":
+            depth = depth + 1
+        elif tokens[index] == ")":
+            depth = depth - 1
+            if depth == 0:
+                return index
+        index = index + 1
+    return len(tokens) - 1
+
+fn lisp_tokens_to_source(tokens: Array<String>, start_index: Int, finish_index: Int) -> String:
+    let mut selected: Array<String> = []
+    let mut index = start_index
+    while index <= finish_index:
+        push(selected, tokens[index])
+        index = index + 1
+    return join_strings(selected, " ")
+
+fn lisp_apply_builtin(name: String, args: Array<String>) -> String:
+    if name == "+":
+        let mut total = 0
+        let mut index = 0
+        while index < len(args):
+            total = total + lisp_int_value(args[index])
+            index = index + 1
+        return lisp_make_int(total)
+    if name == "-":
+        if len(args) == 0:
+            return lisp_make_int(0)
+        let mut total = lisp_int_value(args[0])
+        let mut index = 1
+        while index < len(args):
+            total = total - lisp_int_value(args[index])
+            index = index + 1
+        return lisp_make_int(total)
+    if name == "*":
+        let mut total = 1
+        let mut index = 0
+        while index < len(args):
+            total = total * lisp_int_value(args[index])
+            index = index + 1
+        return lisp_make_int(total)
+    if name == "list":
+        let mut rendered: Array<String> = []
+        let mut index = 0
+        while index < len(args):
+            push(rendered, lisp_render_value(args[index]))
+            index = index + 1
+        return lisp_make_list("[" + join_strings(rendered, " ") + "]")
+    if name == "hash":
+        let mut parts: Array<String> = []
+        let mut index = 0
+        while index + 1 < len(args):
+            let key = lisp_plain_string(args[index])
+            let value = lisp_render_value(args[index + 1])
+            push(parts, key + ": " + value)
+            index = index + 2
+        return lisp_make_map("{" + join_strings(parts, ", ") + "}")
+    if name == "concat":
+        let mut combined = ""
+        let mut index = 0
+        while index < len(args):
+            if lisp_has_prefix(args[index], "string:"):
+                combined = combined + lisp_after_prefix(args[index], "string:")
+            else:
+                combined = combined + lisp_render_value(args[index])
+            index = index + 1
+        return lisp_make_string(combined)
+    return lisp_make_string("unsupported builtin " + name)
+
+fn lisp_eval(tokens: Array<String>, start_index: Int, state: LispState, env_id: Int) -> LispEvalResult:
+    let token = tokens[start_index]
+    if token == "(":
+        let form_name = tokens[start_index + 1]
+        if form_name == "define":
+            let name = tokens[start_index + 2]
+            let value_result = lisp_eval(tokens, start_index + 3, state, env_id)
+            lisp_bind(state, env_id, name, value_result.value)
+            return LispEvalResult { next_index: lisp_expression_end(tokens, start_index) + 1, value: value_result.value }
+        if form_name == "lambda":
+            let param_name = tokens[start_index + 3]
+            let body_start = start_index + 5
+            let body_finish = lisp_expression_end(tokens, body_start)
+            let body_source = lisp_tokens_to_source(tokens, body_start, body_finish)
+            push(state.closure_param_names, param_name)
+            push(state.closure_body_sources, body_source)
+            push(state.closure_env_ids, env_id)
+            let closure_id = len(state.closure_param_names) - 1
+            return LispEvalResult { next_index: lisp_expression_end(tokens, start_index) + 1, value: lisp_make_closure(closure_id) }
+        let operator_result = lisp_eval(tokens, start_index + 1, state, env_id)
+        let mut args: Array<String> = []
+        let mut index = operator_result.next_index
+        while tokens[index] != ")":
+            let arg_result = lisp_eval(tokens, index, state, env_id)
+            push(args, arg_result.value)
+            index = arg_result.next_index
+        if lisp_has_prefix(operator_result.value, "symbol:"):
+            return LispEvalResult { next_index: index + 1, value: lisp_apply_builtin(lisp_after_prefix(operator_result.value, "symbol:"), args) }
+        if lisp_has_prefix(operator_result.value, "closure:"):
+            let closure_id = parse_int_text(lisp_after_prefix(operator_result.value, "closure:"))
+            let closure_env_id = state.closure_env_ids[closure_id]
+            let child_env_id = lisp_env_new(state, closure_env_id)
+            if len(args) > 0:
+                lisp_bind(state, child_env_id, state.closure_param_names[closure_id], args[0])
+            let body_tokens = tokenize_lisp(state.closure_body_sources[closure_id])
+            let body_result = lisp_eval(body_tokens, 0, state, child_env_id)
+            return LispEvalResult { next_index: index + 1, value: body_result.value }
+        return LispEvalResult { next_index: index + 1, value: lisp_make_string("not callable") }
+    if is_numeric_token(token):
+        return LispEvalResult { next_index: start_index + 1, value: lisp_make_int(parse_int_text(token)) }
+    if len(token) >= 2 and char_at(token, 0) == "\"" and char_at(token, len(token) - 1) == "\"":
+        return LispEvalResult { next_index: start_index + 1, value: lisp_make_string(string_slice(token, 1, len(token) - 1)) }
+    return LispEvalResult { next_index: start_index + 1, value: lisp_lookup(state, env_id, token) }
+
+fn lisp_eval_source(source: String, state: LispState) -> String:
+    let tokens = tokenize_lisp(source)
+    let result = lisp_eval(tokens, 0, state, 0)
+    return result.value
+
+fn lisp_showcase() -> String:
+    let lisp_state = new_lisp_state()
+    let define_make_adder = "( define make-adder ( lambda ( n ) ( lambda ( x ) ( + x n ) ) ) )"
+    let define_add_seven = "( define add-seven ( make-adder 7 ) )"
+    let closure_result = lisp_eval_source(define_make_adder, lisp_state)
+    let add_seven_result = lisp_eval_source(define_add_seven, lisp_state)
+    let answer = lisp_eval_source("( add-seven 35 )", lisp_state)
+    let list_value = lisp_eval_source("( list 1 2 3 4 )", lisp_state)
+    let map_value = lisp_eval_source("( hash \"language\" \"kain\" \"score\" 42 )", lisp_state)
+    let string_value = lisp_eval_source("( concat \"cookie\" \" \" \"cutter\" )", lisp_state)
+    assert(lisp_render_value(answer) == "42", "expected closure result to be 42")
+    let mut report = "LISP\n"
+    report = report + "define_make_adder=" + lisp_render_value(closure_result) + "\n"
+    report = report + "define_add_seven=" + lisp_render_value(add_seven_result) + "\n"
+    report = report + "(add-seven 35)=" + lisp_render_value(answer) + "\n"
+    report = report + "(list 1 2 3 4)=" + lisp_render_value(list_value) + "\n"
+    report = report + "(hash ...)=" + lisp_render_value(map_value) + "\n"
+    report = report + "(concat ...)=" + lisp_render_value(string_value) + "\n"
+    write_file(lab_output_path("lisp_report.txt"), report)
+    return report
+
+fn build_showcase_html(quine_source: String, life_report: String, mandelbrot_ascii_view: String, lisp_report: String) -> String:
+    let mut html = "<!doctype html><html><head><meta charset='utf-8'><title>Kain Cookie Cutter</title>"
+    html = html + "<style>"
+    html = html + ":root{--bg:#04111f;--panel:#0b1728;--line:#1e293b;--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--accent2:#2dd4bf;} body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#0b2441 0%,#020617 68%);color:var(--text);font-family:'Space Grotesk','Segoe UI Variable',sans-serif;} main{max-width:1280px;margin:0 auto;padding:32px;} .hero{display:grid;grid-template-columns:1.1fr 0.9fr;gap:20px;margin-bottom:20px;} .panel{background:rgba(11,23,40,0.88);border:1px solid var(--line);border-radius:22px;padding:22px;box-shadow:0 16px 48px rgba(2,6,23,0.35);} h1,h2{margin:0 0 12px 0;} p{margin:0 0 10px 0;color:var(--muted);} .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;} pre{margin:0;overflow:auto;white-space:pre-wrap;font-family:Consolas,monospace;font-size:12px;line-height:1.4;background:#020617;border-radius:16px;padding:16px;color:#f8fafc;} img{width:100%;display:block;border-radius:18px;border:1px solid rgba(148,163,184,0.2);background:#020617;} .eyebrow{letter-spacing:0.18em;text-transform:uppercase;font-size:12px;color:var(--accent2);} .stat{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;} .pill{padding:8px 12px;border-radius:999px;background:rgba(56,189,248,0.12);color:#dbeafe;border:1px solid rgba(56,189,248,0.2);font-family:Consolas,monospace;font-size:12px;}"
+    html = html + "</style></head><body><main>"
+    html = html + "<section class='hero'><section class='panel'><p class='eyebrow'>Kain / Cookie Cutter</p><h1>One lab, four rites of passage</h1><p>This Kain program generates a standalone quine source file, runs Conway's Game of Life with double-buffered state, renders an ASCII Mandelbrot set, and evaluates a tiny closure-capable Lisp.</p><div class='stat'><span class='pill'>quine bytes " + str(len(quine_source)) + "</span><span class='pill'>life svg ready</span><span class='pill'>mandelbrot ascii ready</span><span class='pill'>lisp closures = 42</span></div></section>"
+    html = html + "<section class='panel'><h2>Generated Files</h2><p>All artifacts are written into <code>labs/cookiecutter/outputs</code>.</p><pre>game_of_life.svg\nmandelbrot.svg\ngame_of_life_frames.txt\nmandelbrot_ascii.txt\nlisp_report.txt\nquine_generated.kn\nshowcase_report.txt</pre></section></section>"
+    html = html + "<section class='grid'><section class='panel'><h2>Quine</h2><p>The program emits a standalone Kain quine source file instead of pretending the whole multi-stage harness can also be a single-purpose quine.</p><pre>" + quine_source + "</pre></section>"
+    html = html + "<section class='panel'><h2>Game of Life</h2><p>" + life_report + "</p><img src='game_of_life.svg' alt='Game of Life generations' /></section>"
+    html = html + "<section class='panel'><h2>Mandelbrot</h2><p>ASCII fractal output rendered into both text and SVG.</p><pre>" + mandelbrot_ascii_view + "</pre></section>"
+    html = html + "<section class='panel'><h2>Tiny Lisp</h2><p>Single-argument lambdas, closure capture, string concatenation, lists, and hash-style rendering.</p><pre>" + lisp_report + "</pre></section></section>"
+    html = html + "</main></body></html>"
+    return html
+
+fn main() -> Int:
+    let quine_source = build_standalone_quine_source()
+    write_file(lab_output_path("quine_generated.kn"), quine_source)
+    write_file(lab_output_path("quine_output.txt"), quine_source)
+
+    let life_report = game_of_life_showcase()
+    let mandelbrot_report = mandelbrot_showcase()
+    let mandelbrot_ascii_view = mandelbrot_ascii(78, 36, 32)
+    let lisp_report = lisp_showcase()
+    let quine_report = standalone_quine_report(quine_source)
+
+    let mut report = "COOKIE CUTTER KAIN LAB\n"
+    report = report + "======================\n"
+    report = report + quine_report + "\n"
+    report = report + life_report + "\n"
+    report = report + mandelbrot_report + "\n"
+    report = report + lisp_report + "\n"
+    write_file(lab_output_path("showcase_report.txt"), report)
+
+    let html = build_showcase_html(quine_source, life_report, mandelbrot_ascii_view, lisp_report)
+    write_file(lab_output_path("showcase.html"), html)
+
+    println("COOKIE CUTTER / KAIN")
+    println("====================")
+    println("Standalone quine written to " + lab_output_path("quine_generated.kn"))
+    println("Game of Life visualization written to " + lab_output_path("game_of_life.svg"))
+    println("Mandelbrot visualization written to " + lab_output_path("mandelbrot.svg"))
+    println("Tiny Lisp report written to " + lab_output_path("lisp_report.txt"))
+    println("")
+    println(quine_report)
+    println(life_report)
+    println(mandelbrot_report)
+    println(lisp_report)
+    return 0

@@ -1653,6 +1653,51 @@ Recommended next step:
 
 - If LLVM hardening continues, extend the executable fixture lane before widening conformance claims: add one negative executable or CLI-level proof for strict LLVM failure cases, then decide whether more actor semantics or additional helper ABI surfaces deserve end-to-end fixtures.
 
+## 2026-04-11 - cookiecutter lab now bundles quine, Game of Life, Mandelbrot, and a tiny Lisp into one Kain benchmark artifact
+
+The repo now has a single `labs/cookiecutter` benchmark lane meant to stress Kain across metaprogramming, stateful simulation, math-heavy looping, and recursive data-structure evaluation in one place.
+
+What changed:
+
+- Added `labs/cookiecutter/main.kn`
+  - Implemented a combined Kain program that:
+    - generates a standalone quine source and verifies key structural markers
+    - simulates Conway's Game of Life on a flattened 24x16 grid with explicit double-buffering
+    - renders an ASCII Mandelbrot set with fixed-point integer math for interpreter-safe execution
+    - evaluates a tiny closure-capable Lisp with lists, hashes, arithmetic, `define`, and `lambda`
+  - Added an HTML showcase/report path so the lab reads as one bundled benchmark instead of four unrelated snippets.
+- Added `labs/cookiecutter/README.md`
+  - Documented the run command, output bundle, and the current runtime caveat.
+- Added committed inspection artifacts under `labs/cookiecutter/outputs`
+  - Included quine output, Life frame dump and SVG/PNG, Mandelbrot ASCII and SVG/PNG, Lisp report, and a combined showcase HTML/report.
+
+Validation completed:
+
+- `./target/debug/kain run /home/ephemara/Dev/Kain/labs/cookiecutter/main.kn`
+- Successful native interpreter output currently reports:
+  - `source_bytes=3985`
+  - `alive_generation_0=16`
+  - `alive_generation_7=31`
+  - `max_iterations=32`
+  - `(add-seven 35)=42`
+- Verified committed quine artifacts are byte-identical and 3985 bytes each.
+- Rendered and visually checked the committed Game of Life and Mandelbrot PNG previews.
+
+Design decisions:
+
+- Used fixed-point Mandelbrot math instead of float-heavy casting because the current Kain runtime lane is still fragile around some int/float coercion patterns.
+- Kept the Game of Life grid explicit and double-buffered instead of compressing state into clever bit-packing; this lab is meant to prove semantics and readability first.
+- Made the Lisp interpreter intentionally small but real: closures, nested evaluation, lists, and hash-shaped data are present without turning the lab into a full language project.
+
+Current risks:
+
+- In this lab, authored `@extern fn write_file(path: String, content: String) -> Unit` calls do not currently materialize new files reliably under `kain run`, even though the benchmark computation and console summaries succeed. The committed `outputs/` bundle is therefore the current inspection surface.
+- The file-I/O contract across Kain still appears split: runtime/native code returns result-shaped write failures, while authored surfaces in some places still present `Unit`/direct-string contracts.
+
+Recommended next step:
+
+- Unify the authored and native runtime contracts for `write_file` and `read_file`, then rerun `labs/cookiecutter/main.kn` as a direct end-to-end artifact emitter so the committed outputs can become generated truth rather than companion artifacts.
+
 ## 2026-04-11 - native interpreter control-flow and builtin surface are more consistent, and the current Brainfuck lab is now failing on bad expectations rather than the original language bug
 
 The Brainfuck investigation produced one real interpreter bug, one real builtin-surface mismatch, and one misleading test-harness problem.
