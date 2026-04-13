@@ -12,3 +12,10 @@ With this self hosting pipeline we should focus on the initial idea of what this
 5. WE MAKE NO SACRIFICES--- AND WE CODE AGGRESSIVELY. FULL IMPLEMENTATIONS ONLY AND FURTHERMORE ALWAYS MAX POWER
 
 6. WE NEED TO THINK ABOUT HOW WE ARE GOING TO ADD SUPPORT FOR CRATES AND OTHER ECOSYSTEMS INTO THE NATIVE SELF HOSTING PIPELINE AS KAIN NEEDS TO SUPPORT A VAST ARRAY OF ECOSYSTEMS--- AT THE CORE OF IT ALL THO , EVEN WITH VAST ECOSYSTEMS ETC, THIS LANGUAGE NOT ONLY NEEDS TO HAVE ORCHESTRATION CAPABILITIES, IT ALSO NEEDS TO BE THE ONE RUNNING THE SHOW... THE ECOSYSTEMS AND LIBRARIES FROM OTHER LANGS ? yeah so the lang just needs those as tools, not some annoying toml based orchestration layer.
+
+## Source Tree Ownership
+
+- `src/core` is the only active hand-owned source lane right now.
+- `src/.rustimport/reference` is the moved donor corpus from the earlier Rust import lane.
+- `src/.rustimport/phase2` is the canonical phase2 selfhost mirror root.
+- `src/.rustimport/*` and `src/.legacy` are reference-only and should not be edited by hand.

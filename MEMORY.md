@@ -1,5 +1,55 @@
 # MEMORY
 
+# 2026-04-12 - tiny GenServer-style stdlib layer added on top of actors
+
+The repo now has a small KAIN-authored actor-service helper under
+`stdlib/gen_server.kn` plus a native `ask` primitive in the interpreter runtime,
+so raw `spawn` / `send` actors can be wrapped in a cleaner request/reply shape.
+
+What changed:
+
+- Added `stdlib/gen_server.kn` with `gen_server_start`, `gen_server_start_link`,
+  `gen_server_call`, `gen_server_cast`, `gen_server_info`, and
+  `gen_server_call_result`.
+- Added native runtime support for `ask(actor, message, request)` in
+  `crates/kain-core/src/runtime.rs`; it sends a one-shot reply actor ref and
+  waits up to 30 seconds for the first reply.
+- Registered `ask` in the typechecker and stdlib metadata via
+  `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs`.
+- Added runtime regression coverage in
+  `crates/kain-core/src/runtime_tests.rs` for a full call/cast/info round trip.
+- Updated `stdlib/README.md` and `ARCHITECTURE.md` so the helper and its current
+  limits are discoverable without reading the test.
+
+Behavior notes:
+
+- `gen_server_start_link` is a naming alias only right now. It does not create
+  a runtime link or supervision relationship yet.
+- The current `ask` primitive returns the first reply message payload:
+  zero args becomes `Unit`, one arg returns the value directly, and multiple
+  args return a tuple.
+- KAIN still has two important syntax/runtime quirks around this lane:
+  struct construction should use `TypeName { field: value }` instead of
+  `TypeName(field = value)`, and closure-valued actor state must be loaded into
+  a local before calling it.
+
+Validation:
+
+- `cargo test -p kain-core runtime_tests::gen_server_stdlib_round_trip -- --nocapture`
+- `cargo test -p kain-core runtime_tests::stdlib_registry_exposes_ord_and_chr -- --nocapture`
+- `cargo test -p kain-core test_stdlib_builtin_functions_exist -- --nocapture`
+
+Current risk:
+
+- The helper is intentionally tiny and interpreter-focused. It does not yet
+  expose true links, monitors, selective receive, or typed mailbox protocols.
+
+Recommended next step:
+
+- Decide whether the next actor-ergonomics step is real link/monitor semantics
+  in the runtime, or a slightly richer stdlib layer with reply tuples, timeout
+  control, and optional name registration.
+
 # 2026-04-12 - KAIN filesystem utility lane made real under scripts/kain
 
 The repo now has a working KAIN-authored filesystem automation lane under
@@ -218,6 +268,35 @@ Recommended next step:
 # 2026-04-12 - selfhost now treats the kain executable as the first bootstrap correctness gate
 
 The active selfhost profile stays on the Rust bridge path, but phase2 now front-loads `cli` ahead of `kain-sys-codegen` so the `kain` executable is the first thing we prove correct on this pass. That keeps the import bridge intact while making executable parity the gating milestone instead of a later byproduct.
+
+# 2026-04-12 - src ownership root is now split into owned core plus reference lanes
+
+The `src/` tree no longer mixes hand-owned Kain work with donor corpus and live phase2 mirrors at the top level. `src/core` is now the only active owned source lane, `src/.rustimport/reference` holds the moved donor corpus from the older Rust import lane, and `src/.rustimport/phase2` is the canonical live selfhost mirror root.
+
+What changed:
+
+- Moved the old donor corpus from `src/rust-import` into `src/.rustimport/reference`.
+- Moved the live phase2 mirror trees from top-level `src/cli`, `src/kain-core`, `src/kain-import`, and `src/kain-sys-codegen` into `src/.rustimport/phase2/...`.
+- Changed the default selfhost profile root in `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json` and `crates/cli/src/selfhost_profile.rs` so future phase2 runs emit canonical mirrors into `src/.rustimport/phase2`.
+- Updated the selfhost path-based tests in `crates/cli/src/selfhost.rs` to assert the new canonical mirror layout.
+- Updated `src/README.md`, `src/TASK.md`, `src/core/README.md`, `src/core/language_features.kn`, `ARCHITECTURE.md`, and the live docs under `docs/` so operators see the owned/reference split instead of the old flat `src/` mirror story.
+- Added `src/.rustimport/README.md` as a no-edit ownership note for the reference lanes.
+
+Validation:
+
+- `cargo test -p cli default_profile_resolves_relative_roots`
+- `cargo test -p cli build_file_mirror_plans_preserves_file_level_paths`
+- `cargo test -p cli write_roundtrip_rust_tree_splits_inline_modules_into_real_files`
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --output-dir ouroboros/out/selfhost/src_root_normalization_probe_2026-04-12 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force`
+
+Current risk:
+
+- Git now sees the moved reference trees as delete-plus-add until they are staged. That is expected for this restructure, but it means later reviews should treat `src/.rustimport/*` as path moves rather than semantic rewrites.
+- Historical notes in `MEMORY.md` and other archival prose may still mention `src/rust-import/...`. Those references are historical context, not the live path contract.
+
+Recommended next step:
+
+- Stage the `src/` move as a pure ownership/layout change first, then keep future selfhost work pointed at `src/core` for owned code and `src/.rustimport/phase2` for mirror output.
 
 What changed:
 

@@ -1,24 +1,33 @@
 # Source Rewrite Task Board
 
-This file is the operator handoff for parallel source ownership work under
-`src/`.
+This file is the operator handoff for source ownership work under `src/`.
 
 ## Global Rules
 
 - All hand-owned work goes under `src/<folder>`.
-- `src/.rustimport` is reference-only. Do not edit it.
+- Only `src/core` is an active hand-owned source lane right now.
+- `src/.rustimport/reference` is the moved donor corpus from the older Rust import lane.
+- `src/.rustimport/phase2` is the canonical live selfhost mirror root.
+- `src/.rustimport/*` is reference-only. Do not edit it.
 - `src/.legacy` is donor/reference-only. Do not edit it.
 - Keep the language name as `Kain`. Do not introduce a rename campaign.
 - Keep folder names aligned with the bootstrap/runtime shape where practical.
 - Do not pull in UE5 surfaces for this wave.
-- Prefer complete, owned Kain files over placeholders, but keep scope bounded to
-  the assigned lane.
-- If a lane depends on another unfinished lane, define the clean boundary and
-  keep moving instead of blocking on unrelated work.
+- Do not create new owned `src/` lanes until `src/core` is materially stable.
+- Prefer complete, owned Kain files over placeholders, but keep scope bounded to the assigned lane.
+- If a lane depends on another unfinished lane, define the clean boundary and keep moving instead of blocking on unrelated work.
 
 ## Current Folder Plan
 
 - `src/core`
+- `src/.rustimport/reference`
+- `src/.rustimport/phase2`
+- `src/.legacy`
+
+## Deferred Owned Lanes
+
+These are future ownership targets only. Keep the folders absent for now.
+
 - `src/driver`
 - `src/sys-codegen`
 - `src/interop`
@@ -35,87 +44,22 @@ For this wave, UI is deferred.
 - Do not create `src/ui` as an active rewrite lane yet.
 - Do not create `src/ui-native` as an active rewrite lane yet.
 - Finish the language/runtime/native execution layers first.
-- Bring UI back only after `src/core`, `src/driver`, and `src/sys-codegen`
-  are materially stable.
+- Bring UI back only after `src/core` is materially stable and the next owned lanes are intentionally opened.
 
-## Agent Assignments
+## Active Assignment
 
 ### Agent Alpha
 
 - Folder: `src/core`
 - Task: Own the foundational language core.
-- Deliver: `ast`, `span`, `diagnostic`, `error`, `lexer`, `parser`, `effects`,
-  `types`, `comptime`, `runtime`, `stdlib`, `low_level_abi`,
-  `low_level_memory`, `low_level_memory_metadata`, `kainc`.
+- Deliver: `ast`, `span`, `diagnostic`, `error`, `lexer`, `parser`, `effects`, `types`, `comptime`, `runtime`, `stdlib`, `low_level_abi`, `low_level_memory`, `low_level_memory_metadata`, `kainc`.
 - Goal: Make `src/core` the canonical owned semantic center.
 
-### Agent Delta
+## Future Lanes
 
-- Folder: `src/driver`
-- Task: Own the Kain-side compiler driver and orchestration surface.
-- Deliver: source loading, target selection, compile flow, artifact planning,
-  and the bridge from `src/core` into codegen/runtime lanes.
-- Goal: Replace Rust-side driver assumptions with a Kain-owned driver layer.
-
-### Agent Forge
-
-- Folder: `src/sys-codegen`
-- Task: Own system/native code generation.
-- Deliver: LLVM-first codegen, low-level output planning, and any later C++/Rust
-  compatibility boundaries only if they help bootstrap.
-- Goal: Make native codegen a Kain-owned lane with LLVM as the priority target.
-
-### Agent Bridge
-
-- Folder: `src/interop`
-- Task: Own shared runtime payload contracts.
-- Deliver: shared value, buffer, image, metadata, and transport-friendly
-  structures that other lanes can consume.
-- Goal: Give Kain a clean runtime data contract for host, UI, GPU, and native
-  execution.
-
-### Agent Anvil
-
-- Folder: `src/c-ffi`
-- Task: Own the C runtime bridge.
-- Deliver: C import model, generated binding surfaces, runtime preparation, and
-  C-facing glue needed by native execution.
-- Goal: Make the C runtime a first-class Kain-owned dependency lane.
-
-### Agent Cargo
-
-- Folder: `src/crate-ffi`
-- Task: Own external crate ecosystem bridging.
-- Deliver: crate import metadata, manifest resolution boundaries, and the
-  Kain-side model for talking to Rust crates without making Rust the semantic
-  center.
-- Goal: Keep external crates as tools Kain can use, not the thing running the
-  show.
-
-### Agent Vector
-
-- Folder: `src/3d`
-- Task: Own 3D scene, primitives, interaction, and renderer-facing contracts.
-- Deliver: authored scene model, primitive library, math/interaction surfaces,
-  and renderer handoff boundaries.
-- Goal: Make 3D a native Kain capability instead of an adapter afterthought.
-
-### Agent Vulkan
-
-- Folder: `src/gpu-runtime`
-- Task: Own the compute/runtime GPU execution lane.
-- Deliver: dispatch requests, bindings, executor model, and runtime-facing GPU
-  contracts that consume Kain-emitted plans.
-- Goal: Keep GPU execution close to Kain-native runtime truth.
-
-### Agent Anchor
-
-- Folder: `src/host`
-- Task: Own host/runtime embedding and execution boundaries.
-- Deliver: host registration, runtime bridge surfaces, execution entry seams,
-  and the host-side model for running Kain programs safely.
-- Goal: Keep host integration explicit, clean, and subordinate to Kain
-  semantics.
+- `src/driver`, `src/sys-codegen`, `src/interop`, `src/c-ffi`, `src/crate-ffi`, `src/3d`, `src/gpu-runtime`, and `src/host` remain deferred.
+- Do not create those folders during this wave.
+- When they are activated later, they must still treat `src/.rustimport/*` and `src/.legacy` as no-edit reference surfaces.
 
 ## Suggested Prompt Format
 

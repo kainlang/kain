@@ -1,0 +1,53 @@
+# Tiny GenServer-style actor helpers for KAIN.
+#
+# `gen_server_start_link` is a naming alias for now. The actor system can spawn
+# and message stateful servers, but explicit supervision links are still a
+# future runtime feature.
+
+struct GenServerCallOutcome:
+    reply: R
+    state: S
+
+actor GenServer:
+    state current_state: S = none
+    state handle_call: fn(M, S) -> GenServerCallOutcome = |request, state| GenServerCallOutcome { reply: none, state: state }
+    state handle_cast: fn(M, S) -> S = |request, state| state
+    state handle_info: fn(M, S) -> S = |message, state| state
+
+    on Call(reply_to: P, request: M):
+        let handle_call = self.handle_call
+        let outcome = handle_call(request, self.current_state)
+        self.current_state = outcome.state
+        send reply_to.Reply(value = outcome.reply)
+
+    on Cast(request: M):
+        let handle_cast = self.handle_cast
+        self.current_state = handle_cast(request, self.current_state)
+
+    on Info(message: M):
+        let handle_info = self.handle_info
+        self.current_state = handle_info(message, self.current_state)
+
+pub fn gen_server_call_result(reply: R, state: S) -> GenServerCallOutcome:
+    return GenServerCallOutcome { reply: reply, state: state }
+
+pub fn gen_server_start(state: S, handle_call: fn(M, S) -> GenServerCallOutcome, handle_cast: fn(M, S) -> S, handle_info: fn(M, S) -> S) -> GenServer:
+    return spawn GenServer(
+        current_state = state,
+        handle_call = handle_call,
+        handle_cast = handle_cast,
+        handle_info = handle_info
+    )
+
+pub fn gen_server_start_link(state: S, handle_call: fn(M, S) -> GenServerCallOutcome, handle_cast: fn(M, S) -> S, handle_info: fn(M, S) -> S) -> GenServer:
+    return gen_server_start(state, handle_call, handle_cast, handle_info)
+
+pub fn gen_server_call(server: GenServer, request: M) -> R:
+    let reply = ask(server, "Call", request)
+    return reply
+
+pub fn gen_server_cast(server: GenServer, request: M) -> Unit:
+    send server.Cast(request = request)
+
+pub fn gen_server_info(server: GenServer, message: M) -> Unit:
+    send server.Info(message = message)

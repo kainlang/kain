@@ -75,4 +75,33 @@ fn stdlib_registry_exposes_ord_and_chr() {
 
     assert!(stdlib.functions.contains_key("ord"));
     assert!(stdlib.functions.contains_key("chr"));
+    assert!(stdlib.functions.contains_key("ask"));
+}
+
+#[test]
+fn gen_server_stdlib_round_trip() {
+    let stdlib = include_str!("../../../stdlib/gen_server.kn");
+    let value = interpret_test_source(&format!(
+        r#"
+{stdlib}
+
+fn main() -> Int:
+    let server = gen_server_start_link(
+        0,
+        |request, state| gen_server_call_result(state + request, state + request),
+        |request, state| state + request,
+        |message, state| state + message
+    )
+    let first = gen_server_call(server, 5)
+    gen_server_cast(server, 10)
+    gen_server_info(server, 2)
+    let second = gen_server_call(server, 3)
+    return first + second
+"#
+    ));
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 25),
+        other => panic!("expected Int(25), got {:?}", other),
+    }
 }

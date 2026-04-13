@@ -1660,6 +1660,58 @@ impl Env {
             Ok(Value::Unit)
         });
 
+        self.define_native("ask", |env, args| {
+            if args.len() != 3 {
+                return Err(KainError::runtime(
+                    "ask: expected 3 arguments (actor, msg_name, request)",
+                ));
+            }
+
+            let actor_ref = match &args[0] {
+                Value::ActorRef(r) => r.clone(),
+                _ => return Err(KainError::runtime("ask: first argument must be actor ref")),
+            };
+            let msg_name = match &args[1] {
+                Value::String(s) => s.clone(),
+                _ => return Err(KainError::runtime("ask: second argument must be string")),
+            };
+
+            let reply_id = env.next_actor_id;
+            env.next_actor_id += 1;
+
+            let (reply_tx, reply_rx) = flume::unbounded();
+            let reply_actor_ref = ActorRef {
+                id: reply_id,
+                sender: reply_tx,
+            };
+
+            let mut msg_args = Vec::with_capacity(2);
+            msg_args.push(Value::ActorRef(reply_actor_ref));
+            msg_args.push(args[2].clone());
+
+            if actor_ref
+                .sender
+                .send(Message {
+                    name: msg_name,
+                    args: msg_args,
+                })
+                .is_err()
+            {
+                return Err(KainError::runtime(
+                    "ask: failed to send request to target actor",
+                ));
+            }
+
+            match reply_rx.recv_timeout(std::time::Duration::from_secs(30)) {
+                Ok(message) => match message.args.len() {
+                    0 => Ok(Value::Unit),
+                    1 => Ok(message.args[0].clone()),
+                    _ => Ok(Value::Tuple(message.args)),
+                },
+                Err(_) => Err(KainError::runtime("ask: timed out waiting for actor reply")),
+            }
+        });
+
         self.define_native("sleep", |_env, args| {
             if args.len() != 1 {
                 return Err(KainError::runtime("sleep: expected 1 argument (ms)"));

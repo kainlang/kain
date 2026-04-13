@@ -25,7 +25,7 @@ The UE5 packager is not just a file writer. It handles:
 
 The UE5 configuration lives in the `[ue5]` section of `KAIN.toml`.
 
-The current `Ue5Config` shape in `src/rust-import/cli/packager/config.kn`
+The current `Ue5Config` shape in `src/.rustimport/reference/cli/packager/config.kn`
 contains:
 
 | Field | Meaning |
@@ -218,13 +218,13 @@ The current UE5 surface covers these authoring lanes:
 
 ## First Files To Read In The Repo
 
-- `src/rust-import/cli/packager/ue5_pipeline.kn`
-- `src/rust-import/ue5/codegen_ue5.kn`
-- `src/rust-import/ue5/ue5/project.kn`
-- `src/rust-import/ue5/ue5/module_graph.kn`
-- `src/rust-import/ue5/ue5/validation_rules.kn`
-- `src/rust-import/ue5/ue5/engine_knowledge.kn`
-- `src/rust-import/ue5/ue5/oracle.kn`
+- `src/.rustimport/reference/cli/packager/ue5_pipeline.kn`
+- `src/.rustimport/reference/ue5/codegen_ue5.kn`
+- `src/.rustimport/reference/ue5/ue5/project.kn`
+- `src/.rustimport/reference/ue5/ue5/module_graph.kn`
+- `src/.rustimport/reference/ue5/ue5/validation_rules.kn`
+- `src/.rustimport/reference/ue5/ue5/engine_knowledge.kn`
+- `src/.rustimport/reference/ue5/ue5/oracle.kn`
 - `unreal_plugins/OfficialDocs/01-Getting-Started.md`
 
 ## Practical Rule

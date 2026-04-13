@@ -15,8 +15,44 @@ This repo also now includes an early non-UE5 wrapper layer for embedded Python a
 - `stdlib/javascript/`: first-party wrappers over the JavaScript / Node bridge
 - `stdlib/interop/`: neutral shared contracts for cross-runtime image and buffer payloads
 - `stdlib/dcc/`: Kain-native image, tensor, and mesh semantics on top of Python-backed data
+- `stdlib/gen_server.kn`: tiny actor-server helpers that layer request/reply
+  ergonomics on top of `spawn`, `send`, and the native `ask` primitive
 
 Those modules are documented separately in [`stdlib/python/README.md`](./python/README.md), [`stdlib/javascript/README.md`](./javascript/README.md), [`stdlib/interop/README.md`](./interop/README.md), and [`stdlib/dcc/README.md`](./dcc/README.md).
+
+## GenServer Helper
+
+`stdlib/gen_server.kn` adds a tiny actor-service layer for the interpreter lane.
+It is intentionally small: it standardizes stateful request/reply actors without
+pretending the runtime already has full OTP semantics.
+
+Available helpers:
+
+- `gen_server_start(state, handle_call, handle_cast, handle_info)` spawns a
+  server actor with explicit handlers.
+- `gen_server_start_link(...)` is currently a naming alias for
+  `gen_server_start(...)`; the runtime does not expose true actor linking yet.
+- `gen_server_call(server, request)` sends a request and waits for the first
+  reply through the native `ask` primitive.
+- `gen_server_cast(server, request)` is fire-and-forget state mutation.
+- `gen_server_info(server, message)` sends a non-reply informational message.
+- `gen_server_call_result(reply, state)` packages the reply plus next state for
+  `handle_call`.
+
+Example:
+
+```kain
+let counter = gen_server_start_link(
+    0,
+    |request, state| gen_server_call_result(state + request, state + request),
+    |request, state| state + request,
+    |message, state| state
+)
+
+let first = gen_server_call(counter, 5)
+gen_server_cast(counter, 2)
+let second = gen_server_call(counter, 1)
+```
 
 **Key Benefits:**
 - **Zero Configuration:** Works out-of-box for all Factory plugins without KAIN.toml changes

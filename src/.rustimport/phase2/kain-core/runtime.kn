@@ -30,6 +30,8 @@ use std::collections::HashMap
 
 use std::fmt
 
+use std::path::Path
+
 use std::sync::Arc
 
 use std::sync::RwLock
@@ -483,6 +485,8 @@ impl Env:
         ()
         (*_self).define_native("send", fn(_env, args): none)
         ()
+        (*_self).define_native("ask", fn(env, args): none)
+        ()
         (*_self).define_native("sleep", fn(_env, args): none)
         ()
         (*_self).define_native("time", fn(_env, _args): none)
@@ -524,6 +528,28 @@ impl Env:
         (*_self).define_native("stdin_read_exact", fn(_env, args): none)
         ()
         (*_self).define_native("file_exists", fn(_env, args): none)
+        ()
+        (*_self).define_native("create_dir_all", fn(_env, args): none)
+        ()
+        (*_self).define_native("copy_file", fn(_env, args): none)
+        ()
+        (*_self).define_native("remove_file", fn(_env, args): none)
+        ()
+        (*_self).define_native("read_dir", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_join", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_parent", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_file_name", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_extension", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_stem", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_is_file", fn(_env, args): none)
+        ()
+        (*_self).define_native("path_is_dir", fn(_env, args): none)
         ()
         (*_self).define_native("patch_history", fn(env, _args): Result::Ok(runtime_array_value(env.patch_records().iter().map(runtime_patch_record_value).collect())))
         ()
@@ -1704,6 +1730,12 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> Result<Value, KainError>:
                             if (!arg_vals.is_empty()):
                                 return Result::Err(KainError__runtime("Array.to_string expects no arguments"))
                             Result::Ok(Value::String(obj_val.to_string()))
+                        "is_empty" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("Array.is_empty expects no arguments"))
+                            match obj_val:
+                                Value::Array(arr) => Result::Ok(Value::Bool(arr.read().unwrap().is_empty()))
+                                _ => panic("unreachable!")
                         "push" =>
                             if (arg_vals.len() != 1):
                                 return Result::Err(KainError__runtime("push expects 1 argument"))
@@ -1748,7 +1780,25 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> Result<Value, KainError>:
                             if (!arg_vals.is_empty()):
                                 return Result::Err(KainError__runtime("String.to_string expects no arguments"))
                             Result::Ok(Value::String(text.clone()))
+                        "is_empty" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("String.is_empty expects no arguments"))
+                            Result::Ok(Value::Bool(text.is_empty()))
                         "len" => Result::Ok(Value::Int(text.len() as i64))
+                        "trim" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("String.trim expects no arguments"))
+                            Result::Ok(Value::String(text.trim().to_string()))
+                        "to_ascii_lowercase" =>
+                            if (!arg_vals.is_empty()):
+                                return Result::Err(KainError__runtime("String.to_ascii_lowercase expects no arguments"))
+                            Result::Ok(Value::String(text.to_ascii_lowercase()))
+                        "starts_with" =>
+                            let prefix = expect_single_string_arg(&arg_vals, method)?
+                            Result::Ok(Value::Bool(text.starts_with(prefix)))
+                        "eq_ignore_ascii_case" =>
+                            let other = expect_single_string_arg(&arg_vals, method)?
+                            Result::Ok(Value::Bool(text.eq_ignore_ascii_case(other)))
                         "push_str" =>
                             let suffix = expect_single_string_arg(&arg_vals, method)?
                             let mut updated = text.clone()

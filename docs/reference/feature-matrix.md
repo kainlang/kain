@@ -17,19 +17,19 @@ explains it.
 - `crates/kain-core/src/runtime_contract.rs`
 - `crates/kain-core/src/realtime_app_bundle.rs`
 - `runtime/native/include/*.h`
-- `src/rust-import/kain-omni/lib.kn`
-- `src/rust-import/kain-omni/fabric.kn`
-- `src/rust-import/kain-host/fabric.kn`
-- `src/rust-import/cli/packager/ue5_pipeline.kn`
-- `src/rust-import/ue5/*`
-- `src/rust-import/ue5-shaders/*`
-- `src/rust-import/ue5-config/*`
-- `src/rust-import/ue5-asset-utils/*`
-- `src/rust-import/ue5-materials/*`
-- `src/rust-import/ue5-blueprints/*`
-- `src/rust-import/ue5-graphs/*`
-- `src/rust-import/ue5-gas/*`
-- `src/rust-import/ue5-editor/*`
+- `src/.rustimport/reference/kain-omni/lib.kn`
+- `src/.rustimport/reference/kain-omni/fabric.kn`
+- `src/.rustimport/reference/kain-host/fabric.kn`
+- `src/.rustimport/reference/cli/packager/ue5_pipeline.kn`
+- `src/.rustimport/reference/ue5/*`
+- `src/.rustimport/reference/ue5-shaders/*`
+- `src/.rustimport/reference/ue5-config/*`
+- `src/.rustimport/reference/ue5-asset-utils/*`
+- `src/.rustimport/reference/ue5-materials/*`
+- `src/.rustimport/reference/ue5-blueprints/*`
+- `src/.rustimport/reference/ue5-graphs/*`
+- `src/.rustimport/reference/ue5-gas/*`
+- `src/.rustimport/reference/ue5-editor/*`
 - `crates/cli/src/main.rs`
 
 ## Capability Flags
@@ -173,9 +173,9 @@ Statement forms are:
 | Compiler-owned intents | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/compiler-owned-intents.md` |
 | Runtime contracts and realtime bundles | `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/runtime-model.md`, `native-c-runtime/abi-contract.md` |
 | Native C ABI | `runtime/native/include/*.h` | `native-c-runtime/*.md` |
-| Omni orchestration | `src/rust-import/kain-omni/lib.kn` | `pipelines/omni.md`, `cli/selfhost-omni-fabric-lsp.md` |
-| Fabric orchestration | `src/rust-import/kain-omni/fabric.kn`, `src/rust-import/kain-host/fabric.kn` | `pipelines/fabric.md`, `cli/selfhost-omni-fabric-lsp.md` |
-| UE5 plugin pipeline | `src/rust-import/cli/packager/ue5_pipeline.kn`, `src/rust-import/ue5/*` | `ue5/overview.md`, `cli/native-ui-and-packaging.md` |
+| Omni orchestration | `src/.rustimport/reference/kain-omni/lib.kn` | `pipelines/omni.md`, `cli/selfhost-omni-fabric-lsp.md` |
+| Fabric orchestration | `src/.rustimport/reference/kain-omni/fabric.kn`, `src/.rustimport/reference/kain-host/fabric.kn` | `pipelines/fabric.md`, `cli/selfhost-omni-fabric-lsp.md` |
+| UE5 plugin pipeline | `src/.rustimport/reference/cli/packager/ue5_pipeline.kn`, `src/.rustimport/reference/ue5/*` | `ue5/overview.md`, `cli/native-ui-and-packaging.md` |
 | Compile targets and output families | `crates/kain-core/src/lib.rs`, `crates/kain-driver/src/lib.rs` | `reference/target-matrix.md` |
 | CLI command surface | `crates/cli/src/main.rs` | `reference/command-matrix.md` |
 
