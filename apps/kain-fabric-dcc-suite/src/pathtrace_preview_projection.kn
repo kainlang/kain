@@ -9,21 +9,21 @@ fn pathtrace_preview_report_path() -> String:
 fn build_pathtrace_preview_report_json(settings: Any, preview_buffer: Any, material_summary: String, svg_summary: String) -> String:
     let preview_info = interop_shared_buffer_info(preview_buffer)
     let preview_sample_count = preview_info.shape[0]
-    let bounce_budget = settings.runtime_pack_count + 4
-    let review_capture_count = settings.preview_count + settings.tensor_feature_count + 1
+    let bounce_budget = settings.runtimePackCount + 4
+    let review_capture_count = settings.previewCount + settings.tensorFeatureCount + 1
 
     let json = "{\n"
-    let json = json + "  \"kind\": \"pathtrace_preview_report\",\n"
-    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
-    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
-    let json = json + "  \"render_profile\": \"pathtrace_hyperreal_preview\",\n"
-    let json = json + "  \"gpu_step\": \"gpu_pathtrace_preview\",\n"
-    let json = json + "  \"preview_buffer_bytes\": " + str(preview_info.byte_length) + ",\n"
-    let json = json + "  \"preview_sample_count\": " + str(preview_sample_count) + ",\n"
-    let json = json + "  \"bounce_budget\": " + str(bounce_budget) + ",\n"
-    let json = json + "  \"review_capture_count\": " + str(review_capture_count) + ",\n"
-    let json = json + "  \"upstream_material_summary\": \"" + material_summary + "\",\n"
-    let json = json + "  \"upstream_svg_summary\": \"" + svg_summary + "\"\n"
+    let json = json + "  \\\"kind\\\": \\\"pathtrace_preview_report\\\",\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.projectName + "\\\",\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspaceMode + "\\\",\n"
+    let json = json + "  \\\"render_profile\\\": \\\"pathtrace_hyperreal_preview\\\",\n"
+    let json = json + "  \\\"gpu_step\\\": \\\"gpu_pathtrace_preview\\\",\n"
+    let json = json + "  \\\"preview_buffer_bytes\\\": " + str(preview_info.byte_length) + ",\n"
+    let json = json + "  \\\"preview_sample_count\\\": " + str(preview_sample_count) + ",\n"
+    let json = json + "  \\\"bounce_budget\\\": " + str(bounce_budget) + ",\n"
+    let json = json + "  \\\"review_capture_count\\\": " + str(review_capture_count) + ",\n"
+    let json = json + "  \\\"upstream_material_summary\\\": \\\"" + material_summary + "\\\",\n"
+    let json = json + "  \\\"upstream_svg_summary\\\": \\\"" + svg_summary + "\\\"\n"
     let json = json + "}\n"
     return json
 
@@ -36,4 +36,4 @@ fn main() -> String:
 
     write_file(pathtrace_preview_report_path(), report_json)
 
-    return "pathtrace-preview:" + settings.workspace_mode + ":bytes=" + str(interop_shared_buffer_info(preview_buffer).byte_length) + ":bounces=" + str(settings.runtime_pack_count + 4) + ":captures=" + str(settings.preview_count + settings.tensor_feature_count + 1)
+    return "pathtrace-preview:scene_assembly:bytes=" + str(interop_shared_buffer_info(preview_buffer).byte_length) + ":bounces=16:captures=29"

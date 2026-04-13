@@ -70,6 +70,7 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn <file.kn> --watch        Re-run on save for fast authoring",
     "kn run <file.kn>            Explicit interpret mode",
     "kn build <file.kn> -t rust  Generate Rust output",
+    "kn fmt <file.kn>            Canonicalize Kain source",
     "kn doctor                   Inspect PATH + runtime wiring",
     "kn doctor --repair <file>    Repair a source file in place or dry-run",
     "kn doctor --repair-tree <dir> Repair every .kn file under a tree",
@@ -189,6 +190,10 @@ fn frontend_to_typed_program(
 /// Compile with backend selection.
 pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
     kain_driver::compile(source, target)
+}
+
+pub fn format_source(source: &str) -> Result<String, KainError> {
+    kain_driver::format_source(source)
 }
 
 pub fn compile_runtime_contract_bundle(

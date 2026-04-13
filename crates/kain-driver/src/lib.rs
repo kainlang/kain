@@ -294,6 +294,10 @@ impl DriverSession {
         Ok(emit_runtime_contract_bundle(&typed, target))
     }
 
+    pub fn format_source(&self, source: &str) -> Result<String, KainError> {
+        kain_core::format_source(source)
+    }
+
     pub fn compile_realtime_app_bundle(
         &self,
         source: &str,
@@ -1268,6 +1272,10 @@ pub fn compile_runtime_contract_bundle(
     target: CompileTarget,
 ) -> Result<RuntimeContractBundle, KainError> {
     DriverSession::default().compile_runtime_contract_bundle(source, target)
+}
+
+pub fn format_source(source: &str) -> Result<String, KainError> {
+    DriverSession::default().format_source(source)
 }
 
 #[cfg(feature = "ue5")]

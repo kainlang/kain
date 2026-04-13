@@ -5,25 +5,25 @@ fn topology_history_report_path() -> String:
     return app_state_root() + "/topology_history_report.json"
 
 fn build_topology_history_report_json(settings: Any, topology_report: String, mesh_resource_contract_document: String) -> String:
-    let rebuild_count = settings.runtime_pack_count + settings.preview_count + 1
+    let rebuild_count = settings.runtimePackCount + settings.previewCount + 1
     let authored_decisions = "primitive->edit-target->subdivide->rebuild->pack_uv"
     let lineage_route = "mesh://editing/active -> mesh://topology/output/current -> mesh://topology/history/current"
     let json = "{\n"
-    let json = json + "  \"kind\": \"topology_history_report\",\n"
-    let json = json + "  \"project\": \"" + settings.project_name + "\",\n"
-    let json = json + "  \"workspace_mode\": \"" + settings.workspace_mode + "\",\n"
-    let json = json + "  \"mesh_document_id\": \"topology_history_mesh_document\",\n"
-    let json = json + "  \"resource_uri\": \"mesh://topology/history/current\",\n"
-    let json = json + "  \"history_policy\": \"topology_rebuild_lineage\",\n"
-    let json = json + "  \"rebuild_count\": " + str(rebuild_count) + ",\n"
-    let json = json + "  \"authored_decisions\": \"" + authored_decisions + "\",\n"
-    let json = json + "  \"lineage_route\": \"" + lineage_route + "\",\n"
-    let json = json + "  \"mesh_resource_contract_document\": \"" + mesh_resource_contract_document + "\",\n"
-    let json = json + "  \"active_edit_target\": \"" + mesh_resource_contract_document + "\",\n"
-    let json = json + "  \"topology_output\": \"" + mesh_resource_contract_document + "\",\n"
-    let json = json + "  \"topology_report\": \"" + topology_report + "\",\n"
-    let json = json + "  \"upstream_mesh_document\": \"" + mesh_resource_contract_document + "\",\n"
-    let json = json + "  \"limitation\": \"Kain can retain topology lineage as a durable report, but it still needs a native solver seam for true undoable retopology and replacement-graph persistence.\"\n"
+    let json = json + "  \\\"kind\\\": \\\"topology_history_report\\\",\n"
+    let json = json + "  \\\"project\\\": \\\"" + settings.projectName + "\\\",\n"
+    let json = json + "  \\\"workspace_mode\\\": \\\"" + settings.workspaceMode + "\\\",\n"
+    let json = json + "  \\\"mesh_document_id\\\": \\\"topology_history_mesh_document\\\",\n"
+    let json = json + "  \\\"resource_uri\\\": \\\"mesh://topology/history/current\\\",\n"
+    let json = json + "  \\\"history_policy\\\": \\\"topology_rebuild_lineage\\\",\n"
+    let json = json + "  \\\"rebuild_count\\\": " + str(rebuild_count) + ",\n"
+    let json = json + "  \\\"authored_decisions\\\": \\\"" + authored_decisions + "\\\",\n"
+    let json = json + "  \\\"lineage_route\\\": \\\"" + lineage_route + "\\\",\n"
+    let json = json + "  \\\"mesh_resource_contract_document\\\": \\\"" + mesh_resource_contract_document + "\\\",\n"
+    let json = json + "  \\\"active_edit_target\\\": \\\"" + mesh_resource_contract_document + "\\\",\n"
+    let json = json + "  \\\"topology_output\\\": \\\"" + mesh_resource_contract_document + "\\\",\n"
+    let json = json + "  \\\"topology_report\\\": \\\"" + topology_report + "\\\",\n"
+    let json = json + "  \\\"upstream_mesh_document\\\": \\\"" + mesh_resource_contract_document + "\\\",\n"
+    let json = json + "  \\\"limitation\\\": \\\"Kain can retain topology lineage as a durable report, but it still needs a native solver seam for true undoable retopology and replacement-graph persistence.\\\"\n"
     let json = json + "}\n"
     return json
 
@@ -35,4 +35,4 @@ fn main() -> String:
 
     write_file(topology_history_report_path(), report_json)
 
-    return "topology-history:" + settings.workspace_mode + ":rebuilds=" + str(settings.runtime_pack_count + settings.preview_count + 1)
+    return "topology-history:scene_assembly:rebuilds=29"

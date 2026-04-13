@@ -51,6 +51,13 @@ cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-dcc-suite/
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/build-native-ui.ps1
 ```
 
+```bash
+apps/kain-fabric-dcc-suite/scripts/build-native-ui-linux.sh
+apps/kain-fabric-dcc-suite/native-app/target/debug/kain-fabric-dcc-suite
+```
+
+The Linux path bypasses the Windows-only PowerShell materializers by generating `generated/main.generated.kn`, `state/runtime_snapshot.json`, and `state/session_document.json` through Python, then patching the generated native launcher so the file-backed command bridge comes up on Linux as well.
+
 ## Output Hygiene
 
 - `generated/` and `state/runtime_snapshot.json` are materialized artifacts and can be regenerated.

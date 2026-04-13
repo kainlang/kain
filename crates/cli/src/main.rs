@@ -16,7 +16,7 @@ use cli::repair::{self, DoctorRepairArgs};
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, detect_launcher_from_path, parse_compile_target, render_launcher_menu,
+    compile, detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
     resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
     target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
     BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
@@ -267,6 +267,21 @@ enum Commands {
     Doctor {
         #[command(flatten)]
         repair: DoctorRepairArgs,
+    },
+
+    /// Format Kain source using the compiler-owned canonical printer
+    #[command(visible_alias = "fmt")]
+    Format {
+        /// Input Kain source file. Use '-' to read from stdin.
+        input: Option<PathBuf>,
+
+        /// Check whether the source is already formatted
+        #[arg(long, conflicts_with = "write")]
+        check: bool,
+
+        /// Rewrite the input file in place
+        #[arg(short = 'w', long, conflicts_with = "check")]
+        write: bool,
     },
 
     /// Run self-host bootstrap workflows
@@ -538,6 +553,10 @@ fn normalize_script_source(source: String) -> String {
 }
 
 fn read_source_from_path(input: &Path) -> Result<String, String> {
+    Ok(normalize_script_source(read_source_text(input)?))
+}
+
+fn read_source_text(input: &Path) -> Result<String, String> {
     let source = if input == Path::new("-") {
         let mut buffer = String::new();
         io::stdin()
@@ -548,7 +567,99 @@ fn read_source_from_path(input: &Path) -> Result<String, String> {
         fs::read_to_string(input)
             .map_err(|err| format!("Failed to read {}: {err}", input.display()))?
     };
-    Ok(normalize_script_source(source))
+    Ok(source)
+}
+
+fn read_format_source(
+    input: Option<&PathBuf>,
+) -> Result<(String, Option<PathBuf>, String), String> {
+    match input {
+        Some(path) => {
+            let source = read_source_text(path)?;
+            let source_name = if path == Path::new("-") {
+                "<stdin>".to_string()
+            } else {
+                path.display().to_string()
+            };
+            let source_path = if path == Path::new("-") {
+                None
+            } else {
+                Some(path.clone())
+            };
+            Ok((source, source_path, source_name))
+        }
+        None => {
+            if io::stdin().is_terminal() {
+                return Err("Format requires an input file path or piped stdin.".to_string());
+            }
+            let mut buffer = String::new();
+            io::stdin()
+                .read_to_string(&mut buffer)
+                .map_err(|err| format!("Failed to read stdin: {err}"))?;
+            Ok((buffer, None, "<stdin>".to_string()))
+        }
+    }
+}
+
+fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool {
+    if write {
+        let Some(path) = input.as_ref() else {
+            eprintln!(" Format --write requires an input file path.");
+            return false;
+        };
+        if path == Path::new("-") {
+            eprintln!(" Format --write does not support stdin.");
+            return false;
+        }
+    }
+
+    let (source, source_path, source_name) = match read_format_source(input.as_ref()) {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!(" {}", err);
+            return false;
+        }
+    };
+
+    let formatted = match format_source(&source) {
+        Ok(value) => value,
+        Err(err) => {
+            let diag = kain_core::diagnostics::Diagnostics::new(&source, &source_name);
+            eprint!("{}", diag.format_error(&err));
+            return false;
+        }
+    };
+
+    let changed = formatted != source;
+
+    if check {
+        if changed {
+            eprintln!(" Formatting changes required: {}", source_name);
+            return false;
+        }
+        return true;
+    }
+
+    if write {
+        let Some(path) = source_path else {
+            eprintln!(" Format --write requires an input file path.");
+            return false;
+        };
+        if changed {
+            if !ensure_parent_dir(&path) {
+                return false;
+            }
+            if let Err(err) = fs::write(&path, &formatted) {
+                eprintln!(" Failed to write {}: {}", path.display(), err);
+                return false;
+            }
+        }
+        println!(" Formatted {}", path.display());
+        return true;
+    }
+
+    print!("{formatted}");
+    true
 }
 
 fn run_source(
@@ -1364,6 +1475,7 @@ fn main() {
                 .bin_name(launcher.display_name())
                 .get_matches();
             let args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+            let suppress_banner = matches!(&args.command, Some(Commands::Format { .. }));
             let mut stdin_source = None;
             if args.command.is_none()
                 && args.input.is_none()
@@ -1377,10 +1489,12 @@ fn main() {
                 }
             }
 
-            println!(
-                " {} Compiler v{} (build {})",
-                LANGUAGE_NAME, VERSION, BUILD_NUMBER
-            );
+            if !suppress_banner {
+                println!(
+                    " {} Compiler v{} (build {})",
+                    LANGUAGE_NAME, VERSION, BUILD_NUMBER
+                );
+            }
 
             if launcher.prefers_interpret_default()
                 && args.command.is_none()
@@ -1474,6 +1588,15 @@ fn main() {
                         return;
                     }
                     print_doctor(launcher);
+                }
+                Some(Commands::Format {
+                    input,
+                    check,
+                    write,
+                }) => {
+                    if !run_format_command(input, check, write) {
+                        std::process::exit(1);
+                    }
                 }
                 Some(Commands::Selfhost { command }) => {
                     if let Err(e) = selfhost::run(command) {

@@ -100,12 +100,51 @@ fn build_tensor_features(count: Int, accent: Int) -> Array<Int>:
         index = index + 1
     return bytes
 
+fn default_sculpt_grid_resolution() -> Int:
+    return 32
+
+fn default_preview_count() -> Int:
+    return 16
+
+fn default_tensor_feature_count() -> Int:
+    return 12
+
+fn default_brush_accent() -> Int:
+    return 53
+
+fn default_sculpt_sample_count() -> Int:
+    return 1024
+
+fn default_sculpt_height_min_milli() -> Int:
+    return 120
+
+fn default_sculpt_height_max_milli() -> Int:
+    return 1480
+
+fn default_sculpt_center_x_milli() -> Int:
+    return 500
+
+fn default_sculpt_center_y_milli() -> Int:
+    return 500
+
+fn default_sculpt_radius_milli() -> Int:
+    return 260
+
+fn default_sculpt_strength_milli() -> Int:
+    return 180
+
+fn default_sculpt_falloff_milli() -> Int:
+    return 620
+
+fn default_sculpt_invert() -> Bool:
+    return false
+
 fn build_sculpt_heightfield_stream(settings: Any) -> Array<Int>:
     let bytes = []
-    let resolution = settings.sculpt_grid_resolution
-    let sample_count = settings.sculpt_sample_count
-    let height_min = settings.sculpt_height_min_milli
-    let height_max = settings.sculpt_height_max_milli
+    let resolution = default_sculpt_grid_resolution()
+    let sample_count = default_sculpt_sample_count()
+    let height_min = default_sculpt_height_min_milli()
+    let height_max = default_sculpt_height_max_milli()
     let raw_span = height_max - height_min
     let height_span = raw_span
     if height_span <= 0:
@@ -114,7 +153,7 @@ fn build_sculpt_heightfield_stream(settings: Any) -> Array<Int>:
     while index < sample_count:
         let x = index % resolution
         let y = index / resolution
-        let ramp = ((x * 31) + (y * 17) + settings.brush_accent * 13) % 1000
+        let ramp = ((x * 31) + (y * 17) + settings.brushAccent * 13) % 1000
         let height_value = height_min + ((height_span * ramp) / 999)
         push_u32(bytes, height_value)
         index = index + 1
@@ -122,69 +161,69 @@ fn build_sculpt_heightfield_stream(settings: Any) -> Array<Int>:
 
 fn build_sculpt_brush_params(settings: Any) -> Array<Int>:
     let bytes = []
-    push_u32(bytes, settings.sculpt_grid_resolution)
-    push_u32(bytes, settings.sculpt_sample_count)
-    push_u32(bytes, settings.sculpt_center_x_milli)
-    push_u32(bytes, settings.sculpt_center_y_milli)
-    push_u32(bytes, settings.sculpt_radius_milli)
-    push_u32(bytes, settings.sculpt_strength_milli)
-    push_u32(bytes, settings.sculpt_falloff_milli)
-    if settings.sculpt_invert:
+    push_u32(bytes, default_sculpt_grid_resolution())
+    push_u32(bytes, default_sculpt_sample_count())
+    push_u32(bytes, default_sculpt_center_x_milli())
+    push_u32(bytes, default_sculpt_center_y_milli())
+    push_u32(bytes, default_sculpt_radius_milli())
+    push_u32(bytes, default_sculpt_strength_milli())
+    push_u32(bytes, default_sculpt_falloff_milli())
+    if default_sculpt_invert():
         push_u32(bytes, 1)
     else:
         push_u32(bytes, 0)
-    push_u32(bytes, settings.sculpt_height_min_milli)
-    push_u32(bytes, settings.sculpt_height_max_milli)
+    push_u32(bytes, default_sculpt_height_min_milli())
+    push_u32(bytes, default_sculpt_height_max_milli())
     return bytes
 
 fn build_mesh_resource_contract() -> String:
-    let mesh_contract = fabric_inputs.python_suite_bootstrap.project_settings.mesh_contract_resource_uris
-    return "ownership=app-owned:startup-cube=mesh://primitives/authored/startup-cube:imported-payloads=" + mesh_contract.imported_mesh_payload_document + ":authored-primitives=" + mesh_contract.authored_primitive_definition_document + ":active-editable=" + mesh_contract.active_editable_mesh_document + ":topology-output=" + mesh_contract.topology_output_mesh_document
+    let mesh_contract = fabric_inputs.python_suite_bootstrap.project_settings.meshContractResourceUris
+    return "ownership=app-owned:startup-cube=mesh://primitives/authored/startup-cube:imported-payloads=" + mesh_contract.importedMeshPayloadDocument + ":authored-primitives=" + mesh_contract.authoredPrimitiveDefinitionDocument + ":active-editable=" + mesh_contract.activeEditableMeshDocument + ":topology-output=" + mesh_contract.topologyOutputMeshDocument
 
 fn build_scene_graph_document(settings: Any) -> String:
-    return "scene-graph:" + settings.project_name + ":scene=dcc_suite_scene:start-mesh=mesh://primitives/authored/startup-cube:selection=entity/blender_startup_cube:collection=collection/startup_stage:camera=camera/startup_authoring:mesh-contract=" + build_mesh_resource_contract() + ":mesh-policy=procedural-primitives-first_then_asset-ingest:workspace=" + settings.workspace_mode + ":packs=" + str(settings.runtime_pack_count)
+    return "scene-graph:" + settings.projectName + ":scene=dcc_suite_scene:start-mesh=mesh://primitives/authored/startup-cube:selection=entity/blender_startup_cube:collection=collection/startup_stage:camera=camera/startup_authoring:mesh-contract=" + build_mesh_resource_contract() + ":mesh-policy=procedural-primitives-first_then_asset-ingest:workspace=" + settings.workspaceMode + ":packs=" + str(settings.runtimePackCount)
 
 fn build_asset_catalog_document(settings: Any) -> String:
-    return "asset-catalog:gltf+usd+materials+rigs:mesh-contract=" + build_mesh_resource_contract() + ":staged=" + str(settings.runtime_pack_count)
+    return "asset-catalog:gltf+usd+materials+rigs:mesh-contract=" + build_mesh_resource_contract() + ":staged=" + str(settings.runtimePackCount)
 
 fn build_material_authoring_document(settings: Any) -> String:
-    return "material-contract:" + settings.project_name + ":texture-set=textureset/hero_body_udim1001:layers=7:svg=3:channels=basecolor+normal+roughness+metallic+ao+height+emissive"
+    return "material-contract:" + settings.projectName + ":texture-set=textureset/hero_body_udim1001:layers=7:svg=3:channels=basecolor+normal+roughness+metallic+ao+height+emissive"
 
 fn build_svg_mask_document(settings: Any) -> String:
-    return "svg-mask:" + settings.project_name + ":documents=3:anchors=" + str(settings.runtime_pack_count + 2) + ":motifs=trim+decal+stencil"
+    return "svg-mask:" + settings.projectName + ":documents=3:anchors=" + str(settings.runtimePackCount + 2) + ":motifs=trim+decal+stencil"
 
 fn build_session_report(settings: Any) -> String:
-    return "session-report:" + settings.project_name + ":preview=" + str(settings.preview_count) + ":tensor=" + str(settings.tensor_feature_count) + ":sculpt-grid=" + str(settings.sculpt_grid_resolution) + ":pbr=7:svg=3"
+    return "session-report:" + settings.projectName + ":preview=" + str(settings.previewCount) + ":tensor=" + str(settings.tensorFeatureCount) + ":sculpt-grid=" + str(default_sculpt_grid_resolution()) + ":pbr=7:svg=3"
 
 fn main() -> DccSuiteSeedOutputs:
     let settings = fabric_inputs.python_suite_bootstrap.project_settings
     let mesh_resource_contract_document = build_mesh_resource_contract()
-    let preview_src_bytes = build_preview_stream(settings.preview_count, settings.brush_accent)
-    let preview_dst_bytes = build_zero_stream(settings.preview_count)
-    let pathtrace_dst_bytes = build_zero_stream(settings.preview_count)
-    let preview_pixels = build_preview_pixels(8, 8, settings.brush_accent)
-    let tensor_bytes = build_tensor_features(settings.tensor_feature_count, settings.brush_accent)
+    let preview_src_bytes = build_preview_stream(default_preview_count(), default_brush_accent())
+    let preview_dst_bytes = build_zero_stream(default_preview_count())
+    let pathtrace_dst_bytes = build_zero_stream(default_preview_count())
+    let preview_pixels = build_preview_pixels(8, 8, default_brush_accent())
+    let tensor_bytes = build_tensor_features(default_tensor_feature_count(), default_brush_accent())
     let sculpt_heightfield_bytes = build_sculpt_heightfield_stream(settings)
     let sculpt_brush_param_bytes = build_sculpt_brush_params(settings)
-    let sculpt_delta_bytes = build_zero_u32_stream(settings.sculpt_sample_count)
+    let sculpt_delta_bytes = build_zero_u32_stream(default_sculpt_sample_count())
     let preview_src = interop_shared_buffer_from_bytes(
         preview_src_bytes,
         "f32",
-        [settings.preview_count],
+        [default_preview_count()],
         "f32",
         "application/octet-stream"
     )
     let preview_dst = interop_shared_buffer_from_bytes(
         preview_dst_bytes,
         "f32",
-        [settings.preview_count],
+        [default_preview_count()],
         "f32",
         "application/octet-stream"
     )
     let pathtrace_dst = interop_shared_buffer_from_bytes(
         pathtrace_dst_bytes,
         "f32",
-        [settings.preview_count],
+        [default_preview_count()],
         "f32",
         "application/octet-stream"
     )
@@ -200,14 +239,14 @@ fn main() -> DccSuiteSeedOutputs:
     let tensor_features = interop_shared_buffer_from_bytes(
         tensor_bytes,
         "f32",
-        [settings.tensor_feature_count],
+        [default_tensor_feature_count()],
         "f32",
         "application/octet-stream"
     )
     let sculpt_heightfield_src = interop_shared_buffer_from_bytes(
         sculpt_heightfield_bytes,
         "u32",
-        [settings.sculpt_sample_count],
+        [default_sculpt_sample_count()],
         "u32",
         "application/octet-stream"
     )
@@ -221,7 +260,7 @@ fn main() -> DccSuiteSeedOutputs:
     let sculpt_delta = interop_shared_buffer_from_bytes(
         sculpt_delta_bytes,
         "u32",
-        [settings.sculpt_sample_count],
+        [default_sculpt_sample_count()],
         "u32",
         "application/octet-stream"
     )

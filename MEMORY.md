@@ -2127,6 +2127,43 @@ Recommended next step:
 
 - Add a non-Win32 native host provider for app-host/input/viewport services so the higher-level packaged native desktop lane can advertise Linux parity without relying on Win32-only service entries.
 
+## 2026-04-09 - compiler-owned formatter landed in kain-core and the CLI
+
+Kain now has a first compiler-owned source formatter instead of relying on ad hoc source repair or manual style normalization.
+
+What changed:
+
+- Added `crates/kain-core/src/formatter.rs`
+  - Introduced `FormatOptions`, `format_source`, and `format_source_with_options`.
+  - The formatter parses source through the real frontend and prints canonical Kain syntax from the AST.
+  - Script-mode formatting detects the parser's synthetic top-level `fn main()` wrapper and emits authored top-level statements instead of leaking the lowering detail back into user source.
+  - Preserves BOM and shebang prologues.
+- Updated compiler-facing surfaces
+  - `crates/kain-core/src/lib.rs` now exports the formatter.
+  - `crates/kain-driver/src/lib.rs` now exposes `DriverSession::format_source` plus a crate-level `format_source` helper.
+  - `crates/cli/src/lib.rs` re-exports the formatter entrypoint for the command layer.
+- Updated CLI
+  - `crates/cli/src/main.rs` now exposes `kain format` with `kain fmt` alias plus `--check` and `--write`.
+  - Default formatter mode prints canonical source to stdout without the normal compiler banner so it can be used safely in pipes and editor integrations.
+- Added focused tests
+  - `crates/kain-core/src/formatter.rs` now includes formatter tests for functions/structs, script-mode top-level statements, JSX/components, gameplay tags, and shebang preservation.
+
+Design decisions:
+
+- Kept formatting compiler-owned and AST-driven so editors, CLIs, and future LLM tooling all consume the same printer of record.
+- Chose explicit runtime errors over lossy printing for grammar corners that the current frontend cannot round-trip safely.
+- Kept v1 intentionally thin at the CLI layer: the command delegates to the driver/core formatter instead of owning any syntax rules.
+
+Current risks:
+
+- Comments are not preserved yet because the lexer discards comment tokens before parsing. `kain format` will currently remove authored comments.
+- Some rare AST shapes still error intentionally in v1 instead of formatting, including empty blocks and a few non-round-trippable expression forms.
+- `cargo test -p cli --lib -- --nocapture` still fails on an unrelated pre-existing test: `selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout`.
+
+Recommended next step:
+
+- Add frontend trivia ownership so comments survive parse/format round-trips, then grow formatter coverage tests around more advanced constructs before pushing editors or auto-format-on-save flows to depend on it heavily.
+
 ## 2026-04-09 - root universal installer now bundles clang into the repo toolchain
 
 The repo now has a root cross-platform bootstrap entrypoint at `install_kain.py`.
