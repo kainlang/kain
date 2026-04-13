@@ -313,6 +313,13 @@ Typical commands:
 - `cd tools/kain-flight-control && go test ./...`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
 
+Runtime validation meaning:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` is the backend IR/codegen proof lane.
+- `./runtime/fixtures/validate_all.sh` is the generated LLVM/native executable proof lane. It now compiles, links, and executes dedicated heap, actor, and world fixtures.
+- `./runtime/conformance/run_all.sh` is the runtime-native harness lane. Its `--backend llvm` flag is not a substitute for executable LLVM proof.
+- `./runtime/validate_native_runtime.sh` is the aggregate command that runs the CLI build, native runtime build, fixture suite, and conformance suite together.
+
 If the debug CLI is missing:
 
 - `cargo build -p cli`
@@ -365,6 +372,7 @@ If the debug CLI is missing:
 - The smoke now also compiles through the LLVM/native executable lane into `smoketest/3D/material_atrium_showcase/llvm-native/material-atrium-showcase`, but Linux still uses the Qt presentation shell. Treat the standalone binary as the native compile proof, not as the full presenter yet.
 - The Qt launcher still packages `material_atrium_visual_example.png` as a host sidecar and forwards it through `KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH`, but that image is now an optional compatibility fallback rather than the source of truth for the smoke.
 - The Windows native viewport now has a dedicated `material_atrium` profile and geometry branch, so the scene can be exercised from the runtime-owned side without relying only on the older demo profiles. The deterministic artifact generator still exists for comparison, but the authored smoke source is the real entrypoint.
+- LLVM/native actor proof depends on mailbox initialization happening in LLVM `spawn` lowering. Actor structs reserve field 0 for `__mailbox`, and the backend must allocate it with `mq_new()` before `KAIN_spawn` or the produced executable will crash when `send` lowers to `mq_push`.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.
