@@ -219,6 +219,35 @@ Recommended next step:
 
 The active selfhost profile stays on the Rust bridge path, but phase2 now front-loads `cli` ahead of `kain-sys-codegen` so the `kain` executable is the first thing we prove correct on this pass. That keeps the import bridge intact while making executable parity the gating milestone instead of a later byproduct.
 
+# 2026-04-12 - src ownership root is now split into owned core plus reference lanes
+
+The `src/` tree no longer mixes hand-owned Kain work with donor corpus and live phase2 mirrors at the top level. `src/core` is now the only active owned source lane, `src/.rustimport/reference` holds the moved donor corpus from the older Rust import lane, and `src/.rustimport/phase2` is the canonical live selfhost mirror root.
+
+What changed:
+
+- Moved the old donor corpus from `src/rust-import` into `src/.rustimport/reference`.
+- Moved the live phase2 mirror trees from top-level `src/cli`, `src/kain-core`, `src/kain-import`, and `src/kain-sys-codegen` into `src/.rustimport/phase2/...`.
+- Changed the default selfhost profile root in `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json` and `crates/cli/src/selfhost_profile.rs` so future phase2 runs emit canonical mirrors into `src/.rustimport/phase2`.
+- Updated the selfhost path-based tests in `crates/cli/src/selfhost.rs` to assert the new canonical mirror layout.
+- Updated `src/README.md`, `src/TASK.md`, `src/core/README.md`, `src/core/language_features.kn`, `ARCHITECTURE.md`, and the live docs under `docs/` so operators see the owned/reference split instead of the old flat `src/` mirror story.
+- Added `src/.rustimport/README.md` as a no-edit ownership note for the reference lanes.
+
+Validation:
+
+- `cargo test -p cli default_profile_resolves_relative_roots`
+- `cargo test -p cli build_file_mirror_plans_preserves_file_level_paths`
+- `cargo test -p cli write_roundtrip_rust_tree_splits_inline_modules_into_real_files`
+- `cargo run -q -p cli --bin kain -- selfhost phase2 --output-dir ouroboros/out/selfhost/src_root_normalization_probe_2026-04-12 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force`
+
+Current risk:
+
+- Git now sees the moved reference trees as delete-plus-add until they are staged. That is expected for this restructure, but it means later reviews should treat `src/.rustimport/*` as path moves rather than semantic rewrites.
+- Historical notes in `MEMORY.md` and other archival prose may still mention `src/rust-import/...`. Those references are historical context, not the live path contract.
+
+Recommended next step:
+
+- Stage the `src/` move as a pure ownership/layout change first, then keep future selfhost work pointed at `src/core` for owned code and `src/.rustimport/phase2` for mirror output.
+
 What changed:
 
 - Updated `crates/cli/src/selfhost_profile.rs` and `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json` to describe the profile as executable-first and to order phase2 as `kain-core`, `kain-import`, `cli`, `kain-sys-codegen`.

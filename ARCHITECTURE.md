@@ -75,8 +75,10 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
-- [src](src): top-level selfhost Kain mirror tree; the selfhost pipeline can emit one `.kn` file per Rust source file under `src/<crate>/...`
-- [src/core](src/core): canonical owned Kain core surface; this is the active self-hosted language tree
+- [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
+- [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
+- [src/.rustimport](src/.rustimport): reference-only donor and phase2 mirror root; `reference/` holds the moved Rust import corpus and `phase2/` is the canonical live selfhost mirror root
+- [src/.legacy](src/.legacy): archival donor tree kept for historical reference only
 - [ouroboros](ouroboros): selfhost control-plane manifests, repair tooling, inventories, reports, and pipeline automation
 
 ## Docs And Example Ownership
@@ -161,12 +163,13 @@ Current native-ui packaging rule for C ABI imports:
 The current selfhost lane is no longer only a crate-level bundle export. It now has a file-preserving mirror pipeline:
 
 - The active owned language surface lives under `src/core`; treat that folder as the canonical hand-authored core tree for the current bootstrap/selfhost wave.
+- `src/.rustimport/reference` is the moved donor corpus from the earlier Rust import lane; do not hand-edit it.
 - `crates/kain-import` imports Rust selfhost crates per source file/module and exposes per-file typed `Program` results.
 - `crates/cli/src/selfhost.rs` consumes those file-level imports through a data-driven `SelfHostSourceProfile`.
 - The default profile lives at `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`.
 - The current bootstrap priority is the `kain` executable: the default phase2 profile keeps `cli` ahead of `kain-sys-codegen` so executable parity is proven before backend expansion.
 - Phase output now emits three aligned artifact families:
-  - canonical Kain mirrors under `src/<crate>/...` or the profile-configured canonical root
+  - canonical Kain mirrors under `src/.rustimport/phase2/<crate>/...` or the profile-configured canonical root
   - output-local mirror copies under `<phase-output>/mirror/src/<crate>/...`
   - a `source_correspondence_manifest.json` that records exact Rust-to-Kain path correspondence per file
 - Phase2 still writes aggregate `<crate>.kn` and `<crate>.roundtrip.rs` compatibility artifacts because the active frontend/codegen path is still single-source-string oriented.
@@ -293,7 +296,7 @@ Typical commands:
 - `kain selfhost phase2` for the bounded self-host repair lane
 - `kain selfhost phase2 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false` for mirror-only validation without forcing the roundtrip/build lane
 - `kain selfhost phase2 --force` to keep partial selfhost artifacts even when one crate trips the current phase2 blockers
-- `kain selfhost phase2 --all-crates --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force` to mirror every discovered `crates/*/Cargo.toml` workspace crate into repo-root `src/` and preserve the full forced artifact graph
+- `kain selfhost phase2 --all-crates --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force` to mirror every discovered `crates/*/Cargo.toml` workspace crate into `src/.rustimport/phase2/` and preserve the full forced artifact graph
 - `kain omni build`
 - `kain fabric init --template polyglot`
 - `kain fabric validate`

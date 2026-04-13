@@ -8,7 +8,9 @@ pipeline.
 ## Ownership Contract
 
 - `src/core` is the canonical owned source tree.
-- `src/.rustimport` is a generated reference corpus only.
+- `src/.rustimport/reference` is the moved donor corpus from the older Rust import lane.
+- `src/.rustimport/phase2` is the live selfhost mirror root.
+- `src/.rustimport/*` is reference-only.
 - `src/.legacy` is an archival donor tree only.
 - If a choice exists between legacy shape and current language intent, current
   Kain intent wins.

@@ -48,7 +48,9 @@ struct KainLanguageProfile:
     features: Array<FeatureRule>
 
 const KAIN_CANONICAL_ROOT: String = "src/core"
-const KAIN_DONOR_ROOT: String = "src/.rustimport"
+const KAIN_RUSTIMPORT_ROOT: String = "src/.rustimport"
+const KAIN_DONOR_ROOT: String = "src/.rustimport/reference"
+const KAIN_PHASE2_REFERENCE_ROOT: String = "src/.rustimport/phase2"
 const KAIN_LEGACY_DONOR_ROOT: String = "src/.legacy"
 const KAIN_EXCLUDED_SURFACES: Array<String> = [
     "ue5",

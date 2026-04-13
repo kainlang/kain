@@ -41,9 +41,8 @@ impl Default for SelfHostSourceProfile {
         Self {
             version: default_profile_version(),
             name: default_profile_name(),
-            description:
-                "Executable-first source-mirror profile for the Rust bootstrap selfhost lane."
-                    .to_string(),
+            description: "Executable-first source-mirror profile for the Rust bootstrap selfhost lane. Canonical phase2 mirrors live under `src/.rustimport/phase2` while `src/core` stays hand-owned."
+                .to_string(),
             roots: SelfHostSourceRoots::default(),
             artifacts: SelfHostSourceArtifacts::default(),
             phases,
@@ -207,7 +206,7 @@ fn default_profile_name() -> String {
 }
 
 fn default_canonical_source_root() -> PathBuf {
-    PathBuf::from("src")
+    PathBuf::from("src").join(".rustimport").join("phase2")
 }
 
 fn default_output_mirror_root() -> PathBuf {
@@ -279,7 +278,7 @@ mod tests {
         let output_dir = Path::new("/tmp/out");
         assert_eq!(
             profile.canonical_source_root(repo_root),
-            repo_root.join("src")
+            repo_root.join("src").join(".rustimport").join("phase2")
         );
         assert_eq!(
             profile.output_mirror_root(output_dir),
