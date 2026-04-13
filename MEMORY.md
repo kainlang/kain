@@ -1,5 +1,55 @@
 # MEMORY
 
+# 2026-04-12 - tiny GenServer-style stdlib layer added on top of actors
+
+The repo now has a small KAIN-authored actor-service helper under
+`stdlib/gen_server.kn` plus a native `ask` primitive in the interpreter runtime,
+so raw `spawn` / `send` actors can be wrapped in a cleaner request/reply shape.
+
+What changed:
+
+- Added `stdlib/gen_server.kn` with `gen_server_start`, `gen_server_start_link`,
+  `gen_server_call`, `gen_server_cast`, `gen_server_info`, and
+  `gen_server_call_result`.
+- Added native runtime support for `ask(actor, message, request)` in
+  `crates/kain-core/src/runtime.rs`; it sends a one-shot reply actor ref and
+  waits up to 30 seconds for the first reply.
+- Registered `ask` in the typechecker and stdlib metadata via
+  `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs`.
+- Added runtime regression coverage in
+  `crates/kain-core/src/runtime_tests.rs` for a full call/cast/info round trip.
+- Updated `stdlib/README.md` and `ARCHITECTURE.md` so the helper and its current
+  limits are discoverable without reading the test.
+
+Behavior notes:
+
+- `gen_server_start_link` is a naming alias only right now. It does not create
+  a runtime link or supervision relationship yet.
+- The current `ask` primitive returns the first reply message payload:
+  zero args becomes `Unit`, one arg returns the value directly, and multiple
+  args return a tuple.
+- KAIN still has two important syntax/runtime quirks around this lane:
+  struct construction should use `TypeName { field: value }` instead of
+  `TypeName(field = value)`, and closure-valued actor state must be loaded into
+  a local before calling it.
+
+Validation:
+
+- `cargo test -p kain-core runtime_tests::gen_server_stdlib_round_trip -- --nocapture`
+- `cargo test -p kain-core runtime_tests::stdlib_registry_exposes_ord_and_chr -- --nocapture`
+- `cargo test -p kain-core test_stdlib_builtin_functions_exist -- --nocapture`
+
+Current risk:
+
+- The helper is intentionally tiny and interpreter-focused. It does not yet
+  expose true links, monitors, selective receive, or typed mailbox protocols.
+
+Recommended next step:
+
+- Decide whether the next actor-ergonomics step is real link/monitor semantics
+  in the runtime, or a slightly richer stdlib layer with reply tuples, timeout
+  control, and optional name registration.
+
 # 2026-04-12 - KAIN filesystem utility lane made real under scripts/kain
 
 The repo now has a working KAIN-authored filesystem automation lane under

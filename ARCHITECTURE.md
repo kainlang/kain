@@ -73,7 +73,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [apps/kain-fabric-dcc-suite](/M:/Code/Kain/apps/kain-fabric-dcc-suite): broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, animation, sim, render, compositor, publish, automation, and tensor planning lanes
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
-- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data
+- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data, including the root `gen_server.kn` helper that layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives; `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
 - [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
@@ -362,6 +362,8 @@ If the debug CLI is missing:
 - The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.
 - Native desktop launchers that do not inherit a GUI session can still boot if the wrapper resolves the live compositor socket. `labs/playground/piano/run.sh` now auto-detects the current Wayland/X11 runtime and exports the minimum env needed to attach on Linux; if a native app starts but no window appears, check `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_RUNTIME_DIR`, and `XAUTHORITY` before blaming Kain UI.
 - The LLVM dogfood lab in `labs/llvm_world_dogfood_lab` uses named payloads for both `spawn` and `send`. If an actor message stops parsing, check `Pulse(amount = ...)` / `spawn Actor(...)` syntax before assuming the LLVM backend regressed.
+- General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
+- Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.
 - Fabric step inputs now flow through raw `fabric_inputs` for every runtime adapter. Kain/C/Rust glue consumes canonical host objects directly, while the Python and Node bridge crates project shared buffer/image payloads into language-native contract objects with `bytearray` and `Uint8Array` bytes views.
