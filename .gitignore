@@ -13,6 +13,8 @@ smoketest/3D/
 !/smoketest/3D/intent_forge_quartet/launch_native_app.sh
 !/smoketest/3D/intent_forge_quartet/run_smoke.py
 !/smoketest/3D/intent_forge_quartet/smoke.kn
+zender/
+/zender/
 /target_selfhost_probe*/
 *.exe
 *.pdb
@@ -116,3 +118,4 @@ website/
 /apps/*/native-app/kain_runtime_version.json
 .reference/
 /.reference/
+zender
