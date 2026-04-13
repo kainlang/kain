@@ -29,6 +29,8 @@ work:
 - `organize_by_extension.kn` groups files in a directory into extension-based
   folders. It defaults to dry-run mode and only mutates files when
   `KAIN_ORGANIZE_APPLY` is truthy.
+- `actor/` contains actor-system demos that fan out work to worker actors and
+  use the real `spawn` / `send` message surface.
 
 ## Usage
 
@@ -48,6 +50,17 @@ KAIN_ORGANIZE_ROOT="$PWD" \
 kain run scripts/kain/organize_by_extension.kn
 ```
 
+Actor demos:
+
+```bash
+KAIN_JOB_ROOT="$PWD" \
+KAIN_JOB_RETRY_TOKEN=README \
+kain run scripts/kain/actor/folder_job_runner.kn
+
+KAIN_INDEX_ROOT="$PWD" \
+kain run scripts/kain/actor/file_indexer.kn
+```
+
 ## Safety Defaults
 
 - `append_text_to_file.kn` defaults to `notes.txt` in the current directory if
@@ -56,3 +69,5 @@ kain run scripts/kain/organize_by_extension.kn
   truthy.
 - The organizer only touches direct child files of the target root. It does not
   recurse.
+- The actor demos also stay on direct child files only so their message flow is
+  easy to follow in the terminal.

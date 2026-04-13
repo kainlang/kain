@@ -1,0 +1,81 @@
+fn resolve_root_path() -> String:
+    let root = env("KAIN_INDEX_ROOT").trim()
+    if len(root) == 0:
+        return "."
+    return root
+
+fn extension_group(path: String) -> String:
+    let extension = path_extension(path).trim()
+    if len(extension) == 0:
+        return "no_extension"
+    return extension.to_ascii_lowercase()
+
+fn find_bucket_index(groups: Array<String>, group: String) -> Int:
+    var index = 0
+    while index < len(groups):
+        if groups[index] == group:
+            return index
+        index = index + 1
+    return -1
+
+fn wait_for_actor_flush() -> Int:
+    # Give the spawned actor threads time to flush stdout before main exits.
+    var spin = 0
+    while spin < 1000000:
+        spin = spin + 1
+    return 0
+
+actor ExtensionBucket:
+    state group_name: String = ""
+    state file_count: Int = 0
+
+    on Index(file_name: String):
+        self.file_count = self.file_count + 1
+        println(f"[{self.group_name}] {file_name}")
+
+    on Finish():
+        println(f"[{self.group_name}] bucket finished with {self.file_count} file(s)")
+
+actor FolderIndexSupervisor:
+    state group_names: Array<String> = []
+    state buckets: Array<ExtensionBucket> = []
+    state file_count: Int = 0
+
+    on Begin(root_path: String):
+        println(f"Indexing {root_path} with actor buckets")
+        let entries = read_dir(root_path)
+
+        for entry in entries:
+            if path_is_dir(entry):
+                continue
+            if (!path_is_file(entry)):
+                continue
+
+            let file_name = path_file_name(entry)
+            if len(file_name) == 0:
+                continue
+
+            let group = extension_group(entry)
+            var bucket_index = find_bucket_index(self.group_names, group)
+            if bucket_index < 0:
+                let bucket = spawn ExtensionBucket(group_name = group)
+                push(self.group_names, group)
+                push(self.buckets, bucket)
+                bucket_index = len(self.buckets) - 1
+                println(f"Spawned bucket actor for {group}")
+
+            send self.buckets[bucket_index].Index(file_name = file_name)
+            self.file_count = self.file_count + 1
+
+        for bucket in self.buckets:
+            send bucket.Finish()
+
+        wait_for_actor_flush()
+        println(f"Indexed {self.file_count} file(s) across {len(self.group_names)} bucket(s).")
+
+fn main() -> Int:
+    let root_path = resolve_root_path()
+    let supervisor = spawn FolderIndexSupervisor()
+    send supervisor.Begin(root_path = root_path)
+    wait_for_actor_flush()
+    return 0

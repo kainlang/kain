@@ -50,6 +50,62 @@ Recommended next step:
 - Add more focused KAIN utilities only when they solve a real repetitive task
   and keep the env-var contract documented in the folder README.
 
+# 2026-04-12 - actor demos added under scripts/kain/actor
+
+The KAIN script lane now includes two actor-oriented demos that exercise the
+real `spawn` / `send` surface instead of just filesystem helpers.
+
+What changed:
+
+- Added `scripts/kain/actor/folder_job_runner.kn`, a coordinator/worker demo
+  that scans direct child text files, spawns one worker actor per job, and
+  retries once when `KAIN_JOB_RETRY_TOKEN` matches the file name.
+- Added `scripts/kain/actor/file_indexer.kn`, a coordinator/bucket demo that
+  spawns one actor per extension bucket and routes each direct child file to
+  the matching bucket actor.
+- Added `scripts/kain/actor/README.md` and extended `scripts/kain/README.md`
+  so the actor lane is discoverable from the main scripts index.
+- Updated `ARCHITECTURE.md` so the durable repo overview now calls out the
+  actor demo subtree explicitly.
+
+Design notes:
+
+- The demos keep the message syntax aligned with the parser's actual
+  `send actor.Message(field: value)` form.
+- The bucket demo uses arrays of actor refs rather than a custom map registry
+  because that stays simple, explicit, and easy for future agents to follow.
+- The job runner only touches text-like direct child files so the retry demo is
+  safe to run against the repo root without immediately tripping over binary
+  inputs.
+- The current executable surface does not expose `sleep` to these scripts, so
+  both demos use a short busy-loop flush helper to keep the process alive long
+  enough for background actor threads to print.
+- Actor handler state access needs `self.` in this repo's checker, so the demos
+  were rewritten to reference state fields explicitly instead of relying on bare
+  names.
+- String predicates in this lane are easiest to keep stable by using
+  `path_extension(...).trim().to_ascii_lowercase()` plus equality checks
+  instead of depending on missing string helper forms.
+
+Current risk:
+
+- The actor runtime is real, but the broader language still has enough surface
+  area mismatch that actor-heavy scripts need smoke testing after edits.
+
+Validation:
+
+- `scripts/kain/actor/file_indexer.kn` ran successfully on a temp folder with
+  `README.md`, `notes.txt`, and `project.toml`, spawning one bucket actor per
+  extension and printing a clean summary.
+- `scripts/kain/actor/folder_job_runner.kn` ran successfully on the same temp
+  folder with `KAIN_JOB_RETRY_TOKEN=README.md`, retrying that file once and
+  reporting the final completion summary.
+
+Recommended next step:
+
+- Smoke-test both actor demos on the local interpreter, then keep future actor
+  utilities in `scripts/kain/actor/` so the lane stays organized.
+
 # 2026-04-12 - scripts tree reorganized into directory-only root
 
 The `scripts/` directory was flattened into purpose-based subtrees so the root
