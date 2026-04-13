@@ -12,6 +12,7 @@ use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 pub type EnvExtensionRegistrar = fn(&mut Env);
@@ -1346,10 +1347,10 @@ impl Env {
 
             match std::fs::read_to_string(path) {
                 Ok(s) => Ok(Value::String(s)),
-                Err(e) => Ok(Value::Result(
-                    false,
-                    Box::new(Value::String(format!("Failed to read file: {}", e))),
-                )),
+                Err(e) => Err(KainError::runtime(format!(
+                    "read_file: failed to read '{}': {}",
+                    path, e
+                ))),
             }
         });
 
@@ -1376,10 +1377,10 @@ impl Env {
 
             match std::fs::write(path, content) {
                 Ok(_) => Ok(Value::Unit),
-                Err(e) => Ok(Value::Result(
-                    false,
-                    Box::new(Value::String(format!("Failed to read file: {}", e))),
-                )),
+                Err(e) => Err(KainError::runtime(format!(
+                    "write_file: failed to write '{}': {}",
+                    path, e
+                ))),
             }
         });
 
@@ -1699,7 +1700,7 @@ impl Env {
             match &args[0] {
                 Value::String(key) => match std::env::var(key) {
                     Ok(v) => Ok(Value::String(v)),
-                    Err(_) => Ok(Value::None),
+                    Err(_) => Ok(Value::String(String::new())),
                 },
                 _ => Err(KainError::runtime("env: expected string key")),
             }
@@ -1930,9 +1931,183 @@ impl Env {
                 return Err(KainError::runtime("file_exists: expected 1 argument"));
             }
             match &args[0] {
-                Value::String(path) => Ok(Value::Bool(std::path::Path::new(path).exists())),
+                Value::String(path) => Ok(Value::Bool(Path::new(path).exists())),
                 _ => Err(KainError::runtime("file_exists: path must be string")),
             }
+        });
+
+        self.define_native("create_dir_all", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("create_dir_all: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("create_dir_all: path must be string")),
+            };
+            std::fs::create_dir_all(path).map_err(|err| {
+                KainError::runtime(format!("create_dir_all: failed for '{}': {}", path, err))
+            })?;
+            Ok(Value::Unit)
+        });
+
+        self.define_native("copy_file", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime("copy_file: expected 2 arguments"));
+            }
+            let src = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("copy_file: source must be string")),
+            };
+            let dest = match &args[1] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("copy_file: destination must be string")),
+            };
+            std::fs::copy(src, dest).map_err(|err| {
+                KainError::runtime(format!(
+                    "copy_file: failed from '{}' to '{}': {}",
+                    src, dest, err
+                ))
+            })?;
+            Ok(Value::Unit)
+        });
+
+        self.define_native("remove_file", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("remove_file: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("remove_file: path must be string")),
+            };
+            std::fs::remove_file(path).map_err(|err| {
+                KainError::runtime(format!("remove_file: failed for '{}': {}", path, err))
+            })?;
+            Ok(Value::Unit)
+        });
+
+        self.define_native("read_dir", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("read_dir: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("read_dir: path must be string")),
+            };
+            let mut entries = Vec::new();
+            let read_dir = std::fs::read_dir(path).map_err(|err| {
+                KainError::runtime(format!("read_dir: failed for '{}': {}", path, err))
+            })?;
+            for entry in read_dir {
+                let entry = entry.map_err(|err| {
+                    KainError::runtime(format!("read_dir: failed reading '{}': {}", path, err))
+                })?;
+                entries.push(entry.path().to_string_lossy().into_owned());
+            }
+            entries.sort();
+            Ok(runtime_string_array_value(&entries))
+        });
+
+        self.define_native("path_join", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime("path_join: expected 2 arguments"));
+            }
+            let base = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_join: base must be string")),
+            };
+            let child = match &args[1] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_join: child must be string")),
+            };
+            Ok(Value::String(
+                Path::new(base).join(child).to_string_lossy().into_owned(),
+            ))
+        });
+
+        self.define_native("path_parent", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_parent: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_parent: path must be string")),
+            };
+            Ok(Value::String(
+                Path::new(path)
+                    .parent()
+                    .map(|parent| parent.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            ))
+        });
+
+        self.define_native("path_file_name", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_file_name: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_file_name: path must be string")),
+            };
+            Ok(Value::String(
+                Path::new(path)
+                    .file_name()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            ))
+        });
+
+        self.define_native("path_extension", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_extension: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_extension: path must be string")),
+            };
+            Ok(Value::String(
+                Path::new(path)
+                    .extension()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            ))
+        });
+
+        self.define_native("path_stem", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_stem: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_stem: path must be string")),
+            };
+            Ok(Value::String(
+                Path::new(path)
+                    .file_stem()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            ))
+        });
+
+        self.define_native("path_is_file", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_is_file: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_is_file: path must be string")),
+            };
+            Ok(Value::Bool(Path::new(path).is_file()))
+        });
+
+        self.define_native("path_is_dir", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime("path_is_dir: expected 1 argument"));
+            }
+            let path = match &args[0] {
+                Value::String(path) => path,
+                _ => return Err(KainError::runtime("path_is_dir: path must be string")),
+            };
+            Ok(Value::Bool(Path::new(path).is_dir()))
         });
 
         self.define_native("patch_history", |env, _args| {
@@ -3337,6 +3512,18 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             }
                             Ok(Value::String(obj_val.to_string()))
                         }
+                        "is_empty" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime(
+                                    "Array.is_empty expects no arguments",
+                                ));
+                            }
+                            if let Value::Array(arr) = obj_val {
+                                Ok(Value::Bool(arr.read().unwrap().is_empty()))
+                            } else {
+                                unreachable!()
+                            }
+                        }
                         "push" => {
                             if arg_vals.len() != 1 {
                                 return Err(KainError::runtime("push expects 1 argument"));
@@ -3410,7 +3597,35 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         }
                         Ok(Value::String(text.clone()))
                     }
+                    "is_empty" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("String.is_empty expects no arguments"));
+                        }
+                        Ok(Value::Bool(text.is_empty()))
+                    }
                     "len" => Ok(Value::Int(text.len() as i64)),
+                    "trim" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("String.trim expects no arguments"));
+                        }
+                        Ok(Value::String(text.trim().to_string()))
+                    }
+                    "to_ascii_lowercase" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime(
+                                "String.to_ascii_lowercase expects no arguments",
+                            ));
+                        }
+                        Ok(Value::String(text.to_ascii_lowercase()))
+                    }
+                    "starts_with" => {
+                        let prefix = expect_single_string_arg(&arg_vals, method)?;
+                        Ok(Value::Bool(text.starts_with(prefix)))
+                    }
+                    "eq_ignore_ascii_case" => {
+                        let other = expect_single_string_arg(&arg_vals, method)?;
+                        Ok(Value::Bool(text.eq_ignore_ascii_case(other)))
+                    }
                     "push_str" => {
                         let suffix = expect_single_string_arg(&arg_vals, method)?;
                         let mut updated = text.clone();

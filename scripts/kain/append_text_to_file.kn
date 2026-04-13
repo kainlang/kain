@@ -1,55 +1,39 @@
-fn resolve_target_input() -> String:
-    match std__env__var_("KAIN_APPEND_TARGET").ok():
-        Some(value) =>
-            if value.trim().is_empty():
-                "notes.txt".to_string()
-            else:
-                value
-        _ =>
-            "notes.txt".to_string()
+fn resolve_target_path() -> String:
+    let target = env("KAIN_APPEND_TARGET").trim()
+    if len(target) == 0:
+        return "notes.txt"
+    return target
 
-fn resolve_append_text() -> Option<String>:
-    match std__env__var_("KAIN_APPEND_TEXT").ok():
-        Some(value) =>
-            if value.trim().is_empty():
-                none
-            else:
-                Option::Some(value)
-        _ =>
-            none
+fn ensure_parent_directory(target_path: String):
+    let parent_path = path_parent(target_path)
+    if len(parent_path) > 0:
+        create_dir_all(parent_path)
 
-fn ensure_parent_directory(target: &PathBuf, target_input: String):
-    match target.parent():
-        Some(parent) =>
-            std__fs__create_dir_all(parent).expect(f"Failed to create parent directory for {target_input}")
-        _ =>
-            ()
+fn main() -> Int:
+    let target_path = resolve_target_path()
+    let text = env("KAIN_APPEND_TEXT").trim()
 
-pub fn main() -> Int:
-    let target_input = resolve_target_input()
-    let target = PathBuf {}.join(&target_input)
-    let text = match resolve_append_text():
-        Some(value) => value
-        _ =>
-            eprintln("Set KAIN_APPEND_TEXT before running this script.")
-            eprintln("Example: KAIN_APPEND_TARGET=notes.txt KAIN_APPEND_TEXT='hello' kain run scripts/kain/append_text_to_file.kn")
-            return 1
+    if len(text) == 0:
+        eprintln("Set KAIN_APPEND_TEXT before running this script.")
+        eprintln("Example: KAIN_APPEND_TARGET=notes.txt KAIN_APPEND_TEXT='hello' kain run scripts/kain/append_text_to_file.kn")
+        return 1
 
-    ensure_parent_directory(&target, target_input.clone())
+    let target_exists = file_exists(target_path)
+    if target_exists && (!path_is_file(target_path)):
+        eprintln(f"Target exists but is not a file: {target_path}")
+        return 1
 
-    let existing = match std__fs__read_to_string(&target):
-        Ok(content) => content
-        Err(_) => String__new_()
+    ensure_parent_directory(target_path)
 
-    let separator = if (existing.is_empty() || existing.ends_with("\n")): "" else: "\n"
-    let updated = f"{existing}{separator}{text}"
+    if target_exists:
+        let existing = read_file(target_path)
+        let needs_newline = (len(existing) > 0) && (char_at(existing, len(existing) - 1) != "\n")
+        if needs_newline:
+            write_file(target_path, f"{existing}\n{text}")
+        else:
+            write_file(target_path, f"{existing}{text}")
+    else:
+        write_file(target_path, text)
 
-    match std__fs__write(&target, updated):
-        Err(e) =>
-            eprintln(f"Failed to write {target_input}: {e}")
-            return 1
-        _ =>
-            ()
-
-    println(f"Appended text to {target_input}")
+    println(f"Appended text to {target_path}")
     return 0

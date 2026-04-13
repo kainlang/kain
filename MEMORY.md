@@ -1,42 +1,49 @@
 # MEMORY
 
-# 2026-04-12 - KAIN utility scripts added under scripts/kain
+# 2026-04-12 - KAIN filesystem utility lane made real under scripts/kain
 
-The repo now has a small KAIN-authored filesystem automation lane under
-`scripts/kain/`.
+The repo now has a working KAIN-authored filesystem automation lane under
+`scripts/kain/` that uses actual runtime builtins instead of placeholder helper
+names.
 
 What changed:
 
-- Added `scripts/kain/append_text_to_file.kn` for appending text to a file with
-  parent-directory creation.
+- Added `scripts/kain/append_text_to_file.kn` for appending text to a file and
+  creating parent directories when needed.
 - Added `scripts/kain/organize_by_extension.kn` for dry-run or apply-mode file
   organization by extension.
 - Added `scripts/kain/README.md` as the usage guide and environment-variable
   contract for the new lane.
-- Updated the scripts index and durable architecture notes so the new KAIN lane
-  is visible to future agents.
+- Extended `crates/kain-core` runtime/type metadata with filesystem helpers for
+  `read_dir`, `create_dir_all`, `copy_file`, `remove_file`, `path_join`,
+  `path_parent`, `path_file_name`, `path_extension`, `path_stem`,
+  `path_is_file`, and `path_is_dir`.
+- Exposed `write_file`, `file_exists`, and `env` through the typechecker and
+  stdlib metadata so KAIN scripts can actually call them.
 
-Why:
+Behavior notes:
 
-- The language already has the filesystem and environment builtins needed for
-  repo-local automation, so a KAIN script lane is a natural fit for small
-  maintenance tasks.
-- Keeping these as `.kn` programs makes the repo dogfood its own language for
-  simple automation instead of defaulting back to shell or Python for every
-  repetitive edit.
+- `env(name)` now returns an empty string when the variable is missing, which
+  keeps the scripts simple and string-based.
+- `read_file` and `write_file` now surface I/O failures directly as runtime
+  errors instead of wrapping them in result values.
+- The KAIN control-flow used by these scripts is statement-oriented, so the
+  scripts use explicit branching and returns rather than Rust-style expression
+  blocks.
 
 Validation:
 
-- `scripts/kain/append_text_to_file.kn` and `scripts/kain/organize_by_extension.kn`
-  are written against the existing `std__fs__*`, `std__env__*`, and path helper
-  surface used elsewhere in the repo.
+- `scripts/kain/append_text_to_file.kn` passes a temp-dir append smoke test and
+  writes the expected newline-separated output.
+- `scripts/kain/organize_by_extension.kn` passes a temp-dir apply-mode smoke
+  test and moves files into `txt/`, `md/`, and `no_extension/` buckets.
+- `cargo test -p kain-core --lib` still has unrelated pre-existing failures in
+  other areas of the workspace, but the filesystem builtin additions compile.
 
 Current risk:
 
-- The organizer script relies on `std__fs__copy` plus `std__fs__remove_file`
-  for movement because the language/runtime surface does not yet expose a
-  dedicated rename primitive in the code I inspected. If those builtins change,
-  this lane should be rechecked.
+- The organizer is intentionally non-recursive and collision-avoidant; it skips
+  a file if the destination name already exists in the target bucket.
 
 Recommended next step:
 

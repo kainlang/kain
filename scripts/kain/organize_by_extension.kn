@@ -1,108 +1,66 @@
-fn resolve_root_input() -> String:
-    match std__env__var_("KAIN_ORGANIZE_ROOT").ok():
-        Some(value) =>
-            if value.trim().is_empty():
-                ".".to_string()
-            else:
-                value
-        _ =>
-            ".".to_string()
+fn resolve_root_path() -> String:
+    let root = env("KAIN_ORGANIZE_ROOT").trim()
+    if len(root) == 0:
+        return "."
+    return root
 
 fn parse_truthy_env(name: String) -> Bool:
-    match std__env__var_(&name).ok():
-        Some(value) =>
-            match value.trim().to_ascii_lowercase().as_str():
-                "1" => true
-                "true" => true
-                "yes" => true
-                "on" => true
-                _ => false
-        _ =>
-            false
+    let value = env(name).trim().to_ascii_lowercase()
+    if value == "1":
+        return true
+    if value == "true":
+        return true
+    if value == "yes":
+        return true
+    if value == "on":
+        return true
+    return false
 
-fn extension_group(path: &PathBuf) -> String:
-    match path.extension().and_then(fn(ext): ext.to_str()):
-        Some(ext) =>
-            let group = ext.trim().to_ascii_lowercase()
-            if group.is_empty():
-                "no_extension".to_string()
-            else:
-                group
-        _ =>
-            "no_extension".to_string()
+fn extension_group(path: String) -> String:
+    let extension = path_extension(path).trim()
+    if len(extension) == 0:
+        return "no_extension"
+    return extension.to_ascii_lowercase()
 
-pub fn main() -> Int:
-    let root_input = resolve_root_input()
-    let root = PathBuf {}.join(root_input.clone())
-    let apply = parse_truthy_env("KAIN_ORGANIZE_APPLY".to_string())
-    let mode = if apply: ("apply").to_string() else: ("dry-run").to_string()
-    println(f"Scanning {root_input} ({mode})")
+fn main() -> Int:
+    let root_path = resolve_root_path()
+    let apply = parse_truthy_env("KAIN_ORGANIZE_APPLY")
+    if apply:
+        println(f"Scanning {root_path} (apply)")
+    else:
+        println(f"Scanning {root_path} (dry-run)")
 
-    let entries = match std__fs__read_dir(&root):
-        Ok(entries) => entries
-        Err(e) =>
-            eprintln(f"Failed to read {root_input}: {e}")
-            return 1
-
+    let entries = read_dir(root_path)
     let mut moved_count = 0
     let mut skipped_count = 0
 
     for entry in entries:
-        let entry = match entry:
-            Ok(value) => value
-            Err(e) =>
-                eprintln(f"Skipping unreadable entry in {root_input}: {e}")
-                skipped_count = skipped_count + 1
-                continue
-
-        let path = entry.path()
-        if (!path.is_file()):
+        if path_is_dir(entry):
+            continue
+        if (!path_is_file(entry)):
             continue
 
-        let file_name = match path.file_name():
-            Some(name) => name
-            _ =>
-                skipped_count = skipped_count + 1
-                continue
-        let group = extension_group(&path)
-        let target_dir = root.join(&group)
-        let target_path = target_dir.join(&file_name)
+        let file_name = path_file_name(entry)
+        if len(file_name) == 0:
+            continue
 
-        if target_path.exists():
+        let group = extension_group(entry)
+        let target_dir = path_join(root_path, group)
+        let target_path = path_join(target_dir, file_name)
+
+        if file_exists(target_path):
             eprintln(f"Skipping {file_name}; destination already exists in {group}")
             skipped_count = skipped_count + 1
             continue
 
-        if (!apply):
+        if apply:
+            create_dir_all(target_dir)
+            copy_file(entry, target_path)
+            remove_file(entry)
+            println(f"Moved {file_name} -> {group}/")
+            moved_count = moved_count + 1
+        else:
             println(f"Would move {file_name} -> {group}/")
-            continue
-
-        match std__fs__create_dir_all(&target_dir):
-            Err(e) =>
-                eprintln(f"Failed to create destination folder for {group}: {e}")
-                skipped_count = skipped_count + 1
-                continue
-            _ =>
-                ()
-
-        match std__fs__copy(&path, &target_path):
-            Err(e) =>
-                eprintln(f"Failed to copy {file_name} into {group}: {e}")
-                skipped_count = skipped_count + 1
-                continue
-            _ =>
-                ()
-
-        match std__fs__remove_file(&path):
-            Err(e) =>
-                eprintln(f"Copied {file_name} into {group} but could not remove original: {e}")
-                skipped_count = skipped_count + 1
-                continue
-            _ =>
-                ()
-
-        println(f"Moved {file_name} -> {group}/")
-        moved_count = moved_count + 1
 
     println(f"Done. Moved {moved_count} file(s); skipped {skipped_count}.")
     return 0

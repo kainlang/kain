@@ -625,6 +625,74 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
     );
     env.define_global(
+        "write_file".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "file_exists".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+    );
+    env.define_global(
+        "env".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "read_dir".into(),
+        builtin_function_type(
+            vec![ResolvedType::String],
+            dynamic_array_type(ResolvedType::String),
+        ),
+    );
+    env.define_global(
+        "create_dir_all".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    env.define_global(
+        "copy_file".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "remove_file".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    env.define_global(
+        "path_join".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::String,
+        ),
+    );
+    env.define_global(
+        "path_parent".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "path_file_name".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "path_extension".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "path_stem".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "path_is_file".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+    );
+    env.define_global(
+        "path_is_dir".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+    );
+    env.define_global(
         "len".into(),
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
     );
@@ -8681,6 +8749,82 @@ mod tests {
                 effects: EffectSet::new(),
             })
         );
+    }
+
+    #[test]
+    fn typecheck_registers_filesystem_script_globals() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+        for (name, expected) in [
+            (
+                "file_exists",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+            ),
+            (
+                "env",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "read_dir",
+                builtin_function_type(
+                    vec![ResolvedType::String],
+                    dynamic_array_type(ResolvedType::String),
+                ),
+            ),
+            (
+                "create_dir_all",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+            ),
+            (
+                "copy_file",
+                builtin_function_type(
+                    vec![ResolvedType::String, ResolvedType::String],
+                    ResolvedType::Unit,
+                ),
+            ),
+            (
+                "remove_file",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+            ),
+            (
+                "path_join",
+                builtin_function_type(
+                    vec![ResolvedType::String, ResolvedType::String],
+                    ResolvedType::String,
+                ),
+            ),
+            (
+                "path_parent",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "path_file_name",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "path_extension",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "path_stem",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "path_is_file",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+            ),
+            (
+                "path_is_dir",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+            ),
+        ] {
+            assert_eq!(
+                env.lookup(name).cloned(),
+                Some(expected),
+                "missing filesystem builtin {name}"
+            );
+        }
     }
 
     #[test]
