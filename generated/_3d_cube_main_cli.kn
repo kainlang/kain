@@ -1,3 +1,0 @@
-fn main() -> Int:
-    spawn_cube(0.0, 0.0)
-    return 0

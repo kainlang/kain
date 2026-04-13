@@ -1,9 +1,0 @@
-fn main() -> Int:
-    let mut tape: Array<Int> = [0]
-    println(tape[0])
-    tape[0] = tape[0] + 1
-    println(tape[0])
-    push(tape, 7)
-    println(len(tape))
-    println(tape[1])
-    return 0

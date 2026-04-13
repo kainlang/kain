@@ -1,8 +1,0 @@
-fn mutate() -> Int:
-    let mut x: Int = 1
-    let p: ptr<Int> = addr_of(x, "Int")
-    mem_store(p, 7, "Int")
-    return x
-
-fn main() -> Int:
-    return mutate()

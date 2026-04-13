@@ -1,6 +1,0 @@
-use math
-
-@blueprint
-fn stdlib_smoke(a: Float, b: Float) -> Float:
-    let c = clamp_float(a, 0.0, 1.0)
-    return lerp_float(c, b, 0.5)
