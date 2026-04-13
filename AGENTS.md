@@ -1,7 +1,7 @@
 # AGENTS.md
 
 
-FOR new agents - start with /home/ephemara/Dev/Kain/guides
+FOR new agents - start with /home/ephemara/Dev/Kain/docs
 
 ## Engineering Principles
 
