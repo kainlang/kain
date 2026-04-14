@@ -1,5 +1,21 @@
 # Memory
 
+## 2026-04-14 - 3D Template Manifest Projection Validator
+
+Added `scripts/python/validate_3d_template_manifests.py` to keep the 3D
+workspace template manifest-driven. The validator checks:
+
+- `manifests/sources.json` ids are unique and well-formed
+- `runtime_apps.json` rows resolve their `source_id` back to the shared source
+  registry
+- `workspace_presets.json` rows resolve their `source_id` back to the shared
+  source registry
+- runtime app output targets stay unique per app row
+
+This is a lightweight but high-leverage guardrail for the 3D lane because the
+template is projection-heavy and the source registry is the real owner of the
+shared authored entrypoint.
+
 ## 2026-03-29 - DCC Fuel Mapping for kain-fabric-dcc-suite
 
 Inspected the 3D template for reusable material/paint/uv/brush/sculpt/deformation fuel that can strengthen `apps/kain-fabric-dcc-suite`.

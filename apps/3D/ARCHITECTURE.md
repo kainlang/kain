@@ -34,6 +34,11 @@ without requiring Rust or Cargo on the consumer machine.
   `generated/runtime-reflection/jobs-receipt-templates`,
   `generated/runtime-reflection/jobs-retry-ledgers`,
   `generated/resource-reflection`, and `generated/runtime-compatibility`.
+- `scripts/python/validate_3d_template_manifests.py` is the local structural
+  validator for the 3D template manifest projection layer. It checks that
+  runtime apps and workspace presets resolve their `source_id` entries back to
+  `manifests/sources.json`, and it guards against duplicate ids and duplicate
+  output-target rows before downstream reflection work consumes the manifests.
 - The runtime-app snapshot now also emits a descriptor document under
   `generated/runtime-reflection/runtime-apps/descriptors` so downstream
   consumers can inspect the app catalog contract without reopening only the

@@ -2,6 +2,11 @@
 
 ## Confirmed Gaps
 
+- The 3D template now has a local manifest validator for source-id resolution
+  and projection hygiene, but the upstream template generation flow still owns
+  the reflection snapshots. Keep the validator and generator in sync when the
+  manifest shape changes.
+
 - The GPU kernel reflection snapshot is now descriptor-rooted and projects
   `source_id` values locally, but the upstream Kain GPU emitter still does not
   own that committed surface directly. The template generator remains the
