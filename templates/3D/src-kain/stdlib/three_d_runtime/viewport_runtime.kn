@@ -4,6 +4,8 @@ struct ViewportDescriptor:
     viewport_id: String
     viewport_kind: String
     residency_policy: String
+    composition_policy: String
+    framing_policy: String
 
 struct CameraRigDescriptor:
     rig_id: String
@@ -27,6 +29,8 @@ fn default_viewport_runtime_profile() -> ViewportRuntimeProfile with Pure:
     profile.viewport.viewport_id = "primary_runtime_viewport"
     profile.viewport.viewport_kind = "native_renderer_owned_multi_surface_viewport"
     profile.viewport.residency_policy = "persistent_gpu_resources_and_overlay_channels"
+    profile.viewport.composition_policy = "scene_summary_driven_and_launch_preset_bound"
+    profile.viewport.framing_policy = "bounds_fov_and_aspect_ratio_fit"
 
     profile.camera_rig = CameraRigDescriptor()
     profile.camera_rig.rig_id = "viewport_camera_rig"
