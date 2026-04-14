@@ -333,6 +333,104 @@ ApplicationWindow {
     ]
     property int activeRendererIndex: 0
     readonly property var activeRendererMode: atriumRendererModes[activeRendererIndex]
+    readonly property var nativeProjection: kainSession.native_projection ? kainSession.native_projection : ({ "nodes": [] })
+    readonly property bool hasProjectionNodes: nativeProjection.nodes && nativeProjection.nodes.length > 0
+
+    function projectionNodes() {
+        return (root.nativeProjection && root.nativeProjection.nodes) ? root.nativeProjection.nodes : []
+    }
+
+    function projectionRootNode() {
+        const nodes = root.projectionNodes()
+        if (root.nativeProjection && root.nativeProjection.root_id !== undefined && root.nativeProjection.root_id !== null) {
+            for (let index = 0; index < nodes.length; index += 1) {
+                if (nodes[index].id === root.nativeProjection.root_id) {
+                    return nodes[index]
+                }
+            }
+        }
+        for (let index = 0; index < nodes.length; index += 1) {
+            const node = nodes[index]
+            if (node.parent_id === undefined || node.parent_id === null) {
+                return node
+            }
+        }
+        return null
+    }
+
+    function projectionChildren(parentId) {
+        const children = []
+        const nodes = root.projectionNodes()
+        for (let index = 0; index < nodes.length; index += 1) {
+            const node = nodes[index]
+            if (node.parent_id === parentId) {
+                children.push(node)
+            }
+        }
+        return children
+    }
+
+    function projectionDisplayRoots() {
+        const rootNode = root.projectionRootNode()
+        if (!rootNode) {
+            return []
+        }
+        if (rootNode.kind === "ComponentRef") {
+            const childNodes = root.projectionChildren(rootNode.id)
+            return childNodes.length > 0 ? childNodes : [rootNode]
+        }
+        return [rootNode]
+    }
+
+    function projectionAccent(kind) {
+        switch (kind) {
+        case "Viewport2D":
+        case "Viewport3D":
+            return "#60c5ff"
+        case "Graph":
+            return "#8fd2ff"
+        case "Timeline":
+            return "#8ab6ff"
+        case "Inspector":
+            return "#67f0c4"
+        case "Tree":
+            return "#9ed7ff"
+        case "Table":
+            return "#7fe3d6"
+        case "Panel":
+            return "#ffd58f"
+        case "Overlay":
+            return "#ff92d0"
+        default:
+            return "#a8d9ff"
+        }
+    }
+
+    function projectionTitle(nodeData) {
+        if (nodeData.title && nodeData.title.length > 0) {
+            return nodeData.title
+        }
+        if (nodeData.scene && nodeData.scene.length > 0) {
+            return nodeData.scene
+        }
+        return nodeData.kind ? nodeData.kind.toString() : "Node"
+    }
+
+    function projectionSummary(nodeData, childCount) {
+        const layoutKind = nodeData.layout_kind ? nodeData.layout_kind.toString() : "Flow"
+        const parts = ["layout " + layoutKind.toLowerCase()]
+        if (nodeData.scene && nodeData.scene.length > 0) {
+            parts.push("scene " + nodeData.scene)
+        }
+        if (childCount > 0) {
+            parts.push(childCount + " children")
+        }
+        return parts.join(" / ")
+    }
+
+    function projectionText(nodeData) {
+        return (nodeData.text && nodeData.text.length > 0) ? nodeData.text : "No authored text was emitted for this node."
+    }
 
     function roleAccent(role) {
         switch (role) {
@@ -686,6 +784,271 @@ ApplicationWindow {
         }
     }
 
+    Component {
+        id: projectionNodeCardDelegate
+
+        Frame {
+            id: projectionCard
+            property var nodeData: ({})
+            readonly property var childNodes: root.projectionChildren(nodeData.id)
+            readonly property bool hasChildren: childNodes.length > 0
+            readonly property string nodeKind: nodeData.kind ? nodeData.kind.toString() : "Node"
+            readonly property color accentColor: root.projectionAccent(nodeKind)
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            padding: 12
+
+            background: Rectangle {
+                radius: 22
+                color: "#0f1722"
+                border.width: 1
+                border.color: Qt.rgba(projectionCard.accentColor.r, projectionCard.accentColor.g, projectionCard.accentColor.b, 0.34)
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#182434" }
+                    GradientStop { position: 1.0; color: "#0d131c" }
+                }
+            }
+
+            contentItem: ColumnLayout {
+                spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 3
+
+                    Label {
+                        text: root.projectionTitle(projectionCard.nodeData)
+                        color: "#f7fbff"
+                        font.pixelSize: projectionCard.nodeData.depth === 0 ? 24 : 17
+                        font.bold: true
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+
+                    Label {
+                        text: root.projectionSummary(projectionCard.nodeData, projectionCard.childNodes.length)
+                        color: "#aecadf"
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                BadgePill {
+                    pillText: projectionCard.nodeKind.toUpperCase()
+                    pillColor: projectionCard.accentColor
+                }
+            }
+
+            Label {
+                visible: !projectionCard.hasChildren && projectionCard.nodeKind === "Text"
+                text: root.projectionText(projectionCard.nodeData)
+                color: "#d7e7f7"
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                visible: !projectionCard.hasChildren
+                    && (projectionCard.nodeKind === "Viewport2D" || projectionCard.nodeKind === "Viewport3D")
+                Layout.fillWidth: true
+                implicitHeight: 240
+                radius: 18
+                color: "#08111a"
+                border.width: 1
+                border.color: projectionCard.accentColor
+
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    source: root.viewportImagePath.length > 0 ? root.viewportImagePath : ""
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
+                    cache: true
+                    visible: root.viewportImagePath.length > 0
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 6
+                    visible: root.viewportImagePath.length === 0
+
+                    Label {
+                        text: projectionCard.nodeKind === "Viewport3D" ? "Viewport 3D" : "Viewport 2D"
+                        color: "#f7fbff"
+                        font.pixelSize: 18
+                        font.bold: true
+                    }
+
+                    Label {
+                        text: projectionCard.nodeData.scene ? "Scene " + projectionCard.nodeData.scene : "Viewport surface emitted without a scene label."
+                        color: "#c4d8ea"
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+
+                    Item { Layout.fillHeight: true }
+
+                    BadgePill {
+                        pillText: "qt compatibility preview"
+                        pillColor: projectionCard.accentColor
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: !projectionCard.hasChildren && projectionCard.nodeKind === "Graph"
+                Layout.fillWidth: true
+                implicitHeight: 150
+                radius: 18
+                color: "#0c1521"
+                border.width: 1
+                border.color: "#315678"
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Label {
+                        text: "Signal Graph"
+                        color: "#f7fbff"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 8
+
+                        Repeater {
+                            model: [0.32, 0.76, 0.54, 0.91, 0.67]
+                            delegate: Rectangle {
+                                required property real modelData
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignBottom
+                                implicitHeight: 24 + (modelData * 64)
+                                radius: 8
+                                color: index % 2 === 0 ? "#60c5ff" : "#8fd2ff"
+                                opacity: 0.82
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: !projectionCard.hasChildren && projectionCard.nodeKind === "Timeline"
+                Layout.fillWidth: true
+                implicitHeight: 126
+                radius: 18
+                color: "#0c1420"
+                border.width: 1
+                border.color: "#38527a"
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Label {
+                        text: "Timeline Track"
+                        color: "#f7fbff"
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 48
+                        radius: 10
+                        color: "#101a28"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 10
+
+                            Repeater {
+                                model: [0.0, 0.22, 0.47, 0.68, 0.92]
+                                delegate: Rectangle {
+                                    required property real modelData
+                                    width: 10
+                                    Layout.fillHeight: true
+                                    radius: 5
+                                    color: modelData > 0.6 ? "#8ab6ff" : "#5d86c9"
+                                    opacity: 0.88
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: !projectionCard.hasChildren
+                    && projectionCard.nodeKind !== "Text"
+                    && projectionCard.nodeKind !== "Viewport2D"
+                    && projectionCard.nodeKind !== "Viewport3D"
+                    && projectionCard.nodeKind !== "Graph"
+                    && projectionCard.nodeKind !== "Timeline"
+                Layout.fillWidth: true
+                implicitHeight: 78
+                radius: 16
+                color: "#0c141f"
+                border.width: 1
+                border.color: "#223247"
+
+                Label {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    text: "Qt host is presenting this authored node through the compatibility projection."
+                    color: "#d3e3f4"
+                    wrapMode: Text.Wrap
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+                ColumnLayout {
+                    visible: projectionCard.hasChildren && projectionCard.nodeData.layout_kind !== "FlexRow"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Repeater {
+                        model: projectionCard.childNodes
+                        delegate: Loader {
+                            Layout.fillWidth: true
+                            sourceComponent: projectionNodeCardDelegate
+                            onLoaded: item.nodeData = modelData
+                        }
+                    }
+                }
+
+                RowLayout {
+                    visible: projectionCard.hasChildren && projectionCard.nodeData.layout_kind === "FlexRow"
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Repeater {
+                        model: projectionCard.childNodes
+                        delegate: Loader {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 260
+                            sourceComponent: projectionNodeCardDelegate
+                            onLoaded: item.nodeData = modelData
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Rectangle {
         id: chrome
         anchors.fill: parent
@@ -798,7 +1161,7 @@ ApplicationWindow {
             StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: root.atriumShowcaseMode ? 0 : 1
+                currentIndex: root.atriumShowcaseMode ? 0 : (root.hasProjectionNodes ? 1 : 2)
 
                 Item {
                     Layout.fillWidth: true
@@ -1238,6 +1601,168 @@ ApplicationWindow {
                     }
                 }
 
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    SplitView {
+                        anchors.fill: parent
+                        orientation: Qt.Horizontal
+
+                        Rectangle {
+                            SplitView.preferredWidth: 330
+                            radius: 24
+                            color: "#0f1722"
+                            border.width: 1
+                            border.color: "#22334a"
+
+                            ScrollView {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                contentWidth: availableWidth
+
+                                ColumnLayout {
+                                    width: parent.width
+                                    spacing: 12
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        radius: 20
+                                        color: "#142234"
+                                        border.width: 1
+                                        border.color: "#2a4a68"
+                                        implicitHeight: 148
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 14
+                                            spacing: 8
+
+                                            Label {
+                                                text: "Authored Layout"
+                                                color: "#f5f8ff"
+                                                font.pixelSize: 20
+                                                font.bold: true
+                                            }
+
+                                            Label {
+                                                text: "The Qt host is rendering the compiled native projection instead of dropping every app into one fixed workstation shell."
+                                                color: "#bdd3e8"
+                                                wrapMode: Text.Wrap
+                                                Layout.fillWidth: true
+                                            }
+
+                                            BadgePill {
+                                                pillText: root.hasProjectionNodes ? "projection active" : "projection unavailable"
+                                                pillColor: "#67f0c4"
+                                            }
+                                        }
+                                    }
+
+                                    PaneCard {
+                                        paneData: ({
+                                            "title": root.nativeProjection.primary_panel_title ? root.nativeProjection.primary_panel_title : "Compiled Projection",
+                                            "summary": "root component " + kainSession.root_component,
+                                            "role": "document",
+                                            "adapter_state_label": "projection nodes=" + root.projectionNodes().length,
+                                            "detail_lines": [
+                                                "projection_root=" + ((root.nativeProjection.root_id !== undefined && root.nativeProjection.root_id !== null) ? root.nativeProjection.root_id : "none"),
+                                                "layout=" + kainSession.layout_engine
+                                            ]
+                                        })
+                                    }
+
+                                    PaneCard {
+                                        visible: root.nativeProjection.primary_viewport_title !== undefined
+                                            && root.nativeProjection.primary_viewport_title !== null
+                                        paneData: ({
+                                            "title": root.nativeProjection.primary_viewport_title ? root.nativeProjection.primary_viewport_title : "Viewport",
+                                            "summary": root.nativeProjection.primary_viewport_scene ? "scene " + root.nativeProjection.primary_viewport_scene : "viewport surface emitted",
+                                            "role": "viewport",
+                                            "adapter_state_label": "Qt compatibility host still owns visible rendering while the in-process viewport bridge is pending.",
+                                            "detail_lines": [
+                                                "render=" + kainSession.render_engine,
+                                                "shell=" + kainSession.shell_backend
+                                            ]
+                                        })
+                                    }
+
+                                    Repeater {
+                                        model: kainSession.summary_lines
+                                        delegate: PaneCard {
+                                            required property string modelData
+                                            paneData: ({
+                                                "title": "runtime summary",
+                                                "summary": modelData,
+                                                "role": "document",
+                                                "adapter_state_label": modelData,
+                                                "detail_lines": [modelData]
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            SplitView.fillWidth: true
+                            radius: 24
+                            color: "#0e151f"
+                            border.width: 1
+                            border.color: "#223349"
+
+                            ScrollView {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                contentWidth: availableWidth
+
+                                ColumnLayout {
+                                    width: parent.width
+                                    spacing: 14
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        radius: 20
+                                        color: "#101928"
+                                        border.width: 1
+                                        border.color: "#264058"
+                                        implicitHeight: 112
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 14
+                                            spacing: 6
+
+                                            Label {
+                                                text: "Compiled Projection"
+                                                color: "#f5f8ff"
+                                                font.pixelSize: 22
+                                                font.bold: true
+                                            }
+
+                                            Label {
+                                                text: "Different Kain apps should now read from their authored panel tree, surface titles, and viewport scene metadata instead of one baked Qt chrome."
+                                                color: "#c3d5e7"
+                                                wrapMode: Text.Wrap
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+                                    }
+
+                                    Repeater {
+                                        model: root.projectionDisplayRoots()
+                                        delegate: Loader {
+                                            Layout.fillWidth: true
+                                            sourceComponent: projectionNodeCardDelegate
+                                            onLoaded: item.nodeData = modelData
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 SplitView {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -1591,6 +2116,8 @@ mod tests {
             Some("file:///tmp/kain-browser.html"),
             Some("/tmp/kain-viewport.png"),
         );
+        assert!(qml.contains("Authored Layout"));
+        assert!(qml.contains("Compiled Projection"));
         assert!(qml.contains("Plasma Runtime Deck"));
         assert!(qml.contains("Qt Runtime"));
         assert!(qml.contains("WebEngineView"));

@@ -4,8 +4,8 @@ use serde::Serialize;
 
 use crate::no_egui::KainUiNativeBackendPlan;
 use kain_ui::{
-    UiHostBackendKind, UiRenderEngineKind, UiRuntimeBundle, UiSurface, UiSurfaceCompositionMode,
-    UiSurfaceKind,
+    ui_native_projection_from_output, UiHostBackendKind, UiNativeProjection,
+    UiRenderEngineKind, UiRuntimeBundle, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -22,6 +22,7 @@ pub struct QtQuickSessionManifest {
     pub render_engine: String,
     pub mixed_backend_session: bool,
     pub summary_lines: Vec<String>,
+    pub native_projection: UiNativeProjection,
     pub document_panes: Vec<QtQuickPane>,
     pub viewport_panes: Vec<QtQuickPane>,
     pub browser_panes: Vec<QtQuickPane>,
@@ -142,6 +143,11 @@ pub fn build_qt_quick_session_manifest(
             fallback_panes.len(),
         ),
     ];
+    let native_projection = if bundle.native_projection.is_empty() {
+        ui_native_projection_from_output(&bundle.output)
+    } else {
+        bundle.native_projection.clone()
+    };
 
     QtQuickSessionManifest {
         generated_epoch_ms: SystemTime::now()
@@ -159,6 +165,7 @@ pub fn build_qt_quick_session_manifest(
         render_engine: render_engine_label(backend_plan.render_engine).to_string(),
         mixed_backend_session: backend_plan.mixed_backend_session,
         summary_lines,
+        native_projection,
         document_panes,
         viewport_panes,
         browser_panes,
@@ -388,9 +395,10 @@ mod tests {
     use super::*;
     use crate::no_egui::KainUiNativeBackendPlan;
     use kain_ui::{
-        ui_runtime_bundle_from_output, UiBuildOutput, UiHostBackendKind, UiNodeId,
-        UiRuntimeMetadata, UiRuntimeSystems, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
-        UiSurfaceRendererPreference, UiSurfaceShaderBinding,
+        ui_runtime_bundle_from_output, UiBuildOutput, UiHostBackendKind, UiNativeProjectionKind,
+        UiNode, UiNodeId, UiRuntimeMetadata, UiRuntimeSystems, UiSurface,
+        UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
+        UiSurfaceShaderBinding, UiValue, UiWidgetKind,
     };
 
     #[test]
@@ -530,5 +538,61 @@ mod tests {
         assert_eq!(manifest.document_panes[0].role, "placeholder");
         assert_eq!(manifest.browser_panes[0].role, "placeholder");
         assert_eq!(manifest.shader_panes[0].role, "placeholder");
+    }
+
+    #[test]
+    fn qt_quick_manifest_falls_back_to_projection_built_from_output_tree() {
+        let root_id = UiNodeId(1);
+        let panel_id = UiNodeId(2);
+        let viewport_id = UiNodeId(3);
+
+        let mut root = UiNode::new(root_id, UiWidgetKind::ComponentRef("App".to_string()));
+        root.children.push(panel_id);
+
+        let mut panel = UiNode::new(panel_id, UiWidgetKind::Panel);
+        panel.children.push(viewport_id);
+        panel.props.insert(
+            "title".to_string(),
+            UiValue::String("Workbench".to_string()),
+        );
+
+        let mut viewport = UiNode::new(viewport_id, UiWidgetKind::Viewport3D);
+        viewport.props.insert(
+            "title".to_string(),
+            UiValue::String("Caldera".to_string()),
+        );
+        viewport.props.insert(
+            "scene".to_string(),
+            UiValue::String("magma_terraces".to_string()),
+        );
+
+        let mut output = UiBuildOutput::default();
+        output.tree.root = Some(root_id);
+        output.tree.nodes.insert(root_id, root);
+        output.tree.nodes.insert(panel_id, panel);
+        output.tree.nodes.insert(viewport_id, viewport);
+
+        let bundle = ui_runtime_bundle_from_output(
+            UiRuntimeMetadata {
+                window_title: "Projection".to_string(),
+                root_component: "App".to_string(),
+                ..UiRuntimeMetadata::default()
+            },
+            output,
+        );
+
+        let manifest =
+            build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
+
+        assert_eq!(manifest.native_projection.root_id, Some(root_id.0));
+        assert_eq!(
+            manifest.native_projection.primary_panel_title.as_deref(),
+            Some("Workbench")
+        );
+        assert!(manifest
+            .native_projection
+            .nodes
+            .iter()
+            .any(|node| node.kind == UiNativeProjectionKind::Viewport3D));
     }
 }
