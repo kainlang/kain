@@ -1,0 +1,185 @@
+:root {
+  color-scheme: dark;
+  font-family: "Aptos", "Bahnschrift", "Segoe UI Variable Text", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(90, 213, 255, 0.12), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(255, 179, 92, 0.08), transparent 28%),
+    #02060d;
+  color: #edf4ff;
+}
+
+body {
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+#app-root,
+.space-shell,
+.space-stage,
+.space-stage canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+.space-shell {
+  position: relative;
+}
+
+.space-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.hud-shell {
+  position: absolute;
+  inset: 24px auto auto 24px;
+  display: grid;
+  gap: 14px;
+  width: min(420px, calc(100vw - 48px));
+  pointer-events: none;
+}
+
+.hero-card,
+.status-card,
+.hint-card {
+  border: 1px solid rgba(133, 174, 224, 0.22);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
+    rgba(3, 10, 22, 0.74);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+}
+
+.hero-card,
+.status-card,
+.hint-card {
+  padding: 18px 20px;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: #9edcff;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero-card h1 {
+  margin: 0 0 10px;
+  font-family: "Aptos Display", "Trebuchet MS", sans-serif;
+  font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+  line-height: 1.04;
+}
+
+.hero-card p,
+.hint-card p {
+  margin: 0;
+  color: #bfd4ee;
+  line-height: 1.5;
+}
+
+.status-card {
+  display: grid;
+  gap: 10px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status-row span {
+  color: #8facd1;
+  font-size: 0.92rem;
+}
+
+.status-row strong {
+  color: #f6fbff;
+  text-align: right;
+}
+
+.lock-button {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 179, 92, 0.45);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(255, 179, 92, 0.36), rgba(90, 213, 255, 0.22));
+  color: #f8fbff;
+  cursor: pointer;
+}
+
+.crosshair {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.crosshair::before {
+  left: 50%;
+  top: 4px;
+  width: 1px;
+  height: 16px;
+  transform: translateX(-50%);
+}
+
+.crosshair::after {
+  top: 50%;
+  left: 4px;
+  height: 1px;
+  width: 16px;
+  transform: translateY(-50%);
+}
+
+.crosshair.active {
+  opacity: 1;
+}
+
+@media (max-width: 860px) {
+  .hud-shell {
+    inset: auto 12px 12px 12px;
+    width: auto;
+  }
+
+  .hero-card,
+  .status-card,
+  .hint-card {
+    border-radius: 18px;
+    padding: 14px 16px;
+  }
+
+  .hero-card h1 {
+    font-size: 1.45rem;
+  }
+}

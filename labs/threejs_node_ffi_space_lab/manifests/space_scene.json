@@ -1,0 +1,41 @@
+{
+  "id": "giant_void_stage",
+  "name": "Giant Void Stage",
+  "summary": "Open navigation space with a single floating sphere, distant beacons, and a star field for scale.",
+  "camera": {
+    "fov": 72,
+    "near": 0.1,
+    "far": 2200,
+    "spawn": [0, 7, 32],
+    "walk_speed": 24,
+    "sprint_multiplier": 2.6,
+    "rise_speed": 18
+  },
+  "sphere": {
+    "radius": 3.6,
+    "position": [0, 11, 0],
+    "bob_amplitude": 1.8,
+    "bob_speed": 0.8,
+    "rotation_speed": 0.26,
+    "surface_color": "#f8fbff",
+    "emissive_color": "#5ad5ff",
+    "halo_color": "#ffb35c"
+  },
+  "space": {
+    "background": "#040812",
+    "fog": "#081120",
+    "grid_size": 260,
+    "grid_divisions": 52,
+    "star_count": 2400,
+    "star_field_radius": 920,
+    "beacon_count": 14,
+    "beacon_ring_radius": 110,
+    "beacon_height": 24
+  },
+  "lights": {
+    "ambient_intensity": 0.45,
+    "hemisphere_intensity": 0.8,
+    "key_intensity": 2.1,
+    "rim_intensity": 1.35
+  }
+}

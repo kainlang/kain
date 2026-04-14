@@ -1,5 +1,62 @@
 # MEMORY
 
+# 2026-04-14 - Node FFI Three.js space lab landed under labs
+
+The repo now has a minimal browser-side proof under
+`labs/threejs_node_ffi_space_lab/` that shows Kain can orchestrate a Node-owned
+Three.js app and serve it on localhost without going through the native-ui lane.
+
+What changed:
+
+- Added `labs/threejs_node_ffi_space_lab/` with a manifest-driven app config,
+  scene registry, Node runtime helper, browser client, and Kain entrypoint.
+- The lab uses `std::javascript::bridge` from `src/main.kn` to call
+  `helpers/space_lab_runtime.mjs`, which bundles the browser client with
+  `esbuild`, emits `outputs/index.html`, and serves the generated files over a
+  local Node HTTP server.
+- The browser client is intentionally small and purpose-built: a giant star
+  field, a beacon ring, a floating emissive sphere, and pointer-lock free-fly
+  movement so the lane proves real Three.js interactivity instead of a static
+  canvas.
+- Added lab-local docs plus root-level `labs/README.md` and `ARCHITECTURE.md`
+  updates so future agents can find the proof surface quickly.
+
+Validation:
+
+- `npm install` in `labs/threejs_node_ffi_space_lab`
+- `npm run build` in `labs/threejs_node_ffi_space_lab`
+- `npm run serve` in `labs/threejs_node_ffi_space_lab`
+- `cargo run -q -p cli --bin kain -- fabric validate --manifest labs/threejs_node_ffi_space_lab/KAIN.fabric.toml`
+
+Important behavior notes:
+
+- The live localhost proof is validated through the Node/browser lane, not the
+  native-ui or `kain-3D` renderer lane. That distinction matters when debugging
+  runtime regressions.
+- Scene scale, lighting, server port, and movement tuning live in JSON
+  manifests. Future tweaks should stay data-driven rather than drifting into
+  hardcoded client constants.
+- The Kain-facing entrypoints (`src/main.kn` and `KAIN.fabric.toml`) are wired
+  in place, but this checkout currently fails Kain execution with unknown
+  `js_import` / `js_bridge_import` identifiers before the Node helper runtime
+  is reached.
+
+Current risk:
+
+- The proof still depends on local Node package installation in the lab root,
+  so a clean checkout needs `npm install` before browser bundling or serving can
+  succeed.
+- The host-backed Kain JavaScript bridge registration appears to be drifting
+  from the checkout's authored examples, which means the lab currently proves
+  the Node + Three.js runtime path more strongly than the Kain execution path.
+
+Recommended next step:
+
+- Repair the host-backed Kain JavaScript bridge registration so `src/main.kn`
+  and `kain fabric run --manifest labs/threejs_node_ffi_space_lab/KAIN.fabric.toml`
+  can execute successfully, then keep the reusable Node-side browser bundling
+  and localhost helper path as a template for future web/Three.js labs.
+
 # 2026-04-13 - native-ui dev loop tightened, Chronos native proof added, and TS effect hooks lower into native semantics
 
 The repo now has a real native desktop iteration lane centered on
