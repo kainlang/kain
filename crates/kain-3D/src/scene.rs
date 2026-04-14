@@ -80,6 +80,7 @@ pub struct SceneCompositionSummary {
     pub terrain_surface_count: usize,
     pub has_black_hole: bool,
     pub bounds: Option<SceneBounds>,
+    pub framed_camera_distance: Option<f32>,
 }
 
 impl SceneCompositionSummary {
@@ -117,7 +118,12 @@ impl SceneCompositionSummary {
             })
             .unwrap_or_else(|| "unbounded".to_string());
 
-        format!("{} | {}", parts.join(", "), bounds)
+        let camera = self
+            .framed_camera_distance
+            .map(|distance| format!("fit d{:.2}", distance))
+            .unwrap_or_else(|| "unframed".to_string());
+
+        format!("{} | {} | {}", parts.join(", "), bounds, camera)
     }
 }
 
@@ -505,6 +511,7 @@ impl SceneDescription {
     }
 
     pub fn composition_summary(&self, time_seconds: f32) -> SceneCompositionSummary {
+        let bounds = self.bounds(time_seconds);
         SceneCompositionSummary {
             mesh_count: self.meshes.len(),
             material_count: self.materials.len(),
@@ -513,7 +520,9 @@ impl SceneDescription {
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
-            bounds: self.bounds(time_seconds),
+            framed_camera_distance: bounds
+                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees)),
+            bounds,
         }
     }
 
@@ -522,6 +531,7 @@ impl SceneDescription {
         time_seconds: f32,
         instance_transform_overrides: &BTreeMap<String, Transform>,
     ) -> SceneCompositionSummary {
+        let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         SceneCompositionSummary {
             mesh_count: self.meshes.len(),
             material_count: self.materials.len(),
@@ -530,7 +540,9 @@ impl SceneDescription {
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
-            bounds: self.bounds_with_overrides(time_seconds, instance_transform_overrides),
+            framed_camera_distance: bounds
+                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees)),
+            bounds,
         }
     }
 }
@@ -2818,6 +2830,8 @@ mod tests {
         assert_eq!(summary.bounds, Some(bounds));
         assert!(summary.brief_label().contains("meshes"));
         assert!(summary.brief_label().contains("span"));
+        assert!(summary.brief_label().contains("fit d"));
+        assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
     }
