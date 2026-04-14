@@ -451,8 +451,16 @@ impl SceneDescription {
         if let Some(bounds) = bounds {
             let radius = bounds.radius().max(0.001);
             let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees);
+            let half_extents = bounds.half_extents;
+            let dominant_horizontal_extent = half_extents.x.max(half_extents.z).max(0.001);
+            let framing_direction = Vec3::new(
+                dominant_horizontal_extent,
+                half_extents.y * 0.75 + radius * 0.15,
+                dominant_horizontal_extent,
+            )
+            .normalize();
             CameraPose {
-                position: bounds.center + Vec3::new(distance, radius * 0.65 + 0.001, distance),
+                position: bounds.center + framing_direction * distance,
                 target: bounds.center,
                 up: Vec3::UP,
                 fov_y_degrees: self.camera.fov_y_degrees,
@@ -2683,6 +2691,7 @@ mod tests {
         assert_eq!(framed.target, bounds.center);
         assert!(framed.position.distance(bounds.center) > bounds.radius());
         assert_eq!(framed.up, Vec3::UP);
+        assert!(framed.position.y > bounds.center.y);
 
         let summary = scene.composition_summary(0.0);
         assert_eq!(summary.mesh_count, scene.meshes.len());
