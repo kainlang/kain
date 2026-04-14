@@ -32,3 +32,16 @@ Expected behavior in this checkout:
 - `native-ui dev` should start the watch loop and launch the packaged child.
 - The child may still exit in this environment if the Qt/QML host path fails,
   which is a host/runtime issue rather than a lab-source issue.
+
+Verified on 2026-04-14 in this checkout:
+
+- `build native-ui` completed successfully and emitted the native project,
+  runtime contract, compatibility metadata, realtime bundle, shader sidecars,
+  manifest, snapshot, and packaged executable.
+- `native-ui dev` launched the packaged child, started the recursive watch loop,
+  and handed the UI off to `qmlscene`.
+- A compatible edit to `main.kn` was classified as `hot-reload` with a
+  `runtime_bundle` update in roughly 400 ms.
+- Starting a second dev session while the packaged child executable is still
+  running can fail with `Text file busy (os error 26)` during executable copy.
+  Stop the earlier `native-ui dev` session before launching another one.
