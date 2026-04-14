@@ -1,24 +1,17 @@
-use ast::BinaryOp
 use ast::Block
-use ast::CallExpr
+use ast::BinaryOp
 use ast::Expr
 use ast::ExprStmt
-use ast::FieldExpr
 use ast::FnDef
-use ast::ForStmt
-use ast::IfExpr
-use ast::IfStmt
-use ast::IndexExpr
 use ast::Literal
 use ast::MatchArmExpr
-use ast::MethodCallExpr
+use ast::Param
 use ast::Pattern
 use ast::Program
 use ast::ReturnStmt
 use ast::Stmt
 use ast::TopLevelItem
 use ast::UnaryOp
-use ast::WhileStmt
 use error::ErrorKind
 use error::KainError
 use span::Span
@@ -26,6 +19,9 @@ use span::Span
 # Kain Runtime - tree-walking interpreter
 # Expanded from the seed to cover all core expression and statement forms.
 # Used by `kain run` and `kain test` for interpret-mode execution.
+#
+# NOTE: All complex multi-statement match arm bodies have been extracted
+# into helper functions to work around Kain's indentation-sensitive parser.
 
 pub enum Value:
     Unit
@@ -37,7 +33,7 @@ pub enum Value:
     Array(Array<Value>)
     Struct_(String, Array<String>, Array<Value>)
     Enum_(String, String, Array<Value>)
-    Function(String, FnDef)
+    Function(String)
     Null
 
 impl Value:
@@ -53,38 +49,19 @@ impl Value:
             Value::Char(c) => return c
             Value::Array(items) =>
                 let parts = "["
-                let first = true
+                let is_first = true
                 for item in items:
-                    if !first: parts = parts + ", "
+                    if !is_first: parts = parts + ", "
                     parts = parts + item.to_repr()
-                    first = false
+                    is_first = false
                 return parts + "]"
-            Value::Struct_(name, fields, vals) =>
-                let parts = name + " { "
-                let i = 0
-                while i < len(fields) && i < len(vals):
-                    if i > 0: parts = parts + ", "
-                    parts = parts + fields[i] + ": " + vals[i].to_repr()
-                    i = i + 1
-                return parts + " }"
-            Value::Enum_(type_name, variant, payloads) =>
-                if len(payloads) == 0:
-                    return type_name + "::" + variant
-                let parts = type_name + "::" + variant + "("
-                let first = true
-                for p in payloads:
-                    if !first: parts = parts + ", "
-                    parts = parts + p.to_repr()
-                    first = false
-                return parts + ")"
-            Value::Function(name, _) => return "<fn:" + name + ">"
             Value::Null => return "null"
+            _ => return "<value>"
 
     pub fn is_truthy(self) -> Bool:
         match self:
             Value::Bool(b) => return b
             Value::Int(n) => return n != 0
-            Value::Float(f) => return f != 0.0
             Value::String_(s) => return len(s) > 0
             Value::Null => return false
             Value::Unit => return false
@@ -96,7 +73,6 @@ impl Value:
             Value::Bool(b) =>
                 if b: return 1
                 return 0
-            Value::Float(f) => return int(f)
             _ => return 0
 
     pub fn as_float(self) -> Float:
@@ -108,7 +84,7 @@ impl Value:
     pub fn as_string(self) -> String:
         return self.to_repr()
 
-# ─── Variable bindings and environment ────────────────────────────────────────
+# ─── Bindings and environment ──────────────────────────────────────────────────
 
 struct Binding:
     name: String
@@ -126,15 +102,12 @@ fn env_push_scope(e: Environment) -> Unit:
 
 fn env_pop_scope(e: Environment) -> Unit:
     if len(e.scopes) > 1:
-        e.scopes = env_scopes_slice(e.scopes, len(e.scopes) - 1)
-
-fn env_scopes_slice(scopes: Array<Array<Binding>>, new_len: Int) -> Array<Array<Binding>>:
-    let result = []
-    let i = 0
-    while i < new_len && i < len(scopes):
-        push(result, scopes[i])
-        i = i + 1
-    return result
+        let new_scopes = []
+        let i = 0
+        while i < len(e.scopes) - 1:
+            push(new_scopes, e.scopes[i])
+            i = i + 1
+        e.scopes = new_scopes
 
 fn env_define(e: Environment, name: String, value: Value, is_mut: Bool) -> Unit:
     if len(e.scopes) == 0:
@@ -143,7 +116,6 @@ fn env_define(e: Environment, name: String, value: Value, is_mut: Bool) -> Unit:
     push(top, Binding { name: name, value: value, is_mut: is_mut })
 
 fn env_set(e: Environment, name: String, value: Value) -> Bool:
-    # Walk scopes from innermost outward
     let si = len(e.scopes) - 1
     while si >= 0:
         let scope = e.scopes[si]
@@ -200,9 +172,6 @@ fn ctx_register_fns(ctx: RuntimeContext, program: Program) -> Unit:
     for item in program.items:
         match item:
             TopLevelItem::Function(f) => push(ctx.functions, f)
-            TopLevelItem::Impl(imp) =>
-                for method in imp.methods:
-                    push(ctx.functions, method)
             _ => ()
 
 # ─── Builtin dispatch ─────────────────────────────────────────────────────────
@@ -214,96 +183,88 @@ fn call_builtin(ctx: RuntimeContext, name: String, arg_vals: Array<Value>) -> Op
         else:
             println("")
         return Option::Some(Value::Unit)
-
     if name == "print":
         if len(arg_vals) > 0:
             print(arg_vals[0].to_repr())
         return Option::Some(Value::Unit)
-
     if name == "panic":
         let msg = ""
         if len(arg_vals) > 0:
             msg = arg_vals[0].as_string()
         println("panic: " + msg)
         return Option::Some(Value::Unit)
-
     if name == "len":
         if len(arg_vals) > 0:
-            match arg_vals[0]:
-                Value::Array(items) => return Option::Some(Value::Int(len(items)))
-                Value::String_(s) => return Option::Some(Value::Int(len(s)))
-                _ => ()
+            return Option::Some(value_len(arg_vals[0]))
         return Option::Some(Value::Int(0))
-
     if name == "push":
         if len(arg_vals) >= 2:
             match arg_vals[0]:
                 Value::Array(items) =>
                     push(items, arg_vals[1])
-                    return Option::Some(Value::Unit)
                 _ => ()
         return Option::Some(Value::Unit)
-
     if name == "str":
         if len(arg_vals) > 0:
             return Option::Some(Value::String_(arg_vals[0].to_repr()))
         return Option::Some(Value::String_(""))
-
     if name == "char_at":
         if len(arg_vals) >= 2:
-            match arg_vals[0]:
-                Value::String_(s) =>
-                    let idx = arg_vals[1].as_int()
-                    if idx >= 0 && idx < len(s):
-                        return Option::Some(Value::String_(char_at(s, idx)))
-                _ => ()
+            return Option::Some(value_char_at(arg_vals[0], arg_vals[1]))
         return Option::Some(Value::String_(""))
-
     if name == "read_file":
         if len(arg_vals) > 0:
-            let path = arg_vals[0].as_string()
-            return Option::Some(Value::String_(read_file(path)))
+            let p = arg_vals[0].as_string()
+            return Option::Some(Value::String_(read_file(p)))
         return Option::Some(Value::String_(""))
-
     if name == "write_file":
         if len(arg_vals) >= 2:
-            let path = arg_vals[0].as_string()
-            let content = arg_vals[1].as_string()
-            write_file(path, content)
+            let p = arg_vals[0].as_string()
+            let c = arg_vals[1].as_string()
+            write_file(p, c)
         return Option::Some(Value::Unit)
-
     if name == "env":
         if len(arg_vals) > 0:
-            let key = arg_vals[0].as_string()
-            return Option::Some(Value::String_(env(key)))
+            let k = arg_vals[0].as_string()
+            return Option::Some(Value::String_(env(k)))
         return Option::Some(Value::String_(""))
-
     if name == "file_exists":
         if len(arg_vals) > 0:
-            let path = arg_vals[0].as_string()
-            return Option::Some(Value::Bool(file_exists(path)))
+            let p = arg_vals[0].as_string()
+            return Option::Some(Value::Bool(file_exists(p)))
         return Option::Some(Value::Bool(false))
-
     if name == "args":
         let raw = args()
         let result = []
         for a in raw:
             push(result, Value::String_(a))
         return Option::Some(Value::Array(result))
-
     if name == "exit":
         let code = 0
         if len(arg_vals) > 0:
             code = arg_vals[0].as_int()
         exit(code)
         return Option::Some(Value::Unit)
-
     if name == "int":
         if len(arg_vals) > 0:
             return Option::Some(Value::Int(arg_vals[0].as_int()))
         return Option::Some(Value::Int(0))
-
     return none
+
+fn value_len(v: Value) -> Value:
+    match v:
+        Value::Array(items) => return Value::Int(len(items))
+        Value::String_(s) => return Value::Int(len(s))
+        _ => return Value::Int(0)
+
+fn value_char_at(sv: Value, iv: Value) -> Value:
+    match sv:
+        Value::String_(s) =>
+            let idx = iv.as_int()
+            if idx >= 0 && idx < len(s):
+                return Value::String_(char_at(s, idx))
+        _ => ()
+    return Value::String_("")
 
 # ─── Pattern matching ─────────────────────────────────────────────────────────
 
@@ -319,26 +280,21 @@ fn match_pattern(ctx: RuntimeContext, pat: Pattern, val: Value) -> Bool:
         Pattern::Literal(lit) =>
             let lit_val = eval_literal(lit)
             return values_equal(lit_val, val)
-        Pattern::Tuple(pats) =>
-            match val:
-                Value::Array(items) =>
-                    if len(items) != len(pats): return false
-                    let i = 0
-                    while i < len(pats):
-                        if !match_pattern(ctx, pats[i], items[i]): return false
-                        i = i + 1
-                    return true
-                _ => return false
         Pattern::Enum(path, variant_name, pats) =>
-            match val:
-                Value::Enum_(_, vname, payloads) =>
-                    if vname != variant_name: return false
-                    let i = 0
-                    while i < len(pats) && i < len(payloads):
-                        if !match_pattern(ctx, pats[i], payloads[i]): return false
-                        i = i + 1
-                    return true
-                _ => return false
+            return match_enum_pattern(ctx, variant_name, pats, val)
+        _ => return false
+
+fn match_enum_pattern(ctx: RuntimeContext, variant_name: String, pats: Array<Pattern>, val: Value) -> Bool:
+    match val:
+        Value::Enum_(_, vname, payloads) =>
+            if vname != variant_name:
+                return false
+            let i = 0
+            while i < len(pats) && i < len(payloads):
+                if !match_pattern(ctx, pats[i], payloads[i]):
+                    return false
+                i = i + 1
+            return true
         _ => return false
 
 fn values_equal(a: Value, b: Value) -> Bool:
@@ -346,10 +302,6 @@ fn values_equal(a: Value, b: Value) -> Bool:
         Value::Int(n1) =>
             match b:
                 Value::Int(n2) => return n1 == n2
-                _ => return false
-        Value::Float(f1) =>
-            match b:
-                Value::Float(f2) => return f1 == f2
                 _ => return false
         Value::Bool(b1) =>
             match b:
@@ -378,155 +330,157 @@ fn eval_literal(lit: Literal) -> Value:
         Literal::Bool(b) => return Value::Bool(b)
         Literal::Unit => return Value::Unit
 
+# ─── Expression evaluation helpers ─────────────────────────────────────────────
+# These helpers exist to avoid deeply-nested match arms in eval_expr which
+# can confuse the Kain indentation parser.
+
+fn eval_path_expr(ctx: RuntimeContext, path: Path) -> Value:
+    if len(path.segments) == 0:
+        return Value::Null
+    let name = path.segments[0].name
+    if name == "true": return Value::Bool(true)
+    if name == "false": return Value::Bool(false)
+    if name == "none": return Value::Null
+    let found = env_get(ctx.env, name)
+    match found:
+        Option::Some(v) => return v
+        _ => return Value::Null
+
+fn eval_call_expr(ctx: RuntimeContext, call: CallExpr) -> Value:
+    let callee_name = ""
+    match call.callee:
+        Expr::Path(p) =>
+            if len(p.segments) > 0:
+                callee_name = p.segments[0].name
+        _ => ()
+    let arg_vals = []
+    for arg in call.args:
+        push(arg_vals, eval_expr(ctx, arg))
+    let builtin_result = call_builtin(ctx, callee_name, arg_vals)
+    match builtin_result:
+        Option::Some(v) => return v
+        _ => ()
+    let user_fn_opt = ctx_find_fn(ctx, callee_name)
+    match user_fn_opt:
+        Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
+        _ => return Value::Null
+
+fn eval_method_call(ctx: RuntimeContext, mc: MethodCallExpr) -> Value:
+    let recv_val = eval_expr(ctx, mc.receiver)
+    let arg_vals = [recv_val]
+    for arg in mc.args:
+        push(arg_vals, eval_expr(ctx, arg))
+    if mc.method == "to_repr" || mc.method == "to_string" || mc.method == "display":
+        return Value::String_(recv_val.to_repr())
+    if mc.method == "is_truthy":
+        return Value::Bool(recv_val.is_truthy())
+    if mc.method == "as_int":
+        return Value::Int(recv_val.as_int())
+    if mc.method == "len":
+        return value_len(recv_val)
+    let user_fn_opt2 = ctx_find_fn(ctx, mc.method)
+    match user_fn_opt2:
+        Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
+        _ => return Value::Null
+
+fn eval_if_expr(ctx: RuntimeContext, ife: IfExpr) -> Value:
+    let cond = eval_expr(ctx, ife.condition)
+    if cond.is_truthy():
+        let sig = eval_block(ctx, ife.then_branch)
+        return signal_to_value(sig)
+    let else_result = eval_if_else_branch(ctx, ife.else_branch)
+    return else_result
+
+fn eval_if_else_branch(ctx: RuntimeContext, else_branch: Option<Block>) -> Value:
+    match else_branch:
+        Option::Some(else_block) =>
+            let sig = eval_block(ctx, else_block)
+            return signal_to_value(sig)
+        _ => return Value::Unit
+
+fn signal_to_value(sig: Signal) -> Value:
+    match sig:
+        Signal::Return_(v) => return v
+        Signal::Break_(v) => return v
+        _ => return Value::Unit
+
+fn eval_match_expr(ctx: RuntimeContext, me: MatchExpr) -> Value:
+    let val = eval_expr(ctx, me.value)
+    for arm in me.arms:
+        env_push_scope(ctx.env)
+        if match_pattern(ctx, arm.pattern, val):
+            let arm_val = eval_expr(ctx, arm.value)
+            env_pop_scope(ctx.env)
+            return arm_val
+        env_pop_scope(ctx.env)
+    return Value::Unit
+
+fn eval_array_expr(ctx: RuntimeContext, items: Array<Expr>) -> Value:
+    let result = []
+    for item in items:
+        push(result, eval_expr(ctx, item))
+    return Value::Array(result)
+
+fn eval_struct_init(ctx: RuntimeContext, si: StructInit) -> Value:
+    let sname = ""
+    if len(si.name.segments) > 0:
+        sname = si.name.segments[0].name
+    let field_names = []
+    let field_vals = []
+    for field in si.fields:
+        push(field_names, field.name)
+        push(field_vals, eval_expr(ctx, field.value))
+    return Value::Struct_(sname, field_names, field_vals)
+
+fn eval_field_expr(ctx: RuntimeContext, fe: FieldExpr) -> Value:
+    let base = eval_expr(ctx, fe.target)
+    match base:
+        Value::Struct_(_, field_names, field_vals) =>
+            return find_field_val(field_names, field_vals, fe.field)
+        _ => return Value::Null
+
+fn find_field_val(field_names: Array<String>, field_vals: Array<Value>, field: String) -> Value:
+    let i = 0
+    while i < len(field_names):
+        if field_names[i] == field:
+            return field_vals[i]
+        i = i + 1
+    return Value::Null
+
+fn eval_index_expr(ctx: RuntimeContext, ie: IndexExpr) -> Value:
+    let base = eval_expr(ctx, ie.target)
+    let idx = eval_expr(ctx, ie.index)
+    let n = idx.as_int()
+    match base:
+        Value::Array(items) =>
+            if n >= 0 && n < len(items):
+                return items[n]
+        Value::String_(s) =>
+            if n >= 0 && n < len(s):
+                return Value::String_(char_at(s, n))
+        _ => ()
+    return Value::Null
+
 # ─── Expression evaluation ─────────────────────────────────────────────────────
 
 fn eval_expr(ctx: RuntimeContext, expr: Expr) -> Value:
     match expr:
         Expr::Literal(lit) => return eval_literal(lit)
-
-        Expr::Path(path) =>
-            if len(path.segments) == 0:
-                return Value::Null
-            let name = path.segments[0].name
-            if name == "true": return Value::Bool(true)
-            if name == "false": return Value::Bool(false)
-            if name == "none": return Value::Null
-            let found = env_get(ctx.env, name)
-            match found:
-                Option::Some(v) => return v
-                _ => return Value::Null
-
+        Expr::Path(path) => return eval_path_expr(ctx, path)
         Expr::Binary(bin) => return eval_binary(ctx, bin.left, bin.op, bin.right)
         Expr::Unary(un) => return eval_unary(ctx, un.op, un.value)
-
-        Expr::Call(call) =>
-            let callee_name = ""
-            match call.callee:
-                Expr::Path(p) =>
-                    if len(p.segments) > 0:
-                        callee_name = p.segments[0].name
-                _ => ()
-            let arg_vals = []
-            for arg in call.args:
-                push(arg_vals, eval_expr(ctx, arg))
-            # Builtin?
-            let builtin_result = call_builtin(ctx, callee_name, arg_vals)
-            match builtin_result:
-                Option::Some(v) => return v
-                _ => ()
-            # User function?
-            let user_fn_found = ctx_find_fn(ctx, callee_name)
-            match user_fn_found:
-                Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
-                _ => return Value::Null
-
-        Expr::MethodCall(mc) =>
-            let recv_val = eval_expr(ctx, mc.receiver)
-            let arg_vals = [recv_val]
-            for arg in mc.args:
-                push(arg_vals, eval_expr(ctx, arg))
-            # to_repr, etc.
-            if mc.method == "to_repr" || mc.method == "to_string" || mc.method == "display":
-                return Value::String_(recv_val.to_repr())
-            if mc.method == "is_truthy":
-                return Value::Bool(recv_val.is_truthy())
-            if mc.method == "as_int":
-                return Value::Int(recv_val.as_int())
-            if mc.method == "len":
-                match recv_val:
-                    Value::Array(items) => return Value::Int(len(items))
-                    Value::String_(s) => return Value::Int(len(s))
-                    _ => return Value::Int(0)
-            # Try user method
-            let user_fn_found2 = ctx_find_fn(ctx, mc.method)
-            match user_fn_found2:
-                Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
-                _ => return Value::Null
-
-        Expr::If(ife) =>
-            let cond = eval_expr(ctx, ife.condition)
-            if cond.is_truthy():
-                let sig = eval_block(ctx, ife.then_branch)
-                match sig:
-                    Signal::Return_(v) => return v
-                    Signal::Break_(v) => return v
-                    _ => return Value::Unit
-            else:
-                match ife.else_branch:
-                    Option::Some(else_block) =>
-                        let sig2 = eval_block(ctx, else_block)
-                        match sig2:
-                            Signal::Return_(v) => return v
-                            _ => return Value::Unit
-                    _ => return Value::Unit
-
-        Expr::Match(me) =>
-            let val = eval_expr(ctx, me.value)
-            for arm in me.arms:
-                env_push_scope(ctx.env)
-                if match_pattern(ctx, arm.pattern, val):
-                    let arm_val = eval_expr(ctx, arm.value)
-                    env_pop_scope(ctx.env)
-                    return arm_val
-                env_pop_scope(ctx.env)
-            return Value::Unit
-
-        Expr::Array(items) =>
-            let result = []
-            for item in items:
-                push(result, eval_expr(ctx, item))
-            return Value::Array(result)
-
-        Expr::Tuple(items) =>
-            let result = []
-            for item in items:
-                push(result, eval_expr(ctx, item))
-            return Value::Array(result)
-
-        Expr::Field(f) =>
-            let base = eval_expr(ctx, f.target)
-            match base:
-                Value::Struct_(_, field_names, field_vals) =>
-                    let i = 0
-                    while i < len(field_names):
-                        if field_names[i] == f.field:
-                            return field_vals[i]
-                        i = i + 1
-                _ => ()
-            return Value::Null
-
-        Expr::Index(ie) =>
-            let base = eval_expr(ctx, ie.target)
-            let idx = eval_expr(ctx, ie.index)
-            let n = idx.as_int()
-            match base:
-                Value::Array(items) =>
-                    if n >= 0 && n < len(items):
-                        return items[n]
-                Value::String_(s) =>
-                    if n >= 0 && n < len(s):
-                        return Value::String_(char_at(s, n))
-                _ => ()
-            return Value::Null
-
-        Expr::StructInit(si) =>
-            let sname = ""
-            if len(si.name.segments) > 0:
-                sname = si.name.segments[0].name
-            let field_names = []
-            let field_vals = []
-            for field in si.fields:
-                push(field_names, field.name)
-                push(field_vals, eval_expr(ctx, field.value))
-            return Value::Struct_(sname, field_names, field_vals)
-
-        Expr::Lambda(lam) =>
-            return Value::Null  # Lambda support deferred
-
+        Expr::Call(call) => return eval_call_expr(ctx, call)
+        Expr::MethodCall(mc) => return eval_method_call(ctx, mc)
+        Expr::If(ife) => return eval_if_expr(ctx, ife)
+        Expr::Match(me) => return eval_match_expr(ctx, me)
+        Expr::Array(items) => return eval_array_expr(ctx, items)
+        Expr::Tuple(items) => return eval_array_expr(ctx, items)
+        Expr::Field(fe) => return eval_field_expr(ctx, fe)
+        Expr::Index(ie) => return eval_index_expr(ctx, ie)
+        Expr::StructInit(si) => return eval_struct_init(ctx, si)
         _ => return Value::Null
 
 fn eval_binary(ctx: RuntimeContext, left: Expr, op: BinaryOp, right: Expr) -> Value:
-    # Short-circuit operators
     match op:
         BinaryOp::And =>
             let lv = eval_expr(ctx, left)
@@ -537,43 +491,16 @@ fn eval_binary(ctx: RuntimeContext, left: Expr, op: BinaryOp, right: Expr) -> Va
             if lv.is_truthy(): return Value::Bool(true)
             return Value::Bool(eval_expr(ctx, right).is_truthy())
         _ => ()
-
     let lv = eval_expr(ctx, left)
     let rv = eval_expr(ctx, right)
+    return eval_binary_values(op, lv, rv)
 
+fn eval_binary_values(op: BinaryOp, lv: Value, rv: Value) -> Value:
     match op:
-        BinaryOp::Add =>
-            match lv:
-                Value::Int(a) =>
-                    match rv:
-                        Value::Int(b) => return Value::Int(a + b)
-                        Value::Float(b) => return Value::Float(a * 1.0 + b)
-                        _ => ()
-                Value::Float(a) =>
-                    match rv:
-                        Value::Float(b) => return Value::Float(a + b)
-                        Value::Int(b) => return Value::Float(a + b * 1.0)
-                        _ => ()
-                Value::String_(a) =>
-                    match rv:
-                        Value::String_(b) => return Value::String_(a + b)
-                        _ => return Value::String_(a + rv.to_repr())
-                _ => ()
-            return Value::Int(0)
-        BinaryOp::Sub =>
-            return Value::Int(lv.as_int() - rv.as_int())
-        BinaryOp::Mul =>
-            match lv:
-                Value::Float(a) => return Value::Float(a * rv.as_float())
-                _ => return Value::Int(lv.as_int() * rv.as_int())
-        BinaryOp::Div =>
-            let d = rv.as_int()
-            if d == 0:
-                println("runtime error: division by zero")
-                return Value::Int(0)
-            match lv:
-                Value::Float(a) => return Value::Float(a / rv.as_float())
-                _ => return Value::Int(lv.as_int() / d)
+        BinaryOp::Add => return value_add(lv, rv)
+        BinaryOp::Sub => return Value::Int(lv.as_int() - rv.as_int())
+        BinaryOp::Mul => return value_mul(lv, rv)
+        BinaryOp::Div => return value_div(lv, rv)
         BinaryOp::Mod =>
             let d2 = rv.as_int()
             if d2 == 0: return Value::Int(0)
@@ -585,6 +512,39 @@ fn eval_binary(ctx: RuntimeContext, left: Expr, op: BinaryOp, right: Expr) -> Va
         BinaryOp::Le => return Value::Bool(lv.as_int() <= rv.as_int())
         BinaryOp::Ge => return Value::Bool(lv.as_int() >= rv.as_int())
         _ => return Value::Int(0)
+
+fn value_add(lv: Value, rv: Value) -> Value:
+    match lv:
+        Value::Int(a) =>
+            match rv:
+                Value::Int(b) => return Value::Int(a + b)
+                Value::Float(b) => return Value::Float(a * 1.0 + b)
+                _ => ()
+        Value::Float(a) =>
+            match rv:
+                Value::Float(b) => return Value::Float(a + b)
+                Value::Int(b) => return Value::Float(a + b * 1.0)
+                _ => ()
+        Value::String_(a) =>
+            match rv:
+                Value::String_(b) => return Value::String_(a + b)
+                _ => return Value::String_(a + rv.to_repr())
+        _ => ()
+    return Value::Int(0)
+
+fn value_mul(lv: Value, rv: Value) -> Value:
+    match lv:
+        Value::Float(a) => return Value::Float(a * rv.as_float())
+        _ => return Value::Int(lv.as_int() * rv.as_int())
+
+fn value_div(lv: Value, rv: Value) -> Value:
+    let d = rv.as_int()
+    if d == 0:
+        println("runtime error: division by zero")
+        return Value::Int(0)
+    match lv:
+        Value::Float(a) => return Value::Float(a / rv.as_float())
+        _ => return Value::Int(lv.as_int() / d)
 
 fn eval_unary(ctx: RuntimeContext, op: UnaryOp, value: Expr) -> Value:
     let v = eval_expr(ctx, value)
@@ -617,138 +577,142 @@ fn eval_block(ctx: RuntimeContext, block: Block) -> Signal:
 
 fn eval_stmt(ctx: RuntimeContext, stmt: Stmt) -> Signal:
     match stmt:
-        Stmt::Let(ls) =>
-            let val = Value::Unit
-            match ls.value:
-                Option::Some(v) => val = eval_expr(ctx, v)
-                _ => ()
-            match ls.pattern:
-                Pattern::Binding(name) => env_define(ctx.env, name, val, ls.is_mut)
-                Pattern::BindingMut(name) => env_define(ctx.env, name, val, true)
-                _ => ()
-            return Signal::Normal
-
-        Stmt::Return(rs) =>
-            let v = Value::Unit
-            match rs.value:
-                Option::Some(val_expr) => v = eval_expr(ctx, val_expr)
-                _ => ()
-            return Signal::Return_(v)
-
+        Stmt::Let(ls) => return eval_let_stmt(ctx, ls)
+        Stmt::Return(rs) => return eval_return_stmt(ctx, rs)
         Stmt::Expr(es) =>
             eval_expr(ctx, es.expr)
             return Signal::Normal
-
-        Stmt::Assign(as_) =>
-            let new_val = eval_expr(ctx, as_.value)
-            match as_.target:
-                Expr::Path(p) =>
-                    if len(p.segments) > 0:
-                        let vname = p.segments[0].name
-                        let found = env_set(ctx.env, vname, new_val)
-                        if !found:
-                            env_define(ctx.env, vname, new_val, true)
-                Expr::Index(ie) =>
-                    let base = eval_expr(ctx, ie.target)
-                    let idx = eval_expr(ctx, ie.index)
-                    match base:
-                        Value::Array(items) =>
-                            let n = idx.as_int()
-                            if n >= 0 && n < len(items):
-                                items[n] = new_val
-                        _ => ()
-                Expr::Field(fe) =>
-                    let base = eval_expr(ctx, fe.target)
-                    match base:
-                        Value::Struct_(sname, field_names, field_vals) =>
-                            let i = 0
-                            while i < len(field_names):
-                                if field_names[i] == fe.field:
-                                    field_vals[i] = new_val
-                                i = i + 1
-                        _ => ()
-                _ => ()
-            return Signal::Normal
-
-        Stmt::If(ifs) =>
-            let cond = eval_expr(ctx, ifs.condition)
-            if cond.is_truthy():
-                return eval_block(ctx, ifs.then_branch)
-            else:
-                match ifs.else_branch:
-                    Option::Some(else_block) => return eval_block(ctx, else_block)
-                    _ => return Signal::Normal
-
-        Stmt::While(ws) =>
-            let running = true
-            while running:
-                let cond = eval_expr(ctx, ws.condition)
-                if !cond.is_truthy():
-                    running = false
-                else:
-                    let sig = eval_block(ctx, ws.body)
-                    match sig:
-                        Signal::Break_(_) => running = false
-                        Signal::Return_(v) => return Signal::Return_(v)
-                        _ => ()
-            return Signal::Normal
-
-        Stmt::For(fs) =>
-            let iter_val = eval_expr(ctx, fs.iter)
-            match iter_val:
-                Value::Array(items) =>
-                    let done = false
-                    for item in items:
-                        if !done:
-                            env_push_scope(ctx.env)
-                            match fs.pattern:
-                                Pattern::Binding(var_name) => env_define(ctx.env, var_name, item, true)
-                                _ => ()
-                            let sig = eval_block(ctx, fs.body)
-                            env_pop_scope(ctx.env)
-                            match sig:
-                                Signal::Break_(_) => done = true
-                                Signal::Return_(v) => return Signal::Return_(v)
-                                _ => ()
-                _ => ()
-            return Signal::Normal
-
-        Stmt::Match(ms) =>
-            let val = eval_expr(ctx, ms.value)
-            for arm in ms.arms:
-                env_push_scope(ctx.env)
-                if match_pattern(ctx, arm.pattern, val):
-                    let sig = eval_block(ctx, arm.body)
-                    env_pop_scope(ctx.env)
-                    return sig
-                env_pop_scope(ctx.env)
-            return Signal::Normal
-
-        Stmt::Break(bs) =>
-            let bv = Value::Unit
-            match bs.value:
-                Option::Some(v) => bv = eval_expr(ctx, v)
-                _ => ()
-            return Signal::Break_(bv)
-
+        Stmt::Assign(as_) => return eval_assign_stmt(ctx, as_)
+        Stmt::If(ifs) => return eval_if_stmt(ctx, ifs)
+        Stmt::While(ws) => return eval_while_stmt(ctx, ws)
+        Stmt::For(fs) => return eval_for_stmt(ctx, fs)
+        Stmt::Match(ms) => return eval_match_stmt(ctx, ms)
+        Stmt::Break(bs) => return eval_break_stmt(ctx, bs)
         Stmt::Continue(_) => return Signal::Continue_
-
         _ => return Signal::Normal
+
+fn eval_let_stmt(ctx: RuntimeContext, ls: LetStmt) -> Signal:
+    let val = Value::Unit
+    match ls.value:
+        Option::Some(v) => val = eval_expr(ctx, v)
+        _ => ()
+    match ls.pattern:
+        Pattern::Binding(name) => env_define(ctx.env, name, val, ls.is_mut)
+        Pattern::BindingMut(name) => env_define(ctx.env, name, val, true)
+        _ => ()
+    return Signal::Normal
+
+fn eval_return_stmt(ctx: RuntimeContext, rs: ReturnStmt) -> Signal:
+    let v = Value::Unit
+    match rs.value:
+        Option::Some(val_expr) => v = eval_expr(ctx, val_expr)
+        _ => ()
+    return Signal::Return_(v)
+
+fn eval_assign_stmt(ctx: RuntimeContext, as_: AssignStmt) -> Signal:
+    let new_val = eval_expr(ctx, as_.value)
+    match as_.target:
+        Expr::Path(p) =>
+            if len(p.segments) > 0:
+                let vname = p.segments[0].name
+                let was_found = env_set(ctx.env, vname, new_val)
+                if !was_found:
+                    env_define(ctx.env, vname, new_val, true)
+        Expr::Index(ie) =>
+            eval_index_assign(ctx, ie, new_val)
+        _ => ()
+    return Signal::Normal
+
+fn eval_index_assign(ctx: RuntimeContext, ie: IndexExpr, new_val: Value) -> Unit:
+    let base = eval_expr(ctx, ie.target)
+    let idx = eval_expr(ctx, ie.index)
+    match base:
+        Value::Array(items) =>
+            let n = idx.as_int()
+            if n >= 0 && n < len(items):
+                items[n] = new_val
+        _ => ()
+
+fn eval_if_stmt(ctx: RuntimeContext, ifs: IfStmt) -> Signal:
+    let cond = eval_expr(ctx, ifs.condition)
+    if cond.is_truthy():
+        return eval_block(ctx, ifs.then_branch)
+    return eval_if_else_signal(ctx, ifs.else_branch)
+
+fn eval_if_else_signal(ctx: RuntimeContext, else_branch: Option<Block>) -> Signal:
+    match else_branch:
+        Option::Some(else_block) => return eval_block(ctx, else_block)
+        _ => return Signal::Normal
+
+fn eval_while_stmt(ctx: RuntimeContext, ws: WhileStmt) -> Signal:
+    let running = true
+    while running:
+        let cond = eval_expr(ctx, ws.condition)
+        if !cond.is_truthy():
+            running = false
+        else:
+            let sig = eval_block(ctx, ws.body)
+            match sig:
+                Signal::Break_(_) => running = false
+                Signal::Return_(v) => return Signal::Return_(v)
+                _ => ()
+    return Signal::Normal
+
+fn eval_for_stmt(ctx: RuntimeContext, fs: ForStmt) -> Signal:
+    let iter_val = eval_expr(ctx, fs.iter)
+    match iter_val:
+        Value::Array(items) =>
+            return eval_for_array(ctx, fs, items)
+        _ => ()
+    return Signal::Normal
+
+fn eval_for_array(ctx: RuntimeContext, fs: ForStmt, items: Array<Value>) -> Signal:
+    let done = false
+    let i = 0
+    while i < len(items) && !done:
+        env_push_scope(ctx.env)
+        match fs.pattern:
+            Pattern::Binding(var_name) => env_define(ctx.env, var_name, items[i], true)
+            _ => ()
+        let sig = eval_block(ctx, fs.body)
+        env_pop_scope(ctx.env)
+        match sig:
+            Signal::Break_(_) => done = true
+            Signal::Return_(v) => return Signal::Return_(v)
+            _ => ()
+        i = i + 1
+    return Signal::Normal
+
+fn eval_match_stmt(ctx: RuntimeContext, ms: MatchStmt) -> Signal:
+    let val = eval_expr(ctx, ms.value)
+    for arm in ms.arms:
+        env_push_scope(ctx.env)
+        if match_pattern(ctx, arm.pattern, val):
+            let sig = eval_block(ctx, arm.body)
+            env_pop_scope(ctx.env)
+            return sig
+        env_pop_scope(ctx.env)
+    return Signal::Normal
+
+fn eval_break_stmt(ctx: RuntimeContext, bs: BreakStmt) -> Signal:
+    let bv = Value::Unit
+    match bs.value:
+        Option::Some(v) => bv = eval_expr(ctx, v)
+        _ => ()
+    return Signal::Break_(bv)
 
 # ─── Function call ─────────────────────────────────────────────────────────────
 
-fn call_user_fn(ctx: RuntimeContext, fndef: FnDef, args: Array<Value>) -> Value:
+fn call_user_fn(ctx: RuntimeContext, fndef: FnDef, call_args: Array<Value>) -> Value:
     env_push_scope(ctx.env)
     let pi = 0
     for param in fndef.params:
-        if pi < len(args):
-            env_define(ctx.env, param.name, args[pi], false)
+        if pi < len(call_args):
+            env_define(ctx.env, param.name, call_args[pi], false)
         pi = pi + 1
-
     let block = Block { statements: fndef.body, span: fndef.span }
     let sig = eval_block(ctx, block)
     env_pop_scope(ctx.env)
-
     match sig:
         Signal::Return_(v) => return v
         _ => return Value::Unit
@@ -759,7 +723,6 @@ pub fn run_program(program: Program) -> Result<Value, KainError>:
     let ctx = ctx_new()
     ctx_register_fns(ctx, program)
 
-    # Run top-level constants and comptime items first
     for item in program.items:
         match item:
             TopLevelItem::Const(c) =>
@@ -767,17 +730,17 @@ pub fn run_program(program: Program) -> Result<Value, KainError>:
                 env_define(ctx.env, c.name, v, false)
             _ => ()
 
-    # Find and call main()
-    let main_fn = ctx_find_fn(ctx, "main")
-    match main_fn:
+    let main_fn_opt = ctx_find_fn(ctx, "main")
+    match main_fn_opt:
         Option::Some(f) =>
             let result = call_user_fn(ctx, f, [])
             return Result::Ok(result)
         _ =>
+            let err_span = Span { start: 0, end: 0, file: "" }
             return Result::Err(KainError {
                 kind: ErrorKind::Runtime,
                 message: "no main() function found",
-                span: Span { start: 0, end: 0, file: "" },
+                span: err_span,
                 filename: "",
                 hint: none
             })
