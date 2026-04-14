@@ -1,0 +1,691 @@
+{
+  "schema_version": 1,
+  "snapshot": "2026-04-14",
+  "flagship_app_id": "kain.fabric.dcc-suite",
+  "flagship_app_path": "apps/kain-fabric-dcc-suite",
+  "status_legend": [
+    {
+      "id": "reference_only",
+      "summary": "The capability is proven in the legacy reference surface, but Kain does not yet own a meaningful implementation seam."
+    },
+    {
+      "id": "scaffolded",
+      "summary": "Kain has registries, projections, or shell placeholders for the capability, but the behavior is still materially below parity."
+    },
+    {
+      "id": "prototype",
+      "summary": "Kain has a working proof in a non-flagship lane or a bounded lab, but the flagship native app is not yet the semantic owner."
+    },
+    {
+      "id": "partial",
+      "summary": "The flagship native lane owns a real implementation seam, but the delivered behavior is still narrower than the parity baseline."
+    },
+    {
+      "id": "validated",
+      "summary": "The capability is Kain-owned and currently covered by a concrete validation hook or shipped proof surface."
+    }
+  ],
+  "baselines": [
+    {
+      "id": "ksculpt",
+      "label": "KSculpt Baseline",
+      "reference_root": ".reference/sculpting",
+      "summary": "Mesh sculpting, projected cursor feedback, symmetry, topology workflows, layers, material preview, and export expectations come from the KSculpt reference suite."
+    },
+    {
+      "id": "kpainter",
+      "label": "KPainter Baseline",
+      "reference_root": ".reference/graphos",
+      "supporting_surfaces": [
+        "apps/kain-canvas-forge",
+        "apps/kain-fabric-dcc-suite"
+      ],
+      "summary": "Painter parity is composite: Graphos defines the legacy feature surface while the current Kain painter scaffolds provide the strongest in-repo implementation seams."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "shared.native_dev_loop",
+      "label": "Native desktop dev loop",
+      "domain": "shared",
+      "family": "workbench",
+      "summary": "One-command native app materialization, watch, hot reload, restart fallback, and operator-visible reload outcomes.",
+      "reference_sources": [
+        {
+          "path": ".reference/README.MD",
+          "feature": "Desktop-grade hot reload for large native tools."
+        }
+      ],
+      "kain_surfaces": [
+        "crates/cli/src/native_ui_dev.rs",
+        "crates/kain-driver/src/native_app.rs",
+        "labs/chronos_native/main.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane"
+      ],
+      "status": "validated",
+      "validation_hooks": [
+        "test:crates/cli/native_ui_dev",
+        "manual:kain native-ui dev labs/chronos_native/main.kn"
+      ],
+      "gap_summary": "The loop is real, but host stability still depends on the current qmlscene-backed launcher path."
+    },
+    {
+      "id": "shared.dcc_workbench_shell",
+      "label": "Shared DCC workbench shell",
+      "domain": "shared",
+      "family": "workbench",
+      "summary": "One flagship native shell with workspace modes, docked chrome, commands, tools, and persistent layout semantics.",
+      "reference_sources": [
+        {
+          "path": ".reference/README.MD",
+          "feature": "Unified desktop shell that can host flagship DCC tools."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/app_manifest.json",
+        "apps/kain-fabric-dcc-suite/config/ui_shell.json",
+        "apps/kain-fabric-dcc-suite/config/workspace_modes.json",
+        "apps/kain-fabric-dcc-suite/session/ui_workbench_registry.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane"
+      ],
+      "status": "partial",
+      "validation_hooks": [
+        "manual:apps/kain-fabric-dcc-suite native shell walkthrough"
+      ],
+      "gap_summary": "The shell and manifests exist, but sculpt and painter behavior are still shallower than the reference apps."
+    },
+    {
+      "id": "shared.session_restore_and_reload_state",
+      "label": "Session restore and reload-safe state",
+      "domain": "shared",
+      "family": "session",
+      "summary": "Persisted session, runtime snapshot, and workbench state that survive hot reloads and restart fallbacks.",
+      "reference_sources": [
+        {
+          "path": ".reference/README.MD",
+          "feature": "Large tools must feel stateful during native hot reload."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/session/session_schema.kn",
+        "apps/kain-fabric-dcc-suite/session/reducers.kn",
+        "apps/kain-fabric-dcc-suite/session/derived_state.kn",
+        "crates/kain-ui/src/runtime_execution.rs"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane"
+      ],
+      "status": "partial",
+      "validation_hooks": [
+        "manual:native-ui reload preserves session document",
+        "test:crates/cli/native_ui_dev"
+      ],
+      "gap_summary": "The contracts exist, but artist-facing workspace/session restore scenarios still need dedicated acceptance coverage."
+    },
+    {
+      "id": "shared.asset_and_export_receipts",
+      "label": "Durable asset and export receipts",
+      "domain": "shared",
+      "family": "assets",
+      "summary": "Typed import, export, and lineage receipts shared across sculpt meshes, texture sets, captures, and packed outputs.",
+      "reference_sources": [
+        {
+          "path": ".reference/README.MD",
+          "feature": "Native apps should own real asset workflows rather than throwaway demos."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/asset_pipeline_manifest.json",
+        "apps/kain-fabric-dcc-suite/src/asset_registry_lineage_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/scene_exchange_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/material_texture_export_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "fabric_orchestration_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "manual:asset and export receipt schema review"
+      ],
+      "gap_summary": "Receipts exist for several lanes, but there is no single parity-backed contract across sculpt, painter, and capture workflows yet."
+    },
+    {
+      "id": "shared.parity_matrix_and_validation",
+      "label": "Parity matrix and validation harness",
+      "domain": "shared",
+      "family": "validation",
+      "summary": "Machine-readable feature inventory that maps each parity claim to a reference source, Kain owner, status, and validation hook.",
+      "reference_sources": [
+        {
+          "path": ".reference/README.MD",
+          "feature": "Kain should be able to own apps of the same magnitude as the reference suite."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json",
+        "docs/reference/dcc-parity-matrix.md",
+        "scripts/python/validate_dcc_parity_matrix.py"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane"
+      ],
+      "status": "validated",
+      "validation_hooks": [
+        "script:scripts/python/validate_dcc_parity_matrix.py",
+        "test:scripts/python/test_validate_dcc_parity_matrix.py"
+      ],
+      "gap_summary": "The matrix now exists, but scenario-level acceptance automation still needs to grow around it."
+    },
+    {
+      "id": "sculpt.viewport_cursor_projection",
+      "label": "Projected sculpt cursor",
+      "domain": "sculpt",
+      "family": "interaction",
+      "summary": "Projected cursor and mirrored symmetry cursor feedback on the active sculpt target.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculptCursor.ts",
+          "feature": "Projected cursor and mirrored sculpt cursor."
+        },
+        {
+          "path": ".reference/sculpting/KSculpt.tsx",
+          "feature": "Viewport-driven brush interaction."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/viewport_modes.json",
+        "apps/kain-fabric-dcc-suite/src/sculpt_brush_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/sculpt_brush_step.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "reference_only",
+      "validation_hooks": [
+        "scenario:sculpt.projected-cursor"
+      ],
+      "gap_summary": "The flagship sculpt lane does not yet own real projected cursor feedback on mesh surfaces."
+    },
+    {
+      "id": "sculpt.brush_preset_registry",
+      "label": "Sculpt brush preset registry",
+      "domain": "sculpt",
+      "family": "interaction",
+      "summary": "Registry-owned sculpt tools, radius, intensity, falloff, invert behavior, and preset selection.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculptBrushMenu.tsx",
+          "feature": "Brush menu, radius, intensity, symmetry, and preset switching."
+        },
+        {
+          "path": ".reference/sculpting/KSculptBrushes.tsx",
+          "feature": "Brush inventory."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/tool_catalog.json",
+        "apps/kain-fabric-dcc-suite/config/sculpt_pipeline.json",
+        "apps/kain-fabric-dcc-suite/src/sculpt_brush_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "scenario:sculpt.brush-presets"
+      ],
+      "gap_summary": "The registry seam exists, but the flagship sculpt runtime still lacks reference-depth preset and stroke behavior."
+    },
+    {
+      "id": "sculpt.symmetry_modes",
+      "label": "Sculpt symmetry modes",
+      "domain": "sculpt",
+      "family": "interaction",
+      "summary": "Symmetry-aware sculpt strokes and mirrored cursor posture.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculptTopBar.tsx",
+          "feature": "Symmetry toggle."
+        },
+        {
+          "path": ".reference/sculpting/KSculptBrushMenu.tsx",
+          "feature": "Symmetry-aware brush controls."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/tool_catalog.json",
+        "apps/kain-fabric-dcc-suite/src/sculpt_brush_step.kn",
+        "apps/kain-fabric-dcc-suite/config/viewport_modes.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "reference_only",
+      "validation_hooks": [
+        "scenario:sculpt.symmetry-x"
+      ],
+      "gap_summary": "There is no explicit shared symmetry contract yet for the flagship native sculpt lane."
+    },
+    {
+      "id": "sculpt.topology_edit_targets",
+      "label": "Topology-aware sculpt edit targets",
+      "domain": "sculpt",
+      "family": "mesh",
+      "summary": "Stable mesh resource ids, active edit targets, and reducer-owned topology lineage for sculpt sessions.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculpt.tsx",
+          "feature": "Active sculpt target and viewport tool state."
+        },
+        {
+          "path": ".reference/sculpting/KSculptOptimization.ts",
+          "feature": "Topology and mesh ownership for sculpt evaluation."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/mesh_resource_contract.json",
+        "apps/kain-fabric-dcc-suite/session/resource_registry.kn",
+        "apps/kain-fabric-dcc-suite/src/mesh_edit_session_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/topology_history_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "rust_analysis_lane"
+      ],
+      "status": "partial",
+      "validation_hooks": [
+        "manual:mesh edit target session round-trip"
+      ],
+      "gap_summary": "The edit-target contract exists, but the sculpt runtime still does not reach KSculpt-level surface ownership."
+    },
+    {
+      "id": "sculpt.dynamic_topology_and_remesh",
+      "label": "Dynamic topology and remesh workflows",
+      "domain": "sculpt",
+      "family": "mesh",
+      "summary": "Topology rebuild, remesh, and detail-control workflows for sculpt sessions.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculptOptimization.ts",
+          "feature": "Dynamic topology, topology rebuild, and Rust sculpt manager."
+        },
+        {
+          "path": ".reference/sculpting/KSculpt.tsx",
+          "feature": "Dynamic topology controls and voxel or remesh behavior."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/tool_catalog.json",
+        "apps/kain-fabric-dcc-suite/src/topology_rebuild_step.kn",
+        "apps/kain-fabric-dcc-suite/src/native_sculpt_step.kn",
+        "apps/kain-fabric-dcc-suite/src/mesh_subdivision_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "fabric_orchestration_lane",
+        "gpu_compute_lane",
+        "native_c_abi_lane",
+        "rust_analysis_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "scenario:sculpt.dynamic-topology"
+      ],
+      "gap_summary": "Topology services and tools are staged, but the flagship sculpt lane is still below production mesh-sculpt depth."
+    },
+    {
+      "id": "sculpt.layers_and_material_preview",
+      "label": "Sculpt layers and material preview",
+      "domain": "sculpt",
+      "family": "presentation",
+      "summary": "Non-destructive sculpt strata, clay or PBR preview posture, and matcap-style look switching.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculptLayers.tsx",
+          "feature": "Layer stack and visibility."
+        },
+        {
+          "path": ".reference/sculpting/KSculptMatCaps.ts",
+          "feature": "Matcap catalog."
+        },
+        {
+          "path": ".reference/sculpting/KSculptRightPanel.tsx",
+          "feature": "Right-panel look and layer controls."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/shader_catalog.json",
+        "apps/kain-fabric-dcc-suite/config/ui_shell.json",
+        "apps/kain-fabric-dcc-suite/src/render_preview_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/material_deformation_surface_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "scenario:sculpt.preview-materials"
+      ],
+      "gap_summary": "The preview and panel seams exist, but there is no real sculpt-layer or matcap parity yet."
+    },
+    {
+      "id": "sculpt.transform_gizmo_and_export",
+      "label": "Sculpt transform posture and export",
+      "domain": "sculpt",
+      "family": "workflow",
+      "summary": "Transform or gizmo posture over sculpt targets plus geometry export receipts.",
+      "reference_sources": [
+        {
+          "path": ".reference/sculpting/KSculpt.tsx",
+          "feature": "Transform posture and export flow."
+        },
+        {
+          "path": ".reference/sculpting/KSculptTopBar.tsx",
+          "feature": "Top-level sculpt mode controls."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/gizmo_registry.json",
+        "apps/kain-fabric-dcc-suite/config/tool_catalog.json",
+        "apps/kain-fabric-dcc-suite/src/scene_exchange_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/mesh_uv_pack_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "fabric_orchestration_lane"
+      ],
+      "status": "partial",
+      "validation_hooks": [
+        "manual:sculpt export receipt walkthrough"
+      ],
+      "gap_summary": "Gizmo and export seams are real, but the flagship sculpt lane still lacks end-to-end KSculpt-grade export behavior."
+    },
+    {
+      "id": "painter.layer_stack",
+      "label": "Layered paint stack",
+      "domain": "painter",
+      "family": "painting",
+      "summary": "Layer ordering, visibility, opacity, and paint-session structure for the flagship painter lane.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosLayers.tsx",
+          "feature": "Painter layer list, visibility, opacity, and delete flow."
+        },
+        {
+          "path": ".reference/graphos/KGraphos.tsx",
+          "feature": "Layered painting workflow."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-canvas-forge/helpers/client/studio_app.tsx",
+        "apps/kain-fabric-dcc-suite/src/material_authoring_projection.kn",
+        "apps/kain-fabric-dcc-suite/config/ui_shell.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "node_bridge_lane"
+      ],
+      "status": "prototype",
+      "validation_hooks": [
+        "manual:apps/kain-canvas-forge layer workflow"
+      ],
+      "gap_summary": "Kain has a real layer prototype in the Node-first painter lane, but the flagship native painter lane does not yet own it."
+    },
+    {
+      "id": "painter.channel_authoring",
+      "label": "Material channel authoring",
+      "domain": "painter",
+      "family": "painting",
+      "summary": "Texture-set and channel-aware painting across albedo, normal, roughness, metalness, and emission surfaces.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosEngine.ts",
+          "feature": "Paint channels and material composition."
+        },
+        {
+          "path": ".reference/graphos/KGraphosMaterialDock.tsx",
+          "feature": "Material and channel controls."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/src/material_authoring_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/material_paint_runtime_projection.kn",
+        "apps/kain-fabric-dcc-suite/config/resource_kinds.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "scenario:painter.channel-authoring"
+      ],
+      "gap_summary": "The material lane owns channel-oriented receipts, but it is not yet a native painter runtime with live authoring semantics."
+    },
+    {
+      "id": "painter.alpha_maps_and_brush_presets",
+      "label": "Alpha maps and painter brush presets",
+      "domain": "painter",
+      "family": "painting",
+      "summary": "Painter brush presets, alpha maps, spacing, erase behavior, and brush-level controls.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosAlphaTab.tsx",
+          "feature": "Alpha import and custom brush saving."
+        },
+        {
+          "path": ".reference/graphos/KGraphosBrushMenu.tsx",
+          "feature": "Brush settings, spacing, angle, jitter, and erase."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-canvas-forge/helpers/client/studio_app.tsx",
+        "apps/kain-canvas-forge/manifests/brushes.json",
+        "apps/kain-fabric-dcc-suite/config/tool_catalog.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "node_bridge_lane"
+      ],
+      "status": "prototype",
+      "validation_hooks": [
+        "manual:apps/kain-canvas-forge brush preset walkthrough"
+      ],
+      "gap_summary": "The Node-first painter prototype proves brush preset seams, but flagship native parity is still missing."
+    },
+    {
+      "id": "painter.symmetry_modes",
+      "label": "Painter symmetry modes",
+      "domain": "painter",
+      "family": "painting",
+      "summary": "2D and 3D-aware symmetry for paint strokes, including X, Y, and radial variants.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphos.tsx",
+          "feature": "Painter symmetry modes including NONE, X, Y, and RADIAL."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-canvas-forge/helpers/client/studio_app.tsx",
+        "apps/kain-fabric-dcc-suite/src/material_paint_runtime_projection.kn",
+        "apps/kain-fabric-dcc-suite/config/viewport_modes.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "reference_only",
+      "validation_hooks": [
+        "scenario:painter.symmetry-modes"
+      ],
+      "gap_summary": "There is no dedicated parity-grade painter symmetry contract in the flagship native lane."
+    },
+    {
+      "id": "painter.generators_and_filters",
+      "label": "Painter generators and filters",
+      "domain": "painter",
+      "family": "effects",
+      "summary": "Registry-owned generators and filters such as noise, patterns, blur, levels, normal conversion, and posterize-style transforms.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosUI.tsx",
+          "feature": "Generator and filter tabs."
+        },
+        {
+          "path": ".reference/graphos/KGraphosEngine.ts",
+          "feature": "Painter engine filter and generator application."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/shader_catalog.json",
+        "apps/kain-fabric-dcc-suite/src/material_bake_step.kn",
+        "apps/kain-fabric-dcc-suite/src/material_paint_runtime_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/svg_material_mask_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "gpu_compute_lane",
+        "fabric_orchestration_lane"
+      ],
+      "status": "scaffolded",
+      "validation_hooks": [
+        "scenario:painter.generators-and-filters"
+      ],
+      "gap_summary": "Generator and filter seams exist in the material lane, but they are not yet exposed as a parity-grade native painter surface."
+    },
+    {
+      "id": "painter.simulation_effects",
+      "label": "Painter simulation effects",
+      "domain": "painter",
+      "family": "effects",
+      "summary": "Simulation-style paint effects such as drip, bleed, liquify, wind, vortex, erosion, or datamosh-style passes.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphos.tsx",
+          "feature": "Simulation effect family on paint data."
+        },
+        {
+          "path": ".reference/graphos/KGraphosEngine.ts",
+          "feature": "Simulation passes and effect pipeline."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/shader_catalog.json",
+        "apps/kain-fabric-dcc-suite/src/material_paint_runtime_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/compositor_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "gpu_compute_lane",
+        "fabric_orchestration_lane"
+      ],
+      "status": "reference_only",
+      "validation_hooks": [
+        "scenario:painter.simulation-effects"
+      ],
+      "gap_summary": "The flagship painter lane does not yet own simulation-style paint effects."
+    },
+    {
+      "id": "painter.live_3d_preview",
+      "label": "Live 3D painter preview",
+      "domain": "painter",
+      "family": "presentation",
+      "summary": "3D preview mode that binds current painter outputs to a preview material and updates as the artist works.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphos.tsx",
+          "feature": "2D and 3D mode toggle."
+        },
+        {
+          "path": ".reference/graphos/KGraphosEngine.ts",
+          "feature": "Material preview binding."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-canvas-forge/helpers/client/studio_app.tsx",
+        "apps/kain-fabric-dcc-suite/src/render_preview_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/material_deformation_surface_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "node_bridge_lane",
+        "gpu_compute_lane",
+        "kain_semantics_lane"
+      ],
+      "status": "prototype",
+      "validation_hooks": [
+        "manual:apps/kain-canvas-forge 3d preview"
+      ],
+      "gap_summary": "Kain has preview proofs, but the flagship native painter lane still needs a unified preview material contract."
+    },
+    {
+      "id": "painter.packed_texture_export",
+      "label": "Packed texture export",
+      "domain": "painter",
+      "family": "workflow",
+      "summary": "Packed texture-set export receipts and repeatable export presets for the painter or lookdev lane.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosUI.tsx",
+          "feature": "Export-facing UI posture."
+        },
+        {
+          "path": ".reference/graphos/KGraphosEngine.ts",
+          "feature": "Image export behavior."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/src/material_texture_export_projection.kn",
+        "apps/kain-fabric-dcc-suite/src/material_authoring_projection.kn",
+        "apps/kain-fabric-dcc-suite/config/asset_pipeline_manifest.json"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "fabric_orchestration_lane",
+        "gpu_compute_lane"
+      ],
+      "status": "partial",
+      "validation_hooks": [
+        "manual:packed texture export receipt walkthrough"
+      ],
+      "gap_summary": "The export receipt seam is real, but it is still lookdev-oriented rather than full KPainter parity."
+    },
+    {
+      "id": "painter.timeline_and_playback",
+      "label": "Painter timeline and playback",
+      "domain": "painter",
+      "family": "workflow",
+      "summary": "Timeline, playback, keyframes, and parameter animation for advanced painter behaviors.",
+      "reference_sources": [
+        {
+          "path": ".reference/graphos/KGraphosSequencer.tsx",
+          "feature": "Sequencer, playback, and frame controls."
+        },
+        {
+          "path": ".reference/graphos/KGraphos.tsx",
+          "feature": "Frame and playback-aware painter state."
+        }
+      ],
+      "kain_surfaces": [
+        "apps/kain-fabric-dcc-suite/config/workspace_modes.json",
+        "apps/kain-fabric-dcc-suite/session/session_schema.kn",
+        "apps/kain-fabric-dcc-suite/src/sim_tick_projection.kn"
+      ],
+      "runtime_lane_ids": [
+        "kain_semantics_lane",
+        "fabric_orchestration_lane"
+      ],
+      "status": "reference_only",
+      "validation_hooks": [
+        "scenario:painter.timeline-playback"
+      ],
+      "gap_summary": "The flagship painter lane has no dedicated timeline or playback contract yet."
+    }
+  ]
+}

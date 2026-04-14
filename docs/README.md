@@ -100,6 +100,7 @@ These files define the truth that the guides are derived from:
 | `crates/ue5-and-targets.md` | UE5 and target-adapter crates |
 | `examples/README.md` | Runnable `.kn` example ladder, validator, and manifest |
 | `reference/feature-matrix.md` | Coverage matrix for every major feature family |
+| `reference/dcc-parity-matrix.md` | Flagship KSculpt and KPainter parity inventory plus validator entrypoint |
 | `reference/command-matrix.md` | CLI command matrix and canonical command entrypoints |
 | `reference/target-matrix.md` | Compile targets, aliases, and output families |
 | `reference/troubleshooting.md` | Common failures and operator fixes |

@@ -146,6 +146,43 @@ $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | C
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
 $GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
 $UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
+$DccParityMatrix = Get-Content (Join-Path $AppRoot "config/dcc_parity_matrix.json") -Raw | ConvertFrom-Json
+$ParityCapabilities = @($DccParityMatrix.capabilities)
+$ParityDomainCounts = [ordered]@{}
+foreach ($parityCapability in $ParityCapabilities) {
+    if (-not $ParityDomainCounts.Contains($parityCapability.domain)) {
+        $ParityDomainCounts[$parityCapability.domain] = 0
+    }
+    $ParityDomainCounts[$parityCapability.domain] += 1
+}
+$ParityStatusCounts = [ordered]@{}
+foreach ($parityCapability in $ParityCapabilities) {
+    if (-not $ParityStatusCounts.Contains($parityCapability.parity_status)) {
+        $ParityStatusCounts[$parityCapability.parity_status] = 0
+    }
+    $ParityStatusCounts[$parityCapability.parity_status] += 1
+}
+$ParityDomainSummary = if ($ParityDomainCounts.Count -gt 0) {
+    ($ParityDomainCounts.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join " | "
+} else {
+    "n/a"
+}
+$ParityStatusSummary = if ($ParityStatusCounts.Count -gt 0) {
+    ($ParityStatusCounts.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join " | "
+} else {
+    "n/a"
+}
+$ParityMatrixSummary = [ordered]@{
+    matrix_id = $DccParityMatrix.matrix_id
+    schema_version = $DccParityMatrix.schema_version
+    path = "config/dcc_parity_matrix.json"
+    capability_count = $ParityCapabilities.Count
+    scenario_count = @($DccParityMatrix.validation_scenarios).Count
+    domain_counts = $ParityDomainCounts
+    status_counts = $ParityStatusCounts
+    domain_summary = $ParityDomainSummary
+    status_summary = $ParityStatusSummary
+}
 
 $LatestReport = Get-LatestFabricReport -ReportRoot (Join-Path $AppRoot ".kain/fabric/reports")
 $LatestFabricStatus = if ($null -eq $LatestReport) { "idle" } else { $LatestReport.status }
@@ -495,6 +532,7 @@ $RuntimeSnapshot = [ordered]@{
             runtime_packs = "config/runtime_packs.json"
             automation_jobs = "config/automation_jobs.json"
             gizmo_registry = "config/gizmo_registry.json"
+            dcc_parity_matrix = "config/dcc_parity_matrix.json"
             session_schema = "session/session_schema.kn"
             session_reducers = "session/reducers.kn"
             session_intent_planner = "session/intent_planner.kn"
@@ -514,6 +552,10 @@ $RuntimeSnapshot = [ordered]@{
         }
         report_store = $Reports
         automation_jobs = $Jobs
+        parity_matrix = $ParityMatrixSummary
+        parity_capability_count = $ParityMatrixSummary.capability_count
+        parity_status_summary = $ParityMatrixSummary.status_summary
+        parity_domain_summary = $ParityMatrixSummary.domain_summary
         intent_queue = $InitialIntentQueue
         latest_command = $null
         latest_fabric_run = [ordered]@{

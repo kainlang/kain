@@ -35,6 +35,7 @@ def main() -> None:
     snapshot_path = APP_ROOT / "state" / "runtime_snapshot.json"
     snapshot = json.loads(snapshot_path.read_text(encoding="utf-8")) if snapshot_path.exists() else {}
     dcc_state = snapshot.get("dcc_suite_state", {})
+    parity = dcc_state.get("parity_matrix", {})
 
     center_surface = next(
         (surface for surface in surfaces if surface.get("dock") == "center" and surface.get("kind") == "viewport3d"),
@@ -47,6 +48,8 @@ def main() -> None:
     fabric_status = dcc_state.get("latest_fabric_run", {}).get("status", snapshot.get("recent_sessions", [{}])[0].get("status", "idle"))
     command_count = len(commands)
     pack_count = len(runtime_packs)
+    parity_count = parity.get("capability_count", 0)
+    parity_status_summary = parity.get("status_summary", "reference_only=0")
 
     lines = [
         "component App():",
@@ -77,6 +80,8 @@ def main() -> None:
             '                <inspector title="Mode Summary">',
             text_line("                    ", "caption", "layout / model / sculpt / paint / lookdev / render"),
             text_line("                    ", "caption", "Bridge-backed session + runtime snapshot"),
+            text_line("                    ", "caption", f"parity capabilities: {parity_count}"),
+            text_line("                    ", "caption", f"parity status: {parity_status_summary}"),
             text_line("                    ", "caption", "Static shell path until Fabric graph is healthy"),
             "                </inspector>",
             "            </panel>",

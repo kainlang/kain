@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -133,6 +133,25 @@ def mode_registry_entries(viewport_modes: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def parity_matrix_summary(parity_matrix: dict[str, Any]) -> OrderedDict[str, Any]:
+    capabilities = parity_matrix["capabilities"]
+    domain_counts = OrderedDict(sorted(Counter(capability["domain"] for capability in capabilities).items()))
+    status_counts = OrderedDict(sorted(Counter(capability["parity_status"] for capability in capabilities).items()))
+    return OrderedDict(
+        [
+            ("matrix_id", parity_matrix["matrix_id"]),
+            ("schema_version", parity_matrix["schema_version"]),
+            ("path", "config/dcc_parity_matrix.json"),
+            ("capability_count", len(capabilities)),
+            ("scenario_count", len(parity_matrix["validation_scenarios"])),
+            ("domain_counts", domain_counts),
+            ("status_counts", status_counts),
+            ("domain_summary", " | ".join(f"{name}={count}" for name, count in domain_counts.items()) or "n/a"),
+            ("status_summary", " | ".join(f"{name}={count}" for name, count in status_counts.items()) or "n/a"),
+        ]
+    )
+
+
 def main() -> None:
     STATE_ROOT.mkdir(parents=True, exist_ok=True)
     NATIVE_APP_STATE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -154,6 +173,8 @@ def main() -> None:
     gizmo_registry = load_json("config/gizmo_registry.json")
     ui_shell = load_json("config/ui_shell.json")
     asset_pipeline = load_json("config/asset_pipeline_manifest.json")["asset_pipeline"]
+    dcc_parity_matrix = load_json("config/dcc_parity_matrix.json")
+    dcc_parity_summary = parity_matrix_summary(dcc_parity_matrix)
 
     latest_report = latest_fabric_report()
     latest_fabric_status = latest_report["status"] if latest_report else "idle"
@@ -703,6 +724,7 @@ def main() -> None:
                                     ("runtime_packs", "config/runtime_packs.json"),
                                     ("automation_jobs", "config/automation_jobs.json"),
                                     ("gizmo_registry", "config/gizmo_registry.json"),
+                                    ("dcc_parity_matrix", "config/dcc_parity_matrix.json"),
                                     ("session_schema", "session/session_schema.kn"),
                                     ("session_reducers", "session/reducers.kn"),
                                     ("session_intent_planner", "session/intent_planner.kn"),
@@ -729,6 +751,10 @@ def main() -> None:
                         ),
                         ("report_store", reports),
                         ("automation_jobs", jobs),
+                        ("parity_matrix", dcc_parity_summary),
+                        ("parity_capability_count", dcc_parity_summary["capability_count"]),
+                        ("parity_status_summary", dcc_parity_summary["status_summary"]),
+                        ("parity_domain_summary", dcc_parity_summary["domain_summary"]),
                         ("intent_queue", initial_intent_queue),
                         ("latest_command", None),
                         (

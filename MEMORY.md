@@ -116,6 +116,55 @@ Recommended next step:
   matrix with feature ids, source references, owners, and validation hooks
   before claiming additional sculpt or painter parity features.
 
+# 2026-04-14 - machine-readable DCC parity matrix landed for KSculpt and KPainter work
+
+The first implementation slice from the parity spec is now in the repo as a
+real app-owned registry instead of only prose.
+
+What changed:
+
+- Added `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json` as the
+  machine-readable flagship parity inventory for shared workbench, sculpt, and
+  painter capabilities.
+- Added `scripts/python/validate_dcc_parity_matrix.py` to enforce schema shape,
+  unique ids, valid enums, scenario references, and path existence for both
+  reference sources and current Kain surfaces.
+- Added `docs/reference/dcc-parity-matrix.md` as the operator-facing guide and
+  linked it from the docs index and feature matrix.
+- Threaded parity summary data into
+  `apps/kain-fabric-dcc-suite/scripts/materialize_session_state.py` and the
+  PowerShell materializer so runtime snapshots now carry capability-count and
+  status-summary metadata derived from the parity matrix.
+- Updated `apps/kain-fabric-dcc-suite/scripts/materialize_shell.py` so the
+  generated native shell can surface parity summary telemetry from the snapshot.
+
+Important behavior notes:
+
+- The parity matrix is intentionally honest about current state. Most sculpt and
+  advanced painter features are still `reference_only` or `scaffolded`, while a
+  smaller set of shared and material-lane features are `partial`.
+- `apps/kain-fabric-dcc-suite` is now the explicit machine-readable parity
+  destination as well as the architectural one; parity claims should update this
+  config before they update marketing-style prose.
+- Validation scenarios are tracked as ids even when the full scenario harness
+  has not been built yet. That keeps future automation and CI work anchored to
+  stable identifiers.
+
+Current risk:
+
+- The parity inventory is strong enough to drive implementation, but it is still
+  hand-curated. Drift remains possible until a broader scenario harness consumes
+  the validation-scenario ids directly.
+- The Linux materializer path now surfaces parity telemetry in the generated
+  shell, but the PowerShell shell materializer does not yet render dedicated
+  parity UI even though the snapshot carries the data.
+
+Recommended next step:
+
+- Execute the next spec task against the new matrix instead of prose:
+  promote Task 1.2 and then start Task 2.1 or 2.3 with capability ids pulled
+  directly from `dcc_parity_matrix.json`.
+
 # 2026-04-13 - Kain Flight Control MCP server added as a portable repo-native control plane
 
 The repo now has a local MCP sidecar under `tools/kain-flight-control/` so

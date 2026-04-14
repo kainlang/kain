@@ -11,7 +11,7 @@ The material lane now includes a painter-style PBR authoring contract with textu
 The scaffold is split into seven durable ownership layers:
 
 1. App registries
-`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, the shader catalog, and the universal UI theme plus workbench manifests.
+`config/*.json` defines workspace modes, surfaces, tools, universal gizmo profiles, commands, Fabric pipeline summaries, Fabric intent registry, resource kinds, report kinds, runtime packs, automation jobs, the shader catalog, the DCC parity matrix, and the universal UI theme plus workbench manifests.
 
 2. Session core
 `session/*.kn` defines the canonical session document, reducers, derived read models, command handler catalog, intent planner, and resource/report/job/workspace registries.
@@ -73,6 +73,7 @@ The scaffold is split into seven durable ownership layers:
 - `config/ui_theme.json`: semantic tokens, scopes, variants, and widget defaults for the universal studio shell, including authored workspace rails, status strips, property grids, and command surfaces.
 - `config/ui_shell.json`: workspace-page layout manifest with per-mode workbench composition and authored chrome blocks. The authored shell now leans harder into DCC language (`DCC Shell`, `Outliner Rail`, `Attributes Rail`, `Status Bar`, `Command Launcher`) so the native UI frame reads like a mounted workstation instead of a general app dashboard. The authored shell telemetry still includes `report_count` so report inventory stays visible at a glance.
 - `config/viewport_modes.json`: viewport-mode registry for layout, model, sculpt, paint, lookdev, and render. It keeps overlay policy, tool policy, and view-profile semantics data-driven so the viewport can change posture without host-side hardcoding, and the shell materializer now projects it into the live registry rail.
+- `config/dcc_parity_matrix.json`: machine-readable KSculpt and KPainter parity inventory with feature ids, baseline sources, owning subsystems, parity status, and validation-scenario ids.
 - The top-level workspace spine is now explicit as `Layout / Model / Sculpt / Paint / Lookdev / Rig / Animate / Sim / Render / Compositing / Publish`; keep those ids and tab labels aligned across `config/workspace_modes.json`, `session/workspace_registry.kn`, `session/ui_workbench_registry.kn`, `config/ui_shell.json`, and the startup workspace mode in `config/app_manifest.json`.
 - `session/derived_state.kn`: workspace and pipeline read models, now including a registry-backed runtime-lane count and compact lane summary so the shell can reflect lane ownership without hand-written prose.
 - `config/command_registry.json`: canonical command surface for operators, routing, automation, painter-style material authoring, export, shell navigation, and property-grid state changes.
@@ -106,6 +107,7 @@ The scaffold is split into seven durable ownership layers:
 - `scripts/materialize-shell.ps1`: data-driven shell materializer that projects the authored runtime lane registry into the live `runtime_lane_map` chrome surface.
 - `scripts/materialize-session-state.ps1`: runtime snapshot plus session-document materializer from config and latest Fabric report. It also seeds the bridge command queue.
 - `scripts/materialize_shell.py` + `scripts/materialize_session_state.py`: Linux-native materializers that seed the same generated shell and sidecar state without requiring PowerShell.
+- The materialized session/runtime state now also carries a parity summary derived from `config/dcc_parity_matrix.json`, so shell and tooling surfaces can consume capability inventory without reparsing docs.
 - `scripts/build-native-ui-linux.sh`: Linux bootstrap that builds `native/libdcc_suite_ops.so`, regenerates the shell/state sidecars, materializes `native-app/`, patches the generated launcher back into the checked-in bridge modules, and compiles the debug desktop binary.
 - `native-app/src/main.rs`: native launcher that resolves the live bridge sidecars and exports bridge env vars for `kain-ui-native`.
 - `native-app/src/runtime_bridge.rs`: background bridge loop that consumes JSONL commands, mutates the session document, rewrites the runtime snapshot, and mirrors state sidecars when both app and native-app copies exist.
@@ -149,6 +151,7 @@ The scaffold is split into seven durable ownership layers:
 - The shader catalog is intentionally broader than the currently scheduled Fabric steps. Some shader files are staged for near-term lane growth rather than being scheduled in every graph immediately.
 - The runtime pack registry is broad on purpose, but it is still manifest-owned metadata until downstream pack loaders and launchers consume it directly.
 - The explicit runtime-lane matrix now lives in `config/runtime_lanes.json`, so the app can declare which semantic lanes are owned by Kain, Fabric, GPU, C ABI, Rust, Python, or external Node bridges without leaving that mapping implicit in prose.
+- The explicit DCC parity matrix now lives in `config/dcc_parity_matrix.json`, so sculpt and painter parity claims have one durable machine-readable source of truth.
 - The next clean extension seam is to keep that registry flowing into live chrome, shell materialization, and bridge consumers as more runtime surfaces grow.
 
 ## Common Commands
@@ -159,6 +162,7 @@ From `M:/Code/Kain`:
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/build-native-library.ps1
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-shell.ps1
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-session-state.ps1
+python3 scripts/python/validate_dcc_parity_matrix.py
 cargo run -p cli --bin kain -- fabric validate --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml
 cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/build-native-ui.ps1
