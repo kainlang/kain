@@ -993,6 +993,20 @@ mod tests {
                 .get("primitive_library.resource_document_uri"),
             Some(&"mesh://primitives/authored/definitions".to_string())
         );
+        assert_eq!(
+            scene.metadata.get("primitive_library.definition_count"),
+            Some(&library.definitions.len().to_string())
+        );
+        assert_eq!(
+            scene
+                .metadata
+                .get("primitive_library.startup_primitive_display_name"),
+            Some(&"Startup Cube".to_string())
+        );
+        assert!(scene
+            .metadata
+            .get("primitive_library.definition_ids")
+            .is_some_and(|ids| ids.contains("hero-torus") && ids.contains("startup-cube")));
         assert!(scene.geometries.contains_key("hero-torus"));
         let description = scene.flatten().expect("scene should flatten");
         assert_eq!(description.instances.len(), 1);

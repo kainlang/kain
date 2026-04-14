@@ -25,8 +25,8 @@ pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
 pub use prelude::{emit_kain_prelude, reflected_type_registry};
 pub use primitive::{PrimitiveDefinition, PrimitiveLibrary, PrimitiveShape};
 pub use renderer::{
-    RenderBackend, RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
-    SoftwareRenderer, SoftwareRendererConfig,
+    FrameCameraSource, FrameDiagnostics, RenderBackend, RenderError, RenderFrame, RenderResolution,
+    RenderStats, RenderViewSettings, SoftwareRenderer, SoftwareRendererConfig,
 };
 pub use scene::{
     BackgroundGradient, BlackHole, Camera, CameraPose, DirectionalLight, LightingRig, Material,

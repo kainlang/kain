@@ -5,7 +5,8 @@ use kain_core::ShaderArtifactBundle;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::{
-    RenderBackend, RenderError, RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
+    FrameCameraSource, FrameDiagnostics, RenderBackend, RenderError, RenderFrame, RenderResolution,
+    RenderStats, RenderViewSettings,
 };
 use crate::shader_bundle::{
     default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,
@@ -876,7 +877,8 @@ impl RenderBackend for WgpuRenderer {
         let camera = if let Some(camera) = view.camera.as_ref() {
             camera
         } else {
-            default_camera_pose = scene.camera.pose_at(time_seconds);
+            let aspect_ratio = (resolution.width as f32 / resolution.height as f32).max(0.1);
+            default_camera_pose = scene.framed_camera_pose(time_seconds, aspect_ratio);
             &default_camera_pose
         };
         let ray = PickingRay::from_viewport_pixel(pixel_x, pixel_y, resolution, camera);
@@ -1143,7 +1145,8 @@ fn resolve_camera_pose(
     if let Some(camera) = view.camera.as_ref() {
         camera.clone()
     } else {
-        scene.camera.pose_at(time_seconds)
+        let aspect_ratio = (resolution.width as f32 / resolution.height as f32).max(0.1);
+        scene.framed_camera_pose(time_seconds, aspect_ratio)
     }
 }
 
@@ -1281,8 +1284,8 @@ fn orthonormal_basis(axis: Vec3) -> (Vec3, Vec3) {
     } else {
         Vec3::UP
     };
-    let basis_u = axis.cross(helper).normalize();
-    let basis_v = axis.cross(basis_u).normalize();
+    let basis_u = axis.cross(helper).normalized_or(Vec3::new(1.0, 0.0, 0.0));
+    let basis_v = axis.cross(basis_u).normalized_or(Vec3::UP);
     (basis_u, basis_v)
 }
 
@@ -1533,4 +1536,16 @@ mod tests {
         assert_eq!(aligned_bytes_per_row(260), 512);
         assert_eq!(aligned_bytes_per_row(1020), 1024);
     }
+}
+
+fn build_visible_instance_ids(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    view: &RenderViewSettings,
+) -> Vec<String> {
+    scene
+        .animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides)
+        .into_iter()
+        .map(|instance| instance.id)
+        .collect()
 }

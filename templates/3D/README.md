@@ -131,6 +131,7 @@ The template currently ships one authored workbench source and many manifest-der
 - core lane registration in [`engine_systems.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/engine_systems.kn)
 - render/runtime contracts in [`render_runtime.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/render_runtime.kn)
 - scene/selection/asset graph contracts in [`scene_runtime.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/scene_runtime.kn)
+- viewport contracts now carry explicit composition and framing policies in [`viewport_runtime.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn), so launchable viewports stay bound to scene summaries, bounds-driven fit, and aspect-aware camera policy instead of relying on renderer-local guesses
 - tensor/pipeline scheduling contracts in [`tensor_runtime.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/tensor_runtime.kn)
 - asset ingest/bake/export contracts in [`asset_pipeline.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/asset_pipeline.kn)
 - material/runtime graph contracts in [`material_runtime.kn`](M:/Templates/3D/src-kain/stdlib/three_d_runtime/material_runtime.kn)

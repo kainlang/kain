@@ -715,7 +715,10 @@ impl TypeScriptTransformer {
         let Some(name) = self.call_callee_name(call) else {
             return Ok(false);
         };
-        if matches!(name.as_str(), "useEffect" | "useLayoutEffect" | "useInsertionEffect") {
+        if matches!(
+            name.as_str(),
+            "useEffect" | "useLayoutEffect" | "useInsertionEffect"
+        ) {
             self.hoist_component_effect_hook(&name, call, methods)?;
             return Ok(true);
         }
@@ -2821,18 +2824,14 @@ mod tests {
         match &program.items[0] {
             Item::Component(component) => {
                 assert_eq!(component.state.len(), 1);
-                assert!(
-                    component
-                        .methods
-                        .iter()
-                        .any(|method| method.effects.contains(&Effect::Reactive))
-                );
-                assert!(
-                    transformer
-                        .diagnostics
-                        .iter()
-                        .any(|entry| entry.contains("dependency list"))
-                );
+                assert!(component
+                    .methods
+                    .iter()
+                    .any(|method| method.effects.contains(&Effect::Reactive)));
+                assert!(transformer
+                    .diagnostics
+                    .iter()
+                    .any(|entry| entry.contains("dependency list")));
             }
             other => panic!("expected component, got {:?}", other),
         }
