@@ -108,6 +108,7 @@ The scaffold is split into seven durable ownership layers:
 - `scripts/materialize-session-state.ps1`: runtime snapshot plus session-document materializer from config and latest Fabric report. It also seeds the bridge command queue.
 - `scripts/materialize_shell.py` + `scripts/materialize_session_state.py`: Linux-native materializers that seed the same generated shell and sidecar state without requiring PowerShell.
 - The materialized session/runtime state now also carries a parity summary derived from `config/dcc_parity_matrix.json`, so shell and tooling surfaces can consume capability inventory without reparsing docs.
+- `scripts/python/run_dcc_parity_harness.py`: executable scenario harness that proves the highest-priority shared, sculpt, and painter parity hooks against the live matrix.
 - `scripts/build-native-ui-linux.sh`: Linux bootstrap that builds `native/libdcc_suite_ops.so`, regenerates the shell/state sidecars, materializes `native-app/`, patches the generated launcher back into the checked-in bridge modules, and compiles the debug desktop binary.
 - `native-app/src/main.rs`: native launcher that resolves the live bridge sidecars and exports bridge env vars for `kain-ui-native`.
 - `native-app/src/runtime_bridge.rs`: background bridge loop that consumes JSONL commands, mutates the session document, rewrites the runtime snapshot, and mirrors state sidecars when both app and native-app copies exist.
@@ -163,6 +164,7 @@ powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/buil
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-shell.ps1
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/materialize-session-state.ps1
 python3 scripts/python/validate_dcc_parity_matrix.py
+python3 scripts/python/run_dcc_parity_harness.py
 cargo run -p cli --bin kain -- fabric validate --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml
 cargo run -p cli --bin kain -- fabric run --manifest apps/kain-fabric-dcc-suite/KAIN.fabric.toml
 powershell -ExecutionPolicy Bypass -File apps/kain-fabric-dcc-suite/scripts/build-native-ui.ps1

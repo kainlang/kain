@@ -134,16 +134,23 @@ def mode_registry_entries(viewport_modes: list[dict[str, Any]]) -> list[str]:
 
 
 def parity_matrix_summary(parity_matrix: dict[str, Any]) -> OrderedDict[str, Any]:
-    capabilities = parity_matrix["capabilities"]
-    domain_counts = OrderedDict(sorted(Counter(capability["domain"] for capability in capabilities).items()))
-    status_counts = OrderedDict(sorted(Counter(capability["parity_status"] for capability in capabilities).items()))
+    features = parity_matrix["features"]
+    scenario_count = sum(
+        1
+        for feature in features
+        for hook in feature.get("validation_hooks", [])
+        if hook.get("kind") == "scenario"
+    )
+    domain_counts = OrderedDict(sorted(Counter(feature["domain"] for feature in features).items()))
+    status_counts = OrderedDict(sorted(Counter(feature["status"] for feature in features).items()))
     return OrderedDict(
         [
             ("matrix_id", parity_matrix["matrix_id"]),
             ("schema_version", parity_matrix["schema_version"]),
             ("path", "config/dcc_parity_matrix.json"),
-            ("capability_count", len(capabilities)),
-            ("scenario_count", len(parity_matrix["validation_scenarios"])),
+            ("feature_count", len(features)),
+            ("capability_count", len(features)),
+            ("scenario_count", scenario_count),
             ("domain_counts", domain_counts),
             ("status_counts", status_counts),
             ("domain_summary", " | ".join(f"{name}={count}" for name, count in domain_counts.items()) or "n/a"),
@@ -256,6 +263,12 @@ def main() -> None:
             ("runtime_pack_registry_entries", runtime_packs),
             ("runtime_pack_count", len(runtime_packs)),
             ("runtime_pack_summary", runtime_pack_summary),
+            ("dcc_parity_matrix", "config/dcc_parity_matrix.json"),
+            ("parity_matrix", dcc_parity_summary),
+            ("parity_feature_count", dcc_parity_summary["feature_count"]),
+            ("parity_capability_count", dcc_parity_summary["capability_count"]),
+            ("parity_status_summary", dcc_parity_summary["status_summary"]),
+            ("parity_domain_summary", dcc_parity_summary["domain_summary"]),
             ("fabric_intent_registry_entries", intents),
             ("fabric_intent_count", len(intents)),
             ("fabric_intent_summary", intent_summary),

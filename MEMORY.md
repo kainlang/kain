@@ -139,7 +139,7 @@ What changed:
 Important behavior notes:
 
 - The matrix uses five status levels: `reference_only`, `scaffolded`,
-  `prototype`, `partial`, and `validated`.
+  `in_progress`, `implemented`, and `validated`.
 - The painter baseline is explicitly composite:
   `.reference/graphos/*` defines the legacy feature surface, while
   `apps/kain-canvas-forge/*` and `apps/kain-fabric-dcc-suite/*` provide the
@@ -160,6 +160,50 @@ Recommended next step:
   `scenario:*` hooks in the matrix into executable parity harness checks,
   starting with the shared native dev loop and the first sculpt and painter
   workflow slices.
+
+# 2026-04-14 - parity harness landed and the session materializers now consume the live matrix schema
+
+The first executable parity-harness layer is now in the repo, and the DCC
+session materializers no longer drift from the live parity-matrix schema.
+
+What changed:
+
+- Fixed `apps/kain-fabric-dcc-suite/scripts/materialize_session_state.py` and
+  `apps/kain-fabric-dcc-suite/scripts/materialize-session-state.ps1` so parity
+  summary data is derived from the current `features[]` and `status` fields
+  instead of the stale `capabilities` / `parity_status` schema.
+- Added `scripts/python/run_dcc_parity_harness.py` as the executable scenario
+  runner for the highest-priority shared, sculpt, and painter hooks in
+  `config/dcc_parity_matrix.json`.
+- Added `scripts/python/test_run_dcc_parity_harness.py` so two critical drift
+  risks are covered:
+  1. non-`reference_only` scenario hooks must have registered handlers,
+  2. parity summary generation must match the live matrix schema.
+- Updated the parity doc and architecture docs so the new harness is discoverable
+  alongside the validator.
+
+Important behavior notes:
+
+- The harness defaults to the active implementation set:
+  `scaffolded`, `in_progress`, `implemented`, and `validated` features.
+- Reference-only hooks are still part of the matrix, but they are excluded from
+  the default harness run unless `--include-reference-only` is used.
+- In-progress seams such as shared undo/redo and full painter brush symmetry now
+  report `pending` explicitly instead of pretending they are either complete or
+  absent.
+
+Current risk:
+
+- The harness currently proves the strongest structural seams and the shared
+  materializer path, not full artist-interaction playback. Cursor projection,
+  symmetry-rich sculpt strokes, and time-based painter behavior still need
+  deeper scenario coverage.
+
+Recommended next step:
+
+- Use the harness results to drive Task 1.2 and Task 2.3 next: lock the
+  flagship-app ownership rules in docs/config, then harden the native loop and
+  DCC state-restore scenarios until the shared layer is no longer the bottleneck.
 
 # 2026-04-14 - machine-readable DCC parity matrix landed for KSculpt and KPainter work
 

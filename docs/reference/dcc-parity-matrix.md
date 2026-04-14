@@ -75,6 +75,8 @@ Run the validator from the repo root:
 ```bash
 python3 scripts/python/validate_dcc_parity_matrix.py
 python3 scripts/python/test_validate_dcc_parity_matrix.py
+python3 scripts/python/run_dcc_parity_harness.py
+python3 scripts/python/test_run_dcc_parity_harness.py
 ```
 
 The validator checks:
@@ -87,6 +89,17 @@ The validator checks:
 - owner path existence
 - validation-hook shape and uniqueness
 - `app_manifest.json` wiring for the parity matrix
+
+The parity harness turns the highest-priority `scenario` hooks into executable
+checks.
+
+- By default it runs the non-`reference_only` scenarios, which is the useful
+  implementation set for active parity work.
+- It currently proves the shared workbench/materializer path, snapshot parity
+  summary round-tripping, and the strongest structural sculpt and painter seams.
+- `--strict` fails on `pending` scenarios as well as hard failures.
+- `--include-reference-only` expands the run to future-facing baseline features
+  that still need executable handlers.
 
 ## Update Rule
 

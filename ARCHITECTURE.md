@@ -78,6 +78,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
 - [docs/reference/dcc-parity-matrix.md](/M:/Code/Kain/docs/reference/dcc-parity-matrix.md): flagship KSculpt and KPainter parity inventory, baseline rules, and validation entrypoint
 - [scripts/python/validate_dcc_parity_matrix.py](/M:/Code/Kain/scripts/python/validate_dcc_parity_matrix.py): strict validator for the machine-readable parity inventory owned by `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
+- [scripts/python/run_dcc_parity_harness.py](/M:/Code/Kain/scripts/python/run_dcc_parity_harness.py): executable scenario harness for the highest-priority shared, sculpt, and painter parity hooks
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data, including the root `gen_server.kn` helper that layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives; `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
@@ -93,6 +94,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `docs/examples/README.md` is the operator-facing entrypoint for the runnable example ladder, and `docs/examples/examples_manifest.json` is the machine-readable source of truth for validation commands and coverage tags.
 - `docs/examples/validate_examples.py` is the canonical way to prove the local example ladder. Keep per-example validation metadata in the manifest rather than scattering it across prose pages.
 - `docs/reference/dcc-parity-matrix.md` is the canonical operator page for flagship KSculpt and KPainter parity, while `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json` is the machine-readable source of truth and `scripts/python/validate_dcc_parity_matrix.py` is the validator.
+- `scripts/python/run_dcc_parity_harness.py` is the executable scenario layer for the DCC parity program. Keep structural/shared scenario checks there instead of inventing ad-hoc one-off validation snippets.
 - `guides/pipelines/*` and `guides/ue5/*` are conceptual deep-dive pages for orchestration and Unreal-facing authoring. Keep the CLI pages focused on command syntax and keep the conceptual pages focused on data models, validation, and outputs.
 - `guides/syntax-and-semantics/functions-traits-and-impls.md` is the canonical chapter for function signatures, traits, and impl blocks.
 - `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, and `orchestrate`.
