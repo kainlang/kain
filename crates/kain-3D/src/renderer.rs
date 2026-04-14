@@ -59,6 +59,8 @@ pub struct FrameDiagnostics {
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
     pub scene_shape: Option<String>,
+    pub selected_instance_id: Option<String>,
+    pub manipulator_mode: Option<ManipulatorMode>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
 }
@@ -88,6 +90,8 @@ pub fn frame_diagnostics_for_scene(
     diagnostics.scene_shape = scene
         .bounds_with_overrides(time_seconds, &view.instance_transform_overrides)
         .map(|bounds| bounds.dominant_axis_label().to_string());
+    diagnostics.selected_instance_id = view.selected_instance_id.clone();
+    diagnostics.manipulator_mode = view.manipulator_mode;
     diagnostics
 }
 
@@ -1188,6 +1192,29 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("meshes"));
+        assert_eq!(frame.diagnostics.selected_instance_id.as_deref(), None);
+        assert_eq!(frame.diagnostics.manipulator_mode, None);
+    }
+
+    #[test]
+    fn frame_diagnostics_preserve_selection_and_manipulator_state() {
+        let scene = framed_camera_scene();
+        let view = RenderViewSettings {
+            selected_instance_id: Some("offset".to_string()),
+            manipulator_mode: Some(ManipulatorMode::Scale),
+            ..RenderViewSettings::default()
+        };
+
+        let diagnostics = frame_diagnostics_for_scene(
+            &scene,
+            0.0,
+            RenderResolution::new(320, 180),
+            &view,
+            FrameCameraSource::AutoFramed,
+        );
+
+        assert_eq!(diagnostics.selected_instance_id.as_deref(), Some("offset"));
+        assert_eq!(diagnostics.manipulator_mode, Some(ManipulatorMode::Scale));
     }
 
     #[test]

@@ -416,6 +416,13 @@ fn write_report(
         fs::create_dir_all(parent)?;
     }
 
+    let scene_shape = rendered_tiles
+        .first()
+        .and_then(|tile| tile.frame.diagnostics.scene_shape.clone());
+    let composition_summary = rendered_tiles
+        .first()
+        .and_then(|tile| tile.frame.diagnostics.composition_summary.clone());
+
     let report = json!({
         "date": "2026-04-11",
         "scene": config.scene_name,
@@ -429,6 +436,8 @@ fn write_report(
             },
         },
         "viewport_summary": viewport_summary,
+        "scene_shape": scene_shape,
+        "composition_summary": composition_summary,
         "output_image": config.output_image,
         "output_json": config.output_json,
         "canvas": {
@@ -461,6 +470,12 @@ fn write_report(
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
                     "scene_shape": tile.frame.diagnostics.scene_shape,
+                    "selected_instance_id": tile.frame.diagnostics.selected_instance_id,
+                    "manipulator_mode": tile.frame.diagnostics.manipulator_mode.as_ref().map(|mode| match mode {
+                        kain_3d::ManipulatorMode::Translate => "translate",
+                        kain_3d::ManipulatorMode::Rotate => "rotate",
+                        kain_3d::ManipulatorMode::Scale => "scale",
+                    }),
                     "visible_instances": tile.frame.diagnostics.visible_instances,
                     "culled_instances": tile.frame.diagnostics.culled_instances,
                 }
