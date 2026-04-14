@@ -55,6 +55,7 @@ pub enum FrameCameraSource {
 pub struct FrameDiagnostics {
     pub camera_source: Option<FrameCameraSource>,
     pub scene_name: Option<String>,
+    pub viewport_resolution: Option<[usize; 2]>,
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
     pub scene_shape: Option<String>,
@@ -73,6 +74,7 @@ pub fn frame_diagnostics_for_scene(
     let mut diagnostics = FrameDiagnostics::default();
     diagnostics.camera_source = Some(camera_source);
     diagnostics.scene_name = Some(scene.name.clone());
+    diagnostics.viewport_resolution = Some([resolution.width, resolution.height]);
     diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
     diagnostics.composition_summary = Some(
         scene
@@ -1179,6 +1181,7 @@ mod tests {
             frame.diagnostics.viewport_summary.as_deref(),
             Some("off-center scene that should auto-frame")
         );
+        assert_eq!(frame.diagnostics.viewport_resolution, Some([128, 128]));
         assert!(frame
             .diagnostics
             .composition_summary

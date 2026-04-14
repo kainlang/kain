@@ -32,6 +32,37 @@
 
 # MEMORY
 
+# 2026-04-14 - 3D frame diagnostics gained structured viewport resolution metadata
+
+The 3D renderer diagnostics path now carries a structured `viewport_resolution`
+field in `crates/kain-3D/src/renderer.rs`, and the material atrium smoke report
+writes that field into its JSON output.
+
+What changed:
+
+- Added `FrameDiagnostics.viewport_resolution: Option<[usize; 2]>`.
+- Populated it from the active render resolution inside the shared
+  `frame_diagnostics_for_scene(...)` helper.
+- Emitted the field in the material atrium smoke JSON report.
+- Added a renderer regression assertion that the default framed scene reports
+  the expected `[128, 128]` viewport.
+
+Why it matters:
+
+- Gives 3D tooling a stable numeric viewport shape instead of forcing it to
+  parse summary text.
+- Makes renderer/smoke metadata easier to compare across backends and scene
+  captures.
+
+Validation:
+
+- `cargo test -p kain-3d default_camera_auto_frames_off_center_scene -- --nocapture` was blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- `rustfmt crates/kain-3D/src/renderer.rs crates/kain-3D/src/bin/material_atrium_smoke.rs` completed successfully.
+
+Recommended next step:
+
+- Once the linker gap is cleared, run the focused renderer test and confirm the smoke JSON contains the new `viewport_resolution` field.
+
 # 2026-04-14 - 3D frame diagnostics gained a structured scene shape field
 
 The 3D frame diagnostics path now carries a structured `scene_shape` field in
@@ -2794,3 +2825,28 @@ Notes:
 =======
 - New Kain 3D pass (2026-04-14): unified 3D frame diagnostics across software and WGPU renderers by adding a shared `frame_diagnostics_for_scene(...)` helper. Both backends now emit scene name, viewport summary, composition summary, and camera-source metadata in `RenderFrame`, which makes backend comparisons and headless tooling easier. Validation is still blocked by the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 >>>>>>> fc43bb11 (Unify 3D frame diagnostics across renderers)
+
+## 2026-04-14 - 3D scene catalog now exposes a tool-friendly inventory
+
+The 3D crate picked up a small but high-leverage tooling improvement: scene catalogs now expose their canonical names and alias mappings, and the smoke binary reports the full inventory when a scene lookup fails. This makes 3D authoring/debugging less guessy for future agents and for any CLI or UI surface that wants to present available scenes.
+
+What changed:
+
+- `crates/kain-3D/src/scene.rs`
+  - Added `SceneCatalog::scene_names()` to return the canonical scene list.
+  - Added `SceneCatalog::scene_aliases()` to return alias-to-canonical mappings.
+- `crates/kain-3D/src/bin/material_atrium_smoke.rs`
+  - Improved the missing-scene error so it prints the available scenes and aliases instead of stopping at a bare resolution failure.
+
+Validation status:
+
+- Attempted `cargo test -p kain-3d`, but the local Windows GNU toolchain is still blocked by missing `-lgcc_eh` and `-lgcc` during linking.
+- Attempted a smoke run with `cargo run -p kain-3d --bin material_atrium_smoke -- --scene renderer_atrium ...`, but it hit the same linker gap before execution.
+
+Current risk:
+
+- The code change is straightforward, but the repo cannot complete a fresh Rust build in this environment until the Windows GNU linker/toolchain issue is fixed.
+
+Recommended next step:
+
+- Fix the Windows GNU toolchain linkage, then rerun the `kain-3d` test/smoke pass to confirm the new inventory path and the alias-scene smoke path end-to-end.

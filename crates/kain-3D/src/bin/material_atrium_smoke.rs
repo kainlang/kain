@@ -44,8 +44,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let catalog = SceneCatalog::default();
     let resolved_scene = catalog.resolve_scene(&config.scene_name).ok_or_else(|| {
         format!(
-            "scene `{}` is not registered in SceneCatalog::default()",
-            config.scene_name
+            "scene `{}` is not registered in SceneCatalog::default(); available scenes: {}; aliases: {}",
+            config.scene_name,
+            catalog.scene_names().join(", "),
+            catalog
+                .scene_aliases()
+                .into_iter()
+                .map(|(alias, canonical)| format!("{alias}->{canonical}"))
+                .collect::<Vec<_>>()
+                .join(", ")
         )
     })?;
     let scene = resolved_scene.scene;
@@ -450,6 +457,7 @@ fn write_report(
                         kain_3d::FrameCameraSource::AutoFramed => "auto_framed",
                     }),
                     "scene_name": tile.frame.diagnostics.scene_name,
+                    "viewport_resolution": tile.frame.diagnostics.viewport_resolution,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
                     "scene_shape": tile.frame.diagnostics.scene_shape,
