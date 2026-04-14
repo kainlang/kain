@@ -5,8 +5,8 @@ use kain_core::ShaderArtifactBundle;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::{
-    FrameCameraSource, FrameDiagnostics, RenderBackend, RenderError, RenderFrame, RenderResolution,
-    RenderStats, RenderViewSettings,
+    frame_diagnostics_for_scene, FrameCameraSource, FrameDiagnostics, RenderBackend, RenderError,
+    RenderFrame, RenderResolution, RenderStats, RenderViewSettings,
 };
 use crate::shader_bundle::{
     default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,
@@ -707,6 +707,13 @@ impl WgpuRenderer {
             height: resolution.height,
             rgba,
             stats,
+            diagnostics: frame_diagnostics_for_scene(
+                scene,
+                time_seconds,
+                resolution,
+                view,
+                FrameCameraSource::ExplicitView,
+            ),
         })
     }
 
