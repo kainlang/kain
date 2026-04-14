@@ -28,6 +28,85 @@ pub struct CameraPose {
     pub far_plane: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SceneBounds {
+    pub center: Vec3,
+    pub half_extents: Vec3,
+}
+
+impl SceneBounds {
+    pub fn radius(&self) -> f32 {
+        self.half_extents.length()
+    }
+}
+
+fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
+    let radius = radius.max(0.0);
+    let local_min = center - Vec3::new(radius, radius, radius);
+    let local_max = center + Vec3::new(radius, radius, radius);
+    min.x = min.x.min(local_min.x);
+    min.y = min.y.min(local_min.y);
+    min.z = min.z.min(local_min.z);
+    max.x = max.x.max(local_max.x);
+    max.y = max.y.max(local_max.y);
+    max.z = max.z.max(local_max.z);
+}
+
+fn framed_camera_distance(bounds: SceneBounds, fov_y_degrees: f32) -> f32 {
+    let radius = bounds.radius().max(0.001);
+    let half_fov_radians = (fov_y_degrees.to_radians() * 0.5).clamp(0.2, 1.3);
+    let fit_distance = radius / half_fov_radians.tan();
+    fit_distance.max(radius * 2.0) + radius * 0.35
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneCompositionSummary {
+    pub mesh_count: usize,
+    pub material_count: usize,
+    pub instance_count: usize,
+    pub animation_count: usize,
+    pub particle_emitter_count: usize,
+    pub terrain_surface_count: usize,
+    pub has_black_hole: bool,
+    pub bounds: Option<SceneBounds>,
+}
+
+impl SceneCompositionSummary {
+    pub fn brief_label(&self) -> String {
+        let mut parts = vec![
+            format!("{} meshes", self.mesh_count),
+            format!("{} materials", self.material_count),
+            format!("{} instances", self.instance_count),
+        ];
+
+        if self.animation_count > 0 {
+            parts.push(format!("{} anims", self.animation_count));
+        }
+        if self.particle_emitter_count > 0 {
+            parts.push(format!("{} emitters", self.particle_emitter_count));
+        }
+        if self.terrain_surface_count > 0 {
+            parts.push(format!("{} terrains", self.terrain_surface_count));
+        }
+        if self.has_black_hole {
+            parts.push("black hole".to_string());
+        }
+
+        let bounds = self
+            .bounds
+            .map(|bounds| format!("bounds r{:.2}", bounds.radius()))
+            .unwrap_or_else(|| "unbounded".to_string());
+
+        format!("{} | {}", parts.join(", "), bounds)
+    }
+}
+
+impl std::fmt::Display for SceneCompositionSummary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.brief_label())
+    }
+}
+
 impl CameraPose {
     pub fn forward(&self) -> Vec3 {
         (self.target - self.position).normalize()
@@ -160,6 +239,22 @@ impl ParticleEmitter {
             axis
         }
     }
+
+    pub fn bounds(&self) -> SceneBounds {
+        let radial_radius = self.radial_range[0].abs().max(self.radial_range[1].abs());
+        let vertical_radius = self.vertical_range[0].abs().max(self.vertical_range[1].abs());
+        let particle_radius = self.particle_size_range[0]
+            .abs()
+            .max(self.particle_size_range[1].abs());
+        let radius = radial_radius
+            .max(vertical_radius)
+            .max(particle_radius)
+            + self.drift.length();
+        SceneBounds {
+            center: self.center,
+            half_extents: Vec3::new(radius, radius, radius),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -274,6 +369,112 @@ impl SceneDescription {
             .iter()
             .filter_map(|surface| surface.height_at_world_position(world_position, time_seconds))
             .max_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal))
+    }
+
+    pub fn bounds(&self, time_seconds: f32) -> Option<SceneBounds> {
+        let mut min = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
+        let mut max = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+        let mut found = false;
+
+        for instance in self.animated_instances(time_seconds) {
+            if let Some(mesh) = self.resolved_mesh(&instance.mesh, time_seconds) {
+                for vertex in &mesh.vertices {
+                    let world = instance.transform.transform_point(vertex.position);
+                    min.x = min.x.min(world.x);
+                    min.y = min.y.min(world.y);
+                    min.z = min.z.min(world.z);
+                    max.x = max.x.max(world.x);
+                    max.y = max.y.max(world.y);
+                    max.z = max.z.max(world.z);
+                    found = true;
+                }
+            }
+        }
+
+        for surface in &self.terrain_surfaces {
+            let center = surface.center;
+            let half_extents = surface.half_extents;
+            let local_min = Vec3::new(
+                center.x - half_extents.x,
+                center.y
+                    - surface.height_amplitude.abs()
+                    - surface.caldera_depth.abs()
+                    - surface.rim_strength.abs(),
+                center.z - half_extents.z,
+            );
+            let local_max = Vec3::new(
+                center.x + half_extents.x,
+                center.y
+                    + surface.height_amplitude.abs()
+                    + surface.caldera_depth.abs()
+                    + surface.rim_strength.abs(),
+                center.z + half_extents.z,
+            );
+            min.x = min.x.min(local_min.x);
+            min.y = min.y.min(local_min.y);
+            min.z = min.z.min(local_min.z);
+            max.x = max.x.max(local_max.x);
+            max.y = max.y.max(local_max.y);
+            max.z = max.z.max(local_max.z);
+            found = true;
+        }
+
+        for emitter in &self.particle_emitters {
+            let emitter_bounds = emitter.bounds();
+            expand_bounds_with_sphere(
+                &mut min,
+                &mut max,
+                emitter_bounds.center,
+                emitter_bounds.radius(),
+            );
+            found = true;
+        }
+
+        if let Some(black_hole) = &self.black_hole {
+            let radius = black_hole.radius.max(black_hole.lens_radius);
+            expand_bounds_with_sphere(&mut min, &mut max, black_hole.center, radius);
+            found = true;
+        }
+
+        if !found {
+            return None;
+        }
+
+        Some(SceneBounds {
+            center: (min + max) * 0.5,
+            half_extents: (max - min) * 0.5,
+        })
+    }
+
+    pub fn framed_camera_pose(&self, time_seconds: f32) -> CameraPose {
+        let bounds = self.bounds(time_seconds);
+        if let Some(bounds) = bounds {
+            let radius = bounds.radius().max(0.001);
+            let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees);
+            CameraPose {
+                position: bounds.center + Vec3::new(distance, radius * 0.65 + 0.001, distance),
+                target: bounds.center,
+                up: Vec3::UP,
+                fov_y_degrees: self.camera.fov_y_degrees,
+                near_plane: self.camera.near_plane,
+                far_plane: self.camera.far_plane,
+            }
+        } else {
+            self.camera.pose_at(time_seconds)
+        }
+    }
+
+    pub fn composition_summary(&self, time_seconds: f32) -> SceneCompositionSummary {
+        SceneCompositionSummary {
+            mesh_count: self.meshes.len(),
+            material_count: self.materials.len(),
+            instance_count: self.instances.len(),
+            animation_count: self.animations.len(),
+            particle_emitter_count: self.particle_emitters.len(),
+            terrain_surface_count: self.terrain_surfaces.len(),
+            has_black_hole: self.black_hole.is_some(),
+            bounds: self.bounds(time_seconds),
+        }
     }
 }
 
@@ -2465,5 +2666,111 @@ mod tests {
             .find(|instance| instance.id == "terrain_body")
             .expect("terrain body should still exist");
         assert_eq!(terrain_body.transform.translation, Vec3::new(3.0, 4.0, 5.0));
+    }
+
+    #[test]
+    fn scene_bounds_and_framed_camera_follow_scene_composition() {
+        let catalog = SceneCatalog::default();
+        let scene = catalog
+            .scene("material_atrium")
+            .expect("material atrium scene should be registered");
+
+        let bounds = scene.bounds(0.0).expect("scene should produce bounds");
+        assert!(bounds.center.length() > 0.0 || bounds.half_extents.length() > 0.0);
+        assert!(bounds.radius() > 0.0);
+
+        let framed = scene.framed_camera_pose(0.0);
+        assert_eq!(framed.target, bounds.center);
+        assert!(framed.position.distance(bounds.center) > bounds.radius());
+        assert_eq!(framed.up, Vec3::UP);
+
+        let summary = scene.composition_summary(0.0);
+        assert_eq!(summary.mesh_count, scene.meshes.len());
+        assert_eq!(summary.material_count, scene.materials.len());
+        assert_eq!(summary.instance_count, scene.instances.len());
+        assert_eq!(summary.animation_count, scene.animations.len());
+        assert_eq!(
+            summary.particle_emitter_count,
+            scene.particle_emitters.len()
+        );
+        assert_eq!(summary.terrain_surface_count, scene.terrain_surfaces.len());
+        assert_eq!(summary.has_black_hole, scene.black_hole.is_some());
+        assert_eq!(summary.bounds, Some(bounds));
+        assert!(summary.brief_label().contains("meshes"));
+        assert_eq!(summary.to_string(), summary.brief_label());
+    }
+
+    #[test]
+    fn framed_camera_distance_scales_with_field_of_view() {
+        let bounds = SceneBounds {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(2.0, 1.0, 3.0),
+        };
+
+        let wide = framed_camera_distance(bounds, 75.0);
+        let tight = framed_camera_distance(bounds, 30.0);
+
+        assert!(tight > wide);
+        assert!(wide > bounds.radius());
+    }
+
+    #[test]
+    fn particle_emitters_contribute_to_scene_bounds() {
+        let scene = SceneDescription {
+            name: "particle_bounds_scene".to_string(),
+            viewport_summary: "particle bounds regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.1, 0.1, 0.12),
+                bottom: ColorRgb::new(0.02, 0.02, 0.03),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.5,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 45.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::new(1.0, 1.0, 1.0),
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![],
+            animations: vec![],
+            particle_emitters: vec![ParticleEmitter {
+                id: "sparkfield".to_string(),
+                center: Vec3::new(10.0, 2.0, -3.0),
+                axis: Vec3::UP,
+                radial_range: [2.0, 4.0],
+                vertical_range: [1.0, 1.5],
+                particle_size_range: [0.2, 0.6],
+                particle_count: 64,
+                orbit_radians_per_second: 0.0,
+                swirl: 0.0,
+                drift: Vec3::new(0.5, 0.0, 0.0),
+                color_start: ColorRgb::new(1.0, 0.3, 0.2),
+                color_end: ColorRgb::new(1.0, 0.9, 0.4),
+                emissive_strength: 1.0,
+                softness: 1.0,
+                depth_test: true,
+            }],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let bounds = scene.bounds(0.0).expect("particle emitter should produce bounds");
+        assert!(bounds.center.x > 8.0);
+        assert!(bounds.center.y > 1.0);
+        assert!(bounds.center.z < -1.0);
+
+        let framed = scene.framed_camera_pose(0.0);
+        assert_eq!(framed.target, bounds.center);
+        assert!(framed.position.distance(bounds.center) > bounds.radius());
     }
 }
