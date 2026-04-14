@@ -163,6 +163,10 @@ impl SourceFormatter {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_patch(value)?);
             }
+            Item::Law(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
+                self.push_text(&mut output, &self.format_law(value)?);
+            }
             Item::Converge(value) => {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_converge(value)?);
@@ -319,6 +323,19 @@ impl SourceFormatter {
             &[],
             &value.params,
             value.return_type.as_ref(),
+            &[],
+        )?;
+        self.format_header_with_block(&signature, &value.body)
+    }
+
+    fn format_law(&self, value: &LawDef) -> KainResult<String> {
+        let signature = self.callable_signature(
+            "law",
+            value.visibility,
+            &value.name,
+            &[],
+            &value.params,
+            Some(&value.return_type),
             &[],
         )?;
         self.format_header_with_block(&signature, &value.body)

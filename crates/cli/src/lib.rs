@@ -19,6 +19,7 @@ pub mod import_typescript;
 pub mod llvm_native_stage;
 pub mod lsp;
 pub mod native_ui_build;
+pub mod native_ui_dev;
 pub mod omni;
 pub mod packager;
 pub mod repair;
@@ -68,6 +69,7 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn -c \"fn main(): ...\"      Run inline Kain code",
     "Get-Content script.kn | kn   Run piped Kain source",
     "kn <file.kn> --watch        Re-run on save for fast authoring",
+    "kn native-ui dev <file.kn>  Launch native desktop dev loop with hot reload",
     "kn run <file.kn>            Explicit interpret mode",
     "kn build <file.kn> -t rust  Generate Rust output",
     "kn fmt <file.kn>            Canonicalize Kain source",

@@ -10,6 +10,7 @@ use cli::import_typescript;
 use cli::llvm_native_stage;
 use cli::lsp;
 use cli::native_ui_build;
+use cli::native_ui_dev;
 use cli::omni;
 use cli::packager;
 use cli::repair::{self, DoctorRepairArgs};
@@ -248,6 +249,39 @@ enum BuildCommand {
 }
 
 #[derive(clap::Subcommand, Debug)]
+enum NativeUiCommand {
+    /// Launch a native desktop Kain app with watch + hot reload
+    Dev {
+        /// Input Kain UI source file
+        input: PathBuf,
+
+        /// Root component override
+        #[arg(long = "root")]
+        root_component: Option<String>,
+
+        /// Native app name / Cargo package name
+        #[arg(long)]
+        app_name: Option<String>,
+
+        /// Window title for the native host
+        #[arg(long)]
+        window_title: Option<String>,
+
+        /// Materialized project output directory
+        #[arg(long = "project-dir")]
+        project_dir: Option<PathBuf>,
+
+        /// Relative or absolute artifact directory inside the materialized project
+        #[arg(long = "artifact-dir")]
+        artifact_dir: Option<PathBuf>,
+
+        /// Build the generated app in release mode
+        #[arg(long)]
+        release: bool,
+    },
+}
+
+#[derive(clap::Subcommand, Debug)]
 enum Commands {
     /// Initialize a new KAIN project
     Init {
@@ -332,6 +366,13 @@ enum Commands {
         /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
         #[arg(long)]
         embed: bool,
+    },
+
+    /// Native desktop app workflows
+    #[command(name = "native-ui")]
+    NativeUi {
+        #[command(subcommand)]
+        command: NativeUiCommand,
     },
 
     /// Run a file (explicit command)
@@ -1749,6 +1790,42 @@ fn main() {
                         }
                     }
                 }
+                Some(Commands::NativeUi { command }) => match command {
+                    NativeUiCommand::Dev {
+                        input,
+                        root_component,
+                        app_name,
+                        window_title,
+                        project_dir,
+                        artifact_dir,
+                        release,
+                    } => {
+                        let build = native_ui_build::NativeUiBuildConfig {
+                            root_component,
+                            window_title,
+                            app_name,
+                            project_dir,
+                            artifact_output_dir: artifact_dir
+                                .unwrap_or_else(|| PathBuf::from("generated")),
+                            build_executable: true,
+                            release,
+                            runtime_dependency:
+                                native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath,
+                            ..Default::default()
+                        };
+                        let config = match native_ui_dev::NativeUiDevConfig::new(input, build) {
+                            Ok(config) => config,
+                            Err(err) => {
+                                eprintln!(" Native UI dev failed: {}", err);
+                                std::process::exit(1);
+                            }
+                        };
+                        if let Err(err) = native_ui_dev::run_native_ui_dev(config) {
+                            eprintln!(" Native UI dev failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                },
                 Some(Commands::Run { input }) => {
                     run_compile(
                         &input,
