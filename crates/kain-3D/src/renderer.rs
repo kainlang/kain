@@ -61,6 +61,30 @@ pub struct FrameDiagnostics {
     pub culled_instances: Vec<String>,
 }
 
+pub fn frame_diagnostics_for_scene(
+    scene: &SceneDescription,
+    time_seconds: f32,
+    resolution: RenderResolution,
+    view: &RenderViewSettings,
+    camera_source: FrameCameraSource,
+) -> FrameDiagnostics {
+    let aspect_ratio = resolution.width as f32 / resolution.height as f32;
+    let mut diagnostics = FrameDiagnostics::default();
+    diagnostics.camera_source = Some(camera_source);
+    diagnostics.scene_name = Some(scene.name.clone());
+    diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
+    diagnostics.composition_summary = Some(
+        scene
+            .composition_summary_with_overrides_and_aspect_ratio(
+                time_seconds,
+                &view.instance_transform_overrides,
+                aspect_ratio,
+            )
+            .brief_label(),
+    );
+    diagnostics
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RenderStats {
     pub triangles_submitted: usize,
@@ -251,7 +275,13 @@ impl SoftwareRenderer {
         let rgba = &mut self.scratch_rgba;
         let depth = &mut self.scratch_depth;
         let mut stats = RenderStats::default();
-        let mut diagnostics = FrameDiagnostics::default();
+        let mut diagnostics = frame_diagnostics_for_scene(
+            scene,
+            time_seconds,
+            resolution,
+            view,
+            FrameCameraSource::AutoFramed,
+        );
 
         fill_background(
             rgba,
@@ -262,17 +292,6 @@ impl SoftwareRenderer {
         depth.fill(f32::INFINITY);
 
         let aspect_ratio = resolution.width as f32 / resolution.height as f32;
-        diagnostics.scene_name = Some(scene.name.clone());
-        diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
-        diagnostics.composition_summary = Some(
-            scene
-                .composition_summary_with_overrides_and_aspect_ratio(
-                    time_seconds,
-                    &view.instance_transform_overrides,
-                    aspect_ratio,
-                )
-                .brief_label(),
-        );
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
             diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);
