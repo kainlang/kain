@@ -42,6 +42,17 @@ impl SceneBounds {
     pub fn span(&self) -> Vec3 {
         self.half_extents * 2.0
     }
+
+    pub fn dominant_axis_label(&self) -> &'static str {
+        let extents = self.half_extents;
+        if extents.x >= extents.y && extents.x >= extents.z {
+            "wide"
+        } else if extents.y >= extents.z {
+            "tall"
+        } else {
+            "deep"
+        }
+    }
 }
 
 fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
@@ -112,11 +123,12 @@ impl SceneCompositionSummary {
             .map(|bounds| {
                 let span = bounds.span();
                 format!(
-                    "bounds r{:.2} span {:.2}×{:.2}×{:.2}",
+                    "bounds r{:.2} span {:.2}×{:.2}×{:.2} {}",
                     bounds.radius(),
                     span.x,
                     span.y,
-                    span.z
+                    span.z,
+                    bounds.dominant_axis_label()
                 )
             })
             .unwrap_or_else(|| "unbounded".to_string());
@@ -515,6 +527,14 @@ impl SceneDescription {
     }
 
     pub fn composition_summary(&self, time_seconds: f32) -> SceneCompositionSummary {
+        self.composition_summary_with_aspect_ratio(time_seconds, 1.0)
+    }
+
+    pub fn composition_summary_with_aspect_ratio(
+        &self,
+        time_seconds: f32,
+        aspect_ratio: f32,
+    ) -> SceneCompositionSummary {
         let bounds = self.bounds(time_seconds);
         SceneCompositionSummary {
             mesh_count: self.meshes.len(),
@@ -524,8 +544,9 @@ impl SceneDescription {
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
-            framed_camera_distance: bounds
-                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees, 1.0)),
+            framed_camera_distance: bounds.map(|bounds| {
+                framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
+            }),
             bounds,
         }
     }
@@ -534,6 +555,19 @@ impl SceneDescription {
         &self,
         time_seconds: f32,
         instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> SceneCompositionSummary {
+        self.composition_summary_with_overrides_and_aspect_ratio(
+            time_seconds,
+            instance_transform_overrides,
+            1.0,
+        )
+    }
+
+    pub fn composition_summary_with_overrides_and_aspect_ratio(
+        &self,
+        time_seconds: f32,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+        aspect_ratio: f32,
     ) -> SceneCompositionSummary {
         let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         SceneCompositionSummary {
@@ -544,8 +578,9 @@ impl SceneDescription {
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
-            framed_camera_distance: bounds
-                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees, 1.0)),
+            framed_camera_distance: bounds.map(|bounds| {
+                framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
+            }),
             bounds,
         }
     }
@@ -2835,9 +2870,67 @@ mod tests {
         assert!(summary.brief_label().contains("meshes"));
         assert!(summary.brief_label().contains("span"));
         assert!(summary.brief_label().contains("fit d"));
+        assert!(summary.brief_label().contains("deep"));
         assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
+    }
+
+    #[test]
+    fn composition_summary_uses_view_aspect_ratio_for_fit_distance() {
+        let bounds = SceneBounds {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(2.0, 1.0, 3.0),
+        };
+
+        let scene = SceneDescription {
+            name: "aspect_scene".to_string(),
+            viewport_summary: "aspect summary regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.1, 0.1, 0.12),
+                bottom: ColorRgb::new(0.02, 0.02, 0.03),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 50.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::WHITE,
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![SceneInstance {
+                id: "box".to_string(),
+                mesh: "box".to_string(),
+                material: "box".to_string(),
+                transform: Transform::identity(),
+            }],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let square = scene
+            .composition_summary_with_aspect_ratio(0.0, 1.0)
+            .framed_camera_distance
+            .expect("summary should include a framing distance");
+        let wide = scene
+            .composition_summary_with_aspect_ratio(0.0, 2.0)
+            .framed_camera_distance
+            .expect("summary should include a framing distance");
+
+        assert!(wide > square);
+        assert!(square > bounds.radius());
     }
 
     #[test]
