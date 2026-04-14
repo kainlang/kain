@@ -57,6 +57,7 @@ pub struct FrameDiagnostics {
     pub scene_name: Option<String>,
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
+    pub scene_shape: Option<String>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
 }
@@ -82,6 +83,9 @@ pub fn frame_diagnostics_for_scene(
             )
             .brief_label(),
     );
+    diagnostics.scene_shape = scene
+        .bounds_with_overrides(time_seconds, &view.instance_transform_overrides)
+        .map(|bounds| bounds.dominant_axis_label().to_string());
     diagnostics
 }
 

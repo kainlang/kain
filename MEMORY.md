@@ -32,6 +32,39 @@
 
 # MEMORY
 
+# 2026-04-14 - 3D frame diagnostics gained a structured scene shape field
+
+The 3D frame diagnostics path now carries a structured `scene_shape` field in
+`crates/kain-3D/src/renderer.rs`, and the material atrium smoke report writes
+that field into its JSON output. This keeps 3D tooling from having to parse the
+human-readable composition summary just to know whether a scene is wide, tall,
+or deep.
+
+What changed:
+
+- Added `FrameDiagnostics.scene_shape: Option<String>` and populated it from
+  `SceneBounds::dominant_axis_label()` when bounds are available.
+- Updated `crates/kain-3D/src/bin/material_atrium_smoke.rs` to emit the new
+  structured field in the report JSON.
+
+Why it matters:
+
+- Makes renderer/smoke metadata easier to consume programmatically.
+- Preserves the existing human-readable summary while giving tooling a stable
+  shape classification for layout and framing triage.
+
+Validation:
+
+- `cargo check -p kain-3d` is still blocked by the repo-local Windows GNU
+  linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- `cargo fmt --all --check` is still blocked by unrelated trailing whitespace in
+  `crates/ue5-shaders/src/validation.rs`.
+
+Recommended next step:
+
+- Once the linker/tooling blockers are cleared, add a focused smoke assertion
+  that the material atrium JSON report contains `scene_shape`.
+
 # 2026-04-14 - Node FFI Three.js space lab landed under labs
 
 The repo now has a minimal browser-side proof under

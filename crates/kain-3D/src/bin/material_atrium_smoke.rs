@@ -452,6 +452,7 @@ fn write_report(
                     "scene_name": tile.frame.diagnostics.scene_name,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "scene_shape": tile.frame.diagnostics.scene_shape,
                     "visible_instances": tile.frame.diagnostics.visible_instances,
                     "culled_instances": tile.frame.diagnostics.culled_instances,
                 }
