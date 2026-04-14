@@ -38,6 +38,10 @@ impl SceneBounds {
     pub fn radius(&self) -> f32 {
         self.half_extents.length()
     }
+
+    pub fn span(&self) -> Vec3 {
+        self.half_extents * 2.0
+    }
 }
 
 fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
@@ -57,6 +61,13 @@ fn framed_camera_distance(bounds: SceneBounds, fov_y_degrees: f32) -> f32 {
     let half_fov_radians = (fov_y_degrees.to_radians() * 0.5).clamp(0.2, 1.3);
     let fit_distance = radius / half_fov_radians.tan();
     fit_distance.max(radius * 2.0) + radius * 0.35
+}
+
+fn framed_camera_clip_planes(bounds: SceneBounds, distance: f32) -> (f32, f32) {
+    let radius = bounds.radius().max(0.001);
+    let near_plane = (distance - radius * 2.5).max(0.05);
+    let far_plane = (distance + radius * 2.5).max(near_plane + 1.0);
+    (near_plane, far_plane)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,7 +105,16 @@ impl SceneCompositionSummary {
 
         let bounds = self
             .bounds
-            .map(|bounds| format!("bounds r{:.2}", bounds.radius()))
+            .map(|bounds| {
+                let span = bounds.span();
+                format!(
+                    "bounds r{:.2} span {:.2}×{:.2}×{:.2}",
+                    bounds.radius(),
+                    span.x,
+                    span.y,
+                    span.z
+                )
+            })
             .unwrap_or_else(|| "unbounded".to_string());
 
         format!("{} | {}", parts.join(", "), bounds)
@@ -232,24 +252,18 @@ pub struct ParticleEmitter {
 
 impl ParticleEmitter {
     pub fn axis_or_up(&self) -> Vec3 {
-        let axis = self.axis.normalize();
-        if axis.length() <= f32::EPSILON {
-            Vec3::UP
-        } else {
-            axis
-        }
+        self.axis.normalized_or(Vec3::UP)
     }
 
     pub fn bounds(&self) -> SceneBounds {
         let radial_radius = self.radial_range[0].abs().max(self.radial_range[1].abs());
-        let vertical_radius = self.vertical_range[0].abs().max(self.vertical_range[1].abs());
+        let vertical_radius = self.vertical_range[0]
+            .abs()
+            .max(self.vertical_range[1].abs());
         let particle_radius = self.particle_size_range[0]
             .abs()
             .max(self.particle_size_range[1].abs());
-        let radius = radial_radius
-            .max(vertical_radius)
-            .max(particle_radius)
-            + self.drift.length();
+        let radius = radial_radius.max(vertical_radius).max(particle_radius) + self.drift.length();
         SceneBounds {
             center: self.center,
             half_extents: Vec3::new(radius, radius, radius),
@@ -372,11 +386,21 @@ impl SceneDescription {
     }
 
     pub fn bounds(&self, time_seconds: f32) -> Option<SceneBounds> {
+        self.bounds_with_overrides(time_seconds, &BTreeMap::new())
+    }
+
+    pub fn bounds_with_overrides(
+        &self,
+        time_seconds: f32,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> Option<SceneBounds> {
         let mut min = Vec3::new(f32::INFINITY, f32::INFINITY, f32::INFINITY);
         let mut max = Vec3::new(f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
         let mut found = false;
 
-        for instance in self.animated_instances(time_seconds) {
+        for instance in
+            self.animated_instances_with_overrides(time_seconds, instance_transform_overrides)
+        {
             if let Some(mesh) = self.resolved_mesh(&instance.mesh, time_seconds) {
                 for vertex in &mesh.vertices {
                     let world = instance.transform.transform_point(vertex.position);
@@ -447,16 +471,24 @@ impl SceneDescription {
     }
 
     pub fn framed_camera_pose(&self, time_seconds: f32) -> CameraPose {
-        let bounds = self.bounds(time_seconds);
+        self.framed_camera_pose_with_overrides(time_seconds, &BTreeMap::new())
+    }
+
+    pub fn framed_camera_pose_with_overrides(
+        &self,
+        time_seconds: f32,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> CameraPose {
+        let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         if let Some(bounds) = bounds {
             let radius = bounds.radius().max(0.001);
             let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees);
+            let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
             let half_extents = bounds.half_extents;
-            let dominant_horizontal_extent = half_extents.x.max(half_extents.z).max(0.001);
             let framing_direction = Vec3::new(
-                dominant_horizontal_extent,
-                half_extents.y * 0.75 + radius * 0.15,
-                dominant_horizontal_extent,
+                half_extents.x.max(0.001),
+                (half_extents.y * 1.2 + radius * 0.1).max(0.001),
+                half_extents.z.max(0.001),
             )
             .normalize();
             CameraPose {
@@ -464,8 +496,8 @@ impl SceneDescription {
                 target: bounds.center,
                 up: Vec3::UP,
                 fov_y_degrees: self.camera.fov_y_degrees,
-                near_plane: self.camera.near_plane,
-                far_plane: self.camera.far_plane,
+                near_plane,
+                far_plane,
             }
         } else {
             self.camera.pose_at(time_seconds)
@@ -482,6 +514,23 @@ impl SceneDescription {
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
             bounds: self.bounds(time_seconds),
+        }
+    }
+
+    pub fn composition_summary_with_overrides(
+        &self,
+        time_seconds: f32,
+        instance_transform_overrides: &BTreeMap<String, Transform>,
+    ) -> SceneCompositionSummary {
+        SceneCompositionSummary {
+            mesh_count: self.meshes.len(),
+            material_count: self.materials.len(),
+            instance_count: self.instances.len(),
+            animation_count: self.animations.len(),
+            particle_emitter_count: self.particle_emitters.len(),
+            terrain_surface_count: self.terrain_surfaces.len(),
+            has_black_hole: self.black_hole.is_some(),
+            bounds: self.bounds_with_overrides(time_seconds, instance_transform_overrides),
         }
     }
 }
@@ -575,6 +624,20 @@ pub struct SceneCatalog {
     pub scene_aliases: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SceneResolutionKind {
+    Exact,
+    Alias { alias: String },
+    Default { requested: String },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SceneResolution {
+    pub requested_name: String,
+    pub resolved_name: String,
+    pub kind: SceneResolutionKind,
+}
+
 impl Default for SceneCatalog {
     fn default() -> Self {
         let dcc_suite_scene = build_dcc_suite_scene();
@@ -628,15 +691,54 @@ impl Default for SceneCatalog {
 
 impl SceneCatalog {
     pub fn scene(&self, name: &str) -> Option<&SceneDescription> {
-        self.scenes
-            .get(name)
-            .or_else(|| {
-                self.scene_aliases
-                    .get(name)
-                    .and_then(|canonical| self.scenes.get(canonical))
-            })
-            .or_else(|| self.scenes.get(&self.default_scene))
+        self.resolve_scene(name).map(|resolution| resolution.scene)
     }
+
+    pub fn resolve_scene(&self, name: &str) -> Option<ResolvedScene<'_>> {
+        if let Some(scene) = self.scenes.get(name) {
+            return Some(ResolvedScene {
+                scene,
+                resolution: SceneResolution {
+                    requested_name: name.to_string(),
+                    resolved_name: scene.name.clone(),
+                    kind: SceneResolutionKind::Exact,
+                },
+            });
+        }
+
+        if let Some(canonical) = self.scene_aliases.get(name) {
+            if let Some(scene) = self.scenes.get(canonical) {
+                return Some(ResolvedScene {
+                    scene,
+                    resolution: SceneResolution {
+                        requested_name: name.to_string(),
+                        resolved_name: scene.name.clone(),
+                        kind: SceneResolutionKind::Alias {
+                            alias: name.to_string(),
+                        },
+                    },
+                });
+            }
+        }
+
+        self.scenes
+            .get(&self.default_scene)
+            .map(|scene| ResolvedScene {
+                scene,
+                resolution: SceneResolution {
+                    requested_name: name.to_string(),
+                    resolved_name: scene.name.clone(),
+                    kind: SceneResolutionKind::Default {
+                        requested: name.to_string(),
+                    },
+                },
+            })
+    }
+}
+
+pub struct ResolvedScene<'a> {
+    pub scene: &'a SceneDescription,
+    pub resolution: SceneResolution,
 }
 
 fn build_dcc_suite_scene() -> SceneDescription {
@@ -2590,6 +2692,9 @@ mod tests {
     #[test]
     fn default_catalog_contains_black_hole_scene() {
         let catalog = SceneCatalog::default();
+        let resolved_alias = catalog
+            .resolve_scene("renderer_atrium")
+            .expect("renderer atrium alias should resolve explicitly");
         let dcc_suite_scene = catalog
             .scene("dcc_suite_scene")
             .expect("dcc suite startup scene should be registered");
@@ -2637,6 +2742,12 @@ mod tests {
         assert_eq!(starforge_alias_scene.name, "luminous_port");
         assert_eq!(atrium_alias_scene.name, "material_atrium");
         assert_eq!(dcc_alias_scene.name, "dcc_suite_scene");
+        assert_eq!(resolved_alias.resolution.requested_name, "renderer_atrium");
+        assert_eq!(resolved_alias.resolution.resolved_name, "material_atrium");
+        assert!(matches!(
+            resolved_alias.resolution.kind,
+            SceneResolutionKind::Alias { .. }
+        ));
         assert_eq!(magma_scene.name, "magma_terraces");
         assert_eq!(material_atrium_scene.name, "material_atrium");
         assert!(material_atrium_scene.instances.len() >= 8);
@@ -2706,7 +2817,79 @@ mod tests {
         assert_eq!(summary.has_black_hole, scene.black_hole.is_some());
         assert_eq!(summary.bounds, Some(bounds));
         assert!(summary.brief_label().contains("meshes"));
+        assert!(summary.brief_label().contains("span"));
         assert_eq!(summary.to_string(), summary.brief_label());
+        assert_eq!(bounds.span(), bounds.half_extents * 2.0);
+    }
+
+    #[test]
+    fn framed_camera_prefers_vertical_space_for_tall_scenes() {
+        let scene = SceneDescription {
+            name: "tall_scene".to_string(),
+            viewport_summary: "tall scene framing regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.08, 0.08, 0.12),
+                bottom: ColorRgb::new(0.01, 0.01, 0.02),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 50.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::WHITE,
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let overrides = BTreeMap::from([(
+            "tower".to_string(),
+            Transform::identity().with_translation(Vec3::new(0.0, 20.0, 0.0)),
+        )]);
+
+        let framed = scene.framed_camera_pose_with_overrides(0.0, &overrides);
+        assert!(
+            framed.position.y > 20.0,
+            "camera should rise above the tall scene center"
+        );
+        assert_eq!(framed.up, Vec3::UP);
+    }
+
+    #[test]
+    fn scene_bounds_and_framed_camera_respect_instance_overrides() {
+        let catalog = SceneCatalog::default();
+        let scene = catalog
+            .scene("material_atrium")
+            .expect("material atrium scene should be registered");
+        let mut overrides = BTreeMap::new();
+        overrides.insert(
+            "central_orb".to_string(),
+            Transform::identity().with_translation(Vec3::new(42.0, 8.0, -15.0)),
+        );
+
+        let bounds = scene
+            .bounds_with_overrides(0.0, &overrides)
+            .expect("override scene should still produce bounds");
+        assert!(bounds.center.x > 0.0);
+        assert!(bounds.center.y > 0.0);
+
+        let framed = scene.framed_camera_pose_with_overrides(0.0, &overrides);
+        assert_eq!(framed.target, bounds.center);
+        assert!(framed.position.distance(bounds.center) > bounds.radius());
     }
 
     #[test]
@@ -2721,6 +2904,20 @@ mod tests {
 
         assert!(tight > wide);
         assert!(wide > bounds.radius());
+    }
+
+    #[test]
+    fn framed_camera_clip_planes_expand_with_bounds() {
+        let bounds = SceneBounds {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(4.0, 2.0, 6.0),
+        };
+        let distance = framed_camera_distance(bounds, 60.0);
+        let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
+
+        assert!(near_plane >= 0.05);
+        assert!(far_plane > near_plane);
+        assert!(far_plane > distance);
     }
 
     #[test]
@@ -2773,7 +2970,9 @@ mod tests {
             terrain_surfaces: vec![],
         };
 
-        let bounds = scene.bounds(0.0).expect("particle emitter should produce bounds");
+        let bounds = scene
+            .bounds(0.0)
+            .expect("particle emitter should produce bounds");
         assert!(bounds.center.x > 8.0);
         assert!(bounds.center.y > 1.0);
         assert!(bounds.center.z < -1.0);
@@ -2781,5 +2980,28 @@ mod tests {
         let framed = scene.framed_camera_pose(0.0);
         assert_eq!(framed.target, bounds.center);
         assert!(framed.position.distance(bounds.center) > bounds.radius());
+    }
+
+    #[test]
+    fn particle_emitter_axis_falls_back_for_zero_length_vectors() {
+        let emitter = ParticleEmitter {
+            id: "zero_axis".to_string(),
+            center: Vec3::ZERO,
+            axis: Vec3::ZERO,
+            radial_range: [0.0, 0.0],
+            vertical_range: [0.0, 0.0],
+            particle_size_range: [0.1, 0.1],
+            particle_count: 1,
+            orbit_radians_per_second: 0.0,
+            swirl: 0.0,
+            drift: Vec3::ZERO,
+            color_start: ColorRgb::WHITE,
+            color_end: ColorRgb::WHITE,
+            emissive_strength: 1.0,
+            softness: 1.0,
+            depth_test: true,
+        };
+
+        assert_eq!(emitter.axis_or_up(), Vec3::UP);
     }
 }
