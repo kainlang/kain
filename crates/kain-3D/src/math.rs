@@ -29,6 +29,15 @@ impl Vec2 {
         }
     }
 
+    pub fn normalized_or(self, fallback: Self) -> Self {
+        let normalized = self.normalize();
+        if normalized == Self::ZERO {
+            fallback
+        } else {
+            normalized
+        }
+    }
+
     pub fn lerp(self, other: Self, t: f32) -> Self {
         self + (other - self) * t
     }

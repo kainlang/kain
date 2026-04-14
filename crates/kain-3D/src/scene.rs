@@ -95,6 +95,7 @@ pub struct SceneCompositionSummary {
     pub has_black_hole: bool,
     pub bounds: Option<SceneBounds>,
     pub framed_camera_distance: Option<f32>,
+    pub viewport_aspect_ratio: Option<f32>,
 }
 
 impl SceneCompositionSummary {
@@ -138,7 +139,12 @@ impl SceneCompositionSummary {
             .map(|distance| format!("fit d{:.2}", distance))
             .unwrap_or_else(|| "unframed".to_string());
 
-        format!("{} | {} | {}", parts.join(", "), bounds, camera)
+        let aspect = self
+            .viewport_aspect_ratio
+            .map(|aspect_ratio| format!("aspect {:.2}:1", aspect_ratio))
+            .unwrap_or_else(|| "aspect unknown".to_string());
+
+        format!("{} | {} | {} | {}", parts.join(", "), bounds, camera, aspect)
     }
 }
 
@@ -547,6 +553,7 @@ impl SceneDescription {
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
             }),
+            viewport_aspect_ratio: Some(aspect_ratio),
             bounds,
         }
     }
@@ -581,6 +588,7 @@ impl SceneDescription {
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
             }),
+            viewport_aspect_ratio: Some(aspect_ratio),
             bounds,
         }
     }
@@ -2870,6 +2878,7 @@ mod tests {
         assert!(summary.brief_label().contains("meshes"));
         assert!(summary.brief_label().contains("span"));
         assert!(summary.brief_label().contains("fit d"));
+        assert!(summary.brief_label().contains("aspect 1.00:1"));
         assert!(summary.brief_label().contains("deep"));
         assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());

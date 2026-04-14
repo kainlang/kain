@@ -13,7 +13,9 @@ use kain_core::error::KainError;
 use notify::{Event, RecursiveMode, Watcher};
 use serde::Deserialize;
 
-use crate::native_ui_build::{run_native_ui_build_pipeline, NativeUiBuildConfig, NativeUiBuildResult};
+use crate::native_ui_build::{
+    run_native_ui_build_pipeline, NativeUiBuildConfig, NativeUiBuildResult,
+};
 
 const APP_MANIFEST_FILE_NAME: &str = "app_manifest.json";
 const RUNTIME_SNAPSHOT_FILE_NAME: &str = "runtime_snapshot.json";
@@ -130,14 +132,8 @@ impl NativeUiDevSession {
     }
 
     pub fn run(mut self) -> Result<(), KainError> {
-        println!(
-            " Native UI dev root: {}",
-            self.config.watch_root.display()
-        );
-        println!(
-            " Native UI executable: {}",
-            self.executable_path.display()
-        );
+        println!(" Native UI dev root: {}", self.config.watch_root.display());
+        println!(" Native UI executable: {}", self.executable_path.display());
         println!(" Watching for Kain/native app changes... (Ctrl+C to stop)");
 
         let (tx, rx) = mpsc::channel();
@@ -194,9 +190,13 @@ impl NativeUiDevSession {
         Ok(())
     }
 
-    fn rebuild(&mut self, changed_paths: Vec<PathBuf>) -> Result<NativeUiDevEventReport, KainError> {
+    fn rebuild(
+        &mut self,
+        changed_paths: Vec<PathBuf>,
+    ) -> Result<NativeUiDevEventReport, KainError> {
         let started = Instant::now();
-        let bundle_result = build_native_ui(self.config.input.as_path(), &self.config.build, false)?;
+        let bundle_result =
+            build_native_ui(self.config.input.as_path(), &self.config.build, false)?;
         sync_artifacts_to_executable_dir(&bundle_result, &self.executable_path)?;
         let bundle_manifest = load_manifest_state(&bundle_result)?;
         let (initial_decision, initial_note) = classify_reload_decision(
@@ -210,11 +210,15 @@ impl NativeUiDevSession {
             if restart_requires_executable_rebuild(&self.previous_manifest, &bundle_manifest) {
                 let executable_result =
                     build_native_ui(self.config.input.as_path(), &self.config.build, true)?;
-                let executable_path = executable_result.generated.executable_path.clone().ok_or_else(|| {
-                    KainError::runtime(
-                        "Native UI dev expected an executable after restart-triggering rebuild",
-                    )
-                })?;
+                let executable_path = executable_result
+                    .generated
+                    .executable_path
+                    .clone()
+                    .ok_or_else(|| {
+                        KainError::runtime(
+                            "Native UI dev expected an executable after restart-triggering rebuild",
+                        )
+                    })?;
                 self.executable_path = executable_path;
                 self.executable_dir = self
                     .executable_path
@@ -524,7 +528,9 @@ fn build_native_ui(
     run_native_ui_build_pipeline(input, &config)
 }
 
-fn load_manifest_state(result: &NativeUiBuildResult) -> Result<NativeUiDevManifestState, KainError> {
+fn load_manifest_state(
+    result: &NativeUiBuildResult,
+) -> Result<NativeUiDevManifestState, KainError> {
     let manifest_path = result
         .generated
         .project_dir
@@ -763,10 +769,7 @@ fn print_event_report(report: &NativeUiDevEventReport) {
     }
 
     if !report.changed_artifact_roles.is_empty() {
-        println!(
-            "   artifacts: {}",
-            report.changed_artifact_roles.join(", ")
-        );
+        println!("   artifacts: {}", report.changed_artifact_roles.join(", "));
     }
 }
 
@@ -820,7 +823,10 @@ mod tests {
                 function_name: "run_bundled_app_json".to_string(),
             },
             hot_reload: NativeUiDevHotReload {
-                changed_artifact_roles: changed_roles.iter().map(|value| value.to_string()).collect(),
+                changed_artifact_roles: changed_roles
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect(),
                 reload_compatible_with_previous,
                 identity: NativeUiDevHotReloadIdentity {
                     app_id: "chronos.native".to_string(),

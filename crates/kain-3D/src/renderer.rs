@@ -266,9 +266,10 @@ impl SoftwareRenderer {
         diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
         diagnostics.composition_summary = Some(
             scene
-                .composition_summary_with_overrides(
+                .composition_summary_with_overrides_and_aspect_ratio(
                     time_seconds,
                     &view.instance_transform_overrides,
+                    aspect_ratio,
                 )
                 .brief_label(),
         );

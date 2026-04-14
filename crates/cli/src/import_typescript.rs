@@ -406,10 +406,7 @@ pub fn import_typescript_with_batch(
                 println!("    - {}: {}", entry.file.display(), preview);
             }
             if summary.diagnostic_files.len() > 10 {
-                println!(
-                    "    ... {} more",
-                    summary.diagnostic_files.len() - 10
-                );
+                println!("    ... {} more", summary.diagnostic_files.len() - 10);
             }
         }
     }
@@ -450,15 +447,14 @@ fn import_path_to_program(
             ..ImportTypeScriptSummary::default()
         };
         if !result.diagnostics.is_empty() {
-            summary.diagnostic_files.push(ImportTypeScriptDiagnosticFile {
-                file: input.to_path_buf(),
-                diagnostics: result.diagnostics.clone(),
-            });
+            summary
+                .diagnostic_files
+                .push(ImportTypeScriptDiagnosticFile {
+                    file: input.to_path_buf(),
+                    diagnostics: result.diagnostics.clone(),
+                });
         }
-        return Ok((
-            result.program,
-            summary,
-        ));
+        return Ok((result.program, summary));
     }
 
     if !input.is_dir() {
@@ -494,10 +490,12 @@ fn import_path_to_program(
             Ok(result) => {
                 summary.imported_files += 1;
                 if !result.diagnostics.is_empty() {
-                    summary.diagnostic_files.push(ImportTypeScriptDiagnosticFile {
-                        file: file.clone(),
-                        diagnostics: result.diagnostics.clone(),
-                    });
+                    summary
+                        .diagnostic_files
+                        .push(ImportTypeScriptDiagnosticFile {
+                            file: file.clone(),
+                            diagnostics: result.diagnostics.clone(),
+                        });
                 }
 
                 if batch.flat {
@@ -693,11 +691,15 @@ fn compact_error_message(raw: &str) -> String {
 fn validate_generated_kain_source(source: &str) -> GeneratedKainValidation {
     let parse = match crate::format_source(source) {
         Ok(_) => ImportTypeScriptValidationStatus::ok(),
-        Err(err) => ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string())),
+        Err(err) => {
+            ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string()))
+        }
     };
     let compile = match crate::compile(source, crate::CompileTarget::Interpret) {
         Ok(_) => ImportTypeScriptValidationStatus::ok(),
-        Err(err) => ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string())),
+        Err(err) => {
+            ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string()))
+        }
     };
     GeneratedKainValidation { parse, compile }
 }
@@ -1852,7 +1854,9 @@ export default function Counter() {
         let err = import_typescript_with_batch(&input, Some(&output), None, &batch)
             .expect_err("strict mode should fail on degraded generated output");
 
-        assert!(err.to_string().contains("Generated Kain output is degraded"));
+        assert!(err
+            .to_string()
+            .contains("Generated Kain output is degraded"));
         assert!(output.exists());
         assert!(output.with_extension("import_report.json").exists());
     }

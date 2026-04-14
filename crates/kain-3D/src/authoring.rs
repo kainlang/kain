@@ -1124,9 +1124,28 @@ impl Scene {
             "primitive_library.startup_primitive_id".to_string(),
             library.startup_primitive_id.clone(),
         );
+        if let Some(startup_definition) = library.definition(&library.startup_primitive_id) {
+            self.metadata.insert(
+                "primitive_library.startup_primitive_display_name".to_string(),
+                startup_definition.display_name.clone(),
+            );
+        }
         self.metadata.insert(
             "primitive_library.authored_policy".to_string(),
             library.authored_policy.clone(),
+        );
+        self.metadata.insert(
+            "primitive_library.definition_count".to_string(),
+            library.definitions.len().to_string(),
+        );
+        self.metadata.insert(
+            "primitive_library.definition_ids".to_string(),
+            library
+                .definitions
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(","),
         );
         for definition in library.definitions.values() {
             self.add_primitive_definition(definition);
@@ -1430,7 +1449,7 @@ fn generate_vertex_normals(
 }
 
 fn rotate_around_axis(point: Vec3, axis: Vec3, angle: f32) -> Vec3 {
-    let axis = axis.normalize();
+    let axis = axis.normalized_or(Vec3::UP);
     let cos_theta = angle.cos();
     let sin_theta = angle.sin();
     point * cos_theta + axis.cross(point) * sin_theta + axis * axis.dot(point) * (1.0 - cos_theta)
@@ -1590,5 +1609,15 @@ mod tests {
 
         assert!(frame.stats.triangles_rasterized > 0);
         assert!(frame.rgba.iter().any(|channel| *channel != 0));
+    }
+
+    #[test]
+    fn zero_axis_rotation_keeps_rotation_math_stable() {
+        let point = Vec3::new(0.0, 1.0, 0.0);
+        let rotated = rotate_around_axis(point, Vec3::ZERO, 0.5);
+
+        assert!(rotated.x.is_finite());
+        assert!(rotated.y.is_finite());
+        assert!(rotated.z.is_finite());
     }
 }

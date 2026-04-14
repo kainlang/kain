@@ -50,7 +50,9 @@ FOR new agents - start with /home/ephemara/Dev/Kain/docs
 - For complex tasks, update the memory file with durable context for future LLMs. Capture what changed, why it changed, important design decisions, current risks, and the next recommended step.
 - Treat `ARCHITECTURE.md` and `memory.md` as complementary. `ARCHITECTURE.md` explains what the project is and how it is organized; `memory.md` captures durable task history, decisions, risks, and recommended next steps.
 - For small or isolated tasks, memory updates are optional.
-
+- If the user asks for a recurring heartbeat or pipeline, record the cadence and the implementation contract in `HEARTBEAT.md`, keep it short, and prefer a single durable checklist over ad hoc mental notes.
+- If the user asks to "remember this" for future pipeline work, capture it in `MEMORY.md` as a durable goal or constraint, not just in chat.
+- For long-running implementation pipelines, prefer an explicit repo note that names the target path, expected cadence, and the required tooling path (for example Codex CLI) so future agents can resume without rediscovering the setup.
 ## Workflow Improvement
 
 - Do more than complete the immediate task. When it helps, propose workflows that improve speed, quality, maintainability, repeatability, or multi-agent execution.
