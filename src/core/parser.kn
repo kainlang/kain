@@ -74,7 +74,7 @@ use lexer::tok_char_val
 # Error recovery: when a parsing rule fails, a diagnostic is pushed and the
 # parser advances past the problematic token rather than aborting.
 
-# ─── Parser ps ─────────────────────────────────────────────────────────────
+# - Parser ps -
 
 struct ParseState:
     tokens: Array<Token>
@@ -171,7 +171,7 @@ fn empty_span(file_name: String) -> Span:
 fn empty_path(file_name: String) -> Path:
     return Path { segments: [], span: empty_span(file_name) }
 
-# ─── Type expressions ──────────────────────────────────────────────────────────
+# - Type expressions -
 
 fn parse_type_expr(ps: ParseState) -> TypeExpr:
     # Unit type  ()
@@ -249,7 +249,7 @@ fn parse_type_expr(ps: ParseState) -> TypeExpr:
     # Fallback
     return TypeExpr::Infer
 
-# ─── Paths ─────────────────────────────────────────────────────────────────────
+# - Paths -
 
 fn parse_path(ps: ParseState) -> Path:
     let start = ps_peek(ps)
@@ -280,7 +280,7 @@ fn parse_path(ps: ParseState) -> Path:
     let span = make_span(ps, start)
     return Path { segments: segments, span: span }
 
-# ─── Generics ──────────────────────────────────────────────────────────────────
+# - Generics -
 
 fn parse_generic_params(ps: ParseState) -> Array<GenericParam>:
     let params = []
@@ -303,7 +303,7 @@ fn parse_generic_params(ps: ParseState) -> Array<GenericParam>:
     ps_expect_sym(ps, ">")
     return params
 
-# ─── Parameters ───────────────────────────────────────────────────────────────
+# - Parameters -
 
 fn parse_params(ps: ParseState) -> Array<Param>:
     let params = []
@@ -336,7 +336,7 @@ fn parse_params(ps: ParseState) -> Array<Param>:
     ps_expect_sym(ps, ")")
     return params
 
-# ─── Blocks and statements ─────────────────────────────────────────────────────
+# - Blocks and statements -
 
 fn parse_block(ps: ParseState) -> Block:
     let start = ps_peek(ps)
@@ -508,7 +508,7 @@ fn parse_match_arm_body(ps: ParseState) -> Block:
     let expr = parse_expr(ps)
     return Block { statements: [Stmt::Expr(ExprStmt { expr: expr, span: make_span(ps, start) })], span: make_span(ps, start) }
 
-# ─── Expressions ───────────────────────────────────────────────────────────────
+# - Expressions -
 
 fn parse_expr(ps: ParseState) -> Expr:
     return parse_or_expr(ps)
@@ -833,7 +833,7 @@ fn parse_lambda_pipe(ps: ParseState) -> Expr:
     let body = parse_expr(ps)
     return Expr::Lambda(LambdaExpr { params: params, body: body, span: make_span(ps, start) })
 
-# ─── Patterns ─────────────────────────────────────────────────────────────────
+# - Patterns -
 
 fn parse_pattern(ps: ParseState) -> Pattern:
     let start = ps_peek(ps)
@@ -910,7 +910,7 @@ fn parse_pattern(ps: ParseState) -> Pattern:
     # Or-pattern fallback
     return Pattern::Wildcard
 
-# ─── Top-level declarations ────────────────────────────────────────────────────
+# - Top-level declarations -
 
 fn parse_fn_def(ps: ParseState, is_pub: Bool) -> FnDef:
     let start = ps_peek(ps)
@@ -1188,7 +1188,7 @@ fn parse_top_level_item(ps: ParseState) -> Option<TopLevelItem>:
     push(ps.errors, "unexpected top-level token '" + bad_tok.lexeme + "' at line " + str(bad_tok.row))
     return none
 
-# ─── Public parse entry point ──────────────────────────────────────────────────
+# - Public parse entry point -
 
 pub fn parse_source(source_tokens: Array<Token>, file_name: String) -> Result<Program, KainError>:
     let ps = ps_new(source_tokens, file_name)

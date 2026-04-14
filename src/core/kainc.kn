@@ -99,7 +99,7 @@ fn log_stage(opts: CompileOptions, stage: String) -> Unit:
         println("[kainc] " + stage)
 
 fn format_error(err: KainError) -> String:
-    return "error: " + err.message
+    return "error: " + str(err)
 
 fn run_compiler(opts: CompileOptions) -> Bool:
     if len(opts.input_path) == 0:
@@ -107,18 +107,18 @@ fn run_compiler(opts: CompileOptions) -> Bool:
         println("usage: kainc <file.kn> [--print-ir] [--compile] [-o output.ll]")
         return false
 
-    # ── Stage 1: Read source ───────────────────────────────────────────────────
+    # - Stage 1: Read source -
     log_stage(opts, "reading " + opts.input_path)
     if !file_exists(opts.input_path):
         println("kainc: file not found: " + opts.input_path)
         return false
     let source = read_file(opts.input_path)
 
-    # ── Stage 2: Lex ──────────────────────────────────────────────────────────
+    # - Stage 2: Lex -
     log_stage(opts, "lexing")
     let tokens = tokenize_source(source, opts.input_path)
 
-    # ── Stage 3: Parse ────────────────────────────────────────────────────────
+    # - Stage 3: Parse -
     log_stage(opts, "parsing")
     let parse_result = parse_source(tokens, opts.input_path)
     let parse_ok = true
@@ -133,13 +133,13 @@ fn run_compiler(opts: CompileOptions) -> Bool:
         return false
     let program = parse_program_holder[0]
 
-    # ── Stage 4: Constant-time evaluation (pass-through for bootstrap) ─────────
+    # - Stage 4: Constant-time evaluation (pass-through for bootstrap) -
     # Comptime keyword rules prevent direct module import; evaluation is a
     # pass-through until the selfhost bootstrap reaches that phase.
     log_stage(opts, "const-eval")
     let ct_program = program
 
-    # ── Stage 5: Typecheck ────────────────────────────────────────────────────
+    # - Stage 5: Typecheck -
     log_stage(opts, "type-checking")
     let check_result = check(ct_program)
     let check_ok = true
@@ -154,18 +154,18 @@ fn run_compiler(opts: CompileOptions) -> Bool:
         return false
     let typed_program = typed_holder[0]
 
-    # ── Stage 6: LLVM IR codegen ──────────────────────────────────────────────
+    # - Stage 6: LLVM IR codegen -
     log_stage(opts, "generating LLVM IR")
     let ir = generate_llvm_ir(typed_program)
 
-    # ── Stage 7: Output ───────────────────────────────────────────────────────
+    # - Stage 7: Output -
     if opts.print_ir:
         println(ir)
 
     log_stage(opts, "writing " + opts.output_path)
     write_file(opts.output_path, ir)
 
-    # ── Stage 8: Optional clang invoke ────────────────────────────────────────
+    # - Stage 8: Optional clang invoke -
     if opts.invoke_clang:
         log_stage(opts, "compiling with clang")
         let obj_path = strip_kn_extension(opts.input_path)

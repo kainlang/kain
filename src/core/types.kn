@@ -19,7 +19,7 @@ use span::Span
 # Resolves names, infers basic types, and produces a TypedProgram
 # suitable for consumption by codegen_llvm.kn.
 
-# ─── Resolved types ────────────────────────────────────────────────────────────
+# - Resolved types -
 
 pub enum ResolvedType:
     Unit
@@ -97,7 +97,7 @@ fn resolved_type_from_name(name: String) -> ResolvedType:
     if name == "Never": return ResolvedType::Never
     return ResolvedType::Named(name)
 
-# ─── Typed AST wrappers ────────────────────────────────────────────────────────
+# - Typed AST wrappers -
 
 pub struct TypedFn:
     ast: FnDef
@@ -127,7 +127,7 @@ pub struct TypedProgram:
     fn_names: Array<String>
     fn_return_types: Array<ResolvedType>
 
-# ─── Type environment (scope chain) ───────────────────────────────────────────
+# - Type environment (scope chain) -
 
 struct TypeBinding:
     name: String
@@ -253,7 +253,7 @@ fn typeenv_register_struct(env: TypeEnv, name: String, fnames: Array<String>, ft
 fn typeenv_register_enum(env: TypeEnv, name: String) -> Unit:
     push(env.enum_names, name)
 
-# ─── Type expression resolution ────────────────────────────────────────────────
+# - Type expression resolution -
 
 fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
     match ty:
@@ -288,10 +288,18 @@ fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
                     return ResolvedType::Enum_(name)
                 return resolved_type_from_name(name)
             return ResolvedType::Unknown
-        TypeExpr::Ref(_, inner) => return resolve_type_expr(env, inner)
         _ => return ResolvedType::Unknown
 
-# ─── Expression type inference ─────────────────────────────────────────────────
+# - Expression type inference -
+
+fn infer_call_type(env: TypeEnv, call: CallExpr) -> ResolvedType:
+    match call.callee:
+        Expr::Path(callee_path) =>
+            if len(callee_path.segments) > 0:
+                let fname = callee_path.segments[0].name
+                return typeenv_lookup_fn_return(env, fname)
+            return ResolvedType::Unknown
+        _ => return ResolvedType::Unknown
 
 fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
     match expr:
@@ -300,15 +308,7 @@ fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
             if len(path.segments) > 0:
                 return typeenv_lookup(env, path.segments[0].name)
             return ResolvedType::Unknown
-        Expr::Call(call) =>
-            # Resolve return type from callee name
-            match call.callee:
-                Expr::Path(callee_path) =>
-                    if len(callee_path.segments) > 0:
-                        let fname = callee_path.segments[0].name
-                        return typeenv_lookup_fn_return(env, fname)
-                _ => return ResolvedType::Unknown
-            return ResolvedType::Unknown
+        Expr::Call(call) => return infer_call_type(env, call)
         Expr::MethodCall(mc) =>
             return ResolvedType::Unknown
         Expr::Field(f) =>
@@ -325,14 +325,12 @@ fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
                 let elem_ty = infer_expr(env, items[0])
                 return ResolvedType::ArrayOf(elem_ty)
             return ResolvedType::ArrayOf(ResolvedType::Unknown)
-        Expr::If(ife) =>
-            return infer_expr(env, ife.then_branch)
+        Expr::If(ife) => return ResolvedType::Unknown
         Expr::StructInit(si) =>
             if len(si.name.segments) > 0:
                 let sname = si.name.segments[0].name
                 return ResolvedType::Struct_(sname)
             return ResolvedType::Unknown
-        Expr::Literal(Literal::Unit) => return ResolvedType::Unit
         _ => return ResolvedType::Unknown
 
 fn infer_literal(lit: Literal) -> ResolvedType:
@@ -375,7 +373,7 @@ fn infer_unary_result(op: UnaryOp, vt: ResolvedType) -> ResolvedType:
         UnaryOp::Negate => return vt
         _ => return vt
 
-# ─── Declaration pre-scan (collect names before type-checking bodies) ──────────
+# - Declaration pre-scan (collect names before type-checking bodies) -
 
 fn prescan_program(env: TypeEnv, program: Program) -> Unit:
     for item in program.items:
@@ -400,7 +398,7 @@ fn prescan_program(env: TypeEnv, program: Program) -> Unit:
                 typeenv_define(env, c.name, cty)
             _ => ()
 
-# ─── Function typechecking ─────────────────────────────────────────────────────
+# - Function typechecking -
 
 fn check_fn(env: TypeEnv, fndef: FnDef) -> TypedFn:
     typeenv_push_scope(env)
@@ -462,7 +460,7 @@ fn check_stmt(env: TypeEnv, stmt: Stmt) -> Unit:
             typeenv_pop_scope(env)
         _ => ()
 
-# ─── Program typechecking ──────────────────────────────────────────────────────
+# - Program typechecking -
 
 pub fn check(program: Program) -> Result<TypedProgram, KainError>:
     let env = typeenv_new()

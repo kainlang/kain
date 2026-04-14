@@ -751,6 +751,30 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             selfhost_bootstrap_lexer_result_type(),
         ),
     );
+    // CLI / system builtins used by kainc.kn and other selfhost scripts
+    env.define_global(
+        "args".into(),
+        builtin_function_type(
+            vec![],
+            dynamic_array_type(ResolvedType::String),
+        ),
+    );
+    env.define_global(
+        "exit".into(),
+        builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::Never),
+    );
+    env.define_global(
+        "str".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::String),
+    );
+    env.define_global(
+        "int".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "float".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Float(FloatSize::F64)),
+    );
 }
 
 fn method_has_receiver_param(method: &Function) -> bool {
@@ -1499,6 +1523,23 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                 for child in children {
                     register_item_types(env, child)?;
                 }
+            }
+        }
+        // Register imported names as Unknown so that callers of cross-module
+        // functions (e.g. `use lexer::tokenize_source`) don't fail the typechecker
+        // when the imported module is not present in the current compilation unit.
+        // The last path segment is the imported identifier.
+        Item::Use(u) => {
+            let imported_name = if let Some(alias) = &u.alias {
+                alias.clone()
+            } else if let Some(last) = u.path.last() {
+                last.clone()
+            } else {
+                return Ok(());
+            };
+            // Only register if not already known (don't overwrite real builtins).
+            if env.lookup(&imported_name).is_none() {
+                env.define_global(imported_name, ResolvedType::Unknown);
             }
         }
         _ => {}

@@ -37,7 +37,7 @@ impl Lexer:
     pub fn tokenize(self) -> Array<Token>:
         return tokenize_source(self.source, self.file_name)
 
-# ─── Internal scanner sc ────────────────────────────────────────────────────
+# - Internal scanner sc -
 
 struct ScanState:
     source: String
@@ -68,7 +68,7 @@ fn scan_advance(sc: ScanState) -> String:
             sc.col = sc.col + 1
     return ch
 
-# ─── Character class helpers ───────────────────────────────────────────────────
+# - Character class helpers -
 
 fn is_alpha_char(ch: String) -> Bool:
     if ch == "_": return true
@@ -105,7 +105,7 @@ fn digit_val(ch: String) -> Int:
     if ch == "9": return 9
     return 0
 
-# ─── Keyword detection ─────────────────────────────────────────────────────────
+# - Keyword detection -
 
 fn is_keyword(word: String) -> Bool:
     # Core control-flow and declaration keywords
@@ -129,13 +129,13 @@ fn is_keyword(word: String) -> Bool:
     if word == "Reactive" || word == "Unsafe" || word == "Alloc" || word == "Panic": return true
     return false
 
-# ─── Token-emitting helpers ────────────────────────────────────────────────────
+# - Token-emitting helpers -
 
 fn push_symbol(tok_buf: Array<Token>, sc: ScanState, start_pos: Int, start_row: Int, start_col: Int, sym: String) -> Unit:
     let span = Span { start: start_pos, end: sc.pos, file: sc.file_name }
     push(tok_buf, Token { kind: TokenKind::Symbol(sym), lexeme: sym, span: span, row: start_row, col: start_col })
 
-# ─── Escape-sequence decoder ───────────────────────────────────────────────────
+# - Escape-sequence decoder -
 
 fn decode_escape(sc: ScanState) -> String:
     let next = scan_advance(sc)
@@ -149,7 +149,7 @@ fn decode_escape(sc: ScanState) -> String:
     # Unknown escape - keep both characters
     return "\\" + next
 
-# ─── Compound token scanners ───────────────────────────────────────────────────
+# - Compound token scanners -
 
 fn do_scan_string(sc: ScanState, start_pos: Int, start_row: Int, start_col: Int, is_fstring: Bool) -> Token:
     scan_advance(sc)  # consume opening '"'
@@ -215,7 +215,7 @@ fn do_scan_number(sc: ScanState, start_pos: Int, start_row: Int, start_col: Int)
     let span = Span { start: start_pos, end: sc.pos, file: sc.file_name }
     return Token { kind: TokenKind::IntLiteral(int_val), lexeme: lexeme, span: span, row: start_row, col: start_col }
 
-# ─── Main scan-one-token dispatch ─────────────────────────────────────────────
+# - Main scan-one-token dispatch -
 
 fn collect_one_token(sc: ScanState, tokens_out: Array<Token>) -> Unit:
     let ch = scan_peek(sc)
@@ -284,7 +284,7 @@ fn collect_one_token(sc: ScanState, tokens_out: Array<Token>) -> Unit:
         push(tok_buf, do_scan_number(sc, start_pos, s_row, start_col))
         return
 
-    # Symbols ─ consume the first character, then look ahead for multi-char forms
+    # Symbols - consume the first character, then look ahead for multi-char forms
     scan_advance(sc)
     let ch2 = scan_peek(sc)
     let ch3 = scan_peek_at(sc, 1)
@@ -415,7 +415,7 @@ fn collect_one_token(sc: ScanState, tokens_out: Array<Token>) -> Unit:
     # Single-character symbol
     push_symbol(tok_buf, sc, start_pos, s_row, start_col, ch)
 
-# ─── Indentation processing ────────────────────────────────────────────────────
+# - Indentation processing -
 
 fn count_indent_ws(ws: String) -> Int:
     let count = 0
@@ -491,7 +491,7 @@ fn process_indentation(raw: Array<Token>, file_name: String) -> Array<Token>:
     push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
     return result
 
-# ─── Public entry point ────────────────────────────────────────────────────────
+# - Public entry point -
 
 pub fn tokenize_source(source: String, file_name: String) -> Array<Token>:
     let sc = ScanState {

@@ -84,7 +84,7 @@ impl Value:
     pub fn as_string(self) -> String:
         return self.to_repr()
 
-# ─── Bindings and environment ──────────────────────────────────────────────────
+# - Bindings and environment -
 
 struct Binding:
     name: String
@@ -140,7 +140,7 @@ fn env_get(e: Environment, name: String) -> Option<Value>:
         si = si - 1
     return none
 
-# ─── Control flow signals ─────────────────────────────────────────────────────
+# - Control flow signals -
 
 pub enum Signal:
     Normal
@@ -148,7 +148,7 @@ pub enum Signal:
     Break_(Value)
     Continue_
 
-# ─── Runtime context ──────────────────────────────────────────────────────────
+# - Runtime context -
 
 pub struct RuntimeContext:
     env: Environment
@@ -174,7 +174,7 @@ fn ctx_register_fns(ctx: RuntimeContext, program: Program) -> Unit:
             TopLevelItem::Function(f) => push(ctx.functions, f)
             _ => ()
 
-# ─── Builtin dispatch ─────────────────────────────────────────────────────────
+# - Builtin dispatch -
 
 fn call_builtin(ctx: RuntimeContext, name: String, arg_vals: Array<Value>) -> Option<Value>:
     if name == "println":
@@ -266,7 +266,7 @@ fn value_char_at(sv: Value, iv: Value) -> Value:
         _ => ()
     return Value::String_("")
 
-# ─── Pattern matching ─────────────────────────────────────────────────────────
+# - Pattern matching -
 
 fn match_pattern(ctx: RuntimeContext, pat: Pattern, val: Value) -> Bool:
     match pat:
@@ -330,7 +330,7 @@ fn eval_literal(lit: Literal) -> Value:
         Literal::Bool(b) => return Value::Bool(b)
         Literal::Unit => return Value::Unit
 
-# ─── Expression evaluation helpers ─────────────────────────────────────────────
+# - Expression evaluation helpers -
 # These helpers exist to avoid deeply-nested match arms in eval_expr which
 # can confuse the Kain indentation parser.
 
@@ -461,7 +461,7 @@ fn eval_index_expr(ctx: RuntimeContext, ie: IndexExpr) -> Value:
         _ => ()
     return Value::Null
 
-# ─── Expression evaluation ─────────────────────────────────────────────────────
+# - Expression evaluation -
 
 fn eval_expr(ctx: RuntimeContext, expr: Expr) -> Value:
     match expr:
@@ -557,7 +557,7 @@ fn eval_unary(ctx: RuntimeContext, op: UnaryOp, value: Expr) -> Value:
                 _ => return Value::Int(0)
         _ => return v
 
-# ─── Block and statement evaluation ───────────────────────────────────────────
+# - Block and statement evaluation -
 
 fn eval_block(ctx: RuntimeContext, block: Block) -> Signal:
     env_push_scope(ctx.env)
@@ -701,7 +701,7 @@ fn eval_break_stmt(ctx: RuntimeContext, bs: BreakStmt) -> Signal:
         _ => ()
     return Signal::Break_(bv)
 
-# ─── Function call ─────────────────────────────────────────────────────────────
+# - Function call -
 
 fn call_user_fn(ctx: RuntimeContext, fndef: FnDef, call_args: Array<Value>) -> Value:
     env_push_scope(ctx.env)
@@ -717,7 +717,7 @@ fn call_user_fn(ctx: RuntimeContext, fndef: FnDef, call_args: Array<Value>) -> V
         Signal::Return_(v) => return v
         _ => return Value::Unit
 
-# ─── Program entry point ───────────────────────────────────────────────────────
+# - Program entry point -
 
 pub fn run_program(program: Program) -> Result<Value, KainError>:
     let ctx = ctx_new()

@@ -1758,6 +1758,17 @@ impl Env {
             }
         });
 
+        // args() -> Array<String>: returns the command-line arguments as an array of strings.
+        // The first element is the program name; subsequent elements are user-supplied args.
+        // Used by kainc.kn and other selfhost CLI scripts.
+        self.define_native("args", |_env, _args| {
+            let argv: Vec<Value> = std::env::args()
+                .map(|a| Value::String(a))
+                .collect();
+            Ok(Value::Array(Arc::new(RwLock::new(argv))))
+        });
+
+
         self.define_native("assert", |_env, args| {
             if args.len() < 1 {
                 return Err(KainError::runtime("assert: expected condition"));
@@ -2938,13 +2949,16 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     } else {
         // Regular file path - try multiple locations
         let base_path = std::path::Path::new(&path);
+        // The first path segment is the module name (e.g. "codegen_llvm" from use codegen_llvm::fn_name)
+        let module_base = u.path.first().map(|s| s.as_str()).unwrap_or(&path);
 
         // Try various locations in order
         let possible_paths = [
-            base_path.with_extension("kn"), // ./compiler/lexer.kn
-            std::path::PathBuf::from(format!("src/{}.kn", path)), // src/compiler/lexer.kn
-            std::path::PathBuf::from(format!("{}.kn", path)), // compiler/lexer.kn
-            base_path.with_extension("god"), // legacy .god extension
+            base_path.with_extension("kn"),                                          // ./compiler/lexer.kn
+            std::path::PathBuf::from(format!("src/{}.kn", path)),                   // src/compiler/lexer.kn
+            std::path::PathBuf::from(format!("src/core/{}.kn", module_base)),       // src/core/lexer.kn (selfhost pipeline)
+            std::path::PathBuf::from(format!("{}.kn", path)),                       // compiler/lexer.kn
+            base_path.with_extension("god"),                                         // legacy .god extension
         ];
 
         possible_paths

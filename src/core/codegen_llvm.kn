@@ -44,7 +44,7 @@ use types::TypedProgram
 #   - @main wrapper
 #   - extern declarations for the Kain runtime
 
-# ─── Target descriptors ────────────────────────────────────────────────────────
+# - Target descriptors -
 
 struct LlvmTargetInfo:
     triple: String
@@ -76,10 +76,10 @@ fn select_host_target() -> LlvmTargetInfo:
         return macos_arm64_target()
     return linux_x64_target()
 
-# ─── Generator state ───────────────────────────────────────────────────────────
+# - Generator state -
 
 struct LlvmGen:
-    out: String
+    ir_buf: String
     reg: Int
     label: Int
     # Locals map: parallel arrays (name → (slot_reg, llvm_type))
@@ -103,7 +103,7 @@ struct LlvmGen:
 
 fn gen_new() -> LlvmGen:
     return LlvmGen {
-        out: "",
+        ir_buf: "",
         reg: 0,
         label: 0,
         local_names: [],
@@ -123,11 +123,11 @@ fn gen_new() -> LlvmGen:
     }
 
 impl LlvmGen:
-    pub fn emit(self, line: String) -> Unit:
-        self.out = self.out + line + "\n"
+    pub fn write_ir(self, ir_line: String) -> Unit:
+        self.ir_buf = self.ir_buf + line + "\n"
 
-    pub fn emit_indent(self, line: String) -> Unit:
-        self.out = self.out + "  " + line + "\n"
+    pub fn emit_indent(self, ir_line: String) -> Unit:
+        self.ir_buf = self.ir_buf + "  " + line + "\n"
 
     pub fn next_reg(self) -> String:
         let r = "%" + str(self.reg)
@@ -210,7 +210,7 @@ fn arr_str_slice(arr: Array<String>, new_len: Int) -> Array<String>:
         i = i + 1
     return result
 
-# ─── Type mapping from ast TypeExpr ───────────────────────────────────────────
+# - Type mapping from ast TypeExpr -
 
 fn map_type_expr(gen: LlvmGen, ty: TypeExpr) -> String:
     match ty:
@@ -256,7 +256,7 @@ fn zero_for_type(ty: String) -> String:
     # Pointer
     return "null"
 
-# ─── String constant emission ──────────────────────────────────────────────────
+# - String constant emission -
 
 fn make_escape_len(s: String) -> Int:
     # Count characters, treating escape sequences as single bytes
@@ -298,10 +298,10 @@ fn emit_string_constants(gen: LlvmGen) -> Unit:
         let name = gen.str_names[i]
         let escaped = escape_for_llvm(content)
         let byte_len = make_escape_len(content)
-        gen.emit(name + " = private unnamed_addr constant [" + str(byte_len) + " x i8] c\"" + escaped + "\"")
+        gen.write_ir(name + " = private unnamed_addr constant [" + str(byte_len) + " x i8] c\"" + escaped + "\"")
         i = i + 1
 
-# ─── Compile a string literal to a live i8* register ──────────────────────────
+# - Compile a string literal to a live i8* register -
 
 fn compile_string_const(gen: LlvmGen, content: String) -> String:
     let global_name = gen.intern_string(content)
@@ -312,7 +312,7 @@ fn compile_string_const(gen: LlvmGen, content: String) -> String:
     gen.emit_indent(rc_ptr + " = call i8* @string_new(i8* " + raw_ptr + ")")
     return rc_ptr
 
-# ─── Numeric coercion helpers ──────────────────────────────────────────────────
+# - Numeric coercion helpers -
 
 fn coerce_to_bool(gen: LlvmGen, val: String, src_ty: String) -> String:
     if src_ty == "i1": return val
@@ -344,7 +344,7 @@ fn coerce_to_i64(gen: LlvmGen, val: String, src_ty: String) -> String:
         return val
     return r
 
-# ─── Expression compilation ────────────────────────────────────────────────────
+# - Expression compilation -
 
 fn compile_expr(gen: LlvmGen, expr: Expr) -> String:
     let compiled_type = "i64"
@@ -449,13 +449,13 @@ fn compile_binary(gen: LlvmGen, left: Expr, op: BinaryOp, right: Expr) -> String
             let false_lbl = gen.next_label()
             let merge_lbl = gen.next_label()
             gen.emit_indent("br i1 " + lb + ", label %" + true_lbl + ", label %" + false_lbl)
-            gen.emit(true_lbl + ":")
+            gen.write_ir(true_lbl + ":")
             let r = compile_expr(gen, right)
             let rb = coerce_to_bool(gen, r, "i64")
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(false_lbl + ":")
+            gen.write_ir(false_lbl + ":")
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(merge_lbl + ":")
+            gen.write_ir(merge_lbl + ":")
             let result = gen.next_reg()
             gen.emit_indent(result + " = phi i1 [ " + rb + ", %" + true_lbl + " ], [ 0, %" + false_lbl + " ]")
             return result
@@ -466,13 +466,13 @@ fn compile_binary(gen: LlvmGen, left: Expr, op: BinaryOp, right: Expr) -> String
             let false_lbl = gen.next_label()
             let merge_lbl = gen.next_label()
             gen.emit_indent("br i1 " + lb + ", label %" + true_lbl + ", label %" + false_lbl)
-            gen.emit(true_lbl + ":")
+            gen.write_ir(true_lbl + ":")
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(false_lbl + ":")
+            gen.write_ir(false_lbl + ":")
             let r = compile_expr(gen, right)
             let rb = coerce_to_bool(gen, r, "i64")
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(merge_lbl + ":")
+            gen.write_ir(merge_lbl + ":")
             let result = gen.next_reg()
             gen.emit_indent(result + " = phi i1 [ 1, %" + true_lbl + " ], [ " + rb + ", %" + false_lbl + " ]")
             return result
@@ -683,12 +683,12 @@ fn compile_if_expr(gen: LlvmGen, ife: IfExpr) -> String:
     let else_lbl = gen.next_label()
     let merge_lbl = gen.next_label()
     gen.emit_indent("br i1 " + cond_b + ", label %" + then_lbl + ", label %" + else_lbl)
-    gen.emit(then_lbl + ":")
+    gen.write_ir(then_lbl + ":")
     let then_v = "0"
     for s in ife.then_branch.statements:
         then_v = compile_stmt_value(gen, s)
     gen.emit_indent("br label %" + merge_lbl)
-    gen.emit(else_lbl + ":")
+    gen.write_ir(else_lbl + ":")
     let else_v = "0"
     match ife.else_branch:
         Option::Some(else_block) =>
@@ -696,7 +696,7 @@ fn compile_if_expr(gen: LlvmGen, ife: IfExpr) -> String:
                 else_v = compile_stmt_value(gen, s)
         _ => ()
     gen.emit_indent("br label %" + merge_lbl)
-    gen.emit(merge_lbl + ":")
+    gen.write_ir(merge_lbl + ":")
     let r = gen.next_reg()
     gen.emit_indent(r + " = phi i64 [ " + coerce_to_i64(gen, then_v, "i64") + ", %" + then_lbl + " ], [ " + coerce_to_i64(gen, else_v, "i64") + ", %" + else_lbl + " ]")
     return r
@@ -712,7 +712,7 @@ fn compile_stmt_value(gen: LlvmGen, stmt: Stmt) -> String:
             compile_stmt(gen, stmt)
             return "0"
 
-# ─── Statement compilation ─────────────────────────────────────────────────────
+# - Statement compilation -
 
 fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
     match stmt:
@@ -767,18 +767,18 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
             let else_lbl = gen.next_label()
             let merge_lbl = gen.next_label()
             gen.emit_indent("br i1 " + cond_b + ", label %" + then_lbl + ", label %" + else_lbl)
-            gen.emit(then_lbl + ":")
+            gen.write_ir(then_lbl + ":")
             for s in ifs.then_branch.statements:
                 compile_stmt(gen, s)
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(else_lbl + ":")
+            gen.write_ir(else_lbl + ":")
             match ifs.else_branch:
                 Option::Some(else_block) =>
                     for s in else_block.statements:
                         compile_stmt(gen, s)
                 _ => ()
             gen.emit_indent("br label %" + merge_lbl)
-            gen.emit(merge_lbl + ":")
+            gen.write_ir(merge_lbl + ":")
 
         Stmt::While(ws) =>
             let cond_lbl = gen.next_label()
@@ -786,15 +786,15 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
             let exit_lbl = gen.next_label()
             gen.push_loop(cond_lbl, exit_lbl)
             gen.emit_indent("br label %" + cond_lbl)
-            gen.emit(cond_lbl + ":")
+            gen.write_ir(cond_lbl + ":")
             let cv = compile_expr(gen, ws.condition)
             let cb = coerce_to_bool(gen, cv, "i64")
             gen.emit_indent("br i1 " + cb + ", label %" + body_lbl + ", label %" + exit_lbl)
-            gen.emit(body_lbl + ":")
+            gen.write_ir(body_lbl + ":")
             for s in ws.body.statements:
                 compile_stmt(gen, s)
             gen.emit_indent("br label %" + cond_lbl)
-            gen.emit(exit_lbl + ":")
+            gen.write_ir(exit_lbl + ":")
             gen.pop_loop()
 
         Stmt::For(fs) =>
@@ -810,13 +810,13 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
             let exit_lbl = gen.next_label()
             gen.push_loop(cond_lbl, exit_lbl)
             gen.emit_indent("br label %" + cond_lbl)
-            gen.emit(cond_lbl + ":")
+            gen.write_ir(cond_lbl + ":")
             let cur_idx = gen.next_reg()
             gen.emit_indent(cur_idx + " = load i64, i64* " + idx_slot)
             let cmp = gen.next_reg()
             gen.emit_indent(cmp + " = icmp slt i64 " + cur_idx + ", " + len_v)
             gen.emit_indent("br i1 " + cmp + ", label %" + body_lbl + ", label %" + exit_lbl)
-            gen.emit(body_lbl + ":")
+            gen.write_ir(body_lbl + ":")
             # Bind loop variable
             let elem_v = gen.next_reg()
             gen.emit_indent(elem_v + " = call i64 @kain_array_get(i8* " + iter_v + ", i64 " + cur_idx + ")")
@@ -833,18 +833,18 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
             gen.emit_indent(next_idx + " = add i64 " + cur_idx + ", 1")
             gen.emit_indent("store i64 " + next_idx + ", i64* " + idx_slot)
             gen.emit_indent("br label %" + cond_lbl)
-            gen.emit(exit_lbl + ":")
+            gen.write_ir(exit_lbl + ":")
             gen.pop_loop()
 
         Stmt::Break(_) =>
             gen.emit_indent("br label %" + gen.current_break())
             let dead_lbl = gen.next_label()
-            gen.emit(dead_lbl + ":")
+            gen.write_ir(dead_lbl + ":")
 
         Stmt::Continue(_) =>
             gen.emit_indent("br label %" + gen.current_continue())
             let dead_lbl = gen.next_label()
-            gen.emit(dead_lbl + ":")
+            gen.write_ir(dead_lbl + ":")
 
         Stmt::Match(ms) =>
             # Simplified match lowering: chain of if/else
@@ -864,7 +864,7 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
                     _ => ()
                 if is_wildcard:
                     gen.emit_indent("br label %" + arm_lbl)
-                    gen.emit(arm_lbl + ":")
+                    gen.write_ir(arm_lbl + ":")
                     for s in arm.body.statements:
                         compile_stmt(gen, s)
                     gen.emit_indent("br label %" + merge_lbl)
@@ -872,16 +872,16 @@ fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
                 else:
                     # Attempt to compare discriminant
                     gen.emit_indent("br label %" + arm_lbl)
-                    gen.emit(arm_lbl + ":")
+                    gen.write_ir(arm_lbl + ":")
                     for s in arm.body.statements:
                         compile_stmt(gen, s)
                     gen.emit_indent("br label %" + merge_lbl)
                     ai = ai + 1
-            gen.emit(merge_lbl + ":")
+            gen.write_ir(merge_lbl + ":")
 
         _ => ()
 
-# ─── Function compilation ──────────────────────────────────────────────────────
+# - Function compilation -
 
 fn compile_fn(gen: LlvmGen, fndef: FnDef) -> Unit:
     let ret_ty = "i64"
@@ -908,10 +908,10 @@ fn compile_fn(gen: LlvmGen, fndef: FnDef) -> Unit:
         linkage = ""
 
     if len(linkage) > 0:
-        gen.emit("define " + linkage + " " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
+        gen.write_ir("define " + linkage + " " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
     else:
-        gen.emit("define " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
-    gen.emit("entry:")
+        gen.write_ir("define " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
+    gen.write_ir("entry:")
 
     # Save params into alloca slots
     gen.local_names = []
@@ -936,10 +936,10 @@ fn compile_fn(gen: LlvmGen, fndef: FnDef) -> Unit:
         gen.emit_indent("ret void")
     else:
         gen.emit_indent("ret " + ret_ty + " 0")
-    gen.emit("}")
-    gen.emit("")
+    gen.write_ir("}")
+    gen.write_ir("")
 
-# ─── Struct type definition ────────────────────────────────────────────────────
+# - Struct type definition -
 
 fn compile_struct_type(gen: LlvmGen, s: StructDef) -> Unit:
     let fields_str = ""
@@ -949,9 +949,9 @@ fn compile_struct_type(gen: LlvmGen, s: StructDef) -> Unit:
             fields_str = fields_str + ", "
         fields_str = fields_str + map_type_expr(gen, field.ty)
         fi = fi + 1
-    gen.emit("%" + s.name + " = type { " + fields_str + " }")
+    gen.write_ir("%" + s.name + " = type { " + fields_str + " }")
 
-# ─── Enum type definition ──────────────────────────────────────────────────────
+# - Enum type definition -
 # Enums are lowered as tagged structs: { i64 tag, i64 payload[N] }
 
 fn compile_enum_type(gen: LlvmGen, e: EnumDef) -> Unit:
@@ -963,7 +963,7 @@ fn compile_enum_type(gen: LlvmGen, e: EnumDef) -> Unit:
                     max_payload = len(types)
             _ => ()
     if max_payload == 0:
-        gen.emit("%" + e.name + " = type { i64 }")
+        gen.write_ir("%" + e.name + " = type { i64 }")
     else:
         let payload_str = ""
         let pi = 0
@@ -972,36 +972,36 @@ fn compile_enum_type(gen: LlvmGen, e: EnumDef) -> Unit:
                 payload_str = payload_str + ", "
             payload_str = payload_str + "i64"
             pi = pi + 1
-        gen.emit("%" + e.name + " = type { i64, " + payload_str + " }")
+        gen.write_ir("%" + e.name + " = type { i64, " + payload_str + " }")
 
-# ─── Extern declarations ───────────────────────────────────────────────────────
+# - Extern declarations -
 
 fn emit_extern_decls(gen: LlvmGen) -> Unit:
-    gen.emit("; Kain runtime extern declarations")
-    gen.emit("declare void @kain_println(i8*)")
-    gen.emit("declare void @kain_print(i8*)")
-    gen.emit("declare void @kain_panic(i8*)")
-    gen.emit("declare i8* @string_new(i8*)")
-    gen.emit("declare i8* @str_concat(i8*, i8*)")
-    gen.emit("declare i8* @to_string(i64)")
-    gen.emit("declare i64 @kain_len(i8*)")
-    gen.emit("declare i8* @kain_array_new(i64)")
-    gen.emit("declare void @kain_array_push(i8*, i64)")
-    gen.emit("declare i64 @kain_array_get(i8*, i64)")
-    gen.emit("declare i8* @kain_char_at(i8*, i64)")
-    gen.emit("declare i8* @kain_read_file(i8*)")
-    gen.emit("declare void @kain_write_file(i8*, i8*)")
-    gen.emit("declare i1 @kain_file_exists(i8*)")
-    gen.emit("declare i8* @kain_env(i8*)")
-    gen.emit("declare i8* @kain_args()")
-    gen.emit("declare i1 @kain_eq(i8*, i8*)")
-    gen.emit("declare i8* @kain_struct_alloc(i64)")
-    gen.emit("declare void @kain_struct_set_field(i8*, i64, i64)")
-    gen.emit("declare i64 @kain_struct_get_field(i8*, i64)")
-    gen.emit("declare void @exit(i64)")
-    gen.emit("")
+    gen.write_ir("; Kain runtime extern declarations")
+    gen.write_ir("declare void @kain_println(i8*)")
+    gen.write_ir("declare void @kain_print(i8*)")
+    gen.write_ir("declare void @kain_panic(i8*)")
+    gen.write_ir("declare i8* @string_new(i8*)")
+    gen.write_ir("declare i8* @str_concat(i8*, i8*)")
+    gen.write_ir("declare i8* @to_string(i64)")
+    gen.write_ir("declare i64 @kain_len(i8*)")
+    gen.write_ir("declare i8* @kain_array_new(i64)")
+    gen.write_ir("declare void @kain_array_push(i8*, i64)")
+    gen.write_ir("declare i64 @kain_array_get(i8*, i64)")
+    gen.write_ir("declare i8* @kain_char_at(i8*, i64)")
+    gen.write_ir("declare i8* @kain_read_file(i8*)")
+    gen.write_ir("declare void @kain_write_file(i8*, i8*)")
+    gen.write_ir("declare i1 @kain_file_exists(i8*)")
+    gen.write_ir("declare i8* @kain_env(i8*)")
+    gen.write_ir("declare i8* @kain_args()")
+    gen.write_ir("declare i1 @kain_eq(i8*, i8*)")
+    gen.write_ir("declare i8* @kain_struct_alloc(i64)")
+    gen.write_ir("declare void @kain_struct_set_field(i8*, i64, i64)")
+    gen.write_ir("declare i64 @kain_struct_get_field(i8*, i64)")
+    gen.write_ir("declare void @exit(i64)")
+    gen.write_ir("")
 
-# ─── Module-level compilation ──────────────────────────────────────────────────
+# - Module-level compilation -
 
 fn compile_module(gen: LlvmGen, program: TypedProgram) -> Unit:
     # Pre-register all function return types for call-site type resolution
@@ -1024,10 +1024,10 @@ fn compile_module(gen: LlvmGen, program: TypedProgram) -> Unit:
 
     # Emit header
     let target = gen.target
-    gen.emit("; Kain LLVM IR - generated by kainc selfhost codegen")
-    gen.emit("target triple = \"" + target.triple + "\"")
-    gen.emit("target datalayout = \"" + target.datalayout + "\"")
-    gen.emit("")
+    gen.write_ir("; Kain LLVM IR - generated by kainc selfhost codegen")
+    gen.write_ir("target triple = \"" + target.triple + "\"")
+    gen.write_ir("target datalayout = \"" + target.datalayout + "\"")
+    gen.write_ir("")
 
     # Emit type definitions first
     for item in program.items:
@@ -1035,7 +1035,7 @@ fn compile_module(gen: LlvmGen, program: TypedProgram) -> Unit:
             TypedItem::Struct_(ts) => compile_struct_type(gen, ts.struct_def)
             TypedItem::Enum_(te) => compile_enum_type(gen, te.enum_def)
             _ => ()
-    gen.emit("")
+    gen.write_ir("")
 
     # Extern declarations
     emit_extern_decls(gen)
@@ -1073,16 +1073,16 @@ fn emit_main_wrapper(gen: LlvmGen, program: TypedProgram) -> Unit:
                         compile_fn(gen, user_main)
                 _ => ()
     else:
-        gen.emit("define i32 @main(i32 %argc, i8** %argv) {")
-        gen.emit("entry:")
+        gen.write_ir("define i32 @main(i32 %argc, i8** %argv) {")
+        gen.write_ir("entry:")
         gen.emit_indent("; no user main - stub exit")
         gen.emit_indent("ret i32 0")
-        gen.emit("}")
-        gen.emit("")
+        gen.write_ir("}")
+        gen.write_ir("")
 
-# ─── Public entry point ────────────────────────────────────────────────────────
+# - Public entry point -
 
 pub fn generate_llvm_ir(program: TypedProgram) -> String:
     let gen = gen_new()
     compile_module(gen, program)
-    return gen.out
+    return gen.ir_buf
