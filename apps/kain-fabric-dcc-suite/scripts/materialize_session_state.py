@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -133,6 +133,32 @@ def mode_registry_entries(viewport_modes: list[dict[str, Any]]) -> list[str]:
     ]
 
 
+def parity_matrix_summary(parity_matrix: dict[str, Any]) -> OrderedDict[str, Any]:
+    features = parity_matrix["features"]
+    scenario_count = sum(
+        1
+        for feature in features
+        for hook in feature.get("validation_hooks", [])
+        if hook.get("kind") == "scenario"
+    )
+    domain_counts = OrderedDict(sorted(Counter(feature["domain"] for feature in features).items()))
+    status_counts = OrderedDict(sorted(Counter(feature["status"] for feature in features).items()))
+    return OrderedDict(
+        [
+            ("matrix_id", parity_matrix["matrix_id"]),
+            ("schema_version", parity_matrix["schema_version"]),
+            ("path", "config/dcc_parity_matrix.json"),
+            ("feature_count", len(features)),
+            ("capability_count", len(features)),
+            ("scenario_count", scenario_count),
+            ("domain_counts", domain_counts),
+            ("status_counts", status_counts),
+            ("domain_summary", " | ".join(f"{name}={count}" for name, count in domain_counts.items()) or "n/a"),
+            ("status_summary", " | ".join(f"{name}={count}" for name, count in status_counts.items()) or "n/a"),
+        ]
+    )
+
+
 def main() -> None:
     STATE_ROOT.mkdir(parents=True, exist_ok=True)
     NATIVE_APP_STATE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -154,6 +180,8 @@ def main() -> None:
     gizmo_registry = load_json("config/gizmo_registry.json")
     ui_shell = load_json("config/ui_shell.json")
     asset_pipeline = load_json("config/asset_pipeline_manifest.json")["asset_pipeline"]
+    dcc_parity_matrix = load_json("config/dcc_parity_matrix.json")
+    dcc_parity_summary = parity_matrix_summary(dcc_parity_matrix)
 
     latest_report = latest_fabric_report()
     latest_fabric_status = latest_report["status"] if latest_report else "idle"
@@ -235,6 +263,12 @@ def main() -> None:
             ("runtime_pack_registry_entries", runtime_packs),
             ("runtime_pack_count", len(runtime_packs)),
             ("runtime_pack_summary", runtime_pack_summary),
+            ("dcc_parity_matrix", "config/dcc_parity_matrix.json"),
+            ("parity_matrix", dcc_parity_summary),
+            ("parity_feature_count", dcc_parity_summary["feature_count"]),
+            ("parity_capability_count", dcc_parity_summary["capability_count"]),
+            ("parity_status_summary", dcc_parity_summary["status_summary"]),
+            ("parity_domain_summary", dcc_parity_summary["domain_summary"]),
             ("fabric_intent_registry_entries", intents),
             ("fabric_intent_count", len(intents)),
             ("fabric_intent_summary", intent_summary),
@@ -703,6 +737,7 @@ def main() -> None:
                                     ("runtime_packs", "config/runtime_packs.json"),
                                     ("automation_jobs", "config/automation_jobs.json"),
                                     ("gizmo_registry", "config/gizmo_registry.json"),
+                                    ("dcc_parity_matrix", "config/dcc_parity_matrix.json"),
                                     ("session_schema", "session/session_schema.kn"),
                                     ("session_reducers", "session/reducers.kn"),
                                     ("session_intent_planner", "session/intent_planner.kn"),
@@ -729,6 +764,10 @@ def main() -> None:
                         ),
                         ("report_store", reports),
                         ("automation_jobs", jobs),
+                        ("parity_matrix", dcc_parity_summary),
+                        ("parity_capability_count", dcc_parity_summary["capability_count"]),
+                        ("parity_status_summary", dcc_parity_summary["status_summary"]),
+                        ("parity_domain_summary", dcc_parity_summary["domain_summary"]),
                         ("intent_queue", initial_intent_queue),
                         ("latest_command", None),
                         (

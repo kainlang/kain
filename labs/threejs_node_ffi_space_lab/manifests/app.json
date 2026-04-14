@@ -1,0 +1,23 @@
+{
+  "id": "kain_threejs_space_lab",
+  "name": "Kain Three.js Space Lab",
+  "tagline": "A Node FFI + Three.js proof that Kain can build and serve a free-fly 3D viewport.",
+  "summary": "Minimal localhost proof app: Kain drives a Node helper runtime, Node bundles the browser client, and Three.js renders a giant navigable void with a floating sphere.",
+  "output_root": "outputs",
+  "client_bundle": {
+    "enabled": true,
+    "entry": "helpers/client/main.ts",
+    "out_dir": "client",
+    "out_file": "three-space.bundle.js",
+    "format": "esm",
+    "target": "es2022",
+    "minify": false
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 4192
+  },
+  "registries": {
+    "scene": "manifests/space_scene.json"
+  }
+}

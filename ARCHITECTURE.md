@@ -76,6 +76,9 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [apps/kain-fabric-dcc-suite](/M:/Code/Kain/apps/kain-fabric-dcc-suite): broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, animation, sim, render, compositor, publish, automation, and tensor planning lanes
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
+- [docs/reference/dcc-parity-matrix.md](/M:/Code/Kain/docs/reference/dcc-parity-matrix.md): flagship KSculpt and KPainter parity inventory, baseline rules, and validation entrypoint
+- [scripts/python/validate_dcc_parity_matrix.py](/M:/Code/Kain/scripts/python/validate_dcc_parity_matrix.py): strict validator for the machine-readable parity inventory owned by `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
+- [scripts/python/run_dcc_parity_harness.py](/M:/Code/Kain/scripts/python/run_dcc_parity_harness.py): executable scenario harness for the highest-priority shared, sculpt, and painter parity hooks
 - [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data, including the root `gen_server.kn` helper that layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives; `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
@@ -90,6 +93,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `guides/quickstart.md` should stay short and point outward to the deeper pages, not become a second manual.
 - `docs/examples/README.md` is the operator-facing entrypoint for the runnable example ladder, and `docs/examples/examples_manifest.json` is the machine-readable source of truth for validation commands and coverage tags.
 - `docs/examples/validate_examples.py` is the canonical way to prove the local example ladder. Keep per-example validation metadata in the manifest rather than scattering it across prose pages.
+- `docs/reference/dcc-parity-matrix.md` is the canonical operator page for flagship KSculpt and KPainter parity, while `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json` is the machine-readable source of truth and `scripts/python/validate_dcc_parity_matrix.py` is the validator.
+- `scripts/python/run_dcc_parity_harness.py` is the executable scenario layer for the DCC parity program. Keep structural/shared scenario checks there instead of inventing ad-hoc one-off validation snippets.
 - `guides/pipelines/*` and `guides/ue5/*` are conceptual deep-dive pages for orchestration and Unreal-facing authoring. Keep the CLI pages focused on command syntax and keep the conceptual pages focused on data models, validation, and outputs.
 - `guides/syntax-and-semantics/functions-traits-and-impls.md` is the canonical chapter for function signatures, traits, and impl blocks.
 - `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, and `orchestrate`.
@@ -289,6 +294,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
 - [labs/chronos_native](/M:/Code/Kain/labs/chronos_native): first native Chronos proof app for the `kain native-ui dev` loop, combining compiler-owned world state, native UI shells, viewport3d authoring, and packaged shader sidecars from one Kain source file
+- [labs/threejs_node_ffi_space_lab](/M:/Code/Kain/labs/threejs_node_ffi_space_lab): Node-first localhost proof that Kain can orchestrate a Three.js free-fly scene through `std::javascript::bridge`, manifest-driven browser bundling, and a static Node server
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
 
 ## Common Commands
@@ -318,6 +324,7 @@ Typical commands:
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
 - `kain fabric run`
+- `python3 scripts/python/validate_dcc_parity_matrix.py`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `./runtime/fixtures/validate_all.sh`
@@ -398,6 +405,7 @@ If the debug CLI is missing:
 - Native desktop launchers that do not inherit a GUI session can still boot if the wrapper resolves the live compositor socket. `labs/playground/piano/run.sh` now auto-detects the current Wayland/X11 runtime and exports the minimum env needed to attach on Linux; if a native app starts but no window appears, check `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_RUNTIME_DIR`, and `XAUTHORITY` before blaming Kain UI.
 - The LLVM dogfood lab in `labs/llvm_world_dogfood_lab` uses named payloads for both `spawn` and `send`. If an actor message stops parsing, check `Pulse(amount = ...)` / `spawn Actor(...)` syntax before assuming the LLVM backend regressed.
 - The native Chronos proof under `labs/chronos_native` currently packages realtime and compute sidecars successfully, but the native-ui packaging/typecheck lane is still stricter than the direct GPU artifact lane for at least some compute expressions. If a shader proof works under `kain gpu-artifacts` but not under `kain build native-ui`, inspect dispatch-index access and bundle-lane differences before widening the language surface.
+- Node-backed browser labs such as `labs/threejs_node_ffi_space_lab` depend on a local package install inside the lab root. If bundling fails, check the lab-local `node_modules` state before assuming the browser app regressed; if Kain execution itself fails with unknown `js_import` / `js_bridge_import` identifiers, treat that as host-backed bridge registration drift in the current checkout.
 - General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
 - Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.

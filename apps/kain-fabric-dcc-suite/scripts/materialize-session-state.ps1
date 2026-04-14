@@ -146,6 +146,52 @@ $Reports = (Get-Content (Join-Path $AppRoot "config/report_kinds.json") -Raw | C
 $Jobs = (Get-Content (Join-Path $AppRoot "config/automation_jobs.json") -Raw | ConvertFrom-Json).jobs
 $GizmoRegistry = Get-Content (Join-Path $AppRoot "config/gizmo_registry.json") -Raw | ConvertFrom-Json
 $UiShell = Get-Content (Join-Path $AppRoot "config/ui_shell.json") -Raw | ConvertFrom-Json
+$DccParityMatrix = Get-Content (Join-Path $AppRoot "config/dcc_parity_matrix.json") -Raw | ConvertFrom-Json
+$ParityFeatures = @($DccParityMatrix.features)
+$ParityDomainCounts = [ordered]@{}
+foreach ($parityFeature in $ParityFeatures) {
+    if (-not $ParityDomainCounts.Contains($parityFeature.domain)) {
+        $ParityDomainCounts[$parityFeature.domain] = 0
+    }
+    $ParityDomainCounts[$parityFeature.domain] += 1
+}
+$ParityStatusCounts = [ordered]@{}
+foreach ($parityFeature in $ParityFeatures) {
+    if (-not $ParityStatusCounts.Contains($parityFeature.status)) {
+        $ParityStatusCounts[$parityFeature.status] = 0
+    }
+    $ParityStatusCounts[$parityFeature.status] += 1
+}
+$ParityScenarioCount = 0
+foreach ($parityFeature in $ParityFeatures) {
+    foreach ($validationHook in @($parityFeature.validation_hooks)) {
+        if ($null -ne $validationHook -and $validationHook.kind -eq "scenario") {
+            $ParityScenarioCount += 1
+        }
+    }
+}
+$ParityDomainSummary = if ($ParityDomainCounts.Count -gt 0) {
+    ($ParityDomainCounts.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join " | "
+} else {
+    "n/a"
+}
+$ParityStatusSummary = if ($ParityStatusCounts.Count -gt 0) {
+    ($ParityStatusCounts.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join " | "
+} else {
+    "n/a"
+}
+$ParityMatrixSummary = [ordered]@{
+    matrix_id = $DccParityMatrix.matrix_id
+    schema_version = $DccParityMatrix.schema_version
+    path = "config/dcc_parity_matrix.json"
+    feature_count = $ParityFeatures.Count
+    capability_count = $ParityFeatures.Count
+    scenario_count = $ParityScenarioCount
+    domain_counts = $ParityDomainCounts
+    status_counts = $ParityStatusCounts
+    domain_summary = $ParityDomainSummary
+    status_summary = $ParityStatusSummary
+}
 
 $LatestReport = Get-LatestFabricReport -ReportRoot (Join-Path $AppRoot ".kain/fabric/reports")
 $LatestFabricStatus = if ($null -eq $LatestReport) { "idle" } else { $LatestReport.status }
@@ -216,6 +262,12 @@ $SessionDocument = [ordered]@{
     runtime_pack_registry_entries = $RuntimePacks
     runtime_pack_count = @($RuntimePacks).Count
     runtime_pack_summary = $RuntimePackSummary
+    dcc_parity_matrix = "config/dcc_parity_matrix.json"
+    parity_matrix = $ParityMatrixSummary
+    parity_feature_count = $ParityMatrixSummary.feature_count
+    parity_capability_count = $ParityMatrixSummary.capability_count
+    parity_status_summary = $ParityMatrixSummary.status_summary
+    parity_domain_summary = $ParityMatrixSummary.domain_summary
     fabric_intent_registry_entries = $Intents
     fabric_intent_count = @($Intents).Count
     fabric_intent_summary = $IntentSummary
@@ -495,6 +547,7 @@ $RuntimeSnapshot = [ordered]@{
             runtime_packs = "config/runtime_packs.json"
             automation_jobs = "config/automation_jobs.json"
             gizmo_registry = "config/gizmo_registry.json"
+            dcc_parity_matrix = "config/dcc_parity_matrix.json"
             session_schema = "session/session_schema.kn"
             session_reducers = "session/reducers.kn"
             session_intent_planner = "session/intent_planner.kn"
@@ -514,6 +567,10 @@ $RuntimeSnapshot = [ordered]@{
         }
         report_store = $Reports
         automation_jobs = $Jobs
+        parity_matrix = $ParityMatrixSummary
+        parity_capability_count = $ParityMatrixSummary.capability_count
+        parity_status_summary = $ParityMatrixSummary.status_summary
+        parity_domain_summary = $ParityMatrixSummary.domain_summary
         intent_queue = $InitialIntentQueue
         latest_command = $null
         latest_fabric_run = [ordered]@{

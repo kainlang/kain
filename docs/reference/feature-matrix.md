@@ -6,6 +6,10 @@ This page is the coverage index for the live Kain language and runtime surface.
 It maps each feature family to the source file that defines it and the guide that
 explains it.
 
+For the flagship DCC parity inventory, use
+`reference/dcc-parity-matrix.md` plus
+`apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`.
+
 ## Truth Sources
 
 - `crates/kain-core/src/ast.rs`
