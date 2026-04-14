@@ -1,155 +1,23 @@
 import * as THREE from "three";
-import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 
-declare global {
-  interface Window {
-    __KAIN_THREE_SPACE_MODEL__?: unknown;
-  }
-}
+import { readAppModel, type AppModel, type SculptToolConfig } from "./model";
+import { UniversalViewportController } from "./universal-viewport";
+import { WasmSculptCore } from "./wasm-sculpt-core";
 
-type Vector3Tuple = [number, number, number];
-
-type AppModel = {
-  name: string;
-  tagline: string;
-  summary: string;
-  scene: {
-    name: string;
-    summary: string;
-    camera: {
-      fov: number;
-      near: number;
-      far: number;
-      spawn: Vector3Tuple;
-      walk_speed: number;
-      sprint_multiplier: number;
-      rise_speed: number;
-    };
-    sphere: {
-      radius: number;
-      position: Vector3Tuple;
-      bob_amplitude: number;
-      bob_speed: number;
-      rotation_speed: number;
-      surface_color: string;
-      emissive_color: string;
-      halo_color: string;
-    };
-    space: {
-      background: string;
-      fog: string;
-      grid_size: number;
-      grid_divisions: number;
-      star_count: number;
-      star_field_radius: number;
-      beacon_count: number;
-      beacon_ring_radius: number;
-      beacon_height: number;
-    };
-    lights: {
-      ambient_intensity: number;
-      hemisphere_intensity: number;
-      key_intensity: number;
-      rim_intensity: number;
-    };
-  };
+type BrushState = {
+  radius: number;
+  strength: number;
+  falloffPower: number;
 };
 
-type MovementState = {
-  forward: boolean;
-  backward: boolean;
-  left: boolean;
-  right: boolean;
-  rise: boolean;
-  descend: boolean;
-  sprint: boolean;
-};
+function mustQuery<T extends Element>(scope: ParentNode, selector: string): T {
+  const element = scope.querySelector<T>(selector);
 
-function asObject(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Expected ${label} to be an object.`);
+  if (!element) {
+    throw new Error(`Missing required element ${selector}.`);
   }
-  return value as Record<string, unknown>;
-}
 
-function asString(value: unknown, label: string): string {
-  if (typeof value !== "string") {
-    throw new Error(`Expected ${label} to be a string.`);
-  }
-  return value;
-}
-
-function asNumber(value: unknown, label: string): number {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    throw new Error(`Expected ${label} to be a number.`);
-  }
-  return value;
-}
-
-function asVector3Tuple(value: unknown, label: string): Vector3Tuple {
-  if (!Array.isArray(value) || value.length !== 3) {
-    throw new Error(`Expected ${label} to be a 3-number tuple.`);
-  }
-  return [
-    asNumber(value[0], `${label}[0]`),
-    asNumber(value[1], `${label}[1]`),
-    asNumber(value[2], `${label}[2]`),
-  ];
-}
-
-function readModel(rawValue: unknown): AppModel {
-  const root = asObject(rawValue, "window.__KAIN_THREE_SPACE_MODEL__");
-  const scene = asObject(root.scene, "scene");
-  const camera = asObject(scene.camera, "scene.camera");
-  const sphere = asObject(scene.sphere, "scene.sphere");
-  const space = asObject(scene.space, "scene.space");
-  const lights = asObject(scene.lights, "scene.lights");
-
-  return {
-    name: asString(root.name, "name"),
-    tagline: asString(root.tagline, "tagline"),
-    summary: asString(root.summary, "summary"),
-    scene: {
-      name: asString(scene.name, "scene.name"),
-      summary: asString(scene.summary, "scene.summary"),
-      camera: {
-        fov: asNumber(camera.fov, "scene.camera.fov"),
-        near: asNumber(camera.near, "scene.camera.near"),
-        far: asNumber(camera.far, "scene.camera.far"),
-        spawn: asVector3Tuple(camera.spawn, "scene.camera.spawn"),
-        walk_speed: asNumber(camera.walk_speed, "scene.camera.walk_speed"),
-        sprint_multiplier: asNumber(camera.sprint_multiplier, "scene.camera.sprint_multiplier"),
-        rise_speed: asNumber(camera.rise_speed, "scene.camera.rise_speed"),
-      },
-      sphere: {
-        radius: asNumber(sphere.radius, "scene.sphere.radius"),
-        position: asVector3Tuple(sphere.position, "scene.sphere.position"),
-        bob_amplitude: asNumber(sphere.bob_amplitude, "scene.sphere.bob_amplitude"),
-        bob_speed: asNumber(sphere.bob_speed, "scene.sphere.bob_speed"),
-        rotation_speed: asNumber(sphere.rotation_speed, "scene.sphere.rotation_speed"),
-        surface_color: asString(sphere.surface_color, "scene.sphere.surface_color"),
-        emissive_color: asString(sphere.emissive_color, "scene.sphere.emissive_color"),
-        halo_color: asString(sphere.halo_color, "scene.sphere.halo_color"),
-      },
-      space: {
-        background: asString(space.background, "scene.space.background"),
-        fog: asString(space.fog, "scene.space.fog"),
-        grid_size: asNumber(space.grid_size, "scene.space.grid_size"),
-        grid_divisions: asNumber(space.grid_divisions, "scene.space.grid_divisions"),
-        star_count: asNumber(space.star_count, "scene.space.star_count"),
-        star_field_radius: asNumber(space.star_field_radius, "scene.space.star_field_radius"),
-        beacon_count: asNumber(space.beacon_count, "scene.space.beacon_count"),
-        beacon_ring_radius: asNumber(space.beacon_ring_radius, "scene.space.beacon_ring_radius"),
-        beacon_height: asNumber(space.beacon_height, "scene.space.beacon_height"),
-      },
-      lights: {
-        ambient_intensity: asNumber(lights.ambient_intensity, "scene.lights.ambient_intensity"),
-        hemisphere_intensity: asNumber(lights.hemisphere_intensity, "scene.lights.hemisphere_intensity"),
-        key_intensity: asNumber(lights.key_intensity, "scene.lights.key_intensity"),
-        rim_intensity: asNumber(lights.rim_intensity, "scene.lights.rim_intensity"),
-      },
-    },
-  };
+  return element;
 }
 
 function formatVector(vector: THREE.Vector3): string {
@@ -162,7 +30,7 @@ function createStarField(scene: THREE.Scene, starCount: number, radius: number) 
   for (let index = 0; index < starCount; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const polar = Math.acos(THREE.MathUtils.randFloatSpread(2));
-    const distance = THREE.MathUtils.randFloat(radius * 0.35, radius);
+    const distance = THREE.MathUtils.randFloat(radius * 0.3, radius);
     const offset = index * 3;
     positions[offset] = Math.sin(polar) * Math.cos(angle) * distance;
     positions[offset + 1] = Math.cos(polar) * distance;
@@ -172,8 +40,8 @@ function createStarField(scene: THREE.Scene, starCount: number, radius: number) 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const material = new THREE.PointsMaterial({
-    color: "#b8d8ff",
-    size: 1.35,
+    color: "#bddcff",
+    size: 1.25,
     sizeAttenuation: true,
   });
 
@@ -184,22 +52,22 @@ function createStarField(scene: THREE.Scene, starCount: number, radius: number) 
 
 function createBeaconRing(scene: THREE.Scene, model: AppModel) {
   const beaconGroup = new THREE.Group();
-  const beaconGeometry = new THREE.BoxGeometry(3, model.scene.space.beacon_height, 3);
+  const beaconGeometry = new THREE.BoxGeometry(4.2, model.scene.environment.beacon_height, 4.2);
   const beaconMaterial = new THREE.MeshStandardMaterial({
-    color: "#3f7cff",
-    emissive: "#123f92",
-    metalness: 0.25,
-    roughness: 0.32,
+    color: "#2b7eff",
+    emissive: "#123b8a",
+    metalness: 0.28,
+    roughness: 0.3,
   });
 
-  for (let index = 0; index < model.scene.space.beacon_count; index += 1) {
-    const fraction = index / model.scene.space.beacon_count;
+  for (let index = 0; index < model.scene.environment.beacon_count; index += 1) {
+    const fraction = index / model.scene.environment.beacon_count;
     const angle = fraction * Math.PI * 2;
     const beacon = new THREE.Mesh(beaconGeometry, beaconMaterial);
     beacon.position.set(
-      Math.cos(angle) * model.scene.space.beacon_ring_radius,
-      model.scene.space.beacon_height / 2 - 2,
-      Math.sin(angle) * model.scene.space.beacon_ring_radius,
+      Math.cos(angle) * model.scene.environment.beacon_ring_radius,
+      model.scene.environment.beacon_height / 2 - 3,
+      Math.sin(angle) * model.scene.environment.beacon_ring_radius,
     );
     beacon.rotation.y = angle;
     beaconGroup.add(beacon);
@@ -209,101 +77,174 @@ function createBeaconRing(scene: THREE.Scene, model: AppModel) {
   return beaconGroup;
 }
 
-function createSphereAssembly(scene: THREE.Scene, model: AppModel) {
-  const sphereGroup = new THREE.Group();
-  const [sphereX, sphereY, sphereZ] = model.scene.sphere.position;
-  sphereGroup.position.set(sphereX, sphereY, sphereZ);
-
-  const sphereCore = new THREE.Mesh(
-    new THREE.SphereGeometry(model.scene.sphere.radius, 48, 48),
-    new THREE.MeshStandardMaterial({
-      color: model.scene.sphere.surface_color,
-      emissive: model.scene.sphere.emissive_color,
-      emissiveIntensity: 0.8,
-      metalness: 0.14,
-      roughness: 0.2,
-    }),
-  );
-
-  const sphereHalo = new THREE.Mesh(
-    new THREE.SphereGeometry(model.scene.sphere.radius * 1.22, 36, 36),
-    new THREE.MeshBasicMaterial({
-      color: model.scene.sphere.halo_color,
-      transparent: true,
-      opacity: 0.11,
-      wireframe: true,
-    }),
-  );
-
-  const accentLight = new THREE.PointLight(model.scene.sphere.halo_color, 22, 110, 2);
-  accentLight.position.set(0, 0, 0);
-
-  sphereGroup.add(sphereCore);
-  sphereGroup.add(sphereHalo);
-  sphereGroup.add(accentLight);
-  scene.add(sphereGroup);
-
-  return { sphereGroup, sphereCore, sphereHalo };
-}
-
 function createShellMarkup(model: AppModel) {
+  const modeButtons = model.viewport_profiles.modes
+    .map(
+      (mode) => `
+        <button type="button" class="mode-button" data-mode-button data-mode-id="${mode.id}">
+          <span>${mode.label}</span>
+          <small>${mode.hotkey}</small>
+        </button>
+      `,
+    )
+    .join("");
+
+  const toolButtons = model.sculpt_suite.tools
+    .map(
+      (tool) => `
+        <button
+          type="button"
+          class="tool-button"
+          data-tool-button
+          data-tool-id="${tool.id}"
+          style="--tool-accent:${tool.accent_color}"
+        >
+          <span>${tool.label}</span>
+        </button>
+      `,
+    )
+    .join("");
+
   return `
-    <div class="space-shell">
-      <div class="space-stage" data-space-stage></div>
-      <div class="hud-shell">
-        <section class="hero-card">
-          <span class="eyebrow">Kain Node FFI + Three.js</span>
+    <div class="suite-shell">
+      <header class="suite-header">
+        <div>
+          <span class="eyebrow">Kain Node FFI + Three.js + WASM</span>
           <h1>${model.name}</h1>
           <p>${model.summary}</p>
-        </section>
-        <section class="status-card">
-          <div class="status-row"><span>Scene</span><strong>${model.scene.name}</strong></div>
-          <div class="status-row"><span>Controls</span><strong>WASD + mouse + Space/Ctrl</strong></div>
-          <div class="status-row"><span>Lock</span><button type="button" class="lock-button" data-lock-button>Enter Flight</button></div>
-        </section>
-        <section class="status-card">
-          <div class="status-row"><span>Camera</span><strong data-camera-position>0, 0, 0</strong></div>
-          <div class="status-row"><span>Sphere Range</span><strong data-sphere-range>0.0</strong></div>
-          <div class="status-row"><span>Status</span><strong data-lock-state>Mouse unlocked</strong></div>
-        </section>
-        <section class="hint-card">
-          <p>Click <strong>Enter Flight</strong>, then drag to look around. Hold <strong>Shift</strong> to sprint. Press <strong>Esc</strong> to release the pointer.</p>
-        </section>
+        </div>
+        <div class="header-chip-row">
+          <span class="header-chip">${model.scene.name}</span>
+          <span class="header-chip">${model.wasm_pipeline.crate_name}.wasm</span>
+          <span class="header-chip">${model.viewport_profiles.name}</span>
+        </div>
+      </header>
+      <div class="suite-grid">
+        <aside class="chrome-rail">
+          <section class="chrome-card">
+            <span class="card-kicker">Universal Viewport</span>
+            <h2>Modes</h2>
+            <div class="button-stack">${modeButtons}</div>
+          </section>
+          <section class="chrome-card">
+            <span class="card-kicker">Brush Rack</span>
+            <h2>Tools</h2>
+            <div class="button-stack">${toolButtons}</div>
+            <p class="card-copy" data-tool-description>${model.sculpt_suite.summary}</p>
+          </section>
+          <section class="chrome-card">
+            <span class="card-kicker">Actions</span>
+            <h2>Stage</h2>
+            <div class="button-stack compact">
+              <button type="button" class="action-button" data-lock-button>Enter Fly</button>
+              <button type="button" class="action-button" data-focus-button>Frame Orb</button>
+              <button type="button" class="action-button" data-reset-button>Reset Sculpt</button>
+            </div>
+            <p class="card-copy" data-mode-description>${model.viewport_profiles.summary}</p>
+          </section>
+        </aside>
+        <main class="viewport-column">
+          <div class="viewport-stage" data-viewport-stage></div>
+          <div class="viewport-overlay">
+            <div class="mode-badge" data-active-mode-badge>${model.viewport_profiles.primary_mode}</div>
+            <div class="crosshair" data-crosshair></div>
+          </div>
+          <div class="status-strip">
+            <div class="status-pill"><span>Mode</span><strong data-mode-value>-</strong></div>
+            <div class="status-pill"><span>Tool</span><strong data-tool-value>-</strong></div>
+            <div class="status-pill"><span>Camera</span><strong data-camera-value>0, 0, 0</strong></div>
+            <div class="status-pill"><span>Range</span><strong data-range-value>0.0</strong></div>
+            <div class="status-pill"><span>WASM</span><strong data-wasm-value>Loading</strong></div>
+            <div class="status-pill"><span>Stroke</span><strong data-stroke-value>0</strong></div>
+          </div>
+        </main>
+        <aside class="chrome-rail">
+          <section class="chrome-card">
+            <span class="card-kicker">Brush Envelope</span>
+            <h2>Shape</h2>
+            <label class="slider-field">
+              <span>Radius</span>
+              <input type="range" min="1" max="12" step="0.1" data-radius-slider />
+              <strong data-radius-value>0.0</strong>
+            </label>
+            <label class="slider-field">
+              <span>Strength</span>
+              <input type="range" min="0.05" max="1.2" step="0.01" data-strength-slider />
+              <strong data-strength-value>0.0</strong>
+            </label>
+            <label class="slider-field">
+              <span>Falloff</span>
+              <input type="range" min="0.5" max="4" step="0.1" data-falloff-slider />
+              <strong data-falloff-value>0.0</strong>
+            </label>
+          </section>
+          <section class="chrome-card">
+            <span class="card-kicker">Metrics</span>
+            <h2>Orb</h2>
+            <div class="metric-row"><span>Vertices</span><strong data-vertex-value>0</strong></div>
+            <div class="metric-row"><span>Triangles</span><strong data-triangle-value>0</strong></div>
+            <div class="metric-row"><span>Bounds Radius</span><strong data-bounds-value>0.0</strong></div>
+            <div class="metric-row"><span>Pointer</span><strong data-pointer-value>Idle</strong></div>
+          </section>
+          <section class="chrome-card">
+            <span class="card-kicker">Hints</span>
+            <h2>Controls</h2>
+            <p class="card-copy">Hotkeys: <strong>1</strong>/<strong>2</strong>/<strong>3</strong> switch modes, <strong>F</strong> enters fly, <strong>R</strong> resets the orb, <strong>[</strong>/<strong>]</strong> resize the brush.</p>
+            <p class="card-copy">Sculpt mode uses left-drag for strokes and right-drag for camera tumble. Fly mode uses pointer lock plus <strong>WASD</strong>, <strong>Shift</strong>, <strong>Space</strong>, and <strong>Ctrl</strong>.</p>
+          </section>
+        </aside>
       </div>
-      <div class="crosshair" data-crosshair></div>
     </div>
   `;
 }
 
-function installApp(model: AppModel) {
+async function bootstrap() {
+  const model = readAppModel(window.__KAIN_THREE_SPACE_MODEL__);
   const mountTarget = document.getElementById("app-root");
+
   if (!mountTarget) {
     throw new Error("Missing app root.");
   }
 
   mountTarget.innerHTML = createShellMarkup(model);
-
-  const stage = mountTarget.querySelector<HTMLElement>("[data-space-stage]");
-  const lockButton = mountTarget.querySelector<HTMLButtonElement>("[data-lock-button]");
-  const cameraPositionValue = mountTarget.querySelector<HTMLElement>("[data-camera-position]");
-  const sphereRangeValue = mountTarget.querySelector<HTMLElement>("[data-sphere-range]");
-  const lockStateValue = mountTarget.querySelector<HTMLElement>("[data-lock-state]");
-  const crosshair = mountTarget.querySelector<HTMLElement>("[data-crosshair]");
-
-  if (!stage || !lockButton || !cameraPositionValue || !sphereRangeValue || !lockStateValue || !crosshair) {
-    throw new Error("Missing required shell elements.");
-  }
-
   document.title = model.name;
+
+  const stage = mustQuery<HTMLElement>(mountTarget, "[data-viewport-stage]");
+  const crosshair = mustQuery<HTMLElement>(mountTarget, "[data-crosshair]");
+  const lockButton = mustQuery<HTMLButtonElement>(mountTarget, "[data-lock-button]");
+  const focusButton = mustQuery<HTMLButtonElement>(mountTarget, "[data-focus-button]");
+  const resetButton = mustQuery<HTMLButtonElement>(mountTarget, "[data-reset-button]");
+  const radiusSlider = mustQuery<HTMLInputElement>(mountTarget, "[data-radius-slider]");
+  const strengthSlider = mustQuery<HTMLInputElement>(mountTarget, "[data-strength-slider]");
+  const falloffSlider = mustQuery<HTMLInputElement>(mountTarget, "[data-falloff-slider]");
+  const radiusValue = mustQuery<HTMLElement>(mountTarget, "[data-radius-value]");
+  const strengthValue = mustQuery<HTMLElement>(mountTarget, "[data-strength-value]");
+  const falloffValue = mustQuery<HTMLElement>(mountTarget, "[data-falloff-value]");
+  const cameraValue = mustQuery<HTMLElement>(mountTarget, "[data-camera-value]");
+  const rangeValue = mustQuery<HTMLElement>(mountTarget, "[data-range-value]");
+  const modeValue = mustQuery<HTMLElement>(mountTarget, "[data-mode-value]");
+  const toolValue = mustQuery<HTMLElement>(mountTarget, "[data-tool-value]");
+  const wasmValue = mustQuery<HTMLElement>(mountTarget, "[data-wasm-value]");
+  const strokeValue = mustQuery<HTMLElement>(mountTarget, "[data-stroke-value]");
+  const vertexValue = mustQuery<HTMLElement>(mountTarget, "[data-vertex-value]");
+  const triangleValue = mustQuery<HTMLElement>(mountTarget, "[data-triangle-value]");
+  const boundsValue = mustQuery<HTMLElement>(mountTarget, "[data-bounds-value]");
+  const pointerValue = mustQuery<HTMLElement>(mountTarget, "[data-pointer-value]");
+  const activeModeBadge = mustQuery<HTMLElement>(mountTarget, "[data-active-mode-badge]");
+  const toolDescription = mustQuery<HTMLElement>(mountTarget, "[data-tool-description]");
+  const modeDescription = mustQuery<HTMLElement>(mountTarget, "[data-mode-description]");
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = false;
   stage.appendChild(renderer.domElement);
+  renderer.domElement.classList.add("viewport-canvas");
+  renderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(model.scene.space.background);
-  scene.fog = new THREE.Fog(model.scene.space.fog, 80, 900);
+  scene.background = new THREE.Color(model.scene.environment.background);
+  scene.fog = new THREE.Fog(model.scene.environment.fog, 140, 1900);
 
   const camera = new THREE.PerspectiveCamera(
     model.scene.camera.fov,
@@ -312,16 +253,31 @@ function installApp(model: AppModel) {
     model.scene.camera.far,
   );
   camera.position.set(...model.scene.camera.spawn);
+  scene.add(camera);
 
-  const controls = new PointerLockControls(camera, renderer.domElement);
-  scene.add(controls.object);
+  const viewportController = new UniversalViewportController(
+    camera,
+    renderer.domElement,
+    model.viewport_profiles.modes,
+    {
+      walkSpeed: model.scene.camera.fly_walk_speed,
+      sprintMultiplier: model.scene.camera.fly_sprint_multiplier,
+      riseSpeed: model.scene.camera.fly_rise_speed,
+    },
+    new THREE.Vector3(...model.scene.camera.orbit_target),
+    model.viewport_profiles.primary_mode,
+  );
 
   const ambientLight = new THREE.AmbientLight("#ffffff", model.scene.lights.ambient_intensity);
-  const hemisphereLight = new THREE.HemisphereLight("#98d6ff", "#06111f", model.scene.lights.hemisphere_intensity);
+  const hemisphereLight = new THREE.HemisphereLight(
+    "#9dd9ff",
+    "#06101c",
+    model.scene.lights.hemisphere_intensity,
+  );
   const keyLight = new THREE.DirectionalLight("#ffffff", model.scene.lights.key_intensity);
-  keyLight.position.set(20, 38, 12);
-  const rimLight = new THREE.DirectionalLight("#7bc1ff", model.scene.lights.rim_intensity);
-  rimLight.position.set(-26, 14, -18);
+  keyLight.position.set(26, 48, 18);
+  const rimLight = new THREE.DirectionalLight("#75c8ff", model.scene.lights.rim_intensity);
+  rimLight.position.set(-24, 16, -22);
 
   scene.add(ambientLight);
   scene.add(hemisphereLight);
@@ -329,41 +285,284 @@ function installApp(model: AppModel) {
   scene.add(rimLight);
 
   const grid = new THREE.GridHelper(
-    model.scene.space.grid_size,
-    model.scene.space.grid_divisions,
-    "#5ea5ff",
-    "#18314f",
+    model.scene.environment.grid_size,
+    model.scene.environment.grid_divisions,
+    "#6eb8ff",
+    "#15324e",
   );
-  grid.position.y = -2;
+  grid.position.y = -3;
   scene.add(grid);
 
-  const floorPlane = new THREE.Mesh(
-    new THREE.CircleGeometry(model.scene.space.grid_size * 0.5, 96),
+  const platform = new THREE.Mesh(
+    new THREE.CircleGeometry(model.scene.environment.platform_radius, 96),
     new THREE.MeshBasicMaterial({
-      color: "#071120",
+      color: model.scene.environment.platform_color,
       transparent: true,
-      opacity: 0.38,
+      opacity: 0.55,
       side: THREE.DoubleSide,
     }),
   );
-  floorPlane.rotation.x = -Math.PI / 2;
-  floorPlane.position.y = -1.98;
-  scene.add(floorPlane);
+  platform.rotation.x = -Math.PI / 2;
+  platform.position.y = -2.96;
+  scene.add(platform);
 
-  const starField = createStarField(scene, model.scene.space.star_count, model.scene.space.star_field_radius);
+  const starField = createStarField(
+    scene,
+    model.scene.environment.star_count,
+    model.scene.environment.star_field_radius,
+  );
   const beaconRing = createBeaconRing(scene, model);
-  const { sphereGroup, sphereCore, sphereHalo } = createSphereAssembly(scene, model);
 
-  const clock = new THREE.Clock();
-  const movementState: MovementState = {
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    rise: false,
-    descend: false,
-    sprint: false,
+  const heroGroup = new THREE.Group();
+  heroGroup.position.set(...model.scene.hero_orb.position);
+  scene.add(heroGroup);
+
+  const heroGeometry = new THREE.IcosahedronGeometry(
+    model.scene.hero_orb.radius,
+    model.scene.hero_orb.detail,
+  );
+  heroGeometry.computeVertexNormals();
+  heroGeometry.computeBoundingSphere();
+
+  const heroMaterial = new THREE.MeshStandardMaterial({
+    color: model.scene.hero_orb.surface_color,
+    emissive: model.scene.hero_orb.emissive_color,
+    emissiveIntensity: 0.9,
+    metalness: 0.12,
+    roughness: 0.26,
+  });
+
+  const heroMesh = new THREE.Mesh(heroGeometry, heroMaterial);
+  heroGroup.add(heroMesh);
+
+  const haloMesh = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(
+      model.scene.hero_orb.radius * model.scene.hero_orb.halo_scale,
+      Math.max(model.scene.hero_orb.detail - 1, 3),
+    ),
+    new THREE.MeshBasicMaterial({
+      color: model.scene.hero_orb.halo_color,
+      transparent: true,
+      opacity: 0.12,
+      wireframe: true,
+    }),
+  );
+  heroGroup.add(haloMesh);
+
+  const wireShell = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(
+      model.scene.hero_orb.radius * 1.03,
+      Math.max(model.scene.hero_orb.detail - 2, 2),
+    ),
+    new THREE.MeshBasicMaterial({
+      color: model.scene.hero_orb.wire_color,
+      transparent: true,
+      opacity: 0.12,
+      wireframe: true,
+    }),
+  );
+  heroGroup.add(wireShell);
+
+  const accentLight = new THREE.PointLight(model.scene.hero_orb.halo_color, 25, 160, 2);
+  heroGroup.add(accentLight);
+
+  const brushIndicator = new THREE.Mesh(
+    new THREE.RingGeometry(0.84, 1, 48),
+    new THREE.MeshBasicMaterial({
+      color: "#f6fcff",
+      transparent: true,
+      opacity: 0.88,
+      side: THREE.DoubleSide,
+    }),
+  );
+  brushIndicator.visible = false;
+  scene.add(brushIndicator);
+
+  const initialPositionArray = new Float32Array(
+    (heroGeometry.attributes.position.array as Float32Array).slice(),
+  );
+
+  const toolById = new Map(model.sculpt_suite.tools.map((tool) => [tool.id, tool]));
+  let activeTool = toolById.get(model.sculpt_suite.defaults.initial_tool) ?? model.sculpt_suite.tools[0];
+  const brushState: BrushState = {
+    radius: activeTool.default_radius,
+    strength: activeTool.default_strength,
+    falloffPower: activeTool.falloff_power,
   };
+
+  const wasmCore = await WasmSculptCore.load(
+    new URL(model.wasm_pipeline.public_path, window.location.href).toString(),
+  );
+  wasmValue.textContent = `${model.wasm_pipeline.crate_name}.wasm`;
+
+  const modeButtons = Array.from(
+    mountTarget.querySelectorAll<HTMLButtonElement>("[data-mode-button]"),
+  );
+  const toolButtons = Array.from(
+    mountTarget.querySelectorAll<HTMLButtonElement>("[data-tool-button]"),
+  );
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const worldHitNormal = new THREE.Vector3();
+  const localHitPoint = new THREE.Vector3();
+  const localHitNormal = new THREE.Vector3();
+  const ringNormal = new THREE.Vector3(0, 0, 1);
+  const orbitFrameOffset = new THREE.Vector3(32, 22, 36);
+  const targetVector = new THREE.Vector3();
+
+  let lastStrokeAffectedCount = 0;
+  let sculptStrokeActive = false;
+  let lastStrokePoint: THREE.Vector3 | null = null;
+
+  const setBrushValues = () => {
+    radiusSlider.value = brushState.radius.toFixed(2);
+    strengthSlider.value = brushState.strength.toFixed(2);
+    falloffSlider.value = brushState.falloffPower.toFixed(2);
+    radiusValue.textContent = brushState.radius.toFixed(1);
+    strengthValue.textContent = brushState.strength.toFixed(2);
+    falloffValue.textContent = brushState.falloffPower.toFixed(1);
+  };
+
+  const setActiveTool = (tool: SculptToolConfig) => {
+    activeTool = tool;
+    brushState.radius = tool.default_radius;
+    brushState.strength = tool.default_strength;
+    brushState.falloffPower = tool.falloff_power;
+    toolDescription.textContent = tool.description;
+    setBrushValues();
+    toolButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.toolId === tool.id);
+    });
+  };
+
+  const setActiveMode = (modeId: string) => {
+    viewportController.setMode(modeId);
+    const activeMode = viewportController.activeMode;
+    modeDescription.textContent = activeMode.description;
+    crosshair.classList.toggle("is-visible", activeMode.show_crosshair);
+    activeModeBadge.textContent = activeMode.label;
+    lockButton.textContent = activeMode.id === "fly" ? "Enter Fly" : "Jump To Fly";
+    modeButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.modeId === modeId);
+    });
+  };
+
+  const updatePointerFromEvent = (event: PointerEvent) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1;
+    pointer.y = -(((event.clientY - rect.top) / Math.max(rect.height, 1)) * 2 - 1);
+  };
+
+  const updateBrushIndicator = (event: PointerEvent) => {
+    updatePointerFromEvent(event);
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObject(heroMesh, false)[0];
+
+    if (!hit || !hit.face) {
+      brushIndicator.visible = false;
+      pointerValue.textContent = "No surface";
+      return null;
+    }
+
+    worldHitNormal.copy(hit.face.normal).normalize();
+    brushIndicator.visible = viewportController.activeMode.allow_sculpt;
+    brushIndicator.position.copy(hit.point);
+    brushIndicator.scale.setScalar(brushState.radius);
+    brushIndicator.quaternion.setFromUnitVectors(ringNormal, worldHitNormal);
+    pointerValue.textContent = "Surface locked";
+
+    localHitPoint.copy(hit.point);
+    heroMesh.worldToLocal(localHitPoint);
+    localHitNormal.copy(hit.face.normal).normalize();
+
+    return {
+      point: localHitPoint.clone(),
+      normal: localHitNormal.clone(),
+    };
+  };
+
+  const applyBrushStroke = (point: THREE.Vector3, normal: THREE.Vector3) => {
+    const positionAttribute = heroGeometry.getAttribute("position");
+    const positionArray = positionAttribute.array as Float32Array;
+
+    lastStrokeAffectedCount = wasmCore.applyBrush(positionArray, {
+      center: point,
+      normal,
+      radius: brushState.radius,
+      strength: brushState.strength,
+      operationCode: activeTool.operation_code,
+      falloffPower: brushState.falloffPower,
+    });
+
+    positionAttribute.needsUpdate = true;
+    heroGeometry.computeVertexNormals();
+    heroGeometry.computeBoundingSphere();
+  };
+
+  const resetHeroMesh = () => {
+    const positionAttribute = heroGeometry.getAttribute("position");
+    (positionAttribute.array as Float32Array).set(initialPositionArray);
+    positionAttribute.needsUpdate = true;
+    heroGeometry.computeVertexNormals();
+    heroGeometry.computeBoundingSphere();
+    lastStrokeAffectedCount = 0;
+  };
+
+  const frameHero = () => {
+    camera.position.copy(heroGroup.position).add(orbitFrameOffset);
+    targetVector.copy(heroGroup.position);
+    viewportController.syncOrbitTarget(targetVector);
+  };
+
+  setActiveTool(activeTool);
+  setActiveMode(model.viewport_profiles.primary_mode);
+
+  radiusSlider.addEventListener("input", () => {
+    brushState.radius = Number(radiusSlider.value);
+    setBrushValues();
+  });
+  strengthSlider.addEventListener("input", () => {
+    brushState.strength = Number(strengthSlider.value);
+    setBrushValues();
+  });
+  falloffSlider.addEventListener("input", () => {
+    brushState.falloffPower = Number(falloffSlider.value);
+    setBrushValues();
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setActiveMode(button.dataset.modeId ?? model.viewport_profiles.primary_mode);
+    });
+  });
+
+  toolButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const tool = toolById.get(button.dataset.toolId ?? "");
+      if (tool) {
+        setActiveTool(tool);
+      }
+    });
+  });
+
+  lockButton.addEventListener("click", () => {
+    if (viewportController.activeMode.id !== "fly") {
+      setActiveMode("fly");
+    }
+    viewportController.requestPointerLock();
+  });
+
+  focusButton.addEventListener("click", () => {
+    if (viewportController.activeMode.id === "fly") {
+      setActiveMode("orbit");
+    }
+    frameHero();
+  });
+
+  resetButton.addEventListener("click", () => {
+    resetHeroMesh();
+  });
 
   const onResize = () => {
     const width = Math.max(stage.clientWidth, 1);
@@ -376,90 +575,127 @@ function installApp(model: AppModel) {
   onResize();
   window.addEventListener("resize", onResize);
 
-  const setMovementFlag = (event: KeyboardEvent, isPressed: boolean) => {
-    if (event.code === "KeyW") movementState.forward = isPressed;
-    if (event.code === "KeyS") movementState.backward = isPressed;
-    if (event.code === "KeyA") movementState.left = isPressed;
-    if (event.code === "KeyD") movementState.right = isPressed;
-    if (event.code === "Space") movementState.rise = isPressed;
-    if (event.code === "ControlLeft" || event.code === "ControlRight") movementState.descend = isPressed;
-    if (event.code === "ShiftLeft" || event.code === "ShiftRight") movementState.sprint = isPressed;
-  };
-
-  const onKeyDown = (event: KeyboardEvent) => setMovementFlag(event, true);
-  const onKeyUp = (event: KeyboardEvent) => setMovementFlag(event, false);
-  window.addEventListener("keydown", onKeyDown);
-  window.addEventListener("keyup", onKeyUp);
-
-  lockButton.addEventListener("click", () => controls.lock());
-  controls.addEventListener("lock", () => {
-    lockButton.textContent = "Flight Active";
-    lockStateValue.textContent = "Mouse locked";
-    crosshair.classList.add("active");
-  });
-  controls.addEventListener("unlock", () => {
-    lockButton.textContent = "Enter Flight";
-    lockStateValue.textContent = "Mouse unlocked";
-    crosshair.classList.remove("active");
-  });
-
-  let disposed = false;
-
-  const renderFrame = () => {
-    if (disposed) {
+  const onPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || !viewportController.activeMode.allow_sculpt) {
       return;
     }
 
+    const hit = updateBrushIndicator(event);
+
+    if (!hit) {
+      return;
+    }
+
+    sculptStrokeActive = true;
+    lastStrokePoint = hit.point.clone();
+    viewportController.setSculptGestureActive(true);
+    renderer.domElement.setPointerCapture(event.pointerId);
+    applyBrushStroke(hit.point, hit.normal);
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    const hit = updateBrushIndicator(event);
+
+    if (!sculptStrokeActive || !hit) {
+      return;
+    }
+
+    if (lastStrokePoint && lastStrokePoint.distanceTo(hit.point) < brushState.radius * 0.14) {
+      return;
+    }
+
+    lastStrokePoint = hit.point.clone();
+    applyBrushStroke(hit.point, hit.normal);
+  };
+
+  const endStroke = () => {
+    sculptStrokeActive = false;
+    lastStrokePoint = null;
+    viewportController.setSculptGestureActive(false);
+  };
+
+  renderer.domElement.addEventListener("pointerdown", onPointerDown);
+  renderer.domElement.addEventListener("pointermove", onPointerMove);
+  renderer.domElement.addEventListener("pointerup", endStroke);
+  renderer.domElement.addEventListener("pointerleave", () => {
+    if (!sculptStrokeActive) {
+      brushIndicator.visible = false;
+      pointerValue.textContent = "Idle";
+    }
+  });
+
+  const isTypingContext = () => {
+    const activeElement = document.activeElement;
+    return Boolean(activeElement && /INPUT|TEXTAREA|SELECT/.test(activeElement.tagName));
+  };
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (isTypingContext()) {
+      return;
+    }
+
+    if (event.code === "Digit1") setActiveMode("sculpt");
+    if (event.code === "Digit2") setActiveMode("orbit");
+    if (event.code === "Digit3") setActiveMode("fly");
+    if (event.code === "KeyF") {
+      setActiveMode("fly");
+      viewportController.requestPointerLock();
+    }
+    if (event.code === "KeyR") resetHeroMesh();
+    if (event.code === "BracketLeft") {
+      brushState.radius = Math.max(1, brushState.radius - 0.4);
+      setBrushValues();
+    }
+    if (event.code === "BracketRight") {
+      brushState.radius = Math.min(12, brushState.radius + 0.4);
+      setBrushValues();
+    }
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+
+  const clock = new THREE.Clock();
+  const heroBaseY = model.scene.hero_orb.position[1];
+
+  const renderFrame = () => {
     requestAnimationFrame(renderFrame);
+
     const elapsedTime = clock.getElapsedTime();
     const deltaSeconds = Math.min(clock.getDelta(), 0.05);
 
-    const speedMultiplier = movementState.sprint ? model.scene.camera.sprint_multiplier : 1;
-    const planarSpeed = model.scene.camera.walk_speed * speedMultiplier * deltaSeconds;
-    const verticalSpeed = model.scene.camera.rise_speed * speedMultiplier * deltaSeconds;
+    heroGroup.position.y =
+      heroBaseY +
+      Math.sin(elapsedTime * model.scene.hero_orb.float_speed) * model.scene.hero_orb.float_amplitude;
+    haloMesh.rotation.y -= model.scene.hero_orb.rotation_speed * 0.65 * deltaSeconds;
+    haloMesh.rotation.x += model.scene.hero_orb.rotation_speed * 0.3 * deltaSeconds;
+    wireShell.rotation.y += model.scene.hero_orb.rotation_speed * deltaSeconds;
+    beaconRing.rotation.y += 0.022 * deltaSeconds;
+    starField.rotation.y += 0.0015 * deltaSeconds;
 
-    if (controls.isLocked) {
-      if (movementState.forward) controls.moveForward(planarSpeed);
-      if (movementState.backward) controls.moveForward(-planarSpeed);
-      if (movementState.left) controls.moveRight(-planarSpeed);
-      if (movementState.right) controls.moveRight(planarSpeed);
-      if (movementState.rise) camera.position.y += verticalSpeed;
-      if (movementState.descend) camera.position.y -= verticalSpeed;
+    viewportController.syncOrbitTarget(heroGroup.position);
+    viewportController.update(deltaSeconds);
+
+    modeValue.textContent = viewportController.activeMode.label;
+    toolValue.textContent = activeTool.label;
+    cameraValue.textContent = formatVector(camera.position);
+    rangeValue.textContent = camera.position.distanceTo(heroGroup.position).toFixed(1);
+    strokeValue.textContent = String(lastStrokeAffectedCount);
+    vertexValue.textContent = heroGeometry.getAttribute("position").count.toLocaleString();
+    triangleValue.textContent = String((heroGeometry.index?.count ?? 0) / 3);
+    boundsValue.textContent = heroGeometry.boundingSphere?.radius.toFixed(1) ?? "0.0";
+    if (viewportController.isPointerLocked) {
+      pointerValue.textContent = "Fly lock";
     }
-
-    sphereGroup.position.y =
-      model.scene.sphere.position[1] +
-      Math.sin(elapsedTime * model.scene.sphere.bob_speed) * model.scene.sphere.bob_amplitude;
-    sphereCore.rotation.y += model.scene.sphere.rotation_speed * deltaSeconds;
-    sphereHalo.rotation.y -= model.scene.sphere.rotation_speed * 0.8 * deltaSeconds;
-    sphereHalo.rotation.x += model.scene.sphere.rotation_speed * 0.35 * deltaSeconds;
-    beaconRing.rotation.y += 0.03 * deltaSeconds;
-    starField.rotation.y += 0.002 * deltaSeconds;
-
-    cameraPositionValue.textContent = formatVector(camera.position);
-    sphereRangeValue.textContent = camera.position.distanceTo(sphereGroup.position).toFixed(1);
 
     renderer.render(scene, camera);
   };
 
   renderFrame();
 
-  return () => {
-    disposed = true;
-    window.removeEventListener("resize", onResize);
-    window.removeEventListener("keydown", onKeyDown);
-    window.removeEventListener("keyup", onKeyUp);
-    controls.unlock();
-    renderer.dispose();
-    grid.geometry.dispose();
-    (grid.material as THREE.Material | THREE.Material[]).dispose?.();
-    floorPlane.geometry.dispose();
-    (floorPlane.material as THREE.Material).dispose();
-    starField.geometry.dispose();
-    (starField.material as THREE.Material).dispose();
-    stage.innerHTML = "";
-  };
+  window.addEventListener("beforeunload", () => {
+    viewportController.dispose();
+    wasmCore.dispose();
+  });
 }
 
-const model = readModel(window.__KAIN_THREE_SPACE_MODEL__);
-installApp(model);
+void bootstrap();

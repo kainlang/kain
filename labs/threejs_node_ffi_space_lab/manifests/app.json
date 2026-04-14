@@ -1,8 +1,8 @@
 {
   "id": "kain_threejs_space_lab",
-  "name": "Kain Three.js Space Lab",
-  "tagline": "A Node FFI + Three.js proof that Kain can build and serve a free-fly 3D viewport.",
-  "summary": "Minimal localhost proof app: Kain drives a Node helper runtime, Node bundles the browser client, and Three.js renders a giant navigable void with a floating sphere.",
+  "name": "Kain Universal Sculpt Space Lab",
+  "tagline": "A Node FFI + Three.js proof that Kain can drive a universal viewport and a Rust-powered WASM sculpt core.",
+  "summary": "Localhost sculpt suite proof app: Node owns bundling and serving, Three.js owns the universal viewport, and a local Rust crate compiles to WebAssembly for brush deformation over a floating sculpt orb inside a giant void.",
   "output_root": "outputs",
   "client_bundle": {
     "enabled": true,
@@ -18,6 +18,9 @@
     "port": 4192
   },
   "registries": {
-    "scene": "manifests/space_scene.json"
+    "scene": "manifests/space_scene.json",
+    "sculpt_suite": "manifests/sculpt_suite.json",
+    "viewport_profiles": "manifests/viewport_profiles.json",
+    "wasm_pipeline": "manifests/wasm_pipeline.json"
   }
 }

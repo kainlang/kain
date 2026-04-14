@@ -1,0 +1,11 @@
+{
+  "id": "sculpt_core_pipeline",
+  "name": "Rust Sculpt Core Pipeline",
+  "crate_name": "sculpt_core",
+  "manifest_path": "wasm/sculpt_core/Cargo.toml",
+  "target": "wasm32-unknown-unknown",
+  "profile": "release",
+  "output_dir": "outputs/wasm",
+  "output_file": "sculpt_core.wasm",
+  "public_path": "wasm/sculpt_core.wasm"
+}

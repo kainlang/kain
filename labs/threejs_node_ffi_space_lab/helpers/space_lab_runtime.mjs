@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -15,6 +16,7 @@ const contentTypesByExtension = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
+  ".wasm": "application/wasm",
 };
 
 function resolveProjectRoot(projectRoot = ".") {
@@ -60,8 +62,11 @@ function buildSummary(model) {
     output_root: model.output_root_absolute,
     html_entry: model.html_entry_absolute,
     client_bundle: model.client_bundle_absolute,
-    star_count: model.scene.space.star_count,
-    beacon_count: model.scene.space.beacon_count,
+    wasm_bundle: model.wasm_pipeline?.public_path ?? null,
+    viewport_mode_count: model.viewport_profiles?.modes?.length ?? 0,
+    sculpt_tool_count: model.sculpt_suite?.tools?.length ?? 0,
+    star_count: model.scene.environment.star_count,
+    beacon_count: model.scene.environment.beacon_count,
   };
 }
 
@@ -82,6 +87,13 @@ function createRuntimeModel(projectRoot, appConfig, registries, manifestPath) {
   const clientBundleAbsolute = path.join(clientBundleDirectory, appConfig.client_bundle.out_file);
   const clientStyleAbsolute = path.join(clientBundleDirectory, "three-space.css");
   const htmlEntryAbsolute = path.join(outputRootAbsolute, "index.html");
+  const wasmPipeline = registries.wasm_pipeline ?? null;
+  const wasmOutputDirectoryAbsolute = wasmPipeline
+    ? resolveInsideProject(projectRoot, wasmPipeline.output_dir)
+    : null;
+  const wasmBundleAbsolute = wasmPipeline
+    ? path.join(wasmOutputDirectoryAbsolute, wasmPipeline.output_file)
+    : null;
 
   return {
     ...appConfig,
@@ -92,6 +104,15 @@ function createRuntimeModel(projectRoot, appConfig, registries, manifestPath) {
     client_style_absolute: clientStyleAbsolute,
     html_entry_absolute: htmlEntryAbsolute,
     scene: registries.scene,
+    sculpt_suite: registries.sculpt_suite,
+    viewport_profiles: registries.viewport_profiles,
+    wasm_pipeline: wasmPipeline
+      ? {
+          ...wasmPipeline,
+          output_dir_absolute: wasmOutputDirectoryAbsolute,
+          output_file_absolute: wasmBundleAbsolute,
+        }
+      : null,
   };
 }
 
@@ -129,6 +150,86 @@ async function bundleClient(model) {
   return {
     bundle_path: model.client_bundle_absolute,
     style_path: model.client_style_absolute,
+  };
+}
+
+async function runProcess(command, args, options = {}) {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: { ...process.env, ...options.env },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+
+  child.stdout.on("data", (chunk) => {
+    stdout += String(chunk);
+  });
+
+  child.stderr.on("data", (chunk) => {
+    stderr += String(chunk);
+  });
+
+  const exitCode = await new Promise((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", resolve);
+  });
+
+  if (exitCode !== 0) {
+    throw new Error(
+      [
+        `Command failed: ${command} ${args.join(" ")}`,
+        stdout.trim() ? `stdout:\n${stdout.trim()}` : "",
+        stderr.trim() ? `stderr:\n${stderr.trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    );
+  }
+
+  return { stdout, stderr };
+}
+
+async function buildWasmBundle(model) {
+  if (!model.wasm_pipeline) {
+    return null;
+  }
+
+  const pipeline = model.wasm_pipeline;
+  const manifestAbsolute = resolveInsideProject(model.project_root, pipeline.manifest_path);
+  const artifactProfileDirectory = pipeline.profile === "debug" ? "debug" : "release";
+  const cargoArguments = [
+    "build",
+    "--manifest-path",
+    manifestAbsolute,
+    "--target",
+    pipeline.target,
+  ];
+
+  if (artifactProfileDirectory === "release") {
+    cargoArguments.push("--release");
+  }
+
+  await runProcess("cargo", cargoArguments, { cwd: model.project_root });
+
+  const builtWasmAbsolute = path.join(
+    path.dirname(manifestAbsolute),
+    "target",
+    pipeline.target,
+    artifactProfileDirectory,
+    `${pipeline.crate_name}.wasm`,
+  );
+
+  await ensureDirectory(pipeline.output_dir_absolute);
+  await fs.copyFile(builtWasmAbsolute, pipeline.output_file_absolute);
+
+  return {
+    crate_name: pipeline.crate_name,
+    manifest_path: manifestAbsolute,
+    target: pipeline.target,
+    artifact_path: pipeline.output_file_absolute,
+    public_path: pipeline.public_path,
   };
 }
 
@@ -177,8 +278,16 @@ async function emitRuntimeOutputs(model, clientArtifacts) {
 
 export async function buildApp(projectRoot = ".", manifestPath = defaultManifestPath) {
   const model = await loadAppConfig(projectRoot, manifestPath);
+  const wasmArtifacts = await buildWasmBundle(model);
   const clientArtifacts = await bundleClient(model);
-  return emitRuntimeOutputs(model, clientArtifacts);
+  return emitRuntimeOutputs(model, { client: clientArtifacts, wasm: wasmArtifacts });
+}
+
+export async function buildWasmOnly(projectRoot = ".", manifestPath = defaultManifestPath) {
+  const model = await loadAppConfig(projectRoot, manifestPath);
+  const wasmArtifacts = await buildWasmBundle(model);
+  console.log(JSON.stringify(wasmArtifacts, null, 2));
+  return wasmArtifacts;
 }
 
 export async function printSummary(projectRoot = ".", manifestPath = defaultManifestPath) {
@@ -193,7 +302,10 @@ function chooseContentType(filePath) {
 }
 
 async function readStaticAsset(outputsRoot, requestPath) {
-  const relativeRequestPath = requestPath === "/" ? "index.html" : requestPath.replace(/^\/+/, "");
+  const normalizedPathname = new URL(requestPath ?? "/", "http://localhost").pathname;
+  const relativeRequestPath = normalizedPathname === "/"
+    ? "index.html"
+    : normalizedPathname.replace(/^\/+/, "");
   const safeRequestPath = path.normalize(relativeRequestPath).replace(/^(\.\.(\/|\\|$))+/, "");
   const filePath = path.join(outputsRoot, safeRequestPath);
   return {
@@ -224,7 +336,7 @@ export async function serveApp(projectRoot = ".", manifestPath = defaultManifest
 
   await new Promise((resolve) => server.listen(port, host, resolve));
   const address = `http://${host}:${port}`;
-  console.log(`Kain Three.js Space Lab serving at ${address}`);
+  console.log(`${model.name} serving at ${address}`);
   return {
     address,
     host,
@@ -244,6 +356,11 @@ async function runFromCli() {
     return;
   }
 
+  if (command === "build-wasm") {
+    await buildWasmOnly(projectRoot, manifestPath);
+    return;
+  }
+
   if (command === "print") {
     await printSummary(projectRoot, manifestPath);
     return;
@@ -254,7 +371,7 @@ async function runFromCli() {
     return;
   }
 
-  throw new Error(`Unknown command "${command}". Expected build, print, or serve.`);
+  throw new Error(`Unknown command "${command}". Expected build, build-wasm, print, or serve.`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === runtimeFilePath) {

@@ -1,22 +1,20 @@
-# Kain Three.js Node FFI Space Lab
+# Kain Universal Sculpt Space Lab
 
-`threejs_node_ffi_space_lab` is a focused proof under `labs/` that answers one question: can Kain drive a local Three.js browser app through the Node FFI lane?
+`threejs_node_ffi_space_lab` is a focused browser proof under `labs/` that now answers a bigger question than the first pass: can Kain drive a local Three.js sculpting suite through the Node FFI lane while compiling a real Rust WASM helper?
 
-This lab keeps the stack deliberately small:
+The lab stays intentionally small, but it now has real subsystem boundaries:
 
-- `src/main.kn` proves Kain can orchestrate the build through `std::javascript::bridge`
-- `helpers/space_lab_runtime.mjs` owns Node-side bundling, HTML emission, and localhost serving
-- `helpers/client/main.ts` owns the Three.js free-fly viewport
-- `manifests/space_scene.json` keeps the scene shape data-driven
+- `src/main.kn` proves the Kain entrypoint and `std::javascript::bridge` orchestration seam.
+- `helpers/space_lab_runtime.mjs` builds both the browser bundle and the Rust `wasm32-unknown-unknown` sculpt artifact, then serves them on localhost.
+- `helpers/client/` owns the Three.js editor shell, the universal viewport controller, and the WASM brush bridge.
+- `manifests/*.json` keep scene, sculpt, viewport, and WASM build policy data-driven.
+- `wasm/sculpt_core/` is a local Rust crate that exports raw brush deformation over vertex buffers.
 
-## Controls
+## Universal Viewport Modes
 
-- `W`, `A`, `S`, `D`: move
-- mouse: look around after pointer lock
-- `Shift`: sprint
-- `Space`: rise
-- `Ctrl`: descend
-- `Esc`: release pointer lock
+- `Sculpt`: left-drag brush strokes, right-drag orbit, mouse-wheel dolly
+- `Orbit`: inspection-only orbit mode
+- `Fly`: pointer-locked navigation with `W`, `A`, `S`, `D`, `Shift`, `Space`, and `Ctrl`
 
 ## Commands
 
@@ -24,6 +22,7 @@ From `labs/threejs_node_ffi_space_lab`:
 
 ```bash
 npm install
+npm run build:wasm
 npm run build
 npm run serve
 ```
@@ -38,8 +37,8 @@ The local server defaults to `http://127.0.0.1:4192`.
 
 ## Current Checkout Note
 
-The lab includes a real Kain entrypoint in `src/main.kn` plus a minimal
-`KAIN.fabric.toml`, but this checkout is currently failing to resolve the
-JavaScript bridge identifiers inside Kain execution (`js_import` /
-`js_bridge_import`) even though the Node runtime path itself works. The live
-Three.js proof is therefore validated through the Node helper commands above.
+The lab includes a real Kain entrypoint in `src/main.kn` plus a minimal `KAIN.fabric.toml`, but this checkout is still failing to resolve the JavaScript bridge identifiers inside Kain execution (`js_import` / `js_bridge_import`) even though the Node runtime path itself works. The validated live path for this lab is therefore:
+
+- `npm run build:wasm`
+- `npm run build`
+- `npm run serve`

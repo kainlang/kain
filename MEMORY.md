@@ -30,6 +30,36 @@
 =======
 # MEMORY
 
+# 2026-04-14 - Three.js Node FFI lab grew into a sculpt suite with a Rust WASM core
+
+The existing browser proof under `labs/threejs_node_ffi_space_lab/` is no longer only a free-fly sphere scene. It now acts as a small sculpting suite with a manifest-driven universal viewport and a local Rust `wasm32-unknown-unknown` brush kernel.
+
+What changed:
+
+- Added manifest registries for sculpt tools, universal viewport profiles, and the Rust WASM build pipeline.
+- Added a local crate under `labs/threejs_node_ffi_space_lab/wasm/sculpt_core/` that exports raw brush deformation over vertex buffers.
+- Extended `helpers/space_lab_runtime.mjs` so `npm run build` also compiles the Rust crate, copies `outputs/wasm/sculpt_core.wasm`, and serves `.wasm` with the correct MIME type.
+- Split the browser client into clearer ownership layers: runtime model parsing, universal viewport control, WASM bridge, and scene/app shell wiring.
+- Replaced the original free-fly-only scene with a universal viewport shell that supports sculpt, orbit, and fly modes over one floating orb in a large Three.js space.
+
+Validation:
+
+- `rustup target add wasm32-unknown-unknown`
+- `npm run build:wasm` in `labs/threejs_node_ffi_space_lab`
+- `npm run build` in `labs/threejs_node_ffi_space_lab`
+- `npm run serve` in `labs/threejs_node_ffi_space_lab`
+- `curl -I http://127.0.0.1:4192/wasm/sculpt_core.wasm`
+
+Important behavior notes:
+
+- The sculpt core is intentionally narrow. It mutates vertex positions only; raycasts, UI, normals, and camera policy stay in the browser/Three.js lane.
+- The current localhost server for this lab must be restarted after runtime changes or it can keep serving stale MIME behavior for `.wasm`.
+- The host-backed Kain JavaScript bridge issue is still unresolved in this checkout, so the validated execution path remains the Node helper commands rather than `kain run`.
+
+Recommended next step:
+
+- Repair the host-backed Kain JavaScript bridge registration so the lab can be executed end-to-end from `src/main.kn`, then decide whether this browser-side sculpt proof should stay a lab or graduate into a broader app archetype.
+
 # 2026-04-14 - Node FFI Three.js space lab landed under labs
 
 The repo now has a minimal browser-side proof under

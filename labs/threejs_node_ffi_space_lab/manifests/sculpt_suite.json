@@ -1,0 +1,53 @@
+{
+  "id": "orbital_sculpt_suite",
+  "name": "Orbital Sculpt Suite",
+  "summary": "Compact sculpt workstation metadata for a floating orb edit target inside the universal viewport.",
+  "defaults": {
+    "initial_tool": "inflate",
+    "brush_radius": 4.4,
+    "brush_strength": 0.58,
+    "falloff_power": 1.8
+  },
+  "tools": [
+    {
+      "id": "inflate",
+      "label": "Inflate",
+      "description": "Pushes the surface outward along the sampled brush normal.",
+      "operation_code": 0,
+      "default_radius": 4.4,
+      "default_strength": 0.58,
+      "falloff_power": 1.8,
+      "accent_color": "#69e2ff"
+    },
+    {
+      "id": "carve",
+      "label": "Carve",
+      "description": "Cuts inward along the brush normal for crater-like dents.",
+      "operation_code": 1,
+      "default_radius": 5.1,
+      "default_strength": 0.54,
+      "falloff_power": 1.9,
+      "accent_color": "#ff8f78"
+    },
+    {
+      "id": "smooth",
+      "label": "Smooth",
+      "description": "Pulls noisy peaks back toward the sampled tangent plane.",
+      "operation_code": 2,
+      "default_radius": 6.8,
+      "default_strength": 0.34,
+      "falloff_power": 2.2,
+      "accent_color": "#ffe08c"
+    },
+    {
+      "id": "pinch",
+      "label": "Pinch",
+      "description": "Slides surface points toward the stroke center for sharper ridges.",
+      "operation_code": 3,
+      "default_radius": 3.6,
+      "default_strength": 0.48,
+      "falloff_power": 1.6,
+      "accent_color": "#b9a0ff"
+    }
+  ]
+}
