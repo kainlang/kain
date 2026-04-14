@@ -45,6 +45,22 @@ pub struct RenderViewSettings {
     pub instance_transform_overrides: BTreeMap<String, Transform>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FrameCameraSource {
+    ExplicitView,
+    AutoFramed,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FrameDiagnostics {
+    pub camera_source: Option<FrameCameraSource>,
+    pub scene_name: Option<String>,
+    pub viewport_summary: Option<String>,
+    pub composition_summary: Option<String>,
+    pub visible_instances: Vec<String>,
+    pub culled_instances: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RenderStats {
     pub triangles_submitted: usize,
@@ -60,6 +76,7 @@ pub struct RenderFrame {
     pub height: usize,
     pub rgba: Vec<u8>,
     pub stats: RenderStats,
+    pub diagnostics: FrameDiagnostics,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -234,6 +251,7 @@ impl SoftwareRenderer {
         let rgba = &mut self.scratch_rgba;
         let depth = &mut self.scratch_depth;
         let mut stats = RenderStats::default();
+        let mut diagnostics = FrameDiagnostics::default();
 
         fill_background(
             rgba,
@@ -244,11 +262,27 @@ impl SoftwareRenderer {
         depth.fill(f32::INFINITY);
 
         let aspect_ratio = resolution.width as f32 / resolution.height as f32;
+        diagnostics.scene_name = Some(scene.name.clone());
+        diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
+        diagnostics.composition_summary = Some(
+            scene
+                .composition_summary_with_overrides(
+                    time_seconds,
+                    &view.instance_transform_overrides,
+                )
+                .brief_label(),
+        );
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
+            diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);
             camera
         } else {
-            default_camera_pose = scene.camera.pose_at(time_seconds);
+            default_camera_pose = scene.framed_camera_pose_with_overrides(
+                time_seconds,
+                aspect_ratio,
+                &view.instance_transform_overrides,
+            );
+            diagnostics.camera_source = Some(FrameCameraSource::AutoFramed);
             &default_camera_pose
         };
         let view_matrix = Mat4::look_at(camera.position, camera.target, camera.up);
@@ -263,6 +297,7 @@ impl SoftwareRenderer {
         for instance in scene
             .animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides)
         {
+            diagnostics.visible_instances.push(instance.id.clone());
             let mesh = scene
                 .resolved_mesh(&instance.mesh, time_seconds)
                 .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
@@ -342,6 +377,7 @@ impl SoftwareRenderer {
             height: resolution.height,
             rgba: rgba.clone(),
             stats,
+            diagnostics,
         })
     }
 
@@ -990,8 +1026,8 @@ fn orthonormal_basis(axis: Vec3) -> (Vec3, Vec3) {
     } else {
         Vec3::UP
     };
-    let basis_u = axis.cross(helper).normalize();
-    let basis_v = axis.cross(basis_u).normalize();
+    let basis_u = axis.cross(helper).normalized_or(Vec3::new(1.0, 0.0, 0.0));
+    let basis_v = axis.cross(basis_u).normalized_or(Vec3::UP);
     (basis_u, basis_v)
 }
 
@@ -1026,6 +1062,106 @@ fn to_vec3(point: [f32; 4]) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn framed_camera_scene() -> SceneDescription {
+        let mut meshes = std::collections::BTreeMap::new();
+        meshes.insert(
+            "triangle".to_string(),
+            Mesh {
+                vertices: vec![
+                    Vertex {
+                        position: Vec3::new(-0.5, 0.0, 0.0),
+                        normal: Vec3::UP,
+                    },
+                    Vertex {
+                        position: Vec3::new(0.5, 0.0, 0.0),
+                        normal: Vec3::UP,
+                    },
+                    Vertex {
+                        position: Vec3::new(0.0, 1.0, 0.0),
+                        normal: Vec3::UP,
+                    },
+                ],
+                triangles: vec![[0, 1, 2]],
+            },
+        );
+
+        let mut materials = std::collections::BTreeMap::new();
+        materials.insert(
+            "matte".to_string(),
+            Material {
+                base_color: ColorRgb::new(0.9, 0.6, 0.2),
+                specular_color: ColorRgb::new(0.9, 0.9, 0.9),
+                ambient_strength: 0.3,
+                diffuse_strength: 0.9,
+                specular_strength: 0.0,
+                shininess: 4.0,
+            },
+        );
+
+        SceneDescription {
+            name: "framed_camera_scene".to_string(),
+            viewport_summary: "off-center scene that should auto-frame".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.02, 0.04, 0.08),
+                bottom: ColorRgb::new(0.08, 0.12, 0.18),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 60.0,
+                near_plane: 0.1,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::new(1.0, 1.0, 1.0),
+                ambient_intensity: 1.0,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes,
+            materials,
+            instances: vec![SceneInstance {
+                id: "triangle".to_string(),
+                mesh: "triangle".to_string(),
+                material: "matte".to_string(),
+                transform: Transform::identity().with_translation(Vec3::new(30.0, 0.0, 0.0)),
+            }],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        }
+    }
+
+    #[test]
+    fn default_camera_auto_frames_off_center_scene() {
+        let scene = framed_camera_scene();
+        let mut renderer = SoftwareRenderer::default();
+        let frame = renderer
+            .render_scene(&scene, 0.0, RenderResolution::new(128, 128))
+            .expect("scene should render");
+
+        assert!(frame.stats.triangles_rasterized > 0);
+        assert!(frame.stats.pixels_shaded > 0);
+        assert_eq!(
+            frame.diagnostics.scene_name.as_deref(),
+            Some("framed_camera_scene")
+        );
+        assert_eq!(
+            frame.diagnostics.viewport_summary.as_deref(),
+            Some("off-center scene that should auto-frame")
+        );
+        assert!(frame
+            .diagnostics
+            .composition_summary
+            .as_deref()
+            .unwrap_or("")
+            .contains("meshes"));
+    }
 
     #[test]
     fn retirement_demo_renders_non_empty_frame() {

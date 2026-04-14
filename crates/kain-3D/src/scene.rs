@@ -56,11 +56,14 @@ fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radiu
     max.z = max.z.max(local_max.z);
 }
 
-fn framed_camera_distance(bounds: SceneBounds, fov_y_degrees: f32) -> f32 {
+fn framed_camera_distance(bounds: SceneBounds, fov_y_degrees: f32, aspect_ratio: f32) -> f32 {
     let radius = bounds.radius().max(0.001);
     let half_fov_radians = (fov_y_degrees.to_radians() * 0.5).clamp(0.2, 1.3);
     let fit_distance = radius / half_fov_radians.tan();
-    fit_distance.max(radius * 2.0) + radius * 0.35
+    let aspect_ratio = aspect_ratio.max(0.1);
+    let horizontal_half_fov_radians = (half_fov_radians.tan() * aspect_ratio).atan();
+    let horizontal_fit_distance = radius / horizontal_half_fov_radians.tan();
+    fit_distance.max(horizontal_fit_distance).max(radius * 2.0) + radius * 0.35
 }
 
 fn framed_camera_clip_planes(bounds: SceneBounds, distance: f32) -> (f32, f32) {
@@ -476,19 +479,20 @@ impl SceneDescription {
         })
     }
 
-    pub fn framed_camera_pose(&self, time_seconds: f32) -> CameraPose {
-        self.framed_camera_pose_with_overrides(time_seconds, &BTreeMap::new())
+    pub fn framed_camera_pose(&self, time_seconds: f32, aspect_ratio: f32) -> CameraPose {
+        self.framed_camera_pose_with_overrides(time_seconds, aspect_ratio, &BTreeMap::new())
     }
 
     pub fn framed_camera_pose_with_overrides(
         &self,
         time_seconds: f32,
+        aspect_ratio: f32,
         instance_transform_overrides: &BTreeMap<String, Transform>,
     ) -> CameraPose {
         let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         if let Some(bounds) = bounds {
             let radius = bounds.radius().max(0.001);
-            let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees);
+            let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio);
             let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
             let half_extents = bounds.half_extents;
             let framing_direction = Vec3::new(
@@ -521,7 +525,7 @@ impl SceneDescription {
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
             framed_camera_distance: bounds
-                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees)),
+                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees, 1.0)),
             bounds,
         }
     }
@@ -541,7 +545,7 @@ impl SceneDescription {
             terrain_surface_count: self.terrain_surfaces.len(),
             has_black_hole: self.black_hole.is_some(),
             framed_camera_distance: bounds
-                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees)),
+                .map(|bounds| framed_camera_distance(bounds, self.camera.fov_y_degrees, 1.0)),
             bounds,
         }
     }
@@ -2810,7 +2814,7 @@ mod tests {
         assert!(bounds.center.length() > 0.0 || bounds.half_extents.length() > 0.0);
         assert!(bounds.radius() > 0.0);
 
-        let framed = scene.framed_camera_pose(0.0);
+        let framed = scene.framed_camera_pose(0.0, 1.0);
         assert_eq!(framed.target, bounds.center);
         assert!(framed.position.distance(bounds.center) > bounds.radius());
         assert_eq!(framed.up, Vec3::UP);
@@ -2875,7 +2879,7 @@ mod tests {
             Transform::identity().with_translation(Vec3::new(0.0, 20.0, 0.0)),
         )]);
 
-        let framed = scene.framed_camera_pose_with_overrides(0.0, &overrides);
+        let framed = scene.framed_camera_pose_with_overrides(0.0, 1.0, &overrides);
         assert!(
             framed.position.y > 20.0,
             "camera should rise above the tall scene center"
@@ -2901,7 +2905,7 @@ mod tests {
         assert!(bounds.center.x > 0.0);
         assert!(bounds.center.y > 0.0);
 
-        let framed = scene.framed_camera_pose_with_overrides(0.0, &overrides);
+        let framed = scene.framed_camera_pose_with_overrides(0.0, 1.0, &overrides);
         assert_eq!(framed.target, bounds.center);
         assert!(framed.position.distance(bounds.center) > bounds.radius());
     }
@@ -2913,8 +2917,8 @@ mod tests {
             half_extents: Vec3::new(2.0, 1.0, 3.0),
         };
 
-        let wide = framed_camera_distance(bounds, 75.0);
-        let tight = framed_camera_distance(bounds, 30.0);
+        let wide = framed_camera_distance(bounds, 75.0, 1.0);
+        let tight = framed_camera_distance(bounds, 30.0, 1.0);
 
         assert!(tight > wide);
         assert!(wide > bounds.radius());
@@ -2926,7 +2930,7 @@ mod tests {
             center: Vec3::ZERO,
             half_extents: Vec3::new(4.0, 2.0, 6.0),
         };
-        let distance = framed_camera_distance(bounds, 60.0);
+        let distance = framed_camera_distance(bounds, 60.0, 1.0);
         let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
 
         assert!(near_plane >= 0.05);
@@ -2991,9 +2995,22 @@ mod tests {
         assert!(bounds.center.y > 1.0);
         assert!(bounds.center.z < -1.0);
 
-        let framed = scene.framed_camera_pose(0.0);
+        let framed = scene.framed_camera_pose(0.0, 1.0);
         assert_eq!(framed.target, bounds.center);
         assert!(framed.position.distance(bounds.center) > bounds.radius());
+    }
+
+    #[test]
+    fn framed_camera_distance_expands_for_wide_viewports() {
+        let bounds = SceneBounds {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(3.0, 1.0, 3.0),
+        };
+
+        let square = framed_camera_distance(bounds, 50.0, 1.0);
+        let wide = framed_camera_distance(bounds, 50.0, 2.0);
+
+        assert!(wide > square);
     }
 
     #[test]
