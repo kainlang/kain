@@ -1,5 +1,113 @@
 # MEMORY
 
+# 2026-04-14 - selfhost rewrite kickoff and note discipline
+
+What changed:
+
+- Moved the Kain workspace onto the `selfhost` branch.
+- Reviewed the active `src/core` scaffold plus the Rust-import donor and reference trees.
+- Sampled `src/core/ast.kn`, `src/core/types.kn`, and the Rust-import donor/reference files to confirm the donor tree is pipeline-shaped reference material, not the owned wave-1 source.
+- Confirmed the rewrite direction is a true selfhost pipeline rewrite, not a reverse-bootstrap preserve-as-is pass.
+
+Why it matters:
+
+- `src/core` is the owned lane.
+- `src/.rustimport/reference` and `src/.rustimport/phase2` are reference/mirror surfaces, so they should stay read-only while the owned path is rewritten.
+- Long selfhost work needs frequent durable notes so the branch, setup state, and blockers do not drift out of context.
+
+Next step:
+
+- Inspect the VPS/toolchain state, make sure `kain` is on PATH, and verify or install LLVM in the toolchain before opening a heartbeat loop.
+
+# 2026-04-14 - src/core scaffold and donor lanes are confirmed for the wave-1 rewrite
+
+What changed:
+
+- Read `src/README.md`, `src/TASK.md`, `src/core/README.md`, `src/core/language_features.kn`, `src/core/kainc.kn`, and `src/.rustimport/README.md` to verify the live source split.
+- Confirmed the active owned lane is still `src/core`, with `src/.rustimport/reference` and `src/.rustimport/phase2` staying reference-only.
+- Confirmed the scaffold already names the first owned wave as `ast.kn`, `language_features.kn`, and the later core/runtime/type/ABI lanes.
+
+Why it matters:
+
+- The rewrite is not starting from a blank tree, it is tightening an already-laid scaffold.
+- The donor/reference trees are useful because they show shape, but they stay read-only while the owned lane is rewritten.
+- This branch needs frequent notes during setup and rewrite work so future passes can resume without re-reading everything.
+
+Next step:
+
+- Finish the Windows toolchain pass, then resume the selfhost rewrite from `src/core` with the donor corpus as reference only.
+
+# 2026-04-14 - Python 3.12 installed for PyO3, and the formatter now knows `law`
+
+What changed:
+
+- Installed Python 3.12 alongside the existing 3.14 runtime because PyO3 0.20.3 rejects 3.14.
+- Updated the generated Kain activation scripts so `PYO3_PYTHON` points at the Python 3.12 interpreter and the Python 3.12 install directory is on PATH.
+- Patched `crates/kain-core/src/formatter.rs` so `Item::Law` is formatted instead of causing a non-exhaustive match failure.
+
+Why it matters:
+
+- The build can now target a supported Python without relying on the unstable-ABI escape hatch.
+- The owned Kain core already includes `law`; the formatter needed to acknowledge that language surface before the build could go green.
+- These are exactly the kind of setup and source-truth details that should be written down immediately during a long selfhost bootstrap.
+
+Next step:
+
+- Rerun the release build with Python 3.12, then continue toward `kain doctor` and PATH verification.
+
+# 2026-04-14 - `kain` and `kn` are now installed and pass `doctor`
+
+What changed:
+
+- Copied the release binaries into `C:\Users\ephemara\.cargo\bin` so `kain` and `kn` resolve on PATH.
+- Updated the generated activation scripts so `C:\Users\ephemara\.cargo\bin` is included in PATH alongside Python 3.12, WinLibs, LLVM, and the repo toolchain mirror.
+- Ran `kain doctor` and `kn doctor` successfully inside the generated environment.
+
+Why it matters:
+
+- The setup milestone is now real, not just a successful compile.
+- Both launchers resolve from the standard cargo bin location, which is the simplest stable PATH surface for this VPS.
+- `doctor` confirms the expected stdlib, runtime C, runtime manifest, and LLVM path are all wired correctly.
+
+Next step:
+
+- Resume the selfhost rewrite in `src/core`, using the Rust-import donor/reference trees only as reference material.
+
+# 2026-04-14 - Windows GNU build needs MinGW runtime libs, not LLVM alone
+
+What changed:
+
+- Mirrored the host LLVM binaries into `toolchain/llvm/bin` and wrote local activation scripts.
+- The first `cargo build --release -p cli` pass failed on missing `dlltool.exe`.
+- After wiring `dlltool.exe`, the build still failed because the Windows GNU target also needs MinGW runtime libraries like `gcc_eh`, `mingwex`, `mingw32`, and `gcc`.
+- Installed the `LLVM-MinGW` MSVCRT bundle to supply the GNU runtime layer LLVM alone does not provide.
+
+Why it matters:
+
+- On this VPS, clang by itself is not enough for the `x86_64-pc-windows-gnu` toolchain.
+- Future setup steps need both the LLVM toolchain and the MinGW runtime pieces, or the build will keep dying in `cc` build scripts and final links.
+
+Next step:
+
+- Point the build at the LLVM-MinGW bin/lib path, rerun the release build, then install `kain` and `kn` into `~/.cargo/bin`.
+
+# 2026-04-14 - WinLibs is needed for the GNU libgcc archives on this VPS
+
+What changed:
+
+- LLVM-MinGW installed cleanly, but the Windows GNU link still failed because `libgcc_eh` and `libgcc` were not present.
+- That means the repo needs a GCC-based MinGW runtime bundle, not LLVM alone, for this host target.
+- Installed the WinLibs MSVCRT package next so the target-specific `x86_64-w64-mingw32-*` wrappers can supply the missing GNU archives.
+
+Why it matters:
+
+- The `x86_64-pc-windows-gnu` Rust target on this VPS depends on GNU runtime archives even when LLVM is present.
+- Future setup notes should assume both LLVM and a MinGW GCC runtime are required before build passes will go green.
+
+Next step:
+
+- Retest `cargo build --release -p cli` against the WinLibs toolchain path, then install the resulting `kain` and `kn` binaries.
+
 # 2026-04-13 - Kain Flight Control MCP server added as a portable repo-native control plane
 
 The repo now has a local MCP sidecar under `tools/kain-flight-control/` so

@@ -48,6 +48,11 @@ FOR new agents - start with /home/ephemara/Dev/Kain/docs
 - If no memory file exists and the task is complex, create one.
 - Treat a task as complex if it touches three or more files, changes architecture, introduces a new subsystem, performs a meaningful refactor, or is likely to take more than 30 minutes.
 - For complex tasks, update the memory file with durable context for future LLMs. Capture what changed, why it changed, important design decisions, current risks, and the next recommended step.
+- Update MEMORY.md incrementally during long or multi-phase work, not only at the end. If a new setup prerequisite, branch, reference corpus, or recurring trap appears, write it down immediately.
+- For selfhost and bootstrap work, favor short milestone notes over a single end-of-task dump so the branch can be resumed cleanly.
+- For selfhost/bootstrap work, capture toolchain, PATH, LLVM, installer, and reference-tree discoveries as soon as they appear, even mid-build.
+- Take short milestone notes often, not just at the end, so long selfhost runs can be resumed without re-discovering setup state.
+- If the user explicitly wants setup before heartbeat, finish the setup milestone first, then move on to heartbeat work.
 - Treat `ARCHITECTURE.md` and `memory.md` as complementary. `ARCHITECTURE.md` explains what the project is and how it is organized; `memory.md` captures durable task history, decisions, risks, and recommended next steps.
 - For small or isolated tasks, memory updates are optional.
 
