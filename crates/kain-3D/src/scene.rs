@@ -84,6 +84,32 @@ fn framed_camera_clip_planes(bounds: SceneBounds, distance: f32) -> (f32, f32) {
     (near_plane, far_plane)
 }
 
+fn framed_camera_direction(bounds: SceneBounds) -> Vec3 {
+    let half_extents = bounds.half_extents;
+    let vertical_bias = (half_extents.y * 1.35 + bounds.radius() * 0.08).max(0.001);
+
+    match bounds.dominant_axis_label() {
+        "wide" => Vec3::new(
+            (half_extents.x * 1.1).max(0.001),
+            vertical_bias,
+            (half_extents.z * 0.7).max(0.001),
+        )
+        .normalize(),
+        "tall" => Vec3::new(
+            (half_extents.x * 0.8).max(0.001),
+            (half_extents.y * 1.5 + bounds.radius() * 0.15).max(0.001),
+            (half_extents.z * 0.8).max(0.001),
+        )
+        .normalize(),
+        _ => Vec3::new(
+            (half_extents.x * 0.85).max(0.001),
+            vertical_bias,
+            (half_extents.z * 1.1).max(0.001),
+        )
+        .normalize(),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SceneCompositionSummary {
     pub mesh_count: usize,
@@ -144,7 +170,13 @@ impl SceneCompositionSummary {
             .map(|aspect_ratio| format!("aspect {:.2}:1", aspect_ratio))
             .unwrap_or_else(|| "aspect unknown".to_string());
 
-        format!("{} | {} | {} | {}", parts.join(", "), bounds, camera, aspect)
+        format!(
+            "{} | {} | {} | {}",
+            parts.join(", "),
+            bounds,
+            camera,
+            aspect
+        )
     }
 }
 
@@ -509,16 +541,9 @@ impl SceneDescription {
     ) -> CameraPose {
         let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         if let Some(bounds) = bounds {
-            let radius = bounds.radius().max(0.001);
             let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio);
             let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
-            let half_extents = bounds.half_extents;
-            let framing_direction = Vec3::new(
-                half_extents.x.max(0.001),
-                (half_extents.y * 1.2 + radius * 0.1).max(0.001),
-                half_extents.z.max(0.001),
-            )
-            .normalize();
+            let framing_direction = framed_camera_direction(bounds);
             CameraPose {
                 position: bounds.center + framing_direction * distance,
                 target: bounds.center,
@@ -2987,6 +3012,97 @@ mod tests {
             "camera should rise above the tall scene center"
         );
         assert_eq!(framed.up, Vec3::UP);
+    }
+
+    #[test]
+    fn framed_camera_uses_shape_specific_direction_for_wide_and_deep_scenes() {
+        let wide_scene = SceneDescription {
+            name: "wide_scene".to_string(),
+            viewport_summary: "wide scene framing regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.08, 0.08, 0.12),
+                bottom: ColorRgb::new(0.01, 0.01, 0.02),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 50.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::WHITE,
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![SceneInstance {
+                id: "wide_box".to_string(),
+                mesh: "box".to_string(),
+                material: "box".to_string(),
+                transform: Transform::identity().with_translation(Vec3::new(24.0, 0.0, 0.0)),
+            }],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let wide_bounds = wide_scene
+            .bounds(0.0)
+            .expect("wide scene should produce bounds");
+        let wide_framed = wide_scene.framed_camera_pose(0.0, 1.0);
+        assert!(wide_framed.position.x > wide_bounds.center.x);
+        assert!(wide_framed.position.y > wide_bounds.center.y);
+
+        let deep_scene = SceneDescription {
+            name: "deep_scene".to_string(),
+            viewport_summary: "deep scene framing regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.08, 0.08, 0.12),
+                bottom: ColorRgb::new(0.01, 0.01, 0.02),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 50.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::WHITE,
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![SceneInstance {
+                id: "deep_box".to_string(),
+                mesh: "box".to_string(),
+                material: "box".to_string(),
+                transform: Transform::identity().with_translation(Vec3::new(0.0, 0.0, 30.0)),
+            }],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let deep_bounds = deep_scene
+            .bounds(0.0)
+            .expect("deep scene should produce bounds");
+        let deep_framed = deep_scene.framed_camera_pose(0.0, 1.0);
+        assert!(deep_framed.position.z > deep_bounds.center.z);
+        assert!(deep_framed.position.y > deep_bounds.center.y);
     }
 
     #[test]
