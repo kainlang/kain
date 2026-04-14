@@ -46,10 +46,10 @@ KPainter parity is intentionally composite in this checkout.
 | Status | Meaning |
 | --- | --- |
 | `reference_only` | The capability is proven in the legacy reference, but Kain does not yet own a meaningful implementation seam. |
-| `scaffolded` | Kain has registries, projections, or placeholders, but the behavior is still materially below parity. |
-| `prototype` | Kain has a working proof in a non-flagship lane or lab, but the flagship native app is not yet the owner. |
-| `partial` | The flagship native lane owns a real implementation seam, but the delivered behavior is still narrower than the baseline. |
-| `validated` | The capability is Kain-owned and currently covered by a concrete validation hook or shipped proof surface. |
+| `scaffolded` | Kain has a real owning surface, registry, or placeholder seam, but the behavior is still materially below parity. |
+| `in_progress` | The feature has active Kain-owned implementation work and should be treated as a moving target. |
+| `implemented` | The feature exists in Kain-owned code with a durable owner, but full parity acceptance is not yet claimed. |
+| `validated` | The feature exists in Kain-owned code and has an explicit validation hook that proves the claim. |
 
 ## Current Posture
 
@@ -81,10 +81,11 @@ The validator checks:
 
 - required fields and status enums
 - unique feature ids
+- baseline-family path existence
 - reference-source path existence
 - Kain-surface path existence
-- runtime-lane references against `runtime_lanes.json`
-- validation-hook shape
+- owner path existence
+- validation-hook shape and uniqueness
 - `app_manifest.json` wiring for the parity matrix
 
 ## Update Rule

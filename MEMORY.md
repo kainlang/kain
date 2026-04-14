@@ -116,6 +116,51 @@ Recommended next step:
   matrix with feature ids, source references, owners, and validation hooks
   before claiming additional sculpt or painter parity features.
 
+# 2026-04-14 - DCC parity matrix and validator landed
+
+The first implementation slice from the KSculpt/KPainter parity spec is now
+real: the repo has a machine-readable parity inventory, a validator, and
+canonical docs pointing at the same source of truth.
+
+What changed:
+
+- Added `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json` as the
+  flagship parity registry for shared, sculpt, and painter capability claims.
+- Wired the matrix into
+  `apps/kain-fabric-dcc-suite/config/app_manifest.json` so the flagship app
+  exposes it like the other registries.
+- Added `scripts/python/validate_dcc_parity_matrix.py` plus
+  `scripts/python/test_validate_dcc_parity_matrix.py` so the matrix has a real
+  validation path instead of being a passive document.
+- Added `docs/reference/dcc-parity-matrix.md` as the operator-facing guide and
+  updated durable architecture/docs pointers so future agents can discover the
+  matrix without rereading the full spec package.
+
+Important behavior notes:
+
+- The matrix uses five status levels: `reference_only`, `scaffolded`,
+  `prototype`, `partial`, and `validated`.
+- The painter baseline is explicitly composite:
+  `.reference/graphos/*` defines the legacy feature surface, while
+  `apps/kain-canvas-forge/*` and `apps/kain-fabric-dcc-suite/*` provide the
+  current Kain implementation seams.
+- Validation is intentionally structural for now: it checks ids, paths, runtime
+  lanes, hooks, and app-manifest wiring. It does not yet execute the parity
+  scenarios themselves.
+
+Current risk:
+
+- The matrix is only the first gate. Many validation hooks still point to
+  planned scenarios or manual walkthroughs because the scenario harness has not
+  been built yet.
+
+Recommended next step:
+
+- Implement Task 1.2 and Task 6.2 together: turn the highest-priority
+  `scenario:*` hooks in the matrix into executable parity harness checks,
+  starting with the shared native dev loop and the first sculpt and painter
+  workflow slices.
+
 # 2026-04-14 - machine-readable DCC parity matrix landed for KSculpt and KPainter work
 
 The first implementation slice from the parity spec is now in the repo as a

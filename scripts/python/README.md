@@ -6,6 +6,9 @@ This folder holds Python-side helpers, scripts, and bridge utilities that suppor
 
 - Python scripts that assist import, packaging, or validation
 - bridge helpers that connect Kain to Python-hosted tools
+- `validate_dcc_parity_matrix.py` validates the flagship KSculpt/KPainter
+  parity inventory under
+  `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
 
 ## Output Hygiene
 

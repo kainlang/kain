@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Validate the flagship DCC parity matrix.
+Validate the Kain DCC parity matrix.
 
-The matrix is intentionally machine-readable so future agents and tooling can
-reason about parity claims without scraping prose or cargo-culting status
-language from memory.
+This validator is intentionally structural. It proves that parity claims live in
+one machine-readable inventory with stable ids, real repo paths, explicit
+owners, and validation hooks.
 """
 
 from __future__ import annotations
@@ -12,232 +12,248 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 
-ALLOWED_DOMAINS = {"shared", "sculpt", "painter"}
-ALLOWED_STATUSES = {
-    "reference_only",
-    "scaffolded",
-    "prototype",
-    "partial",
-    "validated",
-}
-ALLOWED_HOOK_PREFIXES = {"benchmark", "doc", "manual", "scenario", "script", "test"}
-FEATURE_ID_PATTERN = re.compile(r"^(shared|sculpt|painter)\.[a-z0-9_]+(?:\.[a-z0-9_]+)*$")
+FEATURE_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:\.[a-z0-9_]+)+$")
+VALID_HOOK_KINDS = {"command", "scenario", "benchmark", "doc"}
+DEFAULT_APP_MANIFEST = Path("apps/kain-fabric-dcc-suite/config/app_manifest.json")
 
 
-def load_json(path: Path) -> Any:
+def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def repo_relative_exists(repo_root: Path, relative_path: str) -> bool:
-    return (repo_root / relative_path).exists()
+def resolve_manifest_path(repo_root: Path, manifest_override: str | None) -> Path:
+    if manifest_override:
+        manifest_path = Path(manifest_override)
+        if not manifest_path.is_absolute():
+            manifest_path = (repo_root / manifest_path).resolve()
+        return manifest_path
+    return (repo_root / DEFAULT_APP_MANIFEST).resolve()
 
 
-def validate_hook(repo_root: Path, hook: str) -> str | None:
-    if ":" not in hook:
-        return f"validation hook '{hook}' must use '<kind>:<value>' format"
+def resolve_matrix_path(repo_root: Path, matrix_override: str | None, manifest_override: str | None) -> Path:
+    if matrix_override:
+        override_path = Path(matrix_override)
+        return override_path if override_path.is_absolute() else (repo_root / override_path).resolve()
 
-    kind, value = hook.split(":", 1)
-    if kind not in ALLOWED_HOOK_PREFIXES:
-        return f"validation hook '{hook}' uses unsupported kind '{kind}'"
-    if not value.strip():
-        return f"validation hook '{hook}' must include a non-empty value"
-    if kind in {"doc", "script"} and not repo_relative_exists(repo_root, value):
-        return f"validation hook '{hook}' points to a missing repo path"
-    return None
+    manifest_path = resolve_manifest_path(repo_root, manifest_override)
+    if not manifest_path.exists():
+        raise SystemExit(f"App manifest not found: {manifest_path}")
+
+    manifest = load_json(manifest_path)
+    relative_matrix_path = manifest.get("manifests", {}).get("dcc_parity_matrix")
+    if not relative_matrix_path:
+        raise SystemExit(f"App manifest does not define manifests.dcc_parity_matrix: {manifest_path}")
+
+    app_root = manifest_path.parent.parent
+    return (app_root / relative_matrix_path).resolve()
 
 
-def validate_parity_matrix(
-    matrix: dict[str, Any],
-    repo_root: Path,
-    runtime_lane_ids: set[str],
-) -> list[str]:
+def require_string(record: dict[str, Any], field: str, errors: list[str], context: str) -> str:
+    value = record.get(field)
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{context}: expected non-empty string for '{field}'")
+        return ""
+    return value
+
+
+def require_list(record: dict[str, Any], field: str, errors: list[str], context: str) -> list[Any]:
+    value = record.get(field)
+    if not isinstance(value, list) or not value:
+        errors.append(f"{context}: expected non-empty list for '{field}'")
+        return []
+    return value
+
+
+def validate_existing_path(repo_root: Path, path_text: str, errors: list[str], context: str) -> None:
+    resolved = (repo_root / path_text).resolve()
+    if not resolved.exists():
+        errors.append(f"{context}: path does not exist -> {path_text}")
+
+
+def validate_matrix(repo_root: Path, matrix_path: Path) -> tuple[list[str], dict[str, Any]]:
     errors: list[str] = []
+    matrix = load_json(matrix_path)
 
-    if not isinstance(matrix.get("schema_version"), int):
-        errors.append("matrix must define integer 'schema_version'")
+    if matrix.get("schema_version") != 1:
+        errors.append(f"{matrix_path}: unsupported schema_version {matrix.get('schema_version')!r}")
 
-    capabilities = matrix.get("capabilities")
-    if not isinstance(capabilities, list) or not capabilities:
-        errors.append("matrix must define a non-empty 'capabilities' list")
-        return errors
+    statuses = require_list(matrix, "status_definitions", errors, "status_definitions")
+    domains = require_list(matrix, "domains", errors, "domains")
+    baselines = require_list(matrix, "baseline_families", errors, "baseline_families")
+    features = require_list(matrix, "features", errors, "features")
 
-    seen_ids: set[str] = set()
+    status_ids: list[str] = []
+    for status in statuses:
+        status_id = require_string(status, "id", errors, "status_definitions[]")
+        if status_id:
+            status_ids.append(status_id)
+    if len(status_ids) != len(set(status_ids)):
+        errors.append("status_definitions: duplicate status id detected")
+    valid_status_ids = set(status_ids)
 
-    for index, capability in enumerate(capabilities):
-        prefix = f"capabilities[{index}]"
-        if not isinstance(capability, dict):
-            errors.append(f"{prefix} must be an object")
-            continue
+    domain_ids: list[str] = []
+    for domain in domains:
+        domain_id = require_string(domain, "id", errors, "domains[]")
+        if domain_id:
+            domain_ids.append(domain_id)
+    if len(domain_ids) != len(set(domain_ids)):
+        errors.append("domains: duplicate domain id detected")
+    valid_domain_ids = set(domain_ids)
 
-        capability_id = capability.get("id", "")
-        if not isinstance(capability_id, str) or not FEATURE_ID_PATTERN.match(capability_id):
-            errors.append(f"{prefix}.id must match domain-prefixed feature id format")
-        elif capability_id in seen_ids:
-            errors.append(f"duplicate capability id '{capability_id}'")
-        else:
-            seen_ids.add(capability_id)
+    baseline_ids: list[str] = []
+    for baseline in baselines:
+        baseline_id = require_string(baseline, "id", errors, "baseline_families[]")
+        if baseline_id:
+            baseline_ids.append(baseline_id)
+        for source_path in baseline.get("sources", []):
+            if isinstance(source_path, str) and source_path.strip():
+                validate_existing_path(repo_root, source_path, errors, f"baseline_families[{baseline_id}]")
+            else:
+                errors.append(f"baseline_families[{baseline_id}]: invalid source path entry")
+    if len(baseline_ids) != len(set(baseline_ids)):
+        errors.append("baseline_families: duplicate baseline id detected")
+    valid_baseline_ids = set(baseline_ids)
 
-        domain = capability.get("domain")
-        if domain not in ALLOWED_DOMAINS:
-            errors.append(f"{prefix}.domain must be one of {sorted(ALLOWED_DOMAINS)}")
+    feature_ids: set[str] = set()
+    hook_ids: set[str] = set()
+    domain_counter: Counter[str] = Counter()
+    status_counter: Counter[str] = Counter()
 
-        status = capability.get("status")
-        if status not in ALLOWED_STATUSES:
-            errors.append(f"{prefix}.status must be one of {sorted(ALLOWED_STATUSES)}")
+    for feature in features:
+        feature_id = require_string(feature, "id", errors, "features[]")
+        feature_context = f"features[{feature_id or '<missing-id>'}]"
+        if feature_id:
+            if not FEATURE_ID_PATTERN.fullmatch(feature_id):
+                errors.append(f"{feature_context}: invalid feature id format")
+            if feature_id in feature_ids:
+                errors.append(f"{feature_context}: duplicate feature id")
+            feature_ids.add(feature_id)
 
-        for field_name in ("label", "family", "summary", "gap_summary"):
-            value = capability.get(field_name)
-            if not isinstance(value, str) or not value.strip():
-                errors.append(f"{prefix}.{field_name} must be a non-empty string")
+        domain = require_string(feature, "domain", errors, feature_context)
+        if domain and domain not in valid_domain_ids:
+            errors.append(f"{feature_context}: unknown domain '{domain}'")
+        if domain:
+            domain_counter[domain] += 1
 
-        reference_sources = capability.get("reference_sources")
-        if not isinstance(reference_sources, list) or not reference_sources:
-            errors.append(f"{prefix}.reference_sources must be a non-empty list")
-        else:
-            for source_index, source in enumerate(reference_sources):
-                source_prefix = f"{prefix}.reference_sources[{source_index}]"
-                if not isinstance(source, dict):
-                    errors.append(f"{source_prefix} must be an object")
+        status = require_string(feature, "status", errors, feature_context)
+        if status and status not in valid_status_ids:
+            errors.append(f"{feature_context}: unknown status '{status}'")
+        if status:
+            status_counter[status] += 1
+
+        feature_baselines = require_list(feature, "baseline_families", errors, feature_context)
+        for baseline_id in feature_baselines:
+            if not isinstance(baseline_id, str) or baseline_id not in valid_baseline_ids:
+                errors.append(f"{feature_context}: unknown baseline family '{baseline_id}'")
+
+        reference_sources = require_list(feature, "reference_sources", errors, feature_context)
+        for index, source in enumerate(reference_sources):
+            if not isinstance(source, dict):
+                errors.append(f"{feature_context}: reference_sources[{index}] must be an object")
+                continue
+            source_path = require_string(source, "path", errors, f"{feature_context}.reference_sources[{index}]")
+            if source_path:
+                validate_existing_path(repo_root, source_path, errors, f"{feature_context}.reference_sources[{index}]")
+
+        current_surfaces = require_list(feature, "current_kain_surfaces", errors, feature_context)
+        for index, surface in enumerate(current_surfaces):
+            if not isinstance(surface, dict):
+                errors.append(f"{feature_context}: current_kain_surfaces[{index}] must be an object")
+                continue
+            surface_path = require_string(surface, "path", errors, f"{feature_context}.current_kain_surfaces[{index}]")
+            if surface_path:
+                validate_existing_path(repo_root, surface_path, errors, f"{feature_context}.current_kain_surfaces[{index}]")
+
+        owners = require_list(feature, "owners", errors, feature_context)
+        for index, owner in enumerate(owners):
+            if not isinstance(owner, dict):
+                errors.append(f"{feature_context}: owners[{index}] must be an object")
+                continue
+            require_string(owner, "subsystem", errors, f"{feature_context}.owners[{index}]")
+            owned_paths = require_list(owner, "owned_paths", errors, f"{feature_context}.owners[{index}]")
+            for owned_path in owned_paths:
+                if not isinstance(owned_path, str) or not owned_path.strip():
+                    errors.append(f"{feature_context}.owners[{index}]: invalid owned_paths entry")
                     continue
-                path = source.get("path")
-                feature = source.get("feature")
-                if not isinstance(path, str) or not path.strip():
-                    errors.append(f"{source_prefix}.path must be a non-empty string")
-                elif not repo_relative_exists(repo_root, path):
-                    errors.append(f"{source_prefix}.path points to a missing repo path '{path}'")
-                if not isinstance(feature, str) or not feature.strip():
-                    errors.append(f"{source_prefix}.feature must be a non-empty string")
+                validate_existing_path(repo_root, owned_path, errors, f"{feature_context}.owners[{index}]")
 
-        kain_surfaces = capability.get("kain_surfaces")
-        if not isinstance(kain_surfaces, list) or not kain_surfaces:
-            errors.append(f"{prefix}.kain_surfaces must be a non-empty list")
-        else:
-            for surface in kain_surfaces:
-                if not isinstance(surface, str) or not surface.strip():
-                    errors.append(f"{prefix}.kain_surfaces entries must be non-empty strings")
-                elif not repo_relative_exists(repo_root, surface):
-                    errors.append(f"{prefix}.kain_surfaces points to a missing repo path '{surface}'")
+        hooks = require_list(feature, "validation_hooks", errors, feature_context)
+        for index, hook in enumerate(hooks):
+            if not isinstance(hook, dict):
+                errors.append(f"{feature_context}: validation_hooks[{index}] must be an object")
+                continue
+            hook_id = require_string(hook, "id", errors, f"{feature_context}.validation_hooks[{index}]")
+            hook_kind = require_string(hook, "kind", errors, f"{feature_context}.validation_hooks[{index}]")
+            require_string(hook, "target", errors, f"{feature_context}.validation_hooks[{index}]")
+            if hook_kind and hook_kind not in VALID_HOOK_KINDS:
+                errors.append(f"{feature_context}: invalid validation hook kind '{hook_kind}'")
+            if hook_id:
+                if hook_id in hook_ids:
+                    errors.append(f"{feature_context}: duplicate validation hook id '{hook_id}'")
+                hook_ids.add(hook_id)
 
-        lane_ids = capability.get("runtime_lane_ids")
-        if not isinstance(lane_ids, list) or not lane_ids:
-            errors.append(f"{prefix}.runtime_lane_ids must be a non-empty list")
-        else:
-            for lane_id in lane_ids:
-                if not isinstance(lane_id, str) or lane_id not in runtime_lane_ids:
-                    errors.append(
-                        f"{prefix}.runtime_lane_ids contains unknown runtime lane '{lane_id}'"
-                    )
+        if status in {"implemented", "validated"} and not current_surfaces:
+            errors.append(f"{feature_context}: implemented or validated features must list current_kain_surfaces")
 
-        hooks = capability.get("validation_hooks")
-        if not isinstance(hooks, list) or not hooks:
-            errors.append(f"{prefix}.validation_hooks must be a non-empty list")
-        else:
-            for hook in hooks:
-                if not isinstance(hook, str):
-                    errors.append(f"{prefix}.validation_hooks entries must be strings")
-                    continue
-                hook_error = validate_hook(repo_root, hook)
-                if hook_error:
-                    errors.append(hook_error)
-
-    return errors
-
-
-def build_summary(matrix: dict[str, Any]) -> dict[str, Any]:
-    domain_counts: Counter[str] = Counter()
-    status_counts: Counter[str] = Counter()
-    domain_status_counts: dict[str, Counter[str]] = defaultdict(Counter)
-
-    for capability in matrix.get("capabilities", []):
-        domain = capability["domain"]
-        status = capability["status"]
-        domain_counts[domain] += 1
-        status_counts[status] += 1
-        domain_status_counts[domain][status] += 1
-
-    return {
-        "capability_count": len(matrix.get("capabilities", [])),
-        "domains": dict(domain_counts),
-        "statuses": dict(status_counts),
-        "domain_statuses": {
-            domain: dict(counter) for domain, counter in domain_status_counts.items()
-        },
+    summary = {
+        "matrix_path": str(matrix_path),
+        "feature_count": len(features),
+        "domain_counts": dict(sorted(domain_counter.items())),
+        "status_counts": dict(sorted(status_counter.items())),
     }
-
-
-def validate_app_manifest(repo_root: Path, matrix_path: Path) -> list[str]:
-    app_manifest_path = repo_root / "apps/kain-fabric-dcc-suite/config/app_manifest.json"
-    app_manifest = load_json(app_manifest_path)
-    manifests = app_manifest.get("manifests", {})
-    parity_path = manifests.get("dcc_parity_matrix")
-    if parity_path != "config/dcc_parity_matrix.json":
-        return [
-            "apps/kain-fabric-dcc-suite/config/app_manifest.json must expose "
-            "'manifests.dcc_parity_matrix = config/dcc_parity_matrix.json'"
-        ]
-    if (repo_root / "apps/kain-fabric-dcc-suite" / parity_path).resolve() != matrix_path.resolve():
-        return ["app manifest parity matrix path does not resolve to the validated matrix file"]
-    return []
-
-
-def parse_args() -> argparse.Namespace:
-    repo_root = Path(__file__).resolve().parents[2]
-    default_matrix = repo_root / "apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json"
-    default_runtime_lanes = repo_root / "apps/kain-fabric-dcc-suite/config/runtime_lanes.json"
-    parser = argparse.ArgumentParser(description="Validate the flagship DCC parity matrix.")
-    parser.add_argument("--repo-root", type=Path, default=repo_root)
-    parser.add_argument("--matrix", type=Path, default=default_matrix)
-    parser.add_argument("--runtime-lanes", type=Path, default=default_runtime_lanes)
-    parser.add_argument("--json", action="store_true", dest="emit_json")
-    return parser.parse_args()
+    return errors, summary
 
 
 def main() -> int:
-    args = parse_args()
-    repo_root = args.repo_root.resolve()
-    matrix_path = args.matrix.resolve()
-    runtime_lanes_path = args.runtime_lanes.resolve()
+    parser = argparse.ArgumentParser(description="Validate the Kain DCC parity matrix.")
+    parser.add_argument(
+        "--matrix",
+        help="Path to the parity matrix JSON. Defaults to the path declared in the flagship app manifest.",
+    )
+    parser.add_argument(
+        "--manifest",
+        help="Path to the flagship app manifest. Defaults to apps/kain-fabric-dcc-suite/config/app_manifest.json.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the summary report as JSON.",
+    )
+    args = parser.parse_args()
 
-    if not matrix_path.exists():
-        print(f"[ERROR] Missing matrix: {matrix_path}", file=sys.stderr)
-        return 1
-    if not runtime_lanes_path.exists():
-        print(f"[ERROR] Missing runtime lanes: {runtime_lanes_path}", file=sys.stderr)
-        return 1
+    repo_root = Path(__file__).resolve().parents[2]
+    matrix_path = resolve_matrix_path(repo_root, args.matrix, args.manifest)
+    errors, summary = validate_matrix(repo_root, matrix_path)
 
-    matrix = load_json(matrix_path)
-    runtime_lanes = load_json(runtime_lanes_path)
-    runtime_lane_ids = {
-        lane["id"] for lane in runtime_lanes.get("runtime_lanes", []) if isinstance(lane, dict)
-    }
-
-    errors = validate_parity_matrix(matrix, repo_root, runtime_lane_ids)
-    errors.extend(validate_app_manifest(repo_root, matrix_path))
-    summary = build_summary(matrix)
-
-    if args.emit_json:
-        payload = {"ok": not errors, "errors": errors, "summary": summary}
-        print(json.dumps(payload, indent=2, sort_keys=True))
+    if args.json:
+        payload = {"ok": not errors, "summary": summary, "errors": errors}
+        print(json.dumps(payload, indent=2))
     else:
-        if errors:
-            print("[ERROR] DCC parity matrix validation failed")
-            for error in errors:
-                print(f" - {error}")
-        else:
-            print("[OK] DCC parity matrix validation passed")
-        print(f"  Matrix: {matrix_path}")
-        print(f"  Capabilities: {summary['capability_count']}")
-        print(f"  Domains: {summary['domains']}")
-        print(f"  Statuses: {summary['statuses']}")
+        print(f"Parity matrix: {summary['matrix_path']}")
+        print(f"Feature count: {summary['feature_count']}")
+        print("Domain counts:")
+        for domain, count in summary["domain_counts"].items():
+            print(f"  - {domain}: {count}")
+        print("Status counts:")
+        for status, count in summary["status_counts"].items():
+            print(f"  - {status}: {count}")
 
-    return 0 if not errors else 1
+    if errors:
+        if not args.json:
+            print("Errors:")
+            for error in errors:
+                print(f"  - {error}")
+        return 1
+
+    if not args.json:
+        print("Parity matrix validation passed.")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

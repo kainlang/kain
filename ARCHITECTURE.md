@@ -321,6 +321,7 @@ Typical commands:
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
 - `kain fabric run`
+- `python3 scripts/python/validate_dcc_parity_matrix.py`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `./runtime/fixtures/validate_all.sh`
