@@ -5,6 +5,7 @@
 Current lanes:
 
 - `brainfuck/` for the Kain-native Brainfuck interpreter and Turing-completeness proof
+- `kain_native_taste_lab/` for a compact native-ui dev taste test covering world state, dock tabs, viewport props, shader canvases, and packaged desktop materialization
 - `llvm_world_dogfood_lab/` for the canonical LLVM dogfood app covering world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering
 - `raw_native_world_lab/` for raw-native world and UI bundle validation
 - `raw_native_magma_forge_lab/` for magma forge runtime proofing

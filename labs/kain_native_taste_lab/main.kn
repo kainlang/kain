@@ -1,0 +1,264 @@
+fn bool_word(flag: Bool) -> String:
+    if flag:
+        return "enabled"
+    return "disabled"
+
+fn mode_scene(mode: String) -> String:
+    if mode == "atelier":
+        return "luminous_port"
+    elif mode == "forge":
+        return "magma_terraces"
+    return "tensor_stream_probe"
+
+fn mode_profile(mode: String, cinematic: Bool) -> String:
+    if mode == "atelier":
+        if cinematic:
+            return "taste_atelier_cinematic"
+        return "taste_atelier_preview"
+    elif mode == "forge":
+        if cinematic:
+            return "taste_forge_cinematic"
+        return "taste_forge_preview"
+    if cinematic:
+        return "taste_orbit_cinematic"
+    return "taste_orbit_preview"
+
+fn mode_caption(mode: String) -> String:
+    if mode == "atelier":
+        return "glossy material bench with airy blue light"
+    elif mode == "forge":
+        return "heated production room with dense amber fog"
+    return "balanced orbital workspace for runtime diagnostics"
+
+fn accent_caption(accent: String) -> String:
+    if accent == "ember":
+        return "ember and brass signal"
+    elif accent == "mint":
+        return "mint and slate signal"
+    return "solar orange signal"
+
+fn fog_density(mode: String, cinematic: Bool) -> Float:
+    if mode == "forge":
+        if cinematic:
+            return 0.021
+        return 0.014
+    elif mode == "atelier":
+        if cinematic:
+            return 0.010
+        return 0.006
+    if cinematic:
+        return 0.013
+    return 0.008
+
+fn metric_line(mode: String, accent: String, cinematic: Bool) -> String:
+    return f"{mode_caption(mode)} | {accent_caption(accent)} | cinematic={bool_word(cinematic)}"
+
+world KainTasteLab:
+    state mode: String = "orbit"
+    state accent: String = "solar"
+    state cinematic: Bool = false
+    state note: String = "Native UI dev should preserve this dock shell, page tabs, and current mode when reload compatibility holds."
+    state status: String = "Kain native taste lab booted in preview mode."
+    state metric: String = "balanced orbital workspace for runtime diagnostics | solar orange signal | cinematic=disabled"
+    state score: Int = 64
+    surface native_ui => App
+    surface viewport3d => "tensor_stream_probe"
+
+patch sync_lab(lab: KainTasteLab) -> String:
+    lab.status = f"mode={lab.mode} | accent={lab.accent} | cinematic={bool_word(lab.cinematic)}"
+    lab.metric = metric_line(lab.mode, lab.accent, lab.cinematic)
+    lab.note = f"scene={mode_scene(lab.mode)} | profile={mode_profile(lab.mode, lab.cinematic)} | dock memory should survive compatible reloads"
+    return lab.status
+
+patch set_mode(lab: KainTasteLab, mode: String, score: Int) -> String:
+    lab.mode = mode
+    lab.score = score
+    return sync_lab(lab)
+
+patch set_accent(lab: KainTasteLab, accent: String) -> String:
+    lab.accent = accent
+    return sync_lab(lab)
+
+patch toggle_cinematic(lab: KainTasteLab) -> Bool:
+    lab.cinematic = !lab.cinematic
+    sync_lab(lab)
+    return lab.cinematic
+
+fn choose_orbit():
+    set_mode(KainTasteLab, "orbit", 64)
+
+fn choose_atelier():
+    set_mode(KainTasteLab, "atelier", 76)
+
+fn choose_forge():
+    set_mode(KainTasteLab, "forge", 92)
+
+fn choose_solar():
+    set_accent(KainTasteLab, "solar")
+
+fn choose_ember():
+    set_accent(KainTasteLab, "ember")
+
+fn choose_mint():
+    set_accent(KainTasteLab, "mint")
+
+fn toggle_cinematic_mode():
+    toggle_cinematic(KainTasteLab)
+
+component App():
+    render <slot>
+        <theme name="kain_native_taste">
+            <scope name="taste" selector="kain-native-taste-lab" />
+            <token name="theme.background.top" category="color" value="#f7efe2" />
+            <token name="theme.background.bottom" category="color" value="#d7cab4" />
+            <token name="theme.surface.base" category="color" value="#fff8ef" />
+            <token name="theme.surface.alt" category="color" value="#efe1cc" />
+            <token name="theme.surface.overlay" category="color" value="#fff5e8dd" />
+            <token name="theme.accent.primary" category="color" value="#d16b2a" />
+            <token name="theme.accent.soft" category="color" value="#ffcb9e" />
+            <token name="theme.highlight" category="color" value="#315f72" />
+            <token name="theme.text.default" category="color" value="#2c241b" />
+            <token name="theme.text.muted" category="color" value="#6d5a49" />
+            <token name="theme.typography.scale" category="type" value={1.03} />
+            <token name="theme.spacing.scale" category="space" value={1.00} />
+            <token name="theme.radius.scale" category="radius" value={1.12} />
+            <variant scope="taste" name="shell">
+                <token name="surface.mode" category="surface" value="ghost" />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.visible" category="state" value={false} />
+            </variant>
+            <variant scope="taste" name="card">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.padding" category="space" value={16} />
+            </variant>
+            <variant scope="taste" name="rail">
+                <token name="surface.mode" category="surface" value="flat" />
+                <token name="surface.padding" category="space" value={12} />
+            </variant>
+            <widget kind="element" scope="taste" variant="command_button">
+                <token name="surface.mode" category="surface" value="glass" />
+                <token name="surface.fill" category="color" value="#fff2e0" />
+                <token name="surface.stroke" category="color" value="#d16b2a" />
+                <token name="surface.radius" category="surface" value={14} />
+                <token name="surface.padding" category="space" value={10} />
+                <token name="title.color" category="color" value="#2c241b" />
+                <token name="text.color" category="color" value="#2c241b" />
+                <token name="accent.color" category="color" value="#315f72" />
+            </widget>
+        </theme>
+
+        <panel title="Kain Native Taste Lab" scope="taste" variant="shell" layout="dock" persistent_layout_id="kain_native_taste_shell" gap={16} padding={16}>
+            <panel title="Mode Rail" dock="left" scope="taste" variant="rail" split_ratio={0.24} min_width={280} max_width={380} resizable={true} layout="column" gap={12}>
+                <panel title="Pipeline Taste Test" scope="taste" variant="card" layout="column" gap={8}>
+                    <text role="eyebrow">{"KAIN NATIVE UI DEV"}</text>
+                    <text role="hero">{"Small desktop shell to taste the current native pipeline without the bigger DCC stack."}</text>
+                    <text role="body">{"This lab focuses on state patches, dock layout, tabs, viewport props, shader canvas, hot reload, generated native packaging, and live reload probing."}</text>
+                </panel>
+
+                <panel title="Modes" scope="taste" variant="rail" layout="column" gap={8}>
+                    <button variant="command_button" onclick={choose_orbit}>Orbit</button>
+                    <button variant="command_button" onclick={choose_atelier}>Atelier</button>
+                    <button variant="command_button" onclick={choose_forge}>Forge</button>
+                </panel>
+
+                <panel title="Accents" scope="taste" variant="rail" layout="column" gap={8}>
+                    <button variant="command_button" onclick={choose_solar}>Solar</button>
+                    <button variant="command_button" onclick={choose_ember}>Ember</button>
+                    <button variant="command_button" onclick={choose_mint}>Mint</button>
+                </panel>
+
+                <panel title="Runtime" scope="taste" variant="rail" layout="column" gap={8}>
+                    <button variant="command_button" onclick={toggle_cinematic_mode}>Toggle Cinematic</button>
+                </panel>
+            </panel>
+
+            <panel title="Taste Workspace" dock="center" scope="taste" variant="card" layout="dock" gap={14}>
+                <panel title="Studio" scope="taste" variant="card" layout="dock" gap={12} persistent_layout_id="kain_native_taste_studio_page" tab_group_id="kain-taste-pages" tab_label="Studio" tab_order={0} tab_default_active={true}>
+                    <panel title="Viewport Bench" dock="center" scope="taste" variant="card" layout="column" gap={12}>
+                        <viewport3d title="Taste Viewport" scene={mode_scene(KainTasteLab.mode)} viewport_profile={mode_profile(KainTasteLab.mode, KainTasteLab.cinematic)} viewport_fog_density={fog_density(KainTasteLab.mode, KainTasteLab.cinematic)} gizmo_profile="dcc_transform_universal" gizmo_visible={true} gizmo_default_mode="translate" gizmo_default_space="world" gizmo_drag_trigger="ctrl_primary_drag" gizmo_selection_required={true} gizmo_hotkey_translate="T" gizmo_hotkey_rotate="R" gizmo_hotkey_scale="Y" gizmo_hotkey_cycle_space="U" gizmo_hotkey_toggle_snap="I" gizmo_snap_translate={0.5} gizmo_snap_rotate_degrees={15.0} gizmo_snap_scale_percent={10.0} gizmo_snap_default_enabled={false} />
+                        <panel title="Signal Deck" scope="taste" variant="card" layout="row" gap={12}>
+                            <graph title="Runtime Signal" />
+                            <timeline title="Reload Taste Strip" />
+                        </panel>
+                    </panel>
+
+                    <panel title="Operator Notes" dock="right" scope="taste" variant="rail" split_ratio={0.26} min_width={300} max_width={400} resizable={true} layout="column" gap={12}>
+                        <inspector title="Live State">
+                            <text role="metric">{KainTasteLab.score}</text>
+                            <text role="caption">{"pipeline taste score"}</text>
+                            <text role="caption">{KainTasteLab.status}</text>
+                            <text role="caption">{KainTasteLab.metric}</text>
+                        </inspector>
+                        <panel title="Reload Note" scope="taste" variant="rail" layout="column" gap={4}>
+                            <text role="title">{KainTasteLab.note}</text>
+                        </panel>
+                    </panel>
+                </panel>
+
+                <panel title="Shader Card" scope="taste" variant="card" layout="dock" gap={12} persistent_layout_id="kain_native_taste_shader_page" tab_group_id="kain-taste-pages" tab_label="Shader" tab_order={1}>
+                    <panel title="Canvas Bench" dock="center" scope="taste" variant="card" layout="row" gap={12}>
+                        <canvas title="Accent Field" text={KainTasteLab.accent} shader_ref="TasteAccentField" shader_stage="fragment" shader_format="spirv" font_family="ui-sans" />
+                        <canvas title="Mode Beacon" text={KainTasteLab.mode} shader_ref="TasteModeBeacon" shader_stage="fragment" shader_format="spirv" font_family="ui-mono" />
+                    </panel>
+
+                    <panel title="Bundle Note" dock="right" scope="taste" variant="rail" split_ratio={0.28} min_width={300} max_width={390} resizable={true} layout="column" gap={12}>
+                        <inspector title="Current Taste">
+                            <text role="caption">{"fragment: TasteAccentField"}</text>
+                            <text role="caption">{"fragment: TasteModeBeacon"}</text>
+                            <text role="caption">{"This is the fast signal path for native bundle generation without a heavier flagship app."}</text>
+                        </inspector>
+                    </panel>
+                </panel>
+            </panel>
+
+            <panel title="Status Strip" dock="bottom" scope="taste" variant="rail" split_ratio={0.20} min_height={170} max_height={260} resizable={true} layout="row" gap={12}>
+                <panel title="Mode" scope="taste" variant="card" layout="column" gap={2}>
+                    <text role="metric">{KainTasteLab.mode}</text>
+                    <text role="caption">{mode_caption(KainTasteLab.mode)}</text>
+                </panel>
+                <panel title="Accent" scope="taste" variant="card" layout="column" gap={2}>
+                    <text role="metric">{KainTasteLab.accent}</text>
+                    <text role="caption">{accent_caption(KainTasteLab.accent)}</text>
+                </panel>
+                <panel title="Cinematic" scope="taste" variant="card" layout="column" gap={2}>
+                    <text role="metric">{bool_word(KainTasteLab.cinematic)}</text>
+                    <text role="caption">{f"viewport profile {mode_profile(KainTasteLab.mode, KainTasteLab.cinematic)}"}</text>
+                </panel>
+            </panel>
+        </panel>
+    </slot>
+
+shader fragment TasteAccentField(uv: Vec2) -> Vec4:
+    let dx = uv.x - 0.42
+    let dy = uv.y - 0.36
+    let energy = dx * dx + dy * dy
+    var halo = 1.0 - energy * 3.2
+    if halo < 0.0:
+        halo = 0.0
+    if halo > 1.0:
+        halo = 1.0
+
+    let sweep = uv.x * 0.55 + uv.y * 0.45
+    let base_r = 0.54 + halo * 0.24
+    let base_g = 0.26 + sweep * 0.18
+    let base_b = 0.14 + halo * 0.10
+    return vec4(base_r, base_g, base_b, 1.0)
+
+shader fragment TasteModeBeacon(uv: Vec2) -> Vec4:
+    let pulse_dx = uv.x - 0.31
+    let pulse_dy = uv.y - 0.62
+    var pulse = 1.0 - (pulse_dx * pulse_dx + pulse_dy * pulse_dy) * 6.4
+    if pulse < 0.0:
+        pulse = 0.0
+    if pulse > 1.0:
+        pulse = 1.0
+
+    let lane = uv.y * 0.68 + (1.0 - uv.x) * 0.32
+    let base_r = 0.14 + pulse * 0.08
+    let base_g = 0.28 + lane * 0.18 + pulse * 0.10
+    let base_b = 0.38 + pulse * 0.16
+    return vec4(base_r, base_g, base_b, 1.0)
+
+fn main() -> Int:
+    sync_lab(KainTasteLab)
+    return 0
