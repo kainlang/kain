@@ -4,7 +4,9 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use font8x8::UnicodeFonts;
-use kain_3d::{RenderResolution, SceneCatalog, SoftwareRenderer, SoftwareRendererConfig};
+use kain_3d::{
+    RenderResolution, SceneCatalog, SceneResolutionKind, SoftwareRenderer, SoftwareRendererConfig,
+};
 use serde_json::json;
 
 const DEFAULT_OUTPUT_IMAGE: &str =
@@ -40,12 +42,13 @@ struct TileRender {
 fn main() -> Result<(), Box<dyn Error>> {
     let config = parse_args()?;
     let catalog = SceneCatalog::default();
-    let scene = catalog.scene(&config.scene_name).ok_or_else(|| {
+    let resolved_scene = catalog.resolve_scene(&config.scene_name).ok_or_else(|| {
         format!(
             "scene `{}` is not registered in SceneCatalog::default()",
             config.scene_name
         )
     })?;
+    let scene = resolved_scene.scene;
 
     let header_height = 112usize;
     let gutter = 24usize;
@@ -126,7 +129,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     write_png(&config.output_image, config.width, config.height, &canvas)?;
-    write_report(&config, scene.viewport_summary.as_str(), &rendered_tiles)?;
+    write_report(
+        &config,
+        scene.viewport_summary.as_str(),
+        &resolved_scene.resolution,
+        &rendered_tiles,
+    )?;
 
     println!(
         "material_atrium smoke wrote {} and {}",
@@ -394,6 +402,7 @@ fn draw_tile(
 fn write_report(
     config: &SmokeConfig,
     viewport_summary: &str,
+    resolution: &kain_3d::SceneResolution,
     rendered_tiles: &[TileRender],
 ) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = config.output_json.parent() {
@@ -403,6 +412,15 @@ fn write_report(
     let report = json!({
         "date": "2026-04-11",
         "scene": config.scene_name,
+        "scene_resolution": {
+            "requested_name": resolution.requested_name,
+            "resolved_name": resolution.resolved_name,
+            "kind": match &resolution.kind {
+                SceneResolutionKind::Exact => "exact",
+                SceneResolutionKind::Alias { .. } => "alias",
+                SceneResolutionKind::Default { .. } => "default",
+            },
+        },
         "viewport_summary": viewport_summary,
         "output_image": config.output_image,
         "output_json": config.output_json,
@@ -425,6 +443,17 @@ fn write_report(
                     "pixels_shaded": tile.frame.stats.pixels_shaded,
                     "particles_submitted": tile.frame.stats.particles_submitted,
                     "particles_shaded": tile.frame.stats.particles_shaded
+                },
+                "diagnostics": {
+                    "camera_source": tile.frame.diagnostics.camera_source.as_ref().map(|source| match source {
+                        kain_3d::FrameCameraSource::ExplicitView => "explicit_view",
+                        kain_3d::FrameCameraSource::AutoFramed => "auto_framed",
+                    }),
+                    "scene_name": tile.frame.diagnostics.scene_name,
+                    "viewport_summary": tile.frame.diagnostics.viewport_summary,
+                    "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "visible_instances": tile.frame.diagnostics.visible_instances,
+                    "culled_instances": tile.frame.diagnostics.culled_instances,
                 }
             })
         }).collect::<Vec<_>>()
