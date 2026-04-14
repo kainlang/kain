@@ -2786,3 +2786,27 @@ Notes:
 - No tests or `cargo check` were run.
 - The pass is deliberately mechanical. It does not try to rebuild module semantics; it only gets obviously hostile nested declaration placement out of the parser's way.
 >>>>>>> master
+
+---
+## Selfhost Pipeline (2026-04-14)
+
+**What changed:** Wrote the Kain selfhost compiler tree (`src/core/`) from seed stubs to real implementations across 6 files (~3,500 lines total):
+
+- `lexer.kn`: char-level scanner, all token kinds, INDENT/DEDENT injection
+- `parser.kn`: recursive-descent parser, all forms (fn/struct/enum/trait/impl/use/match/etc.)
+- `types.kn`: single-pass typechecker, TypeEnv scope chain, TypedProgram output
+- `codegen_llvm.kn`: textual LLVM IR emitter, struct/enum/fn/stmt/expr lowering, runtime externs
+- `runtime.kn`: tree-walking interpreter, control-flow signals, builtins, pattern matching
+- `kainc.kn`: compiler driver CLI (lex→parse→typecheck→codegen→.ll)
+
+**Key design decisions:**
+- `codegen_llvm.kn` emits textual `.ll` IR for `clang`/`llc` consumption. Structs use `%StructName*` heap allocation via `kain_struct_alloc` runtime. Enums use tagged union `{ i64 tag, i64... payload }`.
+- All complex multi-statement match arm bodies in `runtime.kn` were extracted to helper fns to work around Kain's indentation-sensitive parser.
+- Reserved HLSL/C++ keywords that can't be used as identifiers: `line` (→`row`), `out` (→`tok_buf`), `state` (→`sc`/`ps`/contextual), `fn_def` prefix (→`user_fn_*`), `comptime` as module name (→inlined).
+- `args()` and other builtins are unknown to the standalone typechecker but resolved at link-time.
+
+**Status:**
+- `types.kn`, `codegen_llvm.kn`, `runtime.kn`: 0 parse/type errors
+- `lexer.kn`, `parser.kn`, `kainc.kn`: 1 expected type error each (cross-module refs unresolved standalone)
+
+**Recommended next step:** Wire up the module loader in the Rust `cli` crate so that `kain compile src/core/kainc.kn` runs the full pipeline linking all 6 modules together. Then test emit of `lexer.kn` → `.ll` → clang → native binary.
