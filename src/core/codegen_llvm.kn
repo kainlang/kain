@@ -1,0 +1,1088 @@
+use ast::BinaryOp
+use ast::Block
+use ast::CallExpr
+use ast::ConstDef
+use ast::EnumDef
+use ast::Expr
+use ast::ExprStmt
+use ast::FieldExpr
+use ast::FnDef
+use ast::ForStmt
+use ast::IfStmt
+use ast::IfExpr
+use ast::IndexExpr
+use ast::Literal
+use ast::MatchArm
+use ast::MatchArmExpr
+use ast::MethodCallExpr
+use ast::Param
+use ast::Pattern
+use ast::Program
+use ast::ReturnStmt
+use ast::Stmt
+use ast::StructDef
+use ast::TopLevelItem
+use ast::TypeExpr
+use ast::UnaryExpr
+use ast::UnaryOp
+use ast::WhileStmt
+use error::KainError
+use types::ResolvedType
+use types::TypedEnum
+use types::TypedFn
+use types::TypedItem
+use types::TypedProgram
+
+# Kain LLVM IR Codegen
+# Emits textual LLVM IR from a TypedProgram.  The IR targets the host platform
+# and is written to a .ll file that can be compiled by clang or llc.
+#
+# Supported forms in this pass:
+#   - struct type definitions
+#   - enum type definitions (tagged-union representation)
+#   - function definitions with full stmt/expr lowering
+#   - @main wrapper
+#   - extern declarations for the Kain runtime
+
+# ─── Target descriptors ────────────────────────────────────────────────────────
+
+struct LlvmTargetInfo:
+    triple: String
+    datalayout: String
+
+fn linux_x64_target() -> LlvmTargetInfo:
+    return LlvmTargetInfo {
+        triple: "x86_64-unknown-linux-gnu",
+        datalayout: "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+    }
+
+fn windows_x64_target() -> LlvmTargetInfo:
+    return LlvmTargetInfo {
+        triple: "x86_64-pc-windows-msvc",
+        datalayout: "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+    }
+
+fn macos_arm64_target() -> LlvmTargetInfo:
+    return LlvmTargetInfo {
+        triple: "arm64-apple-darwin",
+        datalayout: "e-m:o-i64:64-i128:128-n32:64-S128"
+    }
+
+fn select_host_target() -> LlvmTargetInfo:
+    let host_os = env("KAIN_TARGET_OS")
+    if host_os == "windows":
+        return windows_x64_target()
+    if host_os == "macos":
+        return macos_arm64_target()
+    return linux_x64_target()
+
+# ─── Generator state ───────────────────────────────────────────────────────────
+
+struct LlvmGen:
+    out: String
+    reg: Int
+    label: Int
+    # Locals map: parallel arrays (name → (slot_reg, llvm_type))
+    local_names: Array<String>
+    local_regs: Array<String>
+    local_types: Array<String>
+    # String constant table: parallel arrays (content → @.str.N name)
+    str_content: Array<String>
+    str_names: Array<String>
+    str_idx: Int
+    # Loop stack: parallel arrays of (continue_label, break_label)
+    loop_continues: Array<String>
+    loop_breaks: Array<String>
+    # Known struct names (for type mapping)
+    struct_names: Array<String>
+    enum_names: Array<String>
+    fn_names: Array<String>
+    fn_return_llvm_types: Array<String>
+    current_return_type: String
+    target: LlvmTargetInfo
+
+fn gen_new() -> LlvmGen:
+    return LlvmGen {
+        out: "",
+        reg: 0,
+        label: 0,
+        local_names: [],
+        local_regs: [],
+        local_types: [],
+        str_content: [],
+        str_names: [],
+        str_idx: 0,
+        loop_continues: [],
+        loop_breaks: [],
+        struct_names: [],
+        enum_names: [],
+        fn_names: [],
+        fn_return_llvm_types: [],
+        current_return_type: "void",
+        target: select_host_target()
+    }
+
+impl LlvmGen:
+    pub fn emit(self, line: String) -> Unit:
+        self.out = self.out + line + "\n"
+
+    pub fn emit_indent(self, line: String) -> Unit:
+        self.out = self.out + "  " + line + "\n"
+
+    pub fn next_reg(self) -> String:
+        let r = "%" + str(self.reg)
+        self.reg = self.reg + 1
+        return r
+
+    pub fn next_label(self) -> String:
+        let l = "L" + str(self.label)
+        self.label = self.label + 1
+        return l
+
+    pub fn find_local(self, name: String) -> String:
+        let i = len(self.local_names) - 1
+        while i >= 0:
+            if self.local_names[i] == name:
+                return self.local_regs[i]
+            i = i - 1
+        return "%__undef_" + name
+
+    pub fn local_type(self, name: String) -> String:
+        let i = len(self.local_names) - 1
+        while i >= 0:
+            if self.local_names[i] == name:
+                return self.local_types[i]
+            i = i - 1
+        return "i64"
+
+    pub fn define_local(self, name: String, slot: String, ty: String) -> Unit:
+        push(self.local_names, name)
+        push(self.local_regs, slot)
+        push(self.local_types, ty)
+
+    pub fn push_loop(self, cont: String, brk: String) -> Unit:
+        push(self.loop_continues, cont)
+        push(self.loop_breaks, brk)
+
+    pub fn pop_loop(self) -> Unit:
+        if len(self.loop_continues) > 0:
+            self.loop_continues = arr_str_slice(self.loop_continues, len(self.loop_continues) - 1)
+            self.loop_breaks = arr_str_slice(self.loop_breaks, len(self.loop_breaks) - 1)
+
+    pub fn current_break(self) -> String:
+        if len(self.loop_breaks) == 0:
+            return "L_end"
+        return self.loop_breaks[len(self.loop_breaks) - 1]
+
+    pub fn current_continue(self) -> String:
+        if len(self.loop_continues) == 0:
+            return "L_end"
+        return self.loop_continues[len(self.loop_continues) - 1]
+
+    pub fn intern_string(self, content: String) -> String:
+        let i = 0
+        while i < len(self.str_content):
+            if self.str_content[i] == content:
+                return self.str_names[i]
+            i = i + 1
+        let name = "@.str." + str(self.str_idx)
+        self.str_idx = self.str_idx + 1
+        push(self.str_content, content)
+        push(self.str_names, name)
+        return name
+
+    pub fn map_resolved_type(self, ty: ResolvedType) -> String:
+        return ty.to_llvm_type()
+
+    pub fn fn_return_type(self, name: String) -> String:
+        let i = 0
+        while i < len(self.fn_names):
+            if self.fn_names[i] == name:
+                return self.fn_return_llvm_types[i]
+            i = i + 1
+        return "i64"
+
+fn arr_str_slice(arr: Array<String>, new_len: Int) -> Array<String>:
+    let result = []
+    let i = 0
+    while i < new_len && i < len(arr):
+        push(result, arr[i])
+        i = i + 1
+    return result
+
+# ─── Type mapping from ast TypeExpr ───────────────────────────────────────────
+
+fn map_type_expr(gen: LlvmGen, ty: TypeExpr) -> String:
+    match ty:
+        TypeExpr::Unit => return "void"
+        TypeExpr::Never => return "void"
+        TypeExpr::Bool => return "i1"
+        TypeExpr::Int => return "i64"
+        TypeExpr::Float => return "double"
+        TypeExpr::String_ => return "i8*"
+        TypeExpr::Char => return "i8"
+        TypeExpr::Array(_) => return "i8*"
+        TypeExpr::Slice(_) => return "i8*"
+        TypeExpr::Option(inner) => return map_type_expr(gen, inner)
+        TypeExpr::Result(ok, _) => return map_type_expr(gen, ok)
+        TypeExpr::Infer => return "i64"
+        TypeExpr::Path(path) =>
+            if len(path.segments) > 0:
+                let name = path.segments[0].name
+                return map_named_type(gen, name)
+            return "i64"
+        _ => return "i64"
+
+fn map_named_type(gen: LlvmGen, name: String) -> String:
+    if name == "Int" || name == "i64" || name == "usize" || name == "isize": return "i64"
+    if name == "i32": return "i32"
+    if name == "i8": return "i8"
+    if name == "Float" || name == "f64" || name == "double": return "double"
+    if name == "f32": return "float"
+    if name == "Bool" || name == "bool": return "i1"
+    if name == "String" || name == "str": return "i8*"
+    if name == "Char" || name == "char": return "i8"
+    if name == "Unit" || name == "()": return "void"
+    # Struct or enum type
+    return "%" + name + "*"
+
+fn zero_for_type(ty: String) -> String:
+    if ty == "double": return "0.0"
+    if ty == "i1": return "0"
+    if ty == "i8": return "0"
+    if ty == "i64": return "0"
+    if ty == "i32": return "0"
+    if ty == "void": return "0"
+    # Pointer
+    return "null"
+
+# ─── String constant emission ──────────────────────────────────────────────────
+
+fn make_escape_len(s: String) -> Int:
+    # Count characters, treating escape sequences as single bytes
+    let count = 0
+    let i = 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "\n" || ch == "\r" || ch == "\t" || ch == "\0":
+            count = count + 2  # \XX escape in LLVM IR
+        else if ch == "\\":
+            count = count + 2
+        else if ch == "\"":
+            count = count + 2
+        else:
+            count = count + 1
+        i = i + 1
+    return count + 1  # +1 for null terminator
+
+fn escape_for_llvm(s: String) -> String:
+    let result = ""
+    let i = 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "\n": result = result + "\\0A"
+        else if ch == "\r": result = result + "\\0D"
+        else if ch == "\t": result = result + "\\09"
+        else if ch == "\0": result = result + "\\00"
+        else if ch == "\\": result = result + "\\5C"
+        else if ch == "\"": result = result + "\\22"
+        else: result = result + ch
+        i = i + 1
+    result = result + "\\00"
+    return result
+
+fn emit_string_constants(gen: LlvmGen) -> Unit:
+    let i = 0
+    while i < len(gen.str_content):
+        let content = gen.str_content[i]
+        let name = gen.str_names[i]
+        let escaped = escape_for_llvm(content)
+        let byte_len = make_escape_len(content)
+        gen.emit(name + " = private unnamed_addr constant [" + str(byte_len) + " x i8] c\"" + escaped + "\"")
+        i = i + 1
+
+# ─── Compile a string literal to a live i8* register ──────────────────────────
+
+fn compile_string_const(gen: LlvmGen, content: String) -> String:
+    let global_name = gen.intern_string(content)
+    let byte_len = make_escape_len(content)
+    let raw_ptr = gen.next_reg()
+    gen.emit_indent(raw_ptr + " = getelementptr inbounds [" + str(byte_len) + " x i8], [" + str(byte_len) + " x i8]* " + global_name + ", i64 0, i64 0")
+    let rc_ptr = gen.next_reg()
+    gen.emit_indent(rc_ptr + " = call i8* @string_new(i8* " + raw_ptr + ")")
+    return rc_ptr
+
+# ─── Numeric coercion helpers ──────────────────────────────────────────────────
+
+fn coerce_to_bool(gen: LlvmGen, val: String, src_ty: String) -> String:
+    if src_ty == "i1": return val
+    let r = gen.next_reg()
+    if src_ty == "i64" || src_ty == "i32" || src_ty == "i8":
+        gen.emit_indent(r + " = icmp ne " + src_ty + " " + val + ", 0")
+    else if src_ty == "double":
+        gen.emit_indent(r + " = fcmp une double " + val + ", 0.0")
+    else if src_ty == "i8*":
+        let as_int = gen.next_reg()
+        gen.emit_indent(as_int + " = ptrtoint i8* " + val + " to i64")
+        gen.emit_indent(r + " = icmp ne i64 " + as_int + ", 0")
+    else:
+        gen.emit_indent(r + " = icmp ne i64 0, 0")
+    return r
+
+fn coerce_to_i64(gen: LlvmGen, val: String, src_ty: String) -> String:
+    if src_ty == "i64": return val
+    let r = gen.next_reg()
+    if src_ty == "i1" || src_ty == "i8":
+        gen.emit_indent(r + " = sext " + src_ty + " " + val + " to i64")
+    else if src_ty == "i32":
+        gen.emit_indent(r + " = sext i32 " + val + " to i64")
+    else if src_ty == "double":
+        gen.emit_indent(r + " = fptosi double " + val + " to i64")
+    else if src_ty == "i8*":
+        gen.emit_indent(r + " = ptrtoint i8* " + val + " to i64")
+    else:
+        return val
+    return r
+
+# ─── Expression compilation ────────────────────────────────────────────────────
+
+fn compile_expr(gen: LlvmGen, expr: Expr) -> String:
+    let compiled_type = "i64"
+    return compile_expr_typed(gen, expr, compiled_type)
+
+fn compile_expr_typed(gen: LlvmGen, expr: Expr, expected_type: String) -> String:
+    match expr:
+        Expr::Literal(lit) => return compile_literal(gen, lit)
+        Expr::Path(path) =>
+            if len(path.segments) > 0:
+                let name = path.segments[0].name
+                # true/false
+                if name == "true": return "1"
+                if name == "false": return "0"
+                if name == "none": return "null"
+                let slot = gen.find_local(name)
+                let ty = gen.local_type(name)
+                if ty == "void": return "0"
+                let r = gen.next_reg()
+                gen.emit_indent(r + " = load " + ty + ", " + ty + "* " + slot)
+                return r
+            return "0"
+        Expr::Binary(bin) => return compile_binary(gen, bin.left, bin.op, bin.right)
+        Expr::Unary(un) => return compile_unary(gen, un.op, un.value)
+        Expr::Call(call) => return compile_call_expr(gen, call)
+        Expr::MethodCall(mc) => return compile_method_call(gen, mc)
+        Expr::If(ife) => return compile_if_expr(gen, ife)
+        Expr::Field(f) =>
+            # Simplified field access - just load the object
+            let base = compile_expr(gen, f.target)
+            return base
+        Expr::Index(ie) =>
+            let base = compile_expr(gen, ie.target)
+            let idx = compile_expr(gen, ie.index)
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i64 @kain_array_get(i8* " + base + ", i64 " + idx + ")")
+            return r
+        Expr::StructInit(si) =>
+            let sname = ""
+            if len(si.name.segments) > 0:
+                sname = si.name.segments[0].name
+            let slot = gen.next_reg()
+            gen.emit_indent(slot + " = call i8* @kain_struct_alloc(i64 " + str(len(si.fields)) + ")")
+            let fi = 0
+            for field in si.fields:
+                let fval = compile_expr(gen, field.value)
+                gen.emit_indent("call void @kain_struct_set_field(i8* " + slot + ", i64 " + str(fi) + ", i64 " + coerce_to_i64(gen, fval, "i64") + ")")
+                fi = fi + 1
+            return slot
+        Expr::Array(items) =>
+            let arr_ptr = gen.next_reg()
+            gen.emit_indent(arr_ptr + " = call i8* @kain_array_new(i64 " + str(len(items)) + ")")
+            let ai = 0
+            for item in items:
+                let ival = compile_expr(gen, item)
+                gen.emit_indent("call void @kain_array_push(i8* " + arr_ptr + ", i64 " + coerce_to_i64(gen, ival, "i64") + ")")
+                ai = ai + 1
+            return arr_ptr
+        Expr::Tuple(items) =>
+            # Tuples lowered as arrays for the bootstrap
+            let arr_ptr = gen.next_reg()
+            gen.emit_indent(arr_ptr + " = call i8* @kain_array_new(i64 " + str(len(items)) + ")")
+            for item in items:
+                let ival = compile_expr(gen, item)
+                gen.emit_indent("call void @kain_array_push(i8* " + arr_ptr + ", i64 " + coerce_to_i64(gen, ival, "i64") + ")")
+            return arr_ptr
+        Expr::Literal(Literal::Unit) => return "0"
+        _ => return "0"
+
+fn compile_literal(gen: LlvmGen, lit: Literal) -> String:
+    match lit:
+        Literal::Int(n) => return str(n)
+        Literal::Float(f) =>
+            # Emit float constant in LLVM double format
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = fadd double 0.0, " + str(f) + ".0")
+            return r
+        Literal::String(s) => return compile_string_const(gen, s)
+        Literal::Char(c) =>
+            # Char as i8 value
+            let first = ""
+            if len(c) > 0:
+                first = char_at(c, 0)
+            # Simple ASCII mapping (full mapping deferred)
+            if first == "n": return "10"
+            if first == "t": return "9"
+            if first == "r": return "13"
+            if first == "0": return "0"
+            return "32"  # space as default
+        Literal::Bool(b) =>
+            if b: return "1"
+            return "0"
+        Literal::Unit => return "0"
+
+fn compile_binary(gen: LlvmGen, left: Expr, op: BinaryOp, right: Expr) -> String:
+    # Short-circuit for && and ||
+    match op:
+        BinaryOp::And =>
+            let l = compile_expr(gen, left)
+            let lb = coerce_to_bool(gen, l, "i64")
+            let true_lbl = gen.next_label()
+            let false_lbl = gen.next_label()
+            let merge_lbl = gen.next_label()
+            gen.emit_indent("br i1 " + lb + ", label %" + true_lbl + ", label %" + false_lbl)
+            gen.emit(true_lbl + ":")
+            let r = compile_expr(gen, right)
+            let rb = coerce_to_bool(gen, r, "i64")
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(false_lbl + ":")
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(merge_lbl + ":")
+            let result = gen.next_reg()
+            gen.emit_indent(result + " = phi i1 [ " + rb + ", %" + true_lbl + " ], [ 0, %" + false_lbl + " ]")
+            return result
+        BinaryOp::Or =>
+            let l = compile_expr(gen, left)
+            let lb = coerce_to_bool(gen, l, "i64")
+            let true_lbl = gen.next_label()
+            let false_lbl = gen.next_label()
+            let merge_lbl = gen.next_label()
+            gen.emit_indent("br i1 " + lb + ", label %" + true_lbl + ", label %" + false_lbl)
+            gen.emit(true_lbl + ":")
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(false_lbl + ":")
+            let r = compile_expr(gen, right)
+            let rb = coerce_to_bool(gen, r, "i64")
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(merge_lbl + ":")
+            let result = gen.next_reg()
+            gen.emit_indent(result + " = phi i1 [ 1, %" + true_lbl + " ], [ " + rb + ", %" + false_lbl + " ]")
+            return result
+        _ => ()
+
+    let l_val = compile_expr(gen, left)
+    let r_val = compile_expr(gen, right)
+    let res = gen.next_reg()
+
+    match op:
+        BinaryOp::Add =>
+            # String concatenation check: if either operand produces i8*
+            gen.emit_indent(res + " = call i8* @str_concat(i8* " + l_val + ", i8* " + r_val + ")")
+            return res
+        BinaryOp::Sub =>
+            gen.emit_indent(res + " = sub i64 " + l_val + ", " + r_val)
+        BinaryOp::Mul =>
+            gen.emit_indent(res + " = mul i64 " + l_val + ", " + r_val)
+        BinaryOp::Div =>
+            gen.emit_indent(res + " = sdiv i64 " + l_val + ", " + r_val)
+        BinaryOp::Mod =>
+            gen.emit_indent(res + " = srem i64 " + l_val + ", " + r_val)
+        BinaryOp::Eq =>
+            gen.emit_indent(res + " = call i1 @kain_eq(i8* " + l_val + ", i8* " + r_val + ")")
+        BinaryOp::Ne =>
+            let eq_r = gen.next_reg()
+            gen.emit_indent(eq_r + " = call i1 @kain_eq(i8* " + l_val + ", i8* " + r_val + ")")
+            gen.emit_indent(res + " = xor i1 " + eq_r + ", 1")
+        BinaryOp::Lt =>
+            gen.emit_indent(res + " = icmp slt i64 " + l_val + ", " + r_val)
+        BinaryOp::Gt =>
+            gen.emit_indent(res + " = icmp sgt i64 " + l_val + ", " + r_val)
+        BinaryOp::Le =>
+            gen.emit_indent(res + " = icmp sle i64 " + l_val + ", " + r_val)
+        BinaryOp::Ge =>
+            gen.emit_indent(res + " = icmp sge i64 " + l_val + ", " + r_val)
+        _ =>
+            gen.emit_indent(res + " = add i64 " + l_val + ", " + r_val)
+    return res
+
+fn compile_unary(gen: LlvmGen, op: UnaryOp, value: Expr) -> String:
+    let v = compile_expr(gen, value)
+    let r = gen.next_reg()
+    match op:
+        UnaryOp::Not =>
+            let bv = coerce_to_bool(gen, v, "i64")
+            gen.emit_indent(r + " = xor i1 " + bv + ", 1")
+        UnaryOp::Negate =>
+            gen.emit_indent(r + " = sub i64 0, " + v)
+        _ =>
+            return v
+    return r
+
+fn compile_call_expr(gen: LlvmGen, call: CallExpr) -> String:
+    # Resolve callee name for known intrinsics
+    let callee_name = ""
+    match call.callee:
+        Expr::Path(p) =>
+            if len(p.segments) > 0:
+                callee_name = p.segments[0].name
+        _ => ()
+
+    # Built-in runtime calls
+    if callee_name == "println":
+        if len(call.args) > 0:
+            let arg_val = compile_expr(gen, call.args[0])
+            gen.emit_indent("call void @kain_println(i8* " + arg_val + ")")
+        else:
+            gen.emit_indent("call void @kain_println(i8* null)")
+        return "0"
+
+    if callee_name == "print":
+        if len(call.args) > 0:
+            let arg_val = compile_expr(gen, call.args[0])
+            gen.emit_indent("call void @kain_print(i8* " + arg_val + ")")
+        return "0"
+
+    if callee_name == "panic":
+        if len(call.args) > 0:
+            let msg = compile_expr(gen, call.args[0])
+            gen.emit_indent("call void @kain_panic(i8* " + msg + ")")
+        gen.emit_indent("unreachable")
+        return "0"
+
+    if callee_name == "str":
+        if len(call.args) > 0:
+            let v = compile_expr(gen, call.args[0])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i8* @to_string(i64 " + v + ")")
+            return r
+        return compile_string_const(gen, "")
+
+    if callee_name == "len":
+        if len(call.args) > 0:
+            let v = compile_expr(gen, call.args[0])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i64 @kain_len(i8* " + v + ")")
+            return r
+        return "0"
+
+    if callee_name == "push":
+        if len(call.args) >= 2:
+            let arr_v = compile_expr(gen, call.args[0])
+            let item_v = compile_expr(gen, call.args[1])
+            gen.emit_indent("call void @kain_array_push(i8* " + arr_v + ", i64 " + coerce_to_i64(gen, item_v, "i64") + ")")
+        return "0"
+
+    if callee_name == "char_at":
+        if len(call.args) >= 2:
+            let sv = compile_expr(gen, call.args[0])
+            let iv = compile_expr(gen, call.args[1])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i8* @kain_char_at(i8* " + sv + ", i64 " + iv + ")")
+            return r
+        return compile_string_const(gen, "")
+
+    if callee_name == "read_file":
+        if len(call.args) > 0:
+            let pv = compile_expr(gen, call.args[0])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i8* @kain_read_file(i8* " + pv + ")")
+            return r
+        return compile_string_const(gen, "")
+
+    if callee_name == "write_file":
+        if len(call.args) >= 2:
+            let pv = compile_expr(gen, call.args[0])
+            let cv = compile_expr(gen, call.args[1])
+            gen.emit_indent("call void @kain_write_file(i8* " + pv + ", i8* " + cv + ")")
+        return "0"
+
+    if callee_name == "env":
+        if len(call.args) > 0:
+            let kv = compile_expr(gen, call.args[0])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i8* @kain_env(i8* " + kv + ")")
+            return r
+        return compile_string_const(gen, "")
+
+    if callee_name == "file_exists":
+        if len(call.args) > 0:
+            let pv = compile_expr(gen, call.args[0])
+            let r = gen.next_reg()
+            gen.emit_indent(r + " = call i1 @kain_file_exists(i8* " + pv + ")")
+            return r
+        return "0"
+
+    if callee_name == "args":
+        let r = gen.next_reg()
+        gen.emit_indent(r + " = call i8* @kain_args()")
+        return r
+
+    if callee_name == "exit":
+        let code = "0"
+        if len(call.args) > 0:
+            code = compile_expr(gen, call.args[0])
+        gen.emit_indent("call void @exit(i64 " + code + ")")
+        gen.emit_indent("unreachable")
+        return "0"
+
+    # General user-defined function call
+    let arg_vals = []
+    for arg in call.args:
+        push(arg_vals, compile_expr(gen, arg))
+
+    let ret_ty = gen.fn_return_type(callee_name)
+
+    # Build arg list string
+    let arg_str = ""
+    let ai = 0
+    while ai < len(arg_vals):
+        if ai > 0:
+            arg_str = arg_str + ", "
+        arg_str = arg_str + "i64 " + coerce_to_i64(gen, arg_vals[ai], "i64")
+        ai = ai + 1
+
+    if ret_ty == "void":
+        gen.emit_indent("call void @" + callee_name + "(" + arg_str + ")")
+        return "0"
+    let r = gen.next_reg()
+    gen.emit_indent(r + " = call " + ret_ty + " @" + callee_name + "(" + arg_str + ")")
+    return r
+
+fn compile_method_call(gen: LlvmGen, mc: MethodCallExpr) -> String:
+    let recv = compile_expr(gen, mc.receiver)
+    # Dispatch to runtime helpers for known method names
+    if mc.method == "to_string" || mc.method == "display":
+        let r = gen.next_reg()
+        gen.emit_indent(r + " = call i8* @to_string(i64 " + coerce_to_i64(gen, recv, "i64") + ")")
+        return r
+    if mc.method == "len":
+        let r = gen.next_reg()
+        gen.emit_indent(r + " = call i64 @kain_len(i8* " + recv + ")")
+        return r
+    # Generic method: call struct_method(receiver, args...)
+    let arg_str = "i8* " + recv
+    for arg in mc.args:
+        let av = compile_expr(gen, arg)
+        arg_str = arg_str + ", i64 " + coerce_to_i64(gen, av, "i64")
+    let r = gen.next_reg()
+    gen.emit_indent(r + " = call i64 @" + mc.method + "(" + arg_str + ")")
+    return r
+
+fn compile_if_expr(gen: LlvmGen, ife: IfExpr) -> String:
+    let cond_v = compile_expr(gen, ife.condition)
+    let cond_b = coerce_to_bool(gen, cond_v, "i64")
+    let then_lbl = gen.next_label()
+    let else_lbl = gen.next_label()
+    let merge_lbl = gen.next_label()
+    gen.emit_indent("br i1 " + cond_b + ", label %" + then_lbl + ", label %" + else_lbl)
+    gen.emit(then_lbl + ":")
+    let then_v = "0"
+    for s in ife.then_branch.statements:
+        then_v = compile_stmt_value(gen, s)
+    gen.emit_indent("br label %" + merge_lbl)
+    gen.emit(else_lbl + ":")
+    let else_v = "0"
+    match ife.else_branch:
+        Option::Some(else_block) =>
+            for s in else_block.statements:
+                else_v = compile_stmt_value(gen, s)
+        _ => ()
+    gen.emit_indent("br label %" + merge_lbl)
+    gen.emit(merge_lbl + ":")
+    let r = gen.next_reg()
+    gen.emit_indent(r + " = phi i64 [ " + coerce_to_i64(gen, then_v, "i64") + ", %" + then_lbl + " ], [ " + coerce_to_i64(gen, else_v, "i64") + ", %" + else_lbl + " ]")
+    return r
+
+fn compile_stmt_value(gen: LlvmGen, stmt: Stmt) -> String:
+    match stmt:
+        Stmt::Expr(es) => return compile_expr(gen, es.expr)
+        Stmt::Return(rs) =>
+            match rs.value:
+                Option::Some(v) => return compile_expr(gen, v)
+                _ => return "0"
+        _ =>
+            compile_stmt(gen, stmt)
+            return "0"
+
+# ─── Statement compilation ─────────────────────────────────────────────────────
+
+fn compile_stmt(gen: LlvmGen, stmt: Stmt) -> Unit:
+    match stmt:
+        Stmt::Let(ls) =>
+            let ty = "i64"  # default, will refine from inferred type
+            let val_reg = "0"
+            match ls.value:
+                Option::Some(val_expr) =>
+                    val_reg = compile_expr(gen, val_expr)
+                _ => ()
+            let slot = gen.next_reg()
+            gen.emit_indent(slot + " = alloca i64")
+            gen.emit_indent("store i64 " + coerce_to_i64(gen, val_reg, "i64") + ", i64* " + slot)
+            match ls.pattern:
+                Pattern::Binding(name) => gen.define_local(name, slot, "i64")
+                _ => ()
+
+        Stmt::Return(rs) =>
+            let ret_ty = gen.current_return_type
+            match rs.value:
+                Option::Some(val_expr) =>
+                    let v = compile_expr(gen, val_expr)
+                    if ret_ty == "void":
+                        gen.emit_indent("ret void")
+                    else:
+                        let coerced = coerce_to_i64(gen, v, ret_ty)
+                        gen.emit_indent("ret " + ret_ty + " " + coerced)
+                _ =>
+                    if ret_ty == "void":
+                        gen.emit_indent("ret void")
+                    else:
+                        gen.emit_indent("ret " + ret_ty + " 0")
+
+        Stmt::Expr(es) =>
+            compile_expr(gen, es.expr)
+            let _discard = 0
+
+        Stmt::Assign(as_) =>
+            let new_val = compile_expr(gen, as_.value)
+            match as_.target:
+                Expr::Path(p) =>
+                    if len(p.segments) > 0:
+                        let vname = p.segments[0].name
+                        let slot = gen.find_local(vname)
+                        gen.emit_indent("store i64 " + coerce_to_i64(gen, new_val, "i64") + ", i64* " + slot)
+                _ => ()
+
+        Stmt::If(ifs) =>
+            let cond_v = compile_expr(gen, ifs.condition)
+            let cond_b = coerce_to_bool(gen, cond_v, "i64")
+            let then_lbl = gen.next_label()
+            let else_lbl = gen.next_label()
+            let merge_lbl = gen.next_label()
+            gen.emit_indent("br i1 " + cond_b + ", label %" + then_lbl + ", label %" + else_lbl)
+            gen.emit(then_lbl + ":")
+            for s in ifs.then_branch.statements:
+                compile_stmt(gen, s)
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(else_lbl + ":")
+            match ifs.else_branch:
+                Option::Some(else_block) =>
+                    for s in else_block.statements:
+                        compile_stmt(gen, s)
+                _ => ()
+            gen.emit_indent("br label %" + merge_lbl)
+            gen.emit(merge_lbl + ":")
+
+        Stmt::While(ws) =>
+            let cond_lbl = gen.next_label()
+            let body_lbl = gen.next_label()
+            let exit_lbl = gen.next_label()
+            gen.push_loop(cond_lbl, exit_lbl)
+            gen.emit_indent("br label %" + cond_lbl)
+            gen.emit(cond_lbl + ":")
+            let cv = compile_expr(gen, ws.condition)
+            let cb = coerce_to_bool(gen, cv, "i64")
+            gen.emit_indent("br i1 " + cb + ", label %" + body_lbl + ", label %" + exit_lbl)
+            gen.emit(body_lbl + ":")
+            for s in ws.body.statements:
+                compile_stmt(gen, s)
+            gen.emit_indent("br label %" + cond_lbl)
+            gen.emit(exit_lbl + ":")
+            gen.pop_loop()
+
+        Stmt::For(fs) =>
+            let iter_v = compile_expr(gen, fs.iter)
+            let len_v = gen.next_reg()
+            gen.emit_indent(len_v + " = call i64 @kain_len(i8* " + iter_v + ")")
+            # Loop index variable
+            let idx_slot = gen.next_reg()
+            gen.emit_indent(idx_slot + " = alloca i64")
+            gen.emit_indent("store i64 0, i64* " + idx_slot)
+            let cond_lbl = gen.next_label()
+            let body_lbl = gen.next_label()
+            let exit_lbl = gen.next_label()
+            gen.push_loop(cond_lbl, exit_lbl)
+            gen.emit_indent("br label %" + cond_lbl)
+            gen.emit(cond_lbl + ":")
+            let cur_idx = gen.next_reg()
+            gen.emit_indent(cur_idx + " = load i64, i64* " + idx_slot)
+            let cmp = gen.next_reg()
+            gen.emit_indent(cmp + " = icmp slt i64 " + cur_idx + ", " + len_v)
+            gen.emit_indent("br i1 " + cmp + ", label %" + body_lbl + ", label %" + exit_lbl)
+            gen.emit(body_lbl + ":")
+            # Bind loop variable
+            let elem_v = gen.next_reg()
+            gen.emit_indent(elem_v + " = call i64 @kain_array_get(i8* " + iter_v + ", i64 " + cur_idx + ")")
+            let elem_slot = gen.next_reg()
+            gen.emit_indent(elem_slot + " = alloca i64")
+            gen.emit_indent("store i64 " + elem_v + ", i64* " + elem_slot)
+            match fs.pattern:
+                Pattern::Binding(var_name) => gen.define_local(var_name, elem_slot, "i64")
+                _ => ()
+            for s in fs.body.statements:
+                compile_stmt(gen, s)
+            # Increment index
+            let next_idx = gen.next_reg()
+            gen.emit_indent(next_idx + " = add i64 " + cur_idx + ", 1")
+            gen.emit_indent("store i64 " + next_idx + ", i64* " + idx_slot)
+            gen.emit_indent("br label %" + cond_lbl)
+            gen.emit(exit_lbl + ":")
+            gen.pop_loop()
+
+        Stmt::Break(_) =>
+            gen.emit_indent("br label %" + gen.current_break())
+            let dead_lbl = gen.next_label()
+            gen.emit(dead_lbl + ":")
+
+        Stmt::Continue(_) =>
+            gen.emit_indent("br label %" + gen.current_continue())
+            let dead_lbl = gen.next_label()
+            gen.emit(dead_lbl + ":")
+
+        Stmt::Match(ms) =>
+            # Simplified match lowering: chain of if/else
+            let val_r = compile_expr(gen, ms.value)
+            let merge_lbl = gen.next_label()
+            let arm_count = len(ms.arms)
+            let ai = 0
+            while ai < arm_count:
+                let arm = ms.arms[ai]
+                let arm_lbl = gen.next_label()
+                let next_lbl = gen.next_label()
+                # Pattern comparison (simplified: wildcard or binding always matches)
+                let is_wildcard = false
+                match arm.pattern:
+                    Pattern::Wildcard => is_wildcard = true
+                    Pattern::Binding(_) => is_wildcard = true
+                    _ => ()
+                if is_wildcard:
+                    gen.emit_indent("br label %" + arm_lbl)
+                    gen.emit(arm_lbl + ":")
+                    for s in arm.body.statements:
+                        compile_stmt(gen, s)
+                    gen.emit_indent("br label %" + merge_lbl)
+                    ai = arm_count  # stop after wildcard
+                else:
+                    # Attempt to compare discriminant
+                    gen.emit_indent("br label %" + arm_lbl)
+                    gen.emit(arm_lbl + ":")
+                    for s in arm.body.statements:
+                        compile_stmt(gen, s)
+                    gen.emit_indent("br label %" + merge_lbl)
+                    ai = ai + 1
+            gen.emit(merge_lbl + ":")
+
+        _ => ()
+
+# ─── Function compilation ──────────────────────────────────────────────────────
+
+fn compile_fn(gen: LlvmGen, fndef: FnDef) -> Unit:
+    let ret_ty = "i64"
+    match fndef.return_type:
+        Option::Some(rty) => ret_ty = map_type_expr(gen, rty)
+        _ => ret_ty = "void"
+
+    gen.current_return_type = ret_ty
+
+    # Build parameter list string
+    let param_str = ""
+    let pi = 0
+    for param in fndef.params:
+        if pi > 0:
+            param_str = param_str + ", "
+        let pty = "i64"
+        pty = map_type_expr(gen, param.ty)
+        if pty == "void": pty = "i64"
+        param_str = param_str + pty + " %" + param.name + "_arg"
+        pi = pi + 1
+
+    let linkage = "private"
+    if fndef.is_pub:
+        linkage = ""
+
+    if len(linkage) > 0:
+        gen.emit("define " + linkage + " " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
+    else:
+        gen.emit("define " + ret_ty + " @" + fndef.name + "(" + param_str + ") {")
+    gen.emit("entry:")
+
+    # Save params into alloca slots
+    gen.local_names = []
+    gen.local_regs = []
+    gen.local_types = []
+
+    let pi2 = 0
+    for param in fndef.params:
+        let pty = map_type_expr(gen, param.ty)
+        if pty == "void": pty = "i64"
+        let slot = gen.next_reg()
+        gen.emit_indent(slot + " = alloca " + pty)
+        gen.emit_indent("store " + pty + " %" + param.name + "_arg, " + pty + "* " + slot)
+        gen.define_local(param.name, slot, pty)
+        pi2 = pi2 + 1
+
+    for s in fndef.body:
+        compile_stmt(gen, s)
+
+    # Ensure a terminator
+    if ret_ty == "void":
+        gen.emit_indent("ret void")
+    else:
+        gen.emit_indent("ret " + ret_ty + " 0")
+    gen.emit("}")
+    gen.emit("")
+
+# ─── Struct type definition ────────────────────────────────────────────────────
+
+fn compile_struct_type(gen: LlvmGen, s: StructDef) -> Unit:
+    let fields_str = ""
+    let fi = 0
+    for field in s.fields:
+        if fi > 0:
+            fields_str = fields_str + ", "
+        fields_str = fields_str + map_type_expr(gen, field.ty)
+        fi = fi + 1
+    gen.emit("%" + s.name + " = type { " + fields_str + " }")
+
+# ─── Enum type definition ──────────────────────────────────────────────────────
+# Enums are lowered as tagged structs: { i64 tag, i64 payload[N] }
+
+fn compile_enum_type(gen: LlvmGen, e: EnumDef) -> Unit:
+    let max_payload = 0
+    for variant in e.variants:
+        match variant.fields:
+            VariantFields::Tuple(types) =>
+                if len(types) > max_payload:
+                    max_payload = len(types)
+            _ => ()
+    if max_payload == 0:
+        gen.emit("%" + e.name + " = type { i64 }")
+    else:
+        let payload_str = ""
+        let pi = 0
+        while pi < max_payload:
+            if pi > 0:
+                payload_str = payload_str + ", "
+            payload_str = payload_str + "i64"
+            pi = pi + 1
+        gen.emit("%" + e.name + " = type { i64, " + payload_str + " }")
+
+# ─── Extern declarations ───────────────────────────────────────────────────────
+
+fn emit_extern_decls(gen: LlvmGen) -> Unit:
+    gen.emit("; Kain runtime extern declarations")
+    gen.emit("declare void @kain_println(i8*)")
+    gen.emit("declare void @kain_print(i8*)")
+    gen.emit("declare void @kain_panic(i8*)")
+    gen.emit("declare i8* @string_new(i8*)")
+    gen.emit("declare i8* @str_concat(i8*, i8*)")
+    gen.emit("declare i8* @to_string(i64)")
+    gen.emit("declare i64 @kain_len(i8*)")
+    gen.emit("declare i8* @kain_array_new(i64)")
+    gen.emit("declare void @kain_array_push(i8*, i64)")
+    gen.emit("declare i64 @kain_array_get(i8*, i64)")
+    gen.emit("declare i8* @kain_char_at(i8*, i64)")
+    gen.emit("declare i8* @kain_read_file(i8*)")
+    gen.emit("declare void @kain_write_file(i8*, i8*)")
+    gen.emit("declare i1 @kain_file_exists(i8*)")
+    gen.emit("declare i8* @kain_env(i8*)")
+    gen.emit("declare i8* @kain_args()")
+    gen.emit("declare i1 @kain_eq(i8*, i8*)")
+    gen.emit("declare i8* @kain_struct_alloc(i64)")
+    gen.emit("declare void @kain_struct_set_field(i8*, i64, i64)")
+    gen.emit("declare i64 @kain_struct_get_field(i8*, i64)")
+    gen.emit("declare void @exit(i64)")
+    gen.emit("")
+
+# ─── Module-level compilation ──────────────────────────────────────────────────
+
+fn compile_module(gen: LlvmGen, program: TypedProgram) -> Unit:
+    # Pre-register all function return types for call-site type resolution
+    for item in program.items:
+        match item:
+            TypedItem::Function(f) =>
+                push(gen.fn_names, f.ast.name)
+                let ret_ty = "i64"
+                match f.ast.return_type:
+                    Option::Some(rty) => ret_ty = map_type_expr(gen, rty)
+                    _ => ret_ty = "void"
+                push(gen.fn_return_llvm_types, ret_ty)
+            _ => ()
+
+    # Pre-register struct names
+    for sname in program.struct_names:
+        push(gen.struct_names, sname)
+    for ename in program.enum_names:
+        push(gen.enum_names, ename)
+
+    # Emit header
+    let target = gen.target
+    gen.emit("; Kain LLVM IR - generated by kainc selfhost codegen")
+    gen.emit("target triple = \"" + target.triple + "\"")
+    gen.emit("target datalayout = \"" + target.datalayout + "\"")
+    gen.emit("")
+
+    # Emit type definitions first
+    for item in program.items:
+        match item:
+            TypedItem::Struct_(ts) => compile_struct_type(gen, ts.struct_def)
+            TypedItem::Enum_(te) => compile_enum_type(gen, te.enum_def)
+            _ => ()
+    gen.emit("")
+
+    # Extern declarations
+    emit_extern_decls(gen)
+
+    # Emit function bodies
+    for item in program.items:
+        match item:
+            TypedItem::Function(f) =>
+                if f.ast.name != "main":
+                    compile_fn(gen, f.ast)
+            _ => ()
+
+    # Emit @main wrapper
+    emit_main_wrapper(gen, program)
+
+    # Emit string constants
+    emit_string_constants(gen)
+
+fn emit_main_wrapper(gen: LlvmGen, program: TypedProgram) -> Unit:
+    # Check if user defined main()
+    let has_main = false
+    for fname in program.fn_names:
+        if fname == "main":
+            has_main = true
+
+    if has_main:
+        # Find the user main and compile it normally as @kain_user_main
+        for item in program.items:
+            match item:
+                TypedItem::Function(f) =>
+                    if f.ast.name == "main":
+                        let user_main = f.ast
+                        let saved_name = user_main.name
+                        # emit as the real @main
+                        compile_fn(gen, user_main)
+                _ => ()
+    else:
+        gen.emit("define i32 @main(i32 %argc, i8** %argv) {")
+        gen.emit("entry:")
+        gen.emit_indent("; no user main - stub exit")
+        gen.emit_indent("ret i32 0")
+        gen.emit("}")
+        gen.emit("")
+
+# ─── Public entry point ────────────────────────────────────────────────────────
+
+pub fn generate_llvm_ir(program: TypedProgram) -> String:
+    let gen = gen_new()
+    compile_module(gen, program)
+    return gen.out
