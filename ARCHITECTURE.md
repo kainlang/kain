@@ -257,6 +257,9 @@ The native packaging lane is the operator-facing loop for UI iteration:
 - `kain-driver` materializes native apps as a package set, writing the runtime bundle, runtime contract, realtime bundle, `app_manifest.json`, `runtime_snapshot.json`, and any required sidecars into the app artifact tree.
 - Generated launchers resolve those packaged sidecars beside the executable so the app boots from authored bundle truth instead of a debug-host template.
 - The runtime snapshot is the reload/control surface, not hidden launcher state. It carries explicit provider, session, workspace, command, and capability records, including the `runtime.reload` command already emitted by the packaging path.
+- `crates/cli/src/native_ui_dev.rs` is the canonical desktop dev loop for this lane. `kain native-ui dev <file.kn>` materializes once, launches the child app, watches the input file's parent directory recursively, ignores generated/project artifact trees plus common temp files, and debounces save bursts before rebuilding.
+- Reload behavior is now explicit instead of host-local. The dev loop classifies each rebuild as `Noop`, `HotReloadInProcess`, or `RestartProcess` from emitted runtime compatibility metadata plus changed artifact roles such as runtime bundle, runtime contract, realtime bundle, shader sidecars, app manifest, and runtime snapshot.
+- Compatible rebuilds preserve live UI/workspace/session state through the existing runtime reload contract. Incompatible rebuilds restart the packaged child and restore only from the persisted manifest/snapshot boundary.
 - Devtools and inspectors must stay opt-in and remain represented in packaged truth, not injected as default product chrome.
 - When a packaged launch stops reflecting a change, check the materialized manifest and snapshot sidecars first. That is the stable operator boundary before assuming the host itself is wrong.
 - target-aware world selection now resolves native desktop targets against `native_ui`, web targets against `web`, and UE5 targets against `ue5`; ambiguous multi-world cases must use an explicit `--root` selection.
@@ -285,6 +288,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [labs](/M:/Code/Kain/labs): focused validation labs
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
+- [labs/chronos_native](/M:/Code/Kain/labs/chronos_native): first native Chronos proof app for the `kain native-ui dev` loop, combining compiler-owned world state, native UI shells, viewport3d authoring, and packaged shader sidecars from one Kain source file
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
 
 ## Common Commands
@@ -300,6 +304,7 @@ Typical commands:
 - `kain doctor --repair-tree <dir>`
 - `kain build`
 - `kain build native-ui <file.kn>`
+- `kain native-ui dev <file.kn>`
 - `kain run <file.kn>`
 - `kain format <file.kn>`
 - `kain fmt --check <file.kn>`
@@ -314,6 +319,7 @@ Typical commands:
 - `kain fabric validate`
 - `kain fabric run`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
+- `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `./runtime/fixtures/validate_all.sh`
 - `./runtime/conformance/run_all.sh`
 - `./runtime/validate_native_runtime.sh`
@@ -388,8 +394,10 @@ If the debug CLI is missing:
 - The formatter deliberately errors on a few parser-hostile or non-round-trippable shapes instead of emitting lossy source. Current notable cases are empty executable blocks, `shader surface` emission, and standalone block/comptime expressions that do not map cleanly back to authored statement form.
 - The native shader-canvas lane is SPIR-V-canonical at the bundle level, but the current WGPU host still resolves WGSL for execution. Do not mistake that compatibility bridge for permission to move shader-canvas truth out of the emitted bundles.
 - The native packaging loop is file-backed. If hot reload or packaged state looks stale, verify the generated `app_manifest.json`, `runtime_snapshot.json`, and launcher env vars before blaming the runtime.
+- `kain native-ui dev` can be healthy even when the launched child immediately dies. In this checkout the Chronos proof materializes, launches, and keeps the watch loop alive, but the child currently aborts through `/usr/local/bin/qmlscene` with exit status `134` in this environment. Treat that as a Qt/GUI-session runtime-host failure before assuming the dev loop or reload classifier is broken.
 - Native desktop launchers that do not inherit a GUI session can still boot if the wrapper resolves the live compositor socket. `labs/playground/piano/run.sh` now auto-detects the current Wayland/X11 runtime and exports the minimum env needed to attach on Linux; if a native app starts but no window appears, check `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_RUNTIME_DIR`, and `XAUTHORITY` before blaming Kain UI.
 - The LLVM dogfood lab in `labs/llvm_world_dogfood_lab` uses named payloads for both `spawn` and `send`. If an actor message stops parsing, check `Pulse(amount = ...)` / `spawn Actor(...)` syntax before assuming the LLVM backend regressed.
+- The native Chronos proof under `labs/chronos_native` currently packages realtime and compute sidecars successfully, but the native-ui packaging/typecheck lane is still stricter than the direct GPU artifact lane for at least some compute expressions. If a shader proof works under `kain gpu-artifacts` but not under `kain build native-ui`, inspect dispatch-index access and bundle-lane differences before widening the language surface.
 - General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
 - Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.

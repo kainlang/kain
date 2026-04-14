@@ -172,6 +172,13 @@ pub fn import_typescript(path: &std::path::Path) -> Result<Program> {
 }
 
 #[cfg(feature = "typescript")]
+pub fn import_typescript_detailed(
+    path: &std::path::Path,
+) -> Result<typescript::TypeScriptImportDiagnostics> {
+    typescript::import_typescript_file_detailed(path)
+}
+
+#[cfg(feature = "typescript")]
 pub fn import_typescript_dir(dir: &std::path::Path, flat: bool) -> Result<Program> {
     typescript::import_typescript_dir(dir, flat)
 }

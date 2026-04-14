@@ -1,5 +1,71 @@
 # MEMORY
 
+# 2026-04-13 - native-ui dev loop tightened, Chronos native proof added, and TS effect hooks lower into native semantics
+
+The repo now has a real native desktop iteration lane centered on
+`kain native-ui dev`, plus a first Chronos-scale proof app that exercises the
+same packaged runtime/realtime/shader sidecar path instead of relying on an
+imported TS shell.
+
+What changed:
+
+- Added and validated the native desktop dev loop around
+  `crates/cli/src/native_ui_dev.rs`. The loop materializes once, launches the
+  packaged child, watches the authored app root recursively, ignores generated
+  project/artifact trees plus common editor temp files, debounces save bursts,
+  and classifies each rebuild as `Noop`, `HotReloadInProcess`, or
+  `RestartProcess`.
+- Repaired the native-ui reload-coordinator tests so they reflect the live
+  executable-path compatibility rule instead of stale assumptions.
+- Added the first native Chronos proof under `labs/chronos_native/`, authored
+  directly in Kain with compiler-owned `world` state, docked native UI, tabbed
+  control panels, `viewport3d`, shader sidecars, and packaged runtime snapshot
+  output from one `main.kn`.
+- Tightened the TypeScript importer so recognized React effect hooks
+  (`useEffect`, `useLayoutEffect`, `useInsertionEffect`) lower into reactive
+  component methods instead of surviving as raw hook calls in emitted Kain.
+- The importer's degradation/report path is now the truth source for whether a
+  generated `.kn` output is honest: parse/compile validation failures are part
+  of degradation, and strict mode can fail the import while still writing the
+  JSON report.
+
+Validation:
+
+- `cargo test -q -p kain-import test_component_hooks_lower_to_reactive_methods -- --nocapture`
+- `cargo test -q -p cli native_ui_dev -- --nocapture`
+- `cargo run -q -p cli --bin kain -- build native-ui labs/chronos_native/main.kn --app-name chronos-native-lab --window-title "Chronos Native Lab"`
+- `timeout 20 cargo run -q -p cli --bin kain -- native-ui dev labs/chronos_native/main.kn --app-name chronos-native-lab --window-title "Chronos Native Lab"`
+
+Important behavior notes:
+
+- The Chronos native lab proves the packaging/dev loop shape even in this
+  environment where the launched child exits through `/usr/local/bin/qmlscene`
+  with status `134`. The dev loop itself still materializes, launches, prints
+  the executable path, and keeps watching the app root.
+- The native-ui packaging/typecheck lane is still stricter than the direct GPU
+  artifact lane for at least some compute expressions. The current Chronos
+  proof therefore keeps a simplified compute kernel instead of a full
+  dispatch-indexed particle step.
+- Dependency arrays from imported React effects are still preserved only as
+  importer diagnostics, not as a complete reactive scheduler model.
+
+Current risk:
+
+- Native Chronos is now a real proof surface, but the current Qt host/runtime
+  environment can still fail after packaging succeeds, which means desktop-loop
+  validation remains split between CLI/materialization proof and live GUI-host
+  proof.
+- The compute authoring seam still needs reconciliation between direct
+  `gpu-artifacts` acceptance and `build native-ui` acceptance before this lane
+  can claim full descriptor parity for dispatch-indexed simulation code.
+
+Recommended next step:
+
+- Reconcile the native-ui packaging/typecheck lane with the direct GPU artifact
+  lane for compute dispatch indexing, then upgrade `labs/chronos_native` from
+  the simplified kernel to a real particle-step implementation and revalidate it
+  in a GUI-capable environment.
+
 # 2026-04-13 - Kain Flight Control MCP server added as a portable repo-native control plane
 
 The repo now has a local MCP sidecar under `tools/kain-flight-control/` so

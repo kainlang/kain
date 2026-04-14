@@ -698,19 +698,27 @@ impl TypeScriptTransformer {
                 self.define(&name, Type::Infer(Span::default()));
                 Ok(true)
             }
-            ts::Stmt::Expr(expr) => self.try_hoist_component_expr_stmt(&expr.expr),
+            ts::Stmt::Expr(expr) => self.try_hoist_component_expr_stmt(&expr.expr, methods),
             ts::Stmt::Empty(_) => Ok(true),
             _ => Ok(false),
         }
     }
 
-    fn try_hoist_component_expr_stmt(&mut self, expr: &ts::Expr) -> Result<bool> {
+    fn try_hoist_component_expr_stmt(
+        &mut self,
+        expr: &ts::Expr,
+        methods: &mut Vec<Function>,
+    ) -> Result<bool> {
         let ts::Expr::Call(call) = expr else {
             return Ok(false);
         };
         let Some(name) = self.call_callee_name(call) else {
             return Ok(false);
         };
+        if matches!(name.as_str(), "useEffect" | "useLayoutEffect" | "useInsertionEffect") {
+            self.hoist_component_effect_hook(&name, call, methods)?;
+            return Ok(true);
+        }
         if self.is_component_hook_name(&name) {
             self.note(format!(
                 "component hook call '{}' preserved only as diagnostic during import",
@@ -719,6 +727,72 @@ impl TypeScriptTransformer {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    fn hoist_component_effect_hook(
+        &mut self,
+        hook_name: &str,
+        call: &ts::CallExpr,
+        methods: &mut Vec<Function>,
+    ) -> Result<()> {
+        let Some(first_arg) = call.args.first() else {
+            self.note(format!(
+                "component hook '{}' skipped because it has no effect callback",
+                hook_name
+            ));
+            return Ok(());
+        };
+
+        let effect_name = self.fresh_temp("__component_effect");
+        let mut lowered_effect = match &*first_arg.expr {
+            ts::Expr::Arrow(arrow) => self.transform_named_arrow_method(&effect_name, arrow)?,
+            ts::Expr::Fn(func) => self.transform_function_like(
+                effect_name.clone(),
+                &func.function,
+                Visibility::Private,
+                false,
+                func.function
+                    .type_params
+                    .as_deref()
+                    .map(Self::map_generics)
+                    .unwrap_or_default(),
+            )?,
+            _ => {
+                self.note(format!(
+                    "component hook '{}' skipped because its callback is not a function literal",
+                    hook_name
+                ));
+                return Ok(());
+            }
+        };
+
+        if !lowered_effect.effects.contains(&Effect::Reactive) {
+            lowered_effect.effects.push(Effect::Reactive);
+        }
+        methods.push(lowered_effect);
+
+        if hook_name != "useEffect" {
+            self.note(format!(
+                "component hook '{}' lowered to a generic Reactive component effect",
+                hook_name
+            ));
+        }
+
+        if let Some(deps) = call.args.get(1) {
+            self.note(format!(
+                "component hook '{}' dependency list '{}' is preserved only as diagnostic metadata during import",
+                hook_name,
+                self.expr_debug_label(&deps.expr)
+            ));
+        }
+        if call.args.len() > 2 {
+            self.note(format!(
+                "component hook '{}' has extra arguments that are preserved only as diagnostics during import",
+                hook_name
+            ));
+        }
+
+        Ok(())
     }
 
     fn hoist_component_var_decl(
@@ -2469,6 +2543,18 @@ impl TypeScriptTransformer {
         }
     }
 
+    fn expr_debug_label(&self, expr: &ts::Expr) -> String {
+        match expr {
+            ts::Expr::Array(array) => format!("array(len={})", array.elems.len()),
+            ts::Expr::Ident(ident) => ident.sym.to_string(),
+            ts::Expr::Lit(ts::Lit::Null(_)) => "null".to_string(),
+            ts::Expr::Lit(ts::Lit::Bool(value)) => value.value.to_string(),
+            ts::Expr::Lit(ts::Lit::Num(value)) => value.value.to_string(),
+            ts::Expr::Lit(ts::Lit::Str(value)) => value.value.to_string(),
+            other => format!("{:?}", other),
+        }
+    }
+
     fn is_component_hook_name(&self, name: &str) -> bool {
         matches!(
             name,
@@ -2712,6 +2798,42 @@ mod tests {
                 JSXNode::ComponentCall { name, .. } => assert_eq!(name, "Panel"),
                 other => panic!("expected component call, got {:?}", other),
             },
+            other => panic!("expected component, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_component_hooks_lower_to_reactive_methods() {
+        let source = r#"
+            export default function Widget() {
+                const [count, setCount] = useState(0);
+                useEffect(() => {
+                    setCount(count + 1);
+                }, [count]);
+                return <Panel title="Hello">{count}</Panel>;
+            }
+        "#;
+        let path = PathBuf::from("test.tsx");
+        let module = parser::parse_typescript(source, &path).unwrap();
+        let mut transformer = TypeScriptTransformer::new();
+        let program = transformer.transform(module).unwrap();
+
+        match &program.items[0] {
+            Item::Component(component) => {
+                assert_eq!(component.state.len(), 1);
+                assert!(
+                    component
+                        .methods
+                        .iter()
+                        .any(|method| method.effects.contains(&Effect::Reactive))
+                );
+                assert!(
+                    transformer
+                        .diagnostics
+                        .iter()
+                        .any(|entry| entry.contains("dependency list"))
+                );
+            }
             other => panic!("expected component, got {:?}", other),
         }
     }

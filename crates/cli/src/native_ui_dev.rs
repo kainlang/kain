@@ -794,6 +794,21 @@ fn absolute_path(path: &Path) -> Result<PathBuf, KainError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn test_executable_path() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("kain_native_ui_dev_test_{unique}"));
+        fs::create_dir_all(&dir).expect("create temp native-ui test directory");
+        let executable = dir.join("chronos_native_test.exe");
+        fs::write(&executable, b"").expect("write temp native-ui executable");
+        executable
+    }
 
     fn manifest_state(
         changed_roles: &[&str],
@@ -845,8 +860,9 @@ mod tests {
     fn reload_decision_treats_source_only_delta_as_noop() {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["source_input"], true);
+        let executable_path = test_executable_path();
         let (decision, note) =
-            classify_reload_decision(&previous, &current, Path::new("/tmp/chronos"), true);
+            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
         assert_eq!(decision, ReloadDecision::Noop);
         assert!(note.contains("source changed"));
     }
@@ -855,8 +871,9 @@ mod tests {
     fn reload_decision_hot_reloads_runtime_sidecar_changes() {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["runtime_bundle", "shader_bundle"], true);
+        let executable_path = test_executable_path();
         let (decision, note) =
-            classify_reload_decision(&previous, &current, Path::new("/tmp/chronos"), true);
+            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
         assert_eq!(decision, ReloadDecision::HotReloadInProcess);
         assert!(note.contains("runtime_bundle"));
     }
@@ -865,8 +882,9 @@ mod tests {
     fn reload_decision_restarts_when_compatibility_breaks() {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["runtime_bundle"], false);
+        let executable_path = test_executable_path();
         let (decision, note) =
-            classify_reload_decision(&previous, &current, Path::new("/tmp/chronos"), true);
+            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
         assert_eq!(decision, ReloadDecision::RestartProcess);
         assert!(note.contains("compatibility"));
     }

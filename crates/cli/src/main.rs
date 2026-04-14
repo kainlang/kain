@@ -2040,6 +2040,7 @@ fn main() {
                         include_filters,
                         exclude_filters,
                         fail_fast,
+                        strict_generated_output: args.strict,
                         report_json,
                     };
 

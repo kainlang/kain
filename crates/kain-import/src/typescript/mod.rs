@@ -42,6 +42,12 @@ use crate::{ImportError, Result};
 use kain_core::ast::Program;
 use std::path::Path;
 
+#[derive(Debug, Clone)]
+pub struct TypeScriptImportDiagnostics {
+    pub program: Program,
+    pub diagnostics: Vec<String>,
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Import a single TypeScript source file into KAIN AST.
@@ -51,8 +57,7 @@ use std::path::Path;
 /// kain import-ts ./src/app.ts --output src/app.kn
 /// ```
 pub fn import_typescript_file(path: &Path) -> Result<Program> {
-    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
-    import_typescript_source(&source, path)
+    Ok(import_typescript_file_detailed(path)?.program)
 }
 
 /// Compatibility alias matching the requirements document naming.
@@ -60,31 +65,53 @@ pub fn import_ts_file(path: &Path) -> Result<Program> {
     import_typescript_file(path)
 }
 
+pub fn import_typescript_file_detailed(path: &Path) -> Result<TypeScriptImportDiagnostics> {
+    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    import_typescript_source_detailed(&source, path)
+}
+
 /// Import TypeScript source from a string (useful for testing and REPL use).
 pub fn import_typescript_source(source: &str, path: &Path) -> Result<Program> {
+    Ok(import_typescript_source_detailed(source, path)?.program)
+}
+
+pub fn import_typescript_source_detailed(
+    source: &str,
+    path: &Path,
+) -> Result<TypeScriptImportDiagnostics> {
     let module = parser::parse_typescript(source, path)?;
     let mut tx = TypeScriptTransformer::new();
-    tx.transform(module)
+    let program = tx.transform(module)?;
+    Ok(TypeScriptImportDiagnostics {
+        program,
+        diagnostics: tx.diagnostics,
+    })
 }
 
 /// Import multiple TypeScript files into a single merged KAIN program (flat mode).
 ///
 /// All symbols land in top-level scope.
 pub fn import_typescript_project(paths: &[&Path]) -> Result<Program> {
+    Ok(import_typescript_project_detailed(paths)?.program)
+}
+
+pub fn import_typescript_project_detailed(paths: &[&Path]) -> Result<TypeScriptImportDiagnostics> {
     let mut all_items = Vec::new();
+    let mut all_diagnostics = Vec::new();
     let span = kain_core::span::Span::default();
 
     for path in paths {
-        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
-        let module = parser::parse_typescript(&source, path)?;
-        let mut tx = TypeScriptTransformer::new();
-        let program = tx.transform(module)?;
-        all_items.extend(program.items);
+        let result = import_typescript_file_detailed(path)?;
+        all_items.extend(result.program.items);
+        all_diagnostics.extend(result.diagnostics);
     }
 
-    Ok(Program {
-        items: all_items,
-        span,
+    Ok(TypeScriptImportDiagnostics {
+        program: Program {
+            items: all_items,
+            span,
+        },
+        diagnostics: all_diagnostics,
     })
 }
 
