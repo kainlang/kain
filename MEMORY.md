@@ -66,6 +66,56 @@ Recommended next step:
   the simplified kernel to a real particle-step implementation and revalidate it
   in a GUI-capable environment.
 
+# 2026-04-14 - full parity spec package for KSculpt and KPainter
+
+The repo now has a full spec package under `.specs/ksculpt-kpainter-parity/`
+plus steering docs under `.specs/steering/` that define the execution program
+for taking Kain to native KSculpt and KPainter parity.
+
+What changed:
+
+- Added a full spec package with `requirements.md`, `design.md`, `tasks.md`,
+  `validation.md`, and `decisions.md` for the parity program.
+- Added steering for repo-wide standards, git workflow, and DCC native-authoring
+  rules so future implementation agents have durable guardrails.
+- Locked the parity destination to `apps/kain-fabric-dcc-suite` as the flagship
+  native DCC app instead of spreading parity work across multiple equal app
+  surfaces.
+- Locked the sculpt baseline to `.reference/sculpting/*` and the painter
+  baseline to `.reference/graphos/*` plus the current Kain painter scaffolds,
+  because the repo does not contain a single dedicated `paint/` reference tree.
+- Structured the program around:
+  1. native authoring and hot-reload foundation,
+  2. shared DCC session, workbench, and asset contracts,
+  3. KSculpt parity vertical slices,
+  4. KPainter parity vertical slices,
+  5. parity harness and importer honesty.
+
+Important behavior notes:
+
+- The spec explicitly rejects TypeScript transliteration as the parity strategy.
+  Importers remain migration aids, not the end-state authoring model.
+- Risky GPU kernels, topology services, and host/runtime experiments should land
+  in `labs/*` first and integrate into the flagship app only after contracts and
+  benchmarks are proven.
+- Painter parity now has a composite baseline by design, so any future parity
+  claim should carry an explicit feature id, source reference, owning subsystem,
+  and validation hook.
+
+Current risk:
+
+- The native host launcher decision remains open because the current
+  `qmlscene`-backed path is still a real stability constraint.
+- Pressure-sensitive input and the initial OS release matrix are not yet locked,
+  which means full sculpt and painter parity cannot be claimed until that choice
+  is made and validated.
+
+Recommended next step:
+
+- Execute Task 1.1 from the spec first: build the explicit parity capability
+  matrix with feature ids, source references, owners, and validation hooks
+  before claiming additional sculpt or painter parity features.
+
 # 2026-04-13 - Kain Flight Control MCP server added as a portable repo-native control plane
 
 The repo now has a local MCP sidecar under `tools/kain-flight-control/` so
