@@ -19,3 +19,18 @@ With this self hosting pipeline we should focus on the initial idea of what this
 - `src/.rustimport/reference` is the moved donor corpus from the earlier Rust import lane.
 - `src/.rustimport/phase2` is the canonical phase2 selfhost mirror root.
 - `src/.rustimport/*` and `src/.legacy` are reference-only and should not be edited by hand.
+
+## Durable Direction
+
+This file is the raw vision / motivation note.
+
+For the durable selfhost execution contract, read:
+
+- `src/SELFHOST_DIRECTION.md`
+
+Short version:
+
+- `KAIN.toml` should be the canonical selfhost contract
+- `src/core` should own the hand-written compiler
+- `.legacy` should inform stage structure, not runtime semantics
+- Rust is allowed as temporary bootstrap host substrate only, not as the permanent owner of compiler passes
