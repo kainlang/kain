@@ -65,5 +65,6 @@ Current lane truth:
 Visual example:
 
 - `material_atrium_visual_example.png` is a deterministic preview artifact generated from the authored `material_atrium` scene
+- the tile footers now print the canonical frame summary, so the image itself shows camera/source/viewport/composition/selection/manipulator context at a glance
 - it proves the scene composition and shell presentation path without claiming to be a live vendor-direct viewport capture
-- `generated/material_atrium_runtime_matrix.json` records the backend labels, scene metadata, and frame stats used to produce it
+- `generated/material_atrium_runtime_matrix.json` records the backend labels, scene metadata, frame stats, and explicit scene-resolution label used to produce it

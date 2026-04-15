@@ -375,7 +375,14 @@ fn draw_tile(
         (footer_y + 8) as u32,
         1,
         [216, 223, 230, 255],
-        tile.spec.executor_summary,
+        &shorten_text(
+            tile.frame
+                .diagnostics
+                .summary_line()
+                .as_deref()
+                .unwrap_or(tile.spec.executor_summary),
+            62,
+        ),
     );
     draw_text_block(
         canvas,
@@ -385,7 +392,7 @@ fn draw_tile(
         (footer_y + 24) as u32,
         1,
         [160, 173, 184, 255],
-        tile.spec.note_line,
+        &shorten_text(tile.spec.note_line, 62),
     );
 
     let stats_line = format!(
@@ -422,6 +429,25 @@ fn write_report(
     let composition_summary = rendered_tiles
         .first()
         .and_then(|tile| tile.frame.diagnostics.composition_summary.clone());
+    let camera_pose = rendered_tiles
+        .first()
+        .and_then(|tile| tile.frame.diagnostics.camera_pose.clone())
+        .map(|pose| {
+            json!({
+                "position": [pose.position.x, pose.position.y, pose.position.z],
+                "target": [pose.target.x, pose.target.y, pose.target.z],
+                "up": [pose.up.x, pose.up.y, pose.up.z],
+                "fov_y_degrees": pose.fov_y_degrees,
+                "near_plane": pose.near_plane,
+                "far_plane": pose.far_plane,
+            })
+        });
+    let frame_summary = rendered_tiles
+        .first()
+        .and_then(|tile| tile.frame.diagnostics.summary_line());
+    let scene_fit_ratio = rendered_tiles
+        .first()
+        .and_then(|tile| tile.frame.diagnostics.framed_camera_distance_ratio);
 
     let report = json!({
         "date": "2026-04-11",
@@ -438,6 +464,30 @@ fn write_report(
         "viewport_summary": viewport_summary,
         "scene_shape": scene_shape,
         "composition_summary": composition_summary,
+        "camera_fit_ratio": scene_fit_ratio,
+        "camera_pose": camera_pose,
+        "frame_summary": frame_summary,
+        "tile_overview": rendered_tiles.iter().map(|tile| {
+            json!({
+                "backend_id": tile.spec.backend_id,
+                "camera_source": tile.frame.diagnostics.camera_source.as_ref().map(|source| match source {
+                    kain_3d::FrameCameraSource::ExplicitView => "explicit_view",
+                    kain_3d::FrameCameraSource::AutoFramed => "auto_framed",
+                }),
+                "selected_instance_id": tile.frame.diagnostics.selected_instance_id,
+                "manipulator_mode": tile.frame.diagnostics.manipulator_mode.as_ref().map(|mode| match mode {
+                    kain_3d::ManipulatorMode::Translate => "translate",
+                    kain_3d::ManipulatorMode::Rotate => "rotate",
+                    kain_3d::ManipulatorMode::Scale => "scale",
+                }),
+                "visible_instance_count": tile.frame.diagnostics.visible_instances.len(),
+                "culled_instance_count": tile.frame.diagnostics.culled_instances.len(),
+                "viewport_resolution": tile.frame.diagnostics.viewport_resolution,
+                "composition_summary": tile.frame.diagnostics.composition_summary,
+                "camera_fit_ratio": tile.frame.diagnostics.framed_camera_distance_ratio,
+                "frame_summary": tile.frame.diagnostics.summary_line(),
+            })
+        }).collect::<Vec<_>>(),
         "output_image": config.output_image,
         "output_json": config.output_json,
         "canvas": {
@@ -469,7 +519,17 @@ fn write_report(
                     "viewport_resolution": tile.frame.diagnostics.viewport_resolution,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "camera_fit_ratio": tile.frame.diagnostics.framed_camera_distance_ratio,
+                    "camera_pose": tile.frame.diagnostics.camera_pose.as_ref().map(|pose| json!({
+                        "position": [pose.position.x, pose.position.y, pose.position.z],
+                        "target": [pose.target.x, pose.target.y, pose.target.z],
+                        "up": [pose.up.x, pose.up.y, pose.up.z],
+                        "fov_y_degrees": pose.fov_y_degrees,
+                        "near_plane": pose.near_plane,
+                        "far_plane": pose.far_plane,
+                    })),
                     "scene_shape": tile.frame.diagnostics.scene_shape,
+                    "frame_summary": tile.frame.diagnostics.summary_line(),
                     "selected_instance_id": tile.frame.diagnostics.selected_instance_id,
                     "manipulator_mode": tile.frame.diagnostics.manipulator_mode.as_ref().map(|mode| match mode {
                         kain_3d::ManipulatorMode::Translate => "translate",
@@ -499,6 +559,23 @@ fn write_png(path: &Path, width: usize, height: usize, rgba: &[u8]) -> Result<()
     let mut writer = encoder.write_header()?;
     writer.write_image_data(rgba)?;
     Ok(())
+}
+
+fn shorten_text(text: &str, max_chars: usize) -> String {
+    let mut chars = text.chars();
+    let head: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_none() {
+        return head;
+    }
+
+    if max_chars <= 1 {
+        return "…".to_string();
+    }
+
+    let mut shortened = head;
+    shortened.pop();
+    shortened.push('…');
+    shortened
 }
 
 fn fill_vertical_gradient(

@@ -45,6 +45,12 @@ impl SceneBounds {
 
     pub fn dominant_axis_label(&self) -> &'static str {
         let extents = self.half_extents;
+        let largest = extents.x.max(extents.y).max(extents.z).max(0.001);
+        let smallest = extents.x.min(extents.y).min(extents.z).max(0.001);
+        if largest / smallest <= 1.15 {
+            return "balanced";
+        }
+
         if extents.x >= extents.y && extents.x >= extents.z {
             "wide"
         } else if extents.y >= extents.z {
@@ -89,6 +95,12 @@ fn framed_camera_direction(bounds: SceneBounds) -> Vec3 {
     let vertical_bias = (half_extents.y * 1.35 + bounds.radius() * 0.08).max(0.001);
 
     match bounds.dominant_axis_label() {
+        "balanced" => Vec3::new(
+            (half_extents.x * 0.95 + bounds.radius() * 0.06).max(0.001),
+            vertical_bias,
+            (half_extents.z * 0.95 + bounds.radius() * 0.06).max(0.001),
+        )
+        .normalize(),
         "wide" => Vec3::new(
             (half_extents.x * 1.1).max(0.001),
             vertical_bias,
@@ -121,6 +133,7 @@ pub struct SceneCompositionSummary {
     pub has_black_hole: bool,
     pub bounds: Option<SceneBounds>,
     pub framed_camera_distance: Option<f32>,
+    pub framed_camera_distance_ratio: Option<f32>,
     pub viewport_aspect_ratio: Option<f32>,
 }
 
@@ -165,16 +178,22 @@ impl SceneCompositionSummary {
             .map(|distance| format!("fit d{:.2}", distance))
             .unwrap_or_else(|| "unframed".to_string());
 
+        let camera_ratio = self
+            .framed_camera_distance_ratio
+            .map(|ratio| format!("fit ratio {:.2}x", ratio))
+            .unwrap_or_else(|| "fit ratio unknown".to_string());
+
         let aspect = self
             .viewport_aspect_ratio
             .map(|aspect_ratio| format!("aspect {:.2}:1", aspect_ratio))
             .unwrap_or_else(|| "aspect unknown".to_string());
 
         format!(
-            "{} | {} | {} | {}",
+            "{} | {} | {} | {} | {}",
             parts.join(", "),
             bounds,
             camera,
+            camera_ratio,
             aspect
         )
     }
@@ -578,6 +597,10 @@ impl SceneDescription {
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
             }),
+            framed_camera_distance_ratio: bounds.map(|bounds| {
+                framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
+                    / bounds.radius().max(0.001)
+            }),
             viewport_aspect_ratio: Some(aspect_ratio),
             bounds,
         }
@@ -612,6 +635,10 @@ impl SceneDescription {
             has_black_hole: self.black_hole.is_some(),
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
+            }),
+            framed_camera_distance_ratio: bounds.map(|bounds| {
+                framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
+                    / bounds.radius().max(0.001)
             }),
             viewport_aspect_ratio: Some(aspect_ratio),
             bounds,
@@ -776,6 +803,17 @@ impl Default for SceneCatalog {
 impl SceneCatalog {
     pub fn scene(&self, name: &str) -> Option<&SceneDescription> {
         self.resolve_scene(name).map(|resolution| resolution.scene)
+    }
+
+    pub fn scene_names(&self) -> Vec<&str> {
+        self.scenes.keys().map(|name| name.as_str()).collect()
+    }
+
+    pub fn scene_aliases(&self) -> Vec<(&str, &str)> {
+        self.scene_aliases
+            .iter()
+            .map(|(alias, canonical)| (alias.as_str(), canonical.as_str()))
+            .collect()
     }
 
     pub fn resolve_scene(&self, name: &str) -> Option<ResolvedScene<'_>> {
@@ -2903,9 +2941,11 @@ mod tests {
         assert!(summary.brief_label().contains("meshes"));
         assert!(summary.brief_label().contains("span"));
         assert!(summary.brief_label().contains("fit d"));
+        assert!(summary.brief_label().contains("fit ratio"));
         assert!(summary.brief_label().contains("aspect 1.00:1"));
         assert!(summary.brief_label().contains("deep"));
         assert!(summary.framed_camera_distance.is_some());
+        assert!(summary.framed_camera_distance_ratio.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
     }
@@ -2965,6 +3005,13 @@ mod tests {
 
         assert!(wide > square);
         assert!(square > bounds.radius());
+        assert!(
+            scene
+                .composition_summary_with_aspect_ratio(0.0, 1.0)
+                .framed_camera_distance_ratio
+                .unwrap()
+                > 1.0
+        );
     }
 
     #[test]
@@ -3103,6 +3150,61 @@ mod tests {
         let deep_framed = deep_scene.framed_camera_pose(0.0, 1.0);
         assert!(deep_framed.position.z > deep_bounds.center.z);
         assert!(deep_framed.position.y > deep_bounds.center.y);
+    }
+
+    #[test]
+    fn balanced_scene_reports_balanced_shape_and_camera_direction() {
+        let scene = SceneDescription {
+            name: "balanced_scene".to_string(),
+            viewport_summary: "balanced scene framing regression".to_string(),
+            background: BackgroundGradient {
+                top: ColorRgb::new(0.08, 0.08, 0.12),
+                bottom: ColorRgb::new(0.01, 0.01, 0.02),
+            },
+            camera: Camera {
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                orbit_radius: 4.0,
+                orbit_height: 1.0,
+                orbit_speed_radians_per_second: 0.0,
+                fov_y_degrees: 50.0,
+                near_plane: 0.05,
+                far_plane: 100.0,
+            },
+            lighting: LightingRig {
+                ambient_color: ColorRgb::WHITE,
+                ambient_intensity: 0.1,
+                directional_lights: vec![],
+                point_lights: vec![],
+            },
+            meshes: BTreeMap::new(),
+            materials: BTreeMap::new(),
+            instances: vec![SceneInstance {
+                id: "balanced_box".to_string(),
+                mesh: "box".to_string(),
+                material: "box".to_string(),
+                transform: Transform::identity().with_translation(Vec3::new(8.0, 8.5, 8.0)),
+            }],
+            animations: vec![],
+            particle_emitters: vec![],
+            black_hole: None,
+            terrain_surfaces: vec![],
+        };
+
+        let bounds = scene
+            .bounds(0.0)
+            .expect("balanced scene should produce bounds");
+        assert_eq!(bounds.dominant_axis_label(), "balanced");
+
+        let framed = scene.framed_camera_pose(0.0, 1.0);
+        assert_eq!(framed.target, bounds.center);
+        assert!(framed.position.distance(bounds.center) > bounds.radius());
+        assert!(framed.position.y > bounds.center.y);
+        assert!(framed.position.x > bounds.center.x);
+        assert!(framed.position.z > bounds.center.z);
+
+        let summary = scene.composition_summary(0.0);
+        assert!(summary.brief_label().contains("balanced"));
     }
 
     #[test]

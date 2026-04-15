@@ -1124,10 +1124,18 @@ impl Scene {
             "primitive_library.startup_primitive_id".to_string(),
             library.startup_primitive_id.clone(),
         );
-        if let Some(startup_definition) = library.definition(&library.startup_primitive_id) {
+        if let Some(startup_definition) = library.startup_definition() {
+            self.metadata.insert(
+                "primitive_library.startup_primitive_resource_uri".to_string(),
+                startup_definition.resource_uri.clone(),
+            );
             self.metadata.insert(
                 "primitive_library.startup_primitive_display_name".to_string(),
                 startup_definition.display_name.clone(),
+            );
+            self.metadata.insert(
+                "primitive_library.startup_primitive_subdivision_ready".to_string(),
+                startup_definition.subdivision_ready.to_string(),
             );
         }
         self.metadata.insert(

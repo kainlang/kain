@@ -27,6 +27,11 @@ fn backend_state_label(active_backend: String, candidate_backend: String) -> Str
         return "active lane"
     return "ready lane"
 
+fn scene_resolution_label(requested_scene: String, resolved_scene: String) -> String:
+    if requested_scene == resolved_scene:
+        return f"exact scene {resolved_scene}"
+    return f"alias or fallback {requested_scene} -> {resolved_scene}"
+
 world MaterialAtriumShowcase:
     state active_backend: String = "bgfx"
     state active_mood: String = backend_mood("bgfx")
@@ -114,6 +119,7 @@ component App():
                 <text role="eyebrow">NATIVE OWNER PATH</text>
                 <text role="hero">Kain owns the runtime contract here. The smoke is source-first, the buttons change the shell mood, and the scene stays Kain-authored instead of living off a bundle example.</text>
                 <text role="muted">{MaterialAtriumShowcase.active_mood}</text>
++                <text role="caption">{scene_resolution_label("material_atrium", "material_atrium")}</text>
                 <slot layout="row" gap={12}>
                     <panel scope="atrium" variant="card">
                         <text role="metric">{MaterialAtriumShowcase.active_backend}</text>
@@ -199,6 +205,7 @@ component App():
             <panel scope="atrium" variant="card">
                 <text role="title">Native owner profile</text>
                 <text role="caption">material_atrium is the runtime scene profile, and the Windows native viewport branch now knows about it as a first-class scene name.</text>
++                <text role="caption">Scene resolution is now explicit in the smoke artifacts so alias and fallback cases are easier to debug.</text>
             </panel>
         </panel>
 
@@ -207,6 +214,7 @@ component App():
             <text role="caption">material_atrium</text>
             <text role="caption">native-owner metadata</text>
             <text role="caption">Qt compatibility host</text>
+            <text role="caption">explicit scene resolution</text>
         </panel>
     </slot>
 

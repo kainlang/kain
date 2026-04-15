@@ -1,6 +1,7 @@
 <<<<<<< 3D
 # Kain Memory
 
+- New Kain 3D pass (2026-04-15): the primitive library registration path now surfaces the startup primitive's `resource_uri`, display name, and subdivision-ready flag as explicit scene metadata (`primitive_library.startup_primitive_resource_uri`, `primitive_library.startup_primitive_display_name`, and `primitive_library.startup_primitive_subdivision_ready`). `PrimitiveLibrary` also gained a `startup_definition()` helper so callers do not have to re-derive the startup lookup. This makes 3D bootstrap tooling less guessy and gives the native scene host a clearer startup contract.
 - New Kain 3D pass (2026-04-15): frame diagnostics now carry a structured `camera_pose` alongside the existing camera-source and composition metadata, and `material_atrium_smoke` writes that pose into the top-level JSON report and each tile record. The summary line also includes compact camera position/target text, so 3D artifacts are easier to diff and correlate with framing changes.
 - New Kain 3D pass (2026-04-15): `FrameDiagnostics::summary_line()` now includes instance visibility counts (`visible / culled`) in addition to camera, viewport, composition, selection, and manipulator context. That keeps the human-readable 3D proof aligned with the JSON tile overview when the viewport story gets richer.
 - New Kain 3D pass (2026-04-15): `material_atrium_smoke` now renders the canonical frame summary into each tile footer, so the PNG proof itself surfaces camera/source/viewport/composition/selection/manipulator context instead of leaving that detail only in JSON. This makes the visual artifact more glanceable during 3D debugging.
@@ -40,6 +41,41 @@
 - New Kain 3D pass (2026-04-14): unified 3D frame diagnostics across software and WGPU renderers by adding a shared `frame_diagnostics_for_scene(...)` helper. Both backends now emit scene name, viewport summary, composition summary, and camera-source metadata in `RenderFrame`, which makes backend comparisons and headless tooling easier. Validation is still blocked by the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 # MEMORY
+
+# 2026-04-15 - 3D scene summaries now expose a normalized camera-fit ratio
+
+`crates/kain-3D/src/scene.rs` now carries a `framed_camera_distance_ratio`
+on `SceneCompositionSummary`, derived from the fit distance divided by the
+scene radius.
+
+What changed:
+
+- Added `SceneCompositionSummary::framed_camera_distance_ratio`.
+- Extended `SceneCompositionSummary::brief_label()` to report `fit ratio` as a
+  compact comparison signal alongside bounds, fit distance, and viewport aspect.
+- Threaded the ratio into `FrameDiagnostics` and the `material_atrium_smoke`
+  JSON report so scene framing can be compared without re-deriving the math.
+- Added regression assertions that the ratio is present in the summary and that
+  aspect-aware summaries still produce a ratio above `1.0` for framed scenes.
+
+Why it matters:
+
+- Gives 3D tooling a normalized framing metric that is easier to compare across
+  scenes than raw distance alone.
+- Keeps the smoke output more design-oriented and less dependent on ad hoc
+  string parsing.
+
+Validation:
+
+- `rustfmt` on the touched 3D files completed successfully.
+- Focused `cargo test -p kain-3d ...` runs were blocked by the existing
+  repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing
+  `-lgcc_eh` and `-lgcc`).
+
+Recommended next step:
+
+- Once the linker/toolchain issue is cleared, rerun the focused kain-3d tests
+  and confirm the smoke JSON includes `camera_fit_ratio`.
 
 # 2026-04-15 - 3D frame summaries now include selection and manipulator context
 

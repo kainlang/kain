@@ -297,6 +297,10 @@ impl PrimitiveLibrary {
         self.definitions.get(id)
     }
 
+    pub fn startup_definition(&self) -> Option<&PrimitiveDefinition> {
+        self.definition(&self.startup_primitive_id)
+    }
+
     pub fn catalog_summary(&self) -> String {
         let subdivision_ready_count = self
             .definitions
@@ -1014,8 +1018,20 @@ mod tests {
         assert_eq!(
             scene
                 .metadata
+                .get("primitive_library.startup_primitive_resource_uri"),
+            Some(&"mesh://primitives/authored/startup-cube".to_string())
+        );
+        assert_eq!(
+            scene
+                .metadata
                 .get("primitive_library.startup_primitive_display_name"),
             Some(&"Startup Cube".to_string())
+        );
+        assert_eq!(
+            scene
+                .metadata
+                .get("primitive_library.startup_primitive_subdivision_ready"),
+            Some(&"true".to_string())
         );
         assert_eq!(
             scene.metadata.get("primitive_library.catalog_summary"),

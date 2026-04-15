@@ -59,6 +59,7 @@ pub struct FrameDiagnostics {
     pub viewport_resolution: Option<[usize; 2]>,
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
+    pub framed_camera_distance_ratio: Option<f32>,
     pub scene_shape: Option<String>,
     pub selected_instance_id: Option<String>,
     pub manipulator_mode: Option<ManipulatorMode>,
@@ -150,6 +151,13 @@ pub fn frame_diagnostics_for_scene(
             )
             .brief_label(),
     );
+    diagnostics.framed_camera_distance_ratio = scene
+        .composition_summary_with_overrides_and_aspect_ratio(
+            time_seconds,
+            &view.instance_transform_overrides,
+            aspect_ratio,
+        )
+        .framed_camera_distance_ratio;
     diagnostics.scene_shape = scene
         .bounds_with_overrides(time_seconds, &view.instance_transform_overrides)
         .map(|bounds| bounds.dominant_axis_label().to_string());
@@ -1294,6 +1302,7 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("manipulator none"));
+        assert!(frame.diagnostics.framed_camera_distance_ratio.unwrap() > 1.0);
     }
 
     #[test]
@@ -1315,6 +1324,7 @@ mod tests {
 
         assert_eq!(diagnostics.selected_instance_id.as_deref(), Some("offset"));
         assert_eq!(diagnostics.manipulator_mode, Some(ManipulatorMode::Scale));
+        assert!(diagnostics.framed_camera_distance_ratio.unwrap() > 1.0);
         assert!(diagnostics
             .summary_line()
             .as_deref()
