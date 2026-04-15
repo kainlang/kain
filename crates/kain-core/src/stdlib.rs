@@ -64,6 +64,69 @@ impl StdLib {
             "String",
             "Read an exact number of bytes from stdin",
         );
+        lib.add_fn("json_parse", &[("text", "String")], "Any", "Parse JSON text");
+        lib.add_fn(
+            "json_string",
+            &[("value", "Any")],
+            "String",
+            "Serialize a KAIN value into JSON text",
+        );
+        lib.add_fn(
+            "json_get",
+            &[("object", "Any"), ("key", "String")],
+            "Any",
+            "Read a field from a JSON object, returning null-like None when missing",
+        );
+        lib.add_fn(
+            "json_get_string",
+            &[("object", "Any"), ("key", "String")],
+            "String",
+            "Read a required string field from a JSON object",
+        );
+        lib.add_fn(
+            "json_get_int",
+            &[("object", "Any"), ("key", "String")],
+            "Int",
+            "Read a required integer field from a JSON object",
+        );
+        lib.add_fn(
+            "json_get_bool",
+            &[("object", "Any"), ("key", "String")],
+            "Bool",
+            "Read a required boolean field from a JSON object",
+        );
+        lib.add_fn(
+            "json_has",
+            &[("object", "Any"), ("key", "String")],
+            "Bool",
+            "Check whether a JSON object contains a field",
+        );
+        lib.add_fn("json_object_new", &[], "Any", "Create a new mutable JSON object");
+        lib.add_fn(
+            "json_object_set",
+            &[("object", "Any"), ("key", "String"), ("value", "Any")],
+            "Unit",
+            "Set a field on a mutable JSON object",
+        );
+        lib.add_fn("json_array_new", &[], "Array<Any>", "Create a new mutable JSON array");
+        lib.add_fn(
+            "json_array_push",
+            &[("array", "Any"), ("value", "Any")],
+            "Unit",
+            "Append a value to a mutable JSON array",
+        );
+        lib.add_fn(
+            "json_array_len",
+            &[("array", "Any")],
+            "Int",
+            "Return the number of items in a JSON array",
+        );
+        lib.add_fn(
+            "json_array_get",
+            &[("array", "Any"), ("index", "Int")],
+            "Any",
+            "Read one element from a JSON array",
+        );
         lib.add_fn(
             "read_file",
             &[("path", "String")],
@@ -87,6 +150,17 @@ impl StdLib {
             &[("name", "String")],
             "String",
             "Read an environment variable, returning an empty string if missing",
+        );
+        lib.add_fn("cwd", &[], "String", "Return the current working directory");
+        lib.add_fn(
+            "command_run",
+            &[
+                ("program", "String"),
+                ("args", "Array<String>"),
+                ("workdir", "String"),
+            ],
+            "CommandRunResult",
+            "Run a subprocess, capture stdout/stderr, and return the exit status",
         );
         lib.add_fn(
             "read_dir",
@@ -416,6 +490,17 @@ impl StdLib {
             ],
             "Any",
             "Send a message to an actor and wait for the first reply",
+        );
+        lib.add_fn(
+            "ask_timeout",
+            &[
+                ("actor", "ActorRef"),
+                ("message", "String"),
+                ("request", "Any"),
+                ("timeout_ms", "Int"),
+            ],
+            "Any",
+            "Send a message to an actor and wait for the first reply with a custom timeout",
         );
 
         // UI
@@ -1082,6 +1167,9 @@ mod tests {
         assert!(stdlib.functions.contains_key("vec3"));
         assert!(stdlib.functions.contains_key("push"));
         assert!(stdlib.functions.contains_key("ask"));
+        assert!(stdlib.functions.contains_key("ask_timeout"));
+        assert!(stdlib.functions.contains_key("command_run"));
+        assert!(stdlib.functions.contains_key("json_parse"));
     }
 
     #[test]

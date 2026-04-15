@@ -13,6 +13,7 @@ use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::path::Path;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 
 pub type EnvExtensionRegistrar = fn(&mut Env);
@@ -762,6 +763,251 @@ impl Env {
             }
 
             Ok(Value::String(to_json(&args[0]).to_string()))
+        });
+        self.define_native("json_get", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_get: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_get: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_get: key must be a string")),
+            };
+
+            Ok(fields.read().unwrap().get(key).cloned().unwrap_or(Value::None))
+        });
+        self.define_native("json_get_string", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_get_string: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_get_string: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_get_string: key must be a string")),
+            };
+
+            match fields.read().unwrap().get(key) {
+                Some(Value::String(value)) => Ok(Value::String(value.clone())),
+                Some(other) => Err(KainError::runtime(format!(
+                    "json_get_string: key '{}' did not contain a string (found {:?})",
+                    key, other
+                ))),
+                None => Err(KainError::runtime(format!(
+                    "json_get_string: missing key '{}'",
+                    key
+                ))),
+            }
+        });
+        self.define_native("json_get_int", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_get_int: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_get_int: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_get_int: key must be a string")),
+            };
+
+            match fields.read().unwrap().get(key) {
+                Some(Value::Int(value)) => Ok(Value::Int(*value)),
+                Some(Value::Float(value)) => Ok(Value::Int(*value as i64)),
+                Some(other) => Err(KainError::runtime(format!(
+                    "json_get_int: key '{}' did not contain an int-like value (found {:?})",
+                    key, other
+                ))),
+                None => Err(KainError::runtime(format!(
+                    "json_get_int: missing key '{}'",
+                    key
+                ))),
+            }
+        });
+        self.define_native("json_get_bool", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_get_bool: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_get_bool: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_get_bool: key must be a string")),
+            };
+
+            match fields.read().unwrap().get(key) {
+                Some(Value::Bool(value)) => Ok(Value::Bool(*value)),
+                Some(other) => Err(KainError::runtime(format!(
+                    "json_get_bool: key '{}' did not contain a bool (found {:?})",
+                    key, other
+                ))),
+                None => Err(KainError::runtime(format!(
+                    "json_get_bool: missing key '{}'",
+                    key
+                ))),
+            }
+        });
+        self.define_native("json_has", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_has: expected 2 arguments (object, key)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_has: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key,
+                _ => return Err(KainError::runtime("json_has: key must be a string")),
+            };
+
+            Ok(Value::Bool(fields.read().unwrap().contains_key(key)))
+        });
+        self.define_native("json_object_new", |_env, args| {
+            if !args.is_empty() {
+                return Err(KainError::runtime("json_object_new: expected 0 arguments"));
+            }
+
+            Ok(Value::Struct(
+                "Json".to_string(),
+                Arc::new(RwLock::new(HashMap::new())),
+            ))
+        });
+        self.define_native("json_object_set", |_env, args| {
+            if args.len() != 3 {
+                return Err(KainError::runtime(
+                    "json_object_set: expected 3 arguments (object, key, value)",
+                ));
+            }
+
+            let fields = match &args[0] {
+                Value::Struct(_, fields) => fields.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_object_set: first argument must be a struct-backed json object",
+                    ))
+                }
+            };
+            let key = match &args[1] {
+                Value::String(key) => key.clone(),
+                _ => return Err(KainError::runtime("json_object_set: key must be a string")),
+            };
+
+            fields.write().unwrap().insert(key, args[2].clone());
+            Ok(Value::Unit)
+        });
+        self.define_native("json_array_new", |_env, args| {
+            if !args.is_empty() {
+                return Err(KainError::runtime("json_array_new: expected 0 arguments"));
+            }
+
+            Ok(Value::Array(Arc::new(RwLock::new(Vec::new()))))
+        });
+        self.define_native("json_array_push", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_array_push: expected 2 arguments (array, value)",
+                ));
+            }
+
+            let array = match &args[0] {
+                Value::Array(array) => array.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_array_push: first argument must be an array",
+                    ))
+                }
+            };
+
+            array.write().unwrap().push(args[1].clone());
+            Ok(Value::Unit)
+        });
+        self.define_native("json_array_len", |_env, args| {
+            if args.len() != 1 {
+                return Err(KainError::runtime(
+                    "json_array_len: expected 1 argument (array)",
+                ));
+            }
+
+            let array = match &args[0] {
+                Value::Array(array) => array,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_array_len: argument must be an array",
+                    ))
+                }
+            };
+
+            Ok(Value::Int(array.read().unwrap().len() as i64))
+        });
+        self.define_native("json_array_get", |_env, args| {
+            if args.len() != 2 {
+                return Err(KainError::runtime(
+                    "json_array_get: expected 2 arguments (array, index)",
+                ));
+            }
+
+            let array = match &args[0] {
+                Value::Array(array) => array,
+                _ => {
+                    return Err(KainError::runtime(
+                        "json_array_get: first argument must be an array",
+                    ))
+                }
+            };
+            let index = match &args[1] {
+                Value::Int(index) if *index >= 0 => *index as usize,
+                Value::Int(_) => {
+                    return Err(KainError::runtime(
+                        "json_array_get: index must be non-negative",
+                    ))
+                }
+                _ => return Err(KainError::runtime("json_array_get: index must be an int")),
+            };
+
+            Ok(array.read().unwrap().get(index).cloned().unwrap_or(Value::None))
         });
     }
 
@@ -1711,6 +1957,77 @@ impl Env {
                 Err(_) => Err(KainError::runtime("ask: timed out waiting for actor reply")),
             }
         });
+        self.define_native("ask_timeout", |env, args| {
+            if args.len() != 4 {
+                return Err(KainError::runtime(
+                    "ask_timeout: expected 4 arguments (actor, msg_name, request, timeout_ms)",
+                ));
+            }
+
+            let actor_ref = match &args[0] {
+                Value::ActorRef(r) => r.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "ask_timeout: first argument must be actor ref",
+                    ))
+                }
+            };
+            let msg_name = match &args[1] {
+                Value::String(s) => s.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "ask_timeout: second argument must be string",
+                    ))
+                }
+            };
+            let timeout_ms = match &args[3] {
+                Value::Int(value) if *value >= 0 => *value as u64,
+                Value::Int(_) => {
+                    return Err(KainError::runtime(
+                        "ask_timeout: timeout must be non-negative",
+                    ))
+                }
+                _ => return Err(KainError::runtime("ask_timeout: timeout must be an int")),
+            };
+
+            let reply_id = env.next_actor_id;
+            env.next_actor_id += 1;
+
+            let (reply_tx, reply_rx) = flume::unbounded();
+            let reply_actor_ref = ActorRef {
+                id: reply_id,
+                sender: reply_tx,
+            };
+
+            let mut msg_args = Vec::with_capacity(2);
+            msg_args.push(Value::ActorRef(reply_actor_ref));
+            msg_args.push(args[2].clone());
+
+            if actor_ref
+                .sender
+                .send(Message {
+                    name: msg_name,
+                    args: msg_args,
+                })
+                .is_err()
+            {
+                return Err(KainError::runtime(
+                    "ask_timeout: failed to send request to target actor",
+                ));
+            }
+
+            match reply_rx.recv_timeout(std::time::Duration::from_millis(timeout_ms)) {
+                Ok(message) => match message.args.len() {
+                    0 => Ok(Value::Unit),
+                    1 => Ok(message.args[0].clone()),
+                    _ => Ok(Value::Tuple(message.args)),
+                },
+                Err(_) => Err(KainError::runtime(format!(
+                    "ask_timeout: timed out waiting for actor reply after {} ms",
+                    timeout_ms
+                ))),
+            }
+        });
 
         self.define_native("sleep", |_env, args| {
             if args.len() != 1 {
@@ -1757,6 +2074,15 @@ impl Env {
                 _ => Err(KainError::runtime("env: expected string key")),
             }
         });
+        self.define_native("cwd", |_env, args| {
+            if !args.is_empty() {
+                return Err(KainError::runtime("cwd: expected 0 arguments"));
+            }
+
+            let cwd = std::env::current_dir()
+                .map_err(|err| KainError::runtime(format!("cwd failed: {}", err)))?;
+            Ok(Value::String(cwd.to_string_lossy().into_owned()))
+        });
 
         // args() -> Array<String>: returns the command-line arguments as an array of strings.
         // The first element is the program name; subsequent elements are user-supplied args.
@@ -1766,6 +2092,99 @@ impl Env {
                 .map(|a| Value::String(a))
                 .collect();
             Ok(Value::Array(Arc::new(RwLock::new(argv))))
+        });
+        self.define_native("command_run", |_env, args| {
+            if args.len() != 3 {
+                return Err(KainError::runtime(
+                    "command_run: expected 3 arguments (program, args, workdir)",
+                ));
+            }
+
+            let program = match &args[0] {
+                Value::String(program) => program.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "command_run: program must be a string",
+                    ))
+                }
+            };
+            let argument_values = match &args[1] {
+                Value::Array(values) => values.read().unwrap().clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "command_run: args must be an array of strings",
+                    ))
+                }
+            };
+            let mut command_args = Vec::with_capacity(argument_values.len());
+            for value in argument_values {
+                match value {
+                    Value::String(text) => command_args.push(text),
+                    other => {
+                        return Err(KainError::runtime(format!(
+                            "command_run: args must contain only strings, found {:?}",
+                            other
+                        )))
+                    }
+                }
+            }
+            let workdir = match &args[2] {
+                Value::String(workdir) => workdir.clone(),
+                _ => {
+                    return Err(KainError::runtime(
+                        "command_run: workdir must be a string",
+                    ))
+                }
+            };
+
+            let mut fields = HashMap::new();
+            fields.insert("program".to_string(), Value::String(program.clone()));
+            fields.insert("workdir".to_string(), Value::String(workdir.clone()));
+            fields.insert(
+                "args".to_string(),
+                Value::Array(Arc::new(RwLock::new(
+                    command_args
+                        .iter()
+                        .cloned()
+                        .map(Value::String)
+                        .collect::<Vec<_>>(),
+                ))),
+            );
+
+            let mut command = Command::new(&program);
+            command.args(&command_args);
+            if !workdir.is_empty() {
+                command.current_dir(&workdir);
+            }
+
+            match command.output() {
+                Ok(output) => {
+                    fields.insert(
+                        "stdout".to_string(),
+                        Value::String(String::from_utf8_lossy(&output.stdout).into_owned()),
+                    );
+                    fields.insert(
+                        "stderr".to_string(),
+                        Value::String(String::from_utf8_lossy(&output.stderr).into_owned()),
+                    );
+                    fields.insert(
+                        "status".to_string(),
+                        Value::Int(output.status.code().unwrap_or(-1) as i64),
+                    );
+                    fields.insert("success".to_string(), Value::Bool(output.status.success()));
+                }
+                Err(err) => {
+                    fields.insert("stdout".to_string(), Value::String(String::new()));
+                    fields.insert("stderr".to_string(), Value::String(err.to_string()));
+                    fields.insert("status".to_string(), Value::Int(-1));
+                    fields.insert("success".to_string(), Value::Bool(false));
+                }
+            }
+
+            Ok(Value::Struct(
+                "CommandRunResult".to_string(),
+                Arc::new(RwLock::new(fields)),
+            ))
         });
 
 

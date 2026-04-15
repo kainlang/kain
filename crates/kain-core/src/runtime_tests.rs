@@ -76,6 +76,10 @@ fn stdlib_registry_exposes_ord_and_chr() {
     assert!(stdlib.functions.contains_key("ord"));
     assert!(stdlib.functions.contains_key("chr"));
     assert!(stdlib.functions.contains_key("ask"));
+    assert!(stdlib.functions.contains_key("ask_timeout"));
+    assert!(stdlib.functions.contains_key("command_run"));
+    assert!(stdlib.functions.contains_key("json_parse"));
+    assert!(stdlib.functions.contains_key("json_object_new"));
 }
 
 #[test]
@@ -103,5 +107,62 @@ fn main() -> Int:
     match value {
         Value::Int(result) => assert_eq!(result, 25),
         other => panic!("expected Int(25), got {:?}", other),
+    }
+}
+
+#[test]
+fn command_run_builtin_captures_stdout_and_status() {
+    let value = interpret_test_source(
+        r#"
+fn main() -> Int:
+    let result = command_run("bash", ["-lc", "printf hello"], "")
+    if result.success && result.status == 0 && result.stdout == "hello":
+        return 1
+    return 0
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 1),
+        other => panic!("expected Int(1), got {:?}", other),
+    }
+}
+
+#[test]
+fn json_helpers_extract_nested_fields() {
+    let value = interpret_test_source(
+        r#"
+fn main() -> Int:
+    let payload = json_parse("{\"method\":\"tools/call\",\"params\":{\"count\":7,\"enabled\":true}}")
+    let params = json_get(payload, "params")
+    if json_get_string(payload, "method") == "tools/call" && json_get_int(params, "count") == 7 && json_get_bool(params, "enabled"):
+        return 1
+    return 0
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 1),
+        other => panic!("expected Int(1), got {:?}", other),
+    }
+}
+
+#[test]
+fn ask_timeout_builtin_round_trips_actor_reply() {
+    let value = interpret_test_source(
+        r#"
+actor Echo:
+    on Call(reply_to: P, request: Int):
+        send reply_to.Reply(value = request + 1)
+
+fn main() -> Int:
+    let echo = spawn Echo()
+    return ask_timeout(echo, "Call", 9, 1000)
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 10),
+        other => panic!("expected Int(10), got {:?}", other),
     }
 }

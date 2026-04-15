@@ -90,6 +90,8 @@ use kain_crate_ffi::ImportCrateOptions
 
 use serde::Deserialize
 
+use serde::Serialize
+
 use std::collections::BTreeMap
 
 use std::collections::BTreeSet
@@ -341,6 +343,61 @@ fn run_format_command(input: Option<std::path::PathBuf>, check: Bool, write: Boo
     print(formatted)
     true
 
+@derive(Debug, serde__Serialize)
+struct HybridBundleDescriptor:
+    schema_version: u32
+    target: String
+    js: String
+    ts: String
+    wasm: String
+    wasm_exports: Array<String>
+
+@derive(Debug)
+struct HybridBundleWriteSummary:
+    descriptor_path: std::path::PathBuf
+    js_path: std::path::PathBuf
+    ts_path: std::path::PathBuf
+    wasm_path: std::path::PathBuf
+
+fn resolve_output_path_with_extension(output: Option<&std::path::PathBuf>, source_path: Option<&std::path::Path>, extension: String) -> Option<std::path::PathBuf>:
+    match output:
+        Some(path) =>
+            let mut normalized = path.clone()
+            normalized.set_extension(extension)
+            ()
+            return Option::Some(normalized)
+        _ =>
+            ()
+            ()
+    source_path.map(fn(path): path.with_extension(extension))
+
+fn patch_hybrid_wasm_reference(source: String, wasm_file_name: String) -> String:
+    let wasm_url_expression = f"new URL('{wasm_file_name}', document.currentScript?.src ?? window.location.href).toString()"
+    source.replace("'main.wasm'", &wasm_url_expression).replace("\"main.wasm\"", &wasm_url_expression)
+
+fn write_hybrid_bundle(descriptor_path: &std::path::Path, artifacts: cli::HybridArtifactOutput) -> Result<HybridBundleWriteSummary, String>:
+    let js_path = descriptor_path.with_extension("js")
+    let ts_path = descriptor_path.with_extension("ts")
+    let wasm_path = descriptor_path.with_extension("wasm")
+    let wasm_file_name = wasm_path.file_name().and_then(fn(value): value.to_str()).ok_or_else(fn(): f"Invalid hybrid wasm sidecar path: {wasm_path.display()}")?
+    let js_file_name = js_path.file_name().and_then(fn(value): value.to_str()).ok_or_else(fn(): f"Invalid hybrid JS sidecar path: {js_path.display()}")?
+    let ts_file_name = ts_path.file_name().and_then(fn(value): value.to_str()).ok_or_else(fn(): f"Invalid hybrid TS sidecar path: {ts_path.display()}")?
+    let descriptor = HybridBundleDescriptor { schema_version: 1, target: "hybrid", js: js_file_name.to_string(), ts: ts_file_name.to_string(), wasm: wasm_file_name.to_string(), wasm_exports: artifacts.wasm_export_names }
+    let descriptor_json = serde_json__to_string_pretty(&descriptor).map_err(fn(err): f"Failed to serialize hybrid descriptor: {err}")?
+    let patched_js = patch_hybrid_wasm_reference(artifacts.js, wasm_file_name)
+    let patched_ts = patch_hybrid_wasm_reference(artifacts.ts, wasm_file_name)
+    if (!ensure_parent_dir(descriptor_path)):
+        return Result::Err(f"Failed to create parent directory for {descriptor_path.display()}")
+    std__fs__write(descriptor_path, descriptor_json).map_err(fn(err): f"Failed to write {descriptor_path.display()}: {err}")?
+    ()
+    std__fs__write(&js_path, patched_js).map_err(fn(err): f"Failed to write {js_path.display()}: {err}")?
+    ()
+    std__fs__write(&ts_path, patched_ts).map_err(fn(err): f"Failed to write {ts_path.display()}: {err}")?
+    ()
+    std__fs__write(&wasm_path, artifacts.wasm).map_err(fn(err): f"Failed to write {wasm_path.display()}: {err}")?
+    ()
+    Result::Ok(HybridBundleWriteSummary { descriptor_path: descriptor_path.to_path_buf(), js_path: js_path, ts_path: ts_path, wasm_path: wasm_path })
+
 fn run_source(source_name: String, source_path: Option<&std::path::Path>, source: String, target: cli::CompileTarget, output: Option<&std::path::PathBuf>, _emit_ast: Bool, _emit_typed: Bool, verbose: Bool, _analyze: Bool, plugin_name: Option<String>) -> Bool:
     if verbose:
         println(f" Compiling: {source_name}")
@@ -348,7 +405,7 @@ fn run_source(source_name: String, source_path: Option<&std::path::Path>, source
         ()
         ()
     if (target == cli__CompileTarget__Spirv):
-        let output_path = match output.cloned().or_else(fn(): source_path.map(fn(path): path.with_extension(cli__target_extension(target)))):
+        let output_path = match resolve_output_path_with_extension(output, source_path, cli__target_extension(target)):
             Some(path) => path
             None =>
                 eprintln(" Output path is required when compiling inline or stdin source.")
@@ -366,6 +423,51 @@ fn run_source(source_name: String, source_path: Option<&std::path::Path>, source
                         ()
                 println(f" Compiled to: {output_path.display()} ({spv_bytes.len()} bytes)")
                 return true
+            Err(e) =>
+                eprintln(f" Compile error: {e}")
+                return false
+        ()
+    if (target == cli__CompileTarget__Wasm):
+        let output_path = match resolve_output_path_with_extension(output, source_path, cli__target_extension(target)):
+            Some(path) => path
+            None =>
+                eprintln(" Output path is required when compiling inline or stdin source.")
+                return false
+        match cli__compile_wasm_binary(&source):
+            Ok(wasm_bytes) =>
+                if (!ensure_parent_dir(&output_path)):
+                    return false
+                match std__fs__write(&output_path, &wasm_bytes):
+                    Err(e) =>
+                        eprintln(f" Failed to write output: {e}")
+                        return false
+                    _ =>
+                        ()
+                        ()
+                println(f" Compiled to: {output_path.display()} ({wasm_bytes.len()} bytes)")
+                return true
+            Err(e) =>
+                eprintln(f" Compile error: {e}")
+                return false
+        ()
+    if (target == cli__CompileTarget__Hybrid):
+        let descriptor_path = match resolve_output_path_with_extension(output, source_path, "hybrid"):
+            Some(path) => path
+            None =>
+                eprintln(" Output path is required when compiling inline or stdin source.")
+                return false
+        match cli__compile_hybrid_artifacts(&source):
+            Ok(artifacts) =>
+                match write_hybrid_bundle(&descriptor_path, artifacts):
+                    Ok(written) =>
+                        println(f" Compiled to: {written.descriptor_path.display()}")
+                        println(f" Hybrid JS: {written.js_path.display()}")
+                        println(f" Hybrid TS: {written.ts_path.display()}")
+                        println(f" Hybrid WASM: {written.wasm_path.display()}")
+                        return true
+                    Err(err) =>
+                        eprintln(f" Failed to materialize hybrid bundle: {err}")
+                        return false
             Err(e) =>
                 eprintln(f" Compile error: {e}")
                 return false
@@ -1066,7 +1168,7 @@ fn ensure_dir(p: &std::path::PathBuf) -> Bool:
 @doc(doc = " Ensure parent directory exists for a file path.")
 @doc(doc = " Creates all missing parent directories recursively.")
 @doc(doc = " Returns true on success, false on failure (with error printed).")
-fn ensure_parent_dir(file_path: &std::path::PathBuf) -> Bool:
+fn ensure_parent_dir(file_path: &std::path::Path) -> Bool:
     match file_path.parent():
         Some(parent) =>
             if (!parent.exists()):

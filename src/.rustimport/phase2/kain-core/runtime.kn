@@ -32,6 +32,8 @@ use std::fmt
 
 use std::path::Path
 
+use std::process::Command
+
 use std::sync::Arc
 
 use std::sync::RwLock
@@ -375,6 +377,28 @@ impl Env:
         ()
         (*_self).define_native("json_string", fn(_env, args): none)
         ()
+        (*_self).define_native("json_get", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_get_string", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_get_int", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_get_bool", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_has", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_object_new", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_object_set", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_array_new", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_array_push", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_array_len", fn(_env, args): none)
+        ()
+        (*_self).define_native("json_array_get", fn(_env, args): none)
+        ()
 
     pub fn register_stdlib(_self: &mut Env):
         (*_self).define(("None").to_string(), Value__None)
@@ -487,6 +511,8 @@ impl Env:
         ()
         (*_self).define_native("ask", fn(env, args): none)
         ()
+        (*_self).define_native("ask_timeout", fn(env, args): none)
+        ()
         (*_self).define_native("sleep", fn(_env, args): none)
         ()
         (*_self).define_native("time", fn(_env, _args): none)
@@ -495,7 +521,11 @@ impl Env:
         ()
         (*_self).define_native("env", fn(_env, args): none)
         ()
+        (*_self).define_native("cwd", fn(_env, args): none)
+        ()
         (*_self).define_native("args", fn(_env, _args): none)
+        ()
+        (*_self).define_native("command_run", fn(_env, args): none)
         ()
         (*_self).define_native("assert", fn(_env, args): none)
         ()
@@ -1555,7 +1585,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> Result<Value, KainError>:
                                     return Result::Err(KainError__runtime("Map.iter expects no arguments"))
                                 match &obj_val:
                                     Value::Struct(_, fields) =>
-                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg6): Value::Tuple([Value::String(__kain_closure_arg6.__kain_tuple_0.clone()), __kain_closure_arg6.__kain_tuple_1.clone()])).collect()
+                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg7): Value::Tuple([Value::String(__kain_closure_arg7.__kain_tuple_0.clone()), __kain_closure_arg7.__kain_tuple_1.clone()])).collect()
                                         return Result::Ok(runtime_array_value(items))
                                     _ =>
                                         ()
@@ -1596,7 +1626,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> Result<Value, KainError>:
                                     return Result::Err(KainError__runtime("Map.iter expects no arguments"))
                                 match &obj_val:
                                     Value::Struct(_, fields) =>
-                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg6): Value::Tuple([Value::String(__kain_closure_arg6.__kain_tuple_0.clone()), __kain_closure_arg6.__kain_tuple_1.clone()])).collect()
+                                        let items = fields.read().unwrap().iter().map(fn(__kain_closure_arg7): Value::Tuple([Value::String(__kain_closure_arg7.__kain_tuple_0.clone()), __kain_closure_arg7.__kain_tuple_1.clone()])).collect()
                                         return Result::Ok(runtime_array_value(items))
                                     _ =>
                                         ()
@@ -2908,18 +2938,18 @@ fn runtime_values_semantically_equal(left: &Value, right: &Value) -> Bool:
         (Value::Int(left), Value::Int(right)) => (left == right)
         (Value::Float(left), Value::Float(right)) => (((left - right)).abs() <= 0.000001)
         (Value::String(left), Value::String(right)) => (left == right)
-        (Value::Tuple(left), Value::Tuple(right)) => ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg7): runtime_values_semantically_equal(__kain_closure_arg7.__kain_tuple_0, __kain_closure_arg7.__kain_tuple_1)))
+        (Value::Tuple(left), Value::Tuple(right)) => ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg8): runtime_values_semantically_equal(__kain_closure_arg8.__kain_tuple_0, __kain_closure_arg8.__kain_tuple_1)))
         (Value::Array(left), Value::Array(right)) =>
             let left = left.read().unwrap()
             let right = right.read().unwrap()
-            ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg8): runtime_values_semantically_equal(__kain_closure_arg8.__kain_tuple_0, __kain_closure_arg8.__kain_tuple_1)))
+            ((left.len() == right.len()) && left.iter().zip(right.iter()).all(fn(__kain_closure_arg9): runtime_values_semantically_equal(__kain_closure_arg9.__kain_tuple_0, __kain_closure_arg9.__kain_tuple_1)))
         (Value::Struct(left_name, left_fields), Value::Struct(right_name, right_fields)) =>
             if (left_name != right_name):
                 return false
             let left_fields = left_fields.read().unwrap()
             let right_fields = right_fields.read().unwrap()
-            ((left_fields.len() == right_fields.len()) && left_fields.iter().all(fn(__kain_closure_arg9): right_fields.get(__kain_closure_arg9.__kain_tuple_0).is_some_and(fn(right_value): runtime_values_semantically_equal(__kain_closure_arg9.__kain_tuple_1, right_value))))
-        (Value::EnumVariant(left_enum, left_variant, left_fields), Value::EnumVariant(right_enum, right_variant, right_fields)) => ((((left_enum == right_enum) && (left_variant == right_variant)) && (left_fields.len() == right_fields.len())) && left_fields.iter().zip(right_fields.iter()).all(fn(__kain_closure_arg10): runtime_values_semantically_equal(__kain_closure_arg10.__kain_tuple_0, __kain_closure_arg10.__kain_tuple_1)))
+            ((left_fields.len() == right_fields.len()) && left_fields.iter().all(fn(__kain_closure_arg10): right_fields.get(__kain_closure_arg10.__kain_tuple_0).is_some_and(fn(right_value): runtime_values_semantically_equal(__kain_closure_arg10.__kain_tuple_1, right_value))))
+        (Value::EnumVariant(left_enum, left_variant, left_fields), Value::EnumVariant(right_enum, right_variant, right_fields)) => ((((left_enum == right_enum) && (left_variant == right_variant)) && (left_fields.len() == right_fields.len())) && left_fields.iter().zip(right_fields.iter()).all(fn(__kain_closure_arg11): runtime_values_semantically_equal(__kain_closure_arg11.__kain_tuple_0, __kain_closure_arg11.__kain_tuple_1)))
         (Value::Return(left), Value::Return(right)) => runtime_values_semantically_equal(left, right)
         (Value::Break(Some(left)), Value::Break(Some(right))) => runtime_values_semantically_equal(left, right)
         (Value::Break(None), Value::Break(None)) => true
@@ -2969,12 +2999,12 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> Bool:
         Expr::Cast { value: operand } => expr_contains_runtime_best_effort_effects(operand)
         Expr::Field { object: object } => expr_contains_runtime_best_effort_effects(object)
         Expr::Index { object: object, index: index } => (expr_contains_runtime_best_effort_effects(object) || expr_contains_runtime_best_effort_effects(index))
-        Expr::Struct { fields: fields, rest: rest } => (fields.iter().any(fn(__kain_closure_arg11): expr_contains_runtime_best_effort_effects(__kain_closure_arg11.__kain_tuple_1)) || rest.is_some_and(fn(rest): expr_contains_runtime_best_effort_effects(rest)))
-        Expr::AggregateInit { fields: fields } => fields.iter().any(fn(__kain_closure_arg12): expr_contains_runtime_best_effort_effects(__kain_closure_arg12.__kain_tuple_1))
+        Expr::Struct { fields: fields, rest: rest } => (fields.iter().any(fn(__kain_closure_arg12): expr_contains_runtime_best_effort_effects(__kain_closure_arg12.__kain_tuple_1)) || rest.is_some_and(fn(rest): expr_contains_runtime_best_effort_effects(rest)))
+        Expr::AggregateInit { fields: fields } => fields.iter().any(fn(__kain_closure_arg13): expr_contains_runtime_best_effort_effects(__kain_closure_arg13.__kain_tuple_1))
         Expr::EnumVariant { fields: fields } =>
             match fields:
                 EnumVariantFields::Tuple(values) => values.iter().any(expr_contains_runtime_best_effort_effects)
-                EnumVariantFields::Struct(values) => values.iter().any(fn(__kain_closure_arg13): expr_contains_runtime_best_effort_effects(__kain_closure_arg13.__kain_tuple_1))
+                EnumVariantFields::Struct(values) => values.iter().any(fn(__kain_closure_arg14): expr_contains_runtime_best_effort_effects(__kain_closure_arg14.__kain_tuple_1))
                 EnumVariantFields::Unit => false
         Expr::Array(values, _) => values.iter().any(expr_contains_runtime_best_effort_effects)
         Expr::Tuple(values, _) => values.iter().any(expr_contains_runtime_best_effort_effects)
@@ -3035,7 +3065,7 @@ fn runtime_array_value(values: Array<Value>) -> Value:
     Value::Array(Arc__new_(RwLock__new_(values)))
 
 fn runtime_string_array_value(values: &[String]) -> Value:
-    runtime_array_value(values.iter().cloned().map(fn(__kain_closure_arg14): Value::String(__kain_closure_arg14)).collect())
+    runtime_array_value(values.iter().cloned().map(fn(__kain_closure_arg15): Value::String(__kain_closure_arg15)).collect())
 
 fn runtime_struct_value(name: String, fields: Array<(String, Value)>) -> Value:
     let mut values = HashMap__new_()
@@ -3152,7 +3182,7 @@ fn pattern_matches(pattern: &Pattern, value: &Value) -> Bool:
                         VariantPatternFields::Tuple(pats) =>
                             if (pats.len() != v_fields.len()):
                                 return false
-                            pats.iter().zip(v_fields.iter()).all(fn(__kain_closure_arg15): pattern_matches(__kain_closure_arg15.__kain_tuple_0, __kain_closure_arg15.__kain_tuple_1))
+                            pats.iter().zip(v_fields.iter()).all(fn(__kain_closure_arg16): pattern_matches(__kain_closure_arg16.__kain_tuple_0, __kain_closure_arg16.__kain_tuple_1))
                         _ => false
                 _ => false
         _ => false

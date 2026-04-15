@@ -335,6 +335,21 @@ impl<'a> TypeEnv<'a> {
         env.types.insert("Map".into(), selfhost_map_type());
         env.types.insert("Set".into(), selfhost_set_type());
         env.types.insert(
+            "CommandRunResult".into(),
+            ResolvedType::Struct(
+                "CommandRunResult".into(),
+                HashMap::from([
+                    ("program".into(), ResolvedType::String),
+                    ("workdir".into(), ResolvedType::String),
+                    ("args".into(), dynamic_array_type(ResolvedType::String)),
+                    ("stdout".into(), ResolvedType::String),
+                    ("stderr".into(), ResolvedType::String),
+                    ("status".into(), ResolvedType::Int(IntSize::I64)),
+                    ("success".into(), ResolvedType::Bool),
+                ]),
+            ),
+        );
+        env.types.insert(
             "Vec2".into(),
             ResolvedType::Tuple(vec![
                 ResolvedType::Float(FloatSize::F32),
@@ -632,6 +647,98 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         ),
     );
     env.define_global(
+        "ask_timeout".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "json_parse".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unknown),
+    );
+    env.define_global(
+        "json_string".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::String),
+    );
+    env.define_global(
+        "json_get".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "json_get_string".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::String,
+        ),
+    );
+    env.define_global(
+        "json_get_int".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
+        "json_get_bool".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Bool,
+        ),
+    );
+    env.define_global(
+        "json_has".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Bool,
+        ),
+    );
+    env.define_global(
+        "json_object_new".into(),
+        builtin_function_type(vec![], ResolvedType::Unknown),
+    );
+    env.define_global(
+        "json_object_set".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "json_array_new".into(),
+        builtin_function_type(vec![], dynamic_array_type(ResolvedType::Unknown)),
+    );
+    env.define_global(
+        "json_array_push".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "json_array_len".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "json_array_get".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Int(IntSize::I64)],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
         "read_file".into(),
         builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
     );
@@ -649,6 +756,23 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     env.define_global(
         "env".into(),
         builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+    env.define_global(
+        "cwd".into(),
+        builtin_function_type(vec![], ResolvedType::String),
+    );
+    env.define_global(
+        "command_run".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                dynamic_array_type(ResolvedType::String),
+                ResolvedType::String,
+            ],
+            env.lookup_type("CommandRunResult")
+                .cloned()
+                .unwrap_or(ResolvedType::Unknown),
+        ),
     );
     env.define_global(
         "read_dir".into(),
