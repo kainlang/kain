@@ -1,11 +1,6 @@
 use std::javascript::site_runtime
 
-pub fn js_site_build_report(
-    app_manifest_path: String,
-    template_name: String,
-    archetypes: String,
-    outputs: String
-) -> String:
+pub fn js_site_build_report(app_manifest_path: String, template_name: String, archetypes: String, outputs: String) -> String:
     let summary = js_site_write_matrix(app_manifest_path)
     let catalog = js_site_catalog(app_manifest_path)
     let app = js_site_load_app(app_manifest_path)

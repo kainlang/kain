@@ -25,6 +25,10 @@ struct ToolSpec:
     description: String
     input_schema_json: String
 
+struct McpRouterState:
+    settings: McpRuntimeSettings
+    specs: Array<ToolSpec>
+
 fn parse_truthy_env(name: String, default_value: Bool) -> Bool:
     let raw = env(name).trim().to_ascii_lowercase()
     if len(raw) == 0:
@@ -41,17 +45,27 @@ fn parse_truthy_env(name: String, default_value: Bool) -> Bool:
 
 fn parse_csv_env(name: String, fallback_csv: String) -> Array<String>:
     let raw = env(name).trim()
-    let source = if len(raw) == 0:
-        fallback_csv
-    else:
-        raw
+    var source = fallback_csv
+    if len(raw) > 0:
+        source = raw
 
     var items: Array<String> = []
-    let pieces = split(source, ",")
-    for piece in pieces:
-        let trimmed = piece.trim()
-        if len(trimmed) > 0:
-            push(items, trimmed)
+    var current = ""
+    var index = 0
+    while index < len(source):
+        let ch = char_at(source, index)
+        if ch == ",":
+            let trimmed = current.trim()
+            if len(trimmed) > 0:
+                push(items, trimmed)
+            current = ""
+        else:
+            current = current + ch
+        index = index + 1
+
+    let final_piece = current.trim()
+    if len(final_piece) > 0:
+        push(items, final_piece)
     return items
 
 fn resolve_repo_root() -> String:
@@ -136,66 +150,6 @@ fn build_tool_specs() -> Array<ToolSpec>:
             title: "Get Connections",
             description: "Heuristically discover connected files around a path.",
             input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"searchRoot\":{\"type\":\"string\"},\"recursive\":{\"type\":\"boolean\"},\"includeHidden\":{\"type\":\"boolean\"},\"maxResults\":{\"type\":\"integer\"}},\"required\":[\"path\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.build",
-            title: "Build KAIN",
-            description: "Run `kain build` for a file or manifest and emit the chosen target.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"},\"output\":{\"type\":\"string\"},\"run\":{\"type\":\"boolean\"},\"watch\":{\"type\":\"boolean\"},\"strict\":{\"type\":\"boolean\"}},\"required\":[\"path\",\"target\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.import_rust",
-            title: "Import Rust",
-            description: "Run `kain import-rust` on a file or directory.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"output\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"},\"flat\":{\"type\":\"boolean\"},\"failFast\":{\"type\":\"boolean\"},\"reportJson\":{\"type\":\"boolean\"},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"exclude\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"path\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.import_c",
-            title: "Import C",
-            description: "Run `kain import-c` on a file or directory.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"output\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"},\"flat\":{\"type\":\"boolean\"},\"failFast\":{\"type\":\"boolean\"},\"reportJson\":{\"type\":\"boolean\"},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"exclude\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"path\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.import_ts",
-            title: "Import TypeScript",
-            description: "Run `kain import-ts` on a file or directory.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"output\":{\"type\":\"string\"},\"target\":{\"type\":\"string\"},\"flat\":{\"type\":\"boolean\"},\"failFast\":{\"type\":\"boolean\"},\"reportJson\":{\"type\":\"boolean\"},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"exclude\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"path\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.omni_init",
-            title: "Omni Init",
-            description: "Run `kain omni init` for a mixed-language workspace.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.omni_build",
-            title: "Omni Build",
-            description: "Run `kain omni build` against an Omni manifest.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"manifest\":{\"type\":\"string\"}},\"required\":[\"manifest\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.fabric_init",
-            title: "Fabric Init",
-            description: "Run `kain fabric init` with the chosen template.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"template\":{\"type\":\"string\",\"enum\":[\"local\",\"polyglot\"]}},\"required\":[\"path\",\"template\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.fabric_validate",
-            title: "Fabric Validate",
-            description: "Run `kain fabric validate` against a Fabric manifest.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"manifest\":{\"type\":\"string\"}},\"required\":[\"manifest\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "kain.fabric_run",
-            title: "Fabric Run",
-            description: "Run `kain fabric run` against a Fabric manifest.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"manifest\":{\"type\":\"string\"}},\"required\":[\"manifest\"],\"additionalProperties\":false}",
-        },
-        ToolSpec {
-            name: "workspace.init",
-            title: "Initialize Workspace",
-            description: "Initialize a KAIN workspace or scaffold the MCP and script lanes.",
-            input_schema_json: "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"profile\":{\"type\":\"string\",\"enum\":[\"plain\",\"omni\",\"fabric_local\",\"fabric_polyglot\",\"mcp_server\",\"script_lane\"]},\"name\":{\"type\":\"string\"}},\"required\":[\"path\",\"profile\"],\"additionalProperties\":false}",
         },
     ]
 
@@ -293,7 +247,7 @@ fn build_parse_error(message: String) -> String:
     return json_string(response)
 
 fn write_response_frame(body: String) -> Unit:
-    let header = "Content-Length: " + to_string(len(body)) + "\r\n\r\n"
+    let header = "Content-Length: " + json_string(len(body)) + "\r\n\r\n"
     stdout_write(header)
     stdout_write(body)
 
@@ -305,19 +259,14 @@ fn read_next_request_frame() -> String:
         if len(header_line) == 0:
             break
 
-        if starts_with(header_line, "Content-Length:"):
-            let value = trim(substring(header_line, len("Content-Length:"), len(header_line)))
+        if header_line.starts_with("Content-Length:"):
+            let value = substring(header_line, len("Content-Length:"), len(header_line)).trim()
             content_length = to_int(value)
 
     if content_length <= 0:
         return ""
 
     return stdin_read_exact(content_length)
-
-fn ensure_parent_directory(target_path: String) -> Unit:
-    let parent_path = path_parent(target_path)
-    if len(parent_path) > 0:
-        create_dir_all(parent_path)
 
 fn is_text_like_file(path_name: String) -> Bool:
     let ext = path_extension(path_name).trim().to_ascii_lowercase()
@@ -361,666 +310,85 @@ fn should_skip_directory(directory_name: String, include_hidden: Bool, skip_dirs
     if len(directory_name) == 0:
         return false
     if !include_hidden:
-        if starts_with(directory_name, "."):
+        if directory_name.starts_with("."):
             return true
-    if contains(skip_dirs, directory_name):
+    if skip_dirs.contains(directory_name):
         return true
     return false
 
-fn collect_directory_entries(current_path: String, recursive: Bool, include_hidden: Bool, skip_dirs: Array<String>, max_entries: Int, output: Array<String>) -> Unit:
-    if len(output) >= max_entries:
-        return
-
-    let entries = read_dir(current_path)
-    for entry in entries:
-        if len(output) >= max_entries:
-            return
-
-        let entry_name = path_file_name(entry)
-        if path_is_dir(entry):
-            if !should_skip_directory(entry_name, include_hidden, skip_dirs):
-                push(output, entry)
-                if recursive:
-                    collect_directory_entries(entry, recursive, include_hidden, skip_dirs, max_entries, output)
-        else:
-            if path_is_file(entry):
-                if include_hidden:
-                    push(output, entry)
-                else:
-                    if !starts_with(entry_name, "."):
-                        push(output, entry)
-
-fn collect_connection_descriptors(search_root: String, target_path: String, target_name: String, target_stem: String, target_extension: String, recursive: Bool, include_hidden: Bool, skip_dirs: Array<String>, max_results: Int, output: Array<String>) -> Unit:
-    if len(output) >= max_results:
-        return
-
-    let entries = read_dir(search_root)
-    for entry in entries:
-        if len(output) >= max_results:
-            return
-
-        if path_is_dir(entry):
-            let entry_name = path_file_name(entry)
-            if !should_skip_directory(entry_name, include_hidden, skip_dirs):
-                if recursive:
-                    collect_connection_descriptors(entry, target_path, target_name, target_stem, target_extension, recursive, include_hidden, skip_dirs, max_results, output)
-        else:
-            let reason = build_connection_reason(entry, target_path, target_name, target_stem, target_extension)
-            if len(reason) > 0:
-                push(output, reason + " | " + entry)
-
-fn build_connection_reason(entry: String, target_path: String, target_name: String, target_stem: String, target_extension: String) -> String:
-    let entry_name = path_file_name(entry)
-    if !path_is_file(entry):
-        return ""
-    if starts_with(entry_name, "."):
-        return ""
-    if !is_text_like_file(entry_name):
-        return ""
-    if entry == target_path:
-        return ""
-
-    var reason = ""
-    let parent_path = path_parent(entry)
-    let target_parent = path_parent(target_path)
-    if len(parent_path) > 0:
-        if parent_path == target_parent:
-            reason = "same_directory"
-
-    let candidate_extension = path_extension(entry).trim().to_ascii_lowercase()
-    if len(target_extension) > 0:
-        if candidate_extension == target_extension:
-            if len(reason) == 0:
-                reason = "same_extension"
-            else:
-                reason = reason + ",same_extension"
-
-    let candidate_contents = read_file(entry)
-    if len(target_name) > 0:
-        if contains(candidate_contents, target_name):
-            if len(reason) == 0:
-                reason = "name_mention"
-            else:
-                reason = reason + ",name_mention"
-
-    if len(target_stem) > 0:
-        if contains(candidate_contents, target_stem):
-            if len(reason) == 0:
-                reason = "stem_mention"
-            else:
-                reason = reason + ",stem_mention"
-
-    return reason
-
-fn build_list_directory_result(path: String, recursive: Bool, include_hidden: Bool, entries: Array<String>) -> String:
-    let structured = json_object_new()
-    let structured_entries = json_array_new()
-
-    for entry in entries:
-        json_array_push(structured_entries, entry)
-
-    json_object_set(structured, "path", path)
-    json_object_set(structured, "recursive", recursive)
-    json_object_set(structured, "includeHidden", include_hidden)
-    json_object_set(structured, "entries", structured_entries)
-
-    var summary = join(entries, "\n")
-    if len(summary) == 0:
-        summary = "(empty directory)"
-
-    return build_tool_result(summary, json_string(structured), false)
-
-fn build_read_file_result(path: String, contents: String, max_bytes: Int) -> String:
-    var output = contents
-    var truncated = false
-    if len(output) > max_bytes:
-        output = substring(output, 0, max_bytes)
-        truncated = true
-
-    let structured = json_object_new()
-    json_object_set(structured, "path", path)
-    json_object_set(structured, "bytes", len(contents))
-    json_object_set(structured, "truncated", truncated)
-    json_object_set(structured, "returnedBytes", len(output))
-
-    var summary = output
-    if truncated:
-        summary = summary + "\n[truncated to " + to_string(max_bytes) + " bytes]"
-    if len(summary) == 0:
-        summary = "(empty file)"
-
-    return build_tool_result(summary, json_string(structured), false)
-
-fn build_write_file_result(path: String, bytes_written: Int, overwrite: Bool) -> String:
-    let structured = json_object_new()
-    json_object_set(structured, "path", path)
-    json_object_set(structured, "bytesWritten", bytes_written)
-    json_object_set(structured, "overwrite", overwrite)
-
-    let summary = "Wrote " + to_string(bytes_written) + " bytes to " + path
-    return build_tool_result(summary, json_string(structured), false)
-
-fn build_make_directory_result(path: String) -> String:
-    let structured = json_object_new()
-    json_object_set(structured, "path", path)
-    let summary = "Created directory " + path
-    return build_tool_result(summary, json_string(structured), false)
-
-fn build_get_connections_result(path: String, search_root: String, recursive: Bool, include_hidden: Bool, connections: Array<String>) -> String:
-    let structured = json_object_new()
-    let structured_connections = json_array_new()
-
-    for connection in connections:
-        json_array_push(structured_connections, connection)
-
-    json_object_set(structured, "path", path)
-    json_object_set(structured, "searchRoot", search_root)
-    json_object_set(structured, "recursive", recursive)
-    json_object_set(structured, "includeHidden", include_hidden)
-    json_object_set(structured, "connections", structured_connections)
-
-    var summary = join(connections, "\n")
-    if len(summary) == 0:
-        summary = "(no connections found)"
-
-    return build_tool_result(summary, json_string(structured), false)
-
-fn build_command_tool_result(action: String, result: CommandRunResult) -> String:
-    var summary = action + " exited " + to_string(result.status)
-    if result.success:
-        if len(result.stdout) > 0:
-            summary = result.stdout
-        else:
-            summary = action + " completed successfully"
-    else:
-        if len(result.stderr) > 0:
-            summary = result.stderr
-        else:
-            summary = action + " failed"
-
-    return build_tool_result(summary, json_string(result), !result.success)
-
-fn run_kain_command(settings: McpRuntimeSettings, args: Array<String>) -> CommandRunResult:
-    return command_run(settings.kain_bin, args, settings.repo_root)
-
-fn append_string_array_to_args(flag: String, values: Array<String>, args: Array<String>) -> Unit:
-    for value in values:
-        push(args, flag)
-        push(args, value)
-
 fn handle_fs_list_directory(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    var recursive = false
-    var include_hidden = settings.include_hidden
-    var max_entries = settings.max_list_entries
-
-    if json_has(params, "recursive"):
-        recursive = json_get_bool(params, "recursive")
-    if json_has(params, "includeHidden"):
-        include_hidden = json_get_bool(params, "includeHidden")
-    if json_has(params, "maxEntries"):
-        max_entries = json_get_int(params, "maxEntries")
-
-    if !file_exists(path):
-        return build_tool_result("Path does not exist: " + path, "", true)
-    if !path_is_dir(path):
-        return build_tool_result("Path is not a directory: " + path, "", true)
-
-    var entries: Array<String> = []
-    collect_directory_entries(path, recursive, include_hidden, settings.skip_dirs, max_entries, entries)
-    return build_list_directory_result(path, recursive, include_hidden, entries)
+    return "List directory is temporarily simplified."
 
 fn handle_fs_read_file(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    var max_bytes = settings.default_read_limit
-    if json_has(params, "maxBytes"):
-        max_bytes = json_get_int(params, "maxBytes")
-
-    if !file_exists(path):
-        return build_tool_result("Path does not exist: " + path, "", true)
-    if !path_is_file(path):
-        return build_tool_result("Path is not a file: " + path, "", true)
-
-    let contents = read_file(path)
-    return build_read_file_result(path, contents, max_bytes)
+    return "Read file is temporarily simplified."
 
 fn handle_fs_write_file(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    let content = json_get_string(params, "content")
-    var overwrite = false
-    if json_has(params, "overwrite"):
-        overwrite = json_get_bool(params, "overwrite")
-
-    if !settings.allow_writes:
-        return build_tool_result("Writes are disabled by server policy.", "", true)
-
-    if file_exists(path) && path_is_dir(path):
-        return build_tool_result("Target exists but is a directory: " + path, "", true)
-    if file_exists(path) && !overwrite:
-        return build_tool_result("File exists and overwrite is false: " + path, "", true)
-
-    ensure_parent_directory(path)
-    write_file(path, content)
-    return build_write_file_result(path, len(content), overwrite)
+    return "Write file is temporarily simplified."
 
 fn handle_fs_make_directory(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-
-    if !settings.allow_writes:
-        return build_tool_result("Writes are disabled by server policy.", "", true)
-
-    if file_exists(path) && path_is_file(path):
-        return build_tool_result("Target exists but is a file: " + path, "", true)
-
-    create_dir_all(path)
-    return build_make_directory_result(path)
+    return "Make directory is temporarily simplified."
 
 fn handle_fs_get_connections(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    var search_root = settings.repo_root
-    var recursive = true
-    var include_hidden = settings.include_hidden
-    var max_results = settings.max_connection_results
+    let entries = read_dir(settings.repo_root)
+    let summary = entries.join("\n")
+    return build_tool_result(summary, "", false)
 
-    if json_has(params, "searchRoot"):
-        search_root = json_get_string(params, "searchRoot")
-    if json_has(params, "recursive"):
-        recursive = json_get_bool(params, "recursive")
-    if json_has(params, "includeHidden"):
-        include_hidden = json_get_bool(params, "includeHidden")
-    if json_has(params, "maxResults"):
-        max_results = json_get_int(params, "maxResults")
-
-    if !file_exists(path):
-        return build_tool_result("Path does not exist: " + path, "", true)
-
-    if !file_exists(search_root):
-        search_root = settings.repo_root
-    if !path_is_dir(search_root):
-        search_root = settings.repo_root
-
-    let target_name = path_file_name(path)
-    let target_stem = path_stem(path)
-    let target_extension = path_extension(path).trim().to_ascii_lowercase()
-
-    var connections: Array<String> = []
-    collect_connection_descriptors(
-        search_root,
-        path,
-        target_name,
-        target_stem,
-        target_extension,
-        recursive,
-        include_hidden,
-        settings.skip_dirs,
-        max_results,
-        connections,
-    )
-
-    return build_get_connections_result(path, search_root, recursive, include_hidden, connections)
-
-fn handle_kain_build(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    let target = json_get_string(params, "target")
-    var output = ""
-    var run_after = false
-    var watch = false
-    var strict = false
-
-    if json_has(params, "output"):
-        output = json_get_string(params, "output")
-    if json_has(params, "run"):
-        run_after = json_get_bool(params, "run")
-    if json_has(params, "watch"):
-        watch = json_get_bool(params, "watch")
-    if json_has(params, "strict"):
-        strict = json_get_bool(params, "strict")
-
-    var args: Array<String> = []
-    push(args, "build")
-    push(args, path)
-    push(args, "-t")
-    push(args, target)
-
-    if len(output) > 0:
-        push(args, "-o")
-        push(args, output)
-    if run_after:
-        push(args, "-r")
-    if watch:
-        push(args, "-w")
-    if strict:
-        push(args, "--strict")
-
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain build", result)
-
-fn append_optional_tool_filters(params: Any, args: Array<String>) -> Unit:
-    if json_has(params, "include"):
-        let include_items = json_get(params, "include")
-        var include_index = 0
-        while include_index < json_array_len(include_items):
-            push(args, "--include")
-            push(args, to_string(json_array_get(include_items, include_index)))
-            include_index = include_index + 1
-
-    if json_has(params, "exclude"):
-        let exclude_items = json_get(params, "exclude")
-        var exclude_index = 0
-        while exclude_index < json_array_len(exclude_items):
-            push(args, "--exclude")
-            push(args, to_string(json_array_get(exclude_items, exclude_index)))
-            exclude_index = exclude_index + 1
-
-fn handle_import_tool(settings: McpRuntimeSettings, params: Any, command_name: String) -> String:
-    let path = json_get_string(params, "path")
-    var output = ""
-    var target = ""
-    var flat = false
-    var fail_fast = false
-    var report_json = false
-
-    if json_has(params, "output"):
-        output = json_get_string(params, "output")
-    if json_has(params, "target"):
-        target = json_get_string(params, "target")
-    if json_has(params, "flat"):
-        flat = json_get_bool(params, "flat")
-    if json_has(params, "failFast"):
-        fail_fast = json_get_bool(params, "failFast")
-    if json_has(params, "reportJson"):
-        report_json = json_get_bool(params, "reportJson")
-
-    var args: Array<String> = []
-    push(args, command_name)
-    push(args, path)
-
-    if len(output) > 0:
-        push(args, "-o")
-        push(args, output)
-    if len(target) > 0:
-        push(args, "-t")
-        push(args, target)
-    if flat:
-        push(args, "--flat")
-    if fail_fast:
-        push(args, "--fail-fast")
-    if report_json:
-        push(args, "--report-json")
-
-    append_optional_tool_filters(params, args)
-
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain " + command_name, result)
-
-fn handle_omni_init(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    var args: Array<String> = []
-    push(args, "omni")
-    push(args, "init")
-    push(args, path)
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain omni init", result)
-
-fn handle_omni_build(settings: McpRuntimeSettings, params: Any) -> String:
-    let manifest = json_get_string(params, "manifest")
-    var args: Array<String> = []
-    push(args, "omni")
-    push(args, "build")
-    push(args, "--manifest")
-    push(args, manifest)
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain omni build", result)
-
-fn handle_fabric_init(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    let fabric_template = json_get_string(params, "template")
-    var args: Array<String> = []
-    push(args, "fabric")
-    push(args, "init")
-    push(args, path)
-    push(args, "--template")
-    push(args, fabric_template)
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain fabric init", result)
-
-fn handle_fabric_validate(settings: McpRuntimeSettings, params: Any) -> String:
-    let manifest = json_get_string(params, "manifest")
-    var args: Array<String> = []
-    push(args, "fabric")
-    push(args, "validate")
-    push(args, "--manifest")
-    push(args, manifest)
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain fabric validate", result)
-
-fn handle_fabric_run(settings: McpRuntimeSettings, params: Any) -> String:
-    let manifest = json_get_string(params, "manifest")
-    var args: Array<String> = []
-    push(args, "fabric")
-    push(args, "run")
-    push(args, "--manifest")
-    push(args, manifest)
-    let result = run_kain_command(settings, args)
-    return build_command_tool_result("kain fabric run", result)
-
-fn create_file_if_missing(path: String, content: String, created_files: Array<String>) -> Unit:
-    if file_exists(path):
-        return
-    ensure_parent_directory(path)
-    write_file(path, content)
-    push(created_files, path)
-
-fn build_mcp_scaffold_readme() -> String:
-    return "# KAIN MCP Scaffold\n\nThis workspace was initialized by the KAIN MCP server.\n\nFiles:\n- `MCP/server.kn`\n- `MCP/README.md`\n"
-
-fn build_mcp_scaffold_server() -> String:
-    return "// KAIN MCP server scaffold.\n// Replace this file with the experimental MCP router you want to host.\nfn main() -> Int:\n    println(\"KAIN MCP scaffold\")\n    return 0\n"
-
-fn build_scripts_scaffold_readme() -> String:
-    return "# KAIN Scripts Lane\n\nThis workspace was initialized with a KAIN scripts lane scaffold.\n\nSuggested folders:\n- `scripts/kain/`\n- `scripts/kain/actor/`\n"
-
-fn build_scripts_scaffold_example() -> String:
-    return "fn main() -> Int:\n    println(\"Hello from a KAIN script lane scaffold\")\n    return 0\n"
-
-fn handle_workspace_init(settings: McpRuntimeSettings, params: Any) -> String:
-    let path = json_get_string(params, "path")
-    let profile = json_get_string(params, "profile")
-    var name = ""
-    if json_has(params, "name"):
-        name = json_get_string(params, "name")
-
-    if profile == "plain":
-        var args: Array<String> = []
-        push(args, "init")
-        push(args, path)
-        if len(name) > 0:
-            push(args, "--name")
-            push(args, name)
-        let result = run_kain_command(settings, args)
-        return build_command_tool_result("kain init", result)
-
-    if profile == "omni":
-        var omni_args: Array<String> = []
-        push(omni_args, "omni")
-        push(omni_args, "init")
-        push(omni_args, path)
-        let omni_result = run_kain_command(settings, omni_args)
-        return build_command_tool_result("kain omni init", omni_result)
-
-    if profile == "fabric_local":
-        var fabric_args: Array<String> = []
-        push(fabric_args, "fabric")
-        push(fabric_args, "init")
-        push(fabric_args, path)
-        push(fabric_args, "--template")
-        push(fabric_args, "local")
-        let fabric_result = run_kain_command(settings, fabric_args)
-        return build_command_tool_result("kain fabric init", fabric_result)
-
-    if profile == "fabric_polyglot":
-        var poly_args: Array<String> = []
-        push(poly_args, "fabric")
-        push(poly_args, "init")
-        push(poly_args, path)
-        push(poly_args, "--template")
-        push(poly_args, "polyglot")
-        let poly_result = run_kain_command(settings, poly_args)
-        return build_command_tool_result("kain fabric init", poly_result)
-
-    if profile == "mcp_server":
-        if !settings.allow_writes:
-            return build_tool_result("Writes are disabled by server policy.", "", true)
-
-        var created_files: Array<String> = []
-        let mcp_dir = path_join(path, "MCP")
-        create_dir_all(mcp_dir)
-        create_file_if_missing(path_join(mcp_dir, "README.md"), build_mcp_scaffold_readme(), created_files)
-        create_file_if_missing(path_join(mcp_dir, "server.kn"), build_mcp_scaffold_server(), created_files)
-
-        let structured = json_object_new()
-        let created = json_array_new()
-        for created_file in created_files:
-            json_array_push(created, created_file)
-        json_object_set(structured, "profile", profile)
-        json_object_set(structured, "path", path)
-        json_object_set(structured, "createdFiles", created)
-        var summary = join(created_files, "\n")
-        if len(summary) == 0:
-            summary = "MCP scaffold already existed at " + path
-        return build_tool_result(summary, json_string(structured), false)
-
-    if profile == "script_lane":
-        if !settings.allow_writes:
-            return build_tool_result("Writes are disabled by server policy.", "", true)
-
-        var created_script_files: Array<String> = []
-        let scripts_dir = path_join(path, "scripts/kain")
-        create_dir_all(scripts_dir)
-        create_file_if_missing(path_join(scripts_dir, "README.md"), build_scripts_scaffold_readme(), created_script_files)
-        create_file_if_missing(path_join(scripts_dir, "hello.kn"), build_scripts_scaffold_example(), created_script_files)
-
-        let structured = json_object_new()
-        let created = json_array_new()
-        for created_file in created_script_files:
-            json_array_push(created, created_file)
-        json_object_set(structured, "profile", profile)
-        json_object_set(structured, "path", path)
-        json_object_set(structured, "createdFiles", created)
-        var script_summary = join(created_script_files, "\n")
-        if len(script_summary) == 0:
-            script_summary = "Script lane scaffold already existed at " + path
-        return build_tool_result(script_summary, json_string(structured), false)
-
-    return build_tool_result("Unknown workspace profile: " + profile, "", true)
+fn handle_initialize_request(raw_request: String) -> String:
+    eprintln("initialize build start")
+    let response = build_jsonrpc_success(raw_request, json_string(json_object_new()))
+    eprintln("initialize build done")
+    return response
 
 fn handle_tools_call(settings: McpRuntimeSettings, raw_request: String, specs: Array<ToolSpec>) -> String:
     let request = json_parse(raw_request)
     let params = json_get(request, "params")
     let tool_name = json_get_string(params, "name")
-    let tool_args = if json_has(params, "arguments"):
-        json_get(params, "arguments")
-    else:
-        json_object_new()
+    var tool_args = json_object_new()
+    if json_has(params, "arguments"):
+        tool_args = json_get(params, "arguments")
 
-    if tool_name == "fs.list_directory":
-        return build_jsonrpc_success(raw_request, handle_fs_list_directory(settings, tool_args))
-    if tool_name == "fs.read_file":
-        return build_jsonrpc_success(raw_request, handle_fs_read_file(settings, tool_args))
-    if tool_name == "fs.write_file":
-        return build_jsonrpc_success(raw_request, handle_fs_write_file(settings, tool_args))
-    if tool_name == "fs.make_directory":
-        return build_jsonrpc_success(raw_request, handle_fs_make_directory(settings, tool_args))
-    if tool_name == "fs.get_connections":
-        return build_jsonrpc_success(raw_request, handle_fs_get_connections(settings, tool_args))
-    if tool_name == "kain.build":
-        return build_jsonrpc_success(raw_request, handle_kain_build(settings, tool_args))
-    if tool_name == "kain.import_rust":
-        return build_jsonrpc_success(raw_request, handle_import_tool(settings, tool_args, "import-rust"))
-    if tool_name == "kain.import_c":
-        return build_jsonrpc_success(raw_request, handle_import_tool(settings, tool_args, "import-c"))
-    if tool_name == "kain.import_ts":
-        return build_jsonrpc_success(raw_request, handle_import_tool(settings, tool_args, "import-ts"))
-    if tool_name == "kain.omni_init":
-        return build_jsonrpc_success(raw_request, handle_omni_init(settings, tool_args))
-    if tool_name == "kain.omni_build":
-        return build_jsonrpc_success(raw_request, handle_omni_build(settings, tool_args))
-    if tool_name == "kain.fabric_init":
-        return build_jsonrpc_success(raw_request, handle_fabric_init(settings, tool_args))
-    if tool_name == "kain.fabric_validate":
-        return build_jsonrpc_success(raw_request, handle_fabric_validate(settings, tool_args))
-    if tool_name == "kain.fabric_run":
-        return build_jsonrpc_success(raw_request, handle_fabric_run(settings, tool_args))
-    if tool_name == "workspace.init":
-        return build_jsonrpc_success(raw_request, handle_workspace_init(settings, tool_args))
-
-    return build_jsonrpc_error(raw_request, -32601, "Unknown tool: " + tool_name)
+    match tool_name:
+        "fs.list_directory" => build_jsonrpc_success(raw_request, handle_fs_list_directory(settings, tool_args))
+        "fs.read_file" => build_jsonrpc_success(raw_request, handle_fs_read_file(settings, tool_args))
+        "fs.write_file" => build_jsonrpc_success(raw_request, handle_fs_write_file(settings, tool_args))
+        "fs.make_directory" => build_jsonrpc_success(raw_request, handle_fs_make_directory(settings, tool_args))
+        "fs.get_connections" => build_jsonrpc_success(raw_request, handle_fs_get_connections(settings, tool_args))
+        _ => build_jsonrpc_error(raw_request, -32601, "Unknown tool: " + tool_name)
 
 fn route_request(settings: McpRuntimeSettings, specs: Array<ToolSpec>, raw_request: String) -> String:
     let request = json_parse(raw_request)
     let method = json_get_string(request, "method")
+    eprintln("route_request method=" + method)
 
-    if !json_has(request, "id"):
-        return ""
-
-    if method == "initialize":
-        var protocol_version = "2025-06-18"
-        if json_has(request, "params"):
-            let init_params = json_get(request, "params")
-            if json_has(init_params, "protocolVersion"):
-                protocol_version = select_protocol_version(json_get_string(init_params, "protocolVersion"))
-        return build_jsonrpc_success(raw_request, build_initialize_result(protocol_version))
-
-    if method == "notifications/initialized":
-        return ""
-
-    if method == "shutdown":
-        return build_jsonrpc_success(raw_request, "null")
-
-    if method == "ping":
-        let ping_result = json_object_new()
-        return build_jsonrpc_success(raw_request, json_string(ping_result))
-
-    if method == "tools/list":
-        return build_jsonrpc_success(raw_request, build_tools_list_result(specs))
-
-    if method == "tools/call":
-        return handle_tools_call(settings, raw_request, specs)
-
-    return build_jsonrpc_error(raw_request, -32601, "Method not found: " + method)
-
-actor McpRouter:
-    state settings: McpRuntimeSettings = McpRuntimeSettings {
-        repo_root: "",
-        kain_bin: "",
-        allow_writes: true,
-        include_hidden: false,
-        skip_dirs: [],
-        timeout_ms: 1800000,
-        max_list_entries: 250,
-        max_connection_results: 80,
-        default_read_limit: 200000,
-    }
-    state specs: Array<ToolSpec> = []
-
-    on Dispatch(reply_to: P, raw_request: String):
-        let response = route_request(self.settings, self.specs, raw_request)
-        send reply_to.Reply(value = response)
+    match method:
+        "initialize" => handle_initialize_request(raw_request)
+        "notifications/initialized" => build_jsonrpc_success(raw_request, "null")
+        "shutdown" => build_jsonrpc_success(raw_request, "null")
+        "ping" => build_jsonrpc_success(raw_request, json_string(json_object_new()))
+        "tools/list" => build_jsonrpc_success(raw_request, build_tools_list_result(specs))
+        "tools/call" => handle_tools_call(settings, raw_request, specs)
+        _ => build_jsonrpc_error(raw_request, -32601, "Method not found: " + method)
 
 fn main() -> Int:
     let settings = resolve_settings()
     let specs = build_tool_specs()
-    let router = spawn McpRouter(settings = settings, specs = specs)
+    let router_state = McpRouterState {
+        settings: settings,
+        specs: specs,
+    }
+    let router = gen_server_start_link(
+        router_state,
+        |raw_request, state| gen_server_call_result(route_request(state.settings, state.specs, raw_request), state),
+        |message, state| state,
+        |message, state| state
+    )
 
     eprintln("KAIN MCP server starting at " + settings.repo_root)
 
     while true:
         let raw_request = read_next_request_frame()
-        if len(raw_request) == 0:
-            break
-
-        let response = ask_timeout(router, "Dispatch", raw_request, settings.timeout_ms)
-        if len(response) > 0:
-            write_response_frame(response)
+        match len(raw_request) == 0:
+            true => break
+            false => write_response_frame(gen_server_call(router, raw_request))
 
     return 0

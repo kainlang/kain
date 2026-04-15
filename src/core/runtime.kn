@@ -223,6 +223,17 @@ fn call_builtin(ctx: RuntimeContext, name: String, arg_vals: Array<Value>) -> Op
             let c = arg_vals[1].as_string()
             write_file(p, c)
         return Option::Some(Value::Unit)
+    if name == "read_line":
+        return Option::Some(Value::String_(read_line()))
+    if name == "stdout_write":
+        if len(arg_vals) > 0:
+            stdout_write(arg_vals[0].as_string())
+        return Option::Some(Value::Unit)
+    if name == "stdin_read_exact":
+        if len(arg_vals) > 0:
+            let length = arg_vals[0].as_int()
+            return Option::Some(Value::String_(stdin_read_exact(length)))
+        return Option::Some(Value::String_(""))
     if name == "env":
         if len(arg_vals) > 0:
             let k = arg_vals[0].as_string()

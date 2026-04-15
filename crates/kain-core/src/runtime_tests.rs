@@ -80,6 +80,10 @@ fn stdlib_registry_exposes_ord_and_chr() {
     assert!(stdlib.functions.contains_key("command_run"));
     assert!(stdlib.functions.contains_key("json_parse"));
     assert!(stdlib.functions.contains_key("json_object_new"));
+    assert!(stdlib.functions.contains_key("read_line"));
+    assert!(stdlib.functions.contains_key("stdout_write"));
+    assert!(stdlib.functions.contains_key("stdin_read_exact"));
+    assert!(stdlib.functions.contains_key("to_int"));
 }
 
 #[test]

@@ -621,6 +621,33 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
     );
     env.define_global(
+        "read_line".into(),
+        builtin_function_type(vec![], ResolvedType::String),
+    );
+    env.define_global(
+        "stdout_write".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    env.define_global(
+        "stdin_read_exact".into(),
+        builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::String),
+    );
+    env.define_global(
+        "to_int".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "substring".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::String,
+        ),
+    );
+    env.define_global(
         "dbg".into(),
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
     );
