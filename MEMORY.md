@@ -1,4 +1,3 @@
-<<<<<<< 3D
 # Kain Memory
 
 - The Kain 3D pipeline is a live fleet initiative now, and its steering should stay spec-first.
@@ -27,9 +26,6 @@
 - New Kain 3D pass (2026-04-14): `templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn` now carries explicit `composition_policy` and `framing_policy` fields on `ViewportDescriptor`, with the default profile bound to `scene_summary_driven_and_launch_preset_bound` and `bounds_fov_and_aspect_ratio_fit`. This makes viewport launch contracts line up with the scene-summary/framing work already landing in `crates/kain-3D`, and the template README now calls out the policy explicitly for future authors.
 - New Kain 3D pass (2026-04-14): `SceneBounds` now exposes a dominant-axis label, and `SceneCompositionSummary::brief_label()` appends a simple wide/tall/deep cue next to the span, so tooling can read scene proportions faster from logs and frame metadata. This is a small but practical authoring/tooling improvement for 3D composition debugging. Validation hit the same environment blocker as other local runs: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed during dependency linking because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now carries the viewport aspect ratio and includes it in `brief_label()`, so frame diagnostics can report the actual render shape alongside bounds and camera fit instead of leaving aspect implicit. Added a regression assertion that the summary label includes `aspect 1.00:1` for the default path. Validation pending.
-=======
-# MEMORY
-
 # 2026-04-14 - Three.js Node FFI lab grew into a sculpt suite with a Rust WASM core
 
 The existing browser proof under `labs/threejs_node_ffi_space_lab/` is no longer only a free-fly sphere scene. It now acts as a small sculpting suite with a manifest-driven universal viewport and a local Rust `wasm32-unknown-unknown` brush kernel.
@@ -2785,8 +2781,6 @@ Notes:
 
 - No tests or `cargo check` were run.
 - The pass is deliberately mechanical. It does not try to rebuild module semantics; it only gets obviously hostile nested declaration placement out of the parser's way.
->>>>>>> master
-
 ---
 ## Selfhost Pipeline (2026-04-14)
 
