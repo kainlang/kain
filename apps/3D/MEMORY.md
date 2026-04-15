@@ -1,5 +1,24 @@
 # Memory
 
+## 2026-04-15 - 3D Manifest Projection Validator Expansion
+
+Expanded `scripts/python/validate_3d_template_manifests.py` so the 3D template
+validator now covers `engine_systems.json` in addition to the shared source
+registry, runtime apps, and workspace presets.
+
+Why this mattered:
+
+- engine systems are a first-class projection surface in the 3D template, not
+  just documentation
+- the validator now catches broken `source_id` links before they leak into the
+  reflection/catalog layer
+- this keeps the scene/composition/tooling lattice manifest-driven as it grows
+
+Validation:
+
+- ran the validator directly after the change
+- updated the template README to advertise the broader coverage
+
 ## 2026-04-14 - 3D Template Manifest Projection Validator
 
 Added `scripts/python/validate_3d_template_manifests.py` to keep the 3D

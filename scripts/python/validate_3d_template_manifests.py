@@ -4,7 +4,8 @@ Validate the Kain 3D template manifest projection layer.
 
 This validator keeps the 3D template manifest-driven by checking that
 projection rows resolve back to the shared source registry, and that the
-high-level runtime app and workspace preset surfaces stay structurally sound.
+high-level engine system, runtime app, and workspace preset surfaces stay
+structurally sound.
 """
 
 from __future__ import annotations
@@ -145,6 +146,32 @@ def validate_workspace_presets(repo_root: Path, template_root: Path, source_inde
         errors.append("workspace_presets: duplicate preset id detected")
 
 
+def validate_engine_systems(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], errors: list[str]) -> None:
+    systems_path = resolve_path(repo_root, template_root / "manifests/engine_systems.json")
+    systems = load_json(systems_path)
+    if not isinstance(systems, list) or not systems:
+        errors.append(f"{systems_path}: expected a non-empty JSON array")
+        return
+
+    system_ids: list[str] = []
+    for idx, system in enumerate(systems):
+        context = f"engine_systems[{idx}]"
+        if not isinstance(system, dict):
+            errors.append(f"{context}: expected object")
+            continue
+        system_id = require_string(system, "id", errors, context)
+        source_id = require_string(system, "source_id", errors, context)
+        require_string(system, "label", errors, context)
+        require_string(system, "lane", errors, context)
+        require_string(system, "description", errors, context)
+        if source_id and source_id not in source_index:
+            errors.append(f"{context}: unknown source_id -> {source_id}")
+        if system_id:
+            system_ids.append(system_id)
+    if len(system_ids) != len(set(system_ids)):
+        errors.append("engine_systems: duplicate system id detected")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate the Kain 3D template manifest projection layer")
     parser.add_argument("--repo-root", default=".", help="Repository root (default: current directory)")
@@ -156,6 +183,7 @@ def main() -> int:
 
     errors: list[str] = []
     source_index = validate_sources(repo_root, template_root, errors)
+    validate_engine_systems(repo_root, template_root, source_index, errors)
     validate_runtime_apps(repo_root, template_root, source_index, errors)
     validate_workspace_presets(repo_root, template_root, source_index, errors)
 
@@ -164,7 +192,7 @@ def main() -> int:
             print(f"ERROR: {error}")
         return 1
 
-    print("3D template manifests validated: sources, runtime apps, and workspace presets are structurally consistent.")
+    print("3D template manifests validated: sources, engine systems, runtime apps, and workspace presets are structurally consistent.")
     return 0
 
 
