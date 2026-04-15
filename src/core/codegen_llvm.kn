@@ -192,7 +192,41 @@ impl LlvmGen:
         return name
 
     pub fn map_resolved_type(self, ty: ResolvedType) -> String:
-        return ty.to_llvm_type()
+        match ty:
+            ResolvedType::Unit =>
+                return "void"
+            ResolvedType::Bool =>
+                return "i1"
+            ResolvedType::Int =>
+                return "i64"
+            ResolvedType::Float =>
+                return "double"
+            ResolvedType::String_ =>
+                return "i8*"
+            ResolvedType::Char =>
+                return "i8"
+            ResolvedType::Never =>
+                return "void"
+            ResolvedType::ArrayOf(_) =>
+                return "i8*"
+            ResolvedType::SliceOf(_) =>
+                return "i8*"
+            ResolvedType::OptionOf(_) =>
+                return "i8*"
+            ResolvedType::ResultOf(_, _) =>
+                return "i8*"
+            ResolvedType::TupleOf(_) =>
+                return "i8*"
+            ResolvedType::FunctionType(_, _) =>
+                return "i8*"
+            ResolvedType::Struct_(_) =>
+                return "i8*"
+            ResolvedType::Enum_(_) =>
+                return "i8*"
+            ResolvedType::Named(_) =>
+                return "i8*"
+            ResolvedType::Unknown =>
+                return "i64"
 
     pub fn fn_return_type(self, name: String) -> String:
         let i = 0
@@ -223,28 +257,15 @@ fn map_type_expr(gen: LlvmGen, ty: TypeExpr) -> String:
         TypeExpr::Char => return "i8"
         TypeExpr::Array(_) => return "i8*"
         TypeExpr::Slice(_) => return "i8*"
-        TypeExpr::Option(inner) => return map_type_expr(gen, inner)
-        TypeExpr::Result(ok, _) => return map_type_expr(gen, ok)
+        TypeExpr::Option(_) => return "i8*"
+        TypeExpr::Result(_, _) => return "i8*"
         TypeExpr::Infer => return "i64"
-        TypeExpr::Path(path) =>
-            if len(path.segments) > 0:
-                let name = path.segments[0].name
-                return map_named_type(gen, name)
-            return "i64"
+        TypeExpr::Path(_) =>
+            return "i8*"
         _ => return "i64"
 
-fn map_named_type(gen: LlvmGen, name: String) -> String:
-    if name == "Int" || name == "i64" || name == "usize" || name == "isize": return "i64"
-    if name == "i32": return "i32"
-    if name == "i8": return "i8"
-    if name == "Float" || name == "f64" || name == "double": return "double"
-    if name == "f32": return "float"
-    if name == "Bool" || name == "bool": return "i1"
-    if name == "String" || name == "str": return "i8*"
-    if name == "Char" || name == "char": return "i8"
-    if name == "Unit" || name == "()": return "void"
-    # Struct or enum type
-    return "%" + name + "*"
+fn map_named_type(gen: LlvmGen, _name: String) -> String:
+    return "i8*"
 
 fn zero_for_type(ty: String) -> String:
     if ty == "double": return "0.0"
