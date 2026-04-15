@@ -1,4 +1,5 @@
 use crate::error::{KainError, KainResult};
+use crate::selfhost_bootstrap;
 use crate::selfhost_profile::{default_selfhost_source_profile_path, SelfHostSourceProfile};
 use crate::selfhost_report::{
     render_phase_markdown, CratePhase1Result, InventoryInputEvidence, MacroFinding,
@@ -120,6 +121,22 @@ struct SelfHostFileMirrorPlan {
 
 #[derive(Subcommand, Debug)]
 pub enum SelfHostCommand {
+    Bootstrap {
+        #[arg(long)]
+        manifest_path: Option<PathBuf>,
+
+        #[arg(long)]
+        combine_only: bool,
+
+        #[arg(long)]
+        emit_llvm_only: bool,
+
+        #[arg(long)]
+        link_native: bool,
+
+        #[arg(long)]
+        verify_ouroboros: bool,
+    },
     Phase1 {
         #[arg(long)]
         inventory_dir: Option<PathBuf>,
@@ -171,6 +188,19 @@ pub enum SelfHostCommand {
 
 pub fn run(command: SelfHostCommand) -> KainResult<()> {
     match command {
+        SelfHostCommand::Bootstrap {
+            manifest_path,
+            combine_only,
+            emit_llvm_only,
+            link_native,
+            verify_ouroboros,
+        } => selfhost_bootstrap::run_bootstrap(
+            manifest_path,
+            combine_only,
+            emit_llvm_only,
+            link_native,
+            verify_ouroboros,
+        ),
         SelfHostCommand::Phase1 {
             inventory_dir,
             output_dir,

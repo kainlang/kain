@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "schema_version": 1,
   "description": "Manifest-driven orchestration for Ouroboros V2 selfhost lanes.",
   "defaults": {
@@ -8,7 +8,18 @@
     "repair_docs": "{ouroboros_root}/docs/selfhost/repairs",
     "repair_runner": "{ouroboros_root}/tools/selfhost_repair/repair_runner.py",
     "workspace_status_script": "{ouroboros_root}/scripts/selfhost_workspace_status.py",
-    "pipeline_out": "{ouroboros_root}/out/selfhost/pipeline"
+    "pipeline_out": "{ouroboros_root}/out/selfhost/pipeline",
+    "owned_manifest": "{repo_root}/src/KAIN.toml",
+    "owned_selfhost_root": "{repo_root}/src/.selfhost",
+    "owned_reports_root": "{repo_root}/src/.selfhost/reports",
+    "owned_combined_source": "{repo_root}/src/.selfhost/phase0/combined/kain_core_selfhost.kn",
+    "owned_llvm_output": "{repo_root}/src/.selfhost/phase0/out/kain_core_selfhost.ll",
+    "owned_runtime_contract_output": "{repo_root}/src/.selfhost/phase0/out/kain_core_selfhost.runtime_contract.json",
+    "owned_realtime_app_output": "{repo_root}/src/.selfhost/phase0/out/kain_core_selfhost.realtime_app.json",
+    "owned_native_output": "{repo_root}/src/.selfhost/phase0/out/kainc",
+    "owned_ouroboros_output": "{repo_root}/src/.selfhost/ouroboros/kain_core_selfhost.stage2.ll",
+    "native_runtime_manifest": "{repo_root}/runtime/native_runtime.toml",
+    "native_runtime_build_script": "{repo_root}/runtime/compile_native_runtime.sh"
   },
   "crate_slices": {
     "phase2-core": [
@@ -19,6 +30,9 @@
       "kain-import",
       "kain-sys-codegen",
       "cli"
+    ],
+    "owned-core": [
+      "src/core"
     ]
   },
   "lanes": [
@@ -181,6 +195,272 @@
           "artifact_log": "{repaired_root}/stage2_workspace/stage2_build.log",
           "expected_logs": [
             "{repaired_root}/stage2_workspace/stage2_build.log"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "owned-bootstrap",
+      "description": "Resolve the hand-written selfhost manifest, assemble the ordered src/core bootstrap unit, and emit the first LLVM + report artifact set without linking a native executable.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [],
+      "crate_slice": [
+        "src/core"
+      ],
+      "required_artifacts": [
+        "{owned_manifest}",
+        "{native_runtime_manifest}"
+      ],
+      "success_criteria": [
+        "The owned manifest under src/KAIN.toml resolves from repo root and names every ordered src/core source file.",
+        "The bootstrap command emits the aggregate compatibility source, LLVM output, native sidecars, and machine-readable reports under src/.selfhost/.",
+        "The command exits non-zero if manifest loading, source resolution, compile, or artifact staging fails."
+      ],
+      "validation_commands": [
+        [
+          "cargo",
+          "run",
+          "-q",
+          "-p",
+          "cli",
+          "--bin",
+          "kain",
+          "--",
+          "selfhost",
+          "bootstrap",
+          "--combine-only"
+        ],
+        [
+          "cargo",
+          "run",
+          "-q",
+          "-p",
+          "cli",
+          "--bin",
+          "kain",
+          "--",
+          "selfhost",
+          "bootstrap",
+          "--emit-llvm-only"
+        ]
+      ],
+      "steps": [
+        {
+          "id": "owned_combine_only",
+          "kind": "argv",
+          "timeout_seconds": 300,
+          "retry_policy": "never",
+          "consumes": [
+            "{owned_manifest}"
+          ],
+          "produces": [
+            "{owned_combined_source}",
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ],
+          "cwd": "{repo_root}",
+          "argv": [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "cli",
+            "--bin",
+            "kain",
+            "--",
+            "selfhost",
+            "bootstrap",
+            "--combine-only"
+          ],
+          "artifact_log": "{owned_reports_root}/bootstrap_report.md",
+          "expected_logs": [
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ]
+        },
+        {
+          "id": "owned_emit_llvm",
+          "kind": "argv",
+          "timeout_seconds": 900,
+          "retry_policy": "never",
+          "consumes": [
+            "{owned_combined_source}",
+            "{native_runtime_manifest}"
+          ],
+          "produces": [
+            "{owned_llvm_output}",
+            "{owned_runtime_contract_output}",
+            "{owned_realtime_app_output}",
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ],
+          "cwd": "{repo_root}",
+          "argv": [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "cli",
+            "--bin",
+            "kain",
+            "--",
+            "selfhost",
+            "bootstrap",
+            "--emit-llvm-only"
+          ],
+          "artifact_log": "{owned_reports_root}/bootstrap_report.md",
+          "expected_logs": [
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "owned-native",
+      "description": "Build or reuse the native C runtime bundle from runtime/native_runtime.toml and link the hand-written bootstrap lane into a runnable native kainc binary.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [
+        "owned-bootstrap"
+      ],
+      "crate_slice": [
+        "src/core"
+      ],
+      "required_artifacts": [
+        "{owned_manifest}",
+        "{owned_llvm_output}",
+        "{native_runtime_manifest}",
+        "{native_runtime_build_script}"
+      ],
+      "success_criteria": [
+        "The bootstrap command resolves the native runtime manifest instead of guessing -lkain_runtime.",
+        "The command reuses or builds the real runtime objects and archives, stages the standard LLVM/native sidecars, and links a runnable native compiler binary.",
+        "The command exits non-zero if runtime resolution, runtime build, link, or expected-artifact checks fail."
+      ],
+      "validation_commands": [
+        [
+          "cargo",
+          "run",
+          "-q",
+          "-p",
+          "cli",
+          "--bin",
+          "kain",
+          "--",
+          "selfhost",
+          "bootstrap",
+          "--link-native"
+        ]
+      ],
+      "steps": [
+        {
+          "id": "owned_link_native",
+          "kind": "argv",
+          "timeout_seconds": 3600,
+          "retry_policy": "never",
+          "consumes": [
+            "{owned_manifest}",
+            "{owned_llvm_output}",
+            "{native_runtime_manifest}",
+            "{native_runtime_build_script}"
+          ],
+          "produces": [
+            "{owned_native_output}",
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ],
+          "cwd": "{repo_root}",
+          "argv": [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "cli",
+            "--bin",
+            "kain",
+            "--",
+            "selfhost",
+            "bootstrap",
+            "--link-native"
+          ],
+          "artifact_log": "{owned_reports_root}/bootstrap_report.md",
+          "expected_logs": [
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "owned-ouroboros",
+      "description": "Use the native hand-written compiler to recompile the same manifest and classify artifact parity for the first full ouroboros loop.",
+      "failure_policy": "stop_on_failure",
+      "continue_on_failure": false,
+      "dependencies": [
+        "owned-native"
+      ],
+      "crate_slice": [
+        "src/core"
+      ],
+      "required_artifacts": [
+        "{owned_manifest}",
+        "{owned_native_output}"
+      ],
+      "success_criteria": [
+        "The stage1 native compiler can recompile the same manifest-driven source set without falling back to Rust compiler passes.",
+        "The verification step emits a deterministic comparison result and records whether artifact parity is exact, drifted, or blocked.",
+        "The command exits non-zero when the produced native compiler cannot complete the recompile or when required comparison artifacts are missing."
+      ],
+      "validation_commands": [
+        [
+          "cargo",
+          "run",
+          "-q",
+          "-p",
+          "cli",
+          "--bin",
+          "kain",
+          "--",
+          "selfhost",
+          "bootstrap",
+          "--verify-ouroboros"
+        ]
+      ],
+      "steps": [
+        {
+          "id": "owned_verify_ouroboros",
+          "kind": "argv",
+          "timeout_seconds": 3600,
+          "retry_policy": "never",
+          "consumes": [
+            "{owned_manifest}",
+            "{owned_native_output}"
+          ],
+          "produces": [
+            "{owned_ouroboros_output}",
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
+          ],
+          "cwd": "{repo_root}",
+          "argv": [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "cli",
+            "--bin",
+            "kain",
+            "--",
+            "selfhost",
+            "bootstrap",
+            "--verify-ouroboros"
+          ],
+          "artifact_log": "{owned_reports_root}/bootstrap_report.md",
+          "expected_logs": [
+            "{owned_reports_root}/bootstrap_report.json",
+            "{owned_reports_root}/bootstrap_report.md"
           ]
         }
       ]

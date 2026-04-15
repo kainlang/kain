@@ -43,49 +43,86 @@ pub enum ResolvedType:
 impl ResolvedType:
     pub fn to_llvm_type(self) -> String:
         match self:
-            ResolvedType::Unit => return "void"
-            ResolvedType::Bool => return "i1"
-            ResolvedType::Int => return "i64"
-            ResolvedType::Float => return "double"
-            ResolvedType::String_ => return "i8*"
-            ResolvedType::Char => return "i8"
-            ResolvedType::Never => return "void"
-            ResolvedType::ArrayOf(_) => return "i8*"
-            ResolvedType::SliceOf(_) => return "i8*"
-            ResolvedType::OptionOf(inner) => return inner.to_llvm_type()
-            ResolvedType::ResultOf(ok, _) => return ok.to_llvm_type()
-            ResolvedType::TupleOf(_) => return "i8*"
-            ResolvedType::FunctionType(_, _) => return "i8*"
-            ResolvedType::Struct_(name) => return "%" + name + "*"
-            ResolvedType::Enum_(name) => return "%" + name + "*"
-            ResolvedType::Named(name) => return resolved_type_from_name(name).to_llvm_type()
-            ResolvedType::Unknown => return "i64"
+            ResolvedType::Unit =>
+                return "void"
+            ResolvedType::Bool =>
+                return "i1"
+            ResolvedType::Int =>
+                return "i64"
+            ResolvedType::Float =>
+                return "double"
+            ResolvedType::String_ =>
+                return "i8*"
+            ResolvedType::Char =>
+                return "i8"
+            ResolvedType::Never =>
+                return "void"
+            ResolvedType::ArrayOf(_) =>
+                return "i8*"
+            ResolvedType::SliceOf(_) =>
+                return "i8*"
+            ResolvedType::OptionOf(inner) =>
+                return inner.to_llvm_type()
+            ResolvedType::ResultOf(ok, _) =>
+                return ok.to_llvm_type()
+            ResolvedType::TupleOf(_) =>
+                return "i8*"
+            ResolvedType::FunctionType(_, _) =>
+                return "i8*"
+            ResolvedType::Struct_(name) =>
+                return "%" + name + "*"
+            ResolvedType::Enum_(name) =>
+                return "%" + name + "*"
+            ResolvedType::Named(name) =>
+                return resolved_type_from_name(name).to_llvm_type()
+            ResolvedType::Unknown =>
+                return "i64"
 
     pub fn is_void(self) -> Bool:
         match self:
-            ResolvedType::Unit => return true
-            ResolvedType::Never => return true
-            _ => return false
+            ResolvedType::Unit =>
+                return true
+            ResolvedType::Never =>
+                return true
+            _ =>
+                return false
 
     pub fn display_name(self) -> String:
         match self:
-            ResolvedType::Unit => return "Unit"
-            ResolvedType::Bool => return "Bool"
-            ResolvedType::Int => return "Int"
-            ResolvedType::Float => return "Float"
-            ResolvedType::String_ => return "String"
-            ResolvedType::Char => return "Char"
-            ResolvedType::Never => return "Never"
-            ResolvedType::ArrayOf(_) => return "Array"
-            ResolvedType::SliceOf(_) => return "Slice"
-            ResolvedType::OptionOf(_) => return "Option"
-            ResolvedType::ResultOf(_, _) => return "Result"
-            ResolvedType::TupleOf(_) => return "Tuple"
-            ResolvedType::FunctionType(_, _) => return "Function"
-            ResolvedType::Struct_(name) => return name
-            ResolvedType::Enum_(name) => return name
-            ResolvedType::Named(name) => return name
-            ResolvedType::Unknown => return "?"
+            ResolvedType::Unit =>
+                return "Unit"
+            ResolvedType::Bool =>
+                return "Bool"
+            ResolvedType::Int =>
+                return "Int"
+            ResolvedType::Float =>
+                return "Float"
+            ResolvedType::String_ =>
+                return "String"
+            ResolvedType::Char =>
+                return "Char"
+            ResolvedType::Never =>
+                return "Never"
+            ResolvedType::ArrayOf(_) =>
+                return "Array"
+            ResolvedType::SliceOf(_) =>
+                return "Slice"
+            ResolvedType::OptionOf(_) =>
+                return "Option"
+            ResolvedType::ResultOf(_, _) =>
+                return "Result"
+            ResolvedType::TupleOf(_) =>
+                return "Tuple"
+            ResolvedType::FunctionType(_, _) =>
+                return "Function"
+            ResolvedType::Struct_(name) =>
+                return name
+            ResolvedType::Enum_(name) =>
+                return name
+            ResolvedType::Named(name) =>
+                return name
+            ResolvedType::Unknown =>
+                return "?"
 
 fn resolved_type_from_name(name: String) -> ResolvedType:
     if name == "Unit" || name == "()" || name == "void": return ResolvedType::Unit
@@ -257,18 +294,30 @@ fn typeenv_register_enum(env: TypeEnv, name: String) -> Unit:
 
 fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
     match ty:
-        TypeExpr::Unit => return ResolvedType::Unit
-        TypeExpr::Never => return ResolvedType::Never
-        TypeExpr::Infer => return ResolvedType::Unknown
-        TypeExpr::Bool => return ResolvedType::Bool
-        TypeExpr::Int => return ResolvedType::Int
-        TypeExpr::Float => return ResolvedType::Float
-        TypeExpr::String_ => return ResolvedType::String_
-        TypeExpr::Char => return ResolvedType::Char
-        TypeExpr::Array(inner) => return ResolvedType::ArrayOf(resolve_type_expr(env, inner))
-        TypeExpr::Slice(inner) => return ResolvedType::SliceOf(resolve_type_expr(env, inner))
-        TypeExpr::Option(inner) => return ResolvedType::OptionOf(resolve_type_expr(env, inner))
-        TypeExpr::Result(ok, err) => return ResolvedType::ResultOf(resolve_type_expr(env, ok), resolve_type_expr(env, err))
+        TypeExpr::Unit =>
+            return ResolvedType::Unit
+        TypeExpr::Never =>
+            return ResolvedType::Never
+        TypeExpr::Infer =>
+            return ResolvedType::Unknown
+        TypeExpr::Bool =>
+            return ResolvedType::Bool
+        TypeExpr::Int =>
+            return ResolvedType::Int
+        TypeExpr::Float =>
+            return ResolvedType::Float
+        TypeExpr::String_ =>
+            return ResolvedType::String_
+        TypeExpr::Char =>
+            return ResolvedType::Char
+        TypeExpr::Array(inner) =>
+            return ResolvedType::ArrayOf(resolve_type_expr(env, inner))
+        TypeExpr::Slice(inner) =>
+            return ResolvedType::SliceOf(resolve_type_expr(env, inner))
+        TypeExpr::Option(inner) =>
+            return ResolvedType::OptionOf(resolve_type_expr(env, inner))
+        TypeExpr::Result(ok, err) =>
+            return ResolvedType::ResultOf(resolve_type_expr(env, ok), resolve_type_expr(env, err))
         TypeExpr::Tuple(items) =>
             let resolved = []
             for item in items:
@@ -288,7 +337,8 @@ fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
                     return ResolvedType::Enum_(name)
                 return resolved_type_from_name(name)
             return ResolvedType::Unknown
-        _ => return ResolvedType::Unknown
+        _ =>
+            return ResolvedType::Unknown
 
 # - Expression type inference -
 
@@ -299,16 +349,19 @@ fn infer_call_type(env: TypeEnv, call: CallExpr) -> ResolvedType:
                 let fname = callee_path.segments[0].name
                 return typeenv_lookup_fn_return(env, fname)
             return ResolvedType::Unknown
-        _ => return ResolvedType::Unknown
+        _ =>
+            return ResolvedType::Unknown
 
 fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
     match expr:
-        Expr::Literal(lit) => return infer_literal(lit)
+        Expr::Literal(lit) =>
+            return infer_literal(lit)
         Expr::Path(path) =>
             if len(path.segments) > 0:
                 return typeenv_lookup(env, path.segments[0].name)
             return ResolvedType::Unknown
-        Expr::Call(call) => return infer_call_type(env, call)
+        Expr::Call(call) =>
+            return infer_call_type(env, call)
         Expr::MethodCall(mc) =>
             return ResolvedType::Unknown
         Expr::Field(f) =>
@@ -325,22 +378,30 @@ fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
                 let elem_ty = infer_expr(env, items[0])
                 return ResolvedType::ArrayOf(elem_ty)
             return ResolvedType::ArrayOf(ResolvedType::Unknown)
-        Expr::If(ife) => return ResolvedType::Unknown
+        Expr::If(ife) =>
+            return ResolvedType::Unknown
         Expr::StructInit(si) =>
             if len(si.name.segments) > 0:
                 let sname = si.name.segments[0].name
                 return ResolvedType::Struct_(sname)
             return ResolvedType::Unknown
-        _ => return ResolvedType::Unknown
+        _ =>
+            return ResolvedType::Unknown
 
 fn infer_literal(lit: Literal) -> ResolvedType:
     match lit:
-        Literal::Int(_) => return ResolvedType::Int
-        Literal::Float(_) => return ResolvedType::Float
-        Literal::String(_) => return ResolvedType::String_
-        Literal::Char(_) => return ResolvedType::Char
-        Literal::Bool(_) => return ResolvedType::Bool
-        Literal::Unit => return ResolvedType::Unit
+        Literal::Int(_) =>
+            return ResolvedType::Int
+        Literal::Float(_) =>
+            return ResolvedType::Float
+        Literal::String(_) =>
+            return ResolvedType::String_
+        Literal::Char(_) =>
+            return ResolvedType::Char
+        Literal::Bool(_) =>
+            return ResolvedType::Bool
+        Literal::Unit =>
+            return ResolvedType::Unit
 
 fn infer_binary_result(op: BinaryOp, lt: ResolvedType, rt: ResolvedType) -> ResolvedType:
     match op:
@@ -350,28 +411,43 @@ fn infer_binary_result(op: BinaryOp, lt: ResolvedType, rt: ResolvedType) -> Reso
             if lt.display_name() == "Float" || rt.display_name() == "Float":
                 return ResolvedType::Float
             return ResolvedType::Int
-        BinaryOp::Sub => return ResolvedType::Int
+        BinaryOp::Sub =>
+            return ResolvedType::Int
         BinaryOp::Mul =>
             if lt.display_name() == "Float" || rt.display_name() == "Float":
                 return ResolvedType::Float
             return ResolvedType::Int
-        BinaryOp::Div => return ResolvedType::Float
-        BinaryOp::Mod => return ResolvedType::Int
-        BinaryOp::Eq => return ResolvedType::Bool
-        BinaryOp::Ne => return ResolvedType::Bool
-        BinaryOp::Lt => return ResolvedType::Bool
-        BinaryOp::Gt => return ResolvedType::Bool
-        BinaryOp::Le => return ResolvedType::Bool
-        BinaryOp::Ge => return ResolvedType::Bool
-        BinaryOp::And => return ResolvedType::Bool
-        BinaryOp::Or => return ResolvedType::Bool
-        _ => return ResolvedType::Int
+        BinaryOp::Div =>
+            return ResolvedType::Float
+        BinaryOp::Mod =>
+            return ResolvedType::Int
+        BinaryOp::Eq =>
+            return ResolvedType::Bool
+        BinaryOp::Ne =>
+            return ResolvedType::Bool
+        BinaryOp::Lt =>
+            return ResolvedType::Bool
+        BinaryOp::Gt =>
+            return ResolvedType::Bool
+        BinaryOp::Le =>
+            return ResolvedType::Bool
+        BinaryOp::Ge =>
+            return ResolvedType::Bool
+        BinaryOp::And =>
+            return ResolvedType::Bool
+        BinaryOp::Or =>
+            return ResolvedType::Bool
+        _ =>
+            return ResolvedType::Int
 
 fn infer_unary_result(op: UnaryOp, vt: ResolvedType) -> ResolvedType:
     match op:
-        UnaryOp::Not => return ResolvedType::Bool
-        UnaryOp::Negate => return vt
-        _ => return vt
+        UnaryOp::Not =>
+            return ResolvedType::Bool
+        UnaryOp::Negate =>
+            return vt
+        _ =>
+            return vt
 
 # - Declaration pre-scan (collect names before type-checking bodies) -
 
@@ -390,13 +466,16 @@ fn prescan_program(env: TypeEnv, program: Program) -> Unit:
             TopLevelItem::Function(f) =>
                 let ret_ty = ResolvedType::Unit
                 match f.return_type:
-                    Option::Some(rty) => ret_ty = resolve_type_expr(env, rty)
-                    _ => ()
+                    Option::Some(rty) =>
+                        ret_ty = resolve_type_expr(env, rty)
+                    _ =>
+                        ()
                 typeenv_register_fn(env, f.name, ret_ty)
             TopLevelItem::Const(c) =>
                 let cty = resolve_type_expr(env, c.ty)
                 typeenv_define(env, c.name, cty)
-            _ => ()
+            _ =>
+                ()
 
 # - Function typechecking -
 
@@ -410,8 +489,10 @@ fn check_fn(env: TypeEnv, fndef: FnDef) -> TypedFn:
 
     let ret_ty = ResolvedType::Unit
     match fndef.return_type:
-        Option::Some(rty) => ret_ty = resolve_type_expr(env, rty)
-        _ => ()
+        Option::Some(rty) =>
+            ret_ty = resolve_type_expr(env, rty)
+        _ =>
+            ()
 
     # Check statements (simplified - just walk and define let bindings)
     for stmt in fndef.body:
@@ -425,14 +506,20 @@ fn check_stmt(env: TypeEnv, stmt: Stmt) -> Unit:
         Stmt::Let(let_s) =>
             let val_ty = ResolvedType::Unknown
             match let_s.value:
-                Option::Some(val_expr) => val_ty = infer_expr(env, val_expr)
-                _ => ()
+                Option::Some(val_expr) =>
+                    val_ty = infer_expr(env, val_expr)
+                _ =>
+                    ()
             match let_s.ty:
-                Option::Some(ann_ty) => val_ty = resolve_type_expr(env, ann_ty)
-                _ => ()
+                Option::Some(ann_ty) =>
+                    val_ty = resolve_type_expr(env, ann_ty)
+                _ =>
+                    ()
             match let_s.pattern:
-                Pattern::Binding(name) => typeenv_define(env, name, val_ty)
-                _ => ()
+                Pattern::Binding(name) =>
+                    typeenv_define(env, name, val_ty)
+                _ =>
+                    ()
         Stmt::If(ifs) =>
             typeenv_push_scope(env)
             for s in ifs.then_branch.statements:
@@ -444,7 +531,8 @@ fn check_stmt(env: TypeEnv, stmt: Stmt) -> Unit:
                     for s in else_block.statements:
                         check_stmt(env, s)
                     typeenv_pop_scope(env)
-                _ => ()
+                _ =>
+                    ()
         Stmt::While(ws) =>
             typeenv_push_scope(env)
             for s in ws.body.statements:
@@ -453,12 +541,15 @@ fn check_stmt(env: TypeEnv, stmt: Stmt) -> Unit:
         Stmt::For(fs) =>
             typeenv_push_scope(env)
             match fs.pattern:
-                Pattern::Binding(name) => typeenv_define(env, name, ResolvedType::Unknown)
-                _ => ()
+                Pattern::Binding(name) =>
+                    typeenv_define(env, name, ResolvedType::Unknown)
+                _ =>
+                    ()
             for s in fs.body.statements:
                 check_stmt(env, s)
             typeenv_pop_scope(env)
-        _ => ()
+        _ =>
+            ()
 
 # - Program typechecking -
 

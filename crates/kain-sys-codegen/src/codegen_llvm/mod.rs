@@ -1319,6 +1319,18 @@ impl LlvmGenerator {
         }
     }
 
+    fn struct_name_and_ptr_type(&self, ty: &str) -> Option<(String, String)> {
+        if let Some(struct_name) = self.ptr_struct_name(ty) {
+            return Some((struct_name.to_string(), ty.to_string()));
+        }
+
+        if ty.starts_with('%') {
+            return Some((ty[1..].to_string(), format!("{}*", ty)));
+        }
+
+        None
+    }
+
     fn field_index(&self, struct_name: &str, field: &str) -> Option<usize> {
         self.struct_defs
             .get(struct_name)?
@@ -1397,6 +1409,29 @@ impl LlvmGenerator {
                         self.emit(&format!(
                             "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
                             field_ptr, struct_name, obj_ty, obj_val, index
+                        ));
+                        Ok((field_ptr, field_ty))
+                    } else if obj_ty.starts_with('%') {
+                        let tmp_addr = self.next_reg();
+                        self.emit(&format!("  {} = alloca {}", tmp_addr, obj_ty));
+                        self.emit(&format!(
+                            "  store {} {}, {}* {}",
+                            obj_ty, obj_val, obj_ty, tmp_addr
+                        ));
+                        let field_ty = self
+                            .struct_defs
+                            .get(&struct_name)
+                            .and_then(|fields| fields.get(index))
+                            .map(|(_, ty)| ty.clone())
+                            .unwrap_or_else(|| "i64".to_string());
+                        let field_ptr = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
+                            field_ptr,
+                            struct_name,
+                            format!("{}*", obj_ty),
+                            tmp_addr,
+                            index
                         ));
                         Ok((field_ptr, field_ty))
                     } else {
@@ -3593,10 +3628,8 @@ impl LlvmGenerator {
                 field,
                 span,
             } => {
-                let (obj_val, obj_ty) = self.compile_expr(object)?;
-                if let Some(struct_name) =
-                    self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
-                {
+                let (obj_val, obj_ty) = self.compile_addressable_ptr(object)?;
+                if let Some((struct_name, ptr_ty)) = self.struct_name_and_ptr_type(&obj_ty) {
                     if let Some(index) = self.field_index(&struct_name, field) {
                         let field_ty = self
                             .struct_defs
@@ -3607,7 +3640,7 @@ impl LlvmGenerator {
                         let field_ptr = self.next_reg();
                         self.emit(&format!(
                             "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                            field_ptr, struct_name, obj_ty, obj_val, index
+                            field_ptr, struct_name, ptr_ty, obj_val, index
                         ));
                         let loaded = self.next_reg();
                         self.emit(&format!(
@@ -3646,10 +3679,8 @@ impl LlvmGenerator {
                     }
                 }
                 Expr::Field { object, field, .. } => {
-                    let (obj_val, obj_ty) = self.compile_expr(object)?;
-                    if let Some(struct_name) =
-                        self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
-                    {
+                    let (obj_val, obj_ty) = self.compile_addressable_ptr(object)?;
+                    if let Some((struct_name, ptr_ty)) = self.struct_name_and_ptr_type(&obj_ty) {
                         if let Some(index) = self.field_index(&struct_name, field) {
                             let field_ty = self
                                 .struct_defs
@@ -3662,7 +3693,7 @@ impl LlvmGenerator {
                             let field_ptr = self.next_reg();
                             self.emit(&format!(
                                 "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                                field_ptr, struct_name, obj_ty, obj_val, index
+                                field_ptr, struct_name, ptr_ty, obj_val, index
                             ));
                             self.emit(&format!(
                                 "  store {} {}, {}* {}",

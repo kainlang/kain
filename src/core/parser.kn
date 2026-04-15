@@ -138,6 +138,10 @@ fn ps_expect_sym(ps: ParseState, sym: String) -> Bool:
     push(ps.errors, "expected '" + sym + "' at line " + str(ps_peek(ps).row))
     return false
 
+fn ps_consume_sym(ps: ParseState, sym: String) -> Unit:
+    let _ = ps_expect_sym(ps, sym)
+    ()
+
 fn ps_consume_ident(ps: ParseState) -> String:
     let tok = ps_peek(ps)
     if tok_is_ident(tok):
@@ -173,22 +177,27 @@ fn empty_path(file_name: String) -> Path:
 
 # - Type expressions -
 
+fn parse_type_expr_group(ps: ParseState) -> TypeExpr:
+    ps_consume_sym(ps, "(")
+    if ps_at_sym(ps, ")"):
+        ps_consume_sym(ps, ")")
+        return TypeExpr::Unit
+    let first = parse_type_expr(ps)
+    if ps_at_sym(ps, ","):
+        let items = [first]
+        while ps_at_sym(ps, ","):
+            ps_advance(ps)
+            if !ps_at_sym(ps, ")"):
+                push(items, parse_type_expr(ps))
+        ps_expect_sym(ps, ")")
+        return TypeExpr::Tuple(items)
+    ps_expect_sym(ps, ")")
+    return first
+
 fn parse_type_expr(ps: ParseState) -> TypeExpr:
     # Unit type  ()
     if ps_at_sym(ps, "("):
-        let start = ps_peek(ps)
-        ps_advance(ps)
-        if ps_at_sym(ps, ")"):
-            ps_advance(ps)
-            return TypeExpr::Unit
-        # Tuple type  (A, B, ...)
-        let items = []
-        push(items, parse_type_expr(ps))
-        while ps_at_sym(ps, ","):
-            ps_advance(ps)
-            push(items, parse_type_expr(ps))
-        ps_expect_sym(ps, ")")
-        return TypeExpr::Tuple(items)
+        return parse_type_expr_group(ps)
 
     # Never type
     if ps_at_sym(ps, "!"):

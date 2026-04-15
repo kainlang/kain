@@ -1,0 +1,103 @@
+[package]
+name = "kain-owned-selfhost"
+version = "0.1.0"
+description = "Manifest-first hand-written selfhost lane for src/core using the native C runtime."
+
+[build]
+entry = "src/core/kainc.kn"
+entry_module = "kainc"
+source_root = "src/core"
+source_order = [
+    "src/core/stdlib.kn",
+    "src/core/language_features.kn",
+    "src/core/span.kn",
+    "src/core/error.kn",
+    "src/core/diagnostic.kn",
+    "src/core/effects.kn",
+    "src/core/low_level_memory_metadata.kn",
+    "src/core/low_level_abi.kn",
+    "src/core/ast.kn",
+    "src/core/lexer.kn",
+    "src/core/parser.kn",
+    "src/core/runtime.kn",
+    "src/core/comptime.kn",
+    "src/core/types.kn",
+    "src/core/low_level_memory.kn",
+    "src/core/codegen_llvm.kn",
+    "src/core/kainc.kn",
+]
+module_roots = ["src/core"]
+module_search_paths = ["src/core"]
+bootstrap_strategy = "aggregate_source"
+future_frontend_mode = "manifest_module_graph"
+
+[selfhost]
+mode = "thin_host"
+lane = "owned-bootstrap"
+target = "llvm-native"
+runtime_owner = "c_runtime"
+bootstrap_owner = "cli_selfhost_command"
+default_cli_command = "kain selfhost bootstrap"
+default_wrapper = "src/build_selfhost.sh"
+
+[selfhost.runtime]
+manifest_path = "runtime/native_runtime.toml"
+compile_script = "runtime/compile_native_runtime.sh"
+build_mode = "reuse_or_build"
+artifact_root = "generated/native_runtime"
+cache_root = "generated/native_runtime/cache"
+
+[selfhost.outputs]
+root = "src/.selfhost"
+combined_source_path = "src/.selfhost/bootstrap/combined/kain_core_bootstrap.kn"
+llvm_output_path = "src/.selfhost/bootstrap/out/kain_core_bootstrap.ll"
+native_output_path = "src/.selfhost/bootstrap/out/kainc"
+runtime_contract_path = "src/.selfhost/bootstrap/out/kain_core_bootstrap.runtime_contract.json"
+realtime_app_path = "src/.selfhost/bootstrap/out/kain_core_bootstrap.realtime_app.json"
+shader_bundle_path = "src/.selfhost/bootstrap/out/kain_shader_bundle.json"
+reports_root = "src/.selfhost/reports"
+json_report_path = "src/.selfhost/reports/bootstrap_report.json"
+markdown_report_path = "src/.selfhost/reports/bootstrap_report.md"
+ouroboros_root = "src/.selfhost/ouroboros"
+ouroboros_llvm_path = "src/.selfhost/ouroboros/kain_core_bootstrap.stage2.ll"
+ouroboros_json_report_path = "src/.selfhost/reports/ouroboros_report.json"
+ouroboros_markdown_report_path = "src/.selfhost/reports/ouroboros_report.md"
+
+[selfhost.verify]
+mode = "deterministic_recompile"
+comparison_target = "llvm_text"
+fail_on_missing_artifact = true
+fail_on_nonzero_exit = true
+
+[ffi]
+enabled = true
+policy = "bootstrap_assistance_only"
+
+[ffi.c]
+enabled = true
+search_paths = [
+    "runtime/native/include",
+    "runtime/3rdparty/libuv/include",
+]
+allowed_roles = [
+    "native_runtime_abi",
+    "runtime_services",
+    "native_link_dependencies",
+]
+
+[ffi.rust]
+enabled = true
+allowed_roles = [
+    "filesystem",
+    "path_resolution",
+    "environment",
+    "process_launch",
+    "toml_json_loading",
+    "report_emission",
+]
+forbidden_roles = [
+    "parser_logic",
+    "typechecker_logic",
+    "lowering_logic",
+    "codegen_logic",
+]

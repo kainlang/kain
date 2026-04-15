@@ -173,25 +173,45 @@ Current native-ui packaging rule for C ABI imports:
 - `kain-c-ffi` is no longer only an `Interpret`/`Test` lane concern. The Rust/native-ui packaging lane now emits packaged bridge manifests, copies bridge/shared-library sidecars into the app artifact set, and has the generated native app launcher load those packaged bridges before boot.
 - This does not mean the current native UI host is a full general-purpose Kain interpreter. The lane is still bundle-driven; the packaging change makes foreign bridge dependencies explicit and shippable rather than hidden behind cache-local host-backed behavior.
 
-### Selfhost mirror pipeline
+### Selfhost lanes
 
-The current selfhost lane is no longer only a crate-level bundle export. It now has a file-preserving mirror pipeline:
+The repo now has two explicit selfhost lanes under the same `kain selfhost` control plane:
 
-- The active owned language surface lives under `src/core`; treat that folder as the canonical hand-authored core tree for the current bootstrap/selfhost wave.
+- the Rust mirror/reference lane
+- the hand-written owned bootstrap/native lane
+
+The hand-written lane is the promotion target. The Rust mirror lane is reference and oracle infrastructure.
+
+#### Rust mirror/reference lane
+
+- The active owned language surface still lives under `src/core`, but the mirror lane materializes reference output under `src/.rustimport/phase2`.
 - `src/.rustimport/reference` is the moved donor corpus from the earlier Rust import lane; do not hand-edit it.
 - `crates/kain-import` imports Rust selfhost crates per source file/module and exposes per-file typed `Program` results.
 - `crates/cli/src/selfhost.rs` consumes those file-level imports through a data-driven `SelfHostSourceProfile`.
 - The default profile lives at `ouroboros/docs/selfhost/metadata/selfhost_source_profile.json`.
-- The current bootstrap priority is the `kain` executable: the default phase2 profile keeps `cli` ahead of `kain-sys-codegen` so executable parity is proven before backend expansion.
-- Phase output now emits three aligned artifact families:
+- The current mirror priority is still executable-first: the default phase2 profile keeps `cli` ahead of `kain-sys-codegen` so executable parity is proven before backend expansion.
+- Phase output emits three aligned artifact families:
   - canonical Kain mirrors under `src/.rustimport/phase2/<crate>/...` or the profile-configured canonical root
   - output-local mirror copies under `<phase-output>/mirror/src/<crate>/...`
   - a `source_correspondence_manifest.json` that records exact Rust-to-Kain path correspondence per file
 - Phase2 still writes aggregate `<crate>.kn` and `<crate>.roundtrip.rs` compatibility artifacts because the active frontend/codegen path is still single-source-string oriented.
-- Phase2 roundtrip Rust is then split back into a file-preserving tree under `<phase-output>/roundtrip_rust/<crate>/src/...`, and stage2 workspace assembly copies that tree into `stage2_workspace/crates/<crate>/src/...`.
 - `kain selfhost phase1|phase2 --force` keeps emitting mirrors, manifests, aggregate bundles, and any later-crate artifacts even when earlier crates fail. The command still reports `hard_fail`, but it no longer discards the partial artifact graph.
 
-The important rule is: the file-preserving mirror tree is now the primary structural artifact, while the current bootstrap priority is the `kain` executable. The aggregate `.kn`/`.roundtrip.rs` files are temporary compatibility bridges until Kain grows a true multi-file frontend.
+#### Hand-written bootstrap/native lane
+
+- `src/core` is the canonical owned compiler surface.  
+- `src/KAIN.toml` is the canonical hand-written selfhost contract.  
+- `runtime/native_runtime.toml` is the canonical native runtime contract.  
+- `kain selfhost bootstrap` is the owned lane entrypoint, and `src/build_selfhost.sh` is only a thin wrapper around that CLI path.  
+- `src/.selfhost/` is the canonical artifact/report root for the owned lane.  
+- The owned lane may temporarily assemble an aggregate bootstrap source from ordered `src/core` files, but that aggregate source is a compatibility bridge, not the end-state module system.  
+- Current state on 2026-04-15: `kain selfhost bootstrap --combine-only` succeeds and emits the combined owned source plus reports, but `--emit-llvm-only` still fails with parser errors in the current owned `src/core` source set, concentrated in `runtime.kn` and `types.kn`. That is the present blocker for a native self-build.  
+- The architectural boundary is strict:
+  - Rust is allowed to own manifest loading, filesystem/path/env/process helpers, report emission, and runtime artifact discovery during bootstrap.  
+  - Rust must not remain the permanent owner of parser, typechecker, lowering, or backend/codegen logic on the real compile path.  
+  - The native C runtime is not optional in this lane. The produced native `kainc` is expected to link against the real runtime bundle defined by `runtime/native_runtime.toml`, not a guessed `-lkain_runtime` string or a Rust-host substitute.  
+
+The important rule is: the mirror lane proves reference and repair behavior, while the owned lane proves real selfhost direction. Keep the Rust mirror lane available for comparison, but promote the manifest-first hand-written lane as the compiler that is supposed to survive once bootstrap is over.
 
 ### Compute pipeline flow
 
@@ -320,6 +340,10 @@ Typical commands:
 - `kain selfhost phase2 --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false` for mirror-only validation without forcing the roundtrip/build lane
 - `kain selfhost phase2 --force` to keep partial selfhost artifacts even when one crate trips the current phase2 blockers
 - `kain selfhost phase2 --all-crates --emit-roundtrip-rust false --assemble-stage2 false --build-stage2 false --force` to mirror every discovered `crates/*/Cargo.toml` workspace crate into `src/.rustimport/phase2/` and preserve the full forced artifact graph
+- `kain selfhost bootstrap --combine-only` to validate `src/KAIN.toml` resolution and ordered `src/core` source assembly
+- `kain selfhost bootstrap --emit-llvm-only` to validate the owned lane through LLVM plus native sidecar staging without linking
+- `kain selfhost bootstrap --link-native` to drive the owned lane through native runtime resolution and final link
+- `kain selfhost bootstrap --verify-ouroboros` to run the first native self-recompile/parity check
 - `kain omni build`
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
@@ -384,6 +408,9 @@ If the debug CLI is missing:
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - Runtime conformance harnesses that compile `kain_runtime_services.c` or `kain_runtime_contract.c` in isolation must also compile `runtime/native/src/vendor/kain_runtime_vendor_lane.c` or define `KAIN_RUNTIME_VENDOR_STUBS_ONLY=1`; the service catalog now has real vendor-backed function-table references.
 - The native runtime now has two companion metadata surfaces: `runtime/native_runtime.toml` is the manifest/build truth, and `runtime/native_runtime_metadata.json` is the tooling-facing reflection of that truth. When services, platforms, defines, sources, or link dependencies change, update both together.
+- The owned selfhost lane has the same split-contract rule: `src/KAIN.toml` is the hand-written compiler manifest, and `runtime/native_runtime.toml` is the native runtime manifest. Do not hide compiler source ordering, artifact paths, or runtime linkage behind hardcoded CLI assumptions once the manifest exists.
+- The owned bootstrap lane should never report success just because an earlier artifact still exists on disk. If `kain selfhost bootstrap` emits compile, runtime, or link errors and the expected artifact set was not freshly produced, that is a hard failure even if stale `.ll`, `.json`, or native binary files remain under `src/.selfhost/`.
+- The aggregate bootstrap source under `src/.selfhost/phase0/combined/` is an explicit temporary bridge. Future work should widen `src/KAIN.toml` and the frontend toward a real multi-file module graph instead of treating the combined source file as the permanent compiler shape.
 - `tools/kain-flight-control/config/server.toml` is the deterministic registry for repo-aware MCP behavior. Add new lanes, commands, artifact families, and pairing rules there first; keep the Go server generic and avoid smuggling repo paths into code.
 - Platform-specific vendor support should be expressed explicitly in the manifest rather than implied by global defines. The native runtime manifest now carries shared `defines` plus per-platform `windows_defines`, `linux_defines`, and `macos_defines`; prefer those over leaking POSIX-only flags into Windows builds.
 - The native runtime now supports mixed C/C++ source bundles in the manifest-driven build path. Use that for Kain-owned wrapper and bridge layers, but keep the public runtime/service surface C/Kain-owned even when vendor implementation lives in C++.

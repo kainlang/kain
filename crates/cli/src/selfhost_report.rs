@@ -336,6 +336,242 @@ pub fn render_phase1_markdown(report: &SelfHostPhase1Report) -> String {
     render_phase_markdown("Self-Host Phase 1", report)
 }
 
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SelfHostBootstrapArtifacts {
+    pub combined_source_path: Option<String>,
+    pub llvm_output_path: Option<String>,
+    pub native_output_path: Option<String>,
+    pub runtime_contract_path: Option<String>,
+    pub realtime_app_path: Option<String>,
+    pub compute_residency_path: Option<String>,
+    pub compute_residency_payload_paths: Vec<String>,
+    pub shader_bundle_path: Option<String>,
+    pub runtime_object_paths: Vec<String>,
+    pub runtime_archive_paths: Vec<String>,
+    pub ouroboros_llvm_output_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SelfHostBootstrapStepReport {
+    pub step_name: String,
+    pub status: SelfHostPhaseStatus,
+    pub detail: String,
+    pub artifacts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SelfHostBootstrapReport {
+    pub generated_at_utc: String,
+    pub repo_root: String,
+    pub manifest_path: String,
+    pub package_name: String,
+    pub package_version: String,
+    pub compiler_entry: String,
+    pub bootstrap_mode: String,
+    pub bootstrap_host_mode: String,
+    pub source_root: String,
+    pub source_files: Vec<String>,
+    pub module_roots: Vec<String>,
+    pub search_paths: Vec<String>,
+    pub runtime_manifest_path: String,
+    pub runtime_build_script_path: String,
+    pub runtime_cache_root: String,
+    pub root_component: Option<String>,
+    pub ffi_shared_libraries: Vec<String>,
+    pub ffi_link_libs: Vec<String>,
+    pub artifacts: SelfHostBootstrapArtifacts,
+    pub steps: Vec<SelfHostBootstrapStepReport>,
+    pub blocker_classification: String,
+    pub error_message: Option<String>,
+    pub final_phase_status: SelfHostPhaseStatus,
+}
+
+pub fn render_bootstrap_markdown(report: &SelfHostBootstrapReport) -> String {
+    let mut out = String::new();
+    out.push_str("# Self-Host Bootstrap Report\n\n");
+    out.push_str(&format!("- Generated at: `{}`\n", report.generated_at_utc));
+    out.push_str(&format!("- Repo root: `{}`\n", report.repo_root));
+    out.push_str(&format!("- Manifest: `{}`\n", report.manifest_path));
+    out.push_str(&format!("- Package: `{}` (`{}`)\n", report.package_name, report.package_version));
+    out.push_str(&format!("- Compiler entry: `{}`\n", report.compiler_entry));
+    out.push_str(&format!("- Bootstrap mode: `{}`\n", report.bootstrap_mode));
+    out.push_str(&format!(
+        "- Bootstrap host mode: `{}`\n",
+        report.bootstrap_host_mode
+    ));
+    out.push_str(&format!("- Source root: `{}`\n", report.source_root));
+    out.push_str(&format!(
+        "- Runtime manifest: `{}`\n",
+        report.runtime_manifest_path
+    ));
+    out.push_str(&format!(
+        "- Runtime build script: `{}`\n",
+        report.runtime_build_script_path
+    ));
+    out.push_str(&format!(
+        "- Runtime cache root: `{}`\n",
+        report.runtime_cache_root
+    ));
+    out.push_str(&format!(
+        "- Final status: `{}`\n",
+        status_label(&report.final_phase_status)
+    ));
+    out.push_str(&format!(
+        "- Blocker classification: `{}`\n",
+        report.blocker_classification
+    ));
+    if let Some(error_message) = &report.error_message {
+        out.push_str(&format!(
+            "- Error: `{}`\n",
+            error_message.replace('`', "'")
+        ));
+    }
+    if let Some(root_component) = &report.root_component {
+        out.push_str(&format!("- Root component: `{}`\n", root_component));
+    }
+    out.push('\n');
+
+    out.push_str("## Sources\n\n");
+    if report.source_files.is_empty() {
+        out.push_str("- none\n");
+    } else {
+        for source_file in &report.source_files {
+            out.push_str(&format!("- `{}`\n", source_file));
+        }
+    }
+
+    out.push_str("\n## Module roots\n\n");
+    if report.module_roots.is_empty() {
+        out.push_str("- none\n");
+    } else {
+        for module_root in &report.module_roots {
+            out.push_str(&format!("- `{}`\n", module_root));
+        }
+    }
+
+    out.push_str("\n## Search paths\n\n");
+    if report.search_paths.is_empty() {
+        out.push_str("- none\n");
+    } else {
+        for search_path in &report.search_paths {
+            out.push_str(&format!("- `{}`\n", search_path));
+        }
+    }
+
+    out.push_str("\n## FFI\n\n");
+    if report.ffi_shared_libraries.is_empty() {
+        out.push_str("- Shared libraries: `none`\n");
+    } else {
+        out.push_str("- Shared libraries:\n");
+        for shared_library in &report.ffi_shared_libraries {
+            out.push_str(&format!("  - `{}`\n", shared_library));
+        }
+    }
+    if report.ffi_link_libs.is_empty() {
+        out.push_str("- Link libs: `none`\n");
+    } else {
+        out.push_str("- Link libs:\n");
+        for link_lib in &report.ffi_link_libs {
+            out.push_str(&format!("  - `{}`\n", link_lib));
+        }
+    }
+
+    out.push_str("\n## Artifacts\n\n");
+    write_artifact_line(
+        &mut out,
+        "Combined source",
+        report.artifacts.combined_source_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "LLVM output",
+        report.artifacts.llvm_output_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Native output",
+        report.artifacts.native_output_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Runtime contract",
+        report.artifacts.runtime_contract_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Realtime app",
+        report.artifacts.realtime_app_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Compute residency",
+        report.artifacts.compute_residency_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Shader bundle",
+        report.artifacts.shader_bundle_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Ouroboros LLVM output",
+        report.artifacts.ouroboros_llvm_output_path.as_deref(),
+    );
+    if report.artifacts.compute_residency_payload_paths.is_empty() {
+        out.push_str("- Compute residency payloads: `none`\n");
+    } else {
+        out.push_str("- Compute residency payloads:\n");
+        for payload_path in &report.artifacts.compute_residency_payload_paths {
+            out.push_str(&format!("  - `{}`\n", payload_path));
+        }
+    }
+    if report.artifacts.runtime_object_paths.is_empty() {
+        out.push_str("- Runtime objects: `none`\n");
+    } else {
+        out.push_str("- Runtime objects:\n");
+        for object_path in &report.artifacts.runtime_object_paths {
+            out.push_str(&format!("  - `{}`\n", object_path));
+        }
+    }
+    if report.artifacts.runtime_archive_paths.is_empty() {
+        out.push_str("- Runtime archives: `none`\n");
+    } else {
+        out.push_str("- Runtime archives:\n");
+        for archive_path in &report.artifacts.runtime_archive_paths {
+            out.push_str(&format!("  - `{}`\n", archive_path));
+        }
+    }
+
+    out.push_str("\n## Steps\n\n");
+    if report.steps.is_empty() {
+        out.push_str("- none\n");
+    } else {
+        for step in &report.steps {
+            out.push_str(&format!(
+                "- `{}`: `{}` - {}\n",
+                step.step_name,
+                status_label(&step.status),
+                step.detail.replace('`', "'")
+            ));
+            if !step.artifacts.is_empty() {
+                out.push_str("  - Artifacts:\n");
+                for artifact in &step.artifacts {
+                    out.push_str(&format!("    - `{}`\n", artifact));
+                }
+            }
+        }
+    }
+
+    out
+}
+
+fn write_artifact_line(out: &mut String, label: &str, value: Option<&str>) {
+    match value {
+        Some(value) => out.push_str(&format!("- {}: `{}`\n", label, value)),
+        None => out.push_str(&format!("- {}: `<none>`\n", label)),
+    }
+}
+
 fn status_label(status: &SelfHostPhaseStatus) -> &'static str {
     match status {
         SelfHostPhaseStatus::Pass => "pass",

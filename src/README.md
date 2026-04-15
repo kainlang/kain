@@ -27,6 +27,7 @@ This file is the raw vision / motivation note.
 For the durable selfhost execution contract, read:
 
 - `src/SELFHOST_DIRECTION.md`
+- `src/KAIN.toml`
 
 Short version:
 
@@ -34,3 +35,16 @@ Short version:
 - `src/core` should own the hand-written compiler
 - `.legacy` should inform stage structure, not runtime semantics
 - Rust is allowed as temporary bootstrap host substrate only, not as the permanent owner of compiler passes
+
+## Active Bootstrap Surface
+
+- `src/KAIN.toml` is now the repo-root-facing contract for the owned lane.
+- `src/build_selfhost.sh` is the thin operator wrapper over `kain selfhost bootstrap`.
+- `src/.selfhost/` is the generated artifact root for combined sources, LLVM outputs, reports, and ouroboros verification outputs.
+
+The owned lane is still allowed to use the current aggregate-source bootstrap as a compatibility bridge.
+That does not change the long-term direction:
+
+- the manifest already carries module roots and search paths for the real multi-file frontend
+- the native C runtime remains the canonical runtime substrate
+- the hand-written compiler path stays the promotion target, not the Rust-import mirror lane

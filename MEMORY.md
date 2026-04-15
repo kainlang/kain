@@ -6,6 +6,8 @@
 - If Codex reports a usage-limit error, verify the actual CLI output before assuming any seat-switch workaround.
 - The user wants frequent updates while the pipeline is active, especially when branches, specs, or heartbeat behavior change.
 - Kaino should keep the heartbeat/operator guidance current in this workspace so future passes stay aligned.
+- 2026-04-15 bootstrap update: `kain selfhost bootstrap` now exists as the owned hand-written lane entrypoint, `src/KAIN.toml` is the manifest contract, `src/build_selfhost.sh` is just a wrapper, and the bootstrap report machinery now emits JSON/Markdown under `src/.selfhost/reports/`.
+- The bootstrap harness is partially green: `--combine-only` passes and writes the combined source artifact, but `--emit-llvm-only` currently hard-fails inside the owned `src/core` source set with parser errors concentrated in `runtime.kn` and `types.kn`. The immediate blocker is language/source compatibility, not the CLI wrapper or report plumbing.
 - Added a 3D platform uplift in `crates/kain-3D`: primitive libraries now export richer scene metadata (`definition_count`, `definition_ids`, and startup primitive display name) when registered into an authoring scene, which makes the library more self-describing for tooling and runtime composition.
 - Added `SceneDescription::composition_summary(...)` plus a shared bounds helper in `crates/kain-3D`, so tooling can ask a scene for counts and framing data in one pass instead of re-deriving it ad hoc.
 - Validation was blocked by the local Windows GNU toolchain, not by the change itself. `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed while linking build scripts because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
@@ -26,6 +28,41 @@
 - New Kain 3D pass (2026-04-14): `templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn` now carries explicit `composition_policy` and `framing_policy` fields on `ViewportDescriptor`, with the default profile bound to `scene_summary_driven_and_launch_preset_bound` and `bounds_fov_and_aspect_ratio_fit`. This makes viewport launch contracts line up with the scene-summary/framing work already landing in `crates/kain-3D`, and the template README now calls out the policy explicitly for future authors.
 - New Kain 3D pass (2026-04-14): `SceneBounds` now exposes a dominant-axis label, and `SceneCompositionSummary::brief_label()` appends a simple wide/tall/deep cue next to the span, so tooling can read scene proportions faster from logs and frame metadata. This is a small but practical authoring/tooling improvement for 3D composition debugging. Validation hit the same environment blocker as other local runs: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed during dependency linking because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now carries the viewport aspect ratio and includes it in `brief_label()`, so frame diagnostics can report the actual render shape alongside bounds and camera fit instead of leaving aspect implicit. Added a regression assertion that the summary label includes `aspect 1.00:1` for the default path. Validation pending.
+# 2026-04-15 - Ouroboros now has an explicit owned bootstrap/native control-plane contract
+
+The durable selfhost direction is now split cleanly into two lanes under the same Ouroboros control plane: the existing Rust mirror/reference lane and the hand-written owned bootstrap/native lane. The Rust mirror lane remains useful as donor, oracle, and repair infrastructure, but the hand-written lane is now the explicit promotion target for real selfhost.
+
+What changed:
+
+- Updated `ouroboros/docs/selfhost/pipeline_manifest.json`
+  - Added `owned-bootstrap`, `owned-native`, and `owned-ouroboros` lanes beside the existing `phase2-*` lanes.
+  - Added default path contracts for `src/KAIN.toml`, `src/.selfhost/`, the native runtime manifest, the runtime build script, and the first owned artifact outputs.
+  - Recorded consumes/produces, success criteria, and validation commands for each owned lane so the control plane can track the hand-written bootstrap path without inventing a second planner.
+- Updated `ouroboros/docs/selfhost/ouroboros-v2-selfhost-pipeline.md`
+  - Reframed the selfhost docs around two lanes instead of only the Rust mirror lane.
+  - Added owned-lane gates for manifest/runtime resolution, owned compiler emission, native self-build, and ouroboros parity.
+- Updated `ARCHITECTURE.md`
+  - Replaced the old mirror-only selfhost description with an explicit two-lane model.
+  - Made `src/KAIN.toml` the canonical hand-written compiler contract and `runtime/native_runtime.toml` the canonical native runtime contract.
+  - Recorded the bootstrap boundary: Rust may remain the thin host for manifest/filesystem/process/reporting work during bootstrap, but it should not stay the permanent owner of parser/typechecker/lowering/codegen once the hand-written lane is alive.
+  - Added new operator notes for `kain selfhost bootstrap` and for false-green prevention under `src/.selfhost/`.
+
+Design decisions:
+
+- Kept the C runtime as the canonical native runtime substrate for the owned selfhost lane instead of trying to invent a runtime-free or Rust-hosted definition of native execution.
+- Treated the aggregate bootstrap source under `src/.selfhost/phase0/combined/` as an explicit temporary compatibility bridge, not as the end-state module system.
+- Chose to model the owned lane in the same Ouroboros manifest as the Rust mirror lane so future agents can compare, validate, and promote both lanes from one data-driven control plane.
+
+Current risks:
+
+- The docs now describe the owned bootstrap lane as the canonical direction, but the implementation still has to keep the emitted artifact set and the manifest fields in sync with those docs.
+- The owned manifest and runtime manifest are now separate contracts by design. If either of them drifts from the CLI/bootstrap implementation, operators will get a structurally correct story and an incorrect tool.
+- The owned lane will be vulnerable to false greens unless the CLI treats missing fresh artifacts as hard failures even when stale outputs remain under `src/.selfhost/`.
+
+Recommended next step:
+
+- Land and validate `kain selfhost bootstrap` so the owned control-plane entries are exercised by real commands, then add a strict parity check for the expected `src/.selfhost/` artifact family once the first end-to-end native self-build is green.
+
 # 2026-04-14 - Three.js Node FFI lab grew into a sculpt suite with a Rust WASM core
 
 The existing browser proof under `labs/threejs_node_ffi_space_lab/` is no longer only a free-fly sphere scene. It now acts as a small sculpting suite with a manifest-driven universal viewport and a local Rust `wasm32-unknown-unknown` brush kernel.

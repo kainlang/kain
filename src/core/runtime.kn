@@ -39,14 +39,19 @@ pub enum Value:
 impl Value:
     pub fn to_repr(self) -> String:
         match self:
-            Value::Unit => return "()"
+            Value::Unit =>
+                return "()"
             Value::Bool(b) =>
                 if b: return "true"
                 return "false"
-            Value::Int(n) => return str(n)
-            Value::Float(f) => return str(f)
-            Value::String_(s) => return s
-            Value::Char(c) => return c
+            Value::Int(n) =>
+                return str(n)
+            Value::Float(f) =>
+                return str(f)
+            Value::String_(s) =>
+                return s
+            Value::Char(c) =>
+                return c
             Value::Array(items) =>
                 let parts = "["
                 let is_first = true
@@ -55,31 +60,44 @@ impl Value:
                     parts = parts + item.to_repr()
                     is_first = false
                 return parts + "]"
-            Value::Null => return "null"
-            _ => return "<value>"
+            Value::Null =>
+                return "null"
+            _ =>
+                return "<value>"
 
     pub fn is_truthy(self) -> Bool:
         match self:
-            Value::Bool(b) => return b
-            Value::Int(n) => return n != 0
-            Value::String_(s) => return len(s) > 0
-            Value::Null => return false
-            Value::Unit => return false
-            _ => return true
+            Value::Bool(b) =>
+                return b
+            Value::Int(n) =>
+                return n != 0
+            Value::String_(s) =>
+                return len(s) > 0
+            Value::Null =>
+                return false
+            Value::Unit =>
+                return false
+            _ =>
+                return true
 
     pub fn as_int(self) -> Int:
         match self:
-            Value::Int(n) => return n
+            Value::Int(n) =>
+                return n
             Value::Bool(b) =>
                 if b: return 1
                 return 0
-            _ => return 0
+            _ =>
+                return 0
 
     pub fn as_float(self) -> Float:
         match self:
-            Value::Float(f) => return f
-            Value::Int(n) => return n * 1.0
-            _ => return 0.0
+            Value::Float(f) =>
+                return f
+            Value::Int(n) =>
+                return n * 1.0
+            _ =>
+                return 0.0
 
     pub fn as_string(self) -> String:
         return self.to_repr()
@@ -171,8 +189,10 @@ fn ctx_find_fn(ctx: RuntimeContext, name: String) -> Option<FnDef>:
 fn ctx_register_fns(ctx: RuntimeContext, program: Program) -> Unit:
     for item in program.items:
         match item:
-            TopLevelItem::Function(f) => push(ctx.functions, f)
-            _ => ()
+            TopLevelItem::Function(f) =>
+                push(ctx.functions, f)
+            _ =>
+                ()
 
 # - Builtin dispatch -
 
@@ -202,7 +222,8 @@ fn call_builtin(ctx: RuntimeContext, name: String, arg_vals: Array<Value>) -> Op
             match arg_vals[0]:
                 Value::Array(items) =>
                     push(items, arg_vals[1])
-                _ => ()
+                _ =>
+                    ()
         return Option::Some(Value::Unit)
     if name == "str":
         if len(arg_vals) > 0:
@@ -264,9 +285,12 @@ fn call_builtin(ctx: RuntimeContext, name: String, arg_vals: Array<Value>) -> Op
 
 fn value_len(v: Value) -> Value:
     match v:
-        Value::Array(items) => return Value::Int(len(items))
-        Value::String_(s) => return Value::Int(len(s))
-        _ => return Value::Int(0)
+        Value::Array(items) =>
+            return Value::Int(len(items))
+        Value::String_(s) =>
+            return Value::Int(len(s))
+        _ =>
+            return Value::Int(0)
 
 fn value_char_at(sv: Value, iv: Value) -> Value:
     match sv:
@@ -274,14 +298,16 @@ fn value_char_at(sv: Value, iv: Value) -> Value:
             let idx = iv.as_int()
             if idx >= 0 && idx < len(s):
                 return Value::String_(char_at(s, idx))
-        _ => ()
+        _ =>
+            ()
     return Value::String_("")
 
 # - Pattern matching -
 
 fn match_pattern(ctx: RuntimeContext, pat: Pattern, val: Value) -> Bool:
     match pat:
-        Pattern::Wildcard => return true
+        Pattern::Wildcard =>
+            return true
         Pattern::Binding(name) =>
             env_define(ctx.env, name, val, true)
             return true
@@ -293,7 +319,8 @@ fn match_pattern(ctx: RuntimeContext, pat: Pattern, val: Value) -> Bool:
             return values_equal(lit_val, val)
         Pattern::Enum(path, variant_name, pats) =>
             return match_enum_pattern(ctx, variant_name, pats, val)
-        _ => return false
+        _ =>
+            return false
 
 fn match_enum_pattern(ctx: RuntimeContext, variant_name: String, pats: Array<Pattern>, val: Value) -> Bool:
     match val:
@@ -306,40 +333,58 @@ fn match_enum_pattern(ctx: RuntimeContext, variant_name: String, pats: Array<Pat
                     return false
                 i = i + 1
             return true
-        _ => return false
+        _ =>
+            return false
 
 fn values_equal(a: Value, b: Value) -> Bool:
     match a:
         Value::Int(n1) =>
             match b:
-                Value::Int(n2) => return n1 == n2
-                _ => return false
+                Value::Int(n2) =>
+                    return n1 == n2
+                _ =>
+                    return false
         Value::Bool(b1) =>
             match b:
-                Value::Bool(b2) => return b1 == b2
-                _ => return false
+                Value::Bool(b2) =>
+                    return b1 == b2
+                _ =>
+                    return false
         Value::String_(s1) =>
             match b:
-                Value::String_(s2) => return s1 == s2
-                _ => return false
+                Value::String_(s2) =>
+                    return s1 == s2
+                _ =>
+                    return false
         Value::Unit =>
             match b:
-                Value::Unit => return true
-                _ => return false
+                Value::Unit =>
+                    return true
+                _ =>
+                    return false
         Value::Null =>
             match b:
-                Value::Null => return true
-                _ => return false
-        _ => return false
+                Value::Null =>
+                    return true
+                _ =>
+                    return false
+        _ =>
+            return false
 
 fn eval_literal(lit: Literal) -> Value:
     match lit:
-        Literal::Int(n) => return Value::Int(n)
-        Literal::Float(f) => return Value::Float(f)
-        Literal::String(s) => return Value::String_(s)
-        Literal::Char(c) => return Value::Char(c)
-        Literal::Bool(b) => return Value::Bool(b)
-        Literal::Unit => return Value::Unit
+        Literal::Int(n) =>
+            return Value::Int(n)
+        Literal::Float(f) =>
+            return Value::Float(f)
+        Literal::String(s) =>
+            return Value::String_(s)
+        Literal::Char(c) =>
+            return Value::Char(c)
+        Literal::Bool(b) =>
+            return Value::Bool(b)
+        Literal::Unit =>
+            return Value::Unit
 
 # - Expression evaluation helpers -
 # These helpers exist to avoid deeply-nested match arms in eval_expr which
@@ -354,8 +399,10 @@ fn eval_path_expr(ctx: RuntimeContext, path: Path) -> Value:
     if name == "none": return Value::Null
     let found = env_get(ctx.env, name)
     match found:
-        Option::Some(v) => return v
-        _ => return Value::Null
+        Option::Some(v) =>
+            return v
+        _ =>
+            return Value::Null
 
 fn eval_call_expr(ctx: RuntimeContext, call: CallExpr) -> Value:
     let callee_name = ""
@@ -363,18 +410,23 @@ fn eval_call_expr(ctx: RuntimeContext, call: CallExpr) -> Value:
         Expr::Path(p) =>
             if len(p.segments) > 0:
                 callee_name = p.segments[0].name
-        _ => ()
+        _ =>
+            ()
     let arg_vals = []
     for arg in call.args:
         push(arg_vals, eval_expr(ctx, arg))
     let builtin_result = call_builtin(ctx, callee_name, arg_vals)
     match builtin_result:
-        Option::Some(v) => return v
-        _ => ()
+        Option::Some(v) =>
+            return v
+        _ =>
+            ()
     let user_fn_opt = ctx_find_fn(ctx, callee_name)
     match user_fn_opt:
-        Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
-        _ => return Value::Null
+        Option::Some(f) =>
+            return call_user_fn(ctx, f, arg_vals)
+        _ =>
+            return Value::Null
 
 fn eval_method_call(ctx: RuntimeContext, mc: MethodCallExpr) -> Value:
     let recv_val = eval_expr(ctx, mc.receiver)
@@ -391,8 +443,10 @@ fn eval_method_call(ctx: RuntimeContext, mc: MethodCallExpr) -> Value:
         return value_len(recv_val)
     let user_fn_opt2 = ctx_find_fn(ctx, mc.method)
     match user_fn_opt2:
-        Option::Some(f) => return call_user_fn(ctx, f, arg_vals)
-        _ => return Value::Null
+        Option::Some(f) =>
+            return call_user_fn(ctx, f, arg_vals)
+        _ =>
+            return Value::Null
 
 fn eval_if_expr(ctx: RuntimeContext, ife: IfExpr) -> Value:
     let cond = eval_expr(ctx, ife.condition)
@@ -407,13 +461,17 @@ fn eval_if_else_branch(ctx: RuntimeContext, else_branch: Option<Block>) -> Value
         Option::Some(else_block) =>
             let sig = eval_block(ctx, else_block)
             return signal_to_value(sig)
-        _ => return Value::Unit
+        _ =>
+            return Value::Unit
 
 fn signal_to_value(sig: Signal) -> Value:
     match sig:
-        Signal::Return_(v) => return v
-        Signal::Break_(v) => return v
-        _ => return Value::Unit
+        Signal::Return_(v) =>
+            return v
+        Signal::Break_(v) =>
+            return v
+        _ =>
+            return Value::Unit
 
 fn eval_match_expr(ctx: RuntimeContext, me: MatchExpr) -> Value:
     let val = eval_expr(ctx, me.value)
@@ -448,7 +506,8 @@ fn eval_field_expr(ctx: RuntimeContext, fe: FieldExpr) -> Value:
     match base:
         Value::Struct_(_, field_names, field_vals) =>
             return find_field_val(field_names, field_vals, fe.field)
-        _ => return Value::Null
+        _ =>
+            return Value::Null
 
 fn find_field_val(field_names: Array<String>, field_vals: Array<Value>, field: String) -> Value:
     let i = 0
@@ -469,27 +528,42 @@ fn eval_index_expr(ctx: RuntimeContext, ie: IndexExpr) -> Value:
         Value::String_(s) =>
             if n >= 0 && n < len(s):
                 return Value::String_(char_at(s, n))
-        _ => ()
+        _ =>
+            ()
     return Value::Null
 
 # - Expression evaluation -
 
 fn eval_expr(ctx: RuntimeContext, expr: Expr) -> Value:
     match expr:
-        Expr::Literal(lit) => return eval_literal(lit)
-        Expr::Path(path) => return eval_path_expr(ctx, path)
-        Expr::Binary(bin) => return eval_binary(ctx, bin.left, bin.op, bin.right)
-        Expr::Unary(un) => return eval_unary(ctx, un.op, un.value)
-        Expr::Call(call) => return eval_call_expr(ctx, call)
-        Expr::MethodCall(mc) => return eval_method_call(ctx, mc)
-        Expr::If(ife) => return eval_if_expr(ctx, ife)
-        Expr::Match(me) => return eval_match_expr(ctx, me)
-        Expr::Array(items) => return eval_array_expr(ctx, items)
-        Expr::Tuple(items) => return eval_array_expr(ctx, items)
-        Expr::Field(fe) => return eval_field_expr(ctx, fe)
-        Expr::Index(ie) => return eval_index_expr(ctx, ie)
-        Expr::StructInit(si) => return eval_struct_init(ctx, si)
-        _ => return Value::Null
+        Expr::Literal(lit) =>
+            return eval_literal(lit)
+        Expr::Path(path) =>
+            return eval_path_expr(ctx, path)
+        Expr::Binary(bin) =>
+            return eval_binary(ctx, bin.left, bin.op, bin.right)
+        Expr::Unary(un) =>
+            return eval_unary(ctx, un.op, un.value)
+        Expr::Call(call) =>
+            return eval_call_expr(ctx, call)
+        Expr::MethodCall(mc) =>
+            return eval_method_call(ctx, mc)
+        Expr::If(ife) =>
+            return eval_if_expr(ctx, ife)
+        Expr::Match(me) =>
+            return eval_match_expr(ctx, me)
+        Expr::Array(items) =>
+            return eval_array_expr(ctx, items)
+        Expr::Tuple(items) =>
+            return eval_array_expr(ctx, items)
+        Expr::Field(fe) =>
+            return eval_field_expr(ctx, fe)
+        Expr::Index(ie) =>
+            return eval_index_expr(ctx, ie)
+        Expr::StructInit(si) =>
+            return eval_struct_init(ctx, si)
+        _ =>
+            return Value::Null
 
 fn eval_binary(ctx: RuntimeContext, left: Expr, op: BinaryOp, right: Expr) -> Value:
     match op:
@@ -501,52 +575,75 @@ fn eval_binary(ctx: RuntimeContext, left: Expr, op: BinaryOp, right: Expr) -> Va
             let lv = eval_expr(ctx, left)
             if lv.is_truthy(): return Value::Bool(true)
             return Value::Bool(eval_expr(ctx, right).is_truthy())
-        _ => ()
+        _ =>
+            ()
     let lv = eval_expr(ctx, left)
     let rv = eval_expr(ctx, right)
     return eval_binary_values(op, lv, rv)
 
 fn eval_binary_values(op: BinaryOp, lv: Value, rv: Value) -> Value:
     match op:
-        BinaryOp::Add => return value_add(lv, rv)
-        BinaryOp::Sub => return Value::Int(lv.as_int() - rv.as_int())
-        BinaryOp::Mul => return value_mul(lv, rv)
-        BinaryOp::Div => return value_div(lv, rv)
+        BinaryOp::Add =>
+            return value_add(lv, rv)
+        BinaryOp::Sub =>
+            return Value::Int(lv.as_int() - rv.as_int())
+        BinaryOp::Mul =>
+            return value_mul(lv, rv)
+        BinaryOp::Div =>
+            return value_div(lv, rv)
         BinaryOp::Mod =>
             let d2 = rv.as_int()
             if d2 == 0: return Value::Int(0)
             return Value::Int(lv.as_int() % d2)
-        BinaryOp::Eq => return Value::Bool(values_equal(lv, rv))
-        BinaryOp::Ne => return Value::Bool(!values_equal(lv, rv))
-        BinaryOp::Lt => return Value::Bool(lv.as_int() < rv.as_int())
-        BinaryOp::Gt => return Value::Bool(lv.as_int() > rv.as_int())
-        BinaryOp::Le => return Value::Bool(lv.as_int() <= rv.as_int())
-        BinaryOp::Ge => return Value::Bool(lv.as_int() >= rv.as_int())
-        _ => return Value::Int(0)
+        BinaryOp::Eq =>
+            return Value::Bool(values_equal(lv, rv))
+        BinaryOp::Ne =>
+            return Value::Bool(!values_equal(lv, rv))
+        BinaryOp::Lt =>
+            return Value::Bool(lv.as_int() < rv.as_int())
+        BinaryOp::Gt =>
+            return Value::Bool(lv.as_int() > rv.as_int())
+        BinaryOp::Le =>
+            return Value::Bool(lv.as_int() <= rv.as_int())
+        BinaryOp::Ge =>
+            return Value::Bool(lv.as_int() >= rv.as_int())
+        _ =>
+            return Value::Int(0)
 
 fn value_add(lv: Value, rv: Value) -> Value:
     match lv:
         Value::Int(a) =>
             match rv:
-                Value::Int(b) => return Value::Int(a + b)
-                Value::Float(b) => return Value::Float(a * 1.0 + b)
-                _ => ()
+                Value::Int(b) =>
+                    return Value::Int(a + b)
+                Value::Float(b) =>
+                    return Value::Float(a * 1.0 + b)
+                _ =>
+                    ()
         Value::Float(a) =>
             match rv:
-                Value::Float(b) => return Value::Float(a + b)
-                Value::Int(b) => return Value::Float(a + b * 1.0)
-                _ => ()
+                Value::Float(b) =>
+                    return Value::Float(a + b)
+                Value::Int(b) =>
+                    return Value::Float(a + b * 1.0)
+                _ =>
+                    ()
         Value::String_(a) =>
             match rv:
-                Value::String_(b) => return Value::String_(a + b)
-                _ => return Value::String_(a + rv.to_repr())
-        _ => ()
+                Value::String_(b) =>
+                    return Value::String_(a + b)
+                _ =>
+                    return Value::String_(a + rv.to_repr())
+        _ =>
+            ()
     return Value::Int(0)
 
 fn value_mul(lv: Value, rv: Value) -> Value:
     match lv:
-        Value::Float(a) => return Value::Float(a * rv.as_float())
-        _ => return Value::Int(lv.as_int() * rv.as_int())
+        Value::Float(a) =>
+            return Value::Float(a * rv.as_float())
+        _ =>
+            return Value::Int(lv.as_int() * rv.as_int())
 
 fn value_div(lv: Value, rv: Value) -> Value:
     let d = rv.as_int()
@@ -554,19 +651,26 @@ fn value_div(lv: Value, rv: Value) -> Value:
         println("runtime error: division by zero")
         return Value::Int(0)
     match lv:
-        Value::Float(a) => return Value::Float(a / rv.as_float())
-        _ => return Value::Int(lv.as_int() / d)
+        Value::Float(a) =>
+            return Value::Float(a / rv.as_float())
+        _ =>
+            return Value::Int(lv.as_int() / d)
 
 fn eval_unary(ctx: RuntimeContext, op: UnaryOp, value: Expr) -> Value:
     let v = eval_expr(ctx, value)
     match op:
-        UnaryOp::Not => return Value::Bool(!v.is_truthy())
+        UnaryOp::Not =>
+            return Value::Bool(!v.is_truthy())
         UnaryOp::Negate =>
             match v:
-                Value::Int(n) => return Value::Int(0 - n)
-                Value::Float(f) => return Value::Float(0.0 - f)
-                _ => return Value::Int(0)
-        _ => return v
+                Value::Int(n) =>
+                    return Value::Int(0 - n)
+                Value::Float(f) =>
+                    return Value::Float(0.0 - f)
+                _ =>
+                    return Value::Int(0)
+        _ =>
+            return v
 
 # - Block and statement evaluation -
 
@@ -578,7 +682,8 @@ fn eval_block(ctx: RuntimeContext, block: Block) -> Signal:
     while i < len(block.statements) && !done:
         let sig = eval_stmt(ctx, block.statements[i])
         match sig:
-            Signal::Normal => ()
+            Signal::Normal =>
+                ()
             _ =>
                 result = sig
                 done = true
@@ -588,36 +693,53 @@ fn eval_block(ctx: RuntimeContext, block: Block) -> Signal:
 
 fn eval_stmt(ctx: RuntimeContext, stmt: Stmt) -> Signal:
     match stmt:
-        Stmt::Let(ls) => return eval_let_stmt(ctx, ls)
-        Stmt::Return(rs) => return eval_return_stmt(ctx, rs)
+        Stmt::Let(ls) =>
+            return eval_let_stmt(ctx, ls)
+        Stmt::Return(rs) =>
+            return eval_return_stmt(ctx, rs)
         Stmt::Expr(es) =>
             eval_expr(ctx, es.expr)
             return Signal::Normal
-        Stmt::Assign(as_) => return eval_assign_stmt(ctx, as_)
-        Stmt::If(ifs) => return eval_if_stmt(ctx, ifs)
-        Stmt::While(ws) => return eval_while_stmt(ctx, ws)
-        Stmt::For(fs) => return eval_for_stmt(ctx, fs)
-        Stmt::Match(ms) => return eval_match_stmt(ctx, ms)
-        Stmt::Break(bs) => return eval_break_stmt(ctx, bs)
-        Stmt::Continue(_) => return Signal::Continue_
-        _ => return Signal::Normal
+        Stmt::Assign(as_) =>
+            return eval_assign_stmt(ctx, as_)
+        Stmt::If(ifs) =>
+            return eval_if_stmt(ctx, ifs)
+        Stmt::While(ws) =>
+            return eval_while_stmt(ctx, ws)
+        Stmt::For(fs) =>
+            return eval_for_stmt(ctx, fs)
+        Stmt::Match(ms) =>
+            return eval_match_stmt(ctx, ms)
+        Stmt::Break(bs) =>
+            return eval_break_stmt(ctx, bs)
+        Stmt::Continue(_) =>
+            return Signal::Continue_
+        _ =>
+            return Signal::Normal
 
 fn eval_let_stmt(ctx: RuntimeContext, ls: LetStmt) -> Signal:
     let val = Value::Unit
     match ls.value:
-        Option::Some(v) => val = eval_expr(ctx, v)
-        _ => ()
+        Option::Some(v) =>
+            val = eval_expr(ctx, v)
+        _ =>
+            ()
     match ls.pattern:
-        Pattern::Binding(name) => env_define(ctx.env, name, val, ls.is_mut)
-        Pattern::BindingMut(name) => env_define(ctx.env, name, val, true)
-        _ => ()
+        Pattern::Binding(name) =>
+            env_define(ctx.env, name, val, ls.is_mut)
+        Pattern::BindingMut(name) =>
+            env_define(ctx.env, name, val, true)
+        _ =>
+            ()
     return Signal::Normal
 
 fn eval_return_stmt(ctx: RuntimeContext, rs: ReturnStmt) -> Signal:
     let v = Value::Unit
     match rs.value:
-        Option::Some(val_expr) => v = eval_expr(ctx, val_expr)
-        _ => ()
+        Option::Some(val_expr) =>
+            v = eval_expr(ctx, val_expr)
+        _ =>
+            ()
     return Signal::Return_(v)
 
 fn eval_assign_stmt(ctx: RuntimeContext, as_: AssignStmt) -> Signal:
@@ -631,7 +753,8 @@ fn eval_assign_stmt(ctx: RuntimeContext, as_: AssignStmt) -> Signal:
                     env_define(ctx.env, vname, new_val, true)
         Expr::Index(ie) =>
             eval_index_assign(ctx, ie, new_val)
-        _ => ()
+        _ =>
+            ()
     return Signal::Normal
 
 fn eval_index_assign(ctx: RuntimeContext, ie: IndexExpr, new_val: Value) -> Unit:
@@ -642,7 +765,8 @@ fn eval_index_assign(ctx: RuntimeContext, ie: IndexExpr, new_val: Value) -> Unit
             let n = idx.as_int()
             if n >= 0 && n < len(items):
                 items[n] = new_val
-        _ => ()
+        _ =>
+            ()
 
 fn eval_if_stmt(ctx: RuntimeContext, ifs: IfStmt) -> Signal:
     let cond = eval_expr(ctx, ifs.condition)
@@ -652,8 +776,10 @@ fn eval_if_stmt(ctx: RuntimeContext, ifs: IfStmt) -> Signal:
 
 fn eval_if_else_signal(ctx: RuntimeContext, else_branch: Option<Block>) -> Signal:
     match else_branch:
-        Option::Some(else_block) => return eval_block(ctx, else_block)
-        _ => return Signal::Normal
+        Option::Some(else_block) =>
+            return eval_block(ctx, else_block)
+        _ =>
+            return Signal::Normal
 
 fn eval_while_stmt(ctx: RuntimeContext, ws: WhileStmt) -> Signal:
     let running = true
@@ -664,9 +790,12 @@ fn eval_while_stmt(ctx: RuntimeContext, ws: WhileStmt) -> Signal:
         else:
             let sig = eval_block(ctx, ws.body)
             match sig:
-                Signal::Break_(_) => running = false
-                Signal::Return_(v) => return Signal::Return_(v)
-                _ => ()
+                Signal::Break_(_) =>
+                    running = false
+                Signal::Return_(v) =>
+                    return Signal::Return_(v)
+                _ =>
+                    ()
     return Signal::Normal
 
 fn eval_for_stmt(ctx: RuntimeContext, fs: ForStmt) -> Signal:
@@ -674,7 +803,8 @@ fn eval_for_stmt(ctx: RuntimeContext, fs: ForStmt) -> Signal:
     match iter_val:
         Value::Array(items) =>
             return eval_for_array(ctx, fs, items)
-        _ => ()
+        _ =>
+            ()
     return Signal::Normal
 
 fn eval_for_array(ctx: RuntimeContext, fs: ForStmt, items: Array<Value>) -> Signal:
@@ -683,14 +813,19 @@ fn eval_for_array(ctx: RuntimeContext, fs: ForStmt, items: Array<Value>) -> Sign
     while i < len(items) && !done:
         env_push_scope(ctx.env)
         match fs.pattern:
-            Pattern::Binding(var_name) => env_define(ctx.env, var_name, items[i], true)
-            _ => ()
+            Pattern::Binding(var_name) =>
+                env_define(ctx.env, var_name, items[i], true)
+            _ =>
+                ()
         let sig = eval_block(ctx, fs.body)
         env_pop_scope(ctx.env)
         match sig:
-            Signal::Break_(_) => done = true
-            Signal::Return_(v) => return Signal::Return_(v)
-            _ => ()
+            Signal::Break_(_) =>
+                done = true
+            Signal::Return_(v) =>
+                return Signal::Return_(v)
+            _ =>
+                ()
         i = i + 1
     return Signal::Normal
 
@@ -708,8 +843,10 @@ fn eval_match_stmt(ctx: RuntimeContext, ms: MatchStmt) -> Signal:
 fn eval_break_stmt(ctx: RuntimeContext, bs: BreakStmt) -> Signal:
     let bv = Value::Unit
     match bs.value:
-        Option::Some(v) => bv = eval_expr(ctx, v)
-        _ => ()
+        Option::Some(v) =>
+            bv = eval_expr(ctx, v)
+        _ =>
+            ()
     return Signal::Break_(bv)
 
 # - Function call -
@@ -725,8 +862,10 @@ fn call_user_fn(ctx: RuntimeContext, fndef: FnDef, call_args: Array<Value>) -> V
     let sig = eval_block(ctx, block)
     env_pop_scope(ctx.env)
     match sig:
-        Signal::Return_(v) => return v
-        _ => return Value::Unit
+        Signal::Return_(v) =>
+            return v
+        _ =>
+            return Value::Unit
 
 # - Program entry point -
 
@@ -739,7 +878,8 @@ pub fn run_program(program: Program) -> Result<Value, KainError>:
             TopLevelItem::Const(c) =>
                 let v = eval_expr(ctx, c.value)
                 env_define(ctx.env, c.name, v, false)
-            _ => ()
+            _ =>
+                ()
 
     let main_fn_opt = ctx_find_fn(ctx, "main")
     match main_fn_opt:

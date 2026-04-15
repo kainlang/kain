@@ -8,20 +8,23 @@ The goal is to keep the pipeline **data-driven** and **lane-based** rather than 
 
 ## Current pipeline entry points
 
-The active entry point is the CLI selfhost command:
+The selfhost control plane now has two explicit lanes under the same CLI entrypoint:
 
 - `kain selfhost phase1`
 - `kain selfhost phase2`
+- `kain selfhost bootstrap`
 
 Implementation center of gravity:
 
 - `crates/cli/src/selfhost.rs`
 - `crates/cli/src/selfhost_report.rs`
 - `crates/kain-import/src/rust/selfhost.rs`
+- `src/KAIN.toml`
+- `runtime/native_runtime.toml`
 
 ## Current pipeline data flow
 
-### Phase 1 / Phase 2 high-level flow
+### Rust mirror lane high-level flow
 
 1. Resolve repo root
 2. Resolve inventory directory
@@ -35,9 +38,22 @@ Implementation center of gravity:
 10. Optionally build the stage-2 workspace
 11. Emit machine-readable and markdown reports
 
+### Owned bootstrap lane high-level flow
+
+1. Resolve repo root
+2. Load `src/KAIN.toml`
+3. Resolve the ordered `src/core` source set
+4. Assemble the temporary aggregate bootstrap source under `src/.selfhost/`
+5. Compile the aggregate source to LLVM through the hand-written lane
+6. Stage native sidecars such as runtime contract and realtime app metadata
+7. Resolve and build or reuse the native runtime from `runtime/native_runtime.toml`
+8. Link a native `kainc` against the real C runtime artifacts
+9. Optionally re-run the produced native compiler for ouroboros verification
+10. Emit machine-readable and markdown reports under `src/.selfhost/reports/`
+
 ## Existing pipeline inputs
 
-These inputs already exist and should remain the authoritative source of selfhost policy:
+These inputs already exist and should remain the authoritative source of selfhost policy for the Rust mirror lane:
 
 - `macro_inventory.json`
 - `module_map.json`
@@ -46,9 +62,15 @@ These inputs already exist and should remain the authoritative source of selfhos
 
 These are currently loaded by `load_inventories(...)` in `crates/cli/src/selfhost.rs`.
 
+The owned bootstrap lane has a separate manifest-driven contract:
+
+- `src/KAIN.toml` is the canonical hand-written selfhost contract
+- `runtime/native_runtime.toml` is the canonical native runtime contract
+- `src/.selfhost/` is the canonical artifact and report root for the owned lane
+
 ## Existing pipeline artifacts
 
-For each run, the pipeline can currently emit:
+For each Rust mirror run, the pipeline can currently emit:
 
 - per-crate `.kn` bundle outputs
 - per-crate `.roundtrip.rs` outputs
@@ -65,6 +87,15 @@ Typical artifact families:
 - `out/selfhost/phase2/stage2_workspace/stage2_build.log`
 - `out/selfhost/*_report.json`
 - `out/selfhost/*_report.md`
+
+For each owned bootstrap run, the pipeline should emit:
+
+- a manifest-resolved aggregate source under `src/.selfhost/phase0/combined/`
+- LLVM IR under `src/.selfhost/phase0/out/`
+- runtime contract, realtime app, compute residency, and shader sidecars beside the LLVM/native outputs
+- a native `kainc` binary linked against the real C runtime under `src/.selfhost/phase0/out/`
+- ouroboros recompile artifacts under `src/.selfhost/ouroboros/`
+- JSON and markdown reports under `src/.selfhost/reports/`
 
 ## Current gates
 
@@ -108,9 +139,42 @@ A slice passes stage-2 build when:
 - target artifact exists
 - build log does not contain stage-2 blockers
 
+### Gate F: owned manifest/runtime gate
+
+The owned lane passes the manifest/runtime gate when:
+
+- `src/KAIN.toml` resolves from repo root
+- every ordered `src/core` source file exists
+- `runtime/native_runtime.toml` resolves
+- the command emits JSON and markdown reports even on failure
+
+### Gate G: owned compiler gate
+
+The owned lane passes the compiler gate when:
+
+- the hand-written compiler path emits LLVM for the owned source set
+- no Rust parser, typechecker, lowering, or codegen passes are on the main compile path
+- expected LLVM/native sidecars are materialized
+
+### Gate H: native self-build gate
+
+The owned lane passes the native self-build gate when:
+
+- the C runtime bundle is resolved from `runtime/native_runtime.toml`
+- runtime objects and archives are built or reused successfully
+- the produced native `kainc` executable exists and is runnable
+
+### Gate I: ouroboros gate
+
+The owned lane passes the ouroboros gate when:
+
+- the produced native compiler recompiles the same manifest-driven source set
+- the verification step emits a deterministic comparison result
+- artifact drift is recorded explicitly rather than hidden behind a false green
+
 ## Current blocker classes
 
-These are the categories the pipeline should keep tracking explicitly:
+These are the categories the pipeline should keep tracking explicitly across both lanes:
 
 - importer rejection / unsupported Rust surface
 - parser-unsafe emitted KAIN syntax
@@ -119,12 +183,16 @@ These are the categories the pipeline should keep tracking explicitly:
 - test/dev leakage into the selfhost lane
 - symbol collisions caused by flattening
 - stage-2 manifest/path rewriting errors
+- owned-manifest resolution or source-order drift
+- native runtime manifest drift or missing runtime artifacts
+- native link failure or missing sidecars after a nominally successful compile
+- ouroboros artifact drift between bootstrap and native recompilation
 
 ## Recommended pipeline shape
 
-The pipeline should be treated as four lanes, each with its own promotion criteria.
+The pipeline should be treated as five lanes, each with its own promotion criteria.
 
-### Lane 1: import integrity
+### Lane 1: rust mirror integrity
 
 Purpose:
 
@@ -158,16 +226,29 @@ Success criteria:
 - round-trip Rust compiles crate-by-crate or as a slice
 - blocker classes are localized to codegen, not mixed with importer noise
 
-### Lane 4: executable parity
+### Lane 4: owned bootstrap/native
 
 Purpose:
 
-- get to a bootable selfhosted `kain`
+- get the hand-written `src/core` lane to emit LLVM, stage native sidecars, and link against the C runtime without routing semantic ownership back through Rust
 
 Success criteria:
 
-- stage-2 `kain` artifact builds
-- selected commands behave correctly
+- `src/KAIN.toml` is the canonical contract for the owned lane
+- the aggregate bootstrap source and LLVM outputs are emitted under `src/.selfhost/`
+- the native executable links against the real runtime bundle from `runtime/native_runtime.toml`
+
+### Lane 5: ouroboros parity
+
+Purpose:
+
+- get to a bootable selfhosted `kainc` that recompiles itself deterministically
+
+Success criteria:
+
+- the native `kainc` artifact builds
+- the native compiler recompiles the same manifest-driven source set
+- parity/drift is recorded as explicit report output
 
 ## Promotion policy
 
@@ -178,6 +259,10 @@ Promotion from one wave to the next should require explicit evidence:
 - round-trip blocker categories are classified
 - stage-2 workspace assembles deterministically
 - stage-2 build is either passing or narrowed to a small known blocker set
+- the owned manifest resolves deterministically from repo root
+- the owned lane emits reports and sidecars even when it fails
+- the native runtime is resolved from manifest truth rather than guessed link flags
+- ouroboros verification records exact parity or explicit drift
 
 ## Non-destructive parallel workstreams
 
@@ -191,31 +276,43 @@ The following work can proceed safely in parallel with active lane fixes:
 - native-KAIN library/backlog design
 - parser-safe emission rules documentation
 - golden corpus planning for selfhost samples
+- `src/KAIN.toml` schema widening for true multi-file module graphs
+- runtime-contract / sidecar parity checks for the owned bootstrap lane
 
 ## What should not be mixed into the hot lane
 
-Avoid coupling these into active stage-2 fixes until the bootstrap path is steadier:
+Avoid coupling these into active bootstrap fixes until the hand-written lane is steadier:
 
 - UE5/editor parity expansion
 - deep runtime platform work
 - broad parser redesign
 - major importer redesign
 - large-scale backend rewrites unrelated to current blocker classes
+- shrinking or replacing the C runtime before the owned lane is green
 
 ## Immediate next execution priorities
 
 ### Priority 1
 
-Stabilize the current active slice:
+Stabilize the owned bootstrap contract:
+
+- `src/KAIN.toml`
+- `src/core`
+- `runtime/native_runtime.toml`
+- `kain selfhost bootstrap`
+
+### Priority 2
+
+Keep the Rust mirror lane as the oracle/reference slice:
 
 - `kain-core`
 - `kain-import`
 - `cli`
 - `kain-sys-codegen`
 
-### Priority 2
+### Priority 3
 
-Formalize the data that should drive the pipeline:
+Formalize the data that should drive both lanes:
 
 - slice composition
 - lane definitions
@@ -223,22 +320,26 @@ Formalize the data that should drive the pipeline:
 - promotion gates
 - blocker categories
 - validation commands
+- owned-manifest/runtime artifact expectations
 
-### Priority 3
+### Priority 4
 
-Prepare the next slice expansion:
+Promote the first full ouroboros loop:
 
-- `kain-asm`
-- `kain-omni`
+- native `kainc` artifact
+- deterministic recompile comparison
+- blocker taxonomy for parity drift
 
 ## Bottom line
 
-The selfhost pipeline is already real.
+The repo now has two real selfhost lanes:
 
-What it needs now is not speculative redesign. It needs:
+- the Rust mirror/reference lane
+- the hand-written bootstrap/native lane
 
-- stable lane definitions
-- explicit data-driven policy
-- repeatable artifact expectations
-- disciplined promotion gates
-- a clean parallel backlog for native-KAIN work that does not interfere with stage-2 bootstrap
+The control-plane rule is:
+
+- keep the Rust mirror lane as reference and oracle infrastructure
+- promote the hand-written manifest-first lane as the real selfhost target
+- keep the C runtime as the canonical native runtime substrate
+- treat aggregate bootstrap source as a temporary compatibility bridge until the true multi-file frontend lands

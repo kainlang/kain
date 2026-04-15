@@ -124,10 +124,10 @@ fn gen_new() -> LlvmGen:
 
 impl LlvmGen:
     pub fn write_ir(self, ir_line: String) -> Unit:
-        self.ir_buf = self.ir_buf + line + "\n"
+        self.ir_buf = self.ir_buf + ir_line + "\n"
 
     pub fn emit_indent(self, ir_line: String) -> Unit:
-        self.ir_buf = self.ir_buf + "  " + line + "\n"
+        self.ir_buf = self.ir_buf + "  " + ir_line + "\n"
 
     pub fn next_reg(self) -> String:
         let r = "%" + str(self.reg)
