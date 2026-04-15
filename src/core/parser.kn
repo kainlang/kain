@@ -108,7 +108,7 @@ fn ps_skip_newlines(ps: ParseState) -> Unit:
     while running:
         let tok = ps_peek(ps)
         if tok_is_newline(tok) || tok_is_indent(tok) || tok_is_dedent(tok):
-            ps_advance(ps)
+            let _ = ps_advance(ps)
         else:
             running = false
 
@@ -179,20 +179,17 @@ fn empty_path(file_name: String) -> Path:
 
 fn parse_type_expr_group(ps: ParseState) -> TypeExpr:
     ps_consume_sym(ps, "(")
-    if ps_at_sym(ps, ")"):
-        ps_consume_sym(ps, ")")
-        return TypeExpr::Unit
+    if ps_at_sym(ps, ")") && ps_expect_sym(ps, ")"): return TypeExpr::Unit
     let first = parse_type_expr(ps)
     if ps_at_sym(ps, ","):
         let items = [first]
         while ps_at_sym(ps, ","):
             ps_advance(ps)
-            if !ps_at_sym(ps, ")"):
-                push(items, parse_type_expr(ps))
+            if !ps_at_sym(ps, ")"): push(items, parse_type_expr(ps))
         ps_expect_sym(ps, ")")
         return TypeExpr::Tuple(items)
     ps_expect_sym(ps, ")")
-    return first
+    first
 
 fn parse_type_expr(ps: ParseState) -> TypeExpr:
     # Unit type  ()
@@ -699,22 +696,7 @@ fn parse_primary_expr(ps: ParseState) -> Expr:
         return Expr::Literal(Literal::Unit)
 
     # Grouped expression or tuple  (expr)
-    if ps_at_sym(ps, "("):
-        ps_advance(ps)
-        if ps_at_sym(ps, ")"):
-            ps_advance(ps)
-            return Expr::Literal(Literal::Unit)
-        let first = parse_expr(ps)
-        if ps_at_sym(ps, ","):
-            let items = [first]
-            while ps_at_sym(ps, ","):
-                ps_advance(ps)
-                if !ps_at_sym(ps, ")"):
-                    push(items, parse_expr(ps))
-            ps_expect_sym(ps, ")")
-            return Expr::Tuple(items)
-        ps_expect_sym(ps, ")")
-        return first
+    if ps_at_sym(ps, "("): return parse_group_or_tuple_expr(ps)
 
     # Array literal  [a, b, c]
     if ps_at_sym(ps, "["):
@@ -1216,3 +1198,18 @@ pub fn parse_source(source_tokens: Array<Token>, file_name: String) -> Result<Pr
 
     let prog_span = Span { file: file_name, start_row: 1, start_column: 1, end_row: 9999, end_column: 1 }
     return Result::Ok(Program { items: items, span: prog_span })
+
+fn parse_group_or_tuple_expr(ps: ParseState) -> Expr:
+    ps_advance(ps)
+    if ps_at_sym(ps, ")") && ps_expect_sym(ps, ")"):
+        return Expr::Literal(Literal::Unit)
+    let first = parse_expr(ps)
+    if ps_at_sym(ps, ","):
+        let items = [first]
+        while ps_at_sym(ps, ","):
+            ps_advance(ps)
+            if !ps_at_sym(ps, ")"): push(items, parse_expr(ps))
+        ps_expect_sym(ps, ")")
+        return Expr::Tuple(items)
+    ps_expect_sym(ps, ")")
+    return first

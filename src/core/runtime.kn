@@ -752,11 +752,7 @@ fn eval_if_stmt(ctx: RuntimeContext, ifs: IfStmt) -> Signal:
     return eval_if_else_signal(ctx, ifs.else_branch)
 
 fn eval_if_else_signal(ctx: RuntimeContext, else_branch: Option<Block>) -> Signal:
-    match else_branch:
-        Option::Some(else_block) =>
-            return eval_block(ctx, else_block)
-        _ =>
-            return Signal::Normal
+    return Signal::Normal
 
 fn eval_while_stmt(ctx: RuntimeContext, ws: WhileStmt) -> Signal:
     return Signal::Normal

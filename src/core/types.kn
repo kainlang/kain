@@ -293,52 +293,21 @@ fn typeenv_register_enum(env: TypeEnv, name: String) -> Unit:
 # - Type expression resolution -
 
 fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
-    match ty:
-        TypeExpr::Unit =>
-            return ResolvedType::Unit
-        TypeExpr::Never =>
-            return ResolvedType::Never
-        TypeExpr::Infer =>
-            return ResolvedType::Unknown
-        TypeExpr::Bool =>
-            return ResolvedType::Bool
-        TypeExpr::Int =>
-            return ResolvedType::Int
-        TypeExpr::Float =>
-            return ResolvedType::Float
-        TypeExpr::String_ =>
-            return ResolvedType::String_
-        TypeExpr::Char =>
-            return ResolvedType::Char
-        TypeExpr::Array(inner) =>
-            return ResolvedType::ArrayOf(resolve_type_expr(env, inner))
-        TypeExpr::Slice(inner) =>
-            return ResolvedType::SliceOf(resolve_type_expr(env, inner))
-        TypeExpr::Option(inner) =>
-            return ResolvedType::OptionOf(resolve_type_expr(env, inner))
-        TypeExpr::Result(ok, err) =>
-            return ResolvedType::ResultOf(resolve_type_expr(env, ok), resolve_type_expr(env, err))
-        TypeExpr::Tuple(items) =>
-            let resolved = []
-            for item in items:
-                push(resolved, resolve_type_expr(env, item))
-            return ResolvedType::TupleOf(resolved)
-        TypeExpr::Function(params, ret) =>
-            let param_types = []
-            for p in params:
-                push(param_types, resolve_type_expr(env, p))
-            return ResolvedType::FunctionType(param_types, resolve_type_expr(env, ret))
-        TypeExpr::Path(path) =>
-            if len(path.segments) > 0:
-                let name = path.segments[0].name
-                if typeenv_is_struct(env, name):
-                    return ResolvedType::Struct_(name)
-                if typeenv_is_enum(env, name):
-                    return ResolvedType::Enum_(name)
-                return resolved_type_from_name(name)
-            return ResolvedType::Unknown
-        _ =>
-            return ResolvedType::Unknown
+    if ty == TypeExpr::Unit:
+        return ResolvedType::Unit
+    if ty == TypeExpr::Never:
+        return ResolvedType::Never
+    if ty == TypeExpr::Bool:
+        return ResolvedType::Bool
+    if ty == TypeExpr::Int:
+        return ResolvedType::Int
+    if ty == TypeExpr::Float:
+        return ResolvedType::Float
+    if ty == TypeExpr::String_:
+        return ResolvedType::String_
+    if ty == TypeExpr::Char:
+        return ResolvedType::Char
+    return ResolvedType::Unknown
 
 # - Expression type inference -
 

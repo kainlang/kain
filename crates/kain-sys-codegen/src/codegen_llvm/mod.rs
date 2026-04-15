@@ -1395,57 +1395,48 @@ impl LlvmGenerator {
                 span,
             } => {
                 let (obj_val, obj_ty) = self.compile_expr(object)?;
-                if let Some(struct_name) =
-                    self.ptr_struct_name(&obj_ty).map(|name| name.to_string())
-                {
-                    if let Some(index) = self.field_index(&struct_name, field) {
-                        let field_ty = self
-                            .struct_defs
-                            .get(&struct_name)
-                            .and_then(|fields| fields.get(index))
-                            .map(|(_, ty)| ty.clone())
-                            .unwrap_or_else(|| "i64".to_string());
-                        let field_ptr = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                            field_ptr, struct_name, obj_ty, obj_val, index
-                        ));
-                        Ok((field_ptr, field_ty))
+                let (struct_name, struct_ptr, field_index) =
+                    if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
+                        let index = self.field_index(struct_name, field).ok_or_else(|| {
+                            KainError::codegen(
+                                format!("Unknown field '{}' on {}", field, struct_name),
+                                *span,
+                            )
+                        })?;
+                        (struct_name.to_string(), obj_val, index)
                     } else if obj_ty.starts_with('%') {
+                        let struct_name = obj_ty[1..].to_string();
+                        let index = self.field_index(&struct_name, field).ok_or_else(|| {
+                            KainError::codegen(
+                                format!("Unknown field '{}' on {}", field, struct_name),
+                                *span,
+                            )
+                        })?;
                         let tmp_addr = self.next_reg();
                         self.emit(&format!("  {} = alloca {}", tmp_addr, obj_ty));
                         self.emit(&format!(
                             "  store {} {}, {}* {}",
                             obj_ty, obj_val, obj_ty, tmp_addr
                         ));
-                        let field_ty = self
-                            .struct_defs
-                            .get(&struct_name)
-                            .and_then(|fields| fields.get(index))
-                            .map(|(_, ty)| ty.clone())
-                            .unwrap_or_else(|| "i64".to_string());
-                        let field_ptr = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                            field_ptr,
-                            struct_name,
-                            format!("{}*", obj_ty),
-                            tmp_addr,
-                            index
-                        ));
-                        Ok((field_ptr, field_ty))
+                        (struct_name, tmp_addr, index)
                     } else {
-                        Err(KainError::codegen(
-                            format!("Unknown field '{}' on {}", field, struct_name),
+                        return Err(KainError::codegen(
+                            "Field address requires a struct or struct pointer",
                             *span,
-                        ))
-                    }
-                } else {
-                    Err(KainError::codegen(
-                        "Field address requires a struct pointer",
-                        *span,
-                    ))
-                }
+                        ));
+                    };
+                let field_ty = self
+                    .struct_defs
+                    .get(&struct_name)
+                    .and_then(|fields| fields.get(field_index))
+                    .map(|(_, ty)| ty.clone())
+                    .unwrap_or_else(|| "i64".to_string());
+                let field_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                    field_ptr, struct_name, struct_name, struct_ptr, field_index
+                ));
+                Ok((field_ptr, field_ty))
             }
             Expr::Index {
                 object,
@@ -3624,42 +3615,15 @@ impl LlvmGenerator {
                 }
             }
             Expr::Field {
-                object,
-                field,
-                span,
+                ..
             } => {
-                let (obj_val, obj_ty) = self.compile_addressable_ptr(object)?;
-                if let Some((struct_name, ptr_ty)) = self.struct_name_and_ptr_type(&obj_ty) {
-                    if let Some(index) = self.field_index(&struct_name, field) {
-                        let field_ty = self
-                            .struct_defs
-                            .get(&struct_name)
-                            .and_then(|fields| fields.get(index))
-                            .map(|(_, ty)| ty.clone())
-                            .unwrap_or_else(|| "i64".to_string());
-                        let field_ptr = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                            field_ptr, struct_name, ptr_ty, obj_val, index
-                        ));
-                        let loaded = self.next_reg();
-                        self.emit(&format!(
-                            "  {} = load {}, {}* {}",
-                            loaded, field_ty, field_ty, field_ptr
-                        ));
-                        Ok((loaded, field_ty))
-                    } else {
-                        Err(KainError::codegen(
-                            format!("Unknown field '{}' on {}", field, struct_name),
-                            *span,
-                        ))
-                    }
-                } else {
-                    Err(KainError::codegen(
-                        "Field access requires a struct pointer",
-                        *span,
-                    ))
-                }
+                let (field_ptr, field_ty) = self.compile_addressable_ptr(expr)?;
+                let loaded = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load {}, {}* {}",
+                    loaded, field_ty, field_ty, field_ptr
+                ));
+                Ok((loaded, field_ty))
             }
             Expr::Assign {
                 target,
@@ -3679,39 +3643,18 @@ impl LlvmGenerator {
                     }
                 }
                 Expr::Field { object, field, .. } => {
-                    let (obj_val, obj_ty) = self.compile_addressable_ptr(object)?;
-                    if let Some((struct_name, ptr_ty)) = self.struct_name_and_ptr_type(&obj_ty) {
-                        if let Some(index) = self.field_index(&struct_name, field) {
-                            let field_ty = self
-                                .struct_defs
-                                .get(&struct_name)
-                                .and_then(|fields| fields.get(index))
-                                .map(|(_, ty)| ty.clone())
-                                .unwrap_or_else(|| "i64".to_string());
-                            let (rhs, rhs_ty) =
-                                self.compile_expr_for_target_type(value, &field_ty)?;
-                            let field_ptr = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = getelementptr inbounds %{}, {} {}, i32 0, i32 {}",
-                                field_ptr, struct_name, ptr_ty, obj_val, index
-                            ));
-                            self.emit(&format!(
-                                "  store {} {}, {}* {}",
-                                rhs_ty, rhs, field_ty, field_ptr
-                            ));
-                            Ok((rhs, rhs_ty))
-                        } else {
-                            Err(KainError::codegen(
-                                format!("Unknown field '{}' on {}", field, struct_name),
-                                *span,
-                            ))
-                        }
-                    } else {
-                        Err(KainError::codegen(
-                            "Field assignment requires a struct pointer",
-                            *span,
-                        ))
-                    }
+                    let field_expr = Expr::Field {
+                        object: object.clone(),
+                        field: field.clone(),
+                        span: *span,
+                    };
+                    let (field_ptr, field_ty) = self.compile_addressable_ptr(&field_expr)?;
+                    let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
+                    self.emit(&format!(
+                        "  store {} {}, {}* {}",
+                        rhs_ty, rhs, field_ty, field_ptr
+                    ));
+                    Ok((rhs, rhs_ty))
                 }
                 Expr::Index { object, index, .. } => {
                     let (obj_val, obj_ty) = self.compile_expr(object)?;
