@@ -1,25 +1,25 @@
 # Memory
 
-## 2026-04-15 - 3D Manifest Projection Validator Adds GPU and Tensor Coverage
+## 2026-04-15 - 3D Manifest Projection Validator Links Workspace Presets to Runtime Apps
 
 Expanded `scripts/python/validate_3d_template_manifests.py` so the 3D template
-validator now covers `gpu_kernels.json` and `tensor_pipelines.json` in addition
-to the shared source registry, engine systems, runtime apps, and workspace
-presets.
+validator now also checks that each `workspace_presets.json` row resolves to a
+real `runtime_apps.json` row, in addition to the shared source registry, engine
+systems, runtime apps, GPU kernels, and tensor pipelines.
 
 Why this mattered:
 
-- GPU kernels are the pass catalog for the 3D tensor pipeline graph, so broken
-  ids are now caught before reflection or runtime materialization
-- tensor pipelines now fail fast if they reference an unknown pass id instead of
-  silently drifting out of sync with the kernel registry
-- the 3D template stays more explicitly data-driven as the render and scene
+- workspace presets are the 3D operator routing layer, so broken preset-to-app
+  links now fail fast instead of surfacing later in materialization
+- the template stays more explicitly data-driven as the render and scene
   composition graph grows
+- the validator now covers the full projection chain from source registry to
+  app lane to workspace preset to tensor pipeline
 
 Validation:
 
 - ran the validator directly after the change
-- updated the template README to advertise the broader coverage
+- updated the template README and memory notes to reflect the broader coverage
 
 ## 2026-04-15 - Balanced scene framing and diagnostics in kain-3D
 

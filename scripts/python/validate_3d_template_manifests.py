@@ -70,14 +70,14 @@ def validate_sources(repo_root: Path, template_root: Path, errors: list[str]) ->
     return index
 
 
-def validate_runtime_apps(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], errors: list[str]) -> None:
+def validate_runtime_apps(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], errors: list[str]) -> set[str]:
     runtime_apps_path = resolve_path(repo_root, template_root / "manifests/runtime_apps.json")
     runtime_apps = load_json(runtime_apps_path)
     if not isinstance(runtime_apps, list) or not runtime_apps:
         errors.append(f"{runtime_apps_path}: expected a non-empty JSON array")
-        return
+        return set()
 
-    app_ids: list[str] = []
+    app_ids: set[str] = set()
     for idx, app in enumerate(runtime_apps):
         context = f"runtime_apps[{idx}]"
         if not isinstance(app, dict):
@@ -112,12 +112,13 @@ def validate_runtime_apps(repo_root: Path, template_root: Path, source_index: di
         if repeated_targets:
             errors.append(f"{context}: duplicate output target(s) detected -> {', '.join(sorted(repeated_targets))}")
         if app_id:
-            app_ids.append(app_id)
-    if len(app_ids) != len(set(app_ids)):
-        errors.append("runtime_apps: duplicate app id detected")
+            if app_id in app_ids:
+                errors.append(f"{context}: duplicate app id -> {app_id}")
+            app_ids.add(app_id)
+    return app_ids
 
 
-def validate_workspace_presets(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], errors: list[str]) -> None:
+def validate_workspace_presets(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], runtime_app_ids: set[str], errors: list[str]) -> None:
     presets_path = resolve_path(repo_root, template_root / "manifests/workspace_presets.json")
     presets = load_json(presets_path)
     if not isinstance(presets, list) or not presets:
@@ -135,10 +136,12 @@ def validate_workspace_presets(repo_root: Path, template_root: Path, source_inde
         require_string(preset, "label", errors, context)
         require_string(preset, "preset_kind", errors, context)
         require_string(preset, "focus_lane", errors, context)
-        require_string(preset, "runtime_app_id", errors, context)
+        runtime_app_id = require_string(preset, "runtime_app_id", errors, context)
         require_string(preset, "host_kind", errors, context)
         if source_id and source_id not in source_index:
             errors.append(f"{context}: unknown source_id -> {source_id}")
+        if runtime_app_id and runtime_app_id not in runtime_app_ids:
+            errors.append(f"{context}: unknown runtime_app_id -> {runtime_app_id}")
         if preset_id:
             preset_ids.append(preset_id)
     if len(preset_ids) != len(set(preset_ids)):
@@ -242,8 +245,8 @@ def main() -> int:
     source_index = validate_sources(repo_root, template_root, errors)
     kernel_ids = validate_gpu_kernels(repo_root, template_root, source_index, errors)
     validate_engine_systems(repo_root, template_root, source_index, errors)
-    validate_runtime_apps(repo_root, template_root, source_index, errors)
-    validate_workspace_presets(repo_root, template_root, source_index, errors)
+    runtime_app_ids = validate_runtime_apps(repo_root, template_root, source_index, errors)
+    validate_workspace_presets(repo_root, template_root, source_index, runtime_app_ids, errors)
     validate_tensor_pipelines(repo_root, template_root, kernel_ids, errors)
 
     if errors:

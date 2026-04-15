@@ -37,9 +37,11 @@ without requiring Rust or Cargo on the consumer machine.
 - `scripts/python/validate_3d_template_manifests.py` is the local structural
   validator for the 3D template manifest projection layer. It checks that
   runtime apps and workspace presets resolve their `source_id` entries back to
-  `manifests/sources.json`, that GPU kernels resolve through the same source
-  registry, and that tensor pipelines only reference known GPU passes before
-  downstream reflection work consumes the manifests.- The runtime-app snapshot now also emits a descriptor document under
+  `manifests/sources.json`, that workspace presets resolve to real runtime app
+  rows, that GPU kernels resolve through the same source registry, and that
+  tensor pipelines only reference known GPU passes before downstream reflection
+  work consumes the manifests.
+- The runtime-app snapshot now also emits a descriptor document under
   `generated/runtime-reflection/runtime-apps/descriptors` so downstream
   consumers can inspect the app catalog contract without reopening only the
   monolithic catalog snapshot.
