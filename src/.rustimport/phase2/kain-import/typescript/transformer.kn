@@ -346,18 +346,64 @@ impl TypeScriptTransformer:
                 (*_self).define(&name, Type::Infer(Span__default_()))
                 ()
                 Result::Ok(true)
-            swc_ecma_ast__Stmt::Expr(expr) => (*_self).try_hoist_component_expr_stmt(&expr.expr)
+            swc_ecma_ast__Stmt::Expr(expr) => (*_self).try_hoist_component_expr_stmt(&expr.expr, methods)
             swc_ecma_ast__Stmt::Empty(_) => Result::Ok(true)
             _ => Result::Ok(false)
 
-    fn try_hoist_component_expr_stmt(_self: &mut TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> Result<Bool, Error>:
+    fn try_hoist_component_expr_stmt(_self: &mut TypeScriptTransformer, expr: &swc_ecma_ast::Expr, methods: &mut Array<Function>) -> Result<Bool, Error>:
         let swc_ecma_ast__Expr::Call(call) = expr
         let Some(name) = (*_self).call_callee_name(call)
+        if (none):
+            (*_self).hoist_component_effect_hook(&name, call, methods)?
+            ()
+            return Result::Ok(true)
         if (*_self).is_component_hook_name(&name):
             (*_self).note(f"component hook call '{name}' preserved only as diagnostic during import")
             ()
             return Result::Ok(true)
         Result::Ok(false)
+
+    fn hoist_component_effect_hook(_self: &mut TypeScriptTransformer, hook_name: String, call: &swc_ecma_ast::CallExpr, methods: &mut Array<Function>) -> Result<(), Error>:
+        let Some(first_arg) = (*call).args.first()
+        let effect_name = (*_self).fresh_temp("__component_effect")
+        let mut lowered_effect = match &(*first_arg.expr):
+            swc_ecma_ast__Expr::Arrow(arrow) => (*_self).transform_named_arrow_method(&effect_name, arrow)?
+            swc_ecma_ast__Expr::Fn(func) => (*_self).transform_function_like(effect_name.clone(), &func.function, Visibility__Private, false, func.function.type_params.map(TypeScriptTransformer__map_generics).unwrap_or_default())?
+            _ =>
+                (*_self).note(f"component hook '{hook_name}' skipped because its callback is not a function literal")
+                ()
+                return Result::Ok(())
+        if (!lowered_effect.effects.contains(&kain_core__effects__Effect__Reactive_)):
+            lowered_effect.effects.push(kain_core__effects__Effect__Reactive_)
+            ()
+            ()
+            ()
+            ()
+        methods.push(lowered_effect)
+        ()
+        if (hook_name != "useEffect"):
+            (*_self).note(f"component hook '{hook_name}' lowered to a generic Reactive component effect")
+            ()
+            ()
+            ()
+            ()
+        match (*call).args.get(1):
+            Some(deps) =>
+                (*_self).note(f"component hook '{hook_name}' dependency list '{(*_self).expr_debug_label(&deps.expr)}' is preserved only as diagnostic metadata during import")
+                ()
+                ()
+                ()
+                ()
+            _ =>
+                ()
+                ()
+        if ((*call).args.len() > 2):
+            (*_self).note(f"component hook '{hook_name}' has extra arguments that are preserved only as diagnostics during import")
+            ()
+            ()
+            ()
+            ()
+        Result::Ok(())
 
     fn hoist_component_var_decl(_self: &mut TypeScriptTransformer, decl: &swc_ecma_ast::VarDecl, state_: &mut Array<StateDecl>, methods: &mut Array<Function>) -> Result<Bool, Error>:
         for declarator in &(*decl).decls:
@@ -1232,6 +1278,16 @@ impl TypeScriptTransformer:
                             _ => none
                     _ => none
             _ => none
+
+    fn expr_debug_label(_self: &TypeScriptTransformer, expr: &swc_ecma_ast::Expr) -> String:
+        match expr:
+            swc_ecma_ast__Expr::Array(array) => f"array(len={array.elems.len()})"
+            swc_ecma_ast__Expr::Ident(ident) => ident.sym.to_string()
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Null(_)) => ("null").to_string()
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Bool(value)) => value.value.to_string()
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Num(value)) => value.value.to_string()
+            swc_ecma_ast__Expr::Lit(swc_ecma_ast__Lit::Str(value)) => value.value.to_string()
+            other => other
 
     fn is_component_hook_name(_self: &TypeScriptTransformer, name: String) -> Bool:
         match name:

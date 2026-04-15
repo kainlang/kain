@@ -22,6 +22,8 @@ use cli::lsp
 
 use cli::native_ui_build
 
+use cli::native_ui_dev
+
 use cli::omni
 
 use cli::packager
@@ -37,6 +39,8 @@ use cli::selfhost
 use cli::compile_
 
 use cli::detect_launcher_from_path
+
+use cli::format_source
 
 use cli::parse_compile_target
 
@@ -228,14 +232,19 @@ struct Args:
 enum BuildCommand:
     NativeUi { input: std::path::PathBuf, root_component: Option<String>, app_name: Option<String>, window_title: Option<String>, project_dir: Option<std::path::PathBuf>, artifact_dir: Option<std::path::PathBuf>, bundle_only: Bool, release: Bool, runtime_crate: String, runtime_path: Option<std::path::PathBuf>, runtime_version: Option<String> }
 
+enum NativeUiCommand:
+    Dev { input: std::path::PathBuf, root_component: Option<String>, app_name: Option<String>, window_title: Option<String>, project_dir: Option<std::path::PathBuf>, artifact_dir: Option<std::path::PathBuf>, release: Bool }
+
 enum Commands:
     Init { path: std::path::PathBuf, name: Option<String> }
     Lsp
     Doctor { repair: cli::repair::DoctorRepairArgs }
+    Format { input: Option<std::path::PathBuf>, check: Bool, write: Bool }
     Selfhost { command: cli::selfhost::SelfHostCommand }
     Omni { command: cli::omni::OmniCommand }
     Fabric { command: cli::fabric::FabricCommand }
     Build { command: Option<BuildCommand>, input: Option<std::path::PathBuf>, output: Option<std::path::PathBuf>, target: Option<String>, targets: Option<Array<String>>, ue5: Bool, r_rust: Bool, embed: Bool }
+    NativeUi { command: NativeUiCommand }
     Run { input: std::path::PathBuf }
     GpuArtifacts { input: std::path::PathBuf, output: Option<std::path::PathBuf> }
     Inject { inputs: Array<std::path::PathBuf>, plugin_dir: Option<std::path::PathBuf>, plugin: Option<String>, force: Bool, dry_run: Bool, ue5: Bool }
@@ -255,6 +264,9 @@ fn normalize_script_source(source: String) -> String:
         _ => source
 
 fn read_source_from_path(input: &std::path::Path) -> Result<String, String>:
+    Result::Ok(normalize_script_source(read_source_text(input)?))
+
+fn read_source_text(input: &std::path::Path) -> Result<String, String>:
     let source = if (input == Path__new_("-")):
         let mut buffer = String__new_()
         std__io__stdin().read_to_string(&mut buffer).map_err(fn(err): f"Failed to read stdin: {err}")?
@@ -262,7 +274,72 @@ fn read_source_from_path(input: &std::path::Path) -> Result<String, String>:
         buffer
     else:
         std__fs__read_to_string(input).map_err(fn(err): f"Failed to read {input.display()}: {err}")?
-    Result::Ok(normalize_script_source(source))
+    Result::Ok(source)
+
+fn read_format_source(input: Option<&std::path::PathBuf>) -> Result<(String, Option<std::path::PathBuf>, String), String>:
+    match input:
+        Some(path) =>
+            let source = read_source_text(path)?
+            let source_name = if (path == Path__new_("-")):
+                ("<stdin>").to_string()
+            else:
+                path.display().to_string()
+            let source_path = if (path == Path__new_("-")):
+                none
+            else:
+                Option::Some(path.clone())
+            Result::Ok((source, source_path, source_name))
+        None =>
+            if std__io__stdin().is_terminal():
+                return Result::Err(("Format requires an input file path or piped stdin.").to_string())
+            let mut buffer = String__new_()
+            std__io__stdin().read_to_string(&mut buffer).map_err(fn(err): f"Failed to read stdin: {err}")?
+            ()
+            Result::Ok((buffer, none, ("<stdin>").to_string()))
+
+fn run_format_command(input: Option<std::path::PathBuf>, check: Bool, write: Bool) -> Bool:
+    if write:
+        let Some(path) = match input:
+            Option::Some(__kain_option_as_ref_value) => Option::Some(&__kain_option_as_ref_value)
+            Option::None => none
+        if (path == Path__new_("-")):
+            eprintln(" Format --write does not support stdin.")
+            return false
+        ()
+    let (source, source_path, source_name) = match read_format_source(none):
+        Ok(value) => value
+        Err(err) =>
+            eprintln(f" {err}")
+            return false
+    let formatted = match cli__format_source(&source):
+        Ok(value) => value
+        Err(err) =>
+            let diag = Diagnostics__new_(&source, &source_name)
+            eprint(diag.format_error(&err))
+            return false
+    let changed = (formatted != source)
+    if check:
+        if changed:
+            eprintln(f" Formatting changes required: {source_name}")
+            return false
+        return true
+    if write:
+        let Some(path) = source_path
+        if changed:
+            if (!ensure_parent_dir(&path)):
+                return false
+            match std__fs__write(&path, &formatted):
+                Err(err) =>
+                    eprintln(f" Failed to write {path.display()}: {err}")
+                    return false
+                _ =>
+                    ()
+                    ()
+            ()
+        println(f" Formatted {path.display()}")
+        return true
+    print(formatted)
+    true
 
 fn run_source(source_name: String, source_path: Option<&std::path::Path>, source: String, target: cli::CompileTarget, output: Option<&std::path::PathBuf>, _emit_ast: Bool, _emit_typed: Bool, verbose: Bool, _analyze: Bool, plugin_name: Option<String>) -> Bool:
     if verbose:

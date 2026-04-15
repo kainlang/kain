@@ -19,6 +19,7 @@ pub struct ImportTypeScriptBatchOptions:
     include_filters: Array<String>
     exclude_filters: Array<String>
     fail_fast: Bool
+    strict_generated_output: Bool
     report_json: Option<std::path::PathBuf>
 
 @derive(Debug, Clone)
@@ -34,7 +35,7 @@ impl Default for ImportDiscoveryPolicy:
 
 impl Default for ImportTypeScriptBatchOptions:
     fn default_() -> ImportTypeScriptBatchOptions:
-        ImportTypeScriptBatchOptions { recursive: true, flat: false, include_filters: Vec__new_(), exclude_filters: Vec__new_(), fail_fast: false, report_json: none }
+        ImportTypeScriptBatchOptions { recursive: true, flat: false, include_filters: Vec__new_(), exclude_filters: Vec__new_(), fail_fast: false, strict_generated_output: false, report_json: none }
 
 
 impl ImportDiscoveryPolicy:
@@ -56,10 +57,52 @@ struct ImportTypeScriptSummary:
     imported_files: usize
     skipped_files: usize
     failed_files: Array<(std::path::PathBuf, String)>
+    diagnostic_files: Array<ImportTypeScriptDiagnosticFile>
 
 impl Default for ImportTypeScriptSummary:
     pub fn default_() -> ImportTypeScriptSummary:
-        ImportTypeScriptSummary { discovered_files: 0, imported_files: 0, skipped_files: 0, failed_files: Vec__new_() }
+        ImportTypeScriptSummary { discovered_files: 0, imported_files: 0, skipped_files: 0, failed_files: Vec__new_(), diagnostic_files: Vec__new_() }
+
+
+@derive(Debug, Clone)
+struct ImportTypeScriptDiagnosticFile:
+    file: std::path::PathBuf
+    diagnostics: Array<String>
+
+impl ImportTypeScriptSummary:
+    fn has_import_degradation(_self: &ImportTypeScriptSummary) -> Bool:
+        ((!(*_self).failed_files.is_empty()) || (!(*_self).diagnostic_files.is_empty()))
+
+    fn is_degraded(_self: &ImportTypeScriptSummary, validation: &GeneratedKainValidation) -> Bool:
+        ((*_self).has_import_degradation() || validation.is_degraded())
+
+    fn degradation_reasons(_self: &ImportTypeScriptSummary, validation: &GeneratedKainValidation) -> Array<String>:
+        let mut reasons = Vec__new_()
+        if (!(*_self).failed_files.is_empty()):
+            reasons.push(f"{(*_self).failed_files.len()} TypeScript file(s) failed to import")
+            ()
+            ()
+            ()
+            ()
+        if (!(*_self).diagnostic_files.is_empty()):
+            reasons.push(f"{(*_self).diagnostic_files.len()} imported TypeScript file(s) emitted importer diagnostics")
+            ()
+            ()
+            ()
+            ()
+        if (*validation).parse.is_failed():
+            reasons.push(("generated Kain source failed parse validation").to_string())
+            ()
+            ()
+            ()
+            ()
+        if (*validation).compile_.is_failed():
+            reasons.push(("generated Kain source failed compile validation").to_string())
+            ()
+            ()
+            ()
+            ()
+        reasons
 
 
 @derive(Debug, serde__Serialize)
@@ -68,18 +111,61 @@ struct ImportTypeScriptFailureEntry:
     error: String
 
 @derive(Debug, serde__Serialize)
-struct ImportTypeScriptFailureReport:
+struct ImportTypeScriptDiagnosticEntry:
+    file: String
+    diagnostics: Array<String>
+
+@derive(Debug, Clone, serde__Serialize)
+struct ImportTypeScriptValidationStatus:
+    status: String
+    error: Option<String>
+
+impl ImportTypeScriptValidationStatus:
+    fn ok() -> ImportTypeScriptValidationStatus:
+        ImportTypeScriptValidationStatus { status: ("ok").to_string(), error: none }
+
+    fn failed(error: String) -> ImportTypeScriptValidationStatus:
+        ImportTypeScriptValidationStatus { status: ("failed").to_string(), error: Option::Some(error) }
+
+    fn skipped(reason: String) -> ImportTypeScriptValidationStatus:
+        ImportTypeScriptValidationStatus { status: ("skipped").to_string(), error: Option::Some(reason.to_string()) }
+
+    fn is_failed(_self: &ImportTypeScriptValidationStatus) -> Bool:
+        ((*_self).status == "failed")
+
+
+@derive(Debug, Clone, serde__Serialize)
+struct GeneratedKainValidation:
+    parse: ImportTypeScriptValidationStatus
+    compile_: ImportTypeScriptValidationStatus
+
+impl GeneratedKainValidation:
+    fn skipped(reason: String) -> GeneratedKainValidation:
+        GeneratedKainValidation { parse: ImportTypeScriptValidationStatus__skipped(reason), compile_: ImportTypeScriptValidationStatus__skipped(reason) }
+
+    fn is_degraded(_self: &GeneratedKainValidation) -> Bool:
+        ((*_self).parse.is_failed() || (*_self).compile_.is_failed())
+
+
+@derive(Debug, serde__Serialize)
+struct ImportTypeScriptReport:
     input_path: String
     output_path: Option<String>
     target: Option<String>
     recursive: Bool
     flat: Bool
+    strict_generated_output: Bool
     include_filters: Array<String>
     exclude_filters: Array<String>
     discovered_files: usize
     imported_files: usize
     skipped_files: usize
     failed_files: Array<ImportTypeScriptFailureEntry>
+    diagnostic_files: Array<ImportTypeScriptDiagnosticEntry>
+    degraded: Bool
+    degradation_reasons: Array<String>
+    generated_kain_validation: GeneratedKainValidation
+    requested_target_compile: Option<ImportTypeScriptValidationStatus>
     generated_kain_path: Option<String>
     compiled_output_path: Option<String>
     generated_at_utc: String
@@ -93,11 +179,15 @@ pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std
         None if input.is_dir() => Option::Some(input.with_extension("kn"))
         None => none
     let (program, summary) = import_path_to_program(input, batch)?
+    let mut generated_kain_validation = GeneratedKainValidation__skipped("generated Kain source was not produced")
+    let mut requested_target_compile = none
     if (input.is_dir() && (summary.imported_files == 0)):
-        maybe_write_failure_report(input, resolved_output, target, batch, &summary, none, none)?
+        maybe_write_import_report(input, resolved_output, target, batch, &summary, &generated_kain_validation, requested_target_compile, none, none)?
         ()
         return Result::Err(KainError__runtime(build_no_import_detail(&summary)))
     let kain_source = generate_kain_source(&program)?
+    generated_kain_validation = validate_generated_kain_source(&kain_source)
+    ()
     let mut generated_kain_path = none
     match resolved_output:
         Some(out_path) =>
@@ -116,7 +206,18 @@ pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std
         Some(target_str) =>
             let compile_target = parse_compile_target(target_str).ok_or_else(fn(): KainError__runtime(f"Unknown target: {target_str}"))?
             println(f"Compiling to target: {target_str}")
-            let compiled = compile_(&kain_source, compile_target).map_err(fn(e): KainError__runtime(f"Compilation failed: {e}"))?
+            let compiled = match compile_(&kain_source, compile_target):
+                Ok(compiled) =>
+                    requested_target_compile = Option::Some(ImportTypeScriptValidationStatus__ok())
+                    ()
+                    compiled
+                Err(err) =>
+                    let error = compact_error_message(&err.to_string())
+                    requested_target_compile = Option::Some(ImportTypeScriptValidationStatus__failed(error.clone()))
+                    ()
+                    maybe_write_import_report(input, resolved_output, target, batch, &summary, &generated_kain_validation, requested_target_compile, generated_kain_path, none)?
+                    ()
+                    return Result::Err(KainError__runtime(f"Compilation failed: {err}"))
             let compiled_output = match resolved_output:
                 Some(out_) => out_.with_extension(target_extension(compile_target))
                 _ => input.with_extension(target_extension(compile_target))
@@ -130,6 +231,13 @@ pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std
         _ =>
             ()
             ()
+    if summary.is_degraded(&generated_kain_validation):
+        let reasons = summary.degradation_reasons(&generated_kain_validation)
+        println("Generated KAIN output is degraded:")
+        for reason in &reasons:
+            println(f"  - {reason}")
+        ()
+        ()
     println("Import complete")
     println(f"  Functions: {count_items(&program.items, fn(item): none)}")
     println(f"  Structs: {count_items(&program.items, fn(item): none)}")
@@ -137,7 +245,7 @@ pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std
     println(f"  Impls: {count_items(&program.items, fn(item): none)}")
     println(f"  Type aliases: {count_items(&program.items, fn(item): none)}")
     if input.is_dir():
-        println(f"  TypeScript files: discovered {summary.discovered_files}, imported {summary.imported_files}, skipped {summary.skipped_files}, failed {summary.failed_files.len()}")
+        println(f"  TypeScript files: discovered {summary.discovered_files}, imported {summary.imported_files}, skipped {summary.skipped_files}, failed {summary.failed_files.len()}, diagnostics {summary.diagnostic_files.len()}")
         if (!summary.failed_files.is_empty()):
             println("  Failed files:")
             for selfhost_for_item in summary.failed_files.iter().take(20):
@@ -149,15 +257,36 @@ pub fn import_typescript_with_batch(input: &std::path::Path, output: Option<&std
                 ()
                 ()
             ()
+        if (!summary.diagnostic_files.is_empty()):
+            println("  Diagnostic files:")
+            for entry in summary.diagnostic_files.iter().take(10):
+                let preview = entry.diagnostics.iter().take(2).cloned().collect().join(" | ")
+                println(f"    - {entry.file.display()}: {preview}")
+            ()
+            if (summary.diagnostic_files.len() > 10):
+                println(f"    ... {(summary.diagnostic_files.len() - 10)} more")
+                ()
+                ()
+            ()
         ()
-    maybe_write_failure_report(input, resolved_output, target, batch, &summary, generated_kain_path, compiled_output_path)?
+    maybe_write_import_report(input, resolved_output, target, batch, &summary, &generated_kain_validation, requested_target_compile, generated_kain_path, compiled_output_path)?
     ()
+    if ((*batch).strict_generated_output && summary.is_degraded(&generated_kain_validation)):
+        let reasons = summary.degradation_reasons(&generated_kain_validation)
+        return Result::Err(KainError__runtime("Generated Kain output is degraded: {reasons.join(\"; \")}"))
     Result::Ok(())
 
 fn import_path_to_program(input: &std::path::Path, batch: &ImportTypeScriptBatchOptions) -> Result<(kain_core::ast::Program, ImportTypeScriptSummary), KainError>:
     if input.is_file():
-        let program = kain_import__import_typescript(input).map_err(fn(e): KainError__runtime(f"TypeScript import failed: {e}"))?
-        return Result::Ok((program, ImportTypeScriptSummary { discovered_files: 1, imported_files: 1, ..ImportTypeScriptSummary__default_() }))
+        let result = kain_import__import_typescript_detailed(input).map_err(fn(e): KainError__runtime(f"TypeScript import failed: {e}"))?
+        let mut summary = ImportTypeScriptSummary { discovered_files: 1, imported_files: 1, ..ImportTypeScriptSummary__default_() }
+        if (!result.diagnostics.is_empty()):
+            summary.diagnostic_files.push(ImportTypeScriptDiagnosticFile { file: input.to_path_buf(), diagnostics: result.diagnostics.clone() })
+            ()
+            ()
+            ()
+            ()
+        return Result::Ok((result.program, summary))
     if (!input.is_dir()):
         return Result::Err(KainError__runtime(f"Input is neither file nor directory: {input.display()}"))
     let mut candidates = Vec__new_()
@@ -177,12 +306,18 @@ fn import_path_to_program(input: &std::path::Path, batch: &ImportTypeScriptBatch
             summary.skipped_files = (summary.skipped_files + 1)
             ()
             continue
-        match kain_import__import_typescript(&file):
-            Ok(program) =>
+        match kain_import__import_typescript_detailed(&file):
+            Ok(result) =>
                 summary.imported_files = (summary.imported_files + 1)
                 ()
+                if (!result.diagnostics.is_empty()):
+                    summary.diagnostic_files.push(ImportTypeScriptDiagnosticFile { file: file.clone(), diagnostics: result.diagnostics.clone() })
+                    ()
+                    ()
+                    ()
+                    ()
                 if (*batch).flat:
-                    merged_items.extend(program.items)
+                    merged_items.extend(result.program.items)
                     ()
                 else:
                     let base_name = sanitize_module_name(rel)
@@ -193,7 +328,7 @@ fn import_path_to_program(input: &std::path::Path, batch: &ImportTypeScriptBatch
                         base_name
                     else:
                         f"{base_name}_{(*entry)}"
-                    merged_items.push(kain_core__ast__Item::Mod(kain_core::ast::Mod { name: module_name, inline_: Option::Some(program.items), visibility: kain_core__ast__Visibility__Public, span: Span__default_() }))
+                    merged_items.push(kain_core__ast__Item::Mod(kain_core::ast::Mod { name: module_name, inline_: Option::Some(result.program.items), visibility: kain_core__ast__Visibility__Public, span: Span__default_() }))
                     ()
             Err(err) =>
                 summary.failed_files.push((file.clone(), compact_error_message(&err.to_string())))
@@ -209,9 +344,10 @@ fn build_no_import_detail(summary: &ImportTypeScriptSummary) -> String:
     let previews = (*summary).failed_files.iter().take(5).map(fn(__kain_closure_arg0): f"{__kain_closure_arg0.__kain_tuple_0.display()}: {__kain_closure_arg0.__kain_tuple_1}").collect()
     "All matching TypeScript files failed to import (e.g. {previews.join(\" | \")})"
 
-fn maybe_write_failure_report(input: &std::path::Path, output: Option<&std::path::Path>, target: Option<String>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary, generated_kain_path: Option<&std::path::Path>, compiled_output_path: Option<&std::path::Path>) -> Result<(), KainError>:
-    let Some(report_path) = resolve_report_path(input, output, batch, summary)
-    let report = ImportTypeScriptFailureReport { input_path: input.display().to_string(), output_path: output.map(fn(p): p.display().to_string()), target: target.map(str__to_string), recursive: (*batch).recursive, flat: (*batch).flat, include_filters: (*batch).include_filters.clone(), exclude_filters: (*batch).exclude_filters.clone(), discovered_files: (*summary).discovered_files, imported_files: (*summary).imported_files, skipped_files: (*summary).skipped_files, failed_files: (*summary).failed_files.iter().map(fn(__kain_closure_arg1): ImportTypeScriptFailureEntry { file: __kain_closure_arg1.__kain_tuple_0.display().to_string(), error: __kain_closure_arg1.__kain_tuple_1.clone() }).collect(), generated_kain_path: generated_kain_path.map(fn(p): p.display().to_string()), compiled_output_path: compiled_output_path.map(fn(p): p.display().to_string()), generated_at_utc: Utc__now().to_rfc3339() }
+fn maybe_write_import_report(input: &std::path::Path, output: Option<&std::path::Path>, target: Option<String>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary, generated_kain_validation: &GeneratedKainValidation, requested_target_compile: Option<&ImportTypeScriptValidationStatus>, generated_kain_path: Option<&std::path::Path>, compiled_output_path: Option<&std::path::Path>) -> Result<(), KainError>:
+    let Some(report_path) = resolve_report_path(input, output, batch, summary, generated_kain_validation, requested_target_compile)
+    let degradation_reasons = summary.degradation_reasons(generated_kain_validation)
+    let report = ImportTypeScriptReport { input_path: input.display().to_string(), output_path: output.map(fn(p): p.display().to_string()), target: target.map(str__to_string), recursive: (*batch).recursive, flat: (*batch).flat, strict_generated_output: (*batch).strict_generated_output, include_filters: (*batch).include_filters.clone(), exclude_filters: (*batch).exclude_filters.clone(), discovered_files: (*summary).discovered_files, imported_files: (*summary).imported_files, skipped_files: (*summary).skipped_files, failed_files: (*summary).failed_files.iter().map(fn(__kain_closure_arg1): ImportTypeScriptFailureEntry { file: __kain_closure_arg1.__kain_tuple_0.display().to_string(), error: __kain_closure_arg1.__kain_tuple_1.clone() }).collect(), diagnostic_files: (*summary).diagnostic_files.iter().map(fn(entry): ImportTypeScriptDiagnosticEntry { file: entry.file.display().to_string(), diagnostics: entry.diagnostics.clone() }).collect(), degraded: summary.is_degraded(generated_kain_validation), degradation_reasons: degradation_reasons, generated_kain_validation: generated_kain_validation.clone(), requested_target_compile: requested_target_compile.cloned(), generated_kain_path: generated_kain_path.map(fn(p): p.display().to_string()), compiled_output_path: compiled_output_path.map(fn(p): p.display().to_string()), generated_at_utc: Utc__now().to_rfc3339() }
     match report_path.parent():
         Some(parent) =>
             if (!parent.as_os_str().is_empty()):
@@ -227,16 +363,17 @@ fn maybe_write_failure_report(input: &std::path::Path, output: Option<&std::path
     let json = serde_json__to_string_pretty(&report).map_err(fn(e): KainError__runtime(f"Failed to serialize import report: {e}"))?
     std__fs__write(&report_path, json).map_err(fn(e): KainError__runtime(f"Failed to write import report: {e}"))?
     ()
-    println(f"Failure report JSON: {report_path.display()}")
+    println(f"Import report JSON: {report_path.display()}")
     Result::Ok(())
 
-fn resolve_report_path(input: &std::path::Path, output: Option<&std::path::Path>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary) -> Option<std::path::PathBuf>:
+fn resolve_report_path(input: &std::path::Path, output: Option<&std::path::Path>, batch: &ImportTypeScriptBatchOptions, summary: &ImportTypeScriptSummary, generated_kain_validation: &GeneratedKainValidation, requested_target_compile: Option<&ImportTypeScriptValidationStatus>) -> Option<std::path::PathBuf>:
     match &(*batch).report_json:
         Some(path) => return Option::Some(path.clone())
         _ =>
             ()
             ()
-    if (input.is_dir() && (!(*summary).failed_files.is_empty())):
+    let requested_target_failed = requested_target_compile.is_some_and(fn(status): status.is_failed())
+    if (summary.is_degraded(generated_kain_validation) || requested_target_failed):
         return Option::Some(output.map(fn(out_): out_.with_extension("import_report.json")).unwrap_or_else(fn(): input.with_extension("import_report.json")))
     none
 
@@ -257,6 +394,15 @@ fn compact_error_message(raw: String) -> String:
         ()
         ()
     compact
+
+fn validate_generated_kain_source(source: String) -> GeneratedKainValidation:
+    let parse = match format_source(source):
+        Ok(_) => ImportTypeScriptValidationStatus__ok()
+        Err(err) => ImportTypeScriptValidationStatus__failed(compact_error_message(&err.to_string()))
+    let compile_ = match compile_(source, CompileTarget__Interpret):
+        Ok(_) => ImportTypeScriptValidationStatus__ok()
+        Err(err) => ImportTypeScriptValidationStatus__failed(compact_error_message(&err.to_string()))
+    GeneratedKainValidation { parse: parse, compile_: compile_ }
 
 fn collect_typescript_files(root: &std::path::Path, recursive: Bool, discovery_policy: &ImportDiscoveryPolicy, out_: &mut Array<std::path::PathBuf>) -> Result<(), KainError>:
     let entries = std__fs__read_dir(root).map_err(fn(e): KainError__runtime(f"Failed to read directory {root.display()}: {e}"))?

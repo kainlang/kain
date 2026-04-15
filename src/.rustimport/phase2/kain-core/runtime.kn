@@ -495,6 +495,8 @@ impl Env:
         ()
         (*_self).define_native("env", fn(_env, args): none)
         ()
+        (*_self).define_native("args", fn(_env, _args): none)
+        ()
         (*_self).define_native("assert", fn(_env, args): none)
         ()
         (*_self).define_native("panic", fn(_env, args): none)
@@ -1206,7 +1208,8 @@ fn load_module(env: &mut Env, u: &Use) -> Result<(), KainError>:
         file_path.ok_or_else(fn(): KainError__runtime(f"Stdlib module not found: {module_name}"))?
     else:
         let base_path = Path__new_(&path)
-        let possible_paths = [base_path.with_extension("kn"), PathBuf__from(f"src/{path}.kn"), PathBuf__from(f"{path}.kn"), base_path.with_extension("god")]
+        let module_base = (*u).path.first().map(fn(s): s.as_str()).unwrap_or(&path)
+        let possible_paths = [base_path.with_extension("kn"), PathBuf__from(f"src/{path}.kn"), PathBuf__from(f"src/core/{module_base}.kn"), PathBuf__from(f"{path}.kn"), base_path.with_extension("god")]
         possible_paths.iter().find(fn(p): p.exists()).cloned().ok_or_else(fn(): KainError__runtime(f"Module not found: {path} (tried: {possible_paths.iter().map(fn(p): p.display().to_string()).collect()})"))?
     let source = std__fs__read_to_string(&file_path).map_err(fn(e): KainError__runtime(f"Failed to read module {path}: {e}"))?
     let lexer = Lexer__new_(&source)

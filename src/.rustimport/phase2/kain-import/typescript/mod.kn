@@ -8,6 +8,11 @@ use kain_core::ast::Program
 
 use std::path::Path
 
+@derive(Debug, Clone)
+pub struct TypeScriptImportDiagnostics:
+    program: kain_core::ast::Program
+    diagnostics: Array<String>
+
 @doc(doc = " Import a single TypeScript source file into KAIN AST.")
 @doc(doc = "")
 @doc(doc = " # Example")
@@ -15,34 +20,44 @@ use std::path::Path
 @doc(doc = " kain import-ts ./src/app.ts --output src/app.kn")
 @doc(doc = " ```")
 pub fn import_typescript_file(path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
-    let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
-    import_typescript_source(&source, path)
+    Result::Ok((import_typescript_file_detailed(path)?).program)
 
 @doc(doc = " Compatibility alias matching the requirements document naming.")
 pub fn import_ts_file(path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
     import_typescript_file(path)
 
+pub fn import_typescript_file_detailed(path: &std::path::Path) -> Result<TypeScriptImportDiagnostics, Error>:
+    let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
+    import_typescript_source_detailed(&source, path)
+
 @doc(doc = " Import TypeScript source from a string (useful for testing and REPL use).")
 pub fn import_typescript_source(source: String, path: &std::path::Path) -> Result<kain_core::ast::Program, Error>:
+    Result::Ok((import_typescript_source_detailed(source, path)?).program)
+
+pub fn import_typescript_source_detailed(source: String, path: &std::path::Path) -> Result<TypeScriptImportDiagnostics, Error>:
     let module = parser__parse_typescript(source, path)?
     let mut tx = TypeScriptTransformer__new_()
-    tx.transform(module)
+    let program = tx.transform(module)?
+    Result::Ok(TypeScriptImportDiagnostics { program: program, diagnostics: tx.diagnostics })
 
 @doc(doc = " Import multiple TypeScript files into a single merged KAIN program (flat mode).")
 @doc(doc = "")
 @doc(doc = " All symbols land in top-level scope.")
 pub fn import_typescript_project(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:
+    Result::Ok((import_typescript_project_detailed(paths)?).program)
+
+pub fn import_typescript_project_detailed(paths: &[&std::path::Path]) -> Result<TypeScriptImportDiagnostics, Error>:
     let mut all_items = Vec__new_()
+    let mut all_diagnostics = Vec__new_()
     let span = Span__default_()
     for path in paths:
-        let source = std__fs__read_to_string(path).map_err(ImportError__IoError)?
-        let module = parser__parse_typescript(&source, path)?
-        let mut tx = TypeScriptTransformer__new_()
-        let program = tx.transform(module)?
-        all_items.extend(program.items)
+        let result = import_typescript_file_detailed(path)?
+        all_items.extend(result.program.items)
+        ()
+        all_diagnostics.extend(result.diagnostics)
         ()
     ()
-    Result::Ok(kain_core::ast::Program { items: all_items, span: span })
+    Result::Ok(TypeScriptImportDiagnostics { program: kain_core::ast::Program { items: all_items, span: span }, diagnostics: all_diagnostics })
 
 @doc(doc = " Compatibility alias matching the requirements document naming.")
 pub fn import_ts_project(paths: &[&std::path::Path]) -> Result<kain_core::ast::Program, Error>:

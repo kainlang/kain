@@ -452,6 +452,16 @@ fn register_builtin_global_functions(env: &mut TypeEnv<_>):
     ()
     env.define_global(("__kain_bootstrap_lex_tokens").into(), builtin_function_type([shared_ref_type(ResolvedType__String)], selfhost_bootstrap_lexer_result_type()))
     ()
+    env.define_global(("args").into(), builtin_function_type([], dynamic_array_type(ResolvedType__String)))
+    ()
+    env.define_global(("exit").into(), builtin_function_type([ResolvedType::Int(IntSize__I64)], ResolvedType__Never))
+    ()
+    env.define_global(("str").into(), builtin_function_type([ResolvedType__Unknown], ResolvedType__String))
+    ()
+    env.define_global(("int").into(), builtin_function_type([ResolvedType__Unknown], ResolvedType::Int(IntSize__I64)))
+    ()
+    env.define_global(("float").into(), builtin_function_type([ResolvedType__Unknown], ResolvedType::Float(FloatSize__F64)))
+    ()
 
 fn method_has_receiver_param(method: &Function) -> Bool:
     (*method).params.first().is_some_and(fn(param): none)
@@ -827,6 +837,20 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> Result<(), KainError>:
                 _ =>
                     ()
                     ()
+            ()
+        Item::Use(u) =>
+            let imported_name = match &u.alias:
+                Some(alias) => alias.clone()
+                _ =>
+                    match u.path.last():
+                        Some(last) => last.clone()
+                        _ => return Result::Ok(())
+            if env.lookup(&imported_name).is_none():
+                env.define_global(imported_name, ResolvedType__Unknown)
+                ()
+                ()
+                ()
+                ()
             ()
         _ => ()
     Result::Ok(())

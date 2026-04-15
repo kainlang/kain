@@ -91,6 +91,38 @@ fn __kain_bitfield_set<T: Copy, TValue: Copy + Into<i64>>(mut value: T, _field: 
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct GenServerCallOutcome {
+    pub reply: R,
+    pub state: S,
+}
+
+
+pub fn gen_server_call_result<R, S>(reply: R, state: S) -> GenServerCallOutcome {
+    return GenServerCallOutcome { reply: reply, state: state };
+}
+
+pub fn gen_server_start<M, S>(state: S, handle_call: fn(M, S) -> GenServerCallOutcome, handle_cast: fn(M, S) -> S, handle_info: fn(M, S) -> S) -> GenServer {
+    return GenServer { current_state: state, handle_call: handle_call, handle_cast: handle_cast, handle_info: handle_info };
+}
+
+pub fn gen_server_start_link<M, S>(state: S, handle_call: fn(M, S) -> GenServerCallOutcome, handle_cast: fn(M, S) -> S, handle_info: fn(M, S) -> S) -> GenServer {
+    return gen_server_start(state, handle_call, handle_cast, handle_info);
+}
+
+pub fn gen_server_call<M, R>(server: GenServer, request: M) -> R {
+    let reply = ask(server, "Call".to_string(), request);
+    return reply;
+}
+
+pub fn gen_server_cast<M>(server: GenServer, request: M) -> __ {
+    { let _target = server; let _message = "Cast"; let _data = { request: request }; () }
+}
+
+pub fn gen_server_info<M>(server: GenServer, message: M) -> __ {
+    { let _target = server; let _message = "Info"; let _data = { message: message }; () }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct MinimalUIProps {
     pub children: String,
 }
