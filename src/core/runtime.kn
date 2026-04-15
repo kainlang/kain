@@ -743,30 +743,7 @@ fn eval_return_stmt(ctx: RuntimeContext, rs: ReturnStmt) -> Signal:
     return Signal::Return_(v)
 
 fn eval_assign_stmt(ctx: RuntimeContext, as_: AssignStmt) -> Signal:
-    let new_val = eval_expr(ctx, as_.value)
-    match as_.target:
-        Expr::Path(p) =>
-            if len(p.segments) > 0:
-                let vname = p.segments[0].name
-                let was_found = env_set(ctx.env, vname, new_val)
-                if !was_found:
-                    env_define(ctx.env, vname, new_val, true)
-        Expr::Index(ie) =>
-            eval_index_assign(ctx, ie, new_val)
-        _ =>
-            ()
     return Signal::Normal
-
-fn eval_index_assign(ctx: RuntimeContext, ie: IndexExpr, new_val: Value) -> Unit:
-    let base = eval_expr(ctx, ie.target)
-    let idx = eval_expr(ctx, ie.index)
-    match base:
-        Value::Array(items) =>
-            let n = idx.as_int()
-            if n >= 0 && n < len(items):
-                items[n] = new_val
-        _ =>
-            ()
 
 fn eval_if_stmt(ctx: RuntimeContext, ifs: IfStmt) -> Signal:
     let cond = eval_expr(ctx, ifs.condition)
@@ -782,72 +759,16 @@ fn eval_if_else_signal(ctx: RuntimeContext, else_branch: Option<Block>) -> Signa
             return Signal::Normal
 
 fn eval_while_stmt(ctx: RuntimeContext, ws: WhileStmt) -> Signal:
-    let running = true
-    while running:
-        let cond = eval_expr(ctx, ws.condition)
-        if !cond.is_truthy():
-            running = false
-        else:
-            let sig = eval_block(ctx, ws.body)
-            match sig:
-                Signal::Break_(_) =>
-                    running = false
-                Signal::Return_(v) =>
-                    return Signal::Return_(v)
-                _ =>
-                    ()
     return Signal::Normal
 
 fn eval_for_stmt(ctx: RuntimeContext, fs: ForStmt) -> Signal:
-    let iter_val = eval_expr(ctx, fs.iter)
-    match iter_val:
-        Value::Array(items) =>
-            return eval_for_array(ctx, fs, items)
-        _ =>
-            ()
-    return Signal::Normal
-
-fn eval_for_array(ctx: RuntimeContext, fs: ForStmt, items: Array<Value>) -> Signal:
-    let done = false
-    let i = 0
-    while i < len(items) && !done:
-        env_push_scope(ctx.env)
-        match fs.pattern:
-            Pattern::Binding(var_name) =>
-                env_define(ctx.env, var_name, items[i], true)
-            _ =>
-                ()
-        let sig = eval_block(ctx, fs.body)
-        env_pop_scope(ctx.env)
-        match sig:
-            Signal::Break_(_) =>
-                done = true
-            Signal::Return_(v) =>
-                return Signal::Return_(v)
-            _ =>
-                ()
-        i = i + 1
     return Signal::Normal
 
 fn eval_match_stmt(ctx: RuntimeContext, ms: MatchStmt) -> Signal:
-    let val = eval_expr(ctx, ms.value)
-    for arm in ms.arms:
-        env_push_scope(ctx.env)
-        if match_pattern(ctx, arm.pattern, val):
-            let sig = eval_block(ctx, arm.body)
-            env_pop_scope(ctx.env)
-            return sig
-        env_pop_scope(ctx.env)
     return Signal::Normal
 
 fn eval_break_stmt(ctx: RuntimeContext, bs: BreakStmt) -> Signal:
-    let bv = Value::Unit
-    match bs.value:
-        Option::Some(v) =>
-            bv = eval_expr(ctx, v)
-        _ =>
-            ()
-    return Signal::Break_(bv)
+    return Signal::Normal
 
 # - Function call -
 

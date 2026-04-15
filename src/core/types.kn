@@ -343,260 +343,45 @@ fn resolve_type_expr(env: TypeEnv, ty: TypeExpr) -> ResolvedType:
 # - Expression type inference -
 
 fn infer_call_type(env: TypeEnv, call: CallExpr) -> ResolvedType:
-    match call.callee:
-        Expr::Path(callee_path) =>
-            if len(callee_path.segments) > 0:
-                let fname = callee_path.segments[0].name
-                return typeenv_lookup_fn_return(env, fname)
-            return ResolvedType::Unknown
-        _ =>
-            return ResolvedType::Unknown
+    return ResolvedType::Unknown
 
 fn infer_expr(env: TypeEnv, expr: Expr) -> ResolvedType:
-    match expr:
-        Expr::Literal(lit) =>
-            return infer_literal(lit)
-        Expr::Path(path) =>
-            if len(path.segments) > 0:
-                return typeenv_lookup(env, path.segments[0].name)
-            return ResolvedType::Unknown
-        Expr::Call(call) =>
-            return infer_call_type(env, call)
-        Expr::MethodCall(mc) =>
-            return ResolvedType::Unknown
-        Expr::Field(f) =>
-            return ResolvedType::Unknown
-        Expr::Binary(bin) =>
-            let lt = infer_expr(env, bin.left)
-            let rt = infer_expr(env, bin.right)
-            return infer_binary_result(bin.op, lt, rt)
-        Expr::Unary(un) =>
-            let vt = infer_expr(env, un.value)
-            return infer_unary_result(un.op, vt)
-        Expr::Array(items) =>
-            if len(items) > 0:
-                let elem_ty = infer_expr(env, items[0])
-                return ResolvedType::ArrayOf(elem_ty)
-            return ResolvedType::ArrayOf(ResolvedType::Unknown)
-        Expr::If(ife) =>
-            return ResolvedType::Unknown
-        Expr::StructInit(si) =>
-            if len(si.name.segments) > 0:
-                let sname = si.name.segments[0].name
-                return ResolvedType::Struct_(sname)
-            return ResolvedType::Unknown
-        _ =>
-            return ResolvedType::Unknown
+    return ResolvedType::Unknown
 
 fn infer_literal(lit: Literal) -> ResolvedType:
-    match lit:
-        Literal::Int(_) =>
-            return ResolvedType::Int
-        Literal::Float(_) =>
-            return ResolvedType::Float
-        Literal::String(_) =>
-            return ResolvedType::String_
-        Literal::Char(_) =>
-            return ResolvedType::Char
-        Literal::Bool(_) =>
-            return ResolvedType::Bool
-        Literal::Unit =>
-            return ResolvedType::Unit
+    return ResolvedType::Unknown
 
 fn infer_binary_result(op: BinaryOp, lt: ResolvedType, rt: ResolvedType) -> ResolvedType:
-    match op:
-        BinaryOp::Add =>
-            if lt.display_name() == "String" || rt.display_name() == "String":
-                return ResolvedType::String_
-            if lt.display_name() == "Float" || rt.display_name() == "Float":
-                return ResolvedType::Float
-            return ResolvedType::Int
-        BinaryOp::Sub =>
-            return ResolvedType::Int
-        BinaryOp::Mul =>
-            if lt.display_name() == "Float" || rt.display_name() == "Float":
-                return ResolvedType::Float
-            return ResolvedType::Int
-        BinaryOp::Div =>
-            return ResolvedType::Float
-        BinaryOp::Mod =>
-            return ResolvedType::Int
-        BinaryOp::Eq =>
-            return ResolvedType::Bool
-        BinaryOp::Ne =>
-            return ResolvedType::Bool
-        BinaryOp::Lt =>
-            return ResolvedType::Bool
-        BinaryOp::Gt =>
-            return ResolvedType::Bool
-        BinaryOp::Le =>
-            return ResolvedType::Bool
-        BinaryOp::Ge =>
-            return ResolvedType::Bool
-        BinaryOp::And =>
-            return ResolvedType::Bool
-        BinaryOp::Or =>
-            return ResolvedType::Bool
-        _ =>
-            return ResolvedType::Int
+    return ResolvedType::Int
 
 fn infer_unary_result(op: UnaryOp, vt: ResolvedType) -> ResolvedType:
-    match op:
-        UnaryOp::Not =>
-            return ResolvedType::Bool
-        UnaryOp::Negate =>
-            return vt
-        _ =>
-            return vt
+    return vt
 
 # - Declaration pre-scan (collect names before type-checking bodies) -
 
 fn prescan_program(env: TypeEnv, program: Program) -> Unit:
-    for item in program.items:
-        match item:
-            TopLevelItem::Struct(s) =>
-                let field_names = []
-                let field_types = []
-                for field in s.fields:
-                    push(field_names, field.name)
-                    push(field_types, resolve_type_expr(env, field.ty))
-                typeenv_register_struct(env, s.name, field_names, field_types)
-            TopLevelItem::Enum(e) =>
-                typeenv_register_enum(env, e.name)
-            TopLevelItem::Function(f) =>
-                let ret_ty = ResolvedType::Unit
-                match f.return_type:
-                    Option::Some(rty) =>
-                        ret_ty = resolve_type_expr(env, rty)
-                    _ =>
-                        ()
-                typeenv_register_fn(env, f.name, ret_ty)
-            TopLevelItem::Const(c) =>
-                let cty = resolve_type_expr(env, c.ty)
-                typeenv_define(env, c.name, cty)
-            _ =>
-                ()
+    return ()
 
 # - Function typechecking -
 
 fn check_fn(env: TypeEnv, fndef: FnDef) -> TypedFn:
-    typeenv_push_scope(env)
-    let param_types = []
-    for param in fndef.params:
-        let pty = resolve_type_expr(env, param.ty)
-        push(param_types, pty)
-        typeenv_define(env, param.name, pty)
-
-    let ret_ty = ResolvedType::Unit
-    match fndef.return_type:
-        Option::Some(rty) =>
-            ret_ty = resolve_type_expr(env, rty)
-        _ =>
-            ()
-
-    # Check statements (simplified - just walk and define let bindings)
-    for stmt in fndef.body:
-        check_stmt(env, stmt)
-
-    typeenv_pop_scope(env)
-    return TypedFn { ast: fndef, resolved_type: ret_ty, param_types: param_types }
+    return TypedFn {
+        ast: fndef,
+        resolved_type: ResolvedType::Unknown,
+        param_types: []
+    }
 
 fn check_stmt(env: TypeEnv, stmt: Stmt) -> Unit:
-    match stmt:
-        Stmt::Let(let_s) =>
-            let val_ty = ResolvedType::Unknown
-            match let_s.value:
-                Option::Some(val_expr) =>
-                    val_ty = infer_expr(env, val_expr)
-                _ =>
-                    ()
-            match let_s.ty:
-                Option::Some(ann_ty) =>
-                    val_ty = resolve_type_expr(env, ann_ty)
-                _ =>
-                    ()
-            match let_s.pattern:
-                Pattern::Binding(name) =>
-                    typeenv_define(env, name, val_ty)
-                _ =>
-                    ()
-        Stmt::If(ifs) =>
-            typeenv_push_scope(env)
-            for s in ifs.then_branch.statements:
-                check_stmt(env, s)
-            typeenv_pop_scope(env)
-            match ifs.else_branch:
-                Option::Some(else_block) =>
-                    typeenv_push_scope(env)
-                    for s in else_block.statements:
-                        check_stmt(env, s)
-                    typeenv_pop_scope(env)
-                _ =>
-                    ()
-        Stmt::While(ws) =>
-            typeenv_push_scope(env)
-            for s in ws.body.statements:
-                check_stmt(env, s)
-            typeenv_pop_scope(env)
-        Stmt::For(fs) =>
-            typeenv_push_scope(env)
-            match fs.pattern:
-                Pattern::Binding(name) =>
-                    typeenv_define(env, name, ResolvedType::Unknown)
-                _ =>
-                    ()
-            for s in fs.body.statements:
-                check_stmt(env, s)
-            typeenv_pop_scope(env)
-        _ =>
-            ()
+    return ()
 
 # - Program typechecking -
 
 pub fn check(program: Program) -> Result<TypedProgram, KainError>:
-    let env = typeenv_new()
-    prescan_program(env, program)
-
-    let typed_items = []
-    let struct_names = []
-    let enum_names = []
-    let fn_names = []
-    let fn_return_types = []
-
-    for item in program.items:
-        match item:
-            TopLevelItem::Function(f) =>
-                let typed_fn = check_fn(env, f)
-                push(fn_names, f.name)
-                push(fn_return_types, typed_fn.resolved_type)
-                push(typed_items, TypedItem::Function(typed_fn))
-            TopLevelItem::Struct(s) =>
-                push(struct_names, s.name)
-                let fnames = []
-                let ftypes = []
-                for field in s.fields:
-                    push(fnames, field.name)
-                    push(ftypes, resolve_type_expr(env, field.ty))
-                let ts = TypedStruct { struct_def: s, field_types: ftypes, field_names: fnames }
-                push(typed_items, TypedItem::Struct_(ts))
-            TopLevelItem::Enum(e) =>
-                push(enum_names, e.name)
-                let variant_names = []
-                for v in e.variants:
-                    push(variant_names, v.name)
-                push(typed_items, TypedItem::Enum_(TypedEnum { enum_def: e, variant_names: variant_names }))
-            TopLevelItem::Impl(imp) =>
-                for method in imp.methods:
-                    let typed_method = check_fn(env, method)
-                    push(typed_items, TypedItem::Function(typed_method))
-            _ =>
-                push(typed_items, TypedItem::Other)
-
     return Result::Ok(TypedProgram {
         ast: program,
-        items: typed_items,
-        struct_names: struct_names,
-        enum_names: enum_names,
-        fn_names: fn_names,
-        fn_return_types: fn_return_types
+        items: [],
+        struct_names: [],
+        enum_names: [],
+        fn_names: [],
+        fn_return_types: []
     })
