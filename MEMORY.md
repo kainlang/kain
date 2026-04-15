@@ -1,7 +1,10 @@
 <<<<<<< 3D
 # Kain Memory
 
+- New Kain 3D pass (2026-04-15): frame diagnostics now carry a structured `camera_pose` alongside the existing camera-source and composition metadata, and `material_atrium_smoke` writes that pose into the top-level JSON report and each tile record. The summary line also includes compact camera position/target text, so 3D artifacts are easier to diff and correlate with framing changes.
+- New Kain 3D pass (2026-04-15): `material_atrium_smoke` now renders the canonical frame summary into each tile footer, so the PNG proof itself surfaces camera/source/viewport/composition/selection/manipulator context instead of leaving that detail only in JSON. This makes the visual artifact more glanceable during 3D debugging.
 - New Kain 3D pass (2026-04-15): `FrameDiagnostics` now exposes a compact `summary_line()` helper, and `material_atrium_smoke` records that summary at both the top level and per-tile in its JSON report. This makes the 3D smoke artifact easier to skim, diff, and route into other tooling without manually reassembling camera/source/viewport/composition context.
+- New Kain 3D pass (2026-04-15): `PrimitiveLibrary` now emits a compact `catalog_summary()` string, and `Scene::add_primitive_library(...)` stores it as `primitive_library.catalog_summary` in scene metadata. That gives 3D tooling a one-line view of primitive catalog scale and subdivision readiness without re-deriving it from the full definition map.
 
 - The Kain 3D pipeline is a live fleet initiative now, and its steering should stay spec-first.
 - The intended build path is native, GPU-aware 3D capability that can grow toward DCC-class tools like ZBrush, Substance Painter, and UE5-style workflows.

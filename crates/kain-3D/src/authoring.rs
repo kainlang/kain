@@ -1147,6 +1147,10 @@ impl Scene {
                 .collect::<Vec<_>>()
                 .join(","),
         );
+        self.metadata.insert(
+            "primitive_library.catalog_summary".to_string(),
+            library.catalog_summary(),
+        );
         for definition in library.definitions.values() {
             self.add_primitive_definition(definition);
         }

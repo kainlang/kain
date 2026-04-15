@@ -297,6 +297,20 @@ impl PrimitiveLibrary {
         self.definitions.get(id)
     }
 
+    pub fn catalog_summary(&self) -> String {
+        let subdivision_ready_count = self
+            .definitions
+            .values()
+            .filter(|definition| definition.subdivision_ready)
+            .count();
+        format!(
+            "{} definitions, {} subdivision-ready, startup {}",
+            self.definitions.len(),
+            subdivision_ready_count,
+            self.startup_primitive_id
+        )
+    }
+
     pub fn geometry_map(&self) -> BTreeMap<String, Geometry> {
         self.definitions
             .iter()
@@ -1002,6 +1016,10 @@ mod tests {
                 .metadata
                 .get("primitive_library.startup_primitive_display_name"),
             Some(&"Startup Cube".to_string())
+        );
+        assert_eq!(
+            scene.metadata.get("primitive_library.catalog_summary"),
+            Some(&library.catalog_summary())
         );
         assert!(scene
             .metadata
