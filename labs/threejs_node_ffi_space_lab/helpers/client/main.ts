@@ -10,6 +10,22 @@ type BrushState = {
   falloffPower: number;
 };
 
+type HybridMotionBindings = {
+  orb_hover_units: (frameUnits: number, cycleUnits: number, amplitudeUnits: number) => number;
+  orb_hover_units_async: (
+    frameUnits: number,
+    cycleUnits: number,
+    amplitudeUnits: number,
+  ) => Promise<number>;
+  beacon_spin_units: (frameUnits: number, speedUnits: number, cycleUnits: number) => number;
+};
+
+declare global {
+  interface Window {
+    __KAIN_HYBRID_BINDINGS__?: Record<string, unknown>;
+  }
+}
+
 function mustQuery<T extends Element>(scope: ParentNode, selector: string): T {
   const element = scope.querySelector<T>(selector);
 
@@ -22,6 +38,33 @@ function mustQuery<T extends Element>(scope: ParentNode, selector: string): T {
 
 function formatVector(vector: THREE.Vector3): string {
   return `${vector.x.toFixed(1)}, ${vector.y.toFixed(1)}, ${vector.z.toFixed(1)}`;
+}
+
+function readHybridMotionBindings(source: Window & typeof globalThis): HybridMotionBindings {
+  const bindings = source.__KAIN_HYBRID_BINDINGS__;
+
+  if (
+    !bindings ||
+    typeof bindings.orb_hover_units !== "function" ||
+    typeof bindings.orb_hover_units_async !== "function" ||
+    typeof bindings.beacon_spin_units !== "function"
+  ) {
+    throw new Error("Missing required Kain hybrid motion bindings.");
+  }
+
+  return {
+    orb_hover_units: bindings.orb_hover_units as HybridMotionBindings["orb_hover_units"],
+    orb_hover_units_async: bindings.orb_hover_units_async as HybridMotionBindings["orb_hover_units_async"],
+    beacon_spin_units: bindings.beacon_spin_units as HybridMotionBindings["beacon_spin_units"],
+  };
+}
+
+function rotationUnitsToRadians(rotationUnits: number, cycleUnits: number): number {
+  if (cycleUnits <= 0) {
+    return 0;
+  }
+
+  return (rotationUnits / cycleUnits) * Math.PI * 2;
 }
 
 function createStarField(scene: THREE.Scene, starCount: number, radius: number) {
@@ -115,6 +158,7 @@ function createShellMarkup(model: AppModel) {
         </div>
         <div class="header-chip-row">
           <span class="header-chip">${model.scene.name}</span>
+          <span class="header-chip">${model.hybrid_pipeline.bundle_name}.hybrid</span>
           <span class="header-chip">${model.wasm_pipeline.crate_name}.wasm</span>
           <span class="header-chip">${model.viewport_profiles.name}</span>
         </div>
@@ -154,6 +198,7 @@ function createShellMarkup(model: AppModel) {
             <div class="status-pill"><span>Tool</span><strong data-tool-value>-</strong></div>
             <div class="status-pill"><span>Camera</span><strong data-camera-value>0, 0, 0</strong></div>
             <div class="status-pill"><span>Range</span><strong data-range-value>0.0</strong></div>
+            <div class="status-pill"><span>Hybrid</span><strong data-hybrid-value>Booting</strong></div>
             <div class="status-pill"><span>WASM</span><strong data-wasm-value>Loading</strong></div>
             <div class="status-pill"><span>Stroke</span><strong data-stroke-value>0</strong></div>
           </div>
@@ -224,6 +269,7 @@ async function bootstrap() {
   const rangeValue = mustQuery<HTMLElement>(mountTarget, "[data-range-value]");
   const modeValue = mustQuery<HTMLElement>(mountTarget, "[data-mode-value]");
   const toolValue = mustQuery<HTMLElement>(mountTarget, "[data-tool-value]");
+  const hybridValue = mustQuery<HTMLElement>(mountTarget, "[data-hybrid-value]");
   const wasmValue = mustQuery<HTMLElement>(mountTarget, "[data-wasm-value]");
   const strokeValue = mustQuery<HTMLElement>(mountTarget, "[data-stroke-value]");
   const vertexValue = mustQuery<HTMLElement>(mountTarget, "[data-vertex-value]");
@@ -389,6 +435,23 @@ async function bootstrap() {
     strength: activeTool.default_strength,
     falloffPower: activeTool.falloff_power,
   };
+
+  const hybridMotion = readHybridMotionBindings(window);
+  let hybridStatusText = "JS ready";
+
+  try {
+    await hybridMotion.orb_hover_units_async(
+      0,
+      model.hybrid_pipeline.float_cycle_units,
+      model.hybrid_pipeline.float_amplitude_units,
+    );
+    hybridStatusText = "JS + WASM";
+  } catch (error) {
+    console.error("[Kain Hybrid] Warmup failed.", error);
+    hybridStatusText = "JS only";
+  }
+
+  hybridValue.textContent = hybridStatusText;
 
   const wasmCore = await WasmSculptCore.load(
     new URL(model.wasm_pipeline.public_path, window.location.href).toString(),
@@ -656,21 +719,44 @@ async function bootstrap() {
 
   const clock = new THREE.Clock();
   const heroBaseY = model.scene.hero_orb.position[1];
+  let frameUnits = 0;
 
   const renderFrame = () => {
     requestAnimationFrame(renderFrame);
 
-    const elapsedTime = clock.getElapsedTime();
     const deltaSeconds = Math.min(clock.getDelta(), 0.05);
+    frameUnits += 1;
+
+    const orbHoverUnits = hybridMotion.orb_hover_units(
+      frameUnits,
+      model.hybrid_pipeline.float_cycle_units,
+      model.hybrid_pipeline.float_amplitude_units,
+    );
+    const beaconSpinUnits = hybridMotion.beacon_spin_units(
+      frameUnits,
+      model.hybrid_pipeline.beacon_spin_speed_units,
+      model.hybrid_pipeline.rotation_cycle_units,
+    );
+    const starDriftUnits = hybridMotion.beacon_spin_units(
+      frameUnits,
+      model.hybrid_pipeline.star_drift_speed_units,
+      model.hybrid_pipeline.rotation_cycle_units,
+    );
 
     heroGroup.position.y =
       heroBaseY +
-      Math.sin(elapsedTime * model.scene.hero_orb.float_speed) * model.scene.hero_orb.float_amplitude;
+      (orbHoverUnits / model.hybrid_pipeline.float_amplitude_units) * model.scene.hero_orb.float_amplitude;
     haloMesh.rotation.y -= model.scene.hero_orb.rotation_speed * 0.65 * deltaSeconds;
     haloMesh.rotation.x += model.scene.hero_orb.rotation_speed * 0.3 * deltaSeconds;
     wireShell.rotation.y += model.scene.hero_orb.rotation_speed * deltaSeconds;
-    beaconRing.rotation.y += 0.022 * deltaSeconds;
-    starField.rotation.y += 0.0015 * deltaSeconds;
+    beaconRing.rotation.y = rotationUnitsToRadians(
+      beaconSpinUnits,
+      model.hybrid_pipeline.rotation_cycle_units,
+    );
+    starField.rotation.y = rotationUnitsToRadians(
+      starDriftUnits,
+      model.hybrid_pipeline.rotation_cycle_units,
+    );
 
     viewportController.syncOrbitTarget(heroGroup.position);
     viewportController.update(deltaSeconds);

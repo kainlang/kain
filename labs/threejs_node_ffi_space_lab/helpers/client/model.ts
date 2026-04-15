@@ -110,6 +110,20 @@ export type WasmPipelineConfig = {
   target: string;
 };
 
+export type HybridPipelineConfig = {
+  id: string;
+  name: string;
+  bundle_name: string;
+  public_descriptor_path: string;
+  public_js_path: string;
+  public_wasm_path: string;
+  float_cycle_units: number;
+  float_amplitude_units: number;
+  rotation_cycle_units: number;
+  beacon_spin_speed_units: number;
+  star_drift_speed_units: number;
+};
+
 export type AppModel = {
   name: string;
   tagline: string;
@@ -117,6 +131,7 @@ export type AppModel = {
   scene: SceneConfig;
   sculpt_suite: SculptSuiteConfig;
   viewport_profiles: ViewportProfilesConfig;
+  hybrid_pipeline: HybridPipelineConfig;
   wasm_pipeline: WasmPipelineConfig;
 };
 
@@ -324,6 +339,42 @@ function readWasmPipeline(value: unknown): WasmPipelineConfig {
   };
 }
 
+function readHybridPipeline(value: unknown): HybridPipelineConfig {
+  const pipeline = asObject(value, "hybrid_pipeline");
+
+  return {
+    id: asString(pipeline.id, "hybrid_pipeline.id"),
+    name: asString(pipeline.name, "hybrid_pipeline.name"),
+    bundle_name: asString(pipeline.bundle_name, "hybrid_pipeline.bundle_name"),
+    public_descriptor_path: asString(
+      pipeline.public_descriptor_path,
+      "hybrid_pipeline.public_descriptor_path",
+    ),
+    public_js_path: asString(pipeline.public_js_path, "hybrid_pipeline.public_js_path"),
+    public_wasm_path: asString(pipeline.public_wasm_path, "hybrid_pipeline.public_wasm_path"),
+    float_cycle_units: asNumber(
+      pipeline.float_cycle_units,
+      "hybrid_pipeline.float_cycle_units",
+    ),
+    float_amplitude_units: asNumber(
+      pipeline.float_amplitude_units,
+      "hybrid_pipeline.float_amplitude_units",
+    ),
+    rotation_cycle_units: asNumber(
+      pipeline.rotation_cycle_units,
+      "hybrid_pipeline.rotation_cycle_units",
+    ),
+    beacon_spin_speed_units: asNumber(
+      pipeline.beacon_spin_speed_units,
+      "hybrid_pipeline.beacon_spin_speed_units",
+    ),
+    star_drift_speed_units: asNumber(
+      pipeline.star_drift_speed_units,
+      "hybrid_pipeline.star_drift_speed_units",
+    ),
+  };
+}
+
 export function readAppModel(rawValue: unknown): AppModel {
   const root = asObject(rawValue, "window.__KAIN_THREE_SPACE_MODEL__");
 
@@ -334,6 +385,7 @@ export function readAppModel(rawValue: unknown): AppModel {
     scene: readSceneConfig(root.scene),
     sculpt_suite: readSculptSuite(root.sculpt_suite),
     viewport_profiles: readViewportProfiles(root.viewport_profiles),
+    hybrid_pipeline: readHybridPipeline(root.hybrid_pipeline),
     wasm_pipeline: readWasmPipeline(root.wasm_pipeline),
   };
 }

@@ -55,6 +55,8 @@ pub const BUILD_GIT_SHA: &str = match option_env!("KAIN_GIT_SHA") {
     Some(v) => v,
     None => "unknown",
 };
+
+pub type HybridArtifactOutput = kain_driver::HybridArtifactOutput;
 pub const BUILD_GIT_COMMIT_COUNT: &str = match option_env!("KAIN_GIT_COMMIT_COUNT") {
     Some(v) => v,
     None => "0",
@@ -215,6 +217,16 @@ pub fn compile_realtime_app_bundle(
 
 pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     kain_driver::compile_spirv_binary(source)
+}
+
+pub fn compile_wasm_binary(source: &str) -> Result<Vec<u8>, KainError> {
+    kain_driver::compile_wasm_binary(source)
+}
+
+pub fn compile_hybrid_artifacts(
+    source: &str,
+) -> Result<kain_driver::HybridArtifactOutput, KainError> {
+    kain_driver::compile_hybrid_artifacts(source)
 }
 
 pub fn compile_shader_artifact_bundle(

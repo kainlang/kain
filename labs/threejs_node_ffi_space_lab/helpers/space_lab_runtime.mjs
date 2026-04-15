@@ -12,10 +12,12 @@ const defaultManifestPath = "manifests/app.json";
 
 const contentTypesByExtension = {
   ".css": "text/css; charset=utf-8",
+  ".hybrid": "application/json; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
+  ".ts": "text/plain; charset=utf-8",
   ".wasm": "application/wasm",
 };
 
@@ -62,7 +64,11 @@ function buildSummary(model) {
     output_root: model.output_root_absolute,
     html_entry: model.html_entry_absolute,
     client_bundle: model.client_bundle_absolute,
+    hybrid_descriptor: model.hybrid_pipeline?.descriptor_absolute ?? null,
+    hybrid_js_bundle: model.hybrid_pipeline?.public_js_path ?? null,
+    hybrid_wasm_bundle: model.hybrid_pipeline?.public_wasm_path ?? null,
     wasm_bundle: model.wasm_pipeline?.public_path ?? null,
+    hybrid_export_count: model.hybrid_pipeline?.wasm_exports?.length ?? 0,
     viewport_mode_count: model.viewport_profiles?.modes?.length ?? 0,
     sculpt_tool_count: model.sculpt_suite?.tools?.length ?? 0,
     star_count: model.scene.environment.star_count,
@@ -87,6 +93,22 @@ function createRuntimeModel(projectRoot, appConfig, registries, manifestPath) {
   const clientBundleAbsolute = path.join(clientBundleDirectory, appConfig.client_bundle.out_file);
   const clientStyleAbsolute = path.join(clientBundleDirectory, "three-space.css");
   const htmlEntryAbsolute = path.join(outputRootAbsolute, "index.html");
+  const hybridPipeline = registries.hybrid_pipeline ?? null;
+  const hybridOutputDirectoryAbsolute = hybridPipeline
+    ? resolveInsideProject(projectRoot, hybridPipeline.output_dir)
+    : null;
+  const hybridDescriptorAbsolute = hybridPipeline
+    ? path.join(hybridOutputDirectoryAbsolute, hybridPipeline.descriptor_file)
+    : null;
+  const hybridJsAbsolute = hybridPipeline
+    ? path.join(hybridOutputDirectoryAbsolute, hybridPipeline.js_file)
+    : null;
+  const hybridTsAbsolute = hybridPipeline
+    ? path.join(hybridOutputDirectoryAbsolute, hybridPipeline.ts_file)
+    : null;
+  const hybridWasmAbsolute = hybridPipeline
+    ? path.join(hybridOutputDirectoryAbsolute, hybridPipeline.wasm_file)
+    : null;
   const wasmPipeline = registries.wasm_pipeline ?? null;
   const wasmOutputDirectoryAbsolute = wasmPipeline
     ? resolveInsideProject(projectRoot, wasmPipeline.output_dir)
@@ -106,6 +128,17 @@ function createRuntimeModel(projectRoot, appConfig, registries, manifestPath) {
     scene: registries.scene,
     sculpt_suite: registries.sculpt_suite,
     viewport_profiles: registries.viewport_profiles,
+    hybrid_pipeline: hybridPipeline
+      ? {
+          ...hybridPipeline,
+          output_dir_absolute: hybridOutputDirectoryAbsolute,
+          descriptor_absolute: hybridDescriptorAbsolute,
+          js_absolute: hybridJsAbsolute,
+          ts_absolute: hybridTsAbsolute,
+          wasm_absolute: hybridWasmAbsolute,
+          wasm_exports: [],
+        }
+      : null,
     wasm_pipeline: wasmPipeline
       ? {
           ...wasmPipeline,
@@ -150,6 +183,51 @@ async function bundleClient(model) {
   return {
     bundle_path: model.client_bundle_absolute,
     style_path: model.client_style_absolute,
+  };
+}
+
+async function buildHybridBundle(model) {
+  if (!model.hybrid_pipeline) {
+    return null;
+  }
+
+  const pipeline = model.hybrid_pipeline;
+  const entryAbsolute = resolveInsideProject(model.project_root, pipeline.entry);
+
+  await ensureDirectory(pipeline.output_dir_absolute);
+  await runProcess(
+    "cargo",
+    [
+      "run",
+      "-q",
+      "-p",
+      "cli",
+      "--bin",
+      "kain",
+      "--",
+      "build",
+      entryAbsolute,
+      "-t",
+      pipeline.target,
+      "-o",
+      pipeline.descriptor_absolute,
+    ],
+    { cwd: model.project_root },
+  );
+
+  const descriptor = await readJsonFile(pipeline.descriptor_absolute);
+  pipeline.wasm_exports = Array.isArray(descriptor.wasm_exports) ? descriptor.wasm_exports : [];
+
+  return {
+    entry_path: entryAbsolute,
+    descriptor_path: pipeline.descriptor_absolute,
+    js_path: pipeline.js_absolute,
+    ts_path: pipeline.ts_absolute,
+    wasm_path: pipeline.wasm_absolute,
+    public_descriptor_path: pipeline.public_descriptor_path,
+    public_js_path: pipeline.public_js_path,
+    public_wasm_path: pipeline.public_wasm_path,
+    wasm_exports: pipeline.wasm_exports,
   };
 }
 
@@ -235,6 +313,22 @@ async function buildWasmBundle(model) {
 
 function createHtmlDocument(model) {
   const serializedModel = JSON.stringify(model, null, 2).replace(/</g, "\\u003c");
+  const hybridRelativePath = model.hybrid_pipeline
+    ? toPosixPath(path.relative(model.output_root_absolute, model.hybrid_pipeline.js_absolute))
+    : null;
+  const hybridBridgeScript = model.hybrid_pipeline
+    ? `
+    <script>
+      window.__KAIN_HYBRID_BINDINGS__ = {
+${(model.hybrid_pipeline.global_binding_names ?? [])
+  .map(
+    (bindingName) =>
+      `        ${JSON.stringify(bindingName)}: typeof ${bindingName} === "function" ? ${bindingName} : null`,
+  )
+  .join(",\n")}
+      };
+    </script>`
+    : "";
   const clientRelativePath = toPosixPath(
     path.relative(model.output_root_absolute, model.client_bundle_absolute),
   );
@@ -253,6 +347,8 @@ function createHtmlDocument(model) {
   </head>
   <body>
     <div id="app-root"></div>
+    ${hybridRelativePath ? `<script src="./${hybridRelativePath}"></script>` : ""}
+    ${hybridBridgeScript}
     <script>
       window.__KAIN_THREE_SPACE_MODEL__ = ${serializedModel};
     </script>
@@ -278,9 +374,14 @@ async function emitRuntimeOutputs(model, clientArtifacts) {
 
 export async function buildApp(projectRoot = ".", manifestPath = defaultManifestPath) {
   const model = await loadAppConfig(projectRoot, manifestPath);
+  const hybridArtifacts = await buildHybridBundle(model);
   const wasmArtifacts = await buildWasmBundle(model);
   const clientArtifacts = await bundleClient(model);
-  return emitRuntimeOutputs(model, { client: clientArtifacts, wasm: wasmArtifacts });
+  return emitRuntimeOutputs(model, {
+    client: clientArtifacts,
+    hybrid: hybridArtifacts,
+    wasm: wasmArtifacts,
+  });
 }
 
 export async function buildWasmOnly(projectRoot = ".", manifestPath = defaultManifestPath) {
@@ -288,6 +389,13 @@ export async function buildWasmOnly(projectRoot = ".", manifestPath = defaultMan
   const wasmArtifacts = await buildWasmBundle(model);
   console.log(JSON.stringify(wasmArtifacts, null, 2));
   return wasmArtifacts;
+}
+
+export async function buildHybridOnly(projectRoot = ".", manifestPath = defaultManifestPath) {
+  const model = await loadAppConfig(projectRoot, manifestPath);
+  const hybridArtifacts = await buildHybridBundle(model);
+  console.log(JSON.stringify(hybridArtifacts, null, 2));
+  return hybridArtifacts;
 }
 
 export async function printSummary(projectRoot = ".", manifestPath = defaultManifestPath) {
@@ -361,6 +469,11 @@ async function runFromCli() {
     return;
   }
 
+  if (command === "build-hybrid") {
+    await buildHybridOnly(projectRoot, manifestPath);
+    return;
+  }
+
   if (command === "print") {
     await printSummary(projectRoot, manifestPath);
     return;
@@ -371,7 +484,9 @@ async function runFromCli() {
     return;
   }
 
-  throw new Error(`Unknown command "${command}". Expected build, build-wasm, print, or serve.`);
+  throw new Error(
+    `Unknown command "${command}". Expected build, build-hybrid, build-wasm, print, or serve.`,
+  );
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === runtimeFilePath) {

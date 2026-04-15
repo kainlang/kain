@@ -21,6 +21,7 @@
     "scene": "manifests/space_scene.json",
     "sculpt_suite": "manifests/sculpt_suite.json",
     "viewport_profiles": "manifests/viewport_profiles.json",
+    "hybrid_pipeline": "manifests/hybrid_pipeline.json",
     "wasm_pipeline": "manifests/wasm_pipeline.json"
   }
 }

@@ -1,0 +1,26 @@
+{
+  "id": "orb_motion_pipeline",
+  "name": "Kain Hybrid Orb Motion Pipeline",
+  "bundle_name": "orb_motion",
+  "entry": "src/hybrid_motion.kn",
+  "target": "hybrid",
+  "output_dir": "outputs/kain",
+  "descriptor_file": "orb_motion.hybrid",
+  "js_file": "orb_motion.js",
+  "ts_file": "orb_motion.ts",
+  "wasm_file": "orb_motion.wasm",
+  "public_descriptor_path": "kain/orb_motion.hybrid",
+  "public_js_path": "kain/orb_motion.js",
+  "public_ts_path": "kain/orb_motion.ts",
+  "public_wasm_path": "kain/orb_motion.wasm",
+  "global_binding_names": [
+    "orb_hover_units",
+    "orb_hover_units_async",
+    "beacon_spin_units"
+  ],
+  "float_cycle_units": 240,
+  "float_amplitude_units": 1000,
+  "rotation_cycle_units": 4096,
+  "beacon_spin_speed_units": 7,
+  "star_drift_speed_units": 1
+}

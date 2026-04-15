@@ -104,8 +104,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ## Key Crates
 
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `orchestrate`)
-- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
-- [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting
+- [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
+- [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
@@ -294,7 +294,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
 - [labs/chronos_native](/M:/Code/Kain/labs/chronos_native): first native Chronos proof app for the `kain native-ui dev` loop, combining compiler-owned world state, native UI shells, viewport3d authoring, and packaged shader sidecars from one Kain source file
-- [labs/threejs_node_ffi_space_lab](/M:/Code/Kain/labs/threejs_node_ffi_space_lab): Node-first localhost sculpt-suite proof that layers manifest-driven Three.js viewport modes and a Rust-built WASM brush core behind the `std::javascript::bridge` orchestration seam
+- [labs/threejs_node_ffi_space_lab](/M:/Code/Kain/labs/threejs_node_ffi_space_lab): Node-first localhost sculpt-suite proof that now dogfoods Kain hybrid codegen too, layering manifest-driven Three.js viewport modes, a Kain-authored JS + WASM motion bundle, and a Rust-built WASM brush core behind the `std::javascript::bridge` orchestration seam
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
 
 ## Common Commands
@@ -407,6 +407,7 @@ If the debug CLI is missing:
 - The LLVM dogfood lab in `labs/llvm_world_dogfood_lab` uses named payloads for both `spawn` and `send`. If an actor message stops parsing, check `Pulse(amount = ...)` / `spawn Actor(...)` syntax before assuming the LLVM backend regressed.
 - The native Chronos proof under `labs/chronos_native` currently packages realtime and compute sidecars successfully, but the native-ui packaging/typecheck lane is still stricter than the direct GPU artifact lane for at least some compute expressions. If a shader proof works under `kain gpu-artifacts` but not under `kain build native-ui`, inspect dispatch-index access and bundle-lane differences before widening the language surface.
 - Node-backed browser labs such as `labs/threejs_node_ffi_space_lab` depend on a local package install inside the lab root. If bundling fails, check the lab-local `node_modules` state before assuming the browser app regressed; if the Rust sculpt lane fails, verify `rustup target add wasm32-unknown-unknown` in the local environment before blaming the app code; if Kain execution itself fails with unknown `js_import` / `js_bridge_import` identifiers, treat that as host-backed bridge registration drift in the current checkout.
+- `kain build -t hybrid` is now expected to materialize four aligned artifacts at once: a `.hybrid` descriptor plus `.js`, `.ts`, and `.wasm` sidecars. If a browser proof emits only JS text or the generated JS starts fetching its sidecar relative to the page root instead of the script URL, treat that as a CLI/driver regression rather than app-local config drift.
 - General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
 - Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.

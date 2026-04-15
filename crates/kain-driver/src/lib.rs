@@ -116,7 +116,7 @@ const TARGET_SPECS: &[TargetSpec] = &[
     },
     TargetSpec {
         target: CompileTarget::Hybrid,
-        extension: "js",
+        extension: "hybrid",
         aliases: &["hybrid", "web"],
     },
     TargetSpec {
@@ -172,6 +172,14 @@ pub type GpuArtifactOutput = ShaderArtifactBundleOutput;
 pub struct RealtimeAppBundleOutput {
     pub bundle: RealtimeAppBundle,
     pub bundle_json: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct HybridArtifactOutput {
+    pub js: String,
+    pub ts: String,
+    pub wasm: Vec<u8>,
+    pub wasm_export_names: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -432,6 +440,41 @@ impl DriverSession {
     #[cfg(not(feature = "gpu"))]
     pub fn compile_spirv_binary(&self, _source: &str) -> Result<Vec<u8>, KainError> {
         Err(KainError::runtime("SPIR-V target requires gpu feature"))
+    }
+
+    #[cfg(feature = "web")]
+    pub fn compile_wasm_binary(&self, source: &str) -> Result<Vec<u8>, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Wasm)?;
+        web::generate_wasm(&typed_for_codegen)
+    }
+
+    #[cfg(not(feature = "web"))]
+    pub fn compile_wasm_binary(&self, _source: &str) -> Result<Vec<u8>, KainError> {
+        Err(KainError::runtime("WASM target requires web feature"))
+    }
+
+    #[cfg(feature = "web")]
+    pub fn compile_hybrid_artifacts(&self, source: &str) -> Result<HybridArtifactOutput, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Hybrid)?;
+        let output = web::generate_hybrid(&typed_for_codegen)?;
+        Ok(HybridArtifactOutput {
+            js: output.js,
+            ts: output.ts,
+            wasm: output.wasm,
+            wasm_export_names: output
+                .wasm_exports
+                .into_iter()
+                .map(|export| export.name)
+                .collect(),
+        })
+    }
+
+    #[cfg(not(feature = "web"))]
+    pub fn compile_hybrid_artifacts(
+        &self,
+        _source: &str,
+    ) -> Result<HybridArtifactOutput, KainError> {
+        Err(KainError::runtime("Hybrid target requires web feature"))
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -768,6 +811,14 @@ pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError>
 
 pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     DriverSession::default().compile_spirv_binary(source)
+}
+
+pub fn compile_wasm_binary(source: &str) -> Result<Vec<u8>, KainError> {
+    DriverSession::default().compile_wasm_binary(source)
+}
+
+pub fn compile_hybrid_artifacts(source: &str) -> Result<HybridArtifactOutput, KainError> {
+    DriverSession::default().compile_hybrid_artifacts(source)
 }
 
 pub fn compile_shader_artifact_bundle(
