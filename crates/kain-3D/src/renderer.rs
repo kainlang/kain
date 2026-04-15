@@ -54,6 +54,7 @@ pub enum FrameCameraSource {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FrameDiagnostics {
     pub camera_source: Option<FrameCameraSource>,
+    pub camera_pose: Option<CameraPose>,
     pub scene_name: Option<String>,
     pub viewport_resolution: Option<[usize; 2]>,
     pub viewport_summary: Option<String>,
@@ -63,6 +64,64 @@ pub struct FrameDiagnostics {
     pub manipulator_mode: Option<ManipulatorMode>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
+}
+
+impl FrameDiagnostics {
+    pub fn summary_line(&self) -> Option<String> {
+        let scene_name = self.scene_name.as_deref()?;
+        let camera_source = self.camera_source.as_ref().map(|source| match source {
+            FrameCameraSource::ExplicitView => "explicit_view",
+            FrameCameraSource::AutoFramed => "auto_framed",
+        })?;
+        let viewport = self
+            .viewport_resolution
+            .map(|resolution| format!("{}x{}", resolution[0], resolution[1]))
+            .unwrap_or_else(|| "viewport unknown".to_string());
+        let shape = self
+            .scene_shape
+            .as_deref()
+            .map(|shape| format!("shape {shape}"))
+            .unwrap_or_else(|| "shape unknown".to_string());
+        let composition = self
+            .composition_summary
+            .as_deref()
+            .map(|summary| format!("composition {summary}"))
+            .unwrap_or_else(|| "composition unknown".to_string());
+        let selection = self
+            .selected_instance_id
+            .as_deref()
+            .map(|selection| format!("selection {selection}"))
+            .unwrap_or_else(|| "selection none".to_string());
+        let manipulator = self
+            .manipulator_mode
+            .as_ref()
+            .map(|mode| format!("manipulator {mode}"))
+            .unwrap_or_else(|| "manipulator none".to_string());
+        let camera_pose = self
+            .camera_pose
+            .as_ref()
+            .map(|pose| {
+                format!(
+                    "camera {} -> {}",
+                    short_vec3(&pose.position),
+                    short_vec3(&pose.target)
+                )
+            })
+            .unwrap_or_else(|| "camera pose none".to_string());
+        let visibility = format!(
+            "visibility {} visible / {} culled",
+            self.visible_instances.len(),
+            self.culled_instances.len()
+        );
+
+        Some(format!(
+            "{scene_name} | camera {camera_source} | {camera_pose} | {viewport} | {shape} | {composition} | {visibility} | {selection} | {manipulator}"
+        ))
+    }
+}
+
+fn short_vec3(vec: &Vec3) -> String {
+    format!("{:.2},{:.2},{:.2}", vec.x, vec.y, vec.z)
 }
 
 pub fn frame_diagnostics_for_scene(
@@ -75,6 +134,10 @@ pub fn frame_diagnostics_for_scene(
     let aspect_ratio = resolution.width as f32 / resolution.height as f32;
     let mut diagnostics = FrameDiagnostics::default();
     diagnostics.camera_source = Some(camera_source);
+    diagnostics.camera_pose = Some(
+        view.camera
+            .unwrap_or_else(|| scene.framed_camera_pose(time_seconds, aspect_ratio)),
+    );
     diagnostics.scene_name = Some(scene.name.clone());
     diagnostics.viewport_resolution = Some([resolution.width, resolution.height]);
     diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
@@ -1192,8 +1255,45 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("meshes"));
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("camera auto_framed"));
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("128x128"));
         assert_eq!(frame.diagnostics.selected_instance_id.as_deref(), None);
         assert_eq!(frame.diagnostics.manipulator_mode, None);
+        assert!(frame.diagnostics.camera_pose.is_some());
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("visibility "));
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("selection none"));
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("camera "));
+        assert!(frame
+            .diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("manipulator none"));
     }
 
     #[test]
@@ -1215,6 +1315,16 @@ mod tests {
 
         assert_eq!(diagnostics.selected_instance_id.as_deref(), Some("offset"));
         assert_eq!(diagnostics.manipulator_mode, Some(ManipulatorMode::Scale));
+        assert!(diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("selection offset"));
+        assert!(diagnostics
+            .summary_line()
+            .as_deref()
+            .unwrap_or("")
+            .contains("manipulator scale"));
     }
 
     #[test]
