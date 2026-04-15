@@ -61,6 +61,16 @@ impl SceneBounds {
     }
 }
 
+fn viewport_shape_label(aspect_ratio: f32) -> &'static str {
+    if aspect_ratio < 0.95 {
+        "portrait"
+    } else if aspect_ratio > 1.05 {
+        "landscape"
+    } else {
+        "square"
+    }
+}
+
 fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
     let radius = radius.max(0.0);
     let local_min = center - Vec3::new(radius, radius, radius);
@@ -185,7 +195,13 @@ impl SceneCompositionSummary {
 
         let aspect = self
             .viewport_aspect_ratio
-            .map(|aspect_ratio| format!("aspect {:.2}:1", aspect_ratio))
+            .map(|aspect_ratio| {
+                format!(
+                    "aspect {:.2}:1 {}",
+                    aspect_ratio,
+                    viewport_shape_label(aspect_ratio)
+                )
+            })
             .unwrap_or_else(|| "aspect unknown".to_string());
 
         format!(
@@ -2943,6 +2959,7 @@ mod tests {
         assert!(summary.brief_label().contains("fit d"));
         assert!(summary.brief_label().contains("fit ratio"));
         assert!(summary.brief_label().contains("aspect 1.00:1"));
+        assert!(summary.brief_label().contains("square"));
         assert!(summary.brief_label().contains("deep"));
         assert!(summary.framed_camera_distance.is_some());
         assert!(summary.framed_camera_distance_ratio.is_some());
@@ -3012,6 +3029,10 @@ mod tests {
                 .unwrap()
                 > 1.0
         );
+        assert!(scene
+            .composition_summary_with_aspect_ratio(0.0, 2.0)
+            .brief_label()
+            .contains("landscape"));
     }
 
     #[test]
