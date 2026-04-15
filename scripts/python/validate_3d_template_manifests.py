@@ -4,10 +4,9 @@ Validate the Kain 3D template manifest projection layer.
 
 This validator keeps the 3D template manifest-driven by checking that
 projection rows resolve back to the shared source registry, and that the
-high-level engine system, runtime app, and workspace preset surfaces stay
-structurally sound.
+high-level engine system, runtime app, workspace preset, GPU kernel, and
+tensor pipeline surfaces stay structurally sound.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -172,6 +171,64 @@ def validate_engine_systems(repo_root: Path, template_root: Path, source_index: 
         errors.append("engine_systems: duplicate system id detected")
 
 
+def validate_gpu_kernels(repo_root: Path, template_root: Path, source_index: dict[str, dict[str, Any]], errors: list[str]) -> set[str]:
+    kernels_path = resolve_path(repo_root, template_root / "manifests/gpu_kernels.json")
+    kernels = load_json(kernels_path)
+    if not isinstance(kernels, list) or not kernels:
+        errors.append(f"{kernels_path}: expected a non-empty JSON array")
+        return set()
+
+    kernel_ids: set[str] = set()
+    for idx, kernel in enumerate(kernels):
+        context = f"gpu_kernels[{idx}]"
+        if not isinstance(kernel, dict):
+            errors.append(f"{context}: expected object")
+            continue
+        kernel_id = require_string(kernel, "id", errors, context)
+        source_id = require_string(kernel, "source_id", errors, context)
+        require_string(kernel, "stage", errors, context)
+        require_string(kernel, "tensor_role", errors, context)
+        require_string(kernel, "entry", errors, context)
+        if source_id and source_id not in source_index:
+            errors.append(f"{context}: unknown source_id -> {source_id}")
+        if kernel_id:
+            if kernel_id in kernel_ids:
+                errors.append(f"{context}: duplicate kernel id -> {kernel_id}")
+            kernel_ids.add(kernel_id)
+    return kernel_ids
+
+
+def validate_tensor_pipelines(repo_root: Path, template_root: Path, kernel_ids: set[str], errors: list[str]) -> None:
+    pipelines_path = resolve_path(repo_root, template_root / "manifests/tensor_pipelines.json")
+    pipelines = load_json(pipelines_path)
+    if not isinstance(pipelines, list) or not pipelines:
+        errors.append(f"{pipelines_path}: expected a non-empty JSON array")
+        return
+
+    pipeline_ids: list[str] = []
+    for idx, pipeline in enumerate(pipelines):
+        context = f"tensor_pipelines[{idx}]"
+        if not isinstance(pipeline, dict):
+            errors.append(f"{context}: expected object")
+            continue
+        pipeline_id = require_string(pipeline, "id", errors, context)
+        require_string(pipeline, "label", errors, context)
+        require_string(pipeline, "domain", errors, context)
+        require_string(pipeline, "priority", errors, context)
+        require_string(pipeline, "residency", errors, context)
+        passes = require_list(pipeline, "passes", errors, context)
+        if pipeline_id:
+            pipeline_ids.append(pipeline_id)
+        for pass_idx, pass_id_value in enumerate(passes):
+            if not isinstance(pass_id_value, str) or not pass_id_value.strip():
+                errors.append(f"{context}.passes[{pass_idx}]: expected non-empty string")
+                continue
+            if pass_id_value not in kernel_ids:
+                errors.append(f"{context}: unknown pass id -> {pass_id_value}")
+    if len(pipeline_ids) != len(set(pipeline_ids)):
+        errors.append("tensor_pipelines: duplicate pipeline id detected")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate the Kain 3D template manifest projection layer")
     parser.add_argument("--repo-root", default=".", help="Repository root (default: current directory)")
@@ -183,16 +240,18 @@ def main() -> int:
 
     errors: list[str] = []
     source_index = validate_sources(repo_root, template_root, errors)
+    kernel_ids = validate_gpu_kernels(repo_root, template_root, source_index, errors)
     validate_engine_systems(repo_root, template_root, source_index, errors)
     validate_runtime_apps(repo_root, template_root, source_index, errors)
     validate_workspace_presets(repo_root, template_root, source_index, errors)
+    validate_tensor_pipelines(repo_root, template_root, kernel_ids, errors)
 
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
 
-    print("3D template manifests validated: sources, engine systems, runtime apps, and workspace presets are structurally consistent.")
+    print("3D template manifests validated: sources, GPU kernels, engine systems, runtime apps, workspace presets, and tensor pipelines are structurally consistent.")
     return 0
 
 

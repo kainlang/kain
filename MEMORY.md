@@ -1,12 +1,15 @@
 <<<<<<< 3D
 # Kain Memory
 
+- New Kain 3D pass (2026-04-15): `FrameDiagnostics` now exposes a compact `summary_line()` helper, and `material_atrium_smoke` records that summary at both the top level and per-tile in its JSON report. This makes the 3D smoke artifact easier to skim, diff, and route into other tooling without manually reassembling camera/source/viewport/composition context.
+
 - The Kain 3D pipeline is a live fleet initiative now, and its steering should stay spec-first.
 - The intended build path is native, GPU-aware 3D capability that can grow toward DCC-class tools like ZBrush, Substance Painter, and UE5-style workflows.
 - Use Codex CLI through the coding-agent skill for pipeline tasks unless the user asks for another harness.
 - If Codex reports a usage-limit error, verify the actual CLI output before assuming any seat-switch workaround.
 - The user wants frequent updates while the pipeline is active, especially when branches, specs, or heartbeat behavior change.
 - Kaino should keep the heartbeat/operator guidance current in this workspace so future passes stay aligned.
+- New Kain 3D pass (2026-04-14): the `material_atrium_smoke` JSON report now includes a compact top-level `tile_overview` array with backend id, camera source, selected instance, manipulator mode, visible/culling counts, viewport resolution, and per-tile composition summary. This makes the smoke output much easier to scan and diff without drilling into each full tile record, while still keeping the detailed `tiles[]` payload for deeper inspection. Validation was blocked by the repo-local Windows GNU linker gap again (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`); `rustfmt` on the touched file succeeded.
 - New Kain 3D pass (2026-04-14): frame diagnostics in `crates/kain-3D` now carry the active selected instance id and manipulator mode, and the `material_atrium_smoke` JSON report emits those values per tile. This makes edit-state-aware tooling and scene-composition debugging more self-describing, especially when comparing viewport frames against authoring intent.
 - New Kain 3D pass (2026-04-14): the auto-framing camera in `crates/kain-3D/src/scene.rs` now uses a shape-specific bounds-aware framing direction helper, so wide, tall, and deep scenes bias the orbit offset more intentionally instead of sharing a single diagonal heuristic. Added a regression covering wide/deep framing alongside the existing tall-scene check. Validation still hit the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`), and `cargo fmt --all --check` is still blocked by unrelated trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
 - Added a 3D platform uplift in `crates/kain-3D`: primitive libraries now export richer scene metadata (`definition_count`, `definition_ids`, and startup primitive display name) when registered into an authoring scene, which makes the library more self-describing for tooling and runtime composition.
@@ -33,6 +36,37 @@
 - New Kain 3D pass (2026-04-14): unified 3D frame diagnostics across software and WGPU renderers by adding a shared `frame_diagnostics_for_scene(...)` helper. Both backends now emit scene name, viewport summary, composition summary, and camera-source metadata in `RenderFrame`, which makes backend comparisons and headless tooling easier. Validation is still blocked by the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 # MEMORY
+
+# 2026-04-15 - 3D frame summaries now include selection and manipulator context
+
+`crates/kain-3D/src/renderer.rs` now folds `selected_instance_id` and
+`manipulator_mode` into `FrameDiagnostics::summary_line()`, so the canonical
+frame summary used by renderer logs and the material atrium smoke report is
+more faithful to the actual editing state.
+
+What changed:
+
+- `summary_line()` now emits `selection ...` and `manipulator ...` segments in
+  addition to scene, camera, viewport, shape, and composition details.
+- The existing renderer tests now assert the default `none` case and a concrete
+  selected/scaled view case.
+
+Why it matters:
+
+- Makes 3D smoke diffs and runtime logs easier to skim without opening the full
+  diagnostics object.
+- Keeps the summary line aligned with the richer frame metadata already being
+  captured by the renderer.
+
+Validation:
+
+- `cargo test -p kain-3d frame_diagnostics_preserve_selection_and_manipulator_state -- --nocapture` was blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- `cargo fmt --all --check` is still blocked by unrelated trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
+
+Recommended next step:
+
+- Once the linker/tooling blockers are cleared, rerun the focused kain-3d test and confirm the smoke report’s `frame_summary` now carries selection/manipulator context.
+
 
 # 2026-04-14 - 3D frame diagnostics gained structured viewport resolution metadata
 
