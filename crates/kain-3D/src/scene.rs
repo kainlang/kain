@@ -77,6 +77,31 @@ fn framed_camera_distance(bounds: SceneBounds, fov_y_degrees: f32, aspect_ratio:
     fit_distance.max(horizontal_fit_distance).max(radius * 2.0) + radius * 0.35
 }
 
+fn framed_camera_direction(bounds: SceneBounds, aspect_ratio: f32) -> Vec3 {
+    let half_extents = bounds.half_extents;
+    let radius = bounds.radius().max(0.001);
+    let aspect_ratio = aspect_ratio.max(0.1);
+    let horizontal_bias = if aspect_ratio >= 1.0 {
+        1.0 / aspect_ratio.sqrt()
+    } else {
+        1.0 + (1.0 - aspect_ratio).min(1.0) * 0.35
+    };
+    let vertical_bias = 1.0 + (half_extents.y / radius) * 0.35;
+
+    let direction = Vec3::new(
+        half_extents.x.max(0.001) * horizontal_bias,
+        half_extents.y.max(0.001) * vertical_bias,
+        half_extents.z.max(0.001) * horizontal_bias,
+    );
+
+    let normalized = direction.normalize();
+    if normalized == Vec3::ZERO {
+        Vec3::UP
+    } else {
+        normalized
+    }
+}
+
 fn framed_camera_clip_planes(bounds: SceneBounds, distance: f32) -> (f32, f32) {
     let radius = bounds.radius().max(0.001);
     let near_plane = (distance - radius * 2.5).max(0.05);
@@ -99,6 +124,31 @@ pub struct SceneCompositionSummary {
 }
 
 impl SceneCompositionSummary {
+    fn viewport_shape_label(aspect_ratio: f32) -> &'static str {
+        if aspect_ratio < 0.95 {
+            "portrait"
+        } else if aspect_ratio > 1.05 {
+            "landscape"
+        } else {
+            "square"
+        }
+    }
+
+    fn density_label(&self) -> &'static str {
+        let authored_elements = self.mesh_count
+            + self.instance_count
+            + self.particle_emitter_count
+            + self.terrain_surface_count;
+
+        if authored_elements <= 4 {
+            "sparse"
+        } else if authored_elements <= 12 {
+            "balanced"
+        } else {
+            "dense"
+        }
+    }
+
     pub fn brief_label(&self) -> String {
         let mut parts = vec![
             format!("{} meshes", self.mesh_count),
@@ -141,10 +191,23 @@ impl SceneCompositionSummary {
 
         let aspect = self
             .viewport_aspect_ratio
-            .map(|aspect_ratio| format!("aspect {:.2}:1", aspect_ratio))
+            .map(|aspect_ratio| {
+                format!(
+                    "aspect {:.2}:1 {}",
+                    aspect_ratio,
+                    Self::viewport_shape_label(aspect_ratio)
+                )
+            })
             .unwrap_or_else(|| "aspect unknown".to_string());
 
-        format!("{} | {} | {} | {}", parts.join(", "), bounds, camera, aspect)
+        format!(
+            "{} | {} | {} | {} | {}",
+            parts.join(", "),
+            bounds,
+            camera,
+            aspect,
+            self.density_label()
+        )
     }
 }
 
@@ -512,13 +575,7 @@ impl SceneDescription {
             let radius = bounds.radius().max(0.001);
             let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio);
             let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
-            let half_extents = bounds.half_extents;
-            let framing_direction = Vec3::new(
-                half_extents.x.max(0.001),
-                (half_extents.y * 1.2 + radius * 0.1).max(0.001),
-                half_extents.z.max(0.001),
-            )
-            .normalize();
+            let framing_direction = framed_camera_direction(bounds, aspect_ratio);
             CameraPose {
                 position: bounds.center + framing_direction * distance,
                 target: bounds.center,
@@ -2879,10 +2936,64 @@ mod tests {
         assert!(summary.brief_label().contains("span"));
         assert!(summary.brief_label().contains("fit d"));
         assert!(summary.brief_label().contains("aspect 1.00:1"));
+        assert!(summary.brief_label().contains("square"));
         assert!(summary.brief_label().contains("deep"));
+        assert!(summary.brief_label().contains("balanced"));
         assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
+    }
+
+    #[test]
+    fn composition_summary_density_label_tracks_authoring_scale() {
+        let sparse = SceneCompositionSummary {
+            mesh_count: 1,
+            material_count: 1,
+            instance_count: 1,
+            animation_count: 0,
+            particle_emitter_count: 0,
+            terrain_surface_count: 0,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let balanced = SceneCompositionSummary {
+            mesh_count: 2,
+            material_count: 1,
+            instance_count: 5,
+            animation_count: 0,
+            particle_emitter_count: 1,
+            terrain_surface_count: 1,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let dense = SceneCompositionSummary {
+            mesh_count: 6,
+            material_count: 1,
+            instance_count: 8,
+            animation_count: 0,
+            particle_emitter_count: 2,
+            terrain_surface_count: 2,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+
+        assert_eq!(sparse.density_label(), "sparse");
+        assert_eq!(balanced.density_label(), "balanced");
+        assert_eq!(dense.density_label(), "dense");
+        assert!(balanced.brief_label().contains("balanced"));
+    }
+
+    #[test]
+    fn viewport_shape_label_matches_aspect_ratio_band() {
+        assert_eq!(SceneCompositionSummary::viewport_shape_label(0.8), "portrait");
+        assert_eq!(SceneCompositionSummary::viewport_shape_label(1.0), "square");
+        assert_eq!(SceneCompositionSummary::viewport_shape_label(1.4), "landscape");
     }
 
     #[test]
@@ -3113,6 +3224,21 @@ mod tests {
         let wide = framed_camera_distance(bounds, 50.0, 2.0);
 
         assert!(wide > square);
+    }
+
+    #[test]
+    fn framed_camera_direction_adapts_to_viewport_shape() {
+        let bounds = SceneBounds {
+            center: Vec3::ZERO,
+            half_extents: Vec3::new(4.0, 1.0, 2.0),
+        };
+
+        let square = framed_camera_direction(bounds, 1.0);
+        let wide = framed_camera_direction(bounds, 2.0);
+
+        assert!(square.y > square.x);
+        assert!(wide.x < square.x);
+        assert!(wide.z < square.z);
     }
 
     #[test]
