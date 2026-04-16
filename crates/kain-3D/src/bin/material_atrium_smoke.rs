@@ -478,27 +478,25 @@ fn scene_composition_payload(
     aspect_ratio: f32,
 ) -> serde_json::Value {
     let summary = scene.composition_summary_with_aspect_ratio(0.0, aspect_ratio);
+    let diagnostics = summary.diagnostics();
     json!({
-        "label": summary.brief_label(),
-        "scene_scale": kain_3d::SceneCompositionSummary::scene_scale_label(summary.bounds),
-        "scene_role": summary.scene_role_label(),
-        "scene_profile": summary
-            .bounds
-            .map(|bounds| bounds.composition_profile_label())
-            .unwrap_or("unbounded"),
-        "scene_density": summary.density_label(),
-        "mesh_count": summary.mesh_count,
-        "material_count": summary.material_count,
-        "instance_count": summary.instance_count,
-        "animation_count": summary.animation_count,
-        "particle_emitter_count": summary.particle_emitter_count,
-        "terrain_surface_count": summary.terrain_surface_count,
-        "directional_light_count": summary.directional_light_count,
-        "point_light_count": summary.point_light_count,
-        "has_black_hole": summary.has_black_hole,
-        "viewport_aspect_ratio": summary.viewport_aspect_ratio,
-        "framed_camera_distance": summary.framed_camera_distance,
-        "bounds": summary.bounds.map(|bounds| json!({
+        "label": diagnostics.label,
+        "scene_scale": diagnostics.scene_scale,
+        "scene_role": diagnostics.scene_role,
+        "scene_profile": diagnostics.scene_profile,
+        "scene_density": diagnostics.scene_density,
+        "mesh_count": diagnostics.mesh_count,
+        "material_count": diagnostics.material_count,
+        "instance_count": diagnostics.instance_count,
+        "animation_count": diagnostics.animation_count,
+        "particle_emitter_count": diagnostics.particle_emitter_count,
+        "terrain_surface_count": diagnostics.terrain_surface_count,
+        "directional_light_count": diagnostics.directional_light_count,
+        "point_light_count": diagnostics.point_light_count,
+        "has_black_hole": diagnostics.has_black_hole,
+        "viewport_aspect_ratio": diagnostics.viewport_aspect_ratio,
+        "framed_camera_distance": diagnostics.framed_camera_distance,
+        "bounds": diagnostics.bounds.map(|bounds| json!({
             "center": [bounds.center.x, bounds.center.y, bounds.center.z],
             "half_extents": [bounds.half_extents.x, bounds.half_extents.y, bounds.half_extents.z],
             "span": [bounds.span().x, bounds.span().y, bounds.span().z],

@@ -1,5 +1,8 @@
 # Kain Memory
 
+- New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now exposes a structured `diagnostics()` helper, and `material_atrium_smoke` uses it when writing the runtime-matrix JSON. That makes the smoke report and any future scene inspectors consume one canonical scene-composition shape instead of hand-rebuilding the same labels and counts in multiple places.
+- Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still fails here before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
+
 - New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries structured scene-composition cues (`scene_role`, `scene_scale`, and `scene_profile`) alongside the existing flat summary string, so renderer output can be queried without parsing one concatenated label. This is a tooling-focused uplift for native inspectors and scene browsers.
 - Validation attempt: `cargo test -p kain-3d --lib` could not finish here because the repo-local Windows GNU toolchain still fails during build-script linking (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
