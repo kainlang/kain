@@ -144,6 +144,27 @@ pub struct SceneCompositionSummary {
     pub viewport_aspect_ratio: Option<f32>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneCompositionDiagnostics {
+    pub label: String,
+    pub scene_scale: &'static str,
+    pub scene_role: &'static str,
+    pub scene_profile: &'static str,
+    pub scene_density: &'static str,
+    pub mesh_count: usize,
+    pub material_count: usize,
+    pub instance_count: usize,
+    pub animation_count: usize,
+    pub particle_emitter_count: usize,
+    pub terrain_surface_count: usize,
+    pub directional_light_count: usize,
+    pub point_light_count: usize,
+    pub has_black_hole: bool,
+    pub viewport_aspect_ratio: Option<f32>,
+    pub framed_camera_distance: Option<f32>,
+    pub bounds: Option<SceneBounds>,
+}
+
 impl SceneCompositionSummary {
     pub(crate) fn scene_scale_label(bounds: Option<SceneBounds>) -> &'static str {
         match bounds.map(|bounds| bounds.radius()).unwrap_or(0.0) {
@@ -201,6 +222,31 @@ impl SceneCompositionSummary {
             "balanced"
         } else {
             "dense"
+        }
+    }
+
+    pub fn diagnostics(&self) -> SceneCompositionDiagnostics {
+        SceneCompositionDiagnostics {
+            label: self.brief_label(),
+            scene_scale: Self::scene_scale_label(self.bounds),
+            scene_role: self.scene_role_label(),
+            scene_profile: self
+                .bounds
+                .map(|bounds| bounds.composition_profile_label())
+                .unwrap_or("unbounded"),
+            scene_density: self.density_label(),
+            mesh_count: self.mesh_count,
+            material_count: self.material_count,
+            instance_count: self.instance_count,
+            animation_count: self.animation_count,
+            particle_emitter_count: self.particle_emitter_count,
+            terrain_surface_count: self.terrain_surface_count,
+            directional_light_count: self.directional_light_count,
+            point_light_count: self.point_light_count,
+            has_black_hole: self.has_black_hole,
+            viewport_aspect_ratio: self.viewport_aspect_ratio,
+            framed_camera_distance: self.framed_camera_distance,
+            bounds: self.bounds,
         }
     }
 
@@ -3016,6 +3062,9 @@ mod tests {
         assert!(summary.brief_label().contains("balanced"));
         assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
+        assert_eq!(summary.diagnostics().label, summary.brief_label());
+        assert_eq!(summary.diagnostics().scene_profile, "planar");
+        assert_eq!(summary.diagnostics().scene_density, "balanced");
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
     }
 
