@@ -151,6 +151,7 @@ pub struct SceneCompositionDiagnostics {
     pub scene_role: &'static str,
     pub scene_profile: &'static str,
     pub scene_density: &'static str,
+    pub framing_hint: Option<&'static str>,
     pub mesh_count: usize,
     pub material_count: usize,
     pub instance_count: usize,
@@ -225,6 +226,21 @@ impl SceneCompositionSummary {
         }
     }
 
+    fn framing_hint_label(&self) -> Option<&'static str> {
+        let bounds = self.bounds?;
+        let distance = self.framed_camera_distance?;
+        let radius = bounds.radius().max(0.001);
+        let fit_ratio = distance / radius;
+
+        Some(if fit_ratio < 2.8 {
+            "tight-fit"
+        } else if fit_ratio < 4.2 {
+            "balanced-fit"
+        } else {
+            "loose-fit"
+        })
+    }
+
     pub fn diagnostics(&self) -> SceneCompositionDiagnostics {
         SceneCompositionDiagnostics {
             label: self.brief_label(),
@@ -235,6 +251,7 @@ impl SceneCompositionSummary {
                 .map(|bounds| bounds.composition_profile_label())
                 .unwrap_or("unbounded"),
             scene_density: self.density_label(),
+            framing_hint: self.framing_hint_label(),
             mesh_count: self.mesh_count,
             material_count: self.material_count,
             instance_count: self.instance_count,
@@ -3065,6 +3082,7 @@ mod tests {
         assert_eq!(summary.diagnostics().label, summary.brief_label());
         assert_eq!(summary.diagnostics().scene_profile, "planar");
         assert_eq!(summary.diagnostics().scene_density, "balanced");
+        assert_eq!(summary.diagnostics().framing_hint, Some("balanced-fit"));
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
     }
 
