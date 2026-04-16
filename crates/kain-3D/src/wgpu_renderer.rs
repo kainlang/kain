@@ -534,10 +534,12 @@ impl WgpuRenderer {
         resolution: RenderResolution,
         view: &RenderViewSettings,
     ) -> Result<RenderFrame, RenderError> {
-        let scene = catalog
-            .scene(scene_name)
+        let resolved_scene = catalog
+            .resolve_scene(scene_name)
             .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
-        self.render_scene_internal(scene, time_seconds, resolution, view)
+        let mut frame = self.render_scene_internal(resolved_scene.scene, time_seconds, resolution, view)?;
+        frame.diagnostics.scene_resolution = Some(resolved_scene.resolution);
+        Ok(frame)
     }
 
     fn render_scene_internal(
@@ -701,12 +703,30 @@ impl WgpuRenderer {
         .map_err(|err| RenderError::BackendFailure(err.to_string()))?;
         let mut stats = prepared.stats;
         stats.pixels_shaded = resolution.width * resolution.height;
+        let mut diagnostics = FrameDiagnostics::default();
+        diagnostics.scene_name = Some(scene.name.clone());
+        diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
+        diagnostics.composition_summary = Some(
+            scene
+                .composition_summary_with_overrides_and_aspect_ratio(
+                    time_seconds,
+                    &view.instance_transform_overrides,
+                    resolution.width as f32 / resolution.height as f32,
+                )
+                .brief_label(),
+        );
+        diagnostics.camera_source = Some(if view.camera.is_some() {
+            FrameCameraSource::ExplicitView
+        } else {
+            FrameCameraSource::AutoFramed
+        });
 
         Ok(RenderFrame {
             width: resolution.width,
             height: resolution.height,
             rgba,
             stats,
+            diagnostics,
         })
     }
 
