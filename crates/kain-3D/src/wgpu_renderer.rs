@@ -724,6 +724,7 @@ impl WgpuRenderer {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
+        diagnostics.scene_density = Some(composition_summary.density_label().to_string());
         diagnostics.composition_stage = Some(
             composition_summary
                 .bounds
@@ -731,6 +732,10 @@ impl WgpuRenderer {
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
         diagnostics.framing_hint = composition_summary.framing_hint_label().map(str::to_string);
+        diagnostics.camera_fit_ratio = composition_summary
+            .bounds
+            .zip(composition_summary.framed_camera_distance)
+            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)));
         diagnostics.camera_source = Some(if view.camera.is_some() {
             FrameCameraSource::ExplicitView
         } else {

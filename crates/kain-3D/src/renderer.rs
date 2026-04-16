@@ -59,9 +59,11 @@ pub struct FrameDiagnostics {
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
     pub framing_hint: Option<String>,
+    pub camera_fit_ratio: Option<String>,
     pub scene_role: Option<String>,
     pub scene_scale: Option<String>,
     pub scene_profile: Option<String>,
+    pub scene_density: Option<String>,
     pub composition_stage: Option<String>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
@@ -290,6 +292,7 @@ impl SoftwareRenderer {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
+        diagnostics.scene_density = Some(composition_summary.density_label().to_string());
         diagnostics.composition_stage = Some(
             composition_summary
                 .bounds
@@ -297,6 +300,10 @@ impl SoftwareRenderer {
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
         diagnostics.framing_hint = composition_summary.framing_hint_label().map(str::to_string);
+        diagnostics.camera_fit_ratio = composition_summary
+            .bounds
+            .zip(composition_summary.framed_camera_distance)
+            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)));
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
             diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);
@@ -1199,10 +1206,12 @@ mod tests {
             frame.diagnostics.scene_profile.as_deref(),
             Some("volumetric")
         );
+        assert_eq!(frame.diagnostics.scene_density.as_deref(), Some("balanced"));
         assert_eq!(
             frame.diagnostics.framing_hint.as_deref(),
             Some("balanced-fit")
         );
+        assert_eq!(frame.diagnostics.camera_fit_ratio.as_deref(), Some("3.69"));
         assert!(frame.diagnostics.scene_resolution.is_none());
         assert_eq!(frame.diagnostics.visible_instances, vec!["triangle"]);
         assert!(frame.diagnostics.culled_instances.is_empty());
