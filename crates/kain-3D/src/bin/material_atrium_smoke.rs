@@ -461,6 +461,7 @@ fn write_report(
                     "scene_name": tile.frame.diagnostics.scene_name,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "framing_hint": tile.frame.diagnostics.framing_hint,
                     "composition": scene_composition_payload(scene, config.width as f32 / config.height as f32),
                     "visible_instances": tile.frame.diagnostics.visible_instances,
                     "culled_instances": tile.frame.diagnostics.culled_instances,

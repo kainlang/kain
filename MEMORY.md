@@ -1,5 +1,8 @@
 # Kain Memory
 
+- New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries a `framing_hint` string (`tight-fit` / `balanced-fit` / `loose-fit`) derived from the scene bounds radius and the framed camera distance, and `material_atrium_smoke` persists that hint in the runtime-matrix JSON. This gives native tooling a quick-read signal for whether a frame is tightly composed or has deliberate breathing room, without recomputing camera fit heuristics downstream.
+- Validation attempt: `cargo test -p kain-3d default_camera_auto_frames_off_center_scene -- --nocapture` still fails here before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now exposes a structured `diagnostics()` helper, and `material_atrium_smoke` uses it when writing the runtime-matrix JSON. That makes the smoke report and any future scene inspectors consume one canonical scene-composition shape instead of hand-rebuilding the same labels and counts in multiple places.
 - Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still fails here before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
 
