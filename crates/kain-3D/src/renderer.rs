@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     BlackHole, CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit,
-    SceneCatalog, SceneDescription, Transform, Vec3,
+    SceneCatalog, SceneDescription, SceneResolution, SceneResolutionKind, Transform, Vec3,
 };
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
@@ -55,6 +55,7 @@ pub enum FrameCameraSource {
 pub struct FrameDiagnostics {
     pub camera_source: Option<FrameCameraSource>,
     pub scene_name: Option<String>,
+    pub scene_resolution: Option<SceneResolution>,
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
     pub visible_instances: Vec<String>,
@@ -218,10 +219,17 @@ impl SoftwareRenderer {
         resolution: RenderResolution,
         view: &RenderViewSettings,
     ) -> Result<RenderFrame, RenderError> {
-        let scene = catalog
-            .scene(scene_name)
+        let resolved_scene = catalog
+            .resolve_scene(scene_name)
             .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
-        self.render_scene_with_view(scene, time_seconds, resolution, view)
+        let mut frame = self.render_scene_with_view(
+            resolved_scene.scene,
+            time_seconds,
+            resolution,
+            view,
+        )?;
+        frame.diagnostics.scene_resolution = Some(resolved_scene.resolution);
+        Ok(frame)
     }
 
     pub fn render_scene(
@@ -1162,6 +1170,7 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("meshes"));
+        assert!(frame.diagnostics.scene_resolution.is_none());
     }
 
     #[test]
@@ -1181,6 +1190,14 @@ mod tests {
         assert!(frame.stats.triangles_submitted > 0);
         assert!(frame.stats.triangles_rasterized > 0);
         assert!(frame.stats.pixels_shaded > 0);
+        assert_eq!(
+            frame
+                .diagnostics
+                .scene_resolution
+                .as_ref()
+                .map(|resolution| resolution.resolved_name.as_str()),
+            Some("retirement_demo")
+        );
     }
 
     #[test]
@@ -1198,5 +1215,27 @@ mod tests {
 
         assert!(frame.stats.particles_submitted > 0);
         assert!(frame.stats.particles_shaded > 0);
+    }
+
+    #[test]
+    fn catalog_scene_render_diagnostics_include_resolution_context() {
+        let catalog = SceneCatalog::default();
+        let mut renderer = SoftwareRenderer::default();
+        let frame = renderer
+            .render_catalog_scene(
+                &catalog,
+                "renderer_atrium",
+                0.0,
+                RenderResolution::new(160, 120),
+            )
+            .expect("alias scene should render");
+
+        let resolution = frame
+            .diagnostics
+            .scene_resolution
+            .expect("catalog scene renders should carry resolution metadata");
+        assert_eq!(resolution.requested_name, "renderer_atrium");
+        assert_eq!(resolution.resolved_name, "material_atrium");
+        assert!(matches!(resolution.kind, SceneResolutionKind::Alias { .. }));
     }
 }
