@@ -42,6 +42,19 @@ without requiring Rust or Cargo on the consumer machine.
   `generated/runtime-reflection/launch-profiles/descriptors` so downstream
   consumers can inspect the workspace-preset/runtime binding contract without
   reopening only the monolithic catalog snapshot.
+- The scene-composition spine is intentionally explicit: `scene_runtime`,
+  `scene_exchange_runtime`, `scene_semantics_runtime`, `scene_bundle_runtime`,
+  `viewport_runtime`, `camera_runtime`, `interaction_runtime`, `mesh_runtime`,
+  and `lighting_runtime` are the core contracts that downstream 3D tools should
+  compose first before introducing new host glue.
+- `tools/validation/validate_scene_spine.py` is the lightweight guardrail for
+  that spine. It checks that the shared scene, exchange, semantics, bundle,
+  viewport, camera, interaction, mesh, and lighting runtime systems stay
+  registered against the shared source registry instead of drifting into
+  app-local behavior.
+- Renderer, viewport, and scene tooling should prefer manifest additions or
+  stdlib surface growth when a new 3D behavior is reusable across workbench
+  presets, rather than hardcoding a one-off app path.
 - The jobs receipt schema, receipt template, and retry-ledger snapshots now
   each emit descriptor documents under
   `generated/runtime-reflection/jobs-receipt-schemas/descriptors`,
@@ -123,6 +136,25 @@ without requiring Rust or Cargo on the consumer machine.
 - The runtime app list is intentionally broader than the authored source list:
   most entries are downstream projections of the same workbench source, not
   separate app trees.
+
+## Scene Composition Spine
+
+The highest-leverage 3D reuse path in this template is the shared scene spine.
+When adding capability, start by checking whether the behavior belongs in one of
+these contracts instead of a new local tool implementation:
+
+- `scene_runtime` for authored scenes, layers, cameras, and world metadata
+- `scene_exchange_runtime` for USD-style stage composition and handoff
+- `scene_semantics_runtime` for collections, query, and semantic views
+- `scene_bundle_runtime` for packaged scene composition and launch presets
+- `viewport_runtime` for camera/view presentation and review-safe framing
+- `camera_runtime` for capture routes, lens metadata, and tracked sync
+- `interaction_runtime` for gizmo and input routing
+- `mesh_runtime` for topology, remesh, LOD, and UV policy
+- `lighting_runtime` for probe bake, shadow, and exposure policy
+
+If a new 3D feature cannot be expressed through that spine, document the gap in
+`limitations.md` before adding ad hoc host code.
 
 ## Design Goals
 
