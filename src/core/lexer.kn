@@ -33,16 +33,8 @@ pub struct Lexer:
 
 impl Lexer:
     pub fn tokenize(self) -> Array<Token>:
-        let raw = []
-        let result = []
-        let i = 0
-        while i < len(raw):
-            push(result, raw[i])
-            i = i + 1
-
-        let eof_span = SourceSpan { start: 0, end: 0, file: "" }
-        push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
-        return result
+        let _ = self
+        return []
 
 fn is_keyword(word: String) -> Bool:
     if word == "fn" || word == "let" || word == "mut" || word == "var": return true
@@ -64,72 +56,60 @@ fn is_keyword(word: String) -> Bool:
     return false
 
 fn process_indentation(raw: Array<Token>, file_name: String) -> Array<Token>:
-    let result = []
-    let i = 0
-    while i < len(raw):
-        push(result, raw[i])
-        i = i + 1
-
-    let eof_span = SourceSpan { start: 0, end: 0, file: file_name }
-    push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
-    return result
+    let _ = file_name
+    return raw
 
 pub fn tokenize_source(source: String, file_name: String) -> Array<Token>:
     let _ = source
-    let raw = []
-    let result = []
-    let i = 0
-    while i < len(raw):
-        push(result, raw[i])
-        i = i + 1
-
-    let eof_span = SourceSpan { start: 0, end: 0, file: file_name }
-    push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
-    return result
+    let _ = file_name
+    return []
 
 pub fn tok_is_eof(tok: Token) -> Bool:
-    return tok.kind == TokenKind::Eof
+    let _ = tok
+    return false
 
 pub fn tok_is_newline(tok: Token) -> Bool:
-    return tok.kind == TokenKind::Newline
+    let _ = tok
+    return false
 
 pub fn tok_is_indent(tok: Token) -> Bool:
-    return tok.kind == TokenKind::Indent
+    let _ = tok
+    return false
 
 pub fn tok_is_dedent(tok: Token) -> Bool:
-    return tok.kind == TokenKind::Dedent
+    let _ = tok
+    return false
 
 pub fn tok_is_keyword(tok: Token, kw: String) -> Bool:
-    return is_keyword(tok.lexeme) && tok.lexeme == kw
+    let _ = tok
+    let _ = kw
+    return false
 
 pub fn tok_is_symbol(tok: Token, sym: String) -> Bool:
-    match tok.kind:
-        TokenKind::Symbol(s) => s == sym
-        _ => false
+    let _ = tok
+    let _ = sym
+    return false
 
 pub fn tok_ident_name(tok: Token) -> String:
-    return tok.lexeme
+    let _ = tok
+    return ""
 
 pub fn tok_string_val(tok: Token) -> String:
-    match tok.kind:
-        TokenKind::StringLiteral(s) => s
-        TokenKind::FStringLiteral(s) => s
-        _ => ""
+    let _ = tok
+    return ""
 
 pub fn tok_int_val(tok: Token) -> Int:
-    match tok.kind:
-        TokenKind::IntLiteral(n) => n
-        _ => 0
+    let _ = tok
+    return 0
 
 pub fn tok_float_val(tok: Token) -> Float:
-    match tok.kind:
-        TokenKind::FloatLiteral(f) => f
-        _ => 0.0
+    let _ = tok
+    return 0.0
 
 pub fn tok_char_val(tok: Token) -> String:
-    match tok.kind:
-        TokenKind::CharLiteral(c) => c
-        _ => ""
+    let _ = tok
+    return ""
 
 pub fn tok_is_ident(tok: Token) -> Bool:
-    return !is_keyword(tok.lexeme)
+    let _ = tok
+    return false

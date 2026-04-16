@@ -19,4 +19,5 @@ pub struct RuntimeContext:
 
 pub fn run_program(program: Program) -> Result<Value, KainError>:
     let _ = program
-    return Result::Ok(Value::Unit)
+    let result: Result<Value, KainError> = Result::Ok(Value::Unit)
+    return result
