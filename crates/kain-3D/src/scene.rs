@@ -226,7 +226,7 @@ impl SceneCompositionSummary {
         }
     }
 
-    fn framing_hint_label(&self) -> Option<&'static str> {
+    pub(crate) fn framing_hint_label(&self) -> Option<&'static str> {
         let bounds = self.bounds?;
         let distance = self.framed_camera_distance?;
         let radius = bounds.radius().max(0.001);

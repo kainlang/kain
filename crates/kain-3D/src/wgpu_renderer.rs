@@ -706,15 +706,26 @@ impl WgpuRenderer {
         let mut diagnostics = FrameDiagnostics::default();
         diagnostics.scene_name = Some(scene.name.clone());
         diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
-        diagnostics.composition_summary = Some(
-            scene
-                .composition_summary_with_overrides_and_aspect_ratio(
-                    time_seconds,
-                    &view.instance_transform_overrides,
-                    resolution.width as f32 / resolution.height as f32,
-                )
-                .brief_label(),
+        let composition_summary = scene.composition_summary_with_overrides_and_aspect_ratio(
+            time_seconds,
+            &view.instance_transform_overrides,
+            resolution.width as f32 / resolution.height as f32,
         );
+        diagnostics.composition_summary = Some(composition_summary.brief_label());
+        diagnostics.scene_role = Some(composition_summary.scene_role_label().to_string());
+        diagnostics.scene_scale = Some(
+            crate::SceneCompositionSummary::scene_scale_label(composition_summary.bounds)
+                .to_string(),
+        );
+        diagnostics.scene_profile = Some(
+            composition_summary
+                .bounds
+                .map(|bounds| bounds.composition_profile_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.framing_hint = composition_summary
+            .framing_hint_label()
+            .map(str::to_string);
         diagnostics.camera_source = Some(if view.camera.is_some() {
             FrameCameraSource::ExplicitView
         } else {
