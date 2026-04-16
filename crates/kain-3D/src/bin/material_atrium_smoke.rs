@@ -461,6 +461,7 @@ fn write_report(
                     "scene_name": tile.frame.diagnostics.scene_name,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "composition": scene_composition_payload(scene, config.width as f32 / config.height as f32),
                     "visible_instances": tile.frame.diagnostics.visible_instances,
                     "culled_instances": tile.frame.diagnostics.culled_instances,
                 }
@@ -470,6 +471,39 @@ fn write_report(
 
     fs::write(&config.output_json, serde_json::to_vec_pretty(&report)?)?;
     Ok(())
+}
+
+fn scene_composition_payload(
+    scene: &kain_3d::SceneDescription,
+    aspect_ratio: f32,
+) -> serde_json::Value {
+    let summary = scene.composition_summary_with_aspect_ratio(0.0, aspect_ratio);
+    json!({
+        "label": summary.brief_label(),
+        "scene_scale": kain_3d::SceneCompositionSummary::scene_scale_label(summary.bounds),
+        "scene_role": summary.scene_role_label(),
+        "scene_profile": summary
+            .bounds
+            .map(|bounds| bounds.composition_profile_label())
+            .unwrap_or("unbounded"),
+        "scene_density": summary.density_label(),
+        "mesh_count": summary.mesh_count,
+        "material_count": summary.material_count,
+        "instance_count": summary.instance_count,
+        "animation_count": summary.animation_count,
+        "particle_emitter_count": summary.particle_emitter_count,
+        "terrain_surface_count": summary.terrain_surface_count,
+        "directional_light_count": summary.directional_light_count,
+        "point_light_count": summary.point_light_count,
+        "has_black_hole": summary.has_black_hole,
+        "viewport_aspect_ratio": summary.viewport_aspect_ratio,
+        "framed_camera_distance": summary.framed_camera_distance,
+        "bounds": summary.bounds.map(|bounds| json!({
+            "center": [bounds.center.x, bounds.center.y, bounds.center.z],
+            "half_extents": [bounds.half_extents.x, bounds.half_extents.y, bounds.half_extents.z],
+            "span": [bounds.span().x, bounds.span().y, bounds.span().z],
+        })),
+    })
 }
 
 fn write_png(path: &Path, width: usize, height: usize, rgba: &[u8]) -> Result<(), Box<dyn Error>> {

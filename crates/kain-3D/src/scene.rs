@@ -192,7 +192,7 @@ impl SceneCompositionSummary {
             + usize::from(self.has_black_hole)
     }
 
-    fn density_label(&self) -> &'static str {
+    pub(crate) fn density_label(&self) -> &'static str {
         let authored_elements = self.authored_element_count();
 
         if authored_elements <= 5 {
