@@ -968,6 +968,17 @@ impl SceneCatalog {
         self.resolve_scene(name).map(|resolution| resolution.scene)
     }
 
+    pub fn scene_names(&self) -> impl Iterator<Item = &str> {
+        self.scenes.keys().map(String::as_str)
+    }
+
+    pub fn scene_names_with_aliases(&self) -> impl Iterator<Item = &str> {
+        self.scenes
+            .keys()
+            .chain(self.scene_aliases.keys())
+            .map(String::as_str)
+    }
+
     pub fn resolve_scene(&self, name: &str) -> Option<ResolvedScene<'_>> {
         if let Some(scene) = self.scenes.get(name) {
             return Some(ResolvedScene {
@@ -3039,6 +3050,20 @@ mod tests {
         assert_eq!(scene.name, "kerr_black_hole");
         assert!(!scene.particle_emitters.is_empty());
         assert!(scene.black_hole.is_some());
+    }
+
+    #[test]
+    fn catalog_exposes_canonical_and_alias_scene_names() {
+        let catalog = SceneCatalog::default();
+        let canonical: Vec<_> = catalog.scene_names().collect();
+        let all_names: Vec<_> = catalog.scene_names_with_aliases().collect();
+
+        assert_eq!(canonical.first(), Some(&"dcc_suite_scene"));
+        assert_eq!(canonical.last(), Some(&"tensor_stream_probe"));
+        assert!(canonical.contains(&"material_atrium"));
+        assert!(all_names.contains(&"renderer_atrium"));
+        assert!(all_names.contains(&"gpu_compute_surface_probe"));
+        assert!(all_names.len() > canonical.len());
     }
 
     #[test]

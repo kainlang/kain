@@ -9,7 +9,8 @@ These crates implement the semantic UI, native desktop, GPU, and 3D lanes.
 
 ## 3D
 
-- `kain-3D` owns viewport, renderer, and interaction behavior
+- `kain-3D` owns viewport, renderer, interaction behavior, and the canonical scene catalog used by 3D tooling
+- Scene catalogs should stay enumerable and alias-aware so UIs and inspectors can present real scene choices without hardcoded lists
 
 ## GPU And Web
 
