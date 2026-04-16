@@ -279,3 +279,5 @@ What changed:
   5. parity harness and importer honesty.
 
 Important behavior notes:
+# New Kain 3D pass (2026-04-16): `SceneCompositionDiagnostics` now carries a structured `framing_hint` (`tight-fit` / `balanced-fit` / `loose-fit`) derived from the summary's bounds radius and framed camera distance, and `material_atrium_smoke` now includes that hint in the structured scene-composition JSON. This keeps the runtime matrix easier to scan without re-deriving camera-fit heuristics in downstream tooling.
+# Validation attempt: pending in this pass, because the local Windows GNU toolchain has been the recurring blocker for `kain-3d` test linkage.

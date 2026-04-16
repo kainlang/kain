@@ -486,6 +486,7 @@ fn scene_composition_payload(
         "scene_role": diagnostics.scene_role,
         "scene_profile": diagnostics.scene_profile,
         "scene_density": diagnostics.scene_density,
+        "framing_hint": diagnostics.framing_hint,
         "mesh_count": diagnostics.mesh_count,
         "material_count": diagnostics.material_count,
         "instance_count": diagnostics.instance_count,
