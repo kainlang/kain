@@ -306,7 +306,6 @@ impl SoftwareRenderer {
         for instance in scene
             .animated_instances_with_overrides(time_seconds, &view.instance_transform_overrides)
         {
-            diagnostics.visible_instances.push(instance.id.clone());
             let mesh = scene
                 .resolved_mesh(&instance.mesh, time_seconds)
                 .ok_or_else(|| RenderError::MissingMesh(instance.mesh.clone()))?;
@@ -318,6 +317,7 @@ impl SoftwareRenderer {
 
             let model = instance.transform.matrix();
             let normal_matrix = Mat4::rotation_xyz(instance.transform.rotation_radians);
+            let mut instance_rasterized = false;
 
             for triangle in &mesh.triangles {
                 stats.triangles_submitted += 1;
@@ -349,6 +349,7 @@ impl SoftwareRenderer {
                     continue;
                 }
 
+                instance_rasterized = true;
                 stats.triangles_rasterized += 1;
                 rasterize_triangle(
                     rgba,
@@ -364,6 +365,12 @@ impl SoftwareRenderer {
                     transformed,
                     config,
                 );
+            }
+
+            if instance_rasterized {
+                diagnostics.visible_instances.push(instance.id.clone());
+            } else {
+                diagnostics.culled_instances.push(instance.id.clone());
             }
         }
 
@@ -1171,6 +1178,23 @@ mod tests {
             .unwrap_or("")
             .contains("meshes"));
         assert!(frame.diagnostics.scene_resolution.is_none());
+        assert_eq!(frame.diagnostics.visible_instances, vec!["triangle"]);
+        assert!(frame.diagnostics.culled_instances.is_empty());
+    }
+
+    #[test]
+    fn fully_clipped_instances_are_reported_as_culled() {
+        let mut scene = framed_camera_scene();
+        scene.instances[0].transform = Transform::identity().with_translation(Vec3::new(0.0, 0.0, 8.0));
+
+        let mut renderer = SoftwareRenderer::default();
+        let frame = renderer
+            .render_scene(&scene, 0.0, RenderResolution::new(128, 128))
+            .expect("scene should render even when the only instance is culled");
+
+        assert_eq!(frame.stats.triangles_rasterized, 0);
+        assert_eq!(frame.diagnostics.visible_instances, Vec::<String>::new());
+        assert_eq!(frame.diagnostics.culled_instances, vec!["triangle"]);
     }
 
     #[test]

@@ -1,5 +1,12 @@
 # Kain Memory
 
+- New Kain 3D pass (2026-04-16): software rendering now distinguishes visible vs. fully culled instances in `FrameDiagnostics`, so tooling can see when an authored object was completely clipped/backfaced instead of only inferring success from the final image. Added a regression test that pushes a triangle behind the camera and expects it to land in `culled_instances`.
+- Validation attempt: `cargo test -p kain-3d renderer::tests -- --nocapture` still hits the repo-local Windows GNU linker gap before the test binary can link, because `x86_64-w64-mingw32-gcc` cannot resolve `-lgcc_eh` and `-lgcc`.
+
+- New Kain 3D pass (2026-04-16): `material_atrium_smoke` now emits a structured `diagnostics.composition` payload alongside the existing brief label, including summary counts, framing distance, viewport aspect ratio, and bounds span/center data. This makes the 3D smoke report much easier for tooling to consume without re-deriving scene structure from screenshots or renderer internals.
+- Validation attempt: `cargo check -p kain-3D --bin material_atrium_smoke` still fails in this repo-local Windows GNU toolchain before the crate can finish compiling because build-script linking cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
+- New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now counts directional and point lights in addition to meshes/materials/instances/animations/emitters/terrain, and the brief scene label surfaces those light counts when present. This makes dense lookdev or lighting-heavy scenes read more truthfully in renderer diagnostics and keeps the density cue aligned with actual authored scene complexity.
+- Validation attempt: `cargo test -p kain-3d composition_summary_density_label_tracks_authoring_scale -- --nocapture` still fails before the test binary can link because the repo-local Windows GNU toolchain cannot find `-lgcc_eh` and `-lgcc`.
 - The Kain 3D pipeline is a live fleet initiative now, and its steering should stay spec-first.
 - The intended build path is native, GPU-aware 3D capability that can grow toward DCC-class tools like ZBrush, Substance Painter, and UE5-style workflows.
 - Use Codex CLI through the coding-agent skill for pipeline tasks unless the user asks for another harness.
