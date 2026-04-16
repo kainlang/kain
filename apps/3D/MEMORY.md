@@ -26,4 +26,33 @@ Kain kernels worth reusing directly:
 - `src-kain/kernels/sculpt/dyntopo_voxel_remesh.kn`
 - `src-kain/kernels/deformation/deformer_stack_resolve.kn`
 
-The manifest layer already binds these into tensor pipelines and runtime systems, so the suite can stay data-driven instead of hardcoding tool modes. No code edits were needed in this pass.
+The manifest layer already binds these into tensor pipelines and runtime systems, so the suite can stay data-driven instead of hardcoding tool modes.
+
+## 2026-04-16 - Scene composition spine documented
+
+I tightened `apps/3D/ARCHITECTURE.md` to make the core 3D composition spine explicit:
+`scene_runtime`, `scene_exchange_runtime`, `scene_semantics_runtime`,
+`scene_bundle_runtime`, `viewport_runtime`, `camera_runtime`,
+`interaction_runtime`, `mesh_runtime`, and `lighting_runtime` are now called out
+as the first stop for reusable 3D behavior.
+
+Why this matters: future 3D work should grow through shared contracts and
+manifested lanes first, which keeps the template scalable and prevents a trail
+of one-off host glue from becoming the real architecture.
+
+Next recommended step: add a small validation or reflection check that verifies
+new 3D features are registered against the shared scene spine before they land
+as standalone app-specific behavior.
+
+## 2026-04-16 - Scene spine validator added
+
+Added `apps/3D/tools/validation/validate_scene_spine.py` as a lightweight
+manifest guardrail for the shared 3D spine. It checks the scene, exchange,
+semantics, bundle, viewport, camera, interaction, mesh, and lighting runtime
+systems against `manifests/engine_systems.json` and `manifests/sources.json`.
+
+Why this matters: the template now has a direct, runnable check that catches
+scene-spine drift before it becomes app-local glue or a hidden manifest hole.
+
+Next recommended step: wire the validator into the template's reflection or CI
+lane so spine drift fails automatically during regeneration.
