@@ -56,3 +56,32 @@ scene-spine drift before it becomes app-local glue or a hidden manifest hole.
 
 Next recommended step: wire the validator into the template's reflection or CI
 lane so spine drift fails automatically during regeneration.
+
+## 2026-04-16 - 3D lane wiring guarded end-to-end
+
+Extended the same validator to also verify the primary `universal_3d_workbench`
+runtime app and workspace preset stay wired to `universal_3d_workbench_app`
+with `native_ui` hosting. That makes the spine check cover both the shared
+runtime contracts and the flagship 3D launch lane.
+
+Why this matters: it closes the gap between "the 3D contracts exist" and "the
+actual workbench route still points at them," which is the easiest place for
+3D template drift to hide.
+
+Next recommended step: surface this validator in the template's regen or CI
+path so the contract and launch-lane check runs automatically.
+
+## 2026-04-16 - Scene composition staging surfaced in renderer diagnostics
+
+Added an explicit `composition_stage` signal to the 3D renderer diagnostics,
+derived from scene bounds. The new labels are `staged-line`, `staged-plane`,
+`staged-stack`, and `staged-volume`, and they now flow through both the
+software and WGPU render paths.
+
+Why this matters: viewport tooling can now distinguish scene composition shape
+without inferring it from the longer summary string, which makes framing,
+layout, and composition debug overlays easier to consume in 3D shells.
+
+Next recommended step: expose `composition_stage` in any 3D UI/debug HUD that
+already consumes `FrameDiagnostics`, then add a scene fixture that exercises all
+four stage labels.

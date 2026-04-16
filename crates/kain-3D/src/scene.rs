@@ -72,6 +72,17 @@ impl SceneBounds {
             "volumetric"
         }
     }
+
+    pub fn composition_stage_label(&self) -> &'static str {
+        let profile = self.composition_profile_label();
+        match profile {
+            "linear" => "staged-line",
+            "planar" => "staged-plane",
+            "stacked" => "staged-stack",
+            "volumetric" => "staged-volume",
+            _ => "staged-unknown",
+        }
+    }
 }
 
 fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
@@ -150,6 +161,7 @@ pub struct SceneCompositionDiagnostics {
     pub scene_scale: &'static str,
     pub scene_role: &'static str,
     pub scene_profile: &'static str,
+    pub composition_stage: &'static str,
     pub scene_density: &'static str,
     pub framing_hint: Option<&'static str>,
     pub mesh_count: usize,
@@ -250,6 +262,10 @@ impl SceneCompositionSummary {
                 .bounds
                 .map(|bounds| bounds.composition_profile_label())
                 .unwrap_or("unbounded"),
+            composition_stage: self
+                .bounds
+                .map(|bounds| bounds.composition_stage_label())
+                .unwrap_or("unbounded"),
             scene_density: self.density_label(),
             framing_hint: self.framing_hint_label(),
             mesh_count: self.mesh_count,
@@ -329,15 +345,20 @@ impl SceneCompositionSummary {
             .bounds
             .map(|bounds| bounds.composition_profile_label())
             .unwrap_or("unbounded");
+        let stage = self
+            .bounds
+            .map(|bounds| bounds.composition_stage_label())
+            .unwrap_or("unbounded");
 
         format!(
-            "{} | {} | {} | {} | {} | {} | {} | {}",
+            "{} | {} | {} | {} | {} | {} | {} | {} | {}",
             parts.join(", "),
             bounds,
             camera,
             aspect,
             scale,
             profile,
+            stage,
             self.scene_role_label(),
             self.density_label()
         )
@@ -3214,6 +3235,34 @@ mod tests {
             }
             .composition_profile_label(),
             "volumetric"
+        );
+    }
+
+    #[test]
+    fn composition_stage_label_tracks_profile_shape() {
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(5.0, 1.0, 1.0),
+            }
+            .composition_stage_label(),
+            "staged-line"
+        );
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(3.0, 3.0, 1.0),
+            }
+            .composition_stage_label(),
+            "staged-plane"
+        );
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(1.0, 5.0, 1.0),
+            }
+            .composition_stage_label(),
+            "staged-stack"
         );
     }
 

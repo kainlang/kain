@@ -62,6 +62,7 @@ pub struct FrameDiagnostics {
     pub scene_role: Option<String>,
     pub scene_scale: Option<String>,
     pub scene_profile: Option<String>,
+    pub composition_stage: Option<String>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
 }
@@ -289,9 +290,13 @@ impl SoftwareRenderer {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
-        diagnostics.framing_hint = composition_summary
-            .framing_hint_label()
-            .map(str::to_string);
+        diagnostics.composition_stage = Some(
+            composition_summary
+                .bounds
+                .map(|bounds| bounds.composition_stage_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.framing_hint = composition_summary.framing_hint_label().map(str::to_string);
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
             diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);

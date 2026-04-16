@@ -537,7 +537,8 @@ impl WgpuRenderer {
         let resolved_scene = catalog
             .resolve_scene(scene_name)
             .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
-        let mut frame = self.render_scene_internal(resolved_scene.scene, time_seconds, resolution, view)?;
+        let mut frame =
+            self.render_scene_internal(resolved_scene.scene, time_seconds, resolution, view)?;
         frame.diagnostics.scene_resolution = Some(resolved_scene.resolution);
         Ok(frame)
     }
@@ -723,9 +724,13 @@ impl WgpuRenderer {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
-        diagnostics.framing_hint = composition_summary
-            .framing_hint_label()
-            .map(str::to_string);
+        diagnostics.composition_stage = Some(
+            composition_summary
+                .bounds
+                .map(|bounds| bounds.composition_stage_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.framing_hint = composition_summary.framing_hint_label().map(str::to_string);
         diagnostics.camera_source = Some(if view.camera.is_some() {
             FrameCameraSource::ExplicitView
         } else {
