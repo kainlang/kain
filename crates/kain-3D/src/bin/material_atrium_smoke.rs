@@ -449,6 +449,15 @@ fn write_report(
                         kain_3d::FrameCameraSource::ExplicitView => "explicit_view",
                         kain_3d::FrameCameraSource::AutoFramed => "auto_framed",
                     }),
+                    "scene_resolution": tile.frame.diagnostics.scene_resolution.as_ref().map(|resolution| json!({
+                        "requested_name": resolution.requested_name,
+                        "resolved_name": resolution.resolved_name,
+                        "kind": match &resolution.kind {
+                            kain_3d::SceneResolutionKind::Exact => "exact".to_string(),
+                            kain_3d::SceneResolutionKind::Alias { alias } => format!("alias:{alias}"),
+                            kain_3d::SceneResolutionKind::Default { requested } => format!("default:{requested}"),
+                        }
+                    })),
                     "scene_name": tile.frame.diagnostics.scene_name,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
