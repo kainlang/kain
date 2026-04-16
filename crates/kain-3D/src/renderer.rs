@@ -289,19 +289,9 @@ impl SoftwareRenderer {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
-        diagnostics.framing_hint = composition_summary.bounds.and_then(|bounds| {
-            composition_summary.framed_camera_distance.map(|distance| {
-                let radius = bounds.radius().max(0.001);
-                let fit_ratio = distance / radius;
-                if fit_ratio < 2.8 {
-                    "tight-fit".to_string()
-                } else if fit_ratio < 4.2 {
-                    "balanced-fit".to_string()
-                } else {
-                    "loose-fit".to_string()
-                }
-            })
-        });
+        diagnostics.framing_hint = composition_summary
+            .framing_hint_label()
+            .map(str::to_string);
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
             diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);
