@@ -784,7 +784,12 @@ impl Env {
                 _ => return Err(KainError::runtime("json_get: key must be a string")),
             };
 
-            Ok(fields.read().unwrap().get(key).cloned().unwrap_or(Value::None))
+            Ok(fields
+                .read()
+                .unwrap()
+                .get(key)
+                .cloned()
+                .unwrap_or(Value::None))
         });
         self.define_native("json_get_string", |_env, args| {
             if args.len() != 2 {
@@ -1007,7 +1012,12 @@ impl Env {
                 _ => return Err(KainError::runtime("json_array_get: index must be an int")),
             };
 
-            Ok(array.read().unwrap().get(index).cloned().unwrap_or(Value::None))
+            Ok(array
+                .read()
+                .unwrap()
+                .get(index)
+                .cloned()
+                .unwrap_or(Value::None))
         });
     }
 
@@ -2088,9 +2098,7 @@ impl Env {
         // The first element is the program name; subsequent elements are user-supplied args.
         // Used by kainc.kn and other selfhost CLI scripts.
         self.define_native("args", |_env, _args| {
-            let argv: Vec<Value> = std::env::args()
-                .map(|a| Value::String(a))
-                .collect();
+            let argv: Vec<Value> = std::env::args().map(|a| Value::String(a)).collect();
             Ok(Value::Array(Arc::new(RwLock::new(argv))))
         });
         self.define_native("command_run", |_env, args| {
@@ -2102,11 +2110,7 @@ impl Env {
 
             let program = match &args[0] {
                 Value::String(program) => program.clone(),
-                _ => {
-                    return Err(KainError::runtime(
-                        "command_run: program must be a string",
-                    ))
-                }
+                _ => return Err(KainError::runtime("command_run: program must be a string")),
             };
             let argument_values = match &args[1] {
                 Value::Array(values) => values.read().unwrap().clone(),
@@ -2130,11 +2134,7 @@ impl Env {
             }
             let workdir = match &args[2] {
                 Value::String(workdir) => workdir.clone(),
-                _ => {
-                    return Err(KainError::runtime(
-                        "command_run: workdir must be a string",
-                    ))
-                }
+                _ => return Err(KainError::runtime("command_run: workdir must be a string")),
             };
 
             let mut fields = HashMap::new();
@@ -2186,7 +2186,6 @@ impl Env {
                 Arc::new(RwLock::new(fields)),
             ))
         });
-
 
         self.define_native("assert", |_env, args| {
             if args.len() < 1 {
@@ -3373,11 +3372,11 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
 
         // Try various locations in order
         let possible_paths = [
-            base_path.with_extension("kn"),                                          // ./compiler/lexer.kn
-            std::path::PathBuf::from(format!("src/{}.kn", path)),                   // src/compiler/lexer.kn
-            std::path::PathBuf::from(format!("src/core/{}.kn", module_base)),       // src/core/lexer.kn (selfhost pipeline)
-            std::path::PathBuf::from(format!("{}.kn", path)),                       // compiler/lexer.kn
-            base_path.with_extension("god"),                                         // legacy .god extension
+            base_path.with_extension("kn"), // ./compiler/lexer.kn
+            std::path::PathBuf::from(format!("src/{}.kn", path)), // src/compiler/lexer.kn
+            std::path::PathBuf::from(format!("src/core/{}.kn", module_base)), // src/core/lexer.kn (selfhost pipeline)
+            std::path::PathBuf::from(format!("{}.kn", path)),                 // compiler/lexer.kn
+            base_path.with_extension("god"), // legacy .god extension
         ];
 
         possible_paths

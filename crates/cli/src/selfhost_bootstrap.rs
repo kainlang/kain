@@ -1,5 +1,5 @@
 use crate::error::{KainError, KainResult};
-use crate::llvm_native_stage::{stage_llvm_native_artifacts, LlvmNativeArtifactStage};
+use crate::llvm_native_stage::{stage_native_backend_artifacts, LlvmNativeArtifactStage};
 use crate::selfhost_report::{
     render_bootstrap_markdown, SelfHostBootstrapArtifacts, SelfHostBootstrapReport,
     SelfHostBootstrapStepReport, SelfHostPhaseStatus,
@@ -15,10 +15,15 @@ use std::process::Command;
 const DEFAULT_BOOTSTRAP_MANIFEST: &str = "src/KAIN.toml";
 const DEFAULT_RUNTIME_MANIFEST: &str = "runtime/native_runtime.toml";
 const DEFAULT_RUNTIME_BUILD_SCRIPT: &str = "runtime/compile_native_runtime.sh";
-const DEFAULT_COMBINED_SOURCE_PATH: &str = "src/.selfhost/bootstrap/combined/kain_core_bootstrap.kn";
+const DEFAULT_COMBINED_SOURCE_PATH: &str =
+    "src/.selfhost/bootstrap/combined/kain_core_bootstrap.kn";
+const DEFAULT_C_OUTPUT_PATH: &str = "src/.selfhost/bootstrap/out/kain_core_bootstrap.c";
 const DEFAULT_LLVM_OUTPUT_PATH: &str = "src/.selfhost/bootstrap/out/kain_core_bootstrap.ll";
 const DEFAULT_NATIVE_OUTPUT_PATH: &str = "src/.selfhost/bootstrap/out/kainc";
-const DEFAULT_OUROBOROS_LLVM_OUTPUT_PATH: &str = "src/.selfhost/ouroboros/kain_core_bootstrap.stage2.ll";
+const DEFAULT_OUROBOROS_C_OUTPUT_PATH: &str =
+    "src/.selfhost/ouroboros/kain_core_bootstrap.stage2.c";
+const DEFAULT_OUROBOROS_LLVM_OUTPUT_PATH: &str =
+    "src/.selfhost/ouroboros/kain_core_bootstrap.stage2.ll";
 const DEFAULT_JSON_REPORT_PATH: &str = "src/.selfhost/reports/bootstrap_report.json";
 const DEFAULT_MARKDOWN_REPORT_PATH: &str = "src/.selfhost/reports/bootstrap_report.md";
 const RUNTIME_BUILD_TYPE: &str = "debug";
@@ -26,18 +31,60 @@ const RUNTIME_BUILD_TYPE: &str = "debug";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BootstrapMode {
     CombineOnly,
-    EmitLlvmOnly,
+    EmitCodegenOnly,
     LinkNative,
     VerifyOuroboros,
 }
 
 impl BootstrapMode {
-    fn label(self) -> &'static str {
+    fn label(self, backend: BootstrapBackend) -> &'static str {
+        match (self, backend) {
+            (Self::CombineOnly, _) => "combine_only",
+            (Self::EmitCodegenOnly, BootstrapBackend::Llvm) => "emit_llvm_only",
+            (Self::EmitCodegenOnly, BootstrapBackend::C) => "emit_c_only",
+            (Self::LinkNative, BootstrapBackend::Llvm) => "link_native_llvm",
+            (Self::LinkNative, BootstrapBackend::C) => "link_native_c",
+            (Self::VerifyOuroboros, BootstrapBackend::Llvm) => "verify_ouroboros_llvm",
+            (Self::VerifyOuroboros, BootstrapBackend::C) => "verify_ouroboros_c",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BootstrapBackend {
+    Llvm,
+    C,
+}
+
+impl BootstrapBackend {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "llvm" => Ok(Self::Llvm),
+            "c" => Ok(Self::C),
+            other => Err(format!(
+                "unsupported selfhost bootstrap backend '{other}'; expected 'llvm' or 'c'"
+            )),
+        }
+    }
+
+    fn compile_target(self) -> CompileTarget {
         match self {
-            Self::CombineOnly => "combine_only",
-            Self::EmitLlvmOnly => "emit_llvm_only",
-            Self::LinkNative => "link_native",
-            Self::VerifyOuroboros => "verify_ouroboros",
+            Self::Llvm => CompileTarget::Llvm,
+            Self::C => CompileTarget::C,
+        }
+    }
+
+    fn phase_name(self) -> &'static str {
+        match self {
+            Self::Llvm => "llvm_codegen",
+            Self::C => "c_codegen",
+        }
+    }
+
+    fn noun(self) -> &'static str {
+        match self {
+            Self::Llvm => "LLVM",
+            Self::C => "C",
         }
     }
 }
@@ -95,6 +142,8 @@ struct BootstrapOutputs {
     #[serde(default)]
     combined_source_path: Option<PathBuf>,
     #[serde(default)]
+    c_output_path: Option<PathBuf>,
+    #[serde(default)]
     llvm_output_path: Option<PathBuf>,
     #[serde(default)]
     native_output_path: Option<PathBuf>,
@@ -102,6 +151,8 @@ struct BootstrapOutputs {
     json_report_path: Option<PathBuf>,
     #[serde(default)]
     markdown_report_path: Option<PathBuf>,
+    #[serde(default)]
+    ouroboros_c_path: Option<PathBuf>,
     #[serde(default)]
     ouroboros_llvm_path: Option<PathBuf>,
 }
@@ -165,10 +216,12 @@ struct BootstrapContract {
     runtime_build_script_path: PathBuf,
     runtime_cache_base: PathBuf,
     combined_source_path: PathBuf,
+    c_output_path: PathBuf,
     llvm_output_path: PathBuf,
     native_output_path: PathBuf,
     json_report_path: PathBuf,
     markdown_report_path: PathBuf,
+    ouroboros_c_path: PathBuf,
     ouroboros_llvm_path: PathBuf,
     root_component: Option<String>,
     ffi_shared_libraries: Vec<PathBuf>,
@@ -191,18 +244,26 @@ struct BootstrapReportOutputPaths {
 
 pub fn run_bootstrap(
     manifest_path: Option<PathBuf>,
+    backend: &str,
     combine_only: bool,
     emit_llvm_only: bool,
     link_native: bool,
     verify_ouroboros: bool,
 ) -> KainResult<()> {
+    let backend = BootstrapBackend::parse(backend).map_err(KainError::runtime)?;
     let mode = resolve_bootstrap_mode(combine_only, emit_llvm_only, link_native, verify_ouroboros)?;
     let (repo_root, manifest_path) =
         resolve_repo_root_and_manifest_path(manifest_path).map_err(KainError::runtime)?;
-    let mut report = initialize_report(&repo_root, &manifest_path, mode);
+    let mut report = initialize_report(&repo_root, &manifest_path, mode, backend);
     let mut report_paths = fallback_report_output_paths(&repo_root);
 
-    let result = execute_bootstrap(mode, &manifest_path, &mut report, &mut report_paths);
+    let result = execute_bootstrap(
+        mode,
+        backend,
+        &manifest_path,
+        &mut report,
+        &mut report_paths,
+    );
     let report_write_result = write_report_files(&report_paths, &report);
 
     match result {
@@ -222,15 +283,10 @@ fn resolve_bootstrap_mode(
     link_native: bool,
     verify_ouroboros: bool,
 ) -> KainResult<BootstrapMode> {
-    let explicit_modes = [
-        combine_only,
-        emit_llvm_only,
-        link_native,
-        verify_ouroboros,
-    ]
-    .into_iter()
-    .filter(|flag| *flag)
-    .count();
+    let explicit_modes = [combine_only, emit_llvm_only, link_native, verify_ouroboros]
+        .into_iter()
+        .filter(|flag| *flag)
+        .count();
     if explicit_modes > 1 {
         return Err(KainError::runtime(
             "selfhost bootstrap modes are mutually exclusive; choose one of --combine-only, --emit-llvm-only, --link-native, or --verify-ouroboros",
@@ -240,7 +296,7 @@ fn resolve_bootstrap_mode(
     Ok(if combine_only {
         BootstrapMode::CombineOnly
     } else if emit_llvm_only {
-        BootstrapMode::EmitLlvmOnly
+        BootstrapMode::EmitCodegenOnly
     } else if verify_ouroboros {
         BootstrapMode::VerifyOuroboros
     } else {
@@ -250,6 +306,7 @@ fn resolve_bootstrap_mode(
 
 fn execute_bootstrap(
     mode: BootstrapMode,
+    backend: BootstrapBackend,
     manifest_path: &Path,
     report: &mut SelfHostBootstrapReport,
     report_paths: &mut BootstrapReportOutputPaths,
@@ -258,7 +315,7 @@ fn execute_bootstrap(
         finalize_failure(report, "manifest_resolution", &message);
         KainError::runtime(message)
     })?;
-    apply_contract_to_report(report, &contract, mode);
+    apply_contract_to_report(report, &contract, mode, backend);
     report_paths.json_path = contract.json_report_path.clone();
     report_paths.markdown_path = contract.markdown_report_path.clone();
     push_step(
@@ -276,11 +333,10 @@ fn execute_bootstrap(
         finalize_failure(report, "source_assembly", &message);
         KainError::runtime(message)
     })?;
-    write_text_artifact(&contract.combined_source_path, &combined_source)
-        .map_err(|message| {
-            finalize_failure(report, "source_assembly", &message);
-            KainError::runtime(message)
-        })?;
+    write_text_artifact(&contract.combined_source_path, &combined_source).map_err(|message| {
+        finalize_failure(report, "source_assembly", &message);
+        KainError::runtime(message)
+    })?;
     ensure_path_exists(&contract.combined_source_path, "combined bootstrap source").map_err(
         |message| {
             finalize_failure(report, "source_assembly", &message);
@@ -302,35 +358,51 @@ fn execute_bootstrap(
         return Ok(());
     }
 
-    let llvm_output = compile(&combined_source, CompileTarget::Llvm).map_err(|err| {
-        finalize_failure(report, "llvm_codegen", &err.to_string());
+    let codegen_phase = backend.phase_name();
+    let codegen_output_path = selected_codegen_output_path(&contract, backend);
+    let codegen_output = compile(&combined_source, backend.compile_target()).map_err(|err| {
+        finalize_failure(report, codegen_phase, &err.to_string());
         err
     })?;
-    write_text_artifact(&contract.llvm_output_path, &llvm_output).map_err(|message| {
-        finalize_failure(report, "llvm_codegen", &message);
+    write_text_artifact(codegen_output_path, &codegen_output).map_err(|message| {
+        finalize_failure(report, codegen_phase, &message);
         KainError::runtime(message)
     })?;
-    ensure_path_exists(&contract.llvm_output_path, "LLVM output").map_err(|message| {
-        finalize_failure(report, "llvm_codegen", &message);
+    ensure_path_exists(codegen_output_path, backend.noun()).map_err(|message| {
+        finalize_failure(report, codegen_phase, &message);
         KainError::runtime(message)
     })?;
-    report.artifacts.llvm_output_path = Some(contract.llvm_output_path.display().to_string());
+    match backend {
+        BootstrapBackend::Llvm => {
+            report.artifacts.llvm_output_path = Some(codegen_output_path.display().to_string());
+        }
+        BootstrapBackend::C => {
+            report.artifacts.c_output_path = Some(codegen_output_path.display().to_string());
+        }
+    }
 
-    let staged_artifacts =
-        stage_llvm_native_artifacts(&combined_source, &contract.llvm_output_path, contract.root_component.as_deref())
-            .map_err(|message| {
-                finalize_failure(report, "llvm_codegen", &message);
-                KainError::runtime(message)
-            })?;
+    let staged_artifacts = stage_native_backend_artifacts(
+        &combined_source,
+        backend.compile_target(),
+        codegen_output_path,
+        contract.root_component.as_deref(),
+    )
+    .map_err(|message| {
+        finalize_failure(report, codegen_phase, &message);
+        KainError::runtime(message)
+    })?;
     apply_staged_artifacts(report, &staged_artifacts);
     push_step(
         report,
-        "llvm_codegen",
+        codegen_phase,
         SelfHostPhaseStatus::Pass,
-        "compiled owned bootstrap source to LLVM and staged native sidecars".to_string(),
-        staged_llvm_artifact_list(&contract, &staged_artifacts),
+        format!(
+            "compiled owned bootstrap source to {} and staged native sidecars",
+            backend.noun()
+        ),
+        staged_codegen_artifact_list(&contract, backend, &staged_artifacts),
     );
-    if mode == BootstrapMode::EmitLlvmOnly {
+    if mode == BootstrapMode::EmitCodegenOnly {
         report.final_phase_status = SelfHostPhaseStatus::Pass;
         report.blocker_classification = "clear".to_string();
         return Ok(());
@@ -384,7 +456,7 @@ fn execute_bootstrap(
             .collect(),
     );
 
-    link_native_output(&contract, &runtime_artifacts).map_err(|message| {
+    link_native_output(&contract, backend, &runtime_artifacts).map_err(|message| {
         finalize_failure(report, "native_link", &message);
         KainError::runtime(message)
     })?;
@@ -394,8 +466,7 @@ fn execute_bootstrap(
             KainError::runtime(message)
         },
     )?;
-    report.artifacts.native_output_path =
-        Some(contract.native_output_path.display().to_string());
+    report.artifacts.native_output_path = Some(contract.native_output_path.display().to_string());
     push_step(
         report,
         "native_link",
@@ -405,21 +476,33 @@ fn execute_bootstrap(
     );
 
     if mode == BootstrapMode::VerifyOuroboros {
-        verify_ouroboros(&contract).map_err(|message| {
+        verify_ouroboros(&contract, backend).map_err(|message| {
             finalize_failure(report, "ouroboros_verification", &message);
             KainError::runtime(message)
         })?;
-        report.artifacts.ouroboros_llvm_output_path =
-            Some(contract.ouroboros_llvm_path.display().to_string());
+        match backend {
+            BootstrapBackend::Llvm => {
+                report.artifacts.ouroboros_llvm_output_path =
+                    Some(contract.ouroboros_llvm_path.display().to_string());
+            }
+            BootstrapBackend::C => {
+                report.artifacts.ouroboros_c_output_path =
+                    Some(contract.ouroboros_c_path.display().to_string());
+            }
+        }
         push_step(
             report,
             "ouroboros_verification",
             SelfHostPhaseStatus::Pass,
-            "native bootstrap compiler recompiled the combined source with matching LLVM output"
-                .to_string(),
+            format!(
+                "native bootstrap compiler recompiled the combined source with matching {} output",
+                backend.noun()
+            ),
             vec![
                 contract.native_output_path.display().to_string(),
-                contract.ouroboros_llvm_path.display().to_string(),
+                selected_ouroboros_output_path(&contract, backend)
+                    .display()
+                    .to_string(),
             ],
         );
     }
@@ -438,12 +521,17 @@ fn resolve_repo_root_and_manifest_path(
             Ok((repo_root, path))
         }
         Some(path) => {
-            let repo_root = find_repo_root(&std::env::current_dir().map_err(|err| err.to_string())?)?;
+            let repo_root =
+                find_repo_root(&std::env::current_dir().map_err(|err| err.to_string())?)?;
             Ok((repo_root.clone(), repo_root.join(path)))
         }
         None => {
-            let repo_root = find_repo_root(&std::env::current_dir().map_err(|err| err.to_string())?)?;
-            Ok((repo_root.clone(), repo_root.join(DEFAULT_BOOTSTRAP_MANIFEST)))
+            let repo_root =
+                find_repo_root(&std::env::current_dir().map_err(|err| err.to_string())?)?;
+            Ok((
+                repo_root.clone(),
+                repo_root.join(DEFAULT_BOOTSTRAP_MANIFEST),
+            ))
         }
     }
 }
@@ -594,6 +682,13 @@ fn load_bootstrap_manifest_from_repo_root(
                 .as_deref()
                 .unwrap_or_else(|| Path::new(DEFAULT_COMBINED_SOURCE_PATH)),
         ),
+        c_output_path: resolve_repo_relative_path(
+            repo_root,
+            outputs
+                .c_output_path
+                .as_deref()
+                .unwrap_or_else(|| Path::new(DEFAULT_C_OUTPUT_PATH)),
+        ),
         llvm_output_path: resolve_repo_relative_path(
             repo_root,
             outputs
@@ -621,6 +716,13 @@ fn load_bootstrap_manifest_from_repo_root(
                 .markdown_report_path
                 .as_deref()
                 .unwrap_or_else(|| Path::new(DEFAULT_MARKDOWN_REPORT_PATH)),
+        ),
+        ouroboros_c_path: resolve_repo_relative_path(
+            repo_root,
+            outputs
+                .ouroboros_c_path
+                .as_deref()
+                .unwrap_or_else(|| Path::new(DEFAULT_OUROBOROS_C_OUTPUT_PATH)),
         ),
         ouroboros_llvm_path: resolve_repo_relative_path(
             repo_root,
@@ -796,7 +898,9 @@ fn discover_runtime_artifacts(contract: &BootstrapContract) -> Result<RuntimeArt
 
     let mut link_libs = default_native_runtime_link_libs();
     link_libs.extend(platform_link_libs(&manifest.link));
-    let uses_cpp_runtime = selected_sources.iter().any(|path| runtime_source_uses_cpp(path));
+    let uses_cpp_runtime = selected_sources
+        .iter()
+        .any(|path| runtime_source_uses_cpp(path));
     if uses_cpp_runtime {
         link_libs.extend(default_native_runtime_cpp_link_libs());
     }
@@ -809,7 +913,11 @@ fn discover_runtime_artifacts(contract: &BootstrapContract) -> Result<RuntimeArt
     })
 }
 
-fn link_native_output(contract: &BootstrapContract, runtime_artifacts: &RuntimeArtifacts) -> Result<(), String> {
+fn link_native_output(
+    contract: &BootstrapContract,
+    backend: BootstrapBackend,
+    runtime_artifacts: &RuntimeArtifacts,
+) -> Result<(), String> {
     let clang = resolve_clang_command()?;
     if let Some(parent) = contract.native_output_path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
@@ -822,8 +930,11 @@ fn link_native_output(contract: &BootstrapContract, runtime_artifacts: &RuntimeA
     }
 
     let mut command = Command::new(&clang);
+    if backend == BootstrapBackend::C {
+        command.arg("-std=c11");
+    }
     command
-        .arg(&contract.llvm_output_path)
+        .arg(selected_codegen_output_path(contract, backend))
         .arg("-o")
         .arg(&contract.native_output_path);
     for object_path in &runtime_artifacts.object_paths {
@@ -847,6 +958,10 @@ fn link_native_output(contract: &BootstrapContract, runtime_artifacts: &RuntimeA
         command.arg(format!("-l{link_lib}"));
     }
 
+    if backend == BootstrapBackend::Llvm {
+        command.arg("-Wno-override-module");
+    }
+
     let status = command.status().map_err(|err| {
         format!(
             "unable to invoke clang for native bootstrap link using {}: {}",
@@ -863,8 +978,9 @@ fn link_native_output(contract: &BootstrapContract, runtime_artifacts: &RuntimeA
     Ok(())
 }
 
-fn verify_ouroboros(contract: &BootstrapContract) -> Result<(), String> {
-    if let Some(parent) = contract.ouroboros_llvm_path.parent() {
+fn verify_ouroboros(contract: &BootstrapContract, backend: BootstrapBackend) -> Result<(), String> {
+    let ouroboros_output_path = selected_ouroboros_output_path(contract, backend);
+    if let Some(parent) = ouroboros_output_path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
             format!(
                 "unable to create ouroboros output directory {}: {}",
@@ -878,9 +994,12 @@ fn verify_ouroboros(contract: &BootstrapContract) -> Result<(), String> {
         .arg("build")
         .arg(&contract.combined_source_path)
         .arg("--target")
-        .arg("llvm")
+        .arg(match backend {
+            BootstrapBackend::Llvm => "llvm",
+            BootstrapBackend::C => "c",
+        })
         .arg("--output")
-        .arg(&contract.ouroboros_llvm_path)
+        .arg(ouroboros_output_path)
         .status()
         .map_err(|err| {
             format!(
@@ -895,27 +1014,30 @@ fn verify_ouroboros(contract: &BootstrapContract) -> Result<(), String> {
             contract.combined_source_path.display()
         ));
     }
-    ensure_path_exists(&contract.ouroboros_llvm_path, "ouroboros LLVM output")?;
+    ensure_path_exists(ouroboros_output_path, "ouroboros output")?;
 
-    let baseline = fs::read_to_string(&contract.llvm_output_path).map_err(|err| {
+    let baseline_path = selected_codegen_output_path(contract, backend);
+    let baseline = fs::read_to_string(baseline_path).map_err(|err| {
         format!(
-            "unable to read baseline LLVM output {}: {}",
-            contract.llvm_output_path.display(),
+            "unable to read baseline {} output {}: {}",
+            backend.noun(),
+            baseline_path.display(),
             err
         )
     })?;
-    let ouroboros = fs::read_to_string(&contract.ouroboros_llvm_path).map_err(|err| {
+    let ouroboros = fs::read_to_string(ouroboros_output_path).map_err(|err| {
         format!(
-            "unable to read ouroboros LLVM output {}: {}",
-            contract.ouroboros_llvm_path.display(),
+            "unable to read ouroboros {} output {}: {}",
+            backend.noun(),
+            ouroboros_output_path.display(),
             err
         )
     })?;
     if normalize_for_compare(&baseline) != normalize_for_compare(&ouroboros) {
         return Err(format!(
             "ouroboros verification failed: {} does not match {}",
-            contract.ouroboros_llvm_path.display(),
-            contract.llvm_output_path.display()
+            ouroboros_output_path.display(),
+            baseline_path.display()
         ));
     }
 
@@ -978,6 +1100,7 @@ fn initialize_report(
     repo_root: &Path,
     manifest_path: &Path,
     mode: BootstrapMode,
+    backend: BootstrapBackend,
 ) -> SelfHostBootstrapReport {
     SelfHostBootstrapReport {
         generated_at_utc: Utc::now().to_rfc3339(),
@@ -986,13 +1109,17 @@ fn initialize_report(
         package_name: "unknown".to_string(),
         package_version: "unknown".to_string(),
         compiler_entry: String::new(),
-        bootstrap_mode: mode.label().to_string(),
+        bootstrap_mode: mode.label(backend).to_string(),
+        codegen_backend: backend.noun().to_ascii_lowercase(),
         bootstrap_host_mode: "thin_host".to_string(),
         source_root: String::new(),
         source_files: Vec::new(),
         module_roots: Vec::new(),
         search_paths: Vec::new(),
-        runtime_manifest_path: repo_root.join(DEFAULT_RUNTIME_MANIFEST).display().to_string(),
+        runtime_manifest_path: repo_root
+            .join(DEFAULT_RUNTIME_MANIFEST)
+            .display()
+            .to_string(),
         runtime_build_script_path: repo_root
             .join(DEFAULT_RUNTIME_BUILD_SCRIPT)
             .display()
@@ -1016,6 +1143,7 @@ fn apply_contract_to_report(
     report: &mut SelfHostBootstrapReport,
     contract: &BootstrapContract,
     mode: BootstrapMode,
+    backend: BootstrapBackend,
 ) {
     report.generated_at_utc = Utc::now().to_rfc3339();
     report.repo_root = contract.repo_root.display().to_string();
@@ -1023,7 +1151,8 @@ fn apply_contract_to_report(
     report.package_name = contract.package_name.clone();
     report.package_version = contract.package_version.clone();
     report.compiler_entry = contract.compiler_entry.display().to_string();
-    report.bootstrap_mode = mode.label().to_string();
+    report.bootstrap_mode = mode.label(backend).to_string();
+    report.codegen_backend = backend.noun().to_ascii_lowercase();
     report.bootstrap_host_mode = contract.bootstrap_host_mode.clone();
     report.source_root = contract.source_root.display().to_string();
     report.source_files = contract
@@ -1076,11 +1205,31 @@ fn apply_staged_artifacts(
         .map(|path| path.display().to_string());
 }
 
-fn staged_llvm_artifact_list(
+fn selected_codegen_output_path(contract: &BootstrapContract, backend: BootstrapBackend) -> &Path {
+    match backend {
+        BootstrapBackend::Llvm => &contract.llvm_output_path,
+        BootstrapBackend::C => &contract.c_output_path,
+    }
+}
+
+fn selected_ouroboros_output_path(
     contract: &BootstrapContract,
+    backend: BootstrapBackend,
+) -> &Path {
+    match backend {
+        BootstrapBackend::Llvm => &contract.ouroboros_llvm_path,
+        BootstrapBackend::C => &contract.ouroboros_c_path,
+    }
+}
+
+fn staged_codegen_artifact_list(
+    contract: &BootstrapContract,
+    backend: BootstrapBackend,
     staged_artifacts: &LlvmNativeArtifactStage,
 ) -> Vec<String> {
-    let mut artifacts = vec![contract.llvm_output_path.display().to_string()];
+    let mut artifacts = vec![selected_codegen_output_path(contract, backend)
+        .display()
+        .to_string()];
     artifacts.push(staged_artifacts.runtime_contract_path.display().to_string());
     artifacts.push(staged_artifacts.realtime_app_path.display().to_string());
     if let Some(path) = &staged_artifacts.compute_residency_path {
@@ -1157,9 +1306,8 @@ fn write_text_artifact(path: &Path, contents: &str) -> Result<(), String> {
             )
         })?;
     }
-    fs::write(path, contents.as_bytes()).map_err(|err| {
-        format!("unable to write artifact {}: {}", path.display(), err)
-    })
+    fs::write(path, contents.as_bytes())
+        .map_err(|err| format!("unable to write artifact {}: {}", path.display(), err))
 }
 
 fn ensure_path_exists(path: &Path, label: &str) -> Result<(), String> {
@@ -1263,10 +1411,18 @@ mod tests {
         fs::create_dir_all(repo_root.join("crates/cli")).expect("cli dir");
         fs::create_dir_all(repo_root.join("src/core")).expect("source root");
         fs::create_dir_all(repo_root.join("runtime")).expect("runtime root");
-        fs::write(repo_root.join("src/core/kainc.kn"), "fn main():\n    pass\n").expect("entry");
+        fs::write(
+            repo_root.join("src/core/kainc.kn"),
+            "fn main():\n    pass\n",
+        )
+        .expect("entry");
         fs::write(repo_root.join("src/core/a.kn"), "fn a():\n    pass\n").expect("a");
         fs::write(repo_root.join("src/core/b.kn"), "fn b():\n    pass\n").expect("b");
-        fs::write(repo_root.join("runtime/native_runtime.toml"), "name = \"runtime\"\n").expect("runtime manifest");
+        fs::write(
+            repo_root.join("runtime/native_runtime.toml"),
+            "name = \"runtime\"\n",
+        )
+        .expect("runtime manifest");
         fs::write(
             repo_root.join("runtime/compile_native_runtime.sh"),
             "#!/usr/bin/env bash\nexit 0\n",
@@ -1303,14 +1459,17 @@ markdown_report_path = "src/.selfhost/report.md"
 ouroboros_llvm_path = "src/.selfhost/stage2.ll"
 "#;
 
-        let contract =
-            load_bootstrap_manifest_from_repo_root(repo_root, &manifest_path, manifest).expect("manifest");
+        let contract = load_bootstrap_manifest_from_repo_root(repo_root, &manifest_path, manifest)
+            .expect("manifest");
         assert_eq!(contract.package_name, "owned");
         assert_eq!(contract.package_version, "0.1.0");
         assert_eq!(contract.compiler_entry, repo_root.join("src/core/kainc.kn"));
         assert_eq!(
             contract.source_files,
-            vec![repo_root.join("src/core/a.kn"), repo_root.join("src/core/b.kn")]
+            vec![
+                repo_root.join("src/core/a.kn"),
+                repo_root.join("src/core/b.kn")
+            ]
         );
         assert_eq!(
             contract.runtime_manifest_path,
@@ -1320,7 +1479,10 @@ ouroboros_llvm_path = "src/.selfhost/stage2.ll"
             contract.runtime_build_script_path,
             repo_root.join("runtime/compile_native_runtime.sh")
         );
-        assert_eq!(contract.combined_source_path, repo_root.join("src/.selfhost/combined.kn"));
+        assert_eq!(
+            contract.combined_source_path,
+            repo_root.join("src/.selfhost/combined.kn")
+        );
     }
 
     #[test]
@@ -1331,10 +1493,26 @@ ouroboros_llvm_path = "src/.selfhost/stage2.ll"
         fs::create_dir_all(repo_root.join("crates/cli")).expect("cli dir");
         fs::create_dir_all(repo_root.join("src/core")).expect("source root");
         fs::create_dir_all(repo_root.join("runtime")).expect("runtime root");
-        fs::write(repo_root.join("src/core/kainc.kn"), "fn main():\n    pass\n").expect("entry");
-        fs::write(repo_root.join("src/core/first.kn"), "fn first():\n    return 1\n").expect("first");
-        fs::write(repo_root.join("src/core/second.kn"), "fn second():\n    return 2\n").expect("second");
-        fs::write(repo_root.join("runtime/native_runtime.toml"), "name = \"runtime\"\n").expect("runtime manifest");
+        fs::write(
+            repo_root.join("src/core/kainc.kn"),
+            "fn main():\n    pass\n",
+        )
+        .expect("entry");
+        fs::write(
+            repo_root.join("src/core/first.kn"),
+            "fn first():\n    return 1\n",
+        )
+        .expect("first");
+        fs::write(
+            repo_root.join("src/core/second.kn"),
+            "fn second():\n    return 2\n",
+        )
+        .expect("second");
+        fs::write(
+            repo_root.join("runtime/native_runtime.toml"),
+            "name = \"runtime\"\n",
+        )
+        .expect("runtime manifest");
         fs::write(
             repo_root.join("runtime/compile_native_runtime.sh"),
             "#!/usr/bin/env bash\nexit 0\n",
@@ -1359,14 +1537,20 @@ source_order = ["src/core/first.kn", "src/core/second.kn"]
 [selfhost.outputs]
 "#;
 
-        let contract =
-            load_bootstrap_manifest_from_repo_root(repo_root, &manifest_path, manifest).expect("manifest");
+        let contract = load_bootstrap_manifest_from_repo_root(repo_root, &manifest_path, manifest)
+            .expect("manifest");
         let combined = assemble_combined_source(&contract).expect("combined source");
         let first_index = combined.find("fn first()").expect("first function");
         let second_index = combined.find("fn second()").expect("second function");
-        assert!(first_index < second_index, "source order should be preserved");
+        assert!(
+            first_index < second_index,
+            "source order should be preserved"
+        );
         assert!(combined.contains("# begin src/core/first.kn"));
         assert!(combined.contains("# end src/core/second.kn"));
-        assert_eq!(Path::new(&contract.source_root), repo_root.join("src/core").as_path());
+        assert_eq!(
+            Path::new(&contract.source_root),
+            repo_root.join("src/core").as_path()
+        );
     }
 }

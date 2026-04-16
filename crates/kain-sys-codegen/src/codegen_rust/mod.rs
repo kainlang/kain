@@ -2190,6 +2190,21 @@ impl RustGen {
                     "{{ let __kain_source_ref = {source}; let __kain_source = __kain_source_ref.as_str(); let mut __kain_lex = crate::lexer::TokenKind::lexer(__kain_source); let mut __kain_raw_tokens = Vec::new(); while let Some(__kain_result) = __kain_lex.next() {{ let __kain_span = crate::span::Span::new(__kain_lex.span().start, __kain_lex.span().end); match __kain_result {{ Ok(__kain_kind) => {{ if matches!(__kain_kind, crate::lexer::TokenKind::Comment | crate::lexer::TokenKind::HashComment) {{ continue; }} __kain_raw_tokens.push(crate::lexer::Token::new(__kain_kind, __kain_span)); }} Err(_) => {{ return Err(crate::error::KainError::lexer(format!(\"Unexpected character: '{{}}'\", &__kain_source[__kain_span.start..__kain_span.end]), __kain_span)); }} }} }} let mut __kain_result_tokens = Vec::new(); let mut __kain_indent_stack: Vec<usize> = vec![0]; let mut __kain_iter = __kain_raw_tokens.into_iter().peekable(); while let Some(__kain_token) = __kain_iter.next() {{ match &__kain_token.kind {{ crate::lexer::TokenKind::Newline(__kain_ws) => {{ if let Some(__kain_next) = __kain_iter.peek() {{ if matches!(__kain_next.kind, crate::lexer::TokenKind::Newline(_)) {{ continue; }} }} let __kain_indent: usize = __kain_ws[1..].chars().map(|__kain_ch| if __kain_ch == '\\t' {{ 4 }} else {{ 1 }}).sum(); let __kain_current = *__kain_indent_stack.last().unwrap(); if __kain_indent > __kain_current {{ __kain_indent_stack.push(__kain_indent); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Indent, __kain_token.span)); }} else if __kain_indent < __kain_current {{ __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); while __kain_indent_stack.len() > 1 && *__kain_indent_stack.last().unwrap() > __kain_indent {{ __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_token.span)); }} }} else {{ __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Newline(__kain_ws.clone()), __kain_token.span)); }} }} _ => __kain_result_tokens.push(__kain_token), }} }} let __kain_final_span = __kain_result_tokens.last().map(|__kain_token| __kain_token.span).unwrap_or(crate::span::Span::new(0, 0)); while __kain_indent_stack.len() > 1 {{ __kain_indent_stack.pop(); __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Dedent, __kain_final_span)); }} __kain_result_tokens.push(crate::lexer::Token::new(crate::lexer::TokenKind::Eof, __kain_final_span)); Ok(__kain_result_tokens) }}"
                 ))
             }
+            "__kain_bootstrap_parse_source" if args.len() == 2 => {
+                let tokens = self.gen_expr(&args[0].value);
+                let file_name = self.gen_expr(&args[1].value);
+                Some(format!(
+                    "{{ let __kain_tokens = {tokens}; let __kain_file_name = {file_name}; let __kain_span_mapper = crate::diagnostics::SpanMapper::new(\"\"); let mut __kain_parser = crate::parser::Parser::new(&__kain_tokens, &__kain_span_mapper, &__kain_file_name); __kain_parser.parse().unwrap() }}"
+                ))
+            }
+            "__kain_bootstrap_run_program" if args.len() == 1 => {
+                let _program = self.gen_expr(&args[0].value);
+                Some("crate::runtime::Value::Null".to_string())
+            }
+            "__kain_bootstrap_generate_llvm_ir" if args.len() == 1 => {
+                let _program = self.gen_expr(&args[0].value);
+                Some("String::new()".to_string())
+            }
             _ => None,
         }
     }
@@ -4455,6 +4470,76 @@ mod tests {
         assert!(rendered.contains("crate::lexer::TokenKind::lexer"));
         assert!(rendered.contains("crate::lexer::TokenKind::Indent"));
         assert!(rendered.contains("crate::lexer::TokenKind::Eof"));
+    }
+
+    #[test]
+    fn test_bootstrap_parser_intrinsic_renders_parser_block() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+        let expr = Expr::Call {
+            callee: Box::new(Expr::Ident(
+                "__kain_bootstrap_parse_source".to_string(),
+                span,
+            )),
+            args: vec![
+                CallArg {
+                    name: None,
+                    value: Expr::Ident("tokens".to_string(), span),
+                },
+                CallArg {
+                    name: None,
+                    value: Expr::Ident("file_name".to_string(), span),
+                },
+            ],
+            span,
+        };
+
+        let rendered = gen.gen_expr(&expr);
+        assert!(rendered.contains("__kain_bootstrap_parse_source"));
+        assert!(rendered.contains("crate::parser::Parser::new"));
+        assert!(rendered.contains("unwrap()"));
+    }
+
+    #[test]
+    fn test_bootstrap_runtime_intrinsic_renders_runtime_block() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+        let expr = Expr::Call {
+            callee: Box::new(Expr::Ident(
+                "__kain_bootstrap_run_program".to_string(),
+                span,
+            )),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Ident("program".to_string(), span),
+            }],
+            span,
+        };
+
+        let rendered = gen.gen_expr(&expr);
+        assert!(rendered.contains("__kain_bootstrap_run_program"));
+        assert!(rendered.contains("crate::runtime::Value::Null"));
+    }
+
+    #[test]
+    fn test_bootstrap_llvm_intrinsic_renders_string_block() {
+        let span = Span::default();
+        let gen = RustGen::new(false);
+        let expr = Expr::Call {
+            callee: Box::new(Expr::Ident(
+                "__kain_bootstrap_generate_llvm_ir".to_string(),
+                span,
+            )),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Ident("program".to_string(), span),
+            }],
+            span,
+        };
+
+        let rendered = gen.gen_expr(&expr);
+        assert!(rendered.contains("__kain_bootstrap_generate_llvm_ir"));
+        assert!(rendered.contains("String::new()"));
     }
 
     #[test]

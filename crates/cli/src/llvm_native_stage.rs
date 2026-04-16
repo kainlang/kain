@@ -23,8 +23,17 @@ pub fn stage_llvm_native_artifacts(
     output_path: &Path,
     root_component: Option<&str>,
 ) -> Result<LlvmNativeArtifactStage, String> {
-    let contract_bundle = compile_runtime_contract_bundle(source, CompileTarget::Llvm)
-        .map_err(|err| err.to_string())?;
+    stage_native_backend_artifacts(source, CompileTarget::Llvm, output_path, root_component)
+}
+
+pub fn stage_native_backend_artifacts(
+    source: &str,
+    target: CompileTarget,
+    output_path: &Path,
+    root_component: Option<&str>,
+) -> Result<LlvmNativeArtifactStage, String> {
+    let contract_bundle =
+        compile_runtime_contract_bundle(source, target).map_err(|err| err.to_string())?;
     let runtime_contract_path = runtime_contract_artifact_path(output_path);
     write_json_artifact(
         &runtime_contract_path,
@@ -33,7 +42,7 @@ pub fn stage_llvm_native_artifacts(
         "runtime contract",
     )?;
 
-    let realtime_bundle = compile_realtime_app_bundle(source, CompileTarget::Llvm, root_component)
+    let realtime_bundle = compile_realtime_app_bundle(source, target, root_component)
         .map_err(|err| err.to_string())?;
     let realtime_app_path = realtime_app_artifact_path(output_path);
     write_json_artifact(

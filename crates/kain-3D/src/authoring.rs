@@ -1139,6 +1139,19 @@ impl Scene {
             library.definitions.len().to_string(),
         );
         self.metadata.insert(
+            "primitive_library.subdivision_ready_count".to_string(),
+            library
+                .definitions
+                .values()
+                .filter(|definition| definition.subdivision_ready)
+                .count()
+                .to_string(),
+        );
+        self.metadata.insert(
+            "primitive_library.summary".to_string(),
+            library.summary(),
+        );
+        self.metadata.insert(
             "primitive_library.definition_ids".to_string(),
             library
                 .definitions

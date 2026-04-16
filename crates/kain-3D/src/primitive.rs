@@ -297,6 +297,26 @@ impl PrimitiveLibrary {
         self.definitions.get(id)
     }
 
+    pub fn summary(&self) -> String {
+        let subdivision_ready_count = self
+            .definitions
+            .values()
+            .filter(|definition| definition.subdivision_ready)
+            .count();
+        let startup_name = self
+            .definition(&self.startup_primitive_id)
+            .map(|definition| definition.display_name.as_str())
+            .unwrap_or(self.startup_primitive_id.as_str());
+        format!(
+            "authored catalog: {} primitives, {} subdivision-ready, startup {} ({}), policy {}",
+            self.definitions.len(),
+            subdivision_ready_count,
+            startup_name,
+            self.startup_primitive_id,
+            self.authored_policy
+        )
+    }
+
     pub fn geometry_map(&self) -> BTreeMap<String, Geometry> {
         self.definitions
             .iter()
@@ -929,6 +949,10 @@ mod tests {
         assert!(library
             .definition("hero-quad-sphere")
             .is_some_and(|definition| definition.subdivision_ready));
+        assert_eq!(
+            library.summary(),
+            "authored catalog: 6 primitives, 4 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports"
+        );
     }
 
     #[test]
@@ -996,6 +1020,14 @@ mod tests {
         assert_eq!(
             scene.metadata.get("primitive_library.definition_count"),
             Some(&library.definitions.len().to_string())
+        );
+        assert_eq!(
+            scene.metadata.get("primitive_library.subdivision_ready_count"),
+            Some(&"4".to_string())
+        );
+        assert_eq!(
+            scene.metadata.get("primitive_library.summary"),
+            Some(&"authored catalog: 6 primitives, 4 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports".to_string())
         );
         assert_eq!(
             scene

@@ -24,9 +24,5 @@ struct AbiFunctionSignature:
     params: Array<AbiValueLayout>
     return_layout: AbiValueLayout
 
-pub fn pointer_layout() -> AbiValueLayout:
-    return AbiValueLayout {
-        kind: AbiValueKind::Pointer,
-        size_bytes: 8,
-        align_bytes: 8
-    }
+pub fn pointer_layout() -> String:
+    "pointer:8:8"

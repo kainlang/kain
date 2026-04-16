@@ -183,7 +183,7 @@ struct ContinueStmt:
 struct IfStmt:
     condition: Expr
     then_branch: Block
-    else_branch: Option<Block>
+    else_branch: Block
     span: Span
 
 struct WhileStmt:
@@ -283,7 +283,7 @@ struct BinaryExpr:
 struct IfExpr:
     condition: Box<Expr>
     then_branch: Block
-    else_branch: Option<Block>
+    else_branch: Block
     span: Span
 
 struct MatchExpr:

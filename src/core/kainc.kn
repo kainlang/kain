@@ -1,4 +1,4 @@
-use lexer::Lexer
+use lexer::tokenize_source
 use types::TypedProgram
 
 # Kain Compiler Driver (bootstrap-safe core path)
@@ -73,8 +73,7 @@ fn main() -> Unit:
 
     if verbose:
         println("[kainc] lexing")
-    let lexer = Lexer { source: source, file_name: input_path }
-    let tokens = lexer.tokenize()
+    let tokens = tokenize_source(source, input_path)
 
     if verbose:
         println("[kainc] parsing")

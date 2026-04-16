@@ -2074,7 +2074,7 @@ fn collect_requirements(
     }
     match target {
         CompileTarget::Rust => requirements.push("host.native-ui".to_string()),
-        CompileTarget::Llvm => requirements.push("host.raw-native".to_string()),
+        CompileTarget::C | CompileTarget::Llvm => requirements.push("host.raw-native".to_string()),
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid
             if has_world_web =>
         {
@@ -2091,22 +2091,38 @@ fn collect_requirements(
 }
 
 fn compile_target_name(target: CompileTarget) -> &'static str {
-    match target {
-        CompileTarget::Wasm => "wasm",
-        CompileTarget::Js => "js",
-        CompileTarget::Ts => "ts",
-        CompileTarget::Hybrid => "hybrid",
-        CompileTarget::Llvm => "llvm",
-        CompileTarget::Rust => "rust",
-        CompileTarget::Cpp => "cpp",
-        CompileTarget::Ue5 => "ue5",
-        CompileTarget::Ue5Editor => "ue5-editor",
-        CompileTarget::Usf => "usf",
-        CompileTarget::Spirv => "spirv",
-        CompileTarget::Hlsl => "hlsl",
-        CompileTarget::Interpret => "interpret",
-        CompileTarget::Test => "test",
-        CompileTarget::Ks => "ks",
+    if target == CompileTarget::Wasm {
+        "wasm"
+    } else if target == CompileTarget::Js {
+        "js"
+    } else if target == CompileTarget::Ts {
+        "ts"
+    } else if target == CompileTarget::Hybrid {
+        "hybrid"
+    } else if target == CompileTarget::C {
+        "c"
+    } else if target == CompileTarget::Llvm {
+        "llvm"
+    } else if target == CompileTarget::Rust {
+        "rust"
+    } else if target == CompileTarget::Cpp {
+        "cpp"
+    } else if target == CompileTarget::Ue5 {
+        "ue5"
+    } else if target == CompileTarget::Ue5Editor {
+        "ue5-editor"
+    } else if target == CompileTarget::Usf {
+        "usf"
+    } else if target == CompileTarget::Spirv {
+        "spirv"
+    } else if target == CompileTarget::Hlsl {
+        "hlsl"
+    } else if target == CompileTarget::Interpret {
+        "interpret"
+    } else if target == CompileTarget::Test {
+        "test"
+    } else {
+        "ks"
     }
 }
 

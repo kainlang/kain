@@ -898,6 +898,20 @@ pub struct SceneCatalog {
     pub scene_aliases: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneCatalogEntry<'a> {
+    pub requested_name: &'a str,
+    pub resolved_name: &'a str,
+    pub is_alias: bool,
+    pub is_default: bool,
+    pub viewport_summary: &'a str,
+    pub scene_role: &'static str,
+    pub scene_scale: &'static str,
+    pub scene_profile: &'static str,
+    pub scene_density: &'static str,
+    pub composition_stage: &'static str,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneResolutionKind {
     Exact,
@@ -977,6 +991,35 @@ impl SceneCatalog {
             .keys()
             .chain(self.scene_aliases.keys())
             .map(String::as_str)
+    }
+
+    pub fn catalog_entries(&self) -> impl Iterator<Item = SceneCatalogEntry<'_>> {
+        self.scene_names().map(move |name| self.catalog_entry(name))
+    }
+
+    pub fn catalog_entries_with_aliases(&self) -> impl Iterator<Item = SceneCatalogEntry<'_>> {
+        self.scene_names_with_aliases().map(move |name| self.catalog_entry(name))
+    }
+
+    pub fn catalog_entry(&self, requested_name: &str) -> SceneCatalogEntry<'_> {
+        let resolved = self
+            .resolve_scene(requested_name)
+            .expect("catalog entries should always resolve through the scene catalog");
+        let summary = resolved.scene.composition_summary();
+        let diagnostics = summary.diagnostics();
+        SceneCatalogEntry {
+            requested_name,
+            resolved_name: &resolved.scene.name,
+            is_alias: matches!(resolved.resolution.kind, SceneResolutionKind::Alias { .. }),
+            is_default: requested_name == self.default_scene
+                || matches!(resolved.resolution.kind, SceneResolutionKind::Default { .. }),
+            viewport_summary: &resolved.scene.viewport_summary,
+            scene_role: diagnostics.scene_role,
+            scene_scale: diagnostics.scene_scale,
+            scene_profile: diagnostics.scene_profile,
+            scene_density: diagnostics.scene_density,
+            composition_stage: diagnostics.composition_stage,
+        }
     }
 
     pub fn resolve_scene(&self, name: &str) -> Option<ResolvedScene<'_>> {
@@ -3064,6 +3107,33 @@ mod tests {
         assert!(all_names.contains(&"renderer_atrium"));
         assert!(all_names.contains(&"gpu_compute_surface_probe"));
         assert!(all_names.len() > canonical.len());
+    }
+
+    #[test]
+    fn catalog_entries_surface_picker_ready_metadata() {
+        let catalog = SceneCatalog::default();
+        let entries: Vec<_> = catalog.catalog_entries_with_aliases().collect();
+        let atrium = entries
+            .iter()
+            .find(|entry| entry.requested_name == "renderer_atrium")
+            .expect("renderer atrium alias should appear in picker entries");
+        let luminous = entries
+            .iter()
+            .find(|entry| entry.requested_name == "luminous_port")
+            .expect("canonical luminous port scene should appear in picker entries");
+
+        assert!(atrium.is_alias);
+        assert!(!atrium.is_default);
+        assert_eq!(atrium.resolved_name, "material_atrium");
+        assert!(atrium.viewport_summary.contains("atrium"));
+        assert!(!atrium.scene_role.is_empty());
+        assert!(!atrium.scene_scale.is_empty());
+        assert!(!atrium.scene_profile.is_empty());
+        assert!(!atrium.scene_density.is_empty());
+        assert!(!atrium.composition_stage.is_empty());
+        assert!(!luminous.is_alias);
+        assert!(luminous.is_default);
+        assert_eq!(luminous.resolved_name, "luminous_port");
     }
 
     #[test]

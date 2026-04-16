@@ -282,7 +282,10 @@ pub fn emit_runtime_contract_bundle(
     service_bindings.sort_by(|left, right| left.service.cmp(&right.service));
 
     // Emit full reflection payload for LLVM and Rust targets
-    let reflection_payload = if matches!(target, CompileTarget::Llvm | CompileTarget::Rust) {
+    let reflection_payload = if matches!(
+        target,
+        CompileTarget::C | CompileTarget::Llvm | CompileTarget::Rust
+    ) {
         Some(emit_reflection_payload(program))
     } else {
         None
@@ -517,7 +520,7 @@ fn collect_runtime_capabilities(
                 Some("Rust-hosted native app materialization is available."),
             ));
         }
-        CompileTarget::Llvm => {
+        CompileTarget::C | CompileTarget::Llvm => {
             capabilities.push(runtime_capability(
                 "native.raw-runtime",
                 "runtime/native",
@@ -545,7 +548,7 @@ fn runtime_service_bindings_for_target(
             runtime_service_binding("ui.runtime-bundle", "kain-ui", "rust-native"),
             runtime_service_binding("host.ui-native", "kain-ui-native", "rust-native"),
         ],
-        CompileTarget::Llvm => vec![
+        CompileTarget::C | CompileTarget::Llvm => vec![
             runtime_service_binding("platform.app-host", "runtime/native", "raw-native"),
             runtime_service_binding("platform.input", "runtime/native", "raw-native"),
             runtime_service_binding("gfx.viewport", "runtime/native", "raw-native"),
@@ -575,7 +578,7 @@ fn runtime_service_bindings_for_target(
                     "rust-native",
                 ));
             }
-            CompileTarget::Llvm => {
+            CompileTarget::C | CompileTarget::Llvm => {
                 bindings.push(runtime_service_binding(
                     "async.runtime",
                     "runtime/native",
@@ -591,7 +594,7 @@ fn runtime_service_bindings_for_target(
         }
     }
 
-    if summary.compute_shaders > 0 && matches!(target, CompileTarget::Llvm) {
+    if summary.compute_shaders > 0 && matches!(target, CompileTarget::C | CompileTarget::Llvm) {
         bindings.push(runtime_service_binding(
             "gfx.compute",
             "runtime/native",
@@ -626,7 +629,12 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
-    if summary.world_native_ui > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm) {
+    if summary.world_native_ui > 0
+        && matches!(
+            target,
+            CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
+        )
+    {
         bindings.push(runtime_service_binding(
             "world.native-ui",
             if matches!(target, CompileTarget::Rust) {
@@ -637,7 +645,12 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
-    if summary.world_viewport3d > 0 && matches!(target, CompileTarget::Rust | CompileTarget::Llvm) {
+    if summary.world_viewport3d > 0
+        && matches!(
+            target,
+            CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm
+        )
+    {
         bindings.push(runtime_service_binding(
             "world.viewport3d",
             if matches!(target, CompileTarget::Rust) {
@@ -1068,30 +1081,48 @@ fn impl_target_name(ty: &crate::ast::Type) -> String {
 }
 
 fn compile_target_name(target: CompileTarget) -> &'static str {
-    match target {
-        CompileTarget::Wasm => "wasm",
-        CompileTarget::Js => "js",
-        CompileTarget::Ts => "ts",
-        CompileTarget::Hybrid => "hybrid",
-        CompileTarget::Llvm => "llvm",
-        CompileTarget::Rust => "rust",
-        CompileTarget::Cpp => "cpp",
-        CompileTarget::Ue5 => "ue5",
-        CompileTarget::Ue5Editor => "ue5-editor",
-        CompileTarget::Usf => "usf",
-        CompileTarget::Spirv => "spirv",
-        CompileTarget::Hlsl => "hlsl",
-        CompileTarget::Interpret => "interpret",
-        CompileTarget::Test => "test",
-        CompileTarget::Ks => "ks",
+    if target == CompileTarget::Wasm {
+        "wasm"
+    } else if target == CompileTarget::Js {
+        "js"
+    } else if target == CompileTarget::Ts {
+        "ts"
+    } else if target == CompileTarget::Hybrid {
+        "hybrid"
+    } else if target == CompileTarget::C {
+        "c"
+    } else if target == CompileTarget::Llvm {
+        "llvm"
+    } else if target == CompileTarget::Rust {
+        "rust"
+    } else if target == CompileTarget::Cpp {
+        "cpp"
+    } else if target == CompileTarget::Ue5 {
+        "ue5"
+    } else if target == CompileTarget::Ue5Editor {
+        "ue5-editor"
+    } else if target == CompileTarget::Usf {
+        "usf"
+    } else if target == CompileTarget::Spirv {
+        "spirv"
+    } else if target == CompileTarget::Hlsl {
+        "hlsl"
+    } else if target == CompileTarget::Interpret {
+        "interpret"
+    } else if target == CompileTarget::Test {
+        "test"
+    } else {
+        "ks"
     }
 }
 
 fn runtime_lane_name(target: CompileTarget) -> &'static str {
-    match target {
-        CompileTarget::Rust => "rust-native",
-        CompileTarget::Llvm => "raw-native",
-        _ => compile_target_name(target),
+    if target == CompileTarget::Rust {
+        "rust-native"
+    } else if target == CompileTarget::C || target == CompileTarget::Llvm {
+        "raw-native"
+    } else {
+        compile_target_name(target)
     }
 }
 

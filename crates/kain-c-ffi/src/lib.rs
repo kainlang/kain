@@ -248,6 +248,7 @@ fn artifact_mode_for_target(target: CompileTarget) -> Option<ArtifactMode> {
     match target {
         CompileTarget::Interpret | CompileTarget::Test => Some(ArtifactMode::Both),
         CompileTarget::Rust => Some(ArtifactMode::Generate),
+        CompileTarget::C => Some(ArtifactMode::Generate),
         CompileTarget::Llvm => Some(ArtifactMode::Generate),
         _ => None,
     }

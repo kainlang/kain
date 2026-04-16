@@ -462,6 +462,7 @@ fn write_report(
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
                     "framing_hint": tile.frame.diagnostics.framing_hint,
+                    "composition_stage": tile.frame.diagnostics.composition_stage,
                     "composition": scene_composition_payload(scene, config.width as f32 / config.height as f32),
                     "visible_instances": tile.frame.diagnostics.visible_instances,
                     "culled_instances": tile.frame.diagnostics.culled_instances,
@@ -485,6 +486,7 @@ fn scene_composition_payload(
         "scene_scale": diagnostics.scene_scale,
         "scene_role": diagnostics.scene_role,
         "scene_profile": diagnostics.scene_profile,
+        "composition_stage": diagnostics.composition_stage,
         "scene_density": diagnostics.scene_density,
         "framing_hint": diagnostics.framing_hint,
         "mesh_count": diagnostics.mesh_count,
@@ -716,4 +718,28 @@ fn scale_alpha(color: [u8; 4], alpha_scale: f32) -> [u8; 4] {
         color[2],
         (color[3] as f32 * alpha_scale.clamp(0.0, 1.0)).round() as u8,
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kain_3d::SceneCatalog;
+
+    #[test]
+    fn scene_composition_payload_includes_stage_metadata() {
+        let catalog = SceneCatalog::default();
+        let scene = catalog
+            .resolve_scene("material_atrium")
+            .expect("material_atrium should exist in the default catalog")
+            .scene;
+
+        let payload = scene_composition_payload(scene, 16.0 / 9.0);
+
+        assert_eq!(payload["scene_scale"], "studio-scale");
+        assert_eq!(payload["scene_role"], "showcase");
+        assert_eq!(payload["scene_profile"], "planar");
+        assert_eq!(payload["composition_stage"], "staged-plane");
+        assert_eq!(payload["scene_density"], "balanced");
+        assert!(payload["framing_hint"].is_string());
+    }
 }

@@ -64,7 +64,12 @@ impl StdLib {
             "String",
             "Read an exact number of bytes from stdin",
         );
-        lib.add_fn("json_parse", &[("text", "String")], "Any", "Parse JSON text");
+        lib.add_fn(
+            "json_parse",
+            &[("text", "String")],
+            "Any",
+            "Parse JSON text",
+        );
         lib.add_fn(
             "json_string",
             &[("value", "Any")],
@@ -101,14 +106,24 @@ impl StdLib {
             "Bool",
             "Check whether a JSON object contains a field",
         );
-        lib.add_fn("json_object_new", &[], "Any", "Create a new mutable JSON object");
+        lib.add_fn(
+            "json_object_new",
+            &[],
+            "Any",
+            "Create a new mutable JSON object",
+        );
         lib.add_fn(
             "json_object_set",
             &[("object", "Any"), ("key", "String"), ("value", "Any")],
             "Unit",
             "Set a field on a mutable JSON object",
         );
-        lib.add_fn("json_array_new", &[], "Array<Any>", "Create a new mutable JSON array");
+        lib.add_fn(
+            "json_array_new",
+            &[],
+            "Array<Any>",
+            "Create a new mutable JSON array",
+        );
         lib.add_fn(
             "json_array_push",
             &[("array", "Any"), ("value", "Any")],

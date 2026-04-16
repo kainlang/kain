@@ -85,6 +85,11 @@ const TARGET_SPECS: &[TargetSpec] = &[
         aliases: &["llvm", "native", "n"],
     },
     TargetSpec {
+        target: CompileTarget::C,
+        extension: "c",
+        aliases: &["c"],
+    },
+    TargetSpec {
         target: CompileTarget::Spirv,
         extension: "spv",
         aliases: &["spirv", "gpu", "shader", "s"],
@@ -383,6 +388,9 @@ impl DriverSession {
                     }
 
                     #[cfg(feature = "sys")]
+                    CompileTarget::C => sys::generate_c(&typed_for_codegen),
+
+                    #[cfg(feature = "sys")]
                     CompileTarget::Llvm => {
                         sys::generate_llvm(&typed_for_codegen).and_then(|bytes| {
                             String::from_utf8(bytes).map_err(|err| {
@@ -454,7 +462,10 @@ impl DriverSession {
     }
 
     #[cfg(feature = "web")]
-    pub fn compile_hybrid_artifacts(&self, source: &str) -> Result<HybridArtifactOutput, KainError> {
+    pub fn compile_hybrid_artifacts(
+        &self,
+        source: &str,
+    ) -> Result<HybridArtifactOutput, KainError> {
         let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Hybrid)?;
         let output = web::generate_hybrid(&typed_for_codegen)?;
         Ok(HybridArtifactOutput {
@@ -748,7 +759,9 @@ fn prepare_frontend_source_for_target(
             let source = kain_node::prepare_source_for_runtime(&source, target)?;
             prepare_rust_ffi_source(&source, target)
         }
-        CompileTarget::Rust | CompileTarget::Llvm => prepare_c_ffi_source(source, target),
+        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm => {
+            prepare_c_ffi_source(source, target)
+        }
         _ => Ok(source.to_string()),
     }
 }
@@ -948,7 +961,7 @@ pub(crate) fn resolve_world_selection(
 
 fn required_world_surface_for_target(target: CompileTarget) -> Option<WorldSurfaceKind> {
     match target {
-        CompileTarget::Rust | CompileTarget::Llvm | CompileTarget::Cpp => {
+        CompileTarget::Rust | CompileTarget::C | CompileTarget::Llvm | CompileTarget::Cpp => {
             Some(WorldSurfaceKind::NativeUi)
         }
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
@@ -1430,8 +1443,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_c_alias() {
+        assert_eq!(parse_compile_target("c"), Some(CompileTarget::C));
+    }
+
+    #[test]
     fn extension_for_typescript_is_ts() {
         assert_eq!(target_extension(CompileTarget::Ts), "ts");
+    }
+
+    #[test]
+    fn extension_for_c_is_c() {
+        assert_eq!(target_extension(CompileTarget::C), "c");
     }
 
     #[test]

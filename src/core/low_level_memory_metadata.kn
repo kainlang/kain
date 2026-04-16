@@ -18,12 +18,5 @@ struct MemoryTypeLayout:
     size_bytes: Int
     align_bytes: Int
 
-pub fn layout_for_unit() -> MemoryTypeLayout:
-    return MemoryTypeLayout {
-        name: "unit",
-        source_type_name: "Unit",
-        ownership: MemoryOwnership::Copy,
-        mutability: MemoryMutability::Immutable,
-        size_bytes: 0,
-        align_bytes: 1
-    }
+pub fn layout_for_unit() -> String:
+    "unit:0:1"

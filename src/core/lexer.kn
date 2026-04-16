@@ -33,9 +33,16 @@ pub struct Lexer:
 
 impl Lexer:
     pub fn tokenize(self) -> Array<Token>:
-        let _ = self.source
         let raw = []
-        return process_indentation(raw, self.file_name)
+        let result = []
+        let i = 0
+        while i < len(raw):
+            push(result, raw[i])
+            i = i + 1
+
+        let eof_span = SourceSpan { start: 0, end: 0, file: "" }
+        push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
+        return result
 
 fn is_keyword(word: String) -> Bool:
     if word == "fn" || word == "let" || word == "mut" || word == "var": return true
@@ -70,7 +77,15 @@ fn process_indentation(raw: Array<Token>, file_name: String) -> Array<Token>:
 pub fn tokenize_source(source: String, file_name: String) -> Array<Token>:
     let _ = source
     let raw = []
-    return process_indentation(raw, file_name)
+    let result = []
+    let i = 0
+    while i < len(raw):
+        push(result, raw[i])
+        i = i + 1
+
+    let eof_span = SourceSpan { start: 0, end: 0, file: file_name }
+    push(result, Token { kind: TokenKind::Eof, lexeme: "", span: eof_span, row: 0, col: 0 })
+    return result
 
 pub fn tok_is_eof(tok: Token) -> Bool:
     return tok.kind == TokenKind::Eof

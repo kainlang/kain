@@ -537,6 +537,18 @@ fn selfhost_bootstrap_lexer_result_type() -> ResolvedType {
     )
 }
 
+fn selfhost_bootstrap_parser_result_type() -> ResolvedType {
+    ResolvedType::Struct("Program".to_string(), HashMap::new())
+}
+
+fn selfhost_bootstrap_runtime_value_type() -> ResolvedType {
+    ResolvedType::Enum("Value".to_string(), Vec::new())
+}
+
+fn selfhost_bootstrap_llvm_ir_type() -> ResolvedType {
+    ResolvedType::String
+}
+
 fn selfhost_kain_error_type() -> ResolvedType {
     ResolvedType::Enum("KainError".to_string(), Vec::new())
 }
@@ -902,13 +914,34 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             selfhost_bootstrap_lexer_result_type(),
         ),
     );
+    env.define_global(
+        "__kain_bootstrap_parse_source".into(),
+        builtin_function_type(
+            vec![
+                dynamic_array_type(ResolvedType::Struct("Token".to_string(), HashMap::new())),
+                ResolvedType::String,
+            ],
+            selfhost_bootstrap_parser_result_type(),
+        ),
+    );
+    env.define_global(
+        "__kain_bootstrap_run_program".into(),
+        builtin_function_type(
+            vec![ResolvedType::Struct("Program".to_string(), HashMap::new())],
+            selfhost_bootstrap_runtime_value_type(),
+        ),
+    );
+    env.define_global(
+        "__kain_bootstrap_generate_llvm_ir".into(),
+        builtin_function_type(
+            vec![ResolvedType::Struct("TypedProgram".to_string(), HashMap::new())],
+            selfhost_bootstrap_llvm_ir_type(),
+        ),
+    );
     // CLI / system builtins used by kainc.kn and other selfhost scripts
     env.define_global(
         "args".into(),
-        builtin_function_type(
-            vec![],
-            dynamic_array_type(ResolvedType::String),
-        ),
+        builtin_function_type(vec![], dynamic_array_type(ResolvedType::String)),
     );
     env.define_global(
         "exit".into(),
@@ -924,7 +957,10 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     );
     env.define_global(
         "float".into(),
-        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Float(FloatSize::F64)),
+        builtin_function_type(
+            vec![ResolvedType::Unknown],
+            ResolvedType::Float(FloatSize::F64),
+        ),
     );
 }
 
@@ -9049,6 +9085,54 @@ mod tests {
                     )),
                     Box::new(ResolvedType::Enum("KainError".to_string(), Vec::new())),
                 )),
+                effects: EffectSet::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn typecheck_registers_bootstrap_parser_intrinsic() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+    assert_eq!(
+        env.lookup("__kain_bootstrap_parse_source").cloned(),
+        Some(ResolvedType::Function {
+            params: vec![
+                dynamic_array_type(ResolvedType::Struct("Token".to_string(), HashMap::new())),
+                ResolvedType::String,
+            ],
+            ret: Box::new(ResolvedType::Struct("Program".to_string(), HashMap::new())),
+            effects: EffectSet::new(),
+        })
+    );
+}
+
+    #[test]
+    fn typecheck_registers_bootstrap_runtime_intrinsic() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+        assert_eq!(
+            env.lookup("__kain_bootstrap_run_program").cloned(),
+            Some(ResolvedType::Function {
+                params: vec![ResolvedType::Struct("Program".to_string(), HashMap::new())],
+                ret: Box::new(ResolvedType::Enum("Value".to_string(), Vec::new())),
+                effects: EffectSet::new(),
+            })
+        );
+    }
+
+    #[test]
+    fn typecheck_registers_bootstrap_llvm_intrinsic() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+
+        assert_eq!(
+            env.lookup("__kain_bootstrap_generate_llvm_ir").cloned(),
+            Some(ResolvedType::Function {
+                params: vec![ResolvedType::Struct("TypedProgram".to_string(), HashMap::new())],
+                ret: Box::new(ResolvedType::String),
                 effects: EffectSet::new(),
             })
         );

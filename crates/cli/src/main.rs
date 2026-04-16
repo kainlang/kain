@@ -825,7 +825,8 @@ fn run_source(
     // Compile SPIR-V as binary bytes (not the string summary used by compile()).
     if target == CompileTarget::Spirv {
         let output_path =
-            match resolve_output_path_with_extension(output, source_path, target_extension(target)) {
+            match resolve_output_path_with_extension(output, source_path, target_extension(target))
+            {
                 Some(path) => path,
                 None => {
                     eprintln!(" Output path is required when compiling inline or stdin source.");
@@ -857,7 +858,8 @@ fn run_source(
 
     if target == CompileTarget::Wasm {
         let output_path =
-            match resolve_output_path_with_extension(output, source_path, target_extension(target)) {
+            match resolve_output_path_with_extension(output, source_path, target_extension(target))
+            {
                 Some(path) => path,
                 None => {
                     eprintln!(" Output path is required when compiling inline or stdin source.");
@@ -888,13 +890,14 @@ fn run_source(
     }
 
     if target == CompileTarget::Hybrid {
-        let descriptor_path = match resolve_output_path_with_extension(output, source_path, "hybrid") {
-            Some(path) => path,
-            None => {
-                eprintln!(" Output path is required when compiling inline or stdin source.");
-                return false;
-            }
-        };
+        let descriptor_path =
+            match resolve_output_path_with_extension(output, source_path, "hybrid") {
+                Some(path) => path,
+                None => {
+                    eprintln!(" Output path is required when compiling inline or stdin source.");
+                    return false;
+                }
+            };
         match cli::compile_hybrid_artifacts(&source) {
             Ok(artifacts) => match write_hybrid_bundle(&descriptor_path, artifacts) {
                 Ok(written) => {
@@ -929,18 +932,21 @@ fn run_source(
                 let default_ext = target_extension(target);
 
                 // Determine where to write the primary output
-                let output_path = if target == CompileTarget::Llvm {
-                    // For LLVM, we always write the IR file first
+                let output_path = if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+                    // For raw-native backends, always write the backend source artifact first.
                     if let Some(out) = output {
-                        if out.extension().map_or(false, |e| e == "ll") {
+                        if out
+                            .extension()
+                            .map_or(false, |e| e == target_extension(target))
+                        {
                             out.clone()
                         } else {
                             let mut p = out.clone();
-                            p.set_extension("ll");
+                            p.set_extension(target_extension(target));
                             p
                         }
                     } else if let Some(path) = source_path {
-                        path.with_extension("ll")
+                        path.with_extension(target_extension(target))
                     } else {
                         eprintln!(
                             " Output path is required when compiling inline or stdin source."
@@ -990,9 +996,10 @@ fn run_source(
                     compiled_output.len()
                 );
 
-                if target == CompileTarget::Llvm {
-                    match llvm_native_stage::stage_llvm_native_artifacts(
+                if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+                    match llvm_native_stage::stage_native_backend_artifacts(
                         &source,
+                        target,
                         &output_path,
                         None,
                     ) {
@@ -1013,7 +1020,7 @@ fn run_source(
                             }
                         }
                         Err(err) => {
-                            eprintln!(" Failed to stage LLVM native artifacts: {}", err);
+                            eprintln!(" Failed to stage native backend artifacts: {}", err);
                             return false;
                         }
                     }
@@ -1238,10 +1245,13 @@ fn run_source(
                     }
                 }
 
-                // Post-processing for LLVM
-                if target == CompileTarget::Llvm {
+                // Post-processing for raw-native backends
+                if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
                     let exe_path = if let Some(out) = output {
-                        if out.extension().map_or(false, |e| e == "ll") {
+                        if out
+                            .extension()
+                            .map_or(false, |e| e == target_extension(target))
+                        {
                             if cfg!(windows) {
                                 out.with_extension("exe")
                             } else {
@@ -1327,6 +1337,10 @@ fn run_source(
                         }
                     }
 
+                    if target == CompileTarget::C {
+                        cmd.arg("-std=c11");
+                    }
+
                     cmd.arg(&output_path);
 
                     for object in runtime_artifacts.loose_objects {
@@ -1336,10 +1350,10 @@ fn run_source(
                         cmd.arg(archive);
                     }
 
-                    cmd.arg("-o")
-                        .arg(&exe_path)
-                        .arg("-Wno-override-module")
-                        .arg("-g"); // Debug info
+                    cmd.arg("-o").arg(&exe_path).arg("-g");
+                    if target == CompileTarget::Llvm {
+                        cmd.arg("-Wno-override-module");
+                    }
 
                     for shared_library in cffi_link_inputs {
                         cmd.arg(shared_library);

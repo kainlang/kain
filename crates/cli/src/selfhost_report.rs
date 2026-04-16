@@ -339,6 +339,7 @@ pub fn render_phase1_markdown(report: &SelfHostPhase1Report) -> String {
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct SelfHostBootstrapArtifacts {
     pub combined_source_path: Option<String>,
+    pub c_output_path: Option<String>,
     pub llvm_output_path: Option<String>,
     pub native_output_path: Option<String>,
     pub runtime_contract_path: Option<String>,
@@ -348,6 +349,7 @@ pub struct SelfHostBootstrapArtifacts {
     pub shader_bundle_path: Option<String>,
     pub runtime_object_paths: Vec<String>,
     pub runtime_archive_paths: Vec<String>,
+    pub ouroboros_c_output_path: Option<String>,
     pub ouroboros_llvm_output_path: Option<String>,
 }
 
@@ -368,6 +370,7 @@ pub struct SelfHostBootstrapReport {
     pub package_version: String,
     pub compiler_entry: String,
     pub bootstrap_mode: String,
+    pub codegen_backend: String,
     pub bootstrap_host_mode: String,
     pub source_root: String,
     pub source_files: Vec<String>,
@@ -392,9 +395,16 @@ pub fn render_bootstrap_markdown(report: &SelfHostBootstrapReport) -> String {
     out.push_str(&format!("- Generated at: `{}`\n", report.generated_at_utc));
     out.push_str(&format!("- Repo root: `{}`\n", report.repo_root));
     out.push_str(&format!("- Manifest: `{}`\n", report.manifest_path));
-    out.push_str(&format!("- Package: `{}` (`{}`)\n", report.package_name, report.package_version));
+    out.push_str(&format!(
+        "- Package: `{}` (`{}`)\n",
+        report.package_name, report.package_version
+    ));
     out.push_str(&format!("- Compiler entry: `{}`\n", report.compiler_entry));
     out.push_str(&format!("- Bootstrap mode: `{}`\n", report.bootstrap_mode));
+    out.push_str(&format!(
+        "- Codegen backend: `{}`\n",
+        report.codegen_backend
+    ));
     out.push_str(&format!(
         "- Bootstrap host mode: `{}`\n",
         report.bootstrap_host_mode
@@ -421,10 +431,7 @@ pub fn render_bootstrap_markdown(report: &SelfHostBootstrapReport) -> String {
         report.blocker_classification
     ));
     if let Some(error_message) = &report.error_message {
-        out.push_str(&format!(
-            "- Error: `{}`\n",
-            error_message.replace('`', "'")
-        ));
+        out.push_str(&format!("- Error: `{}`\n", error_message.replace('`', "'")));
     }
     if let Some(root_component) = &report.root_component {
         out.push_str(&format!("- Root component: `{}`\n", root_component));
@@ -484,6 +491,11 @@ pub fn render_bootstrap_markdown(report: &SelfHostBootstrapReport) -> String {
     );
     write_artifact_line(
         &mut out,
+        "C output",
+        report.artifacts.c_output_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
         "LLVM output",
         report.artifacts.llvm_output_path.as_deref(),
     );
@@ -511,6 +523,11 @@ pub fn render_bootstrap_markdown(report: &SelfHostBootstrapReport) -> String {
         &mut out,
         "Shader bundle",
         report.artifacts.shader_bundle_path.as_deref(),
+    );
+    write_artifact_line(
+        &mut out,
+        "Ouroboros C output",
+        report.artifacts.ouroboros_c_output_path.as_deref(),
     );
     write_artifact_line(
         &mut out,

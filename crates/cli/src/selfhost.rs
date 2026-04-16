@@ -125,6 +125,9 @@ pub enum SelfHostCommand {
         #[arg(long)]
         manifest_path: Option<PathBuf>,
 
+        #[arg(long, default_value = "llvm")]
+        backend: String,
+
         #[arg(long)]
         combine_only: bool,
 
@@ -190,12 +193,14 @@ pub fn run(command: SelfHostCommand) -> KainResult<()> {
     match command {
         SelfHostCommand::Bootstrap {
             manifest_path,
+            backend,
             combine_only,
             emit_llvm_only,
             link_native,
             verify_ouroboros,
         } => selfhost_bootstrap::run_bootstrap(
             manifest_path,
+            &backend,
             combine_only,
             emit_llvm_only,
             link_native,
