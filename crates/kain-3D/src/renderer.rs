@@ -58,6 +58,10 @@ pub struct FrameDiagnostics {
     pub scene_resolution: Option<SceneResolution>,
     pub viewport_summary: Option<String>,
     pub composition_summary: Option<String>,
+    pub framing_hint: Option<String>,
+    pub scene_role: Option<String>,
+    pub scene_scale: Option<String>,
+    pub scene_profile: Option<String>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
 }
@@ -222,12 +226,8 @@ impl SoftwareRenderer {
         let resolved_scene = catalog
             .resolve_scene(scene_name)
             .ok_or_else(|| RenderError::MissingScene(scene_name.to_string()))?;
-        let mut frame = self.render_scene_with_view(
-            resolved_scene.scene,
-            time_seconds,
-            resolution,
-            view,
-        )?;
+        let mut frame =
+            self.render_scene_with_view(resolved_scene.scene, time_seconds, resolution, view)?;
         frame.diagnostics.scene_resolution = Some(resolved_scene.resolution);
         Ok(frame)
     }
@@ -272,15 +272,36 @@ impl SoftwareRenderer {
         let aspect_ratio = resolution.width as f32 / resolution.height as f32;
         diagnostics.scene_name = Some(scene.name.clone());
         diagnostics.viewport_summary = Some(scene.viewport_summary.clone());
-        diagnostics.composition_summary = Some(
-            scene
-                .composition_summary_with_overrides_and_aspect_ratio(
-                    time_seconds,
-                    &view.instance_transform_overrides,
-                    aspect_ratio,
-                )
-                .brief_label(),
+        let composition_summary = scene.composition_summary_with_overrides_and_aspect_ratio(
+            time_seconds,
+            &view.instance_transform_overrides,
+            aspect_ratio,
         );
+        diagnostics.composition_summary = Some(composition_summary.brief_label());
+        diagnostics.scene_role = Some(composition_summary.scene_role_label().to_string());
+        diagnostics.scene_scale = Some(
+            crate::SceneCompositionSummary::scene_scale_label(composition_summary.bounds)
+                .to_string(),
+        );
+        diagnostics.scene_profile = Some(
+            composition_summary
+                .bounds
+                .map(|bounds| bounds.composition_profile_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.framing_hint = composition_summary.bounds.and_then(|bounds| {
+            composition_summary.framed_camera_distance.map(|distance| {
+                let radius = bounds.radius().max(0.001);
+                let fit_ratio = distance / radius;
+                if fit_ratio < 2.8 {
+                    "tight-fit".to_string()
+                } else if fit_ratio < 4.2 {
+                    "balanced-fit".to_string()
+                } else {
+                    "loose-fit".to_string()
+                }
+            })
+        });
         let default_camera_pose;
         let camera = if let Some(camera) = view.camera.as_ref() {
             diagnostics.camera_source = Some(FrameCameraSource::ExplicitView);
@@ -1177,6 +1198,16 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("meshes"));
+        assert_eq!(frame.diagnostics.scene_role.as_deref(), Some("study"));
+        assert_eq!(frame.diagnostics.scene_scale.as_deref(), Some("room-scale"));
+        assert_eq!(
+            frame.diagnostics.scene_profile.as_deref(),
+            Some("volumetric")
+        );
+        assert_eq!(
+            frame.diagnostics.framing_hint.as_deref(),
+            Some("balanced-fit")
+        );
         assert!(frame.diagnostics.scene_resolution.is_none());
         assert_eq!(frame.diagnostics.visible_instances, vec!["triangle"]);
         assert!(frame.diagnostics.culled_instances.is_empty());
@@ -1185,7 +1216,8 @@ mod tests {
     #[test]
     fn fully_clipped_instances_are_reported_as_culled() {
         let mut scene = framed_camera_scene();
-        scene.instances[0].transform = Transform::identity().with_translation(Vec3::new(0.0, 0.0, 8.0));
+        scene.instances[0].transform =
+            Transform::identity().with_translation(Vec3::new(0.0, 0.0, 8.0));
 
         let mut renderer = SoftwareRenderer::default();
         let frame = renderer
