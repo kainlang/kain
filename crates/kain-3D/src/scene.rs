@@ -53,6 +53,25 @@ impl SceneBounds {
             "deep"
         }
     }
+
+    pub fn composition_profile_label(&self) -> &'static str {
+        let extents = self.half_extents;
+        let largest = extents.x.max(extents.y).max(extents.z).max(0.001);
+        let smallest = extents.x.min(extents.y).min(extents.z).max(0.001);
+        let middle = (extents.x + extents.y + extents.z - largest - smallest).max(0.001);
+
+        if smallest / largest < 0.35 {
+            if middle / largest < 0.55 {
+                "linear"
+            } else {
+                "planar"
+            }
+        } else if largest / middle > 1.7 {
+            "stacked"
+        } else {
+            "volumetric"
+        }
+    }
 }
 
 fn expand_bounds_with_sphere(min: &mut Vec3, max: &mut Vec3, center: Vec3, radius: f32) {
@@ -117,6 +136,8 @@ pub struct SceneCompositionSummary {
     pub animation_count: usize,
     pub particle_emitter_count: usize,
     pub terrain_surface_count: usize,
+    pub directional_light_count: usize,
+    pub point_light_count: usize,
     pub has_black_hole: bool,
     pub bounds: Option<SceneBounds>,
     pub framed_camera_distance: Option<f32>,
@@ -124,6 +145,31 @@ pub struct SceneCompositionSummary {
 }
 
 impl SceneCompositionSummary {
+    pub(crate) fn scene_scale_label(bounds: Option<SceneBounds>) -> &'static str {
+        match bounds.map(|bounds| bounds.radius()).unwrap_or(0.0) {
+            radius if radius < 1.5 => "miniature",
+            radius if radius < 6.0 => "room-scale",
+            radius if radius < 20.0 => "studio-scale",
+            _ => "world-scale",
+        }
+    }
+
+    pub(crate) fn scene_role_label(&self) -> &'static str {
+        if self.has_black_hole {
+            "anomaly"
+        } else if self.terrain_surface_count > 0 || self.particle_emitter_count > 2 {
+            "environment"
+        } else if self.mesh_count >= 5 || self.instance_count >= 8 {
+            "showcase"
+        } else if self.material_count >= 4
+            || self.directional_light_count + self.point_light_count >= 4
+        {
+            "lookdev"
+        } else {
+            "study"
+        }
+    }
+
     fn viewport_shape_label(aspect_ratio: f32) -> &'static str {
         if aspect_ratio < 0.95 {
             "portrait"
@@ -134,15 +180,24 @@ impl SceneCompositionSummary {
         }
     }
 
-    fn density_label(&self) -> &'static str {
-        let authored_elements = self.mesh_count
+    fn authored_element_count(&self) -> usize {
+        self.mesh_count
+            + self.material_count
             + self.instance_count
+            + self.animation_count
             + self.particle_emitter_count
-            + self.terrain_surface_count;
+            + self.terrain_surface_count
+            + self.directional_light_count
+            + self.point_light_count
+            + usize::from(self.has_black_hole)
+    }
 
-        if authored_elements <= 4 {
+    fn density_label(&self) -> &'static str {
+        let authored_elements = self.authored_element_count();
+
+        if authored_elements <= 5 {
             "sparse"
-        } else if authored_elements <= 12 {
+        } else if authored_elements <= 14 {
             "balanced"
         } else {
             "dense"
@@ -164,6 +219,12 @@ impl SceneCompositionSummary {
         }
         if self.terrain_surface_count > 0 {
             parts.push(format!("{} terrains", self.terrain_surface_count));
+        }
+        if self.directional_light_count > 0 {
+            parts.push(format!("{} dir lights", self.directional_light_count));
+        }
+        if self.point_light_count > 0 {
+            parts.push(format!("{} point lights", self.point_light_count));
         }
         if self.has_black_hole {
             parts.push("black hole".to_string());
@@ -200,12 +261,21 @@ impl SceneCompositionSummary {
             })
             .unwrap_or_else(|| "aspect unknown".to_string());
 
+        let scale = Self::scene_scale_label(self.bounds);
+        let profile = self
+            .bounds
+            .map(|bounds| bounds.composition_profile_label())
+            .unwrap_or("unbounded");
+
         format!(
-            "{} | {} | {} | {} | {}",
+            "{} | {} | {} | {} | {} | {} | {} | {}",
             parts.join(", "),
             bounds,
             camera,
             aspect,
+            scale,
+            profile,
+            self.scene_role_label(),
             self.density_label()
         )
     }
@@ -606,6 +676,8 @@ impl SceneDescription {
             animation_count: self.animations.len(),
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
+            directional_light_count: self.lighting.directional_lights.len(),
+            point_light_count: self.lighting.point_lights.len(),
             has_black_hole: self.black_hole.is_some(),
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
@@ -641,6 +713,8 @@ impl SceneDescription {
             animation_count: self.animations.len(),
             particle_emitter_count: self.particle_emitters.len(),
             terrain_surface_count: self.terrain_surfaces.len(),
+            directional_light_count: self.lighting.directional_lights.len(),
+            point_light_count: self.lighting.point_lights.len(),
             has_black_hole: self.black_hole.is_some(),
             framed_camera_distance: bounds.map(|bounds| {
                 framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio)
@@ -2938,6 +3012,7 @@ mod tests {
         assert!(summary.brief_label().contains("aspect 1.00:1"));
         assert!(summary.brief_label().contains("square"));
         assert!(summary.brief_label().contains("deep"));
+        assert!(summary.brief_label().contains("planar"));
         assert!(summary.brief_label().contains("balanced"));
         assert!(summary.framed_camera_distance.is_some());
         assert_eq!(summary.to_string(), summary.brief_label());
@@ -2953,6 +3028,8 @@ mod tests {
             animation_count: 0,
             particle_emitter_count: 0,
             terrain_surface_count: 0,
+            directional_light_count: 0,
+            point_light_count: 0,
             has_black_hole: false,
             bounds: None,
             framed_camera_distance: None,
@@ -2960,11 +3037,13 @@ mod tests {
         };
         let balanced = SceneCompositionSummary {
             mesh_count: 2,
-            material_count: 1,
-            instance_count: 5,
-            animation_count: 0,
+            material_count: 2,
+            instance_count: 4,
+            animation_count: 1,
             particle_emitter_count: 1,
-            terrain_surface_count: 1,
+            terrain_surface_count: 0,
+            directional_light_count: 2,
+            point_light_count: 1,
             has_black_hole: false,
             bounds: None,
             framed_camera_distance: None,
@@ -2972,12 +3051,14 @@ mod tests {
         };
         let dense = SceneCompositionSummary {
             mesh_count: 6,
-            material_count: 1,
+            material_count: 4,
             instance_count: 8,
-            animation_count: 0,
+            animation_count: 2,
             particle_emitter_count: 2,
             terrain_surface_count: 2,
-            has_black_hole: false,
+            directional_light_count: 3,
+            point_light_count: 4,
+            has_black_hole: true,
             bounds: None,
             framed_camera_distance: None,
             viewport_aspect_ratio: Some(1.0),
@@ -2987,13 +3068,167 @@ mod tests {
         assert_eq!(balanced.density_label(), "balanced");
         assert_eq!(dense.density_label(), "dense");
         assert!(balanced.brief_label().contains("balanced"));
+        assert!(dense.brief_label().contains("dense"));
+        assert_eq!(balanced.authored_element_count(), 11);
+        assert_eq!(dense.authored_element_count(), 30);
     }
 
     #[test]
     fn viewport_shape_label_matches_aspect_ratio_band() {
-        assert_eq!(SceneCompositionSummary::viewport_shape_label(0.8), "portrait");
+        assert_eq!(
+            SceneCompositionSummary::viewport_shape_label(0.8),
+            "portrait"
+        );
         assert_eq!(SceneCompositionSummary::viewport_shape_label(1.0), "square");
-        assert_eq!(SceneCompositionSummary::viewport_shape_label(1.4), "landscape");
+        assert_eq!(
+            SceneCompositionSummary::viewport_shape_label(1.4),
+            "landscape"
+        );
+    }
+
+    #[test]
+    fn scene_scale_label_tracks_bounds_radius() {
+        assert_eq!(
+            SceneCompositionSummary::scene_scale_label(None),
+            "miniature"
+        );
+        assert_eq!(
+            SceneCompositionSummary::scene_scale_label(Some(SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(0.5, 0.5, 0.5),
+            })),
+            "miniature"
+        );
+        assert_eq!(
+            SceneCompositionSummary::scene_scale_label(Some(SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(2.0, 2.0, 2.0),
+            })),
+            "room-scale"
+        );
+        assert_eq!(
+            SceneCompositionSummary::scene_scale_label(Some(SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(8.0, 2.0, 2.0),
+            })),
+            "studio-scale"
+        );
+        assert_eq!(
+            SceneCompositionSummary::scene_scale_label(Some(SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(20.0, 20.0, 20.0),
+            })),
+            "world-scale"
+        );
+    }
+
+    #[test]
+    fn composition_profile_label_distinguishes_flat_and_volumetric_scenes() {
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(8.0, 1.5, 1.0),
+            }
+            .composition_profile_label(),
+            "linear"
+        );
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(8.0, 8.0, 1.0),
+            }
+            .composition_profile_label(),
+            "planar"
+        );
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(4.0, 4.5, 4.0),
+            }
+            .composition_profile_label(),
+            "volumetric"
+        );
+    }
+
+    #[test]
+    fn scene_role_label_tracks_scene_complexity_signals() {
+        let anomaly = SceneCompositionSummary {
+            mesh_count: 1,
+            material_count: 1,
+            instance_count: 1,
+            animation_count: 0,
+            particle_emitter_count: 0,
+            terrain_surface_count: 0,
+            directional_light_count: 0,
+            point_light_count: 0,
+            has_black_hole: true,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let environment = SceneCompositionSummary {
+            mesh_count: 2,
+            material_count: 2,
+            instance_count: 6,
+            animation_count: 1,
+            particle_emitter_count: 3,
+            terrain_surface_count: 1,
+            directional_light_count: 1,
+            point_light_count: 1,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let showcase = SceneCompositionSummary {
+            mesh_count: 6,
+            material_count: 3,
+            instance_count: 9,
+            animation_count: 1,
+            particle_emitter_count: 1,
+            terrain_surface_count: 0,
+            directional_light_count: 2,
+            point_light_count: 1,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let lookdev = SceneCompositionSummary {
+            mesh_count: 2,
+            material_count: 5,
+            instance_count: 2,
+            animation_count: 0,
+            particle_emitter_count: 0,
+            terrain_surface_count: 0,
+            directional_light_count: 2,
+            point_light_count: 2,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+        let study = SceneCompositionSummary {
+            mesh_count: 1,
+            material_count: 1,
+            instance_count: 1,
+            animation_count: 0,
+            particle_emitter_count: 0,
+            terrain_surface_count: 0,
+            directional_light_count: 1,
+            point_light_count: 0,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: Some(1.0),
+        };
+
+        assert_eq!(anomaly.scene_role_label(), "anomaly");
+        assert_eq!(environment.scene_role_label(), "environment");
+        assert_eq!(showcase.scene_role_label(), "showcase");
+        assert_eq!(lookdev.scene_role_label(), "lookdev");
+        assert_eq!(study.scene_role_label(), "study");
+        assert!(showcase.brief_label().contains("showcase"));
     }
 
     #[test]
