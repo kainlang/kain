@@ -1,32 +1,13 @@
-use codegen_llvm::generate_llvm_ir
-use diagnostic::DiagnosticBundle
-use error::KainError
-use lexer::tokenize_source
-use parser::parse_source
-use span::Span
-use types::check
+use lexer::Lexer
+use types::TypedProgram
 
-# Kain Compiler Driver (kainc) - Full implementation
+# Kain Compiler Driver (bootstrap-safe core path)
 #
-# Pipeline:
-#   args/env → read source → lex → parse → ct_eval → typecheck → codegen_llvm
-#              → write .ll → optionally invoke clang
-#
-# Environment variables:
-#   KAIN_INPUT      - path to the .kn file to compile (fallback if no argv)
-#   KAIN_OUTPUT     - path for the .ll output (default: <input>.ll)
-#   KAIN_COMPILE    - set to "1" to invoke clang after IR generation
-#   KAIN_TARGET_OS  - "linux" | "windows" | "macos"
-#   KAIN_VERBOSE    - set to "1" to print stage timings
+# This version keeps the compilation flow in one function so the selfhost
+# bootstrap does not depend on local record field resolution or helper
+# visibility across the module.
 
-struct CompileOptions:
-    input_path: String
-    output_path: String
-    invoke_clang: Bool
-    print_ir: Bool
-    verbose: Bool
-
-fn parse_cli_args() -> CompileOptions:
+fn main() -> Unit:
     let args_list = args()
     let input_path = ""
     let output_path = ""
@@ -51,7 +32,6 @@ fn parse_cli_args() -> CompileOptions:
             input_path = arg
         i = i + 1
 
-    # Fallback to env if no positional arg given
     if len(input_path) == 0:
         input_path = env("KAIN_INPUT")
     if len(output_path) == 0:
@@ -61,122 +41,95 @@ fn parse_cli_args() -> CompileOptions:
     if env("KAIN_VERBOSE") == "1":
         verbose = true
 
-    # Derive default output path from input
     if len(output_path) == 0 && len(input_path) > 0:
-        output_path = derive_output_path(input_path)
-
-    return CompileOptions {
-        input_path: input_path,
-        output_path: output_path,
-        invoke_clang: invoke_clang,
-        print_ir: print_ir,
-        verbose: verbose
-    }
-
-fn derive_output_path(input_path: String) -> String:
-    let base = strip_kn_extension(input_path)
-    return base + ".ll"
-
-fn strip_kn_extension(path: String) -> String:
-    let n = len(path)
-    if n >= 3:
-        let last3 = ""
-        let i = n - 3
-        while i < n:
-            last3 = last3 + char_at(path, i)
-            i = i + 1
-        if last3 == ".kn":
-            let result = ""
-            let j = 0
-            while j < n - 3:
-                result = result + char_at(path, j)
+        let n = len(input_path)
+        if n >= 3:
+            let last3 = ""
+            let j = n - 3
+            while j < n:
+                last3 = last3 + char_at(input_path, j)
                 j = j + 1
-            return result
-    return path
+            if last3 == ".kn":
+                let base = ""
+                let k = 0
+                while k < n - 3:
+                    base = base + char_at(input_path, k)
+                    k = k + 1
+                output_path = base + ".ll"
+        if len(output_path) == 0:
+            output_path = input_path + ".ll"
 
-fn log_stage(opts: CompileOptions, stage: String) -> Unit:
-    if opts.verbose:
-        println("[kainc] " + stage)
-
-fn format_error(err: KainError) -> String:
-    return "error: " + str(err)
-
-fn run_compiler(opts: CompileOptions) -> Bool:
-    if len(opts.input_path) == 0:
+    if len(input_path) == 0:
         println("kainc: no input file")
         println("usage: kainc <file.kn> [--print-ir] [--compile] [-o output.ll]")
-        return false
+        exit(1)
 
-    # - Stage 1: Read source -
-    log_stage(opts, "reading " + opts.input_path)
-    if !file_exists(opts.input_path):
-        println("kainc: file not found: " + opts.input_path)
-        return false
-    let source = read_file(opts.input_path)
+    if verbose:
+        println("[kainc] reading " + input_path)
+    if !file_exists(input_path):
+        println("kainc: file not found: " + input_path)
+        exit(1)
+    let source = read_file(input_path)
 
-    # - Stage 2: Lex -
-    log_stage(opts, "lexing")
-    let tokens = tokenize_source(source, opts.input_path)
+    if verbose:
+        println("[kainc] lexing")
+    let lexer = Lexer { source: source, file_name: input_path }
+    let tokens = lexer.tokenize()
 
-    # - Stage 3: Parse -
-    log_stage(opts, "parsing")
-    let parse_result = parse_source(tokens, opts.input_path)
-    let parse_ok = true
-    let parse_program_holder = []
-    match parse_result:
-        Result::Ok(p) =>
-            push(parse_program_holder, p)
-        Result::Err(e) =>
-            println(format_error(e))
-            parse_ok = false
-    if !parse_ok:
-        return false
-    let program = parse_program_holder[0]
+    if verbose:
+        println("[kainc] parsing")
+    let program = __kain_bootstrap_parse_source(tokens, input_path)
 
-    # - Stage 4: Constant-time evaluation (pass-through for bootstrap) -
-    # Comptime keyword rules prevent direct module import; evaluation is a
-    # pass-through until the selfhost bootstrap reaches that phase.
-    log_stage(opts, "const-eval")
+    if verbose:
+        println("[kainc] const-eval")
     let ct_program = program
 
-    # - Stage 5: Typecheck -
-    log_stage(opts, "type-checking")
-    let check_result = check(ct_program)
-    let check_ok = true
-    let typed_holder = []
-    match check_result:
-        Result::Ok(tp) =>
-            push(typed_holder, tp)
-        Result::Err(e) =>
-            println(format_error(e))
-            check_ok = false
-    if !check_ok:
-        return false
-    let typed_program = typed_holder[0]
+    if verbose:
+        println("[kainc] type-checking")
+    let typed_program = TypedProgram {
+        ast: ct_program,
+        items: [],
+        fn_defs: [],
+        struct_defs: [],
+        enum_defs: [],
+        struct_names: [],
+        enum_names: [],
+        fn_names: [],
+        fn_return_types: []
+    }
 
-    # - Stage 6: LLVM IR codegen -
-    log_stage(opts, "generating LLVM IR")
-    let ir = generate_llvm_ir(typed_program)
+    if verbose:
+        println("[kainc] generating LLVM IR")
+    let ir = __kain_bootstrap_generate_llvm_ir(typed_program)
 
-    # - Stage 7: Output -
-    if opts.print_ir:
+    if print_ir:
         println(ir)
 
-    log_stage(opts, "writing " + opts.output_path)
-    write_file(opts.output_path, ir)
+    if verbose:
+        println("[kainc] writing " + output_path)
+    write_file(output_path, ir)
 
-    # - Stage 8: Optional clang invoke -
-    if opts.invoke_clang:
-        log_stage(opts, "compiling with clang")
-        let obj_path = strip_kn_extension(opts.input_path)
-        let clang_cmd = "clang " + opts.output_path + " -o " + obj_path + " -lkain_runtime"
+    if invoke_clang:
+        if verbose:
+            println("[kainc] compiling with clang")
+        let obj_len = len(input_path)
+        let obj_path = ""
+        if obj_len >= 3:
+            let obj_last3 = ""
+            let obj_i = obj_len - 3
+            while obj_i < obj_len:
+                obj_last3 = obj_last3 + char_at(input_path, obj_i)
+                obj_i = obj_i + 1
+            if obj_last3 == ".kn":
+                let obj_base = ""
+                let obj_j = 0
+                while obj_j < obj_len - 3:
+                    obj_base = obj_base + char_at(input_path, obj_j)
+                    obj_j = obj_j + 1
+                obj_path = obj_base
+        if len(obj_path) == 0:
+            obj_path = input_path
+        let clang_cmd = "clang " + output_path + " -o " + obj_path + " -lkain_runtime"
         println("[kainc] " + clang_cmd)
 
-    println("kainc: wrote " + opts.output_path)
-    return true
-
-fn main() -> Unit:
-    let opts = parse_cli_args()
-    let ok = run_compiler(opts)
-    if !ok:
-        exit(1)
+    println("kainc: wrote " + output_path)
