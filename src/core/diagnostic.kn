@@ -1,7 +1,9 @@
 // ============================================================================
-// Kain Diagnostic System - user-facing compiler diagnostics
+// Kain Diagnostic System - bootstrap-safe data declarations
 // ============================================================================
-// Focused on readable, structured diagnostics with span-aware rendering.
+// The owned bootstrap lane currently only needs the declaration surface.
+// Keep constructor/render behavior out of this file until the parser subset
+// reliably handles the richer helper code again.
 // ============================================================================
 
 use span
@@ -11,20 +13,6 @@ pub enum Severity:
     Warning
     Note
     Hint
-
-fn severity_name(severity: Severity) -> String:
-    match severity:
-        Severity::Error => return "error"
-        Severity::Warning => return "warning"
-        Severity::Note => return "note"
-        Severity::Hint => return "hint"
-
-fn severity_color(severity: Severity) -> String:
-    match severity:
-        Severity::Error => return "\x1b[1;31m"
-        Severity::Warning => return "\x1b[1;33m"
-        Severity::Note => return "\x1b[1;36m"
-        Severity::Hint => return "\x1b[1;32m"
 
 pub struct Diagnostic:
     severity: Severity
@@ -37,101 +25,8 @@ pub struct SourceFileEntry:
     file: String
     content: String
 
-fn repeat_char_local(ch: String, count: Int) -> String:
-    let result = ""
-    let index = 0
-    while index < count:
-        result = result + ch
-        index = index + 1
-    return result
-
-impl Diagnostic:
-    pub fn error(message: String, span: Span, file: String) -> Diagnostic:
-        return Diagnostic { severity: Severity::Error, message: message, span: span, file: file, notes: [] }
-
-    pub fn warning(message: String, span: Span, file: String) -> Diagnostic:
-        return Diagnostic { severity: Severity::Warning, message: message, span: span, file: file, notes: [] }
-
-    pub fn note(message: String, span: Span, file: String) -> Diagnostic:
-        return Diagnostic { severity: Severity::Note, message: message, span: span, file: file, notes: [] }
-
-    pub fn hint(message: String, span: Span, file: String) -> Diagnostic:
-        return Diagnostic { severity: Severity::Hint, message: message, span: span, file: file, notes: [] }
-
-    pub fn with_note(self, note: Diagnostic) -> Diagnostic:
-        push(self.notes, note)
-        return self
-
-    pub fn add_note(self, message: String, span: Span) -> Unit:
-        push(self.notes, Diagnostic { severity: Severity::Note, message: message, span: span, file: self.file, notes: [] })
-
 pub struct DiagnosticBundle:
     diagnostics: Array<Diagnostic>
     source_map: Array<SourceFileEntry>
     error_count: Int
     warning_count: Int
-
-impl DiagnosticBundle:
-    pub fn new_() -> DiagnosticBundle:
-        return DiagnosticBundle {
-            diagnostics: [],
-            source_map: [],
-            error_count: 0,
-            warning_count: 0
-        }
-
-    pub fn add_source(self, file: String, content: String) -> Unit:
-        push(self.source_map, SourceFileEntry { file: file, content: content })
-
-    pub fn get_source(self, file: String) -> String:
-        for entry in self.source_map:
-            if entry.file == file:
-                return entry.content
-        return ""
-
-    pub fn add(self, diagnostic: Diagnostic) -> Unit:
-        match diagnostic.severity:
-            Severity::Error => self.error_count = self.error_count + 1
-            Severity::Warning => self.warning_count = self.warning_count + 1
-            _ => ()
-        push(self.diagnostics, diagnostic)
-
-    pub fn error(self, message: String, span: Span, file: String) -> Unit:
-        self.add(Diagnostic { severity: Severity::Error, message: message, span: span, file: file, notes: [] })
-
-    pub fn warning(self, message: String, span: Span, file: String) -> Unit:
-        self.add(Diagnostic { severity: Severity::Warning, message: message, span: span, file: file, notes: [] })
-
-    pub fn has_errors(self) -> Bool:
-        return self.error_count > 0
-
-    pub fn render(self) -> Unit:
-        if len(self.diagnostics) > 0:
-            println("")
-            for diagnostic in self.diagnostics:
-                self.render_diagnostic(diagnostic, 0)
-
-            let summary = ""
-            if self.error_count > 0:
-                summary = summary + "\x1b[1;31merrors present\x1b[0m"
-            if self.warning_count > 0:
-                if len(summary) > 0:
-                    summary = summary + " and "
-                summary = summary + "\x1b[1;33mwarnings present\x1b[0m"
-            if len(summary) > 0:
-                println(summary + " generated")
-
-    fn render_diagnostic(self, diagnostic: Diagnostic, indent: Int) -> Unit:
-        let prefix = repeat_char_local(" ", indent)
-        let color = severity_color(diagnostic.severity)
-        let severity = severity_name(diagnostic.severity)
-
-        println(prefix + color + severity + "\x1b[0m: " + diagnostic.message)
-
-        if diagnostic.file != "":
-            println(prefix + "  \x1b[1;34m-->\x1b[0m " + diagnostic.file)
-
-        println("")
-
-        for note in diagnostic.notes:
-            self.render_diagnostic(note, indent + 2)

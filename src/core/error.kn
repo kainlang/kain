@@ -1,10 +1,12 @@
 // ============================================================================
-// Kain Error System - typed compiler/runtime errors
+// Kain Error System - bootstrap-safe data declarations
 // ============================================================================
-// Small, explicit, and close to the current language surface.
+// The owned bootstrap lane currently consumes the error data shapes directly.
+// Keep constructor/helper behavior out of this file until the parser subset
+// can reliably handle the richer method surface again.
 // ============================================================================
 
-use span
+use span::SourceSpan
 
 pub enum ErrorKind:
     Lexer
@@ -19,88 +21,11 @@ pub enum ErrorKind:
 pub struct KainError:
     kind: ErrorKind
     message: String
-    span: Span
+    span: SourceSpan
     filename: String
     hint: Option<String>
-
-impl KainError:
-    pub fn lexer(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Lexer, message: message, span: span, filename: "", hint: none }
-
-    pub fn parser(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Parser, message: message, span: span, filename: "", hint: none }
-
-    pub fn type_error(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Type, message: message, span: span, filename: "", hint: none }
-
-    pub fn effect_error(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Effect, message: message, span: span, filename: "", hint: none }
-
-    pub fn borrow_error(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Borrow, message: message, span: span, filename: "", hint: none }
-
-    pub fn codegen(message: String, span: Span) -> KainError:
-        return KainError { kind: ErrorKind::Codegen, message: message, span: span, filename: "", hint: none }
-
-    pub fn runtime(message: String) -> KainError:
-        return KainError { kind: ErrorKind::Runtime, message: message, span: Span { start: 0, end: 0, file: "" }, filename: "", hint: none }
-
-    pub fn io(message: String) -> KainError:
-        return KainError { kind: ErrorKind::Io, message: message, span: Span { start: 0, end: 0, file: "" }, filename: "", hint: none }
-
-    pub fn with_hint(self, hint: String) -> KainError:
-        return KainError { kind: self.kind, message: self.message, span: self.span, filename: self.filename, hint: Option::Some(hint) }
-
-    pub fn with_filename(self, filename: String) -> KainError:
-        return KainError { kind: self.kind, message: self.message, span: self.span, filename: filename, hint: self.hint }
-
-    pub fn kind(self) -> ErrorKind:
-        return self.kind
-
-    pub fn kind_str(self) -> String:
-        if self.kind == ErrorKind::Lexer:
-            return "Lexer Error"
-        if self.kind == ErrorKind::Parser:
-            return "Parse Error"
-        if self.kind == ErrorKind::Type:
-            return "Type Error"
-        if self.kind == ErrorKind::Effect:
-            return "Effect Error"
-        if self.kind == ErrorKind::Borrow:
-            return "Borrow Error"
-        if self.kind == ErrorKind::Codegen:
-            return "Codegen Error"
-        if self.kind == ErrorKind::Runtime:
-            return "Runtime Error"
-        if self.kind == ErrorKind::Io:
-            return "IO Error"
-        return "Error"
-
-    pub fn to_string(self) -> String:
-        return self.kind_str() + ": " + self.message
 
 pub type KainResult<T> = Result<T, KainError>
 
 pub struct ErrorCollector:
     errors: Array<KainError>
-
-impl ErrorCollector:
-    pub fn new_() -> ErrorCollector:
-        return ErrorCollector { errors: [] }
-
-    pub fn add(self, error: KainError) -> Unit:
-        push(self.errors, error)
-
-    pub fn has_errors(self) -> Bool:
-        return len(self.errors) > 0
-
-    pub fn count(self) -> Int:
-        return len(self.errors)
-
-    pub fn get_errors(self) -> Array<KainError>:
-        return self.errors
-
-    pub fn fail_if_errors(self) -> Result<Int, KainError>:
-        if len(self.errors) > 0:
-            return Result::Err(self.errors[0])
-        return Result::Ok(0)
