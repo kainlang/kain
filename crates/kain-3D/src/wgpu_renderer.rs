@@ -927,7 +927,7 @@ pub fn prepare_wgpu_frame(
     resolution: RenderResolution,
     view: &RenderViewSettings,
 ) -> Result<PreparedWgpuFrame, RenderError> {
-    let active_camera = resolve_camera_pose(scene, time_seconds, view);
+    let active_camera = resolve_camera_pose(scene, time_seconds, resolution, view);
     let uniforms = build_scene_uniforms(scene, time_seconds, resolution, view);
     let (scene_vertices, mut stats) = build_gpu_scene(scene, time_seconds, view)?;
     let (depth_particles, overlay_particles, particle_count) =
@@ -951,7 +951,7 @@ fn build_scene_uniforms(
     resolution: RenderResolution,
     view: &RenderViewSettings,
 ) -> SceneUniforms {
-    let camera = resolve_camera_pose(scene, time_seconds, view);
+    let camera = resolve_camera_pose(scene, time_seconds, resolution, view);
 
     let aspect_ratio = resolution.width as f32 / resolution.height as f32;
     let view_matrix = Mat4::look_at(camera.position, camera.target, camera.up);
@@ -1160,6 +1160,7 @@ fn build_pick_scene(
 fn resolve_camera_pose(
     scene: &SceneDescription,
     time_seconds: f32,
+    resolution: RenderResolution,
     view: &RenderViewSettings,
 ) -> CameraPose {
     if let Some(camera) = view.camera.as_ref() {
