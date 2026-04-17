@@ -68,8 +68,22 @@ Why this matters: it closes the gap between "the 3D contracts exist" and "the
 actual workbench route still points at them," which is the easiest place for
 3D template drift to hide.
 
-Next recommended step: surface this validator in the template's regen or CI
-path so the contract and launch-lane check runs automatically.
+Next recommended step: keep the validator treated as a mandatory template-level
+3D gate in the steering docs and wire it into regen or CI so drift fails by
+default.
+
+## 2026-04-17 - Scene spine validator promoted to an explicit steering gate
+
+Updated `.specs/steering/dcc-native-authoring.md` so the shared scene spine
+validator is now called out as a mandatory check for template-level 3D changes.
+This makes the reusable scene/viewport/camera/interaction/mesh/lighting spine a
+formal contract instead of only a helper script.
+
+Why this matters: 3D growth stays centered on shared contracts and manifest
+wiring, which keeps reusable behavior from fragmenting into app-local glue.
+
+Next recommended step: wire the validator into the 3D regen or CI path so the
+spec rule becomes automatic enforcement.
 
 ## 2026-04-16 - Scene composition staging surfaced in renderer diagnostics
 

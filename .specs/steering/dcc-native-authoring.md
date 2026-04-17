@@ -37,6 +37,10 @@ of TypeScript transliterations.
 - Use the relevant `.reference/` surfaces as the acceptance oracle:
   `sculpting/*` for KSculpt parity and `graphos/*` plus current Kain painter
   scaffolds for KPainter parity.
+- The shared scene spine in `apps/3D/tools/validation/validate_scene_spine.py`
+  is mandatory for template-level 3D changes. New scene, viewport, camera,
+  interaction, mesh, lighting, or scene-exchange behavior should pass through
+  that validator, not only through ad hoc app wiring.
 - A feature is not at parity until it has:
   1. a Kain-owned implementation,
   2. a documented owning subsystem,
