@@ -461,6 +461,7 @@ fn write_report(
                     "scene_name": tile.frame.diagnostics.scene_name,
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
+                    "scene_focus": tile.frame.diagnostics.scene_focus,
                     "framing_hint": tile.frame.diagnostics.framing_hint,
                     "camera_fit_ratio": tile.frame.diagnostics.camera_fit_ratio,
                     "composition_stage": tile.frame.diagnostics.composition_stage,
@@ -487,6 +488,7 @@ fn scene_composition_payload(
         "scene_scale": diagnostics.scene_scale,
         "scene_role": diagnostics.scene_role,
         "scene_profile": diagnostics.scene_profile,
+        "scene_focus": diagnostics.scene_focus,
         "composition_stage": diagnostics.composition_stage,
         "scene_density": diagnostics.scene_density,
         "framing_hint": diagnostics.framing_hint,
@@ -740,6 +742,7 @@ mod tests {
         assert_eq!(payload["scene_scale"], "studio-scale");
         assert_eq!(payload["scene_role"], "showcase");
         assert_eq!(payload["scene_profile"], "planar");
+        assert!(payload["scene_focus"].is_string());
         assert_eq!(payload["composition_stage"], "staged-plane");
         assert_eq!(payload["scene_density"], "balanced");
         assert!(payload["framing_hint"].is_string());

@@ -63,6 +63,7 @@ pub struct FrameDiagnostics {
     pub scene_role: Option<String>,
     pub scene_scale: Option<String>,
     pub scene_profile: Option<String>,
+    pub scene_focus: Option<String>,
     pub scene_density: Option<String>,
     pub composition_stage: Option<String>,
     pub visible_instances: Vec<String>,

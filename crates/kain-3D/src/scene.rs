@@ -162,6 +162,7 @@ pub struct SceneCompositionDiagnostics {
     pub scene_scale: &'static str,
     pub scene_role: &'static str,
     pub scene_profile: &'static str,
+    pub scene_focus: &'static str,
     pub composition_stage: &'static str,
     pub scene_density: &'static str,
     pub framing_hint: Option<&'static str>,
@@ -202,6 +203,28 @@ impl SceneCompositionSummary {
             "lookdev"
         } else {
             "study"
+        }
+    }
+
+    pub(crate) fn scene_focus_label(&self) -> &'static str {
+        if self.has_black_hole {
+            "anomaly-led"
+        } else if self.terrain_surface_count > 0 || self.particle_emitter_count > 0 {
+            "environment-led"
+        } else if self.mesh_count >= self.material_count && self.mesh_count >= self.instance_count {
+            "geometry-led"
+        } else if self.instance_count >= self.material_count
+            && self.instance_count >= self.mesh_count
+        {
+            "instance-led"
+        } else if self.material_count >= self.mesh_count
+            && self.material_count >= self.directional_light_count + self.point_light_count
+        {
+            "material-led"
+        } else if self.directional_light_count + self.point_light_count > 0 {
+            "lighting-led"
+        } else {
+            "balanced"
         }
     }
 
@@ -263,6 +286,7 @@ impl SceneCompositionSummary {
                 .bounds
                 .map(|bounds| bounds.composition_profile_label())
                 .unwrap_or("unbounded"),
+            scene_focus: self.scene_focus_label(),
             composition_stage: self
                 .bounds
                 .map(|bounds| bounds.composition_stage_label())
@@ -293,6 +317,7 @@ impl SceneCompositionSummary {
                 .map(|bounds| bounds.composition_profile_label().to_string())
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
+        diagnostics.scene_focus = Some(self.scene_focus_label().to_string());
         diagnostics.scene_density = Some(self.density_label().to_string());
         diagnostics.composition_stage = Some(
             self.bounds
@@ -374,13 +399,14 @@ impl SceneCompositionSummary {
             .unwrap_or("unbounded");
 
         format!(
-            "{} | {} | {} | {} | {} | {} | {} | {} | {}",
+            "{} | {} | {} | {} | {} | {} | {} | {} | {} | {}",
             parts.join(", "),
             bounds,
             camera,
             aspect,
             scale,
             profile,
+            self.scene_focus_label(),
             stage,
             self.scene_role_label(),
             self.density_label()
@@ -3255,9 +3281,44 @@ mod tests {
         assert_eq!(summary.to_string(), summary.brief_label());
         assert_eq!(summary.diagnostics().label, summary.brief_label());
         assert_eq!(summary.diagnostics().scene_profile, "planar");
+        assert_eq!(summary.diagnostics().scene_focus, "instance-led");
         assert_eq!(summary.diagnostics().scene_density, "balanced");
         assert_eq!(summary.diagnostics().framing_hint, Some("balanced-fit"));
         assert_eq!(bounds.span(), bounds.half_extents * 2.0);
+    }
+
+    #[test]
+    fn scene_focus_label_tracks_scene_dominant_authoring_signal() {
+        let mut summary = SceneCompositionSummary {
+            mesh_count: 4,
+            material_count: 1,
+            instance_count: 1,
+            animation_count: 0,
+            particle_emitter_count: 0,
+            terrain_surface_count: 0,
+            directional_light_count: 0,
+            point_light_count: 0,
+            has_black_hole: false,
+            bounds: None,
+            framed_camera_distance: None,
+            viewport_aspect_ratio: None,
+        };
+
+        assert_eq!(summary.scene_focus_label(), "geometry-led");
+        summary.instance_count = 6;
+        assert_eq!(summary.scene_focus_label(), "instance-led");
+        summary.instance_count = 1;
+        summary.material_count = 6;
+        assert_eq!(summary.scene_focus_label(), "material-led");
+        summary.material_count = 1;
+        summary.directional_light_count = 2;
+        assert_eq!(summary.scene_focus_label(), "lighting-led");
+        summary.directional_light_count = 0;
+        summary.terrain_surface_count = 1;
+        assert_eq!(summary.scene_focus_label(), "environment-led");
+        summary.terrain_surface_count = 0;
+        summary.has_black_hole = true;
+        assert_eq!(summary.scene_focus_label(), "anomaly-led");
     }
 
     #[test]
