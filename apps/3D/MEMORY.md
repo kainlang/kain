@@ -85,6 +85,20 @@ wiring, which keeps reusable behavior from fragmenting into app-local glue.
 Next recommended step: wire the validator into the 3D regen or CI path so the
 spec rule becomes automatic enforcement.
 
+## 2026-04-17 - Template 3D check runner added
+
+Added `apps/3D/tools/validation/run_template_checks.py` as a single entrypoint
+for template-level 3D validation. It now runs the shared scene-spine validator
+and checks the primary workbench launch bindings in `KAIN.toml`, which makes it
+easier to wire the 3D lane into CI or regeneration without duplicating shell
+glue.
+
+Why this matters: the 3D template now has one durable command-shaped check that
+captures both the reusable scene spine and the flagship launch binding.
+
+Next recommended step: add this runner to the template regen or CI path so the
+scene spine and workbench binding checks fail automatically on drift.
+
 ## 2026-04-16 - Scene composition staging surfaced in renderer diagnostics
 
 Added an explicit `composition_stage` signal to the 3D renderer diagnostics,

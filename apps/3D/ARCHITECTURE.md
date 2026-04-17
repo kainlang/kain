@@ -52,6 +52,10 @@ without requiring Rust or Cargo on the consumer machine.
   viewport, camera, interaction, mesh, and lighting runtime systems stay
   registered against the shared source registry instead of drifting into
   app-local behavior.
+- `tools/validation/run_template_checks.py` is the template-level 3D check
+  runner. It wraps the scene-spine validator and the primary workbench launch
+  bindings so CI and regen flows have one stable entrypoint instead of ad hoc
+  shell glue.
 - Renderer, viewport, and scene tooling should prefer manifest additions or
   stdlib surface growth when a new 3D behavior is reusable across workbench
   presets, rather than hardcoding a one-off app path.
