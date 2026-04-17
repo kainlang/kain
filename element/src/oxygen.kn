@@ -1,0 +1,136 @@
+use element_kernel::ElementBond
+use element_kernel::ElementBondRole
+use element_kernel::ElementContract
+use element_kernel::ElementDiagnostic
+use element_kernel::ElementFamily
+use element_kernel::ElementNode
+use element_kernel::ElementOwnershipMode
+use element_kernel::ElementThreadMode
+use element_kernel::append_diagnostics
+use element_kernel::count_bonds_with_role
+use element_kernel::push_error
+use element_kernel::push_note
+use element_kernel::push_warning
+use element_kernel::validate_emits_single_value
+use element_kernel::validate_exact_valency
+use element_kernel::validate_local_storage
+use element_kernel::validate_no_mutable_inputs
+use element_kernel::validate_no_unfenced_shared_state
+
+# Oxygen is the first "strong pull" instruction in Element.
+# It is a binary reducer: two bonds in, one stabilized value out.
+
+pub fn oxygen_contract() -> ElementContract:
+    return ElementContract {
+        symbol: "O",
+        display_name: "Oxygen",
+        atomic_number: 8,
+        atomic_mass_scaled: 15999,
+        exact_valency: 2,
+        memory_width_bits: 16,
+        electronegativity_scaled: 344,
+        default_ownership: ElementOwnershipMode::Move,
+        thread_mode: ElementThreadMode::ShareableReadOnly,
+        family: ElementFamily::Chalcogen,
+        semantic_shape: "binary oxidation gate",
+        lowering_hint: "lower as a two-input reducer that consumes at least one owner and returns one stabilized result"
+    }
+
+pub fn oxygen_default_node(debug_name: String) -> ElementNode:
+    return ElementNode {
+        instruction_symbol: "O",
+        debug_name: debug_name,
+        bonds: [
+            ElementBond {
+                role: ElementBondRole::Input,
+                label: "oxidizer_left",
+                target_symbol: "?",
+                owns_value: true,
+                mutable_access: false
+            },
+            ElementBond {
+                role: ElementBondRole::Input,
+                label: "oxidizer_right",
+                target_symbol: "?",
+                owns_value: false,
+                mutable_access: false
+            }
+        ],
+        moved_input_count: 1,
+        borrowed_input_count: 1,
+        emitted_value_count: 1,
+        local_storage_bits: 16,
+        heap_allocated: false,
+        touches_shared_state: false,
+        requires_parallel_safety: false
+    }
+
+pub fn oxygen_execution_model() -> String:
+    return "Oxygen is a two-operand ownership sink. It fuses exactly two bonded operands, consumes at least one of them by move semantics, and refuses to leave both inputs alive as unconstrained aliases."
+
+pub fn oxygen_lowering_story() -> String:
+    return "At lowering time O becomes a binary reducer or comparator. The node takes two child values, collapses them into one result register, and is allowed to keep at most one surviving borrow visible after execution."
+
+pub fn oxygen_validate(node: ElementNode) -> Array<ElementDiagnostic>:
+    let contract = oxygen_contract()
+    let diagnostics = []
+
+    append_diagnostics(diagnostics, validate_exact_valency(contract, node))
+    append_diagnostics(diagnostics, validate_emits_single_value(node, contract.symbol))
+    append_diagnostics(diagnostics, validate_local_storage(contract, node))
+    append_diagnostics(diagnostics, validate_no_mutable_inputs(node, contract.symbol))
+    append_diagnostics(diagnostics, validate_no_unfenced_shared_state(node, contract))
+
+    let input_bond_count = count_bonds_with_role(node, ElementBondRole::Input)
+    if input_bond_count != 2:
+        push_error(
+            diagnostics,
+            "oxygen-input-shape",
+            node.debug_name + " must expose exactly two input bonds because oxygen models a binary oxidation/reduction step"
+        )
+
+    if node.moved_input_count < 1:
+        push_error(
+            diagnostics,
+            "oxygen-needs-consumption",
+            node.debug_name + " leaves every operand borrowed; oxygen must consume at least one owner because its electronegativity is modeled as a hard ownership pull"
+        )
+
+    if node.borrowed_input_count > 1:
+        push_error(
+            diagnostics,
+            "oxygen-borrow-surplus",
+            node.debug_name + " keeps too many live aliases; oxygen may let at most one operand survive as a borrow after stabilization"
+        )
+
+    if node.touches_shared_state:
+        push_error(
+            diagnostics,
+            "oxygen-state-forbidden",
+            node.debug_name + " tries to behave like volatile state, but oxygen is specified as a pure reduction gate rather than a reactive storage cell"
+        )
+
+    if node.heap_allocated:
+        push_note(
+            diagnostics,
+            "oxygen-promoted-molecule",
+            node.debug_name + " overflowed the native oxygen footprint and becomes a heavier promoted molecule, which is valid but no longer a tight scalar reducer"
+        )
+
+    if len(diagnostics) == 0:
+        push_note(
+            diagnostics,
+            "oxygen-stable",
+            node.debug_name + " satisfies oxygen: 2 bonds, at least one moved owner, one emitted result"
+        )
+
+    return diagnostics
+
+pub fn oxygen_semantic_rules() -> Array<String>:
+    return [
+        "O accepts exactly two bonded operands.",
+        "O emits exactly one result value.",
+        "O consumes at least one input owner by move semantics.",
+        "O may preserve at most one surviving borrow.",
+        "O rejects mutable shared-state behavior and acts as a pure reducer."
+    ]

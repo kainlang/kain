@@ -1,0 +1,180 @@
+pub enum ElementFamily:
+    NobleGas
+    AlkaliMetal
+    Chalcogen
+    Pnictogen
+    TransitionMetal
+    Unknown
+
+pub enum ElementOwnershipMode:
+    Copy
+    Borrow
+    AffineBorrow
+    Move
+    SharedRead
+
+pub enum ElementThreadMode:
+    DefaultSingleOwner
+    ImmutableThreadSafe
+    RequiresAtomicFence
+    ShareableReadOnly
+
+pub enum ElementBondRole:
+    Input
+    BranchCondition
+    BranchTrue
+    BranchFalse
+    State
+    Continuation
+
+pub enum DiagnosticSeverity:
+    Error
+    Warning
+    Note
+
+pub struct ElementDiagnostic:
+    severity: DiagnosticSeverity
+    code: String
+    message: String
+
+pub struct ElementBond:
+    role: ElementBondRole
+    label: String
+    target_symbol: String
+    owns_value: Bool
+    mutable_access: Bool
+
+pub struct ElementNode:
+    instruction_symbol: String
+    debug_name: String
+    bonds: Array<ElementBond>
+    moved_input_count: Int
+    borrowed_input_count: Int
+    emitted_value_count: Int
+    local_storage_bits: Int
+    heap_allocated: Bool
+    touches_shared_state: Bool
+    requires_parallel_safety: Bool
+
+pub struct ElementContract:
+    symbol: String
+    display_name: String
+    atomic_number: Int
+    atomic_mass_scaled: Int
+    exact_valency: Int
+    memory_width_bits: Int
+    electronegativity_scaled: Int
+    default_ownership: ElementOwnershipMode
+    thread_mode: ElementThreadMode
+    family: ElementFamily
+    semantic_shape: String
+    lowering_hint: String
+
+pub fn make_diagnostic(severity: DiagnosticSeverity, code: String, message: String) -> ElementDiagnostic:
+    return ElementDiagnostic {
+        severity: severity,
+        code: code,
+        message: message
+    }
+
+pub fn push_error(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Error, code, message))
+
+pub fn push_warning(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Warning, code, message))
+
+pub fn push_note(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Note, code, message))
+
+pub fn append_diagnostics(target: Array<ElementDiagnostic>, incoming: Array<ElementDiagnostic>) -> Unit:
+    for item in incoming:
+        push(target, item)
+
+pub fn count_bonds_with_role(node: ElementNode, role: ElementBondRole) -> Int:
+    let count = 0
+    for bond in node.bonds:
+        if bond.role == role:
+            count = count + 1
+    return count
+
+pub fn validate_exact_valency(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    let actual_bond_count = len(node.bonds)
+    if actual_bond_count != contract.exact_valency:
+        push_error(
+            diagnostics,
+            "valency-mismatch",
+            node.debug_name + " uses " + str(actual_bond_count) + " bonds, but " + contract.display_name + " only permits " + str(contract.exact_valency)
+        )
+    return diagnostics
+
+pub fn validate_local_storage(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    if node.local_storage_bits > contract.memory_width_bits && !node.heap_allocated:
+        push_error(
+            diagnostics,
+            "memory-width-overflow",
+            node.debug_name + " requests " + str(node.local_storage_bits) + " local bits, but " + contract.symbol + " only grants " + str(contract.memory_width_bits) + " before heap promotion"
+        )
+    if node.heap_allocated:
+        push_note(
+            diagnostics,
+            "heap-promotion",
+            node.debug_name + " exceeds the native " + contract.symbol + " footprint and is treated as a promoted heap-backed molecule"
+        )
+    return diagnostics
+
+pub fn validate_emits_single_value(node: ElementNode, element_symbol: String) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    if node.emitted_value_count != 1:
+        push_error(
+            diagnostics,
+            "emission-arity",
+            element_symbol + " must collapse into exactly one outgoing value, but " + node.debug_name + " emits " + str(node.emitted_value_count)
+        )
+    return diagnostics
+
+pub fn validate_no_unfenced_shared_state(node: ElementNode, contract: ElementContract) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    if node.touches_shared_state && node.requires_parallel_safety && contract.thread_mode != ElementThreadMode::RequiresAtomicFence:
+        push_error(
+            diagnostics,
+            "parallel-state-violation",
+            node.debug_name + " mutates shared state under parallel pressure, but " + contract.symbol + " does not auto-upgrade into an alkali-style atomic region"
+        )
+    return diagnostics
+
+pub fn validate_no_mutable_inputs(node: ElementNode, element_symbol: String) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    for bond in node.bonds:
+        if bond.mutable_access:
+            push_error(
+                diagnostics,
+                "mutable-bond-forbidden",
+                element_symbol + " does not accept mutable bond " + bond.label + "; mutation must be modeled by a more reactive element"
+            )
+    return diagnostics
+
+pub fn describe_thread_mode(mode: ElementThreadMode) -> String:
+    match mode:
+        ElementThreadMode::DefaultSingleOwner =>
+            return "single-owner"
+        ElementThreadMode::ImmutableThreadSafe =>
+            return "immutable-thread-safe"
+        ElementThreadMode::RequiresAtomicFence =>
+            return "requires-atomic-fence"
+        ElementThreadMode::ShareableReadOnly =>
+            return "shareable-read-only"
+
+pub fn describe_ownership_mode(mode: ElementOwnershipMode) -> String:
+    match mode:
+        ElementOwnershipMode::Copy =>
+            return "copy"
+        ElementOwnershipMode::Borrow =>
+            return "borrow"
+        ElementOwnershipMode::AffineBorrow =>
+            return "affine-borrow"
+        ElementOwnershipMode::Move =>
+            return "move"
+        ElementOwnershipMode::SharedRead =>
+            return "shared-read"
