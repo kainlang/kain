@@ -17,6 +17,7 @@ ENGINE_SYSTEMS = ROOT / "manifests" / "engine_systems.json"
 SOURCES = ROOT / "manifests" / "sources.json"
 RUNTIME_APPS = ROOT / "manifests" / "runtime_apps.json"
 WORKSPACE_PRESETS = ROOT / "manifests" / "workspace_presets.json"
+VIEWPORT_RUNTIME = ROOT / "src-kain" / "stdlib" / "three_d_runtime" / "viewport_runtime.kn"
 
 EXPECTED_SYSTEMS = {
     "scene_runtime": "three_d_scene_runtime",
@@ -42,6 +43,13 @@ EXPECTED_WORKSPACE_PRESET = {
     "host_kind": "native_ui",
 }
 
+EXPECTED_VIEWPORT_TOKENS = [
+    'composition_policy: String',
+    'framing_policy: String',
+    'profile.viewport.composition_policy = "scene_summary_driven_and_launch_preset_bound"',
+    'profile.viewport.framing_policy = "bounds_fov_and_aspect_ratio_fit"',
+]
+
 
 def load_json(path: Path):
     try:
@@ -57,6 +65,10 @@ def main() -> int:
     sources = load_json(SOURCES)
     runtime_apps = load_json(RUNTIME_APPS)
     workspace_presets = load_json(WORKSPACE_PRESETS)
+    try:
+        viewport_runtime = VIEWPORT_RUNTIME.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise SystemExit(f"missing required runtime contract: {VIEWPORT_RUNTIME}")
 
     if not isinstance(engine_systems, list):
         raise SystemExit(f"expected {ENGINE_SYSTEMS} to contain a JSON array")
@@ -106,6 +118,10 @@ def main() -> int:
                 problems.append(
                     f"workspace preset {EXPECTED_WORKSPACE_PRESET['id']} has {key}={workspace_preset.get(key)!r}, expected {expected_value!r}"
                 )
+
+    for token in EXPECTED_VIEWPORT_TOKENS:
+        if token not in viewport_runtime:
+            problems.append(f"viewport runtime missing required policy token: {token}")
 
     if problems:
         print("Scene spine validation failed:")
