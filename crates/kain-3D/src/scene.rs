@@ -333,6 +333,16 @@ impl SceneCompositionSummary {
 
     pub fn brief_label(&self) -> String {
         let mut parts = vec![
+            self.bounds
+                .map(|bounds| bounds.composition_stage_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+            self.scene_role_label().to_string(),
+            Self::scene_scale_label(self.bounds).to_string(),
+            self.bounds
+                .map(|bounds| bounds.composition_profile_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+            self.scene_focus_label().to_string(),
+            self.density_label().to_string(),
             format!("{} meshes", self.mesh_count),
             format!("{} materials", self.material_count),
             format!("{} instances", self.instance_count),
@@ -388,28 +398,15 @@ impl SceneCompositionSummary {
             })
             .unwrap_or_else(|| "aspect unknown".to_string());
 
-        let scale = Self::scene_scale_label(self.bounds);
-        let profile = self
-            .bounds
-            .map(|bounds| bounds.composition_profile_label())
-            .unwrap_or("unbounded");
-        let stage = self
-            .bounds
-            .map(|bounds| bounds.composition_stage_label())
-            .unwrap_or("unbounded");
-
         format!(
-            "{} | {} | {} | {} | {} | {} | {} | {} | {} | {}",
+            "{} | {} | {} | {} | {}",
             parts.join(", "),
             bounds,
             camera,
             aspect,
-            scale,
-            profile,
-            self.scene_focus_label(),
-            stage,
-            self.scene_role_label(),
-            self.density_label()
+            self.bounds
+                .map(|bounds| bounds.composition_stage_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string())
         )
     }
 }
@@ -965,6 +962,7 @@ pub struct SceneCatalogEntry<'a> {
     pub scene_role: &'static str,
     pub scene_scale: &'static str,
     pub scene_profile: &'static str,
+    pub scene_focus: &'static str,
     pub scene_density: &'static str,
     pub composition_stage: &'static str,
 }
@@ -1068,6 +1066,26 @@ impl SceneCatalog {
             .map(move |name| self.catalog_entry(name))
     }
 
+    pub fn picker_entries(&self) -> Vec<SceneCatalogEntry<'_>> {
+        let mut entries = Vec::with_capacity(self.scenes.len() + self.scene_aliases.len());
+
+        if self.scenes.contains_key(&self.default_scene) {
+            entries.push(self.catalog_entry(&self.default_scene));
+        }
+
+        for name in self.scene_names() {
+            if name != self.default_scene {
+                entries.push(self.catalog_entry(name));
+            }
+        }
+
+        for name in self.scene_aliases.keys() {
+            entries.push(self.catalog_entry(name));
+        }
+
+        entries
+    }
+
     pub fn catalog_entry(&self, requested_name: &str) -> SceneCatalogEntry<'_> {
         let resolved = self
             .resolve_scene(requested_name)
@@ -1087,6 +1105,7 @@ impl SceneCatalog {
             scene_role: diagnostics.scene_role,
             scene_scale: diagnostics.scene_scale,
             scene_profile: diagnostics.scene_profile,
+            scene_focus: diagnostics.scene_focus,
             scene_density: diagnostics.scene_density,
             composition_stage: diagnostics.composition_stage,
         }
@@ -3213,11 +3232,30 @@ mod tests {
         assert!(!atrium.scene_role.is_empty());
         assert!(!atrium.scene_scale.is_empty());
         assert!(!atrium.scene_profile.is_empty());
+        assert!(!atrium.scene_focus.is_empty());
         assert!(!atrium.scene_density.is_empty());
         assert!(!atrium.composition_stage.is_empty());
         assert!(!luminous.is_alias);
         assert!(luminous.is_default);
         assert_eq!(luminous.resolved_name, "luminous_port");
+    }
+
+    #[test]
+    fn picker_entries_prioritize_default_scene_before_aliases() {
+        let catalog = SceneCatalog::default();
+        let entries = catalog.picker_entries();
+
+        assert_eq!(
+            entries.first().map(|entry| entry.requested_name),
+            Some("luminous_port")
+        );
+        assert!(entries
+            .iter()
+            .any(|entry| entry.requested_name == "renderer_atrium"));
+        assert!(entries
+            .iter()
+            .any(|entry| entry.requested_name == "gpu_compute_surface_probe"));
+        assert!(entries.iter().all(|entry| !entry.requested_name.is_empty()));
     }
 
     #[test]
@@ -3269,6 +3307,7 @@ mod tests {
         assert_eq!(summary.terrain_surface_count, scene.terrain_surfaces.len());
         assert_eq!(summary.has_black_hole, scene.black_hole.is_some());
         assert_eq!(summary.bounds, Some(bounds));
+        assert!(summary.brief_label().starts_with("staged-"));
         assert!(summary.brief_label().contains("meshes"));
         assert!(summary.brief_label().contains("span"));
         assert!(summary.brief_label().contains("fit d"));
