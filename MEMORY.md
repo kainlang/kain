@@ -1,5 +1,11 @@
 # Kain Memory
 
+- New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now orders canonical scenes semantically, keeping the default scene first, then ranking remaining canonicals by scene role and scene scale before appending aliases. This makes native scene browsers and inspectors surface showcase/environment scenes more intentionally instead of only following raw name order.
+- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_then_semantic_canonicals_then_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
+- New Kain 3D pass (2026-04-17): `SceneCatalogEntry::picker_label()` now includes the authored `viewport_summary` alongside the resolved scene name and composition labels, so native scene browsers can show the scene's launch/context cue instead of hiding it in the struct.
+- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 - New Kain 3D pass (2026-04-17): `SceneCatalogEntry` now carries `scene_focus` alongside role/scale/profile/density/stage, so native scene browsers get the dominant composition cue without re-deriving it from `SceneCompositionSummary`.
 - Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 

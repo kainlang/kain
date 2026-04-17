@@ -967,6 +967,30 @@ pub struct SceneCatalogEntry<'a> {
     pub composition_stage: &'static str,
 }
 
+impl<'a> SceneCatalogEntry<'a> {
+    pub fn picker_label(&self) -> String {
+        let mut parts = vec![
+            self.resolved_name.to_string(),
+            self.viewport_summary.to_string(),
+            self.composition_stage.to_string(),
+            self.scene_role.to_string(),
+            self.scene_scale.to_string(),
+            self.scene_profile.to_string(),
+            self.scene_focus.to_string(),
+            self.scene_density.to_string(),
+        ];
+
+        if self.is_default {
+            parts.push("default".to_string());
+        }
+        if self.is_alias {
+            parts.push(format!("alias:{}", self.requested_name));
+        }
+
+        parts.join(" | ")
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SceneResolutionKind {
     Exact,
@@ -1073,15 +1097,25 @@ impl SceneCatalog {
             entries.push(self.catalog_entry(&self.default_scene));
         }
 
-        for name in self.scene_names() {
-            if name != self.default_scene {
-                entries.push(self.catalog_entry(name));
-            }
-        }
+        let mut canonical_entries: Vec<_> = self
+            .scene_names()
+            .filter(|name| *name != self.default_scene)
+            .map(|name| self.catalog_entry(name))
+            .collect();
+        canonical_entries.sort_by_key(|entry| {
+            (
+                scene_role_rank(entry.scene_role),
+                scene_scale_rank(entry.scene_scale),
+                entry.resolved_name,
+            )
+        });
+        entries.extend(canonical_entries);
 
-        for name in self.scene_aliases.keys() {
-            entries.push(self.catalog_entry(name));
-        }
+        entries.extend(
+            self.scene_aliases
+                .keys()
+                .map(|name| self.catalog_entry(name)),
+        );
 
         entries
     }
@@ -1150,6 +1184,27 @@ impl SceneCatalog {
                     },
                 },
             })
+    }
+}
+
+fn scene_role_rank(role: &str) -> usize {
+    match role {
+        "anomaly" => 0,
+        "showcase" => 1,
+        "environment" => 2,
+        "lookdev" => 3,
+        "study" => 4,
+        _ => 5,
+    }
+}
+
+fn scene_scale_rank(scale: &str) -> usize {
+    match scale {
+        "world-scale" => 0,
+        "studio-scale" => 1,
+        "room-scale" => 2,
+        "miniature" => 3,
+        _ => 4,
     }
 }
 
@@ -3229,6 +3284,10 @@ mod tests {
         assert!(!atrium.is_default);
         assert_eq!(atrium.resolved_name, "material_atrium");
         assert!(atrium.viewport_summary.contains("atrium"));
+        assert!(atrium.picker_label().contains("material_atrium"));
+        assert!(atrium.picker_label().contains("atrium"));
+        assert!(atrium.picker_label().contains("staged-plane"));
+        assert!(atrium.picker_label().contains("alias:renderer_atrium"));
         assert!(!atrium.scene_role.is_empty());
         assert!(!atrium.scene_scale.is_empty());
         assert!(!atrium.scene_profile.is_empty());
@@ -3238,6 +3297,7 @@ mod tests {
         assert!(!luminous.is_alias);
         assert!(luminous.is_default);
         assert_eq!(luminous.resolved_name, "luminous_port");
+        assert!(luminous.picker_label().contains("default"));
     }
 
     #[test]
@@ -3516,6 +3576,14 @@ mod tests {
             }
             .composition_stage_label(),
             "staged-stack"
+        );
+        assert_eq!(
+            SceneBounds {
+                center: Vec3::ZERO,
+                half_extents: Vec3::new(2.0, 2.0, 2.0),
+            }
+            .composition_stage_label(),
+            "staged-volume"
         );
     }
 
@@ -3843,6 +3911,39 @@ mod tests {
         assert!(square.y > square.x);
         assert!(wide.x < square.x);
         assert!(wide.z < square.z);
+    }
+
+    #[test]
+    fn picker_label_surfaces_resolution_and_stage_context() {
+        let catalog = SceneCatalog::default();
+        let entry = catalog.catalog_entry("renderer_atrium");
+
+        assert_eq!(entry.resolved_name, "material_atrium");
+        assert!(entry.picker_label().contains("material_atrium"));
+        assert!(entry.picker_label().contains("staged-plane"));
+        assert!(entry.picker_label().contains("showcase"));
+        assert!(entry.picker_label().contains("alias:renderer_atrium"));
+    }
+
+    #[test]
+    fn picker_entries_prioritize_default_then_semantic_canonicals_then_aliases() {
+        let catalog = SceneCatalog::default();
+        let entries = catalog.picker_entries();
+
+        assert_eq!(
+            entries.first().map(|entry| entry.resolved_name),
+            Some("luminous_port")
+        );
+        assert!(entries.iter().any(|entry| entry.is_alias));
+        assert!(entries.last().is_some_and(|entry| entry.is_alias));
+
+        let canonical_ranks: Vec<_> = entries
+            .iter()
+            .take_while(|entry| !entry.is_alias)
+            .filter(|entry| !entry.is_default)
+            .map(|entry| scene_role_rank(entry.scene_role))
+            .collect();
+        assert!(canonical_ranks.windows(2).all(|pair| pair[0] <= pair[1]));
     }
 
     #[test]
