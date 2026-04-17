@@ -42,6 +42,8 @@ struct TileRender {
 fn main() -> Result<(), Box<dyn Error>> {
     let config = parse_args()?;
     let catalog = SceneCatalog::default();
+    let catalog_summary = catalog.summary();
+    let picker_entries = catalog.picker_entries();
     let resolved_scene = catalog.resolve_scene(&config.scene_name).ok_or_else(|| {
         format!(
             "scene `{}` is not registered in SceneCatalog::default()",
@@ -108,7 +110,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         82,
         2,
         [221, 190, 146, 255],
-        "bgfx is compile-backed; the others remain staged until viewport bridges land.",
+        &format!(
+            "catalog {} scenes + {} aliases, default {}",
+            catalog_summary.canonical_scene_count,
+            catalog_summary.alias_count,
+            catalog_summary.default_scene
+        ),
     );
 
     for (index, tile) in rendered_tiles.iter().enumerate() {
@@ -133,6 +140,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         &config,
         scene.viewport_summary.as_str(),
         &resolved_scene.resolution,
+        &catalog_summary,
+        picker_entries.len(),
         &rendered_tiles,
     )?;
 
@@ -403,6 +412,8 @@ fn write_report(
     config: &SmokeConfig,
     viewport_summary: &str,
     resolution: &kain_3d::SceneResolution,
+    catalog_summary: &kain_3d::SceneCatalogSummary,
+    picker_entry_count: usize,
     rendered_tiles: &[TileRender],
 ) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = config.output_json.parent() {
@@ -420,6 +431,13 @@ fn write_report(
                 SceneResolutionKind::Alias { .. } => "alias",
                 SceneResolutionKind::Default { .. } => "default",
             },
+        },
+        "scene_catalog": {
+            "default_scene": catalog_summary.default_scene,
+            "canonical_scene_count": catalog_summary.canonical_scene_count,
+            "alias_count": catalog_summary.alias_count,
+            "total_scene_names": catalog_summary.total_scene_names,
+            "picker_entry_count": picker_entry_count,
         },
         "viewport_summary": viewport_summary,
         "output_image": config.output_image,

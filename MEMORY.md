@@ -1,5 +1,11 @@
 # Kain Memory
 
+- New Kain 3D pass (2026-04-17): `material_atrium_smoke` now embeds `SceneCatalog::summary()` data in the structured smoke JSON, including default scene, canonical scene count, alias count, total scene names, and picker entry count. The header copy also now calls out catalog coverage so the smoke reports scene-browser context without re-deriving it in downstream tooling.
+- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
+- New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now emits a picker-ordered scene list with the default scene first, followed by canonical scenes and then aliases. This gives native scene browsers and inspectors a direct, data-driven ordering instead of making each host re-sort the catalog itself.
+- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_scene_before_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 - New Kain 3D pass (2026-04-17): `SceneCompositionSummary` now exposes a structured `scene_focus` cue (`geometry-led`, `instance-led`, `material-led`, `lighting-led`, `environment-led`, `anomaly-led`) and `FrameDiagnostics` carries it through the CPU/WGPU frame path. `material_atrium_smoke` now preserves the cue in its JSON payload, so scene tooling can tell what dominates a composition instead of only reading size and density.
 - Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs crates\kain-3D\src\renderer.rs crates\kain-3D\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_focus_label_tracks_scene_dominant_authoring_signal -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
@@ -313,3 +319,6 @@ Important behavior notes:
 
 # New Kain 3D pass (2026-04-16): `material_atrium_smoke` now also threads the scene composition stage through the structured smoke JSON (`composition_stage`) at both the per-tile diagnostics layer and the shared composition payload. That gives native tooling one more stable field for distinguishing staged-line / staged-plane / staged-stack / staged-volume scenes without parsing the brief label.
 # Validation attempt: `cargo test -p kain-3d scene_composition_payload_includes_stage_metadata --bin material_atrium_smoke -- --nocapture` could not finish here because the repo-local Windows GNU toolchain still fails while linking build scripts (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
+# New Kain 3D pass (2026-04-17): `SceneCompositionSummary::brief_label()` now leads with the structured composition cues (`composition_stage`, role, scale, profile, focus, density) before raw counts, so scene browsers and logs can skim shape first and inventory second. This is a small design-quality uplift for tooling that already consumes the summary string.
+# Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still hits the same repo-local Windows GNU linker gap before the test binary can finish building.
