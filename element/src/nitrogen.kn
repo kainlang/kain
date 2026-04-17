@@ -1,75 +1,42 @@
 use element_kernel::ElementBond
+
 use element_kernel::ElementBondRole
+
 use element_kernel::ElementContract
+
 use element_kernel::ElementDiagnostic
+
 use element_kernel::ElementFamily
+
 use element_kernel::ElementNode
+
 use element_kernel::ElementOwnershipMode
+
 use element_kernel::ElementThreadMode
+
 use element_kernel::append_diagnostics
+
 use element_kernel::count_bonds_with_role
+
 use element_kernel::push_error
+
 use element_kernel::push_note
+
 use element_kernel::push_warning
+
 use element_kernel::validate_emits_single_value
+
 use element_kernel::validate_exact_valency
+
 use element_kernel::validate_local_storage
+
 use element_kernel::validate_no_unfenced_shared_state
 
-# Nitrogen is the first control-oriented coordinator in Element.
-# It binds three operands and uses them as condition + two continuations.
-
 pub fn nitrogen_contract() -> ElementContract:
-    return ElementContract {
-        symbol: "N",
-        display_name: "Nitrogen",
-        atomic_number: 7,
-        atomic_mass_scaled: 14007,
-        exact_valency: 3,
-        memory_width_bits: 16,
-        electronegativity_scaled: 304,
-        default_ownership: ElementOwnershipMode::AffineBorrow,
-        thread_mode: ElementThreadMode::DefaultSingleOwner,
-        family: ElementFamily::Pnictogen,
-        semantic_shape: "triadic branch coordinator",
-        lowering_hint: "lower as condition + true-lane + false-lane, with a hidden lone-pair scratch slot for decision context"
-    }
+    return ElementContract { symbol: "N", display_name: "Nitrogen", atomic_number: 7, atomic_mass_scaled: 14007, exact_valency: 3, memory_width_bits: 16, electronegativity_scaled: 304, default_ownership: ElementOwnershipMode::AffineBorrow, thread_mode: ElementThreadMode::DefaultSingleOwner, family: ElementFamily::Pnictogen, semantic_shape: "triadic branch coordinator", lowering_hint: "lower as condition + true-lane + false-lane, with a hidden lone-pair scratch slot for decision context" }
 
 pub fn nitrogen_default_node(debug_name: String) -> ElementNode:
-    return ElementNode {
-        instruction_symbol: "N",
-        debug_name: debug_name,
-        bonds: [
-            ElementBond {
-                role: ElementBondRole::BranchCondition,
-                label: "condition",
-                target_symbol: "?",
-                owns_value: false,
-                mutable_access: false
-            },
-            ElementBond {
-                role: ElementBondRole::BranchTrue,
-                label: "then_lane",
-                target_symbol: "?",
-                owns_value: false,
-                mutable_access: false
-            },
-            ElementBond {
-                role: ElementBondRole::BranchFalse,
-                label: "else_lane",
-                target_symbol: "?",
-                owns_value: false,
-                mutable_access: false
-            }
-        ],
-        moved_input_count: 0,
-        borrowed_input_count: 3,
-        emitted_value_count: 1,
-        local_storage_bits: 16,
-        heap_allocated: false,
-        touches_shared_state: false,
-        requires_parallel_safety: false
-    }
+    return ElementNode { instruction_symbol: "N", debug_name: debug_name, bonds: [ElementBond { role: ElementBondRole::BranchCondition, label: "condition", target_symbol: "?", owns_value: false, mutable_access: false }, ElementBond { role: ElementBondRole::BranchTrue, label: "then_lane", target_symbol: "?", owns_value: false, mutable_access: false }, ElementBond { role: ElementBondRole::BranchFalse, label: "else_lane", target_symbol: "?", owns_value: false, mutable_access: false }], moved_input_count: 0, borrowed_input_count: 3, emitted_value_count: 1, local_storage_bits: 16, heap_allocated: false, touches_shared_state: false, requires_parallel_safety: false }
 
 pub fn nitrogen_execution_model() -> String:
     return "Nitrogen is a triadic coordinator. It takes one condition bond and two continuation bonds, evaluates the condition without consuming the whole neighborhood, and forwards exactly one stabilized branch result."
@@ -80,75 +47,27 @@ pub fn nitrogen_lone_pair_model() -> String:
 pub fn nitrogen_validate(node: ElementNode) -> Array<ElementDiagnostic>:
     let contract = nitrogen_contract()
     let diagnostics = []
-
     append_diagnostics(diagnostics, validate_exact_valency(contract, node))
     append_diagnostics(diagnostics, validate_emits_single_value(node, contract.symbol))
     append_diagnostics(diagnostics, validate_local_storage(contract, node))
     append_diagnostics(diagnostics, validate_no_unfenced_shared_state(node, contract))
-
     if count_bonds_with_role(node, ElementBondRole::BranchCondition) != 1:
-        push_error(
-            diagnostics,
-            "nitrogen-missing-condition",
-            node.debug_name + " must expose exactly one condition bond because nitrogen coordinates control rather than plain arithmetic"
-        )
-
+        push_error(diagnostics, "nitrogen-missing-condition", node.debug_name + " must expose exactly one condition bond because nitrogen coordinates control rather than plain arithmetic")
     if count_bonds_with_role(node, ElementBondRole::BranchTrue) != 1:
-        push_error(
-            diagnostics,
-            "nitrogen-missing-true-lane",
-            node.debug_name + " must expose exactly one true-lane bond"
-        )
-
+        push_error(diagnostics, "nitrogen-missing-true-lane", node.debug_name + " must expose exactly one true-lane bond")
     if count_bonds_with_role(node, ElementBondRole::BranchFalse) != 1:
-        push_error(
-            diagnostics,
-            "nitrogen-missing-false-lane",
-            node.debug_name + " must expose exactly one false-lane bond"
-        )
-
+        push_error(diagnostics, "nitrogen-missing-false-lane", node.debug_name + " must expose exactly one false-lane bond")
     if node.moved_input_count > 1:
-        push_error(
-            diagnostics,
-            "nitrogen-overconsumes",
-            node.debug_name + " consumes too many owners; nitrogen is coordinative and should not oxidize the whole triple like oxygen"
-        )
-
+        push_error(diagnostics, "nitrogen-overconsumes", node.debug_name + " consumes too many owners; nitrogen is coordinative and should not oxidize the whole triple like oxygen")
     if node.borrowed_input_count < 2:
-        push_warning(
-            diagnostics,
-            "nitrogen-borrow-weak",
-            node.debug_name + " consumes too much context; nitrogen works best when most of its triple stays borrow-visible for branch selection"
-        )
-
-    if node.touches_shared_state && !node.requires_parallel_safety:
-        push_error(
-            diagnostics,
-            "nitrogen-unfenced-shared-state",
-            node.debug_name + " touches shared state without an explicit synchronization boundary"
-        )
-
+        push_warning(diagnostics, "nitrogen-borrow-weak", node.debug_name + " consumes too much context; nitrogen works best when most of its triple stays borrow-visible for branch selection")
+    if node.touches_shared_state and !node.requires_parallel_safety:
+        push_error(diagnostics, "nitrogen-unfenced-shared-state", node.debug_name + " touches shared state without an explicit synchronization boundary")
     if node.local_storage_bits < 4:
-        push_warning(
-            diagnostics,
-            "nitrogen-lone-pair-unused",
-            node.debug_name + " leaves almost no room for its lone-pair scratch slot; this usually means the control context is underspecified"
-        )
-
+        push_warning(diagnostics, "nitrogen-lone-pair-unused", node.debug_name + " leaves almost no room for its lone-pair scratch slot; this usually means the control context is underspecified")
     if len(diagnostics) == 0:
-        push_note(
-            diagnostics,
-            "nitrogen-stable",
-            node.debug_name + " satisfies nitrogen: condition + true lane + false lane with one emitted result"
-        )
-
+        push_note(diagnostics, "nitrogen-stable", node.debug_name + " satisfies nitrogen: condition + true lane + false lane with one emitted result")
     return diagnostics
 
 pub fn nitrogen_semantic_rules() -> Array<String>:
-    return [
-        "N accepts exactly three bonded operands.",
-        "N uses those bonds as condition, true lane, and false lane.",
-        "N emits exactly one chosen result.",
-        "N keeps most inputs borrow-visible and consumes at most one owner.",
-        "N reserves an implicit lone-pair scratch slot for branch-selection context."
-    ]
+    return ["N accepts exactly three bonded operands.", "N uses those bonds as condition, true lane, and false lane.", "N emits exactly one chosen result.", "N keeps most inputs borrow-visible and consumes at most one owner.", "N reserves an implicit lone-pair scratch slot for branch-selection context."]
