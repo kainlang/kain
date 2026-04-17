@@ -462,6 +462,7 @@ fn write_report(
                     "viewport_summary": tile.frame.diagnostics.viewport_summary,
                     "composition_summary": tile.frame.diagnostics.composition_summary,
                     "framing_hint": tile.frame.diagnostics.framing_hint,
+                    "camera_fit_ratio": tile.frame.diagnostics.camera_fit_ratio,
                     "composition_stage": tile.frame.diagnostics.composition_stage,
                     "composition": scene_composition_payload(scene, config.width as f32 / config.height as f32),
                     "visible_instances": tile.frame.diagnostics.visible_instances,
@@ -489,6 +490,7 @@ fn scene_composition_payload(
         "composition_stage": diagnostics.composition_stage,
         "scene_density": diagnostics.scene_density,
         "framing_hint": diagnostics.framing_hint,
+        "camera_fit_ratio": diagnostics.camera_fit_ratio,
         "mesh_count": diagnostics.mesh_count,
         "material_count": diagnostics.material_count,
         "instance_count": diagnostics.instance_count,
@@ -741,5 +743,6 @@ mod tests {
         assert_eq!(payload["composition_stage"], "staged-plane");
         assert_eq!(payload["scene_density"], "balanced");
         assert!(payload["framing_hint"].is_string());
+        assert!(payload["camera_fit_ratio"].is_string());
     }
 }

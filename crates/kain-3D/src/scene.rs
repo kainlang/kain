@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use crate::primitive::PrimitiveShape;
+use crate::renderer::FrameDiagnostics;
 use crate::{
     ColorRgb, Effector, Field, InstancePattern, Instancer, NodeId, PrimitiveLibrary,
     Scene as AuthoringScene, Transform, Vec3,
@@ -281,6 +282,28 @@ impl SceneCompositionSummary {
             framed_camera_distance: self.framed_camera_distance,
             bounds: self.bounds,
         }
+    }
+
+    pub fn populate_frame_diagnostics(&self, diagnostics: &mut FrameDiagnostics) {
+        diagnostics.composition_summary = Some(self.brief_label());
+        diagnostics.scene_role = Some(self.scene_role_label().to_string());
+        diagnostics.scene_scale = Some(Self::scene_scale_label(self.bounds).to_string());
+        diagnostics.scene_profile = Some(
+            self.bounds
+                .map(|bounds| bounds.composition_profile_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.scene_density = Some(self.density_label().to_string());
+        diagnostics.composition_stage = Some(
+            self.bounds
+                .map(|bounds| bounds.composition_stage_label().to_string())
+                .unwrap_or_else(|| "unbounded".to_string()),
+        );
+        diagnostics.framing_hint = self.framing_hint_label().map(str::to_string);
+        diagnostics.camera_fit_ratio = self
+            .bounds
+            .zip(self.framed_camera_distance)
+            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)));
     }
 
     pub fn brief_label(&self) -> String {
@@ -898,6 +921,14 @@ pub struct SceneCatalog {
     pub scene_aliases: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SceneCatalogSummary {
+    pub default_scene: String,
+    pub canonical_scene_count: usize,
+    pub alias_count: usize,
+    pub total_scene_names: usize,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SceneCatalogEntry<'a> {
     pub requested_name: &'a str,
@@ -978,6 +1009,15 @@ impl Default for SceneCatalog {
 }
 
 impl SceneCatalog {
+    pub fn summary(&self) -> SceneCatalogSummary {
+        SceneCatalogSummary {
+            default_scene: self.default_scene.clone(),
+            canonical_scene_count: self.scenes.len(),
+            alias_count: self.scene_aliases.len(),
+            total_scene_names: self.scenes.len() + self.scene_aliases.len(),
+        }
+    }
+
     pub fn scene(&self, name: &str) -> Option<&SceneDescription> {
         self.resolve_scene(name).map(|resolution| resolution.scene)
     }
@@ -998,7 +1038,8 @@ impl SceneCatalog {
     }
 
     pub fn catalog_entries_with_aliases(&self) -> impl Iterator<Item = SceneCatalogEntry<'_>> {
-        self.scene_names_with_aliases().map(move |name| self.catalog_entry(name))
+        self.scene_names_with_aliases()
+            .map(move |name| self.catalog_entry(name))
     }
 
     pub fn catalog_entry(&self, requested_name: &str) -> SceneCatalogEntry<'_> {
@@ -1012,7 +1053,10 @@ impl SceneCatalog {
             resolved_name: &resolved.scene.name,
             is_alias: matches!(resolved.resolution.kind, SceneResolutionKind::Alias { .. }),
             is_default: requested_name == self.default_scene
-                || matches!(resolved.resolution.kind, SceneResolutionKind::Default { .. }),
+                || matches!(
+                    resolved.resolution.kind,
+                    SceneResolutionKind::Default { .. }
+                ),
             viewport_summary: &resolved.scene.viewport_summary,
             scene_role: diagnostics.scene_role,
             scene_scale: diagnostics.scene_scale,
@@ -3107,6 +3151,20 @@ mod tests {
         assert!(all_names.contains(&"renderer_atrium"));
         assert!(all_names.contains(&"gpu_compute_surface_probe"));
         assert!(all_names.len() > canonical.len());
+    }
+
+    #[test]
+    fn catalog_summary_reports_canonical_and_alias_counts() {
+        let catalog = SceneCatalog::default();
+        let summary = catalog.summary();
+
+        assert_eq!(summary.default_scene, "luminous_port");
+        assert_eq!(summary.canonical_scene_count, catalog.scenes.len());
+        assert_eq!(summary.alias_count, catalog.scene_aliases.len());
+        assert_eq!(
+            summary.total_scene_names,
+            summary.canonical_scene_count + summary.alias_count
+        );
     }
 
     #[test]

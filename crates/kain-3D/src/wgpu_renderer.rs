@@ -712,30 +712,7 @@ impl WgpuRenderer {
             &view.instance_transform_overrides,
             resolution.width as f32 / resolution.height as f32,
         );
-        diagnostics.composition_summary = Some(composition_summary.brief_label());
-        diagnostics.scene_role = Some(composition_summary.scene_role_label().to_string());
-        diagnostics.scene_scale = Some(
-            crate::SceneCompositionSummary::scene_scale_label(composition_summary.bounds)
-                .to_string(),
-        );
-        diagnostics.scene_profile = Some(
-            composition_summary
-                .bounds
-                .map(|bounds| bounds.composition_profile_label().to_string())
-                .unwrap_or_else(|| "unbounded".to_string()),
-        );
-        diagnostics.scene_density = Some(composition_summary.density_label().to_string());
-        diagnostics.composition_stage = Some(
-            composition_summary
-                .bounds
-                .map(|bounds| bounds.composition_stage_label().to_string())
-                .unwrap_or_else(|| "unbounded".to_string()),
-        );
-        diagnostics.framing_hint = composition_summary.framing_hint_label().map(str::to_string);
-        diagnostics.camera_fit_ratio = composition_summary
-            .bounds
-            .zip(composition_summary.framed_camera_distance)
-            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)));
+        composition_summary.populate_frame_diagnostics(&mut diagnostics);
         diagnostics.camera_source = Some(if view.camera.is_some() {
             FrameCameraSource::ExplicitView
         } else {
