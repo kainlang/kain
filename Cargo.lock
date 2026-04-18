@@ -2891,8 +2891,10 @@ dependencies = [
  "kain-interop",
  "kain-node",
  "kain-python",
+ "kain-reflect",
  "kain-sys-codegen",
  "kain-ui",
+ "kain-ui-tauri",
  "serde",
  "serde_json",
  "tempfile",
@@ -3030,6 +3032,9 @@ dependencies = [
 [[package]]
 name = "kain-reflect"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "kain-repair"
@@ -3096,6 +3101,17 @@ dependencies = [
  "serde",
  "serde_json",
  "wgpu",
+]
+
+[[package]]
+name = "kain-ui-tauri"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-reflect",
+ "kain-ui",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

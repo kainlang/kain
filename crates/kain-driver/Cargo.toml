@@ -12,7 +12,9 @@ kain-crate-ffi = { path = "../kain-crate-ffi" }
 kain-interop = { path = "../kain-interop" }
 kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
+kain-reflect = { path = "../kain-reflect" }
 kain-ui = { path = "../kain-ui" }
+kain-ui-tauri = { path = "../kain-ui-tauri", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -29,6 +31,7 @@ ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders"]
 gpu = ["dep:gpu"]
 web = ["dep:web"]
 sys = ["dep:kain-sys-codegen"]
+tauri = ["sys", "web", "dep:kain-ui-tauri"]
 
 [dev-dependencies]
 tempfile = "3.8"

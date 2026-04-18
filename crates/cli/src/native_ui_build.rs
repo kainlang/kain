@@ -4,14 +4,46 @@ use std::path::{Component, Path, PathBuf};
 use kain_core::error::KainError;
 use kain_driver::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppHostSidecarBinding,
-    NativeAppLauncherEntrypoint, NativeAppMaterializationConfig, NativeAppMaterializedPaths,
-    NativeAppMetadata, NativeAppRuntimeDependency,
+    NativeAppBundleConfig, NativeAppHostSidecarBinding, NativeAppLauncherEntrypoint,
+    NativeAppMaterializationConfig, NativeAppMetadata, NativeAppRuntimeDependency,
+};
+#[cfg(feature = "tauri")]
+use kain_driver::{
+    compile_tauri_app_bundle, materialize_tauri_app_bundle, TauriAppBundleConfig,
+    TauriAppMaterializationConfig,
 };
 
 const DEFAULT_RUNTIME_CRATE_NAME: &str = "kain-ui-native";
 const DEFAULT_ARTIFACT_OUTPUT_DIR: &str = "generated";
 const DEFAULT_WINDOW_SIZE: [f32; 2] = [1440.0, 920.0];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NativeUiHostKind {
+    #[default]
+    Qt,
+    Tauri,
+}
+
+impl NativeUiHostKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Qt => "qt",
+            Self::Tauri => "tauri",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct NativeUiTauriConfig {
+    pub bundle_identifier: Option<String>,
+    pub window_label: Option<String>,
+    pub cargo_package_name: Option<String>,
+    pub plugin_presets: Vec<String>,
+    pub capability_presets: Vec<String>,
+    pub permission_presets: Vec<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeUiRuntimeDependencyConfig {
@@ -28,6 +60,8 @@ impl Default for NativeUiRuntimeDependencyConfig {
 
 #[derive(Debug, Clone)]
 pub struct NativeUiBuildConfig {
+    pub host: NativeUiHostKind,
+    pub tauri: NativeUiTauriConfig,
     pub root_component: Option<String>,
     pub window_title: Option<String>,
     pub app_name: Option<String>,
@@ -45,6 +79,8 @@ pub struct NativeUiBuildConfig {
 impl Default for NativeUiBuildConfig {
     fn default() -> Self {
         Self {
+            host: NativeUiHostKind::Qt,
+            tauri: NativeUiTauriConfig::default(),
             root_component: None,
             window_title: None,
             app_name: None,
@@ -61,10 +97,36 @@ impl Default for NativeUiBuildConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeUiLaunchTarget {
+    Executable(PathBuf),
+    CargoManifest(PathBuf),
+}
+
+impl NativeUiLaunchTarget {
+    pub fn path(&self) -> &Path {
+        match self {
+            Self::Executable(path) | Self::CargoManifest(path) => path.as_path(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NativeUiGeneratedPaths {
+    pub host: NativeUiHostKind,
+    pub project_dir: PathBuf,
+    pub manifest_path: PathBuf,
+    pub main_entry_path: PathBuf,
+    pub source_copy_path: PathBuf,
+    pub artifact_paths: Vec<PathBuf>,
+    pub executable_path: Option<PathBuf>,
+    pub launch_target: Option<NativeUiLaunchTarget>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NativeUiBuildResult {
     pub metadata: NativeAppMetadata,
-    pub generated: NativeAppMaterializedPaths,
+    pub generated: NativeUiGeneratedPaths,
 }
 
 impl NativeUiBuildResult {
@@ -72,7 +134,7 @@ impl NativeUiBuildResult {
         let mut written = vec![
             self.generated.project_dir.clone(),
             self.generated.manifest_path.clone(),
-            self.generated.main_rs_path.clone(),
+            self.generated.main_entry_path.clone(),
             self.generated.source_copy_path.clone(),
         ];
         written.extend(self.generated.artifact_paths.clone());
@@ -118,21 +180,33 @@ pub fn run_native_ui_build_pipeline(
         )));
     };
 
-    let bundle = compile_native_app_bundle(&source, &bundle_config)?;
-    let project_dir = resolve_project_dir(input, &bundle, config)?;
+    let project_dir = resolve_project_dir(input, &base_name, config)?;
+    match config.host {
+        NativeUiHostKind::Qt => build_qt_native_ui(&source, &project_dir, &bundle_config, input, config),
+        NativeUiHostKind::Tauri => build_tauri_native_ui(&source, &project_dir, &bundle_config, config),
+    }
+}
+
+fn build_qt_native_ui(
+    source: &str,
+    project_dir: &Path,
+    bundle_config: &NativeAppBundleConfig,
+    input: &Path,
+    config: &NativeUiBuildConfig,
+) -> Result<NativeUiBuildResult, KainError> {
+    let bundle = compile_native_app_bundle(source, bundle_config)?;
     let runtime_dependency = resolve_runtime_dependency(
-        &project_dir,
+        project_dir,
         &config.runtime_crate_name,
         &config.runtime_dependency,
     )?;
-    let executable_output_dir = resolve_executable_output_dir(&project_dir, config)?;
+    let executable_output_dir = resolve_executable_output_dir(project_dir, config)?;
     let host_sidecars = resolve_native_ui_host_sidecars(input)?;
-
     let generated = materialize_native_app_bundle(
-        &source,
+        source,
         &bundle,
         &NativeAppMaterializationConfig {
-            project_dir,
+            project_dir: project_dir.to_path_buf(),
             runtime_crate_name: config.runtime_crate_name.clone(),
             runtime_dependency,
             artifact_output_dir: config.artifact_output_dir.clone(),
@@ -146,8 +220,68 @@ pub fn run_native_ui_build_pipeline(
 
     Ok(NativeUiBuildResult {
         metadata: bundle.metadata,
-        generated,
+        generated: NativeUiGeneratedPaths {
+            host: NativeUiHostKind::Qt,
+            project_dir: generated.project_dir.clone(),
+            manifest_path: generated.manifest_path.clone(),
+            main_entry_path: generated.main_rs_path.clone(),
+            source_copy_path: generated.source_copy_path.clone(),
+            artifact_paths: generated.artifact_paths.clone(),
+            executable_path: generated.executable_path.clone(),
+            launch_target: generated
+                .executable_path
+                .clone()
+                .map(NativeUiLaunchTarget::Executable),
+        },
     })
+}
+
+#[cfg(feature = "tauri")]
+fn build_tauri_native_ui(
+    source: &str,
+    project_dir: &Path,
+    bundle_config: &NativeAppBundleConfig,
+    config: &NativeUiBuildConfig,
+) -> Result<NativeUiBuildResult, KainError> {
+    let bundle = compile_tauri_app_bundle(
+        source,
+        &TauriAppBundleConfig {
+            native_app: bundle_config.clone(),
+        },
+    )?;
+    let generated = materialize_tauri_app_bundle(
+        source,
+        &bundle,
+        &tauri_materialization_config_from_cli(project_dir, config)?,
+    )?;
+
+    Ok(NativeUiBuildResult {
+        metadata: bundle.metadata,
+        generated: NativeUiGeneratedPaths {
+            host: NativeUiHostKind::Tauri,
+            project_dir: generated.project_dir.clone(),
+            manifest_path: generated.src_tauri_manifest_path.clone(),
+            main_entry_path: generated.src_tauri_main_rs_path.clone(),
+            source_copy_path: generated.source_copy_path.clone(),
+            artifact_paths: generated.artifact_paths.clone(),
+            executable_path: generated.executable_path.clone(),
+            launch_target: Some(NativeUiLaunchTarget::CargoManifest(
+                generated.src_tauri_manifest_path.clone(),
+            )),
+        },
+    })
+}
+
+#[cfg(not(feature = "tauri"))]
+fn build_tauri_native_ui(
+    _source: &str,
+    _project_dir: &Path,
+    _bundle_config: &NativeAppBundleConfig,
+    _config: &NativeUiBuildConfig,
+) -> Result<NativeUiBuildResult, KainError> {
+    Err(KainError::runtime(
+        "Tauri native UI support requires the cli tauri feature",
+    ))
 }
 
 fn native_app_bundle_config_from_cli(
@@ -179,17 +313,24 @@ fn native_app_bundle_config_from_cli(
 
 fn resolve_project_dir(
     input: &Path,
-    bundle: &NativeAppBundle,
+    base_name: &str,
     config: &NativeUiBuildConfig,
 ) -> Result<PathBuf, KainError> {
     let path = match &config.project_dir {
         Some(path) => path.clone(),
         None => input
             .parent()
-            .map(|parent| parent.join(format!("{}-native-ui", bundle.metadata.app_name)))
-            .unwrap_or_else(|| PathBuf::from(format!("{}-native-ui", bundle.metadata.app_name))),
+            .map(|parent| parent.join(default_project_dir_name(base_name, config.host)))
+            .unwrap_or_else(|| PathBuf::from(default_project_dir_name(base_name, config.host))),
     };
     absolute_path(&path)
+}
+
+fn default_project_dir_name(base_name: &str, host: NativeUiHostKind) -> String {
+    match host {
+        NativeUiHostKind::Qt => format!("{base_name}-native-ui"),
+        NativeUiHostKind::Tauri => format!("{base_name}-tauri-ui"),
+    }
 }
 
 fn resolve_runtime_dependency(
@@ -209,9 +350,9 @@ fn resolve_runtime_dependency(
         NativeUiRuntimeDependencyConfig::Path(path) => Ok(NativeAppRuntimeDependency::Path(
             relative_path_or_absolute(path, project_dir)?,
         )),
-        NativeUiRuntimeDependencyConfig::Version(version) => Ok(
-            NativeAppRuntimeDependency::Version(version.trim().to_string()),
-        ),
+        NativeUiRuntimeDependencyConfig::Version(version) => {
+            Ok(NativeAppRuntimeDependency::Version(version.trim().to_string()))
+        }
     }
 }
 
@@ -313,13 +454,140 @@ fn shared_path_prefix_len(path: &[Component<'_>], base: &[Component<'_>]) -> usi
     shared
 }
 
+#[cfg(feature = "tauri")]
+fn tauri_materialization_config_from_cli(
+    project_dir: &Path,
+    config: &NativeUiBuildConfig,
+) -> Result<TauriAppMaterializationConfig, KainError> {
+    Ok(TauriAppMaterializationConfig {
+        project_dir: project_dir.to_path_buf(),
+        artifact_output_dir: config.artifact_output_dir.clone(),
+        build_executable: config.build_executable,
+        release: config.release,
+        bundle_identifier: config.tauri.bundle_identifier.clone(),
+        window_label: config.tauri.window_label.clone(),
+        cargo_package_name: config.tauri.cargo_package_name.clone(),
+        plugin_presets: parse_tauri_plugin_presets(&config.tauri.plugin_presets)?,
+        capability_presets: parse_tauri_capability_presets(&config.tauri.capability_presets)?,
+        permission_presets: parse_tauri_permission_presets(&config.tauri.permission_presets)?,
+        host_type_registry: Default::default(),
+    })
+}
+
+#[cfg(feature = "tauri")]
+fn parse_tauri_plugin_presets(
+    values: &[String],
+) -> Result<Vec<kain_driver::TauriPluginPreset>, KainError> {
+    values
+        .iter()
+        .map(|value| match normalize_tauri_preset_value(value).as_str() {
+            "app" => Ok(kain_driver::TauriPluginPreset::App),
+            "window" => Ok(kain_driver::TauriPluginPreset::Window),
+            "webview" => Ok(kain_driver::TauriPluginPreset::Webview),
+            "event" => Ok(kain_driver::TauriPluginPreset::Event),
+            "path" => Ok(kain_driver::TauriPluginPreset::Path),
+            "fs" => Ok(kain_driver::TauriPluginPreset::Fs),
+            "dialog" => Ok(kain_driver::TauriPluginPreset::Dialog),
+            "shell" => Ok(kain_driver::TauriPluginPreset::Shell),
+            "process" => Ok(kain_driver::TauriPluginPreset::Process),
+            "menu" => Ok(kain_driver::TauriPluginPreset::Menu),
+            "tray" => Ok(kain_driver::TauriPluginPreset::Tray),
+            "clipboard" | "clipboardmanager" => Ok(kain_driver::TauriPluginPreset::Clipboard),
+            "notification" => Ok(kain_driver::TauriPluginPreset::Notification),
+            "opener" => Ok(kain_driver::TauriPluginPreset::Opener),
+            "store" => Ok(kain_driver::TauriPluginPreset::Store),
+            "sql" => Ok(kain_driver::TauriPluginPreset::Sql),
+            "http" => Ok(kain_driver::TauriPluginPreset::Http),
+            "updater" => Ok(kain_driver::TauriPluginPreset::Updater),
+            "globalshortcut" => Ok(kain_driver::TauriPluginPreset::GlobalShortcut),
+            other => Err(KainError::runtime(format!(
+                "Unsupported Tauri plugin preset '{other}'"
+            ))),
+        })
+        .collect()
+}
+
+#[cfg(feature = "tauri")]
+fn parse_tauri_capability_presets(
+    values: &[String],
+) -> Result<Vec<kain_driver::TauriCapabilityPreset>, KainError> {
+    values
+        .iter()
+        .map(|value| match normalize_tauri_preset_value(value).as_str() {
+            "mainwindow" => Ok(kain_driver::TauriCapabilityPreset::MainWindow),
+            "devwindow" => Ok(kain_driver::TauriCapabilityPreset::DevWindow),
+            other => Err(KainError::runtime(format!(
+                "Unsupported Tauri capability preset '{other}'"
+            ))),
+        })
+        .collect()
+}
+
+#[cfg(feature = "tauri")]
+fn parse_tauri_permission_presets(
+    values: &[String],
+) -> Result<Vec<kain_driver::TauriPermissionPreset>, KainError> {
+    values
+        .iter()
+        .map(|value| match normalize_tauri_preset_value(value).as_str() {
+            "coredefault" => Ok(kain_driver::TauriPermissionPreset::CoreDefault),
+            "fsdefault" => Ok(kain_driver::TauriPermissionPreset::FsDefault),
+            "dialogdefault" => Ok(kain_driver::TauriPermissionPreset::DialogDefault),
+            "shellallowopen" => Ok(kain_driver::TauriPermissionPreset::ShellAllowOpen),
+            "shellallowspawn" => Ok(kain_driver::TauriPermissionPreset::ShellAllowSpawn),
+            "shellallowexecute" => Ok(kain_driver::TauriPermissionPreset::ShellAllowExecute),
+            "shellallowkill" => Ok(kain_driver::TauriPermissionPreset::ShellAllowKill),
+            "shellallowstdinwrite" => {
+                Ok(kain_driver::TauriPermissionPreset::ShellAllowStdinWrite)
+            }
+            "processdefault" => Ok(kain_driver::TauriPermissionPreset::ProcessDefault),
+            "clipboardallowreadtext" => {
+                Ok(kain_driver::TauriPermissionPreset::ClipboardAllowReadText)
+            }
+            "clipboardallowwritetext" => {
+                Ok(kain_driver::TauriPermissionPreset::ClipboardAllowWriteText)
+            }
+            "notificationdefault" => Ok(kain_driver::TauriPermissionPreset::NotificationDefault),
+            "openerdefault" => Ok(kain_driver::TauriPermissionPreset::OpenerDefault),
+            "storedefault" => Ok(kain_driver::TauriPermissionPreset::StoreDefault),
+            "sqldefault" => Ok(kain_driver::TauriPermissionPreset::SqlDefault),
+            "sqlallowexecute" => Ok(kain_driver::TauriPermissionPreset::SqlAllowExecute),
+            "httpdefault" => Ok(kain_driver::TauriPermissionPreset::HttpDefault),
+            "updaterdefault" => Ok(kain_driver::TauriPermissionPreset::UpdaterDefault),
+            "globalshortcutallowisregistered" => Ok(
+                kain_driver::TauriPermissionPreset::GlobalShortcutAllowIsRegistered,
+            ),
+            "globalshortcutallowregister" => {
+                Ok(kain_driver::TauriPermissionPreset::GlobalShortcutAllowRegister)
+            }
+            "globalshortcutallowunregister" => Ok(
+                kain_driver::TauriPermissionPreset::GlobalShortcutAllowUnregister,
+            ),
+            "kainbridge" => Ok(kain_driver::TauriPermissionPreset::KainBridge),
+            other => Err(KainError::runtime(format!(
+                "Unsupported Tauri permission preset '{other}'"
+            ))),
+        })
+        .collect()
+}
+
+#[cfg(feature = "tauri")]
+fn normalize_tauri_preset_value(value: &str) -> String {
+    value
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|ch| *ch != '-' && *ch != '_' && !ch.is_whitespace())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
 
     #[test]
-    fn native_ui_build_materializes_project_without_executable() {
+    fn native_ui_build_materializes_qt_project_without_executable() {
         let temp = TempDir::new().expect("temp dir");
         let input = temp.path().join("app.kn");
         fs::write(
@@ -342,10 +610,11 @@ component App():
         )
         .expect("native ui build should succeed");
 
+        assert_eq!(result.generated.host, NativeUiHostKind::Qt);
         assert_eq!(result.metadata.root_component, "App");
         assert!(result.generated.project_dir.exists());
         assert!(result.generated.manifest_path.exists());
-        assert!(result.generated.main_rs_path.exists());
+        assert!(result.generated.main_entry_path.exists());
         assert!(result
             .generated
             .artifact_paths
@@ -394,7 +663,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
                 .is_some_and(|value| value.starts_with("kain_compute_residency_"))
         }));
 
-        let main_rs = fs::read_to_string(&result.generated.main_rs_path).expect("main.rs");
+        let main_rs = fs::read_to_string(&result.generated.main_entry_path).expect("main.rs");
         assert!(main_rs.contains("KAIN_COMPUTE_RESIDENCY"));
     }
 
@@ -424,13 +693,52 @@ component App():
         )
         .expect("native ui build should succeed");
 
-        let main_rs = fs::read_to_string(&result.generated.main_rs_path).expect("main.rs");
+        let main_rs = fs::read_to_string(&result.generated.main_entry_path).expect("main.rs");
         assert!(main_rs.contains("KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH"));
         assert!(result.generated.artifact_paths.iter().any(|path| {
             path.file_name()
                 .and_then(|value| value.to_str())
                 .is_some_and(|value| value == "material_atrium_visual_example.png")
         }));
+    }
+
+    #[cfg(feature = "tauri")]
+    #[test]
+    fn native_ui_build_materializes_tauri_project_without_binary() {
+        let temp = TempDir::new().expect("temp dir");
+        let input = temp.path().join("app.kn");
+        fs::write(
+            &input,
+            r#"
+component App():
+    render <panel title="Studio" />
+"#,
+        )
+        .expect("write source");
+
+        let result = run_native_ui_build_pipeline(
+            &input,
+            &NativeUiBuildConfig {
+                host: NativeUiHostKind::Tauri,
+                project_dir: Some(temp.path().join("dist").join("studio-tauri")),
+                build_executable: false,
+                ..Default::default()
+            },
+        )
+        .expect("tauri native ui build should succeed");
+
+        assert_eq!(result.generated.host, NativeUiHostKind::Tauri);
+        assert!(result.generated.manifest_path.ends_with("src-tauri/Cargo.toml"));
+        assert!(result.generated.main_entry_path.ends_with("src-tauri/src/main.rs"));
+        assert!(matches!(
+            result.generated.launch_target,
+            Some(NativeUiLaunchTarget::CargoManifest(_))
+        ));
+        assert!(result
+            .generated
+            .artifact_paths
+            .iter()
+            .any(|path| path.ends_with("kain_tauri_bridge_manifest.json")));
     }
 
     #[test]

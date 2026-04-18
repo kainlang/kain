@@ -31,6 +31,8 @@ use kain_core::{
 mod compute_residency;
 #[cfg(feature = "sys")]
 mod native_app;
+#[cfg(feature = "tauri")]
+mod tauri_app;
 
 #[cfg(feature = "sys")]
 use kain_core::Span;
@@ -52,6 +54,11 @@ pub use native_app::{
     NativeAppBundle, NativeAppBundleConfig, NativeAppHostSidecarBinding,
     NativeAppLauncherEntrypoint, NativeAppMaterializationConfig, NativeAppMaterializedPaths,
     NativeAppMetadata, NativeAppRuntimeDependency,
+};
+#[cfg(feature = "tauri")]
+pub use tauri_app::{
+    compile_tauri_app_bundle, materialize_tauri_app_bundle, TauriAppBundle,
+    TauriAppBundleConfig, TauriAppMaterializationConfig, TauriAppMaterializedPaths,
 };
 
 #[cfg(feature = "ue5")]

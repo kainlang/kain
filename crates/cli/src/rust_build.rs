@@ -5,9 +5,8 @@ use crate::packager::config::{RustBuildArtifact, RustBuildConfig};
 use crate::{frontend_to_typed_program, CompileTarget};
 use kain_core::error::KainError;
 use kain_driver::{
-    compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
-    NativeAppBundle, NativeAppBundleConfig, NativeAppLauncherEntrypoint,
-    NativeAppMaterializationConfig, NativeAppRuntimeDependency,
+    compile_native_app_bundle, discover_native_app_root_component, NativeAppBundle,
+    NativeAppBundleConfig,
 };
 
 #[cfg(feature = "sys")]
@@ -127,33 +126,25 @@ pub fn run_rust_build_pipeline(
             &bundle.metadata.app_name,
             native_ui.output.as_ref(),
         );
-        let workspace_root = resolve_workspace_root()?;
-        let dependency_root = workspace_root.join("crates").join("kain-ui-native");
-        let dependency_path =
-            diff_paths(&dependency_root, &project_dir).unwrap_or_else(|| dependency_root.clone());
-        let generated = materialize_native_app_bundle(
-            &source,
-            bundle,
-            &NativeAppMaterializationConfig {
-                project_dir,
-                runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: NativeAppRuntimeDependency::Path(dependency_path),
+        let generated = crate::native_ui_build::run_native_ui_build_pipeline(
+            input,
+            &crate::native_ui_build::NativeUiBuildConfig {
+                host: native_ui.host,
+                tauri: native_ui.tauri.clone(),
+                root_component: native_ui.root_component.clone(),
+                window_title: native_ui.window_title.clone(),
+                app_name: native_ui.app_name.clone(),
+                project_dir: Some(project_dir),
                 artifact_output_dir: PathBuf::from("generated"),
                 build_executable: native_ui.build_executable,
-                release: native_ui.release,
                 executable_output_dir: native_ui.build_executable.then(|| output_root.clone()),
-                launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
-                host_sidecars: Vec::new(),
+                release: native_ui.release,
+                runtime_crate_name: "kain-ui-native".to_string(),
+                runtime_dependency: crate::native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath,
+                include_spirv: config.artifacts.contains(&RustBuildArtifact::Spirv),
             },
         )?;
-        written.push(generated.project_dir);
-        written.push(generated.manifest_path);
-        written.push(generated.main_rs_path);
-        written.push(generated.source_copy_path);
-        written.extend(generated.artifact_paths);
-        if let Some(executable_path) = generated.executable_path {
-            written.push(executable_path);
-        }
+        written.extend(generated.written_paths());
     }
 
     Ok(written)
@@ -275,6 +266,8 @@ fn default_file_build_native_ui_config(
     base_name: &str,
 ) -> crate::packager::config::RustNativeUiAppConfig {
     crate::packager::config::RustNativeUiAppConfig {
+        host: crate::native_ui_build::NativeUiHostKind::Qt,
+        tauri: crate::native_ui_build::NativeUiTauriConfig::default(),
         root_component: None,
         window_title: Some(base_name.to_string()),
         app_name: Some(base_name.to_string()),

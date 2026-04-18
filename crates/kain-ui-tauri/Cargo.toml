@@ -1,0 +1,11 @@
+[package]
+name = "kain-ui-tauri"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+kain-reflect = { path = "../kain-reflect" }
+kain-ui = { path = "../kain-ui" }
+serde = { workspace = true }
+serde_json = { workspace = true }

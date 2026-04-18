@@ -14,7 +14,8 @@ use notify::{Event, RecursiveMode, Watcher};
 use serde::Deserialize;
 
 use crate::native_ui_build::{
-    run_native_ui_build_pipeline, NativeUiBuildConfig, NativeUiBuildResult,
+    run_native_ui_build_pipeline, NativeUiBuildConfig, NativeUiBuildResult, NativeUiHostKind,
+    NativeUiLaunchTarget,
 };
 
 const APP_MANIFEST_FILE_NAME: &str = "app_manifest.json";
@@ -80,8 +81,8 @@ pub struct NativeUiDevSession {
     config: NativeUiDevConfig,
     project_dir: PathBuf,
     artifact_dir: PathBuf,
-    executable_dir: PathBuf,
-    executable_path: PathBuf,
+    launch_target: NativeUiLaunchTarget,
+    launch_working_dir: PathBuf,
     child: Option<Child>,
     running: Arc<AtomicBool>,
     previous_manifest: NativeUiDevManifestState,
@@ -98,31 +99,28 @@ impl NativeUiDevSession {
         .map_err(|err| KainError::runtime(format!("Failed to install Ctrl-C handler: {err}")))?;
 
         let initial_result = build_native_ui(config.input.as_path(), &config.build, true)?;
-        let executable_path = initial_result
+        let launch_target = initial_result
             .generated
-            .executable_path
+            .launch_target
             .clone()
             .ok_or_else(|| {
                 KainError::runtime(
-                    "Native UI dev requires an executable; initial materialization skipped it",
+                    "Native UI dev requires a launch target; initial materialization skipped it",
                 )
             })?;
 
-        sync_artifacts_to_executable_dir(&initial_result, &executable_path)?;
+        sync_artifacts_to_launch_target(&initial_result, &launch_target)?;
         let previous_manifest = load_manifest_state(&initial_result)?;
         let project_dir = initial_result.generated.project_dir.clone();
         let artifact_dir = resolve_artifact_dir(&initial_result, &config)?;
-        let executable_dir = executable_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| project_dir.clone());
+        let launch_working_dir = resolve_launch_working_dir(&launch_target, &project_dir);
 
         let mut session = Self {
             config,
             project_dir,
             artifact_dir,
-            executable_dir,
-            executable_path,
+            launch_target,
+            launch_working_dir,
             child: None,
             running,
             previous_manifest,
@@ -133,7 +131,10 @@ impl NativeUiDevSession {
 
     pub fn run(mut self) -> Result<(), KainError> {
         println!(" Native UI dev root: {}", self.config.watch_root.display());
-        println!(" Native UI executable: {}", self.executable_path.display());
+        println!(
+            " Native UI launch target: {}",
+            self.launch_target.path().display()
+        );
         println!(" Watching for Kain/native app changes... (Ctrl+C to stop)");
 
         let (tx, rx) = mpsc::channel();
@@ -197,59 +198,59 @@ impl NativeUiDevSession {
         let started = Instant::now();
         let bundle_result =
             build_native_ui(self.config.input.as_path(), &self.config.build, false)?;
-        sync_artifacts_to_executable_dir(&bundle_result, &self.executable_path)?;
+        sync_artifacts_to_launch_target(&bundle_result, &self.launch_target)?;
         let bundle_manifest = load_manifest_state(&bundle_result)?;
         let (initial_decision, initial_note) = classify_reload_decision(
             &self.previous_manifest,
             &bundle_manifest,
-            &self.executable_path,
+            &self.launch_target,
             self.child.is_some(),
         );
 
-        let (decision, note, final_result, manifest) =
-            if restart_requires_executable_rebuild(&self.previous_manifest, &bundle_manifest) {
-                let executable_result =
-                    build_native_ui(self.config.input.as_path(), &self.config.build, true)?;
-                let executable_path = executable_result
-                    .generated
-                    .executable_path
-                    .clone()
-                    .ok_or_else(|| {
-                        KainError::runtime(
-                            "Native UI dev expected an executable after restart-triggering rebuild",
-                        )
-                    })?;
-                self.executable_path = executable_path;
-                self.executable_dir = self
-                    .executable_path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| executable_result.generated.project_dir.clone());
-                sync_artifacts_to_executable_dir(&executable_result, &self.executable_path)?;
-                let executable_manifest = load_manifest_state(&executable_result)?;
-                let (rebuilt_decision, rebuilt_note) = classify_reload_decision(
-                    &self.previous_manifest,
-                    &executable_manifest,
-                    &self.executable_path,
-                    self.child.is_some(),
-                );
-                (
-                    rebuilt_decision,
-                    rebuilt_note,
-                    executable_result,
-                    executable_manifest,
+        let (decision, note, final_result, manifest) = if restart_requires_launch_target_rebuild(
+            self.config.build.host,
+            &self.previous_manifest,
+            &bundle_manifest,
+        ) {
+            let launch_result = build_native_ui(self.config.input.as_path(), &self.config.build, true)?;
+            let next_launch_target = launch_result.generated.launch_target.clone().ok_or_else(|| {
+                KainError::runtime(
+                    "Native UI dev expected a launch target after restart-triggering rebuild",
                 )
-            } else {
-                (
-                    initial_decision,
-                    initial_note,
-                    bundle_result,
-                    bundle_manifest,
-                )
-            };
+            })?;
+            sync_artifacts_to_launch_target(&launch_result, &next_launch_target)?;
+            let launch_manifest = load_manifest_state(&launch_result)?;
+            let (rebuilt_decision, rebuilt_note) = classify_reload_decision(
+                &self.previous_manifest,
+                &launch_manifest,
+                &next_launch_target,
+                self.child.is_some(),
+            );
+            self.launch_target = next_launch_target;
+            self.launch_working_dir =
+                resolve_launch_working_dir(&self.launch_target, &launch_result.generated.project_dir);
+            (
+                rebuilt_decision,
+                rebuilt_note,
+                launch_result,
+                launch_manifest,
+            )
+        } else {
+            (
+                initial_decision,
+                initial_note,
+                bundle_result,
+                bundle_manifest,
+            )
+        };
 
         self.project_dir = final_result.generated.project_dir.clone();
         self.artifact_dir = resolve_artifact_dir(&final_result, &self.config)?;
+        if let Some(launch_target) = final_result.generated.launch_target.clone() {
+            self.launch_target = launch_target;
+            self.launch_working_dir =
+                resolve_launch_working_dir(&self.launch_target, &self.project_dir);
+        }
 
         match decision {
             ReloadDecision::Noop => {}
@@ -307,10 +308,6 @@ impl NativeUiDevSession {
             return Ok(false);
         }
 
-        if path.starts_with(&self.executable_dir) && self.executable_dir != self.config.watch_root {
-            return Ok(false);
-        }
-
         let ignored = path.components().any(|component| {
             let std::path::Component::Normal(value) = component else {
                 return false;
@@ -341,27 +338,35 @@ impl NativeUiDevSession {
     }
 
     fn launch_child(&mut self) -> Result<(), KainError> {
-        if !self.executable_path.exists() {
+        if !self.launch_target.path().exists() {
             return Err(KainError::runtime(format!(
-                "Native UI executable does not exist: {}",
-                self.executable_path.display()
+                "Native UI launch target does not exist: {}",
+                self.launch_target.path().display()
             )));
         }
 
-        let mut command = Command::new(&self.executable_path);
-        command
-            .current_dir(
-                self.executable_path
-                    .parent()
-                    .unwrap_or(self.config.watch_root.as_path()),
-            )
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        let mut command = match &self.launch_target {
+            NativeUiLaunchTarget::Executable(path) => {
+                let mut command = Command::new(path);
+                command.current_dir(path.parent().unwrap_or(self.launch_working_dir.as_path()));
+                command
+            }
+            NativeUiLaunchTarget::CargoManifest(manifest_path) => {
+                let mut command = Command::new("cargo");
+                command.arg("run").arg("--manifest-path").arg(manifest_path);
+                if self.config.build.release {
+                    command.arg("--release");
+                }
+                command.current_dir(&self.launch_working_dir);
+                command
+            }
+        };
+        command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = command.spawn().map_err(|err| {
             KainError::runtime(format!(
-                "Failed to launch native UI executable {}: {}",
-                self.executable_path.display(),
+                "Failed to launch native UI target {}: {}",
+                self.launch_target.path().display(),
                 err
             ))
         })?;
@@ -403,7 +408,7 @@ impl NativeUiDevSession {
             if !already_exited {
                 return Err(KainError::runtime(format!(
                     "Failed to stop native UI child {}: {}",
-                    self.executable_path.display(),
+                    self.launch_target.path().display(),
                     err
                 )));
             }
@@ -524,7 +529,10 @@ fn build_native_ui(
     build_executable: bool,
 ) -> Result<NativeUiBuildResult, KainError> {
     let mut config = config.clone();
-    config.build_executable = build_executable;
+    config.build_executable = match config.host {
+        NativeUiHostKind::Qt => build_executable,
+        NativeUiHostKind::Tauri => false,
+    };
     run_native_ui_build_pipeline(input, &config)
 }
 
@@ -627,7 +635,7 @@ fn snapshot_contract_from_snapshot(snapshot: NativeUiDevSnapshot) -> NativeUiDev
 fn classify_reload_decision(
     previous: &NativeUiDevManifestState,
     current: &NativeUiDevManifestState,
-    executable_path: &Path,
+    launch_target: &NativeUiLaunchTarget,
     has_running_child: bool,
 ) -> (ReloadDecision, String) {
     let changed_roles = current
@@ -645,7 +653,7 @@ fn classify_reload_decision(
         || sidecar_contract_changed
         || snapshot_contract_changed
         || !current.hot_reload.reload_compatible_with_previous
-        || !executable_path.exists()
+        || !launch_target.path().exists()
         || !has_running_child;
 
     if changed_roles.is_empty() && !needs_restart {
@@ -664,8 +672,8 @@ fn classify_reload_decision(
             "runtime snapshot contract changed"
         } else if !current.hot_reload.reload_compatible_with_previous {
             "hot reload compatibility gate failed"
-        } else if !executable_path.exists() {
-            "native UI executable is missing"
+        } else if !launch_target.path().exists() {
+            "native UI launch target is missing"
         } else {
             "native UI child is not running"
         };
@@ -682,17 +690,21 @@ fn classify_reload_decision(
     )
 }
 
-fn restart_requires_executable_rebuild(
+fn restart_requires_launch_target_rebuild(
+    host: NativeUiHostKind,
     previous: &NativeUiDevManifestState,
     current: &NativeUiDevManifestState,
 ) -> bool {
-    previous.launcher != current.launcher
+    matches!(host, NativeUiHostKind::Qt) && previous.launcher != current.launcher
 }
 
-fn sync_artifacts_to_executable_dir(
+fn sync_artifacts_to_launch_target(
     result: &NativeUiBuildResult,
-    executable_path: &Path,
+    launch_target: &NativeUiLaunchTarget,
 ) -> Result<(), KainError> {
+    let NativeUiLaunchTarget::Executable(executable_path) = launch_target else {
+        return Ok(());
+    };
     let Some(executable_dir) = executable_path.parent() else {
         return Ok(());
     };
@@ -726,6 +738,20 @@ fn sync_artifacts_to_executable_dir(
     }
 
     Ok(())
+}
+
+fn resolve_launch_working_dir(launch_target: &NativeUiLaunchTarget, project_dir: &Path) -> PathBuf {
+    match launch_target {
+        NativeUiLaunchTarget::Executable(path) => path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| project_dir.to_path_buf()),
+        NativeUiLaunchTarget::CargoManifest(manifest_path) => manifest_path
+            .parent()
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| project_dir.to_path_buf()),
+    }
 }
 
 fn resolve_artifact_dir(
@@ -867,8 +893,9 @@ mod tests {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["source_input"], true);
         let executable_path = test_executable_path();
+        let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) =
-            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
+            classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::Noop);
         assert!(note.contains("source changed"));
     }
@@ -878,8 +905,9 @@ mod tests {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["runtime_bundle", "shader_bundle"], true);
         let executable_path = test_executable_path();
+        let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) =
-            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
+            classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::HotReloadInProcess);
         assert!(note.contains("runtime_bundle"));
     }
@@ -889,8 +917,9 @@ mod tests {
         let previous = manifest_state(&[], true);
         let current = manifest_state(&["runtime_bundle"], false);
         let executable_path = test_executable_path();
+        let launch_target = NativeUiLaunchTarget::Executable(executable_path);
         let (decision, note) =
-            classify_reload_decision(&previous, &current, executable_path.as_path(), true);
+            classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::RestartProcess);
         assert!(note.contains("compatibility"));
     }

@@ -245,6 +245,18 @@ enum BuildCommand {
         /// Use a published version dependency for the native runtime crate
         #[arg(long, conflicts_with = "runtime_path")]
         runtime_version: Option<String>,
+
+        /// Native desktop host backend
+        #[arg(long, default_value = "qt")]
+        host: String,
+
+        /// Tauri bundle identifier override
+        #[arg(long = "tauri-bundle-id")]
+        tauri_bundle_id: Option<String>,
+
+        /// Tauri window label override
+        #[arg(long = "tauri-window-label")]
+        tauri_window_label: Option<String>,
     },
 }
 
@@ -278,7 +290,30 @@ enum NativeUiCommand {
         /// Build the generated app in release mode
         #[arg(long)]
         release: bool,
+
+        /// Native desktop host backend
+        #[arg(long, default_value = "qt")]
+        host: String,
+
+        /// Tauri bundle identifier override
+        #[arg(long = "tauri-bundle-id")]
+        tauri_bundle_id: Option<String>,
+
+        /// Tauri window label override
+        #[arg(long = "tauri-window-label")]
+        tauri_window_label: Option<String>,
     },
+}
+
+fn parse_native_ui_host_kind(value: &str) -> Result<native_ui_build::NativeUiHostKind, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "qt" => Ok(native_ui_build::NativeUiHostKind::Qt),
+        "tauri" | "webview" => Ok(native_ui_build::NativeUiHostKind::Tauri),
+        other => Err(format!(
+            "Unsupported native UI host '{}'. Expected 'qt' or 'tauri'.",
+            other
+        )),
+    }
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -1850,8 +1885,18 @@ fn main() {
                         runtime_crate,
                         runtime_path,
                         runtime_version,
+                        host,
+                        tauri_bundle_id,
+                        tauri_window_label,
                     }) = command
                     {
+                        let host = match parse_native_ui_host_kind(&host) {
+                            Ok(host) => host,
+                            Err(err) => {
+                                eprintln!(" Native UI build failed: {}", err);
+                                std::process::exit(1);
+                            }
+                        };
                         let runtime_dependency = if let Some(path) = runtime_path {
                             native_ui_build::NativeUiRuntimeDependencyConfig::Path(path)
                         } else if let Some(version) = runtime_version {
@@ -1860,6 +1905,12 @@ fn main() {
                             native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath
                         };
                         let config = native_ui_build::NativeUiBuildConfig {
+                            host,
+                            tauri: native_ui_build::NativeUiTauriConfig {
+                                bundle_identifier: tauri_bundle_id,
+                                window_label: tauri_window_label,
+                                ..Default::default()
+                            },
                             root_component,
                             window_title,
                             app_name,
@@ -1970,8 +2021,24 @@ fn main() {
                         project_dir,
                         artifact_dir,
                         release,
+                        host,
+                        tauri_bundle_id,
+                        tauri_window_label,
                     } => {
+                        let host = match parse_native_ui_host_kind(&host) {
+                            Ok(host) => host,
+                            Err(err) => {
+                                eprintln!(" Native UI dev failed: {}", err);
+                                std::process::exit(1);
+                            }
+                        };
                         let build = native_ui_build::NativeUiBuildConfig {
+                            host,
+                            tauri: native_ui_build::NativeUiTauriConfig {
+                                bundle_identifier: tauri_bundle_id,
+                                window_label: tauri_window_label,
+                                ..Default::default()
+                            },
                             root_component,
                             window_title,
                             app_name,

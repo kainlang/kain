@@ -1,3 +1,4 @@
+use crate::native_ui_build::{NativeUiHostKind, NativeUiTauriConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -28,7 +29,12 @@ pub enum RustBuildArtifact {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct RustNativeUiAppConfig {
+    #[serde(default)]
+    pub host: NativeUiHostKind,
+    #[serde(default)]
+    pub tauri: NativeUiTauriConfig,
     #[serde(default)]
     pub root_component: Option<String>,
     #[serde(default)]
@@ -70,6 +76,22 @@ fn default_native_ui_window_size() -> [f32; 2] {
 
 fn default_true() -> bool {
     true
+}
+
+impl Default for RustNativeUiAppConfig {
+    fn default() -> Self {
+        Self {
+            host: NativeUiHostKind::Qt,
+            tauri: NativeUiTauriConfig::default(),
+            root_component: None,
+            window_title: None,
+            app_name: None,
+            output: None,
+            initial_window_size: default_native_ui_window_size(),
+            build_executable: default_true(),
+            release: false,
+        }
+    }
 }
 
 impl Default for RustBuildConfig {
