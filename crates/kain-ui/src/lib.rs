@@ -72,6 +72,7 @@ pub enum UiHostBackendKind {
     Slint,
     Qt,
     Cef,
+    Tauri,
 }
 
 /// Declarative backend capability profile.
@@ -219,6 +220,18 @@ pub const UI_HOST_BACKEND_CAPABILITIES: &[UiHostBackendCapabilities] = &[
         layout_engine: UiLayoutEngineKind::Auto,
         render_engine: UiRenderEngineKind::Browser,
         supports_real_windowing: false,
+        supports_dom_embedding: true,
+        supports_gpu_viewports: true,
+        supports_docking: true,
+        supports_rich_text: true,
+        supports_pointer_capture: true,
+        supports_accessibility_tree: true,
+    },
+    UiHostBackendCapabilities {
+        host_backend: UiHostBackendKind::Tauri,
+        layout_engine: UiLayoutEngineKind::Yoga,
+        render_engine: UiRenderEngineKind::Browser,
+        supports_real_windowing: true,
         supports_dom_embedding: true,
         supports_gpu_viewports: true,
         supports_docking: true,
@@ -3349,6 +3362,7 @@ fn parse_surface_host_backend(value: String) -> Option<UiHostBackendKind> {
         "slint" => Some(UiHostBackendKind::Slint),
         "qt" => Some(UiHostBackendKind::Qt),
         "cef" | "browser" => Some(UiHostBackendKind::Cef),
+        "tauri" | "webview" => Some(UiHostBackendKind::Tauri),
         _ => None,
     }
 }

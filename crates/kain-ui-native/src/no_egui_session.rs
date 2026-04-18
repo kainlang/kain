@@ -244,8 +244,10 @@ fn classify_surface_role(surface: &UiSurface) -> SessionPaneRole {
         return SessionPaneRole::Viewport;
     }
 
-    if surface.preferred_host_backend == UiHostBackendKind::Cef
-        || matches!(&surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
+    if matches!(
+        surface.preferred_host_backend,
+        UiHostBackendKind::Cef | UiHostBackendKind::Tauri
+    ) || matches!(&surface.kind, UiSurfaceKind::Custom(value) if value.contains("browser"))
     {
         return SessionPaneRole::Browser;
     }
@@ -335,6 +337,7 @@ fn host_backend_label(backend: UiHostBackendKind) -> &'static str {
         UiHostBackendKind::Slint => "slint",
         UiHostBackendKind::Qt => "qt",
         UiHostBackendKind::Cef => "cef",
+        UiHostBackendKind::Tauri => "tauri",
     }
 }
 

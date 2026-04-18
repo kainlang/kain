@@ -10,6 +10,7 @@ members = [
     "crates/kain-fast3d-runtime",
     "crates/kain-ui",
     "crates/kain-ui-native",
+    "crates/kain-ui-tauri",
     "crates/kain-selfhost",
     "crates/kain-omni",
     "crates/kain-driver",

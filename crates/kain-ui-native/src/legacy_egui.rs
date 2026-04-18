@@ -716,6 +716,7 @@ fn host_backend_label(backend: UiHostBackendKind) -> &'static str {
         UiHostBackendKind::Slint => "slint",
         UiHostBackendKind::Qt => "qt",
         UiHostBackendKind::Cef => "cef",
+        UiHostBackendKind::Tauri => "tauri",
     }
 }
 

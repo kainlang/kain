@@ -6,3 +6,4 @@ description = "Reflection and schema metadata for Rust <-> KAIN interop"
 license = "MIT"
 
 [dependencies]
+serde = { workspace = true }

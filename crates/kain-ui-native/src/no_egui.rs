@@ -199,6 +199,7 @@ fn host_launch_label(backend_plan: &KainUiNativeBackendPlan) -> &'static str {
         UiHostBackendKind::Slint => "slint",
         UiHostBackendKind::Qt => "qt",
         UiHostBackendKind::Cef => "cef",
+        UiHostBackendKind::Tauri => "tauri",
     }
 }
 

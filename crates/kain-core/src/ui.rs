@@ -2329,6 +2329,7 @@ fn parse_surface_host_backend(input: String) -> Option<UiHostBackendKind> {
         "slint" => Some(UiHostBackendKind::Slint),
         "qt" => Some(UiHostBackendKind::Qt),
         "cef" | "browser" => Some(UiHostBackendKind::Cef),
+        "tauri" | "webview" => Some(UiHostBackendKind::Tauri),
         _ => None,
     }
 }

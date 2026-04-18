@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 pub type AttrMap = BTreeMap<String, String>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PrimitiveType {
     Unit,
     Bool,
@@ -11,7 +13,7 @@ pub enum PrimitiveType {
     String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TypeRef {
     Primitive(PrimitiveType),
     Named(String),
@@ -42,7 +44,7 @@ impl PrimitiveType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldSchema {
     pub name: String,
     pub ty: TypeRef,
@@ -64,14 +66,14 @@ impl FieldSchema {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VariantShape {
     Unit,
     Tuple,
     Named,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VariantSchema {
     pub name: String,
     pub shape: VariantShape,
@@ -95,14 +97,14 @@ impl VariantSchema {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TypeKind {
     Struct { fields: Vec<FieldSchema> },
     Enum { variants: Vec<VariantSchema> },
     Transparent { inner: TypeRef },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeSchema {
     pub name: String,
     pub rust_name: String,
@@ -177,7 +179,7 @@ pub trait StaticTypeRef {
     fn type_ref() -> TypeRef;
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TypeRegistry {
     schemas: BTreeMap<String, TypeSchema>,
 }
