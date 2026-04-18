@@ -48,6 +48,8 @@ pub use compute_residency::{
     write_compute_residency_sidecars, ComputeResidencyBinding, ComputeResidencyBundle,
     ComputeResidencyEntry, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
 };
+#[cfg(feature = "tauri")]
+pub use kain_ui_tauri::{TauriCapabilityPreset, TauriPermissionPreset, TauriPluginPreset};
 #[cfg(feature = "sys")]
 pub use native_app::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
@@ -57,8 +59,8 @@ pub use native_app::{
 };
 #[cfg(feature = "tauri")]
 pub use tauri_app::{
-    compile_tauri_app_bundle, materialize_tauri_app_bundle, TauriAppBundle,
-    TauriAppBundleConfig, TauriAppMaterializationConfig, TauriAppMaterializedPaths,
+    compile_tauri_app_bundle, materialize_tauri_app_bundle, TauriAppBundle, TauriAppBundleConfig,
+    TauriAppMaterializationConfig, TauriAppMaterializedPaths,
 };
 
 #[cfg(feature = "ue5")]

@@ -2,9 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use kain_core::runtime_contract::RuntimeReflectionPayload;
 use kain_reflect::{TypeRegistry, TypeSchema};
+#[cfg(test)]
+use kain_ui::{UiBuildOutput, UiRuntimeMetadata};
 use kain_ui::{
-    UiBuildOutput, UiCommandDescriptor, UiCommandEffectKind, UiHostBackendKind,
-    UiLayoutEngineKind, UiRenderEngineKind, UiRuntimeBundle, UiRuntimeMetadata, UiSurfaceKind,
+    UiCommandDescriptor, UiCommandEffectKind, UiHostBackendKind, UiLayoutEngineKind,
+    UiRenderEngineKind, UiRuntimeBundle, UiSurfaceKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -102,7 +104,12 @@ impl TauriPluginPreset {
 
     pub fn dependency_line(self) -> Option<&'static str> {
         match self {
-            Self::App | Self::Window | Self::Webview | Self::Event | Self::Path | Self::Menu
+            Self::App
+            | Self::Window
+            | Self::Webview
+            | Self::Event
+            | Self::Path
+            | Self::Menu
             | Self::Tray => None,
             Self::Fs => Some("tauri-plugin-fs = \"2\""),
             Self::Dialog => Some("tauri-plugin-dialog = \"2\""),
@@ -168,8 +175,12 @@ impl TauriCapabilityPreset {
 
     pub fn description(self, window_label: &str) -> String {
         match self {
-            Self::MainWindow => format!("Capability for the generated Kain window '{window_label}'."),
-            Self::DevWindow => format!("Development capability for the generated Kain window '{window_label}'."),
+            Self::MainWindow => {
+                format!("Capability for the generated Kain window '{window_label}'.")
+            }
+            Self::DevWindow => {
+                format!("Development capability for the generated Kain window '{window_label}'.")
+            }
         }
     }
 }
@@ -443,7 +454,10 @@ pub fn retarget_ui_runtime_bundle_for_tauri(bundle: &UiRuntimeBundle) -> UiRunti
         surface.preferred_layout_engine = UiLayoutEngineKind::Yoga;
         let is_canvas_backed_surface = surface.gpu_backing_required
             || surface.shader.is_some()
-            || matches!(surface.kind, UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D);
+            || matches!(
+                surface.kind,
+                UiSurfaceKind::Viewport2D | UiSurfaceKind::Viewport3D
+            );
         if !is_canvas_backed_surface {
             surface.preferred_render_engine = UiRenderEngineKind::Browser;
         } else if matches!(
@@ -473,11 +487,12 @@ pub fn build_tauri_command_mappings(
                 invoke_command: None,
             },
             UiCommandEffectKind::ExternalEffect => {
-                let (namespace, method) = if let Some(remainder) = command.name.strip_prefix("tauri.") {
-                    parse_tauri_namespace_and_method(remainder)?
-                } else {
-                    ("host".to_string(), command.name.clone())
-                };
+                let (namespace, method) =
+                    if let Some(remainder) = command.name.strip_prefix("tauri.") {
+                        parse_tauri_namespace_and_method(remainder)?
+                    } else {
+                        ("host".to_string(), command.name.clone())
+                    };
                 if !is_supported_tauri_namespace(namespace.as_str()) {
                     return Err(format!(
                         "Unsupported Tauri bridge namespace '{}' in command '{}'",
@@ -610,10 +625,16 @@ pub fn render_tauri_project_files(
 
     let capabilities = render_capability_files(bridge_manifest, render_config)?;
     for capability in &capabilities {
-        files.insert(capability.relative_path.clone(), capability.contents.clone());
+        files.insert(
+            capability.relative_path.clone(),
+            capability.contents.clone(),
+        );
     }
 
-    Ok(RenderedTauriProjectFiles { files, capabilities })
+    Ok(RenderedTauriProjectFiles {
+        files,
+        capabilities,
+    })
 }
 
 pub fn render_frontend_index_html(
@@ -765,7 +786,10 @@ fn render_capability_files(
             "permissions": permission_entries,
         });
         let contents = serde_json::to_string_pretty(&capability_json).map_err(|err| {
-            format!("Failed to serialize generated Tauri capability '{}': {err}", identifier)
+            format!(
+                "Failed to serialize generated Tauri capability '{}': {err}",
+                identifier
+            )
         })?;
         capabilities.push(RenderedTauriCapability {
             identifier: identifier.clone(),
@@ -782,13 +806,17 @@ fn dedupe_presets(mut presets: Vec<TauriPluginPreset>) -> Vec<TauriPluginPreset>
     presets
 }
 
-fn dedupe_capability_presets(mut presets: Vec<TauriCapabilityPreset>) -> Vec<TauriCapabilityPreset> {
+fn dedupe_capability_presets(
+    mut presets: Vec<TauriCapabilityPreset>,
+) -> Vec<TauriCapabilityPreset> {
     presets.sort();
     presets.dedup();
     presets
 }
 
-fn dedupe_permission_presets(mut presets: Vec<TauriPermissionPreset>) -> Vec<TauriPermissionPreset> {
+fn dedupe_permission_presets(
+    mut presets: Vec<TauriPermissionPreset>,
+) -> Vec<TauriPermissionPreset> {
     presets.sort();
     presets.dedup();
     presets

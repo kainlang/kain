@@ -4,24 +4,23 @@ use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{DriverSession, HybridArtifactOutput};
 use crate::native_app::{NativeAppBundle, NativeAppBundleConfig};
+use crate::{DriverSession, HybridArtifactOutput};
 use kain_core::error::KainError;
 use kain_core::{
-    realtime_app_bundle_to_json, runtime_contract_bundle_to_json, RealtimeAssetBinding,
-    RealtimeAppBundle,
+    realtime_app_bundle_to_json, runtime_contract_bundle_to_json, RealtimeAppBundle,
+    RealtimeAssetBinding,
 };
 use kain_reflect::TypeRegistry;
-use kain_ui::{ui_runtime_bundle_to_json, UiCommandDescriptor, UiRuntimeBundle};
+use kain_ui::{ui_runtime_bundle_to_json, UiRuntimeBundle};
 use kain_ui_tauri::{
-    build_tauri_bridge_manifest, default_tauri_capability_presets,
-    default_tauri_plugin_presets, patch_hybrid_wasm_reference, render_frontend_bridge_js,
-    render_frontend_index_html, render_tauri_project_files, retarget_ui_runtime_bundle_for_tauri,
-    TauriBridgeManifest, TauriBridgeManifestConfig, TauriCapabilityPreset,
-    TauriFrontendAssetManifest, TauriPermissionPreset, TauriPluginPreset,
-    TauriProjectRenderConfig, KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME,
-    KAIN_TAURI_FRONTEND_BRIDGE_FILE_NAME, KAIN_TAURI_FRONTEND_DESCRIPTOR_FILE_NAME,
-    KAIN_TAURI_FRONTEND_ENTRY_FILE_NAME,
+    build_tauri_bridge_manifest, default_tauri_capability_presets, default_tauri_plugin_presets,
+    patch_hybrid_wasm_reference, render_frontend_bridge_js, render_frontend_index_html,
+    render_tauri_project_files, retarget_ui_runtime_bundle_for_tauri, TauriBridgeManifest,
+    TauriBridgeManifestConfig, TauriCapabilityPreset, TauriFrontendAssetManifest,
+    TauriPermissionPreset, TauriPluginPreset, TauriProjectRenderConfig,
+    KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME, KAIN_TAURI_FRONTEND_BRIDGE_FILE_NAME,
+    KAIN_TAURI_FRONTEND_DESCRIPTOR_FILE_NAME, KAIN_TAURI_FRONTEND_ENTRY_FILE_NAME,
 };
 use serde::Serialize;
 use serde_json::json;
@@ -39,7 +38,6 @@ const TAURI_FRONTEND_DIR_NAME: &str = "frontend";
 const TAURI_ARTIFACT_OUTPUT_DIR_NAME: &str = "generated";
 const TAURI_APP_MANIFEST_FILE_NAME: &str = "app_manifest.json";
 const TAURI_RUNTIME_SNAPSHOT_FILE_NAME: &str = "runtime_snapshot.json";
-const TAURI_BRIDGE_READY_EVENT: &str = "kain://bridge/ready";
 const TAURI_WASM_FILE_NAME: &str = "main.wasm";
 const TAURI_JS_FILE_NAME: &str = "main.js";
 const TAURI_TS_FILE_NAME: &str = "main.ts";
@@ -155,54 +153,56 @@ impl DriverSession {
         fs::create_dir_all(&frontend_dir).map_err(io_error("create Tauri frontend directory"))?;
         fs::create_dir_all(&config_dir).map_err(io_error("create Tauri config directory"))?;
         fs::create_dir_all(&state_dir).map_err(io_error("create Tauri state directory"))?;
-        fs::create_dir_all(&artifact_root)
-            .map_err(io_error("create Tauri artifact directory"))?;
+        fs::create_dir_all(&artifact_root).map_err(io_error("create Tauri artifact directory"))?;
 
         let source_copy_path = project_dir.join(&bundle.metadata.source_file_name);
         fs::write(&source_copy_path, source.as_bytes())
             .map_err(io_error("write embedded Tauri Kain source"))?;
 
         let mut artifact_paths = Vec::new();
-        let (materialized_realtime_bundle, packaged_realtime_asset_paths) = materialize_realtime_assets(
-            &bundle.native_app.realtime,
-            &artifact_root,
-            bundle.metadata.source_root.as_deref(),
-        )?;
+        let (materialized_realtime_bundle, packaged_realtime_asset_paths) =
+            materialize_realtime_assets(
+                &bundle.native_app.realtime,
+                &artifact_root,
+                bundle.metadata.source_root.as_deref(),
+            )?;
         artifact_paths.extend(packaged_realtime_asset_paths.iter().cloned());
 
         let runtime_bundle_path = artifact_root.join(TAURI_RUNTIME_BUNDLE_FILE_NAME);
-        let runtime_bundle_json = ui_runtime_bundle_to_json(&bundle.ui_runtime_bundle).map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to serialize Tauri runtime bundle for {}: {err}",
-                bundle.metadata.app_name
-            ))
-        })?;
+        let runtime_bundle_json =
+            ui_runtime_bundle_to_json(&bundle.ui_runtime_bundle).map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to serialize Tauri runtime bundle for {}: {err}",
+                    bundle.metadata.app_name
+                ))
+            })?;
         fs::write(&runtime_bundle_path, runtime_bundle_json.as_bytes())
             .map_err(io_error("write Tauri runtime bundle"))?;
         artifact_paths.push(runtime_bundle_path.clone());
 
         let runtime_contract_path = artifact_root.join(TAURI_RUNTIME_CONTRACT_FILE_NAME);
-        let runtime_contract_json = runtime_contract_bundle_to_json(&bundle.native_app.runtime_contract)
-            .map_err(|err| {
-                KainError::runtime(format!(
-                    "Failed to serialize Tauri runtime contract for {}: {err}",
-                    bundle.metadata.app_name
-                ))
-            })?;
+        let runtime_contract_json = runtime_contract_bundle_to_json(
+            &bundle.native_app.runtime_contract,
+        )
+        .map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to serialize Tauri runtime contract for {}: {err}",
+                bundle.metadata.app_name
+            ))
+        })?;
         fs::write(&runtime_contract_path, runtime_contract_json.as_bytes())
             .map_err(io_error("write Tauri runtime contract"))?;
         artifact_paths.push(runtime_contract_path.clone());
 
         let runtime_compatibility_path = artifact_root.join(TAURI_RUNTIME_COMPATIBILITY_FILE_NAME);
-        let runtime_compatibility_json = serde_json::to_string_pretty(
-            &bundle.native_app.runtime_contract.compatibility,
-        )
-        .map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to serialize Tauri runtime compatibility for {}: {err}",
-                bundle.metadata.app_name
-            ))
-        })?;
+        let runtime_compatibility_json =
+            serde_json::to_string_pretty(&bundle.native_app.runtime_contract.compatibility)
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to serialize Tauri runtime compatibility for {}: {err}",
+                        bundle.metadata.app_name
+                    ))
+                })?;
         fs::write(
             &runtime_compatibility_path,
             runtime_compatibility_json.as_bytes(),
@@ -211,46 +211,55 @@ impl DriverSession {
         artifact_paths.push(runtime_compatibility_path.clone());
 
         let realtime_bundle_path = artifact_root.join(TAURI_REALTIME_BUNDLE_FILE_NAME);
-        let realtime_bundle_json = realtime_app_bundle_to_json(&materialized_realtime_bundle).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize Tauri realtime bundle: {err}"))
-        })?;
+        let realtime_bundle_json = realtime_app_bundle_to_json(&materialized_realtime_bundle)
+            .map_err(|err| {
+                KainError::runtime(format!("Failed to serialize Tauri realtime bundle: {err}"))
+            })?;
         fs::write(&realtime_bundle_path, realtime_bundle_json.as_bytes())
             .map_err(io_error("write Tauri realtime bundle"))?;
         artifact_paths.push(realtime_bundle_path.clone());
 
         if let Some(runtime_version) = &bundle.native_app.runtime_version {
-            let version_metadata_path = artifact_root.join(TAURI_RUNTIME_VERSION_METADATA_FILE_NAME);
-            let version_metadata_json = serde_json::to_string_pretty(runtime_version).map_err(|err| {
-                KainError::runtime(format!(
-                    "Failed to serialize Tauri runtime version metadata: {err}"
-                ))
-            })?;
+            let version_metadata_path =
+                artifact_root.join(TAURI_RUNTIME_VERSION_METADATA_FILE_NAME);
+            let version_metadata_json =
+                serde_json::to_string_pretty(runtime_version).map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to serialize Tauri runtime version metadata: {err}"
+                    ))
+                })?;
             fs::write(&version_metadata_path, version_metadata_json.as_bytes())
                 .map_err(io_error("write Tauri runtime version metadata"))?;
             artifact_paths.push(version_metadata_path);
         }
 
         if let Some(reflection_payload) = &bundle.native_app.runtime_contract.reflection_payload {
-            let reflection_payload_path = artifact_root.join(TAURI_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
-            let reflection_payload_json = serde_json::to_string_pretty(reflection_payload).map_err(|err| {
-                KainError::runtime(format!("Failed to serialize Tauri reflection payload: {err}"))
-            })?;
+            let reflection_payload_path =
+                artifact_root.join(TAURI_RUNTIME_REFLECTION_PAYLOAD_FILE_NAME);
+            let reflection_payload_json = serde_json::to_string_pretty(reflection_payload)
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Failed to serialize Tauri reflection payload: {err}"
+                    ))
+                })?;
             fs::write(&reflection_payload_path, reflection_payload_json.as_bytes())
                 .map_err(io_error("write Tauri reflection payload"))?;
             artifact_paths.push(reflection_payload_path);
         }
 
-        let (shader_bundle_path, shader_bundle_json) = if let Some(shader_bundle) = &bundle.native_app.shader_bundle {
-            let path = artifact_root.join(TAURI_SHADER_BUNDLE_FILE_NAME);
-            fs::write(&path, shader_bundle.bundle_json.as_bytes())
-                .map_err(io_error("write Tauri shader bundle"))?;
-            artifact_paths.push(path.clone());
-            (Some(path), Some(shader_bundle.bundle_json.clone()))
-        } else {
-            (None, None)
-        };
+        let (shader_bundle_path, shader_bundle_json) =
+            if let Some(shader_bundle) = &bundle.native_app.shader_bundle {
+                let path = artifact_root.join(TAURI_SHADER_BUNDLE_FILE_NAME);
+                fs::write(&path, shader_bundle.bundle_json.as_bytes())
+                    .map_err(io_error("write Tauri shader bundle"))?;
+                artifact_paths.push(path.clone());
+                (Some(path), Some(shader_bundle.bundle_json.clone()))
+            } else {
+                (None, None)
+            };
 
-        let primary_rust_path = artifact_root.join(&bundle.native_app.rust.bundle.primary.suggested_file_name);
+        let primary_rust_path =
+            artifact_root.join(&bundle.native_app.rust.bundle.primary.suggested_file_name);
         fs::write(
             &primary_rust_path,
             bundle.native_app.rust.bundle.primary.contents.as_bytes(),
@@ -300,16 +309,16 @@ impl DriverSession {
             js_bundle: format!("{TAURI_FRONTEND_DIR_NAME}/{TAURI_JS_FILE_NAME}"),
             ts_bundle: format!("{TAURI_FRONTEND_DIR_NAME}/{TAURI_TS_FILE_NAME}"),
             wasm_bundle: format!("{TAURI_FRONTEND_DIR_NAME}/{TAURI_WASM_FILE_NAME}"),
-            bridge_js: format!(
-                "{TAURI_FRONTEND_DIR_NAME}/{KAIN_TAURI_FRONTEND_BRIDGE_FILE_NAME}"
-            ),
+            bridge_js: format!("{TAURI_FRONTEND_DIR_NAME}/{KAIN_TAURI_FRONTEND_BRIDGE_FILE_NAME}"),
         };
         let runtime_sidecars = TauriRuntimeSidecarManifestJson {
             runtime_bundle: sidecar_file_name(&runtime_bundle_path),
             runtime_contract: sidecar_file_name(&runtime_contract_path),
             runtime_compatibility: sidecar_file_name(&runtime_compatibility_path),
             realtime_bundle: sidecar_file_name(&realtime_bundle_path),
-            shader_bundle: shader_bundle_path.as_ref().map(|path| sidecar_file_name(path)),
+            shader_bundle: shader_bundle_path
+                .as_ref()
+                .map(|path| sidecar_file_name(path)),
             reflection_payload: bundle
                 .native_app
                 .runtime_contract
@@ -332,7 +341,9 @@ impl DriverSession {
                 realtime_bundle: runtime_sidecars.realtime_bundle.clone(),
                 shader_bundle: runtime_sidecars.shader_bundle.clone(),
                 reflection_payload: runtime_sidecars.reflection_payload.clone(),
-                runtime_snapshot: format!("{TAURI_STATE_DIR_NAME}/{TAURI_RUNTIME_SNAPSHOT_FILE_NAME}"),
+                runtime_snapshot: format!(
+                    "{TAURI_STATE_DIR_NAME}/{TAURI_RUNTIME_SNAPSHOT_FILE_NAME}"
+                ),
                 app_manifest: format!("{TAURI_CONFIG_DIR_NAME}/{TAURI_APP_MANIFEST_FILE_NAME}"),
             },
             plugin_presets: if config.plugin_presets.is_empty() {
@@ -346,16 +357,27 @@ impl DriverSession {
                 config.capability_presets.clone()
             },
             permission_presets: config.permission_presets.clone(),
-            commands: bundle.native_app.ui.systems.command_registry.snapshot.clone(),
-            compiler_reflection_payload: bundle.native_app.runtime_contract.reflection_payload.clone(),
+            commands: bundle
+                .native_app
+                .ui
+                .systems
+                .command_registry
+                .snapshot
+                .clone(),
+            compiler_reflection_payload: bundle
+                .native_app
+                .runtime_contract
+                .reflection_payload
+                .clone(),
             host_type_registry: config.host_type_registry.clone(),
         })
         .map_err(KainError::runtime)?;
 
         let bridge_manifest_path = artifact_root.join(KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME);
-        let bridge_manifest_json = serde_json::to_string_pretty(&bridge_manifest).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize Tauri bridge manifest: {err}"))
-        })?;
+        let bridge_manifest_json =
+            serde_json::to_string_pretty(&bridge_manifest).map_err(|err| {
+                KainError::runtime(format!("Failed to serialize Tauri bridge manifest: {err}"))
+            })?;
         fs::write(&bridge_manifest_path, bridge_manifest_json.as_bytes())
             .map_err(io_error("write Tauri bridge manifest"))?;
         artifact_paths.push(bridge_manifest_path.clone());
@@ -370,7 +392,9 @@ impl DriverSession {
                 window_title: bundle.metadata.window_title.clone(),
                 initial_window_size: bundle.metadata.initial_window_size,
                 frontend_dist_relative_path: format!("../{TAURI_FRONTEND_DIR_NAME}"),
-                bridge_manifest_relative_path: format!("../{TAURI_ARTIFACT_OUTPUT_DIR_NAME}/{KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME}"),
+                bridge_manifest_relative_path: format!(
+                    "../{TAURI_ARTIFACT_OUTPUT_DIR_NAME}/{KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME}"
+                ),
             },
         )
         .map_err(KainError::runtime)?;
@@ -395,9 +419,16 @@ impl DriverSession {
             "bridge_js": KAIN_TAURI_FRONTEND_BRIDGE_FILE_NAME,
             "wasm_export_names": bundle.hybrid.wasm_export_names,
         }))
-        .map_err(|err| KainError::runtime(format!("Failed to serialize Tauri frontend descriptor: {err}")))?;
-        fs::write(&frontend_descriptor_path, frontend_descriptor_json.as_bytes())
-            .map_err(io_error("write Tauri frontend descriptor"))?;
+        .map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to serialize Tauri frontend descriptor: {err}"
+            ))
+        })?;
+        fs::write(
+            &frontend_descriptor_path,
+            frontend_descriptor_json.as_bytes(),
+        )
+        .map_err(io_error("write Tauri frontend descriptor"))?;
         artifact_paths.push(frontend_descriptor_path.clone());
 
         let frontend_html_path = frontend_dir.join(KAIN_TAURI_FRONTEND_ENTRY_FILE_NAME);
@@ -449,6 +480,7 @@ impl DriverSession {
         let previous_manifest_metadata = read_previous_manifest_metadata(&app_manifest_path);
         let hot_reload = build_tauri_hot_reload_metadata(
             project_dir,
+            &bundle_identifier,
             &source_copy_path,
             source,
             bundle,
@@ -509,7 +541,8 @@ impl DriverSession {
         .map_err(io_error("write Tauri app manifest"))?;
         artifact_paths.push(app_manifest_path.clone());
 
-        let runtime_snapshot = build_tauri_runtime_snapshot(bundle, &app_manifest, project_dir, &bridge_manifest);
+        let runtime_snapshot =
+            build_tauri_runtime_snapshot(bundle, &app_manifest, &bridge_manifest);
         let runtime_snapshot_path = state_dir.join(TAURI_RUNTIME_SNAPSHOT_FILE_NAME);
         fs::write(
             &runtime_snapshot_path,
@@ -731,7 +764,10 @@ fn materialize_realtime_assets(
     Ok((materialized, packaged_paths))
 }
 
-fn resolve_realtime_asset_source_path(asset: &RealtimeAssetBinding, source_root: Option<&Path>) -> PathBuf {
+fn resolve_realtime_asset_source_path(
+    asset: &RealtimeAssetBinding,
+    source_root: Option<&Path>,
+) -> PathBuf {
     let source_path = PathBuf::from(&asset.source);
     if source_path.is_absolute() {
         return source_path;
@@ -768,7 +804,6 @@ fn packaged_realtime_asset_file_name(asset: &RealtimeAssetBinding) -> String {
 fn build_tauri_runtime_snapshot(
     bundle: &TauriAppBundle,
     app_manifest: &TauriAppManifest,
-    project_dir: &Path,
     bridge_manifest: &TauriBridgeManifest,
 ) -> TauriRuntimeSnapshot {
     let updated_at = current_timestamp_string();
@@ -823,6 +858,7 @@ fn build_tauri_runtime_snapshot(
 #[allow(clippy::too_many_arguments)]
 fn build_tauri_hot_reload_metadata(
     project_dir: &Path,
+    bundle_identifier: &str,
     source_copy_path: &Path,
     source_text: &str,
     bundle: &TauriAppBundle,
@@ -861,7 +897,7 @@ fn build_tauri_hot_reload_metadata(
         preserve_session_state: hot_reload_plan.preserve_session_state,
     };
     let identity = TauriAppHotReloadIdentity {
-        app_id: default_bundle_identifier(&bundle.metadata.app_name),
+        app_id: bundle_identifier.to_string(),
         name: bundle.metadata.window_title.clone(),
         window_title: bundle.metadata.window_title.clone(),
         root_component: bundle.metadata.root_component.clone(),
@@ -875,7 +911,12 @@ fn build_tauri_hot_reload_metadata(
     };
     let mut artifact_fingerprints = vec![
         hot_reload_artifact(project_dir, "source_input", source_copy_path, source_text),
-        hot_reload_artifact(project_dir, "runtime_bundle", runtime_bundle_path, runtime_bundle_json),
+        hot_reload_artifact(
+            project_dir,
+            "runtime_bundle",
+            runtime_bundle_path,
+            runtime_bundle_json,
+        ),
         hot_reload_artifact(
             project_dir,
             "runtime_contract",
@@ -888,8 +929,18 @@ fn build_tauri_hot_reload_metadata(
             runtime_compatibility_path,
             runtime_compatibility_json,
         ),
-        hot_reload_artifact(project_dir, "realtime_bundle", realtime_bundle_path, realtime_bundle_json),
-        hot_reload_artifact(project_dir, "bridge_manifest", bridge_manifest_path, bridge_manifest_json),
+        hot_reload_artifact(
+            project_dir,
+            "realtime_bundle",
+            realtime_bundle_path,
+            realtime_bundle_json,
+        ),
+        hot_reload_artifact(
+            project_dir,
+            "bridge_manifest",
+            bridge_manifest_path,
+            bridge_manifest_json,
+        ),
         hot_reload_artifact(
             project_dir,
             "frontend_descriptor",
@@ -905,7 +956,12 @@ fn build_tauri_hot_reload_metadata(
         hot_reload_artifact(project_dir, "frontend_js", frontend_js_path, frontend_js),
     ];
     if let (Some(path), Some(json)) = (shader_bundle_path, shader_bundle_json) {
-        artifact_fingerprints.push(hot_reload_artifact(project_dir, "shader_bundle", path, json));
+        artifact_fingerprints.push(hot_reload_artifact(
+            project_dir,
+            "shader_bundle",
+            path,
+            json,
+        ));
     }
 
     let materialization_fingerprint = fingerprint_text(
@@ -930,7 +986,9 @@ fn build_tauri_hot_reload_metadata(
                         .artifact_fingerprints
                         .iter()
                         .find(|previous_artifact| previous_artifact.role == artifact.role)
-                        .map(|previous_artifact| previous_artifact.fingerprint != artifact.fingerprint)
+                        .map(|previous_artifact| {
+                            previous_artifact.fingerprint != artifact.fingerprint
+                        })
                         .unwrap_or(true)
                 })
                 .map(|artifact| artifact.role.clone())
@@ -987,7 +1045,9 @@ fn hot_reload_artifact(
     }
 }
 
-fn read_previous_manifest_metadata(app_manifest_path: &Path) -> Option<PreviousTauriAppManifestMetadata> {
+fn read_previous_manifest_metadata(
+    app_manifest_path: &Path,
+) -> Option<PreviousTauriAppManifestMetadata> {
     let manifest_json = fs::read_to_string(app_manifest_path).ok()?;
     serde_json::from_str(&manifest_json).ok()
 }
@@ -1072,7 +1132,10 @@ fn build_tauri_app_executable(
     release: bool,
 ) -> Result<PathBuf, KainError> {
     let mut command = Command::new("cargo");
-    command.arg("build").arg("--manifest-path").arg(manifest_path);
+    command
+        .arg("build")
+        .arg("--manifest-path")
+        .arg(manifest_path);
     if release {
         command.arg("--release");
     }
@@ -1156,6 +1219,7 @@ component App():
             &TauriAppMaterializationConfig {
                 project_dir: temp.path().join("tauri-app"),
                 build_executable: false,
+                bundle_identifier: Some("ai.kain.test".to_string()),
                 ..Default::default()
             },
         )
@@ -1170,5 +1234,23 @@ component App():
             .artifact_paths
             .iter()
             .any(|path| path.ends_with(KAIN_TAURI_BRIDGE_MANIFEST_FILE_NAME)));
+
+        let app_manifest = fs::read_to_string(
+            result
+                .project_dir
+                .join(TAURI_CONFIG_DIR_NAME)
+                .join(TAURI_APP_MANIFEST_FILE_NAME),
+        )
+        .expect("app manifest should exist");
+        assert!(app_manifest.contains("ai.kain.test"));
+
+        let runtime_snapshot = fs::read_to_string(
+            result
+                .project_dir
+                .join(TAURI_STATE_DIR_NAME)
+                .join(TAURI_RUNTIME_SNAPSHOT_FILE_NAME),
+        )
+        .expect("runtime snapshot should exist");
+        assert!(runtime_snapshot.contains("ai.kain.test"));
     }
 }

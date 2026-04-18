@@ -115,6 +115,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
 - [kain-ui](/M:/Code/Kain/crates/kain-ui): semantic UI graph and patch-oriented UI meaning
 - [kain-ui-native](/M:/Code/Kain/crates/kain-ui-native): native desktop host/runtime lane
+- [kain-ui-tauri](/M:/Code/Kain/crates/kain-ui-tauri): Tauri 2 desktop adapter generator, reflective bridge manifest builder, capability/permission preset catalog, and generated host/frontend scaffold for the webview desktop lane
 - [kain-3D](/M:/Code/Kain/crates/kain-3D): native 3D renderer and viewport runtime
 
 ## Primary Data Flows
@@ -253,6 +254,8 @@ The native runtime now has a first real UI vendor slice instead of only a future
 - The generated Qt shell skin is a smoke/demo presentation, not the authored UI contract. Kain UI meaning still lives in `UiStyleSpec`, `UiThemeRegistry`, surface roles, and bundle metadata; the host should consume those inputs rather than become the source of a fixed look.
 - The Qt host now supports deterministic smoke artifacts through `KAIN_UI_NATIVE_QT_ARTIFACT_DIR` and `KAIN_UI_NATIVE_QT_SCREENSHOT_PATH`; this lets repo-local smokes render the real generated shell offscreen, save `Main.qml` plus `session.json`, capture a PNG, and exit without operator interaction
 - `smoketest/UI/qt_plasma_runtime_lounge` is the current proof surface for that contract: a curated runtime bundle with document, viewport, devtools, and browser panes that exercises the live Qt host and produces `outputs/qt_plasma_runtime_lounge.png`
+- `crates/kain-ui` and `crates/kain-core` now also recognize `UiHostBackendKind::Tauri`, including authored `host_backend="tauri"` and `host_backend="webview"` aliases. Shell/document/devtools surfaces use browser/webview semantics while viewport and shader surfaces stay on the existing canvas/GPU path.
+- `crates/kain-ui-tauri` is now the data-driven Tauri 2 adapter crate. It owns plugin/capability/permission preset enums, bridge-manifest construction, reflection merge logic, hybrid frontend bridge JS, and generated `src-tauri/*` scaffolding instead of pushing that policy into the CLI.
 
 ### Semantic Tab Workspace Lane
 
@@ -284,6 +287,9 @@ The native packaging lane is the operator-facing loop for UI iteration:
 - Generated launchers resolve those packaged sidecars beside the executable so the app boots from authored bundle truth instead of a debug-host template.
 - The runtime snapshot is the reload/control surface, not hidden launcher state. It carries explicit provider, session, workspace, command, and capability records, including the `runtime.reload` command already emitted by the packaging path.
 - `crates/cli/src/native_ui_dev.rs` is the canonical desktop dev loop for this lane. `kain native-ui dev <file.kn>` materializes once, launches the child app, watches the input file's parent directory recursively, ignores generated/project artifact trees plus common temp files, and debounces save bursts before rebuilding.
+- The native packaging lane is now host-selectable instead of Qt-only. `NativeUiHostKind` currently supports `qt` and `tauri`, with Qt remaining the default and Tauri selected through `--host tauri` or config.
+- The Tauri host path is package-first, not a new compile target. `kain-driver` compiles the existing native/runtime-contract truth plus hybrid JS/TS/WASM artifacts, then materializes a node-free `src-tauri/` project, static frontend payload, bridge manifest, permissions, capabilities, `app_manifest.json`, and `runtime_snapshot.json` under one generated app root.
+- Tauri dev launches from a Cargo manifest instead of a prebuilt executable. `native_ui_dev` now abstracts launch targets as either `Executable(...)` or `CargoManifest(...)`, which lets the same watcher/reload classifier drive both Qt and Tauri without forking the whole loop.
 - Reload behavior is now explicit instead of host-local. The dev loop classifies each rebuild as `Noop`, `HotReloadInProcess`, or `RestartProcess` from emitted runtime compatibility metadata plus changed artifact roles such as runtime bundle, runtime contract, realtime bundle, shader sidecars, app manifest, and runtime snapshot.
 - Compatible rebuilds preserve live UI/workspace/session state through the existing runtime reload contract. Incompatible rebuilds restart the packaged child and restore only from the persisted manifest/snapshot boundary.
 - Devtools and inspectors must stay opt-in and remain represented in packaged truth, not injected as default product chrome.
@@ -331,7 +337,9 @@ Typical commands:
 - `kain doctor --repair-tree <dir>`
 - `kain build`
 - `kain build native-ui <file.kn>`
+- `kain build native-ui <file.kn> --host tauri`
 - `kain native-ui dev <file.kn>`
+- `kain native-ui dev <file.kn> --host tauri`
 - `kain run <file.kn>`
 - `kain format <file.kn>`
 - `kain fmt --check <file.kn>`

@@ -182,8 +182,12 @@ pub fn run_native_ui_build_pipeline(
 
     let project_dir = resolve_project_dir(input, &base_name, config)?;
     match config.host {
-        NativeUiHostKind::Qt => build_qt_native_ui(&source, &project_dir, &bundle_config, input, config),
-        NativeUiHostKind::Tauri => build_tauri_native_ui(&source, &project_dir, &bundle_config, config),
+        NativeUiHostKind::Qt => {
+            build_qt_native_ui(&source, &project_dir, &bundle_config, input, config)
+        }
+        NativeUiHostKind::Tauri => {
+            build_tauri_native_ui(&source, &project_dir, &bundle_config, config)
+        }
     }
 }
 
@@ -350,9 +354,9 @@ fn resolve_runtime_dependency(
         NativeUiRuntimeDependencyConfig::Path(path) => Ok(NativeAppRuntimeDependency::Path(
             relative_path_or_absolute(path, project_dir)?,
         )),
-        NativeUiRuntimeDependencyConfig::Version(version) => {
-            Ok(NativeAppRuntimeDependency::Version(version.trim().to_string()))
-        }
+        NativeUiRuntimeDependencyConfig::Version(version) => Ok(
+            NativeAppRuntimeDependency::Version(version.trim().to_string()),
+        ),
     }
 }
 
@@ -537,9 +541,7 @@ fn parse_tauri_permission_presets(
             "shellallowspawn" => Ok(kain_driver::TauriPermissionPreset::ShellAllowSpawn),
             "shellallowexecute" => Ok(kain_driver::TauriPermissionPreset::ShellAllowExecute),
             "shellallowkill" => Ok(kain_driver::TauriPermissionPreset::ShellAllowKill),
-            "shellallowstdinwrite" => {
-                Ok(kain_driver::TauriPermissionPreset::ShellAllowStdinWrite)
-            }
+            "shellallowstdinwrite" => Ok(kain_driver::TauriPermissionPreset::ShellAllowStdinWrite),
             "processdefault" => Ok(kain_driver::TauriPermissionPreset::ProcessDefault),
             "clipboardallowreadtext" => {
                 Ok(kain_driver::TauriPermissionPreset::ClipboardAllowReadText)
@@ -554,15 +556,15 @@ fn parse_tauri_permission_presets(
             "sqlallowexecute" => Ok(kain_driver::TauriPermissionPreset::SqlAllowExecute),
             "httpdefault" => Ok(kain_driver::TauriPermissionPreset::HttpDefault),
             "updaterdefault" => Ok(kain_driver::TauriPermissionPreset::UpdaterDefault),
-            "globalshortcutallowisregistered" => Ok(
-                kain_driver::TauriPermissionPreset::GlobalShortcutAllowIsRegistered,
-            ),
+            "globalshortcutallowisregistered" => {
+                Ok(kain_driver::TauriPermissionPreset::GlobalShortcutAllowIsRegistered)
+            }
             "globalshortcutallowregister" => {
                 Ok(kain_driver::TauriPermissionPreset::GlobalShortcutAllowRegister)
             }
-            "globalshortcutallowunregister" => Ok(
-                kain_driver::TauriPermissionPreset::GlobalShortcutAllowUnregister,
-            ),
+            "globalshortcutallowunregister" => {
+                Ok(kain_driver::TauriPermissionPreset::GlobalShortcutAllowUnregister)
+            }
             "kainbridge" => Ok(kain_driver::TauriPermissionPreset::KainBridge),
             other => Err(KainError::runtime(format!(
                 "Unsupported Tauri permission preset '{other}'"
@@ -728,8 +730,14 @@ component App():
         .expect("tauri native ui build should succeed");
 
         assert_eq!(result.generated.host, NativeUiHostKind::Tauri);
-        assert!(result.generated.manifest_path.ends_with("src-tauri/Cargo.toml"));
-        assert!(result.generated.main_entry_path.ends_with("src-tauri/src/main.rs"));
+        assert!(result
+            .generated
+            .manifest_path
+            .ends_with("src-tauri/Cargo.toml"));
+        assert!(result
+            .generated
+            .main_entry_path
+            .ends_with("src-tauri/src/main.rs"));
         assert!(matches!(
             result.generated.launch_target,
             Some(NativeUiLaunchTarget::CargoManifest(_))

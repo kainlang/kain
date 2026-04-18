@@ -4419,4 +4419,16 @@ mod tests {
             Some(&UiValue::String("materials".to_string()))
         );
     }
+
+    #[test]
+    fn parse_surface_host_backend_supports_tauri_aliases() {
+        assert_eq!(
+            parse_surface_host_backend("tauri".to_string()),
+            Some(UiHostBackendKind::Tauri)
+        );
+        assert_eq!(
+            parse_surface_host_backend("webview".to_string()),
+            Some(UiHostBackendKind::Tauri)
+        );
+    }
 }

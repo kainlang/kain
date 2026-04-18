@@ -212,12 +212,18 @@ impl NativeUiDevSession {
             &self.previous_manifest,
             &bundle_manifest,
         ) {
-            let launch_result = build_native_ui(self.config.input.as_path(), &self.config.build, true)?;
-            let next_launch_target = launch_result.generated.launch_target.clone().ok_or_else(|| {
-                KainError::runtime(
+            let launch_result =
+                build_native_ui(self.config.input.as_path(), &self.config.build, true)?;
+            let next_launch_target =
+                launch_result
+                    .generated
+                    .launch_target
+                    .clone()
+                    .ok_or_else(|| {
+                        KainError::runtime(
                     "Native UI dev expected a launch target after restart-triggering rebuild",
                 )
-            })?;
+                    })?;
             sync_artifacts_to_launch_target(&launch_result, &next_launch_target)?;
             let launch_manifest = load_manifest_state(&launch_result)?;
             let (rebuilt_decision, rebuilt_note) = classify_reload_decision(
@@ -227,8 +233,10 @@ impl NativeUiDevSession {
                 self.child.is_some(),
             );
             self.launch_target = next_launch_target;
-            self.launch_working_dir =
-                resolve_launch_working_dir(&self.launch_target, &launch_result.generated.project_dir);
+            self.launch_working_dir = resolve_launch_working_dir(
+                &self.launch_target,
+                &launch_result.generated.project_dir,
+            );
             (
                 rebuilt_decision,
                 rebuilt_note,
@@ -894,8 +902,7 @@ mod tests {
         let current = manifest_state(&["source_input"], true);
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
-        let (decision, note) =
-            classify_reload_decision(&previous, &current, &launch_target, true);
+        let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::Noop);
         assert!(note.contains("source changed"));
     }
@@ -906,8 +913,7 @@ mod tests {
         let current = manifest_state(&["runtime_bundle", "shader_bundle"], true);
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
-        let (decision, note) =
-            classify_reload_decision(&previous, &current, &launch_target, true);
+        let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::HotReloadInProcess);
         assert!(note.contains("runtime_bundle"));
     }
@@ -918,8 +924,7 @@ mod tests {
         let current = manifest_state(&["runtime_bundle"], false);
         let executable_path = test_executable_path();
         let launch_target = NativeUiLaunchTarget::Executable(executable_path);
-        let (decision, note) =
-            classify_reload_decision(&previous, &current, &launch_target, true);
+        let (decision, note) = classify_reload_decision(&previous, &current, &launch_target, true);
         assert_eq!(decision, ReloadDecision::RestartProcess);
         assert!(note.contains("compatibility"));
     }

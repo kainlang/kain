@@ -1,5 +1,41 @@
 # Kain Memory
 
+# 2026-04-18 - Tauri desktop adapter landed as a first-class native-ui host lane
+
+The repo now has a real Tauri 2 desktop host path for Kain-authored UI instead of forcing every native-ui flow through the Qt launcher.
+
+What changed:
+
+- `crates/kain-ui` and `crates/kain-core` now recognize `UiHostBackendKind::Tauri`, including authored `host_backend="tauri"` and `host_backend="webview"` aliases.
+- `crates/kain-ui-tauri` now owns the generated Tauri host lane: plugin/capability/permission presets, bridge-manifest construction, merged reflection metadata, hybrid frontend bridge JS, and generated `src-tauri/*` project files.
+- `crates/kain-driver` now has a dedicated Tauri bundle/materialization path that combines native runtime-contract truth with hybrid frontend artifacts and emits a generated Tauri app root with `frontend/`, `generated/`, `config/`, `state/`, and `src-tauri/`.
+- `crates/cli/src/native_ui_build.rs` now exposes `NativeUiHostKind::{Qt,Tauri}` plus typed Tauri config, and `crates/cli/src/native_ui_dev.rs` now abstracts launch targets so the same dev loop can launch either a packaged Qt executable or `cargo run --manifest-path src-tauri/Cargo.toml`.
+- Hot-reload metadata for generated Tauri apps now preserves the resolved custom bundle identifier instead of silently falling back to a derived default, and new tests pin both the Tauri alias parsing path and the generated bundle-id propagation.
+
+Validation:
+
+- `cargo test -p kain-ui tauri_aliases`
+- `cargo test -p kain-core tauri_aliases`
+- `cargo test -p kain-ui-tauri`
+- `cargo test -p kain-driver --features tauri tauri_bundle_materialization_writes_bridge_and_frontend_assets`
+- `cargo test -p cli --features tauri native_ui_build::tests::native_ui_build_materializes_tauri_project_without_binary -- --exact`
+- `cargo test -p cli --features tauri native_ui_dev::tests::reload_decision_hot_reloads_runtime_sidecar_changes -- --exact`
+
+Important behavior notes:
+
+- Tauri remains a host/package lane under `build native-ui` and `native-ui dev`; there is still no `CompileTarget::Tauri`.
+- The generated Tauri app consumes existing compiler-owned truth: native runtime bundle/contract/realtime metadata plus hybrid JS/TS/WASM output. Keep those bundle families authoritative instead of inventing Tauri-local semantics.
+- In this checkout `cargo fmt --all` is still blocked by unrelated trailing whitespace in `crates/ue5-shaders/src/validation.rs`, so file-scoped `rustfmt` is the safe formatting fallback when only the Tauri lane is being touched.
+
+Current risk:
+
+- The generated Rust host bridge is intentionally broad but still generic. Future work should harden real typed command handlers and add richer plugin-specific round-trip tests once there are Kain-authored apps depending on those namespaces.
+- Full workspace validation for `kain-driver --features tauri` still includes unrelated pre-existing driver test failures outside the Tauri lane, so use the Tauri-focused test filters above when validating this subsystem.
+
+Recommended next step:
+
+- Add a smoketest app under `smoketest/UI/` that is materialized and launched through `--host tauri`, then validate one real plugin namespace such as dialog/fs/store end to end against the generated bridge.
+
 - New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now orders canonical scenes semantically, keeping the default scene first, then ranking remaining canonicals by scene role and scene scale before appending aliases. This makes native scene browsers and inspectors surface showcase/environment scenes more intentionally instead of only following raw name order.
 - Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_then_semantic_canonicals_then_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 

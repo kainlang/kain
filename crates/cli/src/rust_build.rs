@@ -136,11 +136,13 @@ pub fn run_rust_build_pipeline(
                 app_name: native_ui.app_name.clone(),
                 project_dir: Some(project_dir),
                 artifact_output_dir: PathBuf::from("generated"),
+                initial_window_size: native_ui.initial_window_size,
                 build_executable: native_ui.build_executable,
                 executable_output_dir: native_ui.build_executable.then(|| output_root.clone()),
                 release: native_ui.release,
                 runtime_crate_name: "kain-ui-native".to_string(),
-                runtime_dependency: crate::native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath,
+                runtime_dependency:
+                    crate::native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath,
                 include_spirv: config.artifacts.contains(&RustBuildArtifact::Spirv),
             },
         )?;

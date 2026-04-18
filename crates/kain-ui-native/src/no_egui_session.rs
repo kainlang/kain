@@ -4,8 +4,8 @@ use serde::Serialize;
 
 use crate::no_egui::KainUiNativeBackendPlan;
 use kain_ui::{
-    ui_native_projection_from_output, UiHostBackendKind, UiNativeProjection,
-    UiRenderEngineKind, UiRuntimeBundle, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
+    ui_native_projection_from_output, UiHostBackendKind, UiNativeProjection, UiRenderEngineKind,
+    UiRuntimeBundle, UiSurface, UiSurfaceCompositionMode, UiSurfaceKind,
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -399,9 +399,8 @@ mod tests {
     use crate::no_egui::KainUiNativeBackendPlan;
     use kain_ui::{
         ui_runtime_bundle_from_output, UiBuildOutput, UiHostBackendKind, UiNativeProjectionKind,
-        UiNode, UiNodeId, UiRuntimeMetadata, UiRuntimeSystems, UiSurface,
-        UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference,
-        UiSurfaceShaderBinding, UiValue, UiWidgetKind,
+        UiNode, UiNodeId, UiRuntimeMetadata, UiRuntimeSystems, UiSurface, UiSurfaceCompositionMode,
+        UiSurfaceKind, UiSurfaceRendererPreference, UiSurfaceShaderBinding, UiValue, UiWidgetKind,
     };
 
     #[test]
@@ -560,10 +559,9 @@ mod tests {
         );
 
         let mut viewport = UiNode::new(viewport_id, UiWidgetKind::Viewport3D);
-        viewport.props.insert(
-            "title".to_string(),
-            UiValue::String("Caldera".to_string()),
-        );
+        viewport
+            .props
+            .insert("title".to_string(), UiValue::String("Caldera".to_string()));
         viewport.props.insert(
             "scene".to_string(),
             UiValue::String("magma_terraces".to_string()),
