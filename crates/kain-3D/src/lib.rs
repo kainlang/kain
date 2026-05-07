@@ -31,8 +31,8 @@ pub use renderer::{
 pub use scene::{
     BackgroundGradient, BlackHole, Camera, CameraPose, DirectionalLight, LightingRig, Material,
     Mesh, ParticleEmitter, PointLight, SceneAnimation, SceneBounds, SceneCatalog,
-    SceneCatalogEntry, SceneCompositionSummary, SceneDescription, SceneInstance, TerrainSurface,
-    Vertex,
+    SceneCatalogEntry, SceneCatalogSummary, SceneCompositionSummary, SceneDescription,
+    SceneInstance, SceneResolution, SceneResolutionKind, TerrainSurface, Vertex,
 };
 pub use shader_bundle::{
     default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,

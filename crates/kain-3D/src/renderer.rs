@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{
     BlackHole, CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit,
-    SceneCatalog, SceneDescription, SceneResolution, SceneResolutionKind, Transform, Vec3,
+    SceneCatalog, SceneDescription, SceneResolution, Transform, Vec3,
 };
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
@@ -1078,6 +1078,8 @@ fn to_vec3(point: [f32; 4]) -> Vec3 {
 
 #[cfg(test)]
 mod tests {
+    use crate::{BackgroundGradient, Camera, Mesh, SceneInstance, SceneResolutionKind, Vertex};
+
     use super::*;
 
     fn framed_camera_scene() -> SceneDescription {

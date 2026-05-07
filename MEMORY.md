@@ -367,3 +367,30 @@ Important behavior notes:
 
 # New Kain 3D pass (2026-04-17): `SceneCompositionSummary::brief_label()` now leads with the structured composition cues (`composition_stage`, role, scale, profile, focus, density) before raw counts, so scene browsers and logs can skim shape first and inventory second. This is a small design-quality uplift for tooling that already consumes the summary string.
 # Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still hits the same repo-local Windows GNU linker gap before the test binary can finish building.
+
+# 2026-05-07 - Windows rebuild/install restored and Kain 3D build drift repaired
+
+Windows setup was restored from `D:\Kain-Lang` using the root installer with LLVM 21 and Python 3.11:
+
+- `py install_kain.py --clang-path C:\LLVM-21\bin\clang.exe --python-path C:\Users\Admin\AppData\Local\Programs\Python\Python311\python.exe`
+- The installer bundled LLVM tools into `toolchain/llvm/bin`, built release `kain.exe` / `kn.exe`, copied both into `C:\Users\Admin\.cargo\bin`, and wrote `generated/kain-env.ps1`.
+- Future PowerShell sessions should dot-source `. .\generated\kain-env.ps1` before local validation so `KAIN_STDLIB_PATH`, `KAIN_RUNTIME_C_PATH`, `KAIN_RUNTIME_MANIFEST_PATH`, `KAIN_CLANG_PATH`, and `PYO3_PYTHON` match the installed binary.
+
+What changed:
+
+- Repaired `crates/kain-3D` workspace build drift by re-exporting `SceneResolution`, `SceneResolutionKind`, and `SceneCatalogSummary`, adding `Vec3::normalized_or` to match the existing `Vec2` fallback-normalization API, and making catalog entry composition diagnostics sample time explicitly at `0.0`.
+- Promoted `camera_fit_ratio` into `SceneCompositionDiagnostics` so `material_atrium_smoke` can serialize the same composition payload truth that frame diagnostics already carry.
+- Updated the `material_atrium_smoke` composition payload test to the current live scene metadata: `world-scale`, `volumetric`, `staged-volume`, `instance-led`, and `dense`.
+
+Validation:
+
+- `cargo build --workspace` passes under `. .\generated\kain-env.ps1`.
+- `kain doctor` and `kn doctor` resolve the installed cargo-bin launchers, repo stdlib, runtime C file, runtime manifest, and bundled LLVM clang.
+- `py docs\examples\validate_examples.py --kain C:\Users\Admin\.cargo\bin\kain.exe` validates all 12 docs examples.
+- `cargo test -p kain-3d scene_composition_payload_includes_stage_metadata -- --nocapture` passes.
+- `cargo test -p kain-3d catalog_scene_render_diagnostics_include_resolution_context -- --nocapture` passes.
+
+Current risks:
+
+- Full `cargo test -p kain-3d -- --nocapture` now compiles but still has 13 stale assertion failures around primitive counts and scene/camera composition expectations. The live build and targeted smoke surfaces are healthy; the broader 3D test suite needs a focused expectation refresh.
+- Root `cargo fmt` is still blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`; format only touched files or clean that file first before expecting repo-wide fmt to run.

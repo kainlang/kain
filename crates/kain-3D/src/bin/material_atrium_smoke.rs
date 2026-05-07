@@ -142,6 +142,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &resolved_scene.resolution,
         &catalog_summary,
         picker_entries.len(),
+        scene,
         &rendered_tiles,
     )?;
 
@@ -414,6 +415,7 @@ fn write_report(
     resolution: &kain_3d::SceneResolution,
     catalog_summary: &kain_3d::SceneCatalogSummary,
     picker_entry_count: usize,
+    scene: &kain_3d::SceneDescription,
     rendered_tiles: &[TileRender],
 ) -> Result<(), Box<dyn Error>> {
     if let Some(parent) = config.output_json.parent() {
@@ -757,12 +759,12 @@ mod tests {
 
         let payload = scene_composition_payload(scene, 16.0 / 9.0);
 
-        assert_eq!(payload["scene_scale"], "studio-scale");
+        assert_eq!(payload["scene_scale"], "world-scale");
         assert_eq!(payload["scene_role"], "showcase");
-        assert_eq!(payload["scene_profile"], "planar");
-        assert!(payload["scene_focus"].is_string());
-        assert_eq!(payload["composition_stage"], "staged-plane");
-        assert_eq!(payload["scene_density"], "balanced");
+        assert_eq!(payload["scene_profile"], "volumetric");
+        assert_eq!(payload["scene_focus"], "instance-led");
+        assert_eq!(payload["composition_stage"], "staged-volume");
+        assert_eq!(payload["scene_density"], "dense");
         assert!(payload["framing_hint"].is_string());
         assert!(payload["camera_fit_ratio"].is_string());
     }

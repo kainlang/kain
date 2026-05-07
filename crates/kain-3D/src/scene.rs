@@ -166,6 +166,7 @@ pub struct SceneCompositionDiagnostics {
     pub composition_stage: &'static str,
     pub scene_density: &'static str,
     pub framing_hint: Option<&'static str>,
+    pub camera_fit_ratio: Option<String>,
     pub mesh_count: usize,
     pub material_count: usize,
     pub instance_count: usize,
@@ -293,6 +294,7 @@ impl SceneCompositionSummary {
                 .unwrap_or("unbounded"),
             scene_density: self.density_label(),
             framing_hint: self.framing_hint_label(),
+            camera_fit_ratio: self.camera_fit_ratio_label(),
             mesh_count: self.mesh_count,
             material_count: self.material_count,
             instance_count: self.instance_count,
@@ -325,10 +327,13 @@ impl SceneCompositionSummary {
                 .unwrap_or_else(|| "unbounded".to_string()),
         );
         diagnostics.framing_hint = self.framing_hint_label().map(str::to_string);
-        diagnostics.camera_fit_ratio = self
-            .bounds
+        diagnostics.camera_fit_ratio = self.camera_fit_ratio_label();
+    }
+
+    fn camera_fit_ratio_label(&self) -> Option<String> {
+        self.bounds
             .zip(self.framed_camera_distance)
-            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)));
+            .map(|(bounds, distance)| format!("{:.2}", distance / bounds.radius().max(0.001)))
     }
 
     pub fn brief_label(&self) -> String {
@@ -772,7 +777,6 @@ impl SceneDescription {
     ) -> CameraPose {
         let bounds = self.bounds_with_overrides(time_seconds, instance_transform_overrides);
         if let Some(bounds) = bounds {
-            let radius = bounds.radius().max(0.001);
             let distance = framed_camera_distance(bounds, self.camera.fov_y_degrees, aspect_ratio);
             let (near_plane, far_plane) = framed_camera_clip_planes(bounds, distance);
             let framing_direction = framed_camera_direction(bounds, aspect_ratio);
@@ -1120,11 +1124,11 @@ impl SceneCatalog {
         entries
     }
 
-    pub fn catalog_entry(&self, requested_name: &str) -> SceneCatalogEntry<'_> {
+    pub fn catalog_entry<'a>(&'a self, requested_name: &'a str) -> SceneCatalogEntry<'a> {
         let resolved = self
             .resolve_scene(requested_name)
             .expect("catalog entries should always resolve through the scene catalog");
-        let summary = resolved.scene.composition_summary();
+        let summary = resolved.scene.composition_summary(0.0);
         let diagnostics = summary.diagnostics();
         SceneCatalogEntry {
             requested_name,

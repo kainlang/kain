@@ -115,6 +115,15 @@ impl Vec3 {
         }
     }
 
+    pub fn normalized_or(self, fallback: Self) -> Self {
+        let normalized = self.normalize();
+        if normalized == Self::ZERO {
+            fallback
+        } else {
+            normalized
+        }
+    }
+
     pub fn component_mul(self, other: Self) -> Self {
         Self::new(self.x * other.x, self.y * other.y, self.z * other.z)
     }
