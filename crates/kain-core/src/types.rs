@@ -4,6 +4,9 @@ use crate::ast::*;
 use crate::diagnostics::SpanMapper;
 use crate::effects::{check_effect_call, EffectSet};
 use crate::error::{KainError, KainResult};
+use crate::lexer::Lexer;
+use crate::module_resolution::resolve_filesystem_module_file;
+use crate::parser::Parser;
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
 
@@ -1717,6 +1720,10 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         // when the imported module is not present in the current compilation unit.
         // The last path segment is the imported identifier.
         Item::Use(u) => {
+            if register_filesystem_import_types(env, u)? {
+                return Ok(());
+            }
+
             let imported_name = if let Some(alias) = &u.alias {
                 alias.clone()
             } else if let Some(last) = u.path.last() {
@@ -1733,6 +1740,125 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
     }
 
     Ok(())
+}
+
+fn register_filesystem_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> {
+    let Some(first_segment) = u.path.first() else {
+        return Ok(false);
+    };
+
+    if matches!(
+        first_segment.as_str(),
+        "std" | "stdlib" | "rust" | "node" | "python" | "js"
+    ) {
+        return Ok(false);
+    }
+
+    let Some(resolution) = resolve_filesystem_module_file(&u.path) else {
+        return Ok(false);
+    };
+
+    let Ok(source) = std::fs::read_to_string(&resolution.file_path) else {
+        return Ok(false);
+    };
+    let Ok(tokens) = Lexer::new(&source).tokenize() else {
+        return Ok(false);
+    };
+    let span_mapper = SpanMapper::new(&source);
+    let filename = resolution.file_path.to_string_lossy().to_string();
+    let Ok(program) = Parser::new(&tokens, &span_mapper, &filename).parse() else {
+        return Ok(false);
+    };
+    let Ok(items) =
+        select_filesystem_import_type_items(program.items, u, resolution.selected_item.as_deref())
+    else {
+        return Ok(false);
+    };
+
+    for item in items {
+        if matches!(item, Item::Use(_)) {
+            continue;
+        }
+        if register_item_types(env, &item).is_err() {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+fn select_filesystem_import_type_items(
+    items: Vec<Item>,
+    u: &Use,
+    selected_item: Option<&str>,
+) -> KainResult<Vec<Item>> {
+    let Some(selected_item) = selected_item else {
+        return Ok(items);
+    };
+
+    if u.glob {
+        return Ok(items);
+    }
+
+    let direct_path = u.path.join("/");
+    let Some(item) = items
+        .into_iter()
+        .find(|item| importable_item_name(item).is_some_and(|name| name == selected_item))
+    else {
+        return Err(KainError::runtime(format!(
+            "Module item not found during type registration: {}",
+            direct_path
+        )));
+    };
+
+    Ok(vec![apply_import_alias_for_type_registration(
+        item,
+        u.alias.as_deref(),
+    )?])
+}
+
+fn importable_item_name(item: &Item) -> Option<&str> {
+    match item {
+        Item::Function(f) => Some(&f.name),
+        Item::Component(c) => Some(&c.name),
+        Item::Struct(s) => Some(&s.name),
+        Item::Enum(e) => Some(&e.name),
+        Item::Actor(a) => Some(&a.name),
+        Item::Const(c) => Some(&c.name),
+        Item::Macro(m) => Some(&m.name),
+        Item::TypeAlias(alias) => Some(&alias.name),
+        Item::Mod(module) => Some(&module.name),
+        _ => None,
+    }
+}
+
+fn apply_import_alias_for_type_registration(
+    mut item: Item,
+    alias: Option<&str>,
+) -> KainResult<Item> {
+    let Some(alias) = alias else {
+        return Ok(item);
+    };
+
+    match &mut item {
+        Item::Function(f) => f.name = alias.to_string(),
+        Item::Component(c) => c.name = alias.to_string(),
+        Item::Struct(s) => s.name = alias.to_string(),
+        Item::Enum(e) => e.name = alias.to_string(),
+        Item::Actor(a) => a.name = alias.to_string(),
+        Item::Const(c) => c.name = alias.to_string(),
+        Item::Macro(m) => m.name = alias.to_string(),
+        Item::TypeAlias(t) => t.name = alias.to_string(),
+        Item::Mod(m) => m.name = alias.to_string(),
+        other => {
+            return Err(KainError::runtime(format!(
+                "Import alias is not supported for item: {:?}",
+                other
+            )))
+        }
+    }
+
+    Ok(item)
 }
 
 fn register_method_signatures(

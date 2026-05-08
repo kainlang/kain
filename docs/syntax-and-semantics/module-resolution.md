@@ -1,6 +1,6 @@
 # Module Resolution
 
-Snapshot: April 12, 2026.
+Snapshot: May 7, 2026.
 
 This page explains how Kain turns `mod`, `use`, inline module trees, and stdlib
 profiles into concrete names that the runtime and typechecker can resolve.
@@ -68,6 +68,38 @@ The authored module graph, by contrast, resolves the program's own nested
 modules, imported items, and inline modules. That is why a missing stdlib entry
 and a missing authored module are different failures.
 
+## Filesystem Module Lookup
+
+The runtime and typechecker share authored filesystem lookup through
+`crates/kain-core/src/module_resolution.rs`.
+
+For non-stdlib imports, Kain first treats the whole import path as a module
+file:
+
+1. `<path>.kn`
+2. `src/<path>.kn`
+3. `src/core/<first-segment>.kn`
+4. `<path>.god`
+
+If that does not resolve and the import has more than one segment, Kain then
+tries first-segment module files:
+
+1. `<first-segment>.kn`
+2. `src/<first-segment>.kn`
+3. `<first-segment>.god`
+
+That fallback is what lets a file like `host_reflection.kn` satisfy:
+
+```kain
+use host_reflection::build_control_plane_catalog
+```
+
+When the fallback path is used, the runtime registers only the requested
+top-level item and applies `as` aliases to that item. `use module::*` registers
+the module's top-level items. The typechecker mirrors this when the module file
+can be parsed cleanly, but falls back to the older `Unknown` import behavior
+when the module is unavailable or not type-registration friendly.
+
 ## Practical Reading Order
 
 1. `syntax-and-semantics/syntax.md`
@@ -80,6 +112,7 @@ and a missing authored module are different failures.
 
 - `crates/kain-core/src/runtime.rs`
 - `crates/kain-core/src/types.rs`
+- `crates/kain-core/src/module_resolution.rs`
 - `crates/kain-core/src/stdlib.rs`
 - `crates/kain-core/src/runtime_contract.rs`
 

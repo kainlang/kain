@@ -5,6 +5,33 @@ use crate::parser::Parser;
 use crate::runtime::{interpret, Value};
 use crate::stdlib::StdLib;
 use crate::types;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+
+static CURRENT_DIR_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+struct CurrentDirGuard {
+    previous_dir: PathBuf,
+    _lock: MutexGuard<'static, ()>,
+}
+
+impl CurrentDirGuard {
+    fn enter(next_dir: &Path) -> Self {
+        let lock = CURRENT_DIR_TEST_LOCK.lock().expect("current dir test lock");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        std::env::set_current_dir(next_dir).expect("set current dir");
+        Self {
+            previous_dir,
+            _lock: lock,
+        }
+    }
+}
+
+impl Drop for CurrentDirGuard {
+    fn drop(&mut self) {
+        std::env::set_current_dir(&self.previous_dir).expect("restore current dir");
+    }
+}
 
 fn interpret_test_source(source: &str) -> Value {
     let tokens = Lexer::new(source).tokenize().expect("tokenize test source");
@@ -162,6 +189,65 @@ actor Echo:
 fn main() -> Int:
     let echo = spawn Echo()
     return ask_timeout(echo, "Call", 9, 1000)
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 10),
+        other => panic!("expected Int(10), got {:?}", other),
+    }
+}
+
+#[test]
+fn filesystem_named_use_loads_item_from_sibling_module_file() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    std::fs::write(
+        temp.path().join("host_reflection.kn"),
+        r#"
+fn build_control_plane_catalog() -> Int:
+    return 42
+"#,
+    )
+    .expect("write helper module");
+
+    let _cwd = CurrentDirGuard::enter(temp.path());
+    let value = interpret_test_source(
+        r#"
+use host_reflection::build_control_plane_catalog
+
+fn main() -> Int:
+    return build_control_plane_catalog()
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 42),
+        other => panic!("expected Int(42), got {:?}", other),
+    }
+}
+
+#[test]
+fn filesystem_glob_use_registers_sibling_module_symbols_for_typechecking() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    std::fs::write(
+        temp.path().join("plugin_authoring.kn"),
+        r#"
+fn emit_plugin_manifest() -> Int:
+    return 7
+
+fn emit_debug_value() -> Int:
+    return 3
+"#,
+    )
+    .expect("write helper module");
+
+    let _cwd = CurrentDirGuard::enter(temp.path());
+    let value = interpret_test_source(
+        r#"
+use plugin_authoring::*
+
+fn main() -> Int:
+    return emit_plugin_manifest() + emit_debug_value()
 "#,
     );
 

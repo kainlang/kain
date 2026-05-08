@@ -16,6 +16,7 @@ pub mod lexer;
 pub mod low_level_abi;
 pub mod low_level_memory;
 pub mod low_level_memory_metadata;
+pub mod module_resolution;
 pub mod monomorphize;
 pub mod parser;
 pub mod realtime_app_bundle;

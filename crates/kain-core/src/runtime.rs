@@ -4,6 +4,9 @@ use crate::ast::*;
 use crate::error::{KainError, KainResult};
 use crate::language_features::runtime_supports_binary_op;
 use crate::lexer::Lexer;
+use crate::module_resolution::{
+    filesystem_module_candidates, resolve_filesystem_module_file, resolve_stdlib_module_file,
+};
 use crate::parser::Parser;
 use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
@@ -3300,37 +3303,6 @@ pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<V
     }
 }
 
-fn find_stdlib_roots() -> Vec<std::path::PathBuf> {
-    let mut roots = Vec::new();
-
-    if let Ok(env_path) = std::env::var("KAIN_STDLIB_PATH") {
-        let p = std::path::PathBuf::from(env_path);
-        roots.push(p);
-    }
-
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
-            loop {
-                roots.push(dir.join("stdlib"));
-                if !dir.pop() {
-                    break;
-                }
-            }
-        }
-    }
-
-    if let Ok(mut dir) = std::env::current_dir() {
-        loop {
-            roots.push(dir.join("stdlib"));
-            if !dir.pop() {
-                break;
-            }
-        }
-    }
-
-    roots
-}
-
 fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     let path = u.path.join("/");
 
@@ -3347,54 +3319,36 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     }
 
     // Check for stdlib submodules: std/option, std/hashmap, std/result
-    let file_path = if path.starts_with("std/") || path.starts_with("stdlib/") {
+    let module_resolution = if path.starts_with("std/") || path.starts_with("stdlib/") {
         let module_name = path
             .trim_start_matches("std/")
             .trim_start_matches("stdlib/");
 
-        let mut file_path = None;
-        for root in find_stdlib_roots() {
-            let candidate = root.join(format!("{}.kn", module_name));
-            if candidate.exists() {
-                file_path = Some(candidate);
-                break;
-            }
-        }
-
-        file_path.ok_or_else(|| {
+        let file_path = resolve_stdlib_module_file(module_name).ok_or_else(|| {
             KainError::runtime(format!("Stdlib module not found: {}", module_name))
-        })?
+        })?;
+
+        (file_path, None, Vec::new())
     } else {
-        // Regular file path - try multiple locations
-        let base_path = std::path::Path::new(&path);
-        // The first path segment is the module name (e.g. "codegen_llvm" from use codegen_llvm::fn_name)
-        let module_base = u.path.first().map(|s| s.as_str()).unwrap_or(&path);
+        let resolution = resolve_filesystem_module_file(&u.path).ok_or_else(|| {
+            let tried_paths = filesystem_module_candidates(&u.path)
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>();
+            KainError::runtime(format!(
+                "Module not found: {} (tried: {:?})",
+                path, tried_paths
+            ))
+        })?;
 
-        // Try various locations in order
-        let possible_paths = [
-            base_path.with_extension("kn"), // ./compiler/lexer.kn
-            std::path::PathBuf::from(format!("src/{}.kn", path)), // src/compiler/lexer.kn
-            std::path::PathBuf::from(format!("src/core/{}.kn", module_base)), // src/core/lexer.kn (selfhost pipeline)
-            std::path::PathBuf::from(format!("{}.kn", path)),                 // compiler/lexer.kn
-            base_path.with_extension("god"), // legacy .god extension
-        ];
-
-        possible_paths
-            .iter()
-            .find(|p| p.exists())
-            .cloned()
-            .ok_or_else(|| {
-                KainError::runtime(format!(
-                    "Module not found: {} (tried: {:?})",
-                    path,
-                    possible_paths
-                        .iter()
-                        .map(|p| p.display().to_string())
-                        .collect::<Vec<_>>()
-                ))
-            })?
+        (
+            resolution.file_path,
+            resolution.selected_item,
+            resolution.tried_paths,
+        )
     };
 
+    let (file_path, selected_item, _) = module_resolution;
     let source = std::fs::read_to_string(&file_path)
         .map_err(|e| KainError::runtime(format!("Failed to read module {}: {}", path, e)))?;
 
@@ -3405,12 +3359,39 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     let mut parser = Parser::new(&tokens, &span_mapper, &filename);
     let program = parser.parse()?;
 
-    // Register items
-    for item in program.items {
+    let items = select_filesystem_import_items(program.items, u, selected_item.as_deref())?;
+    for item in items {
         env.register_item(&item)?;
     }
 
     Ok(())
+}
+
+fn select_filesystem_import_items(
+    items: Vec<Item>,
+    u: &Use,
+    selected_item: Option<&str>,
+) -> KainResult<Vec<Item>> {
+    let Some(selected_item) = selected_item else {
+        return Ok(items);
+    };
+
+    if u.glob {
+        return Ok(items);
+    }
+
+    let direct_path = u.path.join("/");
+    let Some(item) = items
+        .into_iter()
+        .find(|item| inline_item_name(item).is_some_and(|name| name == selected_item))
+    else {
+        return Err(KainError::runtime(format!(
+            "Module item not found: {}",
+            direct_path
+        )));
+    };
+
+    Ok(vec![apply_use_alias(item, u.alias.as_deref())?])
 }
 
 fn load_inline_module(env: &mut Env, u: &Use) -> KainResult<Option<Vec<Item>>> {

@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-07 - Filesystem imports now dogfood sibling Kain modules
+
+Kain now handles the import shape that blocked the first GreebleFS Kain control-plane split: `use module::item` can resolve against `module.kn` / `src/module.kn` when `module/item.kn` does not exist, and `use module::*` can expose top-level sibling module items during typechecking.
+
+What changed:
+
+- Added `crates/kain-core/src/module_resolution.rs` as the shared lookup helper for stdlib roots and authored filesystem module candidates.
+- Updated the interpreter runtime import path so named filesystem imports can select one top-level item from a fallback module file and honor `as` aliases.
+- Updated the typechecker to best-effort register symbols from cleanly parsed filesystem modules, while preserving the older `Unknown` fallback when imported modules are absent or not safe to register during typechecking.
+- Added focused `kain-core` runtime tests for the GreebleFS-shaped imports: `use host_reflection::build_control_plane_catalog` and `use plugin_authoring::*`.
+- Updated `docs/syntax-and-semantics/module-resolution.md` and the local `kain-engineer` import reference so future agents do not rediscover the old workaround.
+
+Validation:
+
+- `cargo test -p kain-core filesystem_ -- --nocapture` passes.
+- `git diff --check -- crates\kain-core\src\module_resolution.rs crates\kain-core\src\lib.rs crates\kain-core\src\runtime.rs crates\kain-core\src\types.rs crates\kain-core\src\runtime_tests.rs` passes with line-ending warnings only.
+
+Current risk:
+
+- Filesystem module lookup is still rooted in the process current directory, not the source file's absolute parent. For nested scripts such as `src/server.kn`, launch from the project/runtime root or a directory where the expected `src/<module>.kn` exists until source-file-relative roots are added.
+- A `cargo build -p cli` retry was blocked by active Windows cargo/rustc artifact locks in `target/`; rerun once the long-lived cargo processes drain to refresh `target/debug/kain.exe`.
+
+Recommended next step:
+
+- After the CLI binary rebuilds, simplify the GreebleFS control-plane `server.kn` back into real sibling imports instead of keeping it self-contained, then add a Kain CLI smoke that runs that split module layout.
+
 # 2026-04-18 - Tauri desktop adapter landed as a first-class native-ui host lane
 
 The repo now has a real Tauri 2 desktop host path for Kain-authored UI instead of forcing every native-ui flow through the Qt launcher.
