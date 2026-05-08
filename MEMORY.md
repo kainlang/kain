@@ -15,12 +15,13 @@ What changed:
 Validation:
 
 - `cargo test -p kain-core filesystem_ -- --nocapture` passes.
+- `cargo build -p cli --target-dir target\codex-cli-build` passes; the alternate target dir avoids the local `target/debug` PyO3 artifact lock.
 - `git diff --check -- crates\kain-core\src\module_resolution.rs crates\kain-core\src\lib.rs crates\kain-core\src\runtime.rs crates\kain-core\src\types.rs crates\kain-core\src\runtime_tests.rs` passes with line-ending warnings only.
 
 Current risk:
 
 - Filesystem module lookup is still rooted in the process current directory, not the source file's absolute parent. For nested scripts such as `src/server.kn`, launch from the project/runtime root or a directory where the expected `src/<module>.kn` exists until source-file-relative roots are added.
-- A `cargo build -p cli` retry was blocked by active Windows cargo/rustc artifact locks in `target/`; rerun once the long-lived cargo processes drain to refresh `target/debug/kain.exe`.
+- Plain `cargo build -p cli` in the default `target/debug` directory is blocked on this machine by a locked PyO3 artifact (`target/debug/deps/libpyo3_build_config-9afde652236a6978.rlib`). Use a separate `--target-dir` for validation until that Windows file handle clears, then refresh `target/debug/kain.exe`.
 
 Recommended next step:
 
