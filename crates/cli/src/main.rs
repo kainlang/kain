@@ -305,6 +305,20 @@ enum NativeUiCommand {
     },
 }
 
+#[derive(clap::Subcommand, Debug)]
+enum BridgeCommand {
+    /// Run a resident JSON-lines Kain bridge process.
+    Serve {
+        /// Entry .kn file that defines the dispatch function.
+        #[arg(long)]
+        entry: PathBuf,
+
+        /// Function called for each request. It receives one JSON string.
+        #[arg(long, default_value = "kain_bridge_dispatch")]
+        dispatch_function: String,
+    },
+}
+
 fn parse_native_ui_host_kind(value: &str) -> Result<native_ui_build::NativeUiHostKind, String> {
     match value.trim().to_ascii_lowercase().as_str() {
         "qt" => Ok(native_ui_build::NativeUiHostKind::Qt),
@@ -408,6 +422,12 @@ enum Commands {
     NativeUi {
         #[command(subcommand)]
         command: NativeUiCommand,
+    },
+
+    /// Resident Kain host bridge workflows
+    Bridge {
+        #[command(subcommand)]
+        command: BridgeCommand,
     },
 
     /// Run a file (explicit command)
@@ -2060,6 +2080,22 @@ fn main() {
                         };
                         if let Err(err) = native_ui_dev::run_native_ui_dev(config) {
                             eprintln!(" Native UI dev failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                },
+                Some(Commands::Bridge { command }) => match command {
+                    BridgeCommand::Serve {
+                        entry,
+                        dispatch_function,
+                    } => {
+                        if let Err(err) =
+                            cli::bridge::run_bridge_server(cli::bridge::BridgeServeConfig {
+                                entry,
+                                dispatch_function,
+                            })
+                        {
+                            eprintln!(" Kain bridge failed: {}", err);
                             std::process::exit(1);
                         }
                     }
