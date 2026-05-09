@@ -891,11 +891,7 @@ fn write_block(
     indent: usize,
 ) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(
-            output,
-            indent,
-            "# LOSSY LOWERING: empty Rust block lowered to pass",
-        )?;
+        write_line(output, indent, "()")?;
         return Ok(());
     }
 
@@ -918,25 +914,59 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             if let Some(value) = value {
                 line.push_str(&format!(" = {}", expr_to_string(value)));
             }
-            write_line(output, indent, &line)
+            write_multiline(output, indent, &line)
         }
-        kain_core::ast::Stmt::Expr(expr) => write_line(output, indent, &expr_to_string(expr)),
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Block(block, _)) => {
+            write_block(output, block, indent)
+        }
+        kain_core::ast::Stmt::Expr(expr) => write_multiline(output, indent, &expr_to_string(expr)),
         kain_core::ast::Stmt::Return(value, _) => {
             if let Some(expr) = value {
-                write_line(output, indent, &format!("return {}", expr_to_string(expr)))
+                write_multiline(output, indent, &format!("return {}", expr_to_string(expr)))
             } else {
                 write_line(output, indent, "return")
             }
         }
-        _ => write_line(
-            output,
-            indent,
-            &lossy_marker(
-                "unsupported_stmt_lowering",
-                "unsupported Rust statement lowered as placeholder",
-                Some("inspect the matching diagnostic in import_report.json and replace this seam with a concrete lowering"),
-            ),
-        ),
+        kain_core::ast::Stmt::Break(value, _) => {
+            if let Some(expr) = value {
+                write_multiline(output, indent, &format!("break {}", expr_to_string(expr)))
+            } else {
+                write_line(output, indent, "break")
+            }
+        }
+        kain_core::ast::Stmt::Continue(_) => write_line(output, indent, "continue"),
+        kain_core::ast::Stmt::For {
+            binding,
+            iter,
+            body,
+            ..
+        } => {
+            write_multiline(
+                output,
+                indent,
+                &format!(
+                    "for {} in {}:",
+                    pattern_to_string(binding),
+                    expr_to_string(iter)
+                ),
+            )?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::While {
+            condition, body, ..
+        } => {
+            write_multiline(
+                output,
+                indent,
+                &format!("while {}:", expr_to_string(condition)),
+            )?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::Loop { body, .. } => {
+            write_line(output, indent, "loop:")?;
+            write_block(output, body, indent + 1)
+        }
+        kain_core::ast::Stmt::Item(item) => write_item(output, item, indent),
     }
 }
 
@@ -944,6 +974,16 @@ fn write_line(output: &mut String, indent: usize, line: &str) -> KainResult<()> 
     use std::fmt::Write;
     writeln!(output, "{}{}", "    ".repeat(indent), line)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))
+}
+
+fn write_multiline(output: &mut String, indent: usize, text: &str) -> KainResult<()> {
+    for line in text.lines() {
+        write_line(output, indent, line)?;
+    }
+    if text.is_empty() {
+        write_line(output, indent, "")?;
+    }
+    Ok(())
 }
 
 fn lossy_marker(class: &str, message: &str, repair_hint: Option<&str>) -> String {
@@ -997,6 +1037,7 @@ fn diagnostic_class(diag: &str) -> Option<&str> {
 fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
     match pattern {
         kain_core::ast::Pattern::Wildcard(_) => "_".to_string(),
+        kain_core::ast::Pattern::Literal(expr) => expr_to_string(expr),
         kain_core::ast::Pattern::Binding { name, mutable, .. } => {
             if *mutable {
                 format!("mut {}", name)
@@ -1004,20 +1045,678 @@ fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
                 name.clone()
             }
         }
-        _ => "_".to_string(),
+        kain_core::ast::Pattern::Struct {
+            name, fields, rest, ..
+        } => {
+            let mut parts = fields
+                .iter()
+                .map(|(field, pattern)| format!("{field}: {}", pattern_to_string(pattern)))
+                .collect::<Vec<_>>();
+            if *rest {
+                parts.push("..".to_string());
+            }
+            format!("{name} {{ {} }}", parts.join(", "))
+        }
+        kain_core::ast::Pattern::Tuple(patterns, _) => format!(
+            "({})",
+            patterns
+                .iter()
+                .map(pattern_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        kain_core::ast::Pattern::Variant {
+            enum_name,
+            variant,
+            fields,
+            ..
+        } => {
+            let head = enum_name
+                .as_ref()
+                .map(|name| format!("{name}::{variant}"))
+                .unwrap_or_else(|| variant.clone());
+            variant_pattern_to_string(&head, fields)
+        }
+        kain_core::ast::Pattern::Slice { patterns, rest, .. } => {
+            let mut parts = patterns.iter().map(pattern_to_string).collect::<Vec<_>>();
+            if let Some(rest) = rest {
+                parts.push(format!("{rest} @ .."));
+            }
+            format!("[{}]", parts.join(", "))
+        }
+        kain_core::ast::Pattern::Or(patterns, _) => patterns
+            .iter()
+            .map(pattern_to_string)
+            .collect::<Vec<_>>()
+            .join(" | "),
+        kain_core::ast::Pattern::Range {
+            start,
+            end,
+            inclusive,
+            ..
+        } => {
+            let marker = if *inclusive { "..=" } else { ".." };
+            format!(
+                "{}{}{}",
+                start
+                    .as_ref()
+                    .map(|expr| expr_to_string(expr))
+                    .unwrap_or_default(),
+                marker,
+                end.as_ref()
+                    .map(|expr| expr_to_string(expr))
+                    .unwrap_or_default()
+            )
+        }
     }
 }
 
 fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
+    expr_to_string_prec(expr, 0)
+}
+
+fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
+    use kain_core::ast::Expr;
+
+    let current_prec = expr_precedence(expr);
+    let mut rendered = match expr {
+        Expr::Int(value, _) => value.to_string(),
+        Expr::Float(value, _) => format!("{value:?}"),
+        Expr::String(value, _) => format!("{:?}", value),
+        Expr::FString(parts, _) => format_f_string(parts),
+        Expr::Bool(value, _) => value.to_string(),
+        Expr::None(_) => "none".to_string(),
+        Expr::Ident(name, _) => name.clone(),
+        Expr::MacroCall { name, args, .. } => {
+            format!(
+                "{}!({})",
+                name,
+                args.iter()
+                    .map(expr_to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        }
+        Expr::Binary {
+            left, op, right, ..
+        } => {
+            let prec = binary_precedence(*op);
+            format!(
+                "{} {} {}",
+                expr_to_string_prec(left, prec),
+                binary_op_to_string(*op),
+                expr_to_string_prec(right, prec + 1)
+            )
+        }
+        Expr::Unary { op, operand, .. } => {
+            format!(
+                "{}{}",
+                unary_op_to_string(*op),
+                expr_to_string_prec(operand, 13)
+            )
+        }
+        Expr::Call { callee, args, .. } => render_call_like(
+            &expr_to_string_prec(callee, 14),
+            &call_args_to_strings(args),
+        ),
+        Expr::StageCall {
+            runtime,
+            function,
+            args,
+            ..
+        } => render_call_like(
+            &format!("{} {}", runtime.as_str(), function),
+            &call_args_to_strings(args),
+        ),
+        Expr::MethodCall {
+            receiver,
+            method,
+            args,
+            ..
+        } => render_call_like(
+            &format!("{}.{}", expr_to_string_prec(receiver, 14), method),
+            &call_args_to_strings(args),
+        ),
+        Expr::Field { object, field, .. } => {
+            format!("{}.{}", expr_to_string_prec(object, 14), field)
+        }
+        Expr::Index { object, index, .. } => {
+            format!(
+                "{}[{}]",
+                expr_to_string_prec(object, 14),
+                expr_to_string(index)
+            )
+        }
+        Expr::Assign { target, value, .. } => {
+            format!("{} = {}", expr_to_string(target), expr_to_string(value))
+        }
+        Expr::Struct {
+            name, fields, rest, ..
+        } => {
+            let mut entries = fields
+                .iter()
+                .map(|(field, value)| format!("{field}: {}", expr_to_string(value)))
+                .collect::<Vec<_>>();
+            if let Some(rest) = rest {
+                entries.push(format!("..{}", expr_to_string(rest)));
+            }
+            format!("{name} {{ {} }}", entries.join(", "))
+        }
+        Expr::AggregateInit {
+            ty,
+            fields,
+            zero_fill_rest,
+            ..
+        } => {
+            let mut args = vec![format!("{:?}", type_to_string(ty))];
+            args.extend(
+                fields
+                    .iter()
+                    .map(|(field, value)| format!("{field} = {}", expr_to_string(value))),
+            );
+            if !zero_fill_rest {
+                args.push("zero_fill_rest = false".to_string());
+            }
+            render_call_like("aggregate_init", &args)
+        }
+        Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+            ..
+        } => enum_variant_to_string(&format!("{enum_name}::{variant}"), fields),
+        Expr::Array(items, _) => format!(
+            "[{}]",
+            items
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Expr::Tuple(items, _) => format!(
+            "({})",
+            items
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Expr::Range {
+            start,
+            end,
+            inclusive,
+            ..
+        } => {
+            let marker = if *inclusive { "..=" } else { ".." };
+            format!(
+                "{}{}{}",
+                start
+                    .as_ref()
+                    .map(|expr| expr_to_string(expr))
+                    .unwrap_or_default(),
+                marker,
+                end.as_ref()
+                    .map(|expr| expr_to_string(expr))
+                    .unwrap_or_default()
+            )
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            let mut output = format!(
+                "if {}:\n{}",
+                expr_to_string(condition),
+                block_to_string(then_branch, 1)
+            );
+            if let Some(branch) = else_branch {
+                output.push('\n');
+                output.push_str(&else_branch_to_string(branch));
+            }
+            output
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            let mut lines = vec![format!("match {}:", expr_to_string(scrutinee))];
+            lines.extend(
+                arms.iter()
+                    .map(match_arm_to_string)
+                    .map(|arm| indent_text(&arm, 1)),
+            );
+            lines.join("\n")
+        }
+        Expr::Lambda {
+            params,
+            return_type,
+            body,
+            ..
+        } => lambda_to_string(params, return_type.as_ref(), body),
+        Expr::Ref { mutable, value, .. } => {
+            if *mutable {
+                format!("&mut {}", expr_to_string_prec(value, 13))
+            } else {
+                format!("&{}", expr_to_string_prec(value, 13))
+            }
+        }
+        Expr::AddrOf { value, .. } => format!("addr_of({})", expr_to_string(value)),
+        Expr::Deref(value, _) => format!("*{}", expr_to_string_prec(value, 13)),
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => format!(
+            "ptr_offset({}, {})",
+            expr_to_string(pointer),
+            expr_to_string(offset)
+        ),
+        Expr::MemLoad { pointer, .. } => format!("mem_load({})", expr_to_string(pointer)),
+        Expr::MemStore { pointer, value, .. } => {
+            format!(
+                "mem_store({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(value)
+            )
+        }
+        Expr::SizeOfType { target, .. } => {
+            format!("sizeof_type({:?})", type_to_string(target))
+        }
+        Expr::AlignOfType { target, .. } => {
+            format!("alignof_type({:?})", type_to_string(target))
+        }
+        Expr::Alloca { ty, .. } => format!("alloca({:?})", type_to_string(ty)),
+        Expr::Uninit { ty, .. } => format!("uninit({:?})", type_to_string(ty)),
+        Expr::Alloc { size, zeroed, .. } => {
+            format!(
+                "{}({})",
+                if *zeroed { "alloc_zeroed" } else { "alloc" },
+                expr_to_string(size)
+            )
+        }
+        Expr::Realloc { pointer, size, .. } => {
+            format!(
+                "realloc_mem({}, {})",
+                expr_to_string(pointer),
+                expr_to_string(size)
+            )
+        }
+        Expr::Cast { value, target, .. } => {
+            format!(
+                "{} as {}",
+                expr_to_string_prec(value, 12),
+                type_to_string(target)
+            )
+        }
+        Expr::Try(value, _) => format!("{}?", expr_to_string_prec(value, 14)),
+        Expr::Await(value, _) => format!("await {}", expr_to_string_prec(value, 13)),
+        Expr::AsyncBlock(value, _) => match value.as_ref() {
+            Expr::Block(block, _) => format!("async:\n{}", block_to_string(block, 1)),
+            other => format!("async {}", expr_to_string_prec(other, 13)),
+        },
+        Expr::Spawn { actor, init, .. } => render_call_like(
+            &format!("spawn {actor}"),
+            &init
+                .iter()
+                .map(|(name, value)| format!("{name} = {}", expr_to_string(value)))
+                .collect::<Vec<_>>(),
+        ),
+        Expr::SendMsg {
+            target,
+            message,
+            data,
+            ..
+        } => render_call_like(
+            &format!("send {}.{}", expr_to_string(target), message),
+            &data
+                .iter()
+                .map(|(name, value)| format!("{name} = {}", expr_to_string(value)))
+                .collect::<Vec<_>>(),
+        ),
+        Expr::Comptime(value, _) => match value.as_ref() {
+            Expr::Block(block, _) => format!("comptime:\n{}", block_to_string(block, 1)),
+            other => format!("comptime {}", expr_to_string(other)),
+        },
+        Expr::Block(block, _) => block_expr_to_string(block),
+        Expr::JSX(_, _) => lossy_marker(
+            "jsx_expr_printing",
+            "JSX expression preserved in AST but import-rust CLI printer cannot emit JSX yet",
+            Some("use the AST formatter or add JSX emission here"),
+        ),
+        Expr::Paren(value, _) => format!("({})", expr_to_string(value)),
+        Expr::Return(Some(value), _) => format!("return {}", expr_to_string(value)),
+        Expr::Return(None, _) => "return".to_string(),
+        Expr::Break(Some(value), _) => format!("break {}", expr_to_string(value)),
+        Expr::Break(None, _) => "break".to_string(),
+        Expr::Continue(_) => "continue".to_string(),
+    };
+
+    if current_prec != 0 && current_prec < parent_prec {
+        rendered = format!("({rendered})");
+    }
+    rendered
+}
+
+fn call_args_to_strings(args: &[kain_core::ast::CallArg]) -> Vec<String> {
+    args.iter()
+        .map(|arg| match &arg.name {
+            Some(name) => format!("{name} = {}", expr_to_string(&arg.value)),
+            None => expr_to_string(&arg.value),
+        })
+        .collect()
+}
+
+fn render_call_like(callee: &str, args: &[String]) -> String {
+    if args.is_empty() {
+        return format!("{callee}()");
+    }
+    if args.iter().all(|arg| !arg.contains('\n')) {
+        return format!("{callee}({})", args.join(", "));
+    }
+
+    let body = args
+        .iter()
+        .map(|arg| indent_text(arg, 1))
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!("{callee}(\n{body}\n)")
+}
+
+fn enum_variant_to_string(head: &str, fields: &kain_core::ast::EnumVariantFields) -> String {
+    match fields {
+        kain_core::ast::EnumVariantFields::Unit => head.to_string(),
+        kain_core::ast::EnumVariantFields::Tuple(values) => format!(
+            "{}({})",
+            head,
+            values
+                .iter()
+                .map(expr_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        kain_core::ast::EnumVariantFields::Struct(values) => format!(
+            "{} {{ {} }}",
+            head,
+            values
+                .iter()
+                .map(|(name, value)| format!("{name}: {}", expr_to_string(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn variant_pattern_to_string(head: &str, fields: &kain_core::ast::VariantPatternFields) -> String {
+    match fields {
+        kain_core::ast::VariantPatternFields::Unit => head.to_string(),
+        kain_core::ast::VariantPatternFields::Tuple(patterns) => format!(
+            "{}({})",
+            head,
+            patterns
+                .iter()
+                .map(pattern_to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        kain_core::ast::VariantPatternFields::Struct(patterns) => format!(
+            "{} {{ {} }}",
+            head,
+            patterns
+                .iter()
+                .map(|(field, pattern)| format!("{field}: {}", pattern_to_string(pattern)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn block_to_string(block: &kain_core::ast::Block, indent: usize) -> String {
+    let mut output = String::new();
+    match write_block(&mut output, block, indent) {
+        Ok(()) => output.trim_end().to_string(),
+        Err(err) => lossy_marker(
+            "block_printing",
+            &format!("block could not be printed: {err}"),
+            Some("inspect the source block and add a concrete import-rust printer case"),
+        ),
+    }
+}
+
+fn block_expr_to_string(block: &kain_core::ast::Block) -> String {
+    if block.stmts.is_empty() {
+        return "()".to_string();
+    }
+    if block.stmts.len() == 1 {
+        match &block.stmts[0] {
+            kain_core::ast::Stmt::Expr(expr) => return expr_to_string(expr),
+            kain_core::ast::Stmt::Return(Some(expr), _) => return expr_to_string(expr),
+            other => {
+                return block_to_string(
+                    &kain_core::ast::Block {
+                        stmts: vec![other.clone()],
+                        span: block.span,
+                    },
+                    0,
+                )
+            }
+        }
+    }
+    format!("block:\n{}", block_to_string(block, 1))
+}
+
+fn else_branch_to_string(branch: &kain_core::ast::ElseBranch) -> String {
+    match branch {
+        kain_core::ast::ElseBranch::Else(block) => {
+            format!("else:\n{}", block_to_string(block, 1))
+        }
+        kain_core::ast::ElseBranch::ElseIf(condition, block, next) => {
+            let mut output = format!(
+                "else if {}:\n{}",
+                expr_to_string(condition),
+                block_to_string(block, 1)
+            );
+            if let Some(next) = next {
+                output.push('\n');
+                output.push_str(&else_branch_to_string(next));
+            }
+            output
+        }
+    }
+}
+
+fn match_arm_to_string(arm: &kain_core::ast::MatchArm) -> String {
+    let mut head = pattern_to_string(&arm.pattern);
+    if let Some(guard) = &arm.guard {
+        head.push_str(" if ");
+        head.push_str(&expr_to_string(guard));
+    }
+    match &arm.body {
+        kain_core::ast::Expr::Block(block, _) => {
+            format!("{head} =>\n{}", block_to_string(block, 1))
+        }
+        kain_core::ast::Expr::If { .. } | kain_core::ast::Expr::Match { .. } => {
+            format!("{head} =>\n{}", indent_text(&expr_to_string(&arm.body), 1))
+        }
+        _ => format!("{head} => {}", expr_to_string(&arm.body)),
+    }
+}
+
+fn lambda_to_string(
+    params: &[kain_core::ast::Param],
+    return_type: Option<&kain_core::ast::Type>,
+    body: &kain_core::ast::Expr,
+) -> String {
+    let can_use_pipe = return_type.is_none()
+        && params
+            .iter()
+            .all(|param| matches!(param.ty, kain_core::ast::Type::Infer(_)) && !param.mutable);
+    if can_use_pipe {
+        return format!(
+            "|{}| {}",
+            params
+                .iter()
+                .map(|param| param.name.clone())
+                .collect::<Vec<_>>()
+                .join(", "),
+            expr_to_string(body)
+        );
+    }
+
+    let mut head = format!(
+        "fn({})",
+        params
+            .iter()
+            .map(|param| {
+                let mut rendered = String::new();
+                if param.mutable {
+                    rendered.push_str("mut ");
+                }
+                rendered.push_str(&param.name);
+                rendered.push_str(": ");
+                rendered.push_str(&type_to_string(&param.ty));
+                rendered
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    if let Some(return_type) = return_type {
+        head.push_str(" -> ");
+        head.push_str(&type_to_string(return_type));
+    }
+    match body {
+        kain_core::ast::Expr::Block(block, _) => {
+            format!("{head}:\n{}", block_to_string(block, 1))
+        }
+        _ => format!("{head}: {}", expr_to_string(body)),
+    }
+}
+
+fn indent_text(text: &str, levels: usize) -> String {
+    let prefix = "    ".repeat(levels);
+    text.lines()
+        .map(|line| format!("{prefix}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn format_f_string(parts: &[kain_core::ast::Expr]) -> String {
+    let mut output = String::from("f\"");
+    for part in parts {
+        match part {
+            kain_core::ast::Expr::String(value, _) => output.push_str(&escape_f_string_text(value)),
+            other => {
+                output.push('{');
+                output.push_str(&expr_to_string(other));
+                output.push('}');
+            }
+        }
+    }
+    output.push('"');
+    output
+}
+
+fn escape_f_string_text(value: &str) -> String {
+    let mut output = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '{' => output.push_str("{{"),
+            '}' => output.push_str("}}"),
+            other => output.push(other),
+        }
+    }
+    output
+}
+
+fn expr_precedence(expr: &kain_core::ast::Expr) -> u8 {
     match expr {
-        kain_core::ast::Expr::Int(value, _) => value.to_string(),
-        kain_core::ast::Expr::Float(value, _) => value.to_string(),
-        kain_core::ast::Expr::String(value, _) => format!("{:?}", value),
-        kain_core::ast::Expr::Bool(value, _) => value.to_string(),
-        kain_core::ast::Expr::None(_) => "none".to_string(),
-        kain_core::ast::Expr::Ident(name, _) => name.clone(),
-        kain_core::ast::Expr::AsyncBlock(value, _) => format!("async {}", expr_to_string(value)),
-        _ => lossy_marker("unsupported_expr_lowering", "unsupported Rust expression lowered as placeholder", Some("inspect the matching diagnostic in import_report.json and restore the original Rust expression")),
+        kain_core::ast::Expr::Assign { .. } => 1,
+        kain_core::ast::Expr::Binary { op, .. } => binary_precedence(*op),
+        kain_core::ast::Expr::Cast { .. } => 12,
+        kain_core::ast::Expr::Unary { .. }
+        | kain_core::ast::Expr::Ref { .. }
+        | kain_core::ast::Expr::Deref(..)
+        | kain_core::ast::Expr::Await(..)
+        | kain_core::ast::Expr::Try(..) => 13,
+        kain_core::ast::Expr::Call { .. }
+        | kain_core::ast::Expr::StageCall { .. }
+        | kain_core::ast::Expr::MethodCall { .. }
+        | kain_core::ast::Expr::Field { .. }
+        | kain_core::ast::Expr::Index { .. } => 14,
+        _ => 0,
+    }
+}
+
+fn binary_precedence(op: kain_core::ast::BinaryOp) -> u8 {
+    match op {
+        kain_core::ast::BinaryOp::Or => 1,
+        kain_core::ast::BinaryOp::And => 2,
+        kain_core::ast::BinaryOp::BitOr => 3,
+        kain_core::ast::BinaryOp::BitXor => 4,
+        kain_core::ast::BinaryOp::BitAnd => 5,
+        kain_core::ast::BinaryOp::Eq | kain_core::ast::BinaryOp::Ne => 6,
+        kain_core::ast::BinaryOp::Lt
+        | kain_core::ast::BinaryOp::Gt
+        | kain_core::ast::BinaryOp::Le
+        | kain_core::ast::BinaryOp::Ge => 7,
+        kain_core::ast::BinaryOp::Shl | kain_core::ast::BinaryOp::Shr => 8,
+        kain_core::ast::BinaryOp::Add | kain_core::ast::BinaryOp::Sub => 9,
+        kain_core::ast::BinaryOp::Mul
+        | kain_core::ast::BinaryOp::Div
+        | kain_core::ast::BinaryOp::Mod => 10,
+        kain_core::ast::BinaryOp::Pow => 11,
+        kain_core::ast::BinaryOp::Assign
+        | kain_core::ast::BinaryOp::AddAssign
+        | kain_core::ast::BinaryOp::SubAssign
+        | kain_core::ast::BinaryOp::MulAssign
+        | kain_core::ast::BinaryOp::DivAssign
+        | kain_core::ast::BinaryOp::Range
+        | kain_core::ast::BinaryOp::RangeInclusive => 1,
+    }
+}
+
+fn binary_op_to_string(op: kain_core::ast::BinaryOp) -> &'static str {
+    match op {
+        kain_core::ast::BinaryOp::Add => "+",
+        kain_core::ast::BinaryOp::Sub => "-",
+        kain_core::ast::BinaryOp::Mul => "*",
+        kain_core::ast::BinaryOp::Div => "/",
+        kain_core::ast::BinaryOp::Mod => "%",
+        kain_core::ast::BinaryOp::Pow => "**",
+        kain_core::ast::BinaryOp::Eq => "==",
+        kain_core::ast::BinaryOp::Ne => "!=",
+        kain_core::ast::BinaryOp::Lt => "<",
+        kain_core::ast::BinaryOp::Gt => ">",
+        kain_core::ast::BinaryOp::Le => "<=",
+        kain_core::ast::BinaryOp::Ge => ">=",
+        kain_core::ast::BinaryOp::And => "and",
+        kain_core::ast::BinaryOp::Or => "or",
+        kain_core::ast::BinaryOp::BitAnd => "&",
+        kain_core::ast::BinaryOp::BitOr => "|",
+        kain_core::ast::BinaryOp::BitXor => "^",
+        kain_core::ast::BinaryOp::Shl => "<<",
+        kain_core::ast::BinaryOp::Shr => ">>",
+        kain_core::ast::BinaryOp::Assign => "=",
+        kain_core::ast::BinaryOp::AddAssign => "+=",
+        kain_core::ast::BinaryOp::SubAssign => "-=",
+        kain_core::ast::BinaryOp::MulAssign => "*=",
+        kain_core::ast::BinaryOp::DivAssign => "/=",
+        kain_core::ast::BinaryOp::Range => "..",
+        kain_core::ast::BinaryOp::RangeInclusive => "..=",
+    }
+}
+
+fn unary_op_to_string(op: kain_core::ast::UnaryOp) -> &'static str {
+    match op {
+        kain_core::ast::UnaryOp::Neg => "-",
+        kain_core::ast::UnaryOp::Not => "!",
+        kain_core::ast::UnaryOp::BitNot => "~",
+        kain_core::ast::UnaryOp::Ref => "&",
+        kain_core::ast::UnaryOp::RefMut => "&mut ",
+        kain_core::ast::UnaryOp::Deref => "*",
     }
 }
 
@@ -1134,4 +1833,65 @@ fn count_enums(program: &kain_core::ast::Program) -> usize {
         .iter()
         .filter(|item| matches!(item, kain_core::ast::Item::Enum(_)))
         .count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn rust_import_printer_preserves_tauri_preview_expression_bodies() {
+        let source = r#"
+            pub async fn fs_read_preview_bytes_impl(
+                native_task_graph: &NativeTaskGraphManager,
+                preview_streaming: &PreviewStreamingManager,
+                path: String,
+                max_bytes: Option<u64>,
+            ) -> Result<tauri::transport::BinaryResponse, String> {
+                let target = PathBuf::from(&path);
+                let policy = preview_streaming.policy().clone();
+                let bytes = run_native_blocking_task(
+                    &native_task_graph,
+                    NativeTaskRequest::new(
+                        NativeTaskLane::PreviewRead,
+                        NativeTaskPriority::Visible,
+                        "read preview bytes",
+                    )
+                    .with_work_key(NativeTaskWorkKey::new(format!("preview-bytes:{path}"))),
+                    move |token| read_local_preview_bytes(&target, max_bytes, &policy, &token),
+                )
+                .await?;
+                Ok(tauri::transport::BinaryResponse::new(bytes))
+            }
+
+            pub async fn fs_get_home_dir() -> Result<String, String> {
+                dirs::home_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .ok_or_else(|| "Could not determine home directory".to_string())
+            }
+        "#;
+        let (program, diagnostics) =
+            kain_import::rust::import_rust_source_detailed(source, Path::new("fs_commands.rs"))
+                .expect("rust source should import");
+        let generated = generate_kain_source(&program).expect("Kain source should generate");
+
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected import diagnostics: {diagnostics:?}"
+        );
+        assert!(
+            !generated.contains("unsupported_expr_lowering"),
+            "printer should not emit unsupported expression placeholders:\n{generated}"
+        );
+        assert!(
+            !generated.contains("LOSSY LOWERING"),
+            "printer should not emit lossy placeholders:\n{generated}"
+        );
+        assert!(generated.contains("let target = PathBuf__from(&path)"));
+        assert!(generated.contains("let policy = preview_streaming.policy().clone()"));
+        assert!(generated.contains("await run_native_blocking_task"));
+        assert!(generated.contains("BinaryResponse__new_(bytes)"));
+        assert!(generated.contains("dirs__home_dir().map"));
+    }
 }

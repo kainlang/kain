@@ -1,5 +1,30 @@
 # Kain Memory
 
+# 2026-05-08 - Rust import printer now preserves expression-heavy Tauri command bodies
+
+The Rust import pipeline no longer turns most expression bodies into `LOSSY LOWERING [class:unsupported_expr_lowering]` comments when generating `.kn` from already-lowered Rust AST.
+
+What changed:
+
+- Expanded `crates/cli/src/import_rust.rs` source emission for Kain AST expressions and statements instead of only printing literals/idents.
+- The CLI printer now handles calls, method chains, fields, indexing, assignments, binary/unary ops, refs/derefs, casts, `await`, `?`, lambdas, arrays, tuples, structs, enum variants, `if`, `match`, loops, and unit `()`.
+- Added a regression test for the GreebleFS-shaped Tauri preview helpers (`PathBuf::from`, `preview_streaming.policy().clone()`, `run_native_blocking_task(...).await?`, `BinaryResponse::new`, and `dirs::home_dir().map(...).ok_or_else(...)`).
+
+Validation:
+
+- `cargo check -p cli --target-dir target\codex-rust-import-check` passes with pre-existing warnings.
+- `cargo test -p cli --target-dir target\codex-rust-import-check import_rust::tests::rust_import_printer_preserves_tauri_preview_expression_bodies -- --nocapture` passes.
+- Re-importing `D:\GreebleFS\src-tauri\src\fs_commands.rs` into `generated\rust_import_validation\fs_commands.kn` produced 199 functions, 37 structs, 12 enums, zero `LOSSY LOWERING`, zero `unsupported_expr_lowering`, and an empty diagnostics class report.
+
+Current risks:
+
+- This repair is a printer expansion, not a full guarantee that every printed construct is accepted by every Kain backend. The importer can now preserve much more source shape, but backend/codegen support remains target-sensitive.
+- The output may still contain Rust-shaped names normalized into Kain identifiers (for example `PathBuf__from`, `NativeTaskRequest__new_`), which is expected for this importer lane.
+
+Recommended next step:
+
+- Add a small CLI fixture under `crates/cli/tests/fixtures/import_rust` or a broader all-in-one smoke that imports a real Tauri command slice and asserts the generated report stays free of `unsupported_expr_lowering`.
+
 # 2026-05-07 - Filesystem imports now dogfood sibling Kain modules
 
 Kain now handles the import shape that blocked the first GreebleFS Kain control-plane split: `use module::item` can resolve against `module.kn` / `src/module.kn` when `module/item.kn` does not exist, and `use module::*` can expose top-level sibling module items during typechecking.
