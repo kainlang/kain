@@ -1,6 +1,7 @@
 // KAIN Compiler CLI
 
 use clap::{CommandFactory, FromArgMatches, Parser as ClapParser};
+use cli::codebase;
 use cli::fabric;
 use cli::import_asm;
 use cli::import_c;
@@ -428,6 +429,12 @@ enum Commands {
     Bridge {
         #[command(subcommand)]
         command: BridgeCommand,
+    },
+
+    /// Trusted local codebase control and package/runtime operators
+    Codebase {
+        #[command(subcommand)]
+        command: codebase::CodebaseCommand,
     },
 
     /// Run a file (explicit command)
@@ -2100,6 +2107,12 @@ fn main() {
                         }
                     }
                 },
+                Some(Commands::Codebase { command }) => {
+                    if let Err(err) = codebase::run(command) {
+                        eprintln!(" Codebase command failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
                 Some(Commands::Run { input }) => {
                     run_compile(
                         &input,

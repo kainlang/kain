@@ -15,6 +15,7 @@ members = [
     "crates/kain-omni",
     "crates/kain-driver",
     "crates/kain-crate-ffi",
+    "crates/kain-codebase",
     "crates/kain-host",
     "crates/kain-host-derive",
     "crates/kain-reflect",

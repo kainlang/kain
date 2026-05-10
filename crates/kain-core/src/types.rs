@@ -780,6 +780,248 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             ResolvedType::Unknown,
         ),
     );
+    for name in [
+        "js_eval",
+        "js_eval_raw",
+        "js_import",
+        "js_import_raw",
+        "node_import",
+        "js_require",
+        "js_require_raw",
+        "node_require",
+        "js_getattr",
+        "js_getattr_raw",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
+        );
+    }
+    for name in ["js_call", "js_call_raw"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::Unknown, ResolvedType::Unknown],
+                ResolvedType::Unknown,
+            ),
+        );
+    }
+    for name in [
+        "js_buffer_info",
+        "js_buffer_bytes",
+        "js_document_info",
+        "js_document_text",
+        "js_image_info",
+        "js_image_text",
+        "js_image_bytes",
+        "js_image_buffer",
+        "kain_shared_buffer_from_js",
+        "kain_shared_image_from_js",
+        "kain_shared_buffer_info",
+        "kain_shared_buffer_bytes",
+        "kain_shared_image_info",
+        "kain_shared_image_bytes",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
+        );
+    }
+    env.define_global(
+        "kain_shared_buffer_from_bytes".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::String,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "kain_shared_buffer_replace_bytes".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "kain_shared_image_from_bytes".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "kain_shared_image_replace_bytes".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unit,
+        ),
+    );
+    for name in ["js_call_method", "js_call_method_raw", "node_package_run"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![
+                    ResolvedType::Unknown,
+                    ResolvedType::String,
+                    ResolvedType::Unknown,
+                ],
+                ResolvedType::Unknown,
+            ),
+        );
+    }
+    env.define_global(
+        "js_exec".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    env.define_global(
+        "js_setattr".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "js_hasattr".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Bool,
+        ),
+    );
+    for name in ["codebase_find_root", "codebase_read", "codebase_hash"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+        );
+    }
+    for name in [
+        "codebase_inspect",
+        "codebase_scan",
+        "codebase_read_json",
+        "codebase_read_toml",
+        "cargo_workspace",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::Unknown),
+        );
+    }
+    for name in ["codebase_write"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, ResolvedType::String],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+    for name in ["codebase_write_json", "codebase_write_toml"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, ResolvedType::Unknown],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+    env.define_global(
+        "codebase_delete".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+    );
+    for name in [
+        "codebase_run",
+        "cargo_run",
+        "cargo_import_crate",
+        "python_run",
+        "ts_compile",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![
+                    ResolvedType::String,
+                    ResolvedType::String,
+                    ResolvedType::Unknown,
+                ],
+                ResolvedType::Unknown,
+            ),
+        );
+    }
+    env.define_global(
+        "python_import".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "python_call".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "c_compile".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "c_load".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Unknown),
+    );
+    env.define_global(
+        "c_call".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "ts_import".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
     env.define_global(
         "read_file".into(),
         builtin_function_type(vec![ResolvedType::String], ResolvedType::String),

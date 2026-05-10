@@ -10,6 +10,18 @@ pub fn js_bridge_eval_raw(code: String) -> Any:
 pub fn js_bridge_import(specifier: String) -> Any:
     return js_import(specifier)
 
+pub fn js_bridge_require(specifier: String) -> Any:
+    return js_require(specifier)
+
+pub fn js_bridge_require_raw(specifier: String) -> Any:
+    return js_require_raw(specifier)
+
+pub fn node_import(specifier: String) -> Any:
+    return js_import(specifier)
+
+pub fn node_require(specifier: String) -> Any:
+    return js_require(specifier)
+
 pub fn js_bridge_call(target: Any, args: Any) -> Any:
     return js_call(target, args)
 

@@ -26,6 +26,9 @@ static REGISTER: Once = Once::new();
 const NODE_BRIDGE_SOURCE: &str = r#"const readline = require('node:readline');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
+const fs = require('node:fs');
+const { createRequire } = require('node:module');
+const { spawnSync } = require('node:child_process');
 
 const registry = new Map();
 let nextRefId = 1;
@@ -109,6 +112,49 @@ async function resolveSpecifier(specifier) {
     return pathToFileURL(absolute).href;
   }
   return specifier;
+}
+
+function resolveRequireSpecifier(specifier) {
+  if (specifier.startsWith('.') || specifier.startsWith('/') || /^[A-Za-z]:[\\/]/.test(specifier)) {
+    return path.isAbsolute(specifier) ? specifier : path.resolve(process.cwd(), specifier);
+  }
+  return specifier;
+}
+
+function packageManagerFor(cwd) {
+  if (fs.existsSync(path.join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (fs.existsSync(path.join(cwd, 'bun.lockb')) || fs.existsSync(path.join(cwd, 'bun.lock'))) return 'bun';
+  if (fs.existsSync(path.join(cwd, 'yarn.lock'))) return 'yarn';
+  return 'npm';
+}
+
+function runPackageScript(cwd, script, args) {
+  const packageRoot = cwd ? path.resolve(String(cwd)) : process.cwd();
+  const manager = packageManagerFor(packageRoot);
+  const scriptArgs = Array.isArray(args) ? args.map((arg) => String(arg)) : [];
+  let commandArgs = [];
+  if (manager === 'bun') {
+    commandArgs = ['run', String(script), ...scriptArgs];
+  } else if (manager === 'yarn') {
+    commandArgs = ['run', String(script), ...scriptArgs];
+  } else {
+    commandArgs = ['run', String(script), '--', ...scriptArgs];
+  }
+  const result = spawnSync(manager, commandArgs, {
+    cwd: packageRoot,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+    env: process.env,
+  });
+  return {
+    command: manager,
+    args: commandArgs,
+    cwd: packageRoot,
+    status: typeof result.status === 'number' ? result.status : -1,
+    success: result.status === 0,
+    stdout: result.stdout || '',
+    stderr: result.stderr || (result.error ? String(result.error) : ''),
+  };
 }
 
 function resolveTarget(target) {
@@ -308,6 +354,20 @@ async function handleRequest(message) {
       const imported = await import(specifier);
       return toWire(imported, Boolean(message.raw));
     }
+    case 'require': {
+      const specifier = resolveRequireSpecifier(String(message.specifier ?? ''));
+      const requireFromCwd = createRequire(path.join(process.cwd(), 'kain-node-bridge.cjs'));
+      const imported = requireFromCwd(specifier);
+      return toWire(imported, Boolean(message.raw));
+    }
+    case 'package_run': {
+      const result = runPackageScript(
+        String(message.cwd || process.cwd()),
+        String(message.script || ''),
+        Array.isArray(message.args) ? message.args.map(fromWire) : []
+      );
+      return toWire(result, false);
+    }
     case 'getattr': {
       const target = resolveTarget(message.target);
       const value = target == null ? undefined : target[String(message.name ?? '')];
@@ -476,6 +536,41 @@ struct NodeObjectRef {
     label: String,
 }
 
+pub fn install_node_runtime_config(env: &mut Env, mut config: NodeFfiConfig) -> KainResult<()> {
+    let start_dir = config
+        .cwd
+        .clone()
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let default_config = resolve_node_config_from(&start_dir)?;
+    if config.command.is_none() {
+        config.command = Some(default_config.command);
+    }
+    if config.args.is_empty() {
+        config.args = default_config.args;
+    }
+    if config.cwd.is_none() {
+        config.cwd = Some(default_config.cwd);
+    }
+    if config.env.is_empty() {
+        config.env = default_config.env;
+    }
+    env.set_extension_state(
+        NODE_EXTENSION_KEY,
+        Arc::new(NodeRuntimeState {
+            config: Ok(NodeResolvedConfig {
+                command: config.command.unwrap_or_else(|| "node".to_string()),
+                args: config.args,
+                cwd: config.cwd.unwrap_or(start_dir),
+                env: config.env,
+                bridge_script_path: default_config.bridge_script_path,
+            }),
+            process: Mutex::new(None),
+        }),
+    );
+    Ok(())
+}
+
 pub fn register() {
     REGISTER.call_once(|| {
         kain_interop::register();
@@ -530,6 +625,30 @@ fn register_node_stdlib(stdlib: &mut StdLib) {
             params: vec![("specifier", "String")],
             return_type: "Any",
             doc: "Import a JavaScript or Node module and keep the raw module handle",
+        },
+        BuiltinFn {
+            name: "node_import",
+            params: vec![("specifier", "String")],
+            return_type: "Any",
+            doc: "Alias for js_import for Kain codebase/package workflows",
+        },
+        BuiltinFn {
+            name: "js_require",
+            params: vec![("specifier", "String")],
+            return_type: "Any",
+            doc: "Require a CommonJS module or Node package",
+        },
+        BuiltinFn {
+            name: "js_require_raw",
+            params: vec![("specifier", "String")],
+            return_type: "Any",
+            doc: "Require a CommonJS module or Node package and keep the raw module handle",
+        },
+        BuiltinFn {
+            name: "node_require",
+            params: vec![("specifier", "String")],
+            return_type: "Any",
+            doc: "Alias for js_require for Kain codebase/package workflows",
         },
         BuiltinFn {
             name: "js_call",
@@ -639,6 +758,12 @@ fn register_node_stdlib(stdlib: &mut StdLib) {
             return_type: "Any",
             doc: "Materialize a JavaScript image payload into the neutral Kain shared image contract",
         },
+        BuiltinFn {
+            name: "node_package_run",
+            params: vec![("cwd", "String"), ("script", "String"), ("args", "Any")],
+            return_type: "Any",
+            doc: "Run a package.json script through the detected local Node package manager",
+        },
     ] {
         stdlib.functions.insert(builtin.name.to_string(), builtin);
     }
@@ -663,6 +788,10 @@ fn register_node_env(env: &mut Env) {
     env.register_native_fn("js_exec", builtin_js_exec);
     env.register_native_fn("js_import", builtin_js_import);
     env.register_native_fn("js_import_raw", builtin_js_import_raw);
+    env.register_native_fn("node_import", builtin_node_import);
+    env.register_native_fn("js_require", builtin_js_require);
+    env.register_native_fn("js_require_raw", builtin_js_require_raw);
+    env.register_native_fn("node_require", builtin_node_require);
     env.register_native_fn("js_call", builtin_js_call);
     env.register_native_fn("js_call_raw", builtin_js_call_raw);
     env.register_native_fn("js_call_method", builtin_js_call_method);
@@ -687,6 +816,7 @@ fn register_node_env(env: &mut Env) {
         "kain_shared_image_from_js",
         builtin_kain_shared_image_from_js,
     );
+    env.register_native_fn("node_package_run", builtin_node_package_run);
 }
 
 fn builtin_js_eval(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -727,6 +857,30 @@ fn builtin_js_import_raw(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     )?)
 }
 
+fn builtin_node_import(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    builtin_js_import(env, args)
+}
+
+fn builtin_js_require(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let specifier = expect_string_arg(&args, 0, "js_require")?;
+    wire_to_value(&request_node(
+        env,
+        json!({ "op": "require", "specifier": specifier, "raw": false }),
+    )?)
+}
+
+fn builtin_node_require(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    builtin_js_require(env, args)
+}
+
+fn builtin_js_require_raw(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let specifier = expect_string_arg(&args, 0, "js_require_raw")?;
+    wire_to_value(&request_node(
+        env,
+        json!({ "op": "require", "specifier": specifier, "raw": true }),
+    )?)
+}
+
 fn builtin_js_call(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     call_like(env, &args, "js_call", "call", false)
 }
@@ -741,6 +895,24 @@ fn builtin_js_call_method(env: &mut Env, args: Vec<Value>) -> KainResult<Value> 
 
 fn builtin_js_call_method_raw(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     call_like(env, &args, "js_call_method_raw", "call_method", true)
+}
+
+fn builtin_node_package_run(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
+    let cwd = expect_string_arg(&args, 0, "node_package_run")?;
+    let script = expect_string_arg(&args, 1, "node_package_run")?;
+    let call_args = args
+        .get(2)
+        .cloned()
+        .unwrap_or_else(|| Value::Array(Arc::new(RwLock::new(Vec::new()))));
+    wire_to_value(&request_node(
+        env,
+        json!({
+            "op": "package_run",
+            "cwd": cwd,
+            "script": script,
+            "args": args_value_to_wire(&call_args)?,
+        }),
+    )?)
 }
 
 fn builtin_js_getattr(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
@@ -1408,7 +1580,11 @@ fn node_runtime_state(env: &Env) -> KainResult<Arc<NodeRuntimeState>> {
 
 fn resolve_node_config() -> KainResult<NodeResolvedConfig> {
     let current_dir = std::env::current_dir().map_err(KainError::Io)?;
-    let (manifest_root, config) = load_node_manifest_config(&current_dir)?;
+    resolve_node_config_from(&current_dir)
+}
+
+fn resolve_node_config_from(start_dir: &Path) -> KainResult<NodeResolvedConfig> {
+    let (manifest_root, config) = load_node_manifest_config(start_dir)?;
     let cache_root = manifest_root.join(".kain").join("cache").join("node_ffi");
     fs::create_dir_all(&cache_root).map_err(KainError::Io)?;
     let bridge_script_path = cache_root.join("kain_node_bridge.cjs");
@@ -1502,7 +1678,7 @@ fn source_uses_node_ffi(source: &str) -> bool {
         Regex::new(r"(?m)^\s*use\s+std(?:::|/)javascript(?:::|/)bridge").expect("regex")
     });
     static BUILTIN_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"\bjs_[A-Za-z0-9_]+\s*\(").expect("regex"));
+        Lazy::new(|| Regex::new(r"\b(?:js|node)_[A-Za-z0-9_]+\s*\(").expect("regex"));
     USE_IMPORT_REGEX.is_match(source) || BUILTIN_REGEX.is_match(source)
 }
 
@@ -1517,6 +1693,7 @@ mod tests {
     use kain_core::types;
     use kain_core::CompileTarget;
     use std::fs;
+    use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -1527,6 +1704,10 @@ mod tests {
         assert!(stdlib.functions.contains_key("js_exec"));
         assert!(stdlib.functions.contains_key("js_import"));
         assert!(stdlib.functions.contains_key("js_import_raw"));
+        assert!(stdlib.functions.contains_key("node_import"));
+        assert!(stdlib.functions.contains_key("js_require"));
+        assert!(stdlib.functions.contains_key("js_require_raw"));
+        assert!(stdlib.functions.contains_key("node_require"));
         assert!(stdlib.functions.contains_key("js_call"));
         assert!(stdlib.functions.contains_key("js_call_method"));
         assert!(stdlib.functions.contains_key("js_getattr"));
@@ -1542,6 +1723,7 @@ mod tests {
         assert!(stdlib.functions.contains_key("js_image_buffer"));
         assert!(stdlib.functions.contains_key("kain_shared_buffer_from_js"));
         assert!(stdlib.functions.contains_key("kain_shared_image_from_js"));
+        assert!(stdlib.functions.contains_key("node_package_run"));
     }
 
     #[test]
@@ -1644,12 +1826,89 @@ fn main() -> String:
     }
 
     #[test]
+    fn javascript_require_raw_and_node_aliases_support_cjs_modules() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let module_dir = std::env::temp_dir().join(format!("kain-node-cjs-test-{unique}"));
+        fs::create_dir_all(&module_dir).unwrap();
+        let module_path = module_dir.join("local_step.cjs");
+        fs::write(
+            &module_path,
+            "module.exports = { run(name) { return `cjs-${name}`; } };\n",
+        )
+        .unwrap();
+        let module_literal = serde_json::to_string(&module_path.display().to_string()).unwrap();
+        let source = format!(
+            r#"
+use std::javascript::bridge
+
+fn main() -> String:
+    let module_ref = node_require({module_literal})
+    return js_call_method(module_ref, "run", ["ok"])
+"#
+        );
+
+        let result = interpret_source(&source);
+        match result {
+            Value::String(value) => assert_eq!(value, "cjs-ok"),
+            other => panic!("expected String(\"cjs-ok\"), got {other:?}"),
+        }
+
+        let _ = fs::remove_file(&module_path);
+        let _ = fs::remove_dir(&module_dir);
+    }
+
+    #[test]
+    fn node_package_run_executes_package_scripts() {
+        if Command::new("npm").arg("--version").output().is_err() {
+            return;
+        }
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let package_dir = std::env::temp_dir().join(format!("kain-node-package-test-{unique}"));
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(
+            package_dir.join("package.json"),
+            r#"{"scripts":{"kain-smoke":"node -e \"console.log('pkg-ok')\"}}"#,
+        )
+        .unwrap();
+        let package_literal = serde_json::to_string(&package_dir.display().to_string()).unwrap();
+        let source = format!(
+            r#"
+use std::javascript::bridge
+
+fn main():
+    let result = node_package_run({package_literal}, "kain-smoke", [])
+    return [result.success, result.status, result.stdout]
+"#
+        );
+
+        let result = interpret_source(&source);
+        match result {
+            Value::Array(values) => {
+                let values = values.read().unwrap();
+                assert!(matches!(values[0], Value::Bool(true)));
+                assert!(matches!(values[1], Value::Int(0)));
+                assert!(matches!(&values[2], Value::String(value) if value.contains("pkg-ok")));
+            }
+            other => panic!("expected package run result array, got {other:?}"),
+        }
+
+        let _ = fs::remove_file(package_dir.join("package.json"));
+        let _ = fs::remove_dir(&package_dir);
+    }
+
+    #[test]
     fn javascript_buffer_info_and_bytes_support_typed_arrays() {
         let result = interpret_source(
             r#"
 use std::javascript::bridge
 
-fn main():
+fn main() -> Any:
     let bytes = js_eval_raw("new Uint8Array([4, 8, 15, 16, 23, 42])")
     let info = js_buffer_info(bytes)
     let snapshot = js_buffer_bytes(bytes)
@@ -1707,7 +1966,7 @@ fn main():
             r#"
 use std::javascript::bridge
 
-fn main():
+fn main() -> Any:
     let document = js_eval_raw("({ kind: 'document', title: 'Signal Notes', text: '<!doctype html><html><body>signal</body></html>', mime_type: 'text/html' })")
     let image = js_eval_raw("({ kind: 'canvas', width: 64, height: 32, mime_type: 'image/svg+xml', text: '<svg viewBox=\"0 0 64 32\"></svg>', bytes: new TextEncoder().encode('<svg viewBox=\"0 0 64 32\"></svg>') })")
     let doc_info = js_document_info(document)
@@ -1741,7 +2000,7 @@ fn main():
             r#"
 use std::javascript::bridge
 
-fn main():
+fn main() -> Any:
     let image = js_eval_raw("({ kind: 'image', width: 8, height: 4, channels: 3, layout: 'HWC', pixel_format: 'rgb8', representation: 'raster', mime_type: 'image/x-kain-raster', bytes: new Uint8Array(8 * 4 * 3).fill(17) })")
     let shared_image = kain_shared_image_from_js(image)
     let info = kain_shared_image_info(shared_image)

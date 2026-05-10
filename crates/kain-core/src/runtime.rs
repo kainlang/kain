@@ -31,6 +31,10 @@ fn lowered_impl_function_names(type_name: &str, method_name: &str) -> [String; 2
     ]
 }
 
+fn is_extern_runtime_declaration(function: &Function) -> bool {
+    function.attributes.iter().any(|attr| attr.name == "extern") && function.body.stmts.is_empty()
+}
+
 fn module_scoped_name(module_path: &[String], item_name: &str) -> String {
     let mut parts = module_path.to_vec();
     parts.push(item_name.to_string());
@@ -2939,8 +2943,10 @@ impl Env {
             Item::Use(u) => load_module(self, u)?,
             Item::Mod(module) => self.register_inline_module(module, &[])?,
             Item::Function(f) => {
-                self.functions.insert(f.name.clone(), f.clone());
-                self.define(f.name.clone(), Value::Function(f.name.clone()));
+                if !is_extern_runtime_declaration(f) {
+                    self.functions.insert(f.name.clone(), f.clone());
+                    self.define(f.name.clone(), Value::Function(f.name.clone()));
+                }
             }
             Item::Patch(patch) => {
                 self.register_patch_value(patch, infer_patch_undo_mode(patch));
@@ -3044,8 +3050,10 @@ impl Env {
                 }
             }
             TypedItem::Function(f) => {
-                self.functions.insert(f.ast.name.clone(), f.ast.clone());
-                self.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
+                if !is_extern_runtime_declaration(&f.ast) {
+                    self.functions.insert(f.ast.name.clone(), f.ast.clone());
+                    self.define(f.ast.name.clone(), Value::Function(f.ast.name.clone()));
+                }
             }
             TypedItem::Patch(patch) => {
                 self.register_patch_value(

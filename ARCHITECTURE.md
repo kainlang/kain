@@ -34,7 +34,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 `crates/kain-driver`, `crates/kain-omni`, `crates/kain-selfhost`, `crates/kain-build`, and importer crates turn Kain semantic truth into emitted bundles, packaged artifacts, imported surfaces, and multi-runtime workflows.
 
 3. Runtime and host bridges
-`runtime/native` is the canonical ABI floor and C runtime substrate. `crates/kain-host`, `crates/kain-sdk`, `crates/kain-reflect`, `crates/kain-c-ffi`, `crates/kain-crate-ffi`, `crates/kain-python`, `crates/kain-node`, and `crates/kain-interop` provide host/runtime integration.
+`runtime/native` is the canonical ABI floor and C runtime substrate. `crates/kain-host`, `crates/kain-sdk`, `crates/kain-reflect`, `crates/kain-c-ffi`, `crates/kain-crate-ffi`, `crates/kain-python`, `crates/kain-node`, `crates/kain-codebase`, and `crates/kain-interop` provide host/runtime integration.
 
 4. UI, native desktop, and 3D
 `crates/kain-ui`, `crates/kain-ui-native`, and `crates/kain-3D` are the semantic UI and accelerated native presentation stack.
@@ -109,6 +109,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
+- [kain-codebase](/M:/Code/Kain/crates/kain-codebase): trusted-local workspace control for discovering roots, reading/writing/deleting/scanning files, JSON/TOML round trips, structured command execution, and first-class Node/Cargo/Python/C/TypeScript runtime operators
 - [kain-reflect](/M:/Code/Kain/crates/kain-reflect): reflection schemas and type identity
 - [kain-sdk](/M:/Code/Kain/crates/kain-sdk): high-level embedding facade
 - [kain-interop](/M:/Code/Kain/crates/kain-interop): shared buffer/image payload contracts
@@ -166,9 +167,13 @@ The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentiona
 
 ### Host bridge flow
 
-`.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI) -> shared payload contracts via kain-interop`
+`.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI, codebase control) -> shared payload contracts via kain-interop`
 
 Bridges exist to expose external capabilities cleanly. They should not become the default place to hide logic that Kain can already express and execute itself. Prefer Kain-owned logic for domain behavior, control flow, state transitions, and semantic contracts; use bridge crates for foreign APIs, packaged dependencies, and target-native runtime services.
+
+`kain-codebase` is the trusted-local workspace authority layer, not a read-only indexer. Its default mode is `trusted-local`, which is allowed to mutate files and run toolchains for private/dev work. Future public or user-authored plugin policies should be host-side reviewed/curated modes layered above this crate, not fake safety inside the core local bridge.
+
+The CLI exposes the same layer through `kain codebase inspect <path> --json` and `kain codebase run <cwd> -- <command> ...`. The run command is a structured capture operator: the Kain process succeeds when it captured stdout/stderr/status correctly, and callers must inspect the child `success`/`status` fields.
 
 Current native-ui packaging rule for C ABI imports:
 
@@ -418,6 +423,7 @@ If the debug CLI is missing:
 - Large Windows test binaries can hit linker OOM pressure.
 - The workspace still pins `pyo3 0.20.x`, so a machine-default Python 3.13+ or 3.14 can break builds. Prefer Python 3.12, set `PYO3_PYTHON` explicitly when needed, and keep the Python 3.12 install directory on PATH so the built `kain.exe` can resolve `python312.dll` at runtime.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived in a repo-owned archive path and cross-linked from `guides/reference/troubleshooting.md`.
+- Some Windows environments in this checkout can fail the final `.git/index.lock -> .git/index` swap with `fatal: unable to write new index file` even after the command already staged content. When that happens, use [scripts/windows/git-safe-index.ps1](D:/Kain-Lang/scripts/windows/git-safe-index.ps1) to run the mutating git command through a temporary index and stream-copy the result back into the live index.
 - The root `mcp.json` and `codex.config.toml` templates are intentionally portable. They assume only `KAIN_REPO_ROOT`; do not replace that with checkout-specific absolute paths when updating the Flight Control MCP lane.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.

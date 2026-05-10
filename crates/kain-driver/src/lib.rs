@@ -746,6 +746,7 @@ fn register_frontend_extensions_for_target(target: CompileTarget) {
     match target {
         CompileTarget::Interpret | CompileTarget::Test => {
             kain_interop::register();
+            kain_codebase::register();
             kain_python::register();
             kain_node::register();
             kain_crate_ffi::register();

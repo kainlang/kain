@@ -1547,6 +1547,16 @@ fn interpret_fabric_kain_source(
         )
         .map_err(|err| runtime_bridge_failure(context.step, "compile_failed", err))?;
     let mut env = Env::new();
+    if matches!(context.step.runtime, FabricRuntimeKind::Node) {
+        kain_node::install_node_runtime_config(
+            &mut env,
+            kain_node::NodeFfiConfig {
+                cwd: Some(context.workspace_root.to_path_buf()),
+                ..Default::default()
+            },
+        )
+        .map_err(|err| runtime_bridge_failure(context.step, "node_runtime_config_failed", err))?;
+    }
     env.define_global("fabric_inputs", context.fabric_inputs.clone());
     env.define_global(
         "fabric_serialized_inputs",
@@ -1682,6 +1692,7 @@ fn interop_shared_image_from_bytes(bytes: _InteropBytes, width: Int, height: Int
 
 fn register_fabric_extensions() {
     kain_interop::register();
+    kain_codebase::register();
     kain_python::register();
     kain_node::register();
     kain_crate_ffi::register();

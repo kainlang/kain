@@ -1,5 +1,65 @@
 # Kain Memory
 
+# 2026-05-10 - Windows git index writes now have a repo-local safe-write escape hatch
+
+This checkout can still hit a Windows-only git failure where index-mutating commands finish their work and then die on the final `.git/index.lock -> .git/index` swap with `fatal: unable to write new index file`.
+
+What changed:
+
+- Added `scripts/windows/git-safe-index.ps1`.
+- The script copies the live `.git/index` to `.git/index.safe-write`, runs the requested git command with `GIT_INDEX_FILE` pointed at that temporary index, then stream-copies the resulting bytes back into the live `.git/index` in place instead of relying on the failing rename step.
+- The script refuses to run if a real `.git/index.lock` exists so it does not silently stomp an active git writer.
+- `ARCHITECTURE.md` now points future agents at the helper from `## Common Errors`.
+
+Usage:
+
+- `./scripts/windows/git-safe-index.ps1 add -A`
+- `./scripts/windows/git-safe-index.ps1 rm -r --cached generated`
+- If no arguments are passed, it defaults to `add -A`.
+
+Current risks:
+
+- This is a safe operator workaround for an external Windows file-handle/index-swap issue, not a root-cause fix inside the repo source itself.
+- The helper only addresses index writes. If a separate environment issue later blocks branch ref updates during `commit` or remote-tracking ref updates during `push`, that still needs the same kind of manual repair or a future wrapper for refs.
+
+Recommended next step:
+
+- If this keeps recurring outside Codex too, capture the actual handle owner with Process Explorer or Sysinternals `handle.exe` and decide whether a broader `git-safe-commit.ps1` / `git-safe-push.ps1` wrapper is worth adding.
+
+# 2026-05-10 - Full-power codebase bridge and Fabric Node handoff landed
+
+Kain now treats local workspace control as an explicit trusted execution lane instead of a read-only inspection helper.
+
+What changed:
+
+- Added `crates/kain-codebase` as the trusted-local workspace authority layer. It discovers roots from `KAIN.toml`, `package.json`, `Cargo.toml`, `.git`, and explicit paths; scans, hashes, creates, writes, copies, moves, and deletes files/directories; round-trips JSON/TOML; and captures commands with structured stdout/stderr/status.
+- Exposed `kain codebase inspect <path> --json` and `kain codebase run <cwd> -- <command> ...`. `codebase run` exits successfully when Kain captured the child process correctly, even if the child command itself returned nonzero; inspect the JSON `success` and `status` fields for the child result.
+- Registered the new codebase APIs in host-backed Kain execution: `codebase_*`, `cargo_*`, `python_*`, `c_*`, and `ts_*` bridge functions now typecheck and dispatch in interpreted/test host lanes.
+- Fixed the Node/Fabric raw bridge regression by keeping `@extern` declarations from shadowing native bridge functions, preserving raw Node module handles through raw import/call paths, adding CJS `js_require_raw`/`node_require`, and adding `node_package_run` for package-script execution from the Node bridge cwd.
+- Fabric Kain steps now install Node runtime cwd/cache config from the Fabric workspace root, and Node Fabric steps receive upstream `fabric_inputs` with shared payload projections instead of an empty JS object.
+- The GreebleFS image-converter Fabric pipeline now runs end to end with Python -> Kain -> C ABI -> Rust crate -> Node. The latest proof session reported Node `inputProjection = received`, upstream keys `kain_orchestrator,rust_analyzer`, a 64x64 shared-image chain, and a native shared-buffer snapshot.
+
+Validation:
+
+- `cargo test -p kain-codebase --target-dir target\codex-codebase-bridge -- --nocapture`
+- `cargo test -p kain-node --target-dir target\codex-codebase-bridge -- --nocapture`
+- `cargo test -p kain-host node_step_consumes_shared_inputs_via_fabric_inputs --target-dir target\codex-codebase-bridge -- --nocapture`
+- `cargo build -p cli --target-dir target\codex-codebase-bridge`
+- `target\codex-codebase-bridge\debug\kain.exe codebase inspect D:\GreebleFS --json`
+- `target\codex-codebase-bridge\debug\kain.exe codebase run D:\GreebleFS -- bun --version`
+- `target\codex-codebase-bridge\debug\kain.exe codebase run D:\GreebleFS -- cargo check --manifest-path src-tauri/Cargo.toml --lib`
+- `D:\Kain-Lang\target\codex-codebase-bridge\debug\kain.exe fabric run -m KAIN.fabric.toml` from `D:\GreebleFS\usr\plugins-kain\kain-image-converter\plugin.runtime\fabric`
+
+Current risks:
+
+- Direct C calls in `kain-codebase` intentionally support a narrow scalar ABI surface today (`i64`/`f64`/`void` signatures). Rich C ABI reflection should build on `kain-c-ffi` instead of bloating this first workspace-control crate.
+- GreebleFS `pnpm --version` is captured correctly but returns child status `1` because that repo is configured for Bun. Use Bun for GreebleFS package-manager smokes unless the package-manager policy changes.
+- GreebleFS `cargo check --manifest-path src-tauri/Cargo.toml --lib` is captured correctly and passed in this session, but the build can still print Windows incremental-cache cleanup warnings when another process has target files locked.
+
+Recommended next step:
+
+- Add a higher-level Kain-authored smoke under `smoketest/fabric/` or GreebleFS `usr/plugins-kain` that calls the new `codebase_*` APIs from `.kn` directly, then runs package/Cargo/Python/C/TS operators from one trusted-local script.
+
 # 2026-05-09 - TypeScript import ambient prelude is generated from TypeScript lib data
 
 The TypeScript import pipeline now uses an embedded ambient manifest instead of hand-maintained Rust lists of JavaScript/DOM globals.
