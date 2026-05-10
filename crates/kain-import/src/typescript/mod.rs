@@ -32,10 +32,14 @@
 //! - `Promise<T>` → KAIN async function
 //! - Generics → KAIN generics
 
+mod ambient;
 mod parser;
 mod transformer;
 mod types;
 
+pub use ambient::{
+    typescript_ambient_manifest, typescript_ambient_value_name, typescript_type_name_lowers_to_any,
+};
 pub use transformer::TypeScriptTransformer;
 
 use crate::{ImportError, Result};

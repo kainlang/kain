@@ -1,0 +1,321 @@
+shader compute mograph_supermotion(id: UVec3) -> Vec4:
+    // Packed instance transforms (xyz + padding) per instance.
+    uniform in_pos: StorageBuffer<Vec4> @0
+    uniform in_rot: StorageBuffer<Vec4> @1
+    uniform in_scl: StorageBuffer<Vec4> @2
+    uniform out_pos: StorageBuffer<Vec4> @3
+    uniform out_rot: StorageBuffer<Vec4> @4
+    uniform out_scl: StorageBuffer<Vec4> @5
+
+    // Motion command stream.
+    uniform mod_type: StorageBuffer<Int> @6
+    uniform params_a: StorageBuffer<Vec4> @7
+    uniform params_b: StorageBuffer<Vec4> @8
+    uniform params_c: StorageBuffer<Vec4> @9
+
+    uniform instance_count: UInt @10
+    uniform time_sec: Float @11
+    uniform global_intensity: Float @12
+    uniform random_seed: Float @13
+    uniform eps: Float @14
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let i = id.x
+    if i >= instance_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let p0 = in_pos[i]
+    let r0 = in_rot[i]
+    let s0 = in_scl[i]
+    let mode = mod_type[i]
+    let a = params_a[i]
+    let b = params_b[i]
+    let c = params_c[i]
+
+    // Shared timing and deterministic pseudo-random.
+    let step = a.w
+    let t = time_sec + i as Float * step
+    let h0 = fract(sin(i as Float * 12.9898 + random_seed * 78.233) * 43758.5453)
+    let h1 = fract(sin(i as Float * 9.137 + random_seed * 17.113) * 22578.1459)
+    let h2 = fract(sin(i as Float * 5.731 + random_seed * 99.271) * 11939.7791)
+
+    let mut pos = p0.xyz
+    let mut rot = r0.xyz
+    let mut scl = s0.xyz
+
+    // Modes:
+    // 0 orbit, 1 float, 2 pulse, 3 shake, 4 elastic, 5 pendulum, 6 wobble
+    // 7 figure8, 8 heartbeat, 9 bounce, 10 tumble, 11 strobe, 12 corkscrew
+    // 13 shiver, 14 sway, 15 yoyo, 16 crab, 17 lissajous, 18 flip, 19 tremor
+    // 20 scan, 21 warp, 22 drift, 23 bobble, 24 twist
+    // 25 helix_rise, 26 gyro_spin, 27 inhale, 28 jitter_pulse, 29 spiral_sink
+    // 30 saw_bounce, 31 ribbon, 32 cork_orbit, 33 phase_march, 34 quake
+    // 35 spring_twist, 36 vortex_pull, 37 lantern, 38 zigzag, 39 boomerang
+    // 40 roll_wave, 41 cardioid, 42 screwdrive, 43 glitch_snap, 44 orbit_lissajous
+    // 45 squash_run, 46 turbulence_ramp, 47 precession, 48 lattice, 49 overdrive
+
+    if mode == 0:
+        let rr = t * a.x * 0.62831853
+        pos = vec3(pos.x + cos(rr) * a.y, pos.y, pos.z + sin(rr) * a.y)
+        rot = vec3(rot.x, rot.y + rr, rot.z)
+    else:
+        if mode == 1:
+            pos = vec3(pos.x, pos.y + sin(t * a.x + b.x) * a.y, pos.z)
+        else:
+            if mode == 2:
+                let pul = 1.0 + sin(t * a.x) * a.y
+                scl = scl * max(pul, 0.001)
+            else:
+                if mode == 3:
+                    let f = a.x
+                    let n0 = fract(sin((t * f + h0) * 17.3) * 15731.3) - 0.5
+                    let n1 = fract(sin((t * f + h1) * 11.9) * 12653.8) - 0.5
+                    let n2 = fract(sin((t * f + h2) * 23.7) * 19483.1) - 0.5
+                    pos = pos + vec3(n0, n1, n2) * a.y
+                else:
+                    if mode == 4:
+                        let stretch = 1.0 + sin(t * a.x) * a.y
+                        let sq = 1.0 / sqrt(max(stretch, 0.1))
+                        scl = vec3(sq, stretch, sq)
+                    else:
+                        if mode == 5:
+                            rot = vec3(rot.x, rot.y, rot.z + sin(t * a.x) * a.y)
+                        else:
+                            if mode == 6:
+                                rot = vec3(rot.x + sin(t * a.x) * a.y, rot.y, rot.z + cos(t * a.x * 1.3) * a.y)
+                            else:
+                                if mode == 7:
+                                    pos = vec3(pos.x + cos(t * a.x) * a.y, pos.y, pos.z + sin(t * a.x * 2.0) * b.x)
+                                else:
+                                    if mode == 8:
+                                        let bt = fract(t * a.x)
+                                        let kick_a = if bt < 0.15: sin(bt * 20.94395) else: 0.0
+                                        let kick_b = if bt > 0.25 && bt < 0.4: sin((bt - 0.25) * 20.94395) * 0.6 else: 0.0
+                                        let kick = kick_a + kick_b
+                                        scl = scl * (1.0 + kick * a.y)
+                                    else:
+                                        if mode == 9:
+                                            let by = abs(sin(t * a.x)) * a.y
+                                            pos = vec3(pos.x, pos.y + by, pos.z)
+                                            let sf = 1.0 + max(0.0, 0.2 - by) * b.x
+                                            scl = vec3(1.0 + sf * 0.2, 1.0 / max(sf, 0.2), 1.0 + sf * 0.2)
+                                        else:
+                                            if mode == 10:
+                                                rot = rot + vec3(a.x, a.y, a.z) * t
+                                            else:
+                                                if mode == 11:
+                                                    let st = if sin(t * a.x) < b.x: 0.0 else: 1.0
+                                                    scl = scl * st
+                                                else:
+                                                    if mode == 12:
+                                                        pos = vec3(pos.x, pos.y + sin(t * a.x) * a.y, pos.z)
+                                                        rot = vec3(rot.x, rot.y + t * b.x, rot.z)
+                                                    else:
+                                                        if mode == 13:
+                                                            let sh = (fract(sin((t * a.x + h0) * 91.0) * 104729.0) - 0.5) * a.y
+                                                            scl = scl * (1.0 + sh)
+                                                        else:
+                                                            if mode == 14:
+                                                                rot = vec3(rot.x + cos(t * a.x * 0.7) * b.x, rot.y, rot.z + sin(t * a.x) * a.y)
+                                                            else:
+                                                                if mode == 15:
+                                                                    pos = vec3(pos.x, pos.y - abs(sin(t * a.x)) * a.y, pos.z)
+                                                                else:
+                                                                    if mode == 16:
+                                                                        pos = vec3(pos.x + sin(t * a.x) * a.y, pos.y, pos.z)
+                                                                    else:
+                                                                        if mode == 17:
+                                                                            pos = vec3(pos.x + a.y * sin(a.x * t), pos.y + a.y * sin(b.x * t), pos.z + a.y * sin(c.x * t))
+                                                                        else:
+                                                                            if mode == 18:
+                                                                                let ft = fract(t * a.x)
+                                                                                let ea = ft * ft * (3.0 - 2.0 * ft)
+                                                                                rot = vec3(rot.x + ea * 6.2831853, rot.y, rot.z)
+                                                                            else:
+                                                                                if mode == 19:
+                                                                                    rot = vec3(rot.x + (h0 - 0.5) * a.y * sin(t * a.x), rot.y + (h1 - 0.5) * a.y * cos(t * a.x * 1.7), rot.z + (h2 - 0.5) * a.y * sin(t * a.x * 2.3))
+                                                                                else:
+                                                                                    if mode == 20:
+                                                                                        pos = vec3(pos.x + sin(t * a.x) * a.y, pos.y, pos.z)
+                                                                                    else:
+                                                                                        if mode == 21:
+                                                                                            let wv = sin(t * a.x)
+                                                                                            pos = vec3(pos.x, pos.y, pos.z + wv * a.y)
+                                                                                            let ws = 1.0 + abs(cos(t * a.x)) * b.x
+                                                                                            let inv = 1.0 / sqrt(max(ws, eps))
+                                                                                            scl = vec3(scl.x * inv, scl.y * inv, scl.z * ws)
+                                                                                        else:
+                                                                                            if mode == 22:
+                                                                                                let d0 = fract(sin((t * a.x + h0) * 37.1) * 31337.7) - 0.5
+                                                                                                let d1 = fract(sin((t * a.x + h1) * 41.3) * 27183.5) - 0.5
+                                                                                                let d2 = fract(sin((t * a.x + h2) * 29.7) * 19997.1) - 0.5
+                                                                                                pos = pos + vec3(d0, d1, d2) * a.y
+                                                                                            else:
+                                                                                                if mode == 23:
+                                                                                                    let by = abs(sin(t * a.x))
+                                                                                                    pos = vec3(pos.x, pos.y + by * b.x, pos.z)
+                                                                                                    rot = vec3(rot.x, rot.y, rot.z + cos(t * a.x) * a.y)
+                                                                                                else:
+                                                                                                    if mode == 24:
+                                                                                                        rot = vec3(rot.x, rot.y + sin(t * a.x) * a.y, rot.z)
+                                                                                                    else:
+                                                                                                        if mode == 25:
+                                                                                                            let ang = t * a.x
+                                                                                                            pos = pos + vec3(cos(ang) * a.y, fract(t * b.x) * c.x, sin(ang) * a.y)
+                                                                                                        else:
+                                                                                                            if mode == 26:
+                                                                                                                rot = rot + vec3(sin(t * a.x), cos(t * b.x), sin(t * c.x)) * a.y
+                                                                                                            else:
+                                                                                                                if mode == 27:
+                                                                                                                    let breath = 1.0 + sin(t * a.x) * a.y
+                                                                                                                    scl = scl * max(breath, 0.05)
+                                                                                                                    pos = vec3(pos.x, pos.y + sin(t * b.x) * c.x, pos.z)
+                                                                                                                else:
+                                                                                                                    if mode == 28:
+                                                                                                                        let gate = if sin(t * a.x) > b.x: 1.0 else: 0.0
+                                                                                                                        let jx = (fract(sin((t + h0) * 53.0) * 9187.0) - 0.5) * a.y
+                                                                                                                        let jy = (fract(sin((t + h1) * 61.0) * 6719.0) - 0.5) * a.y
+                                                                                                                        let jz = (fract(sin((t + h2) * 47.0) * 7331.0) - 0.5) * a.y
+                                                                                                                        pos = pos + vec3(jx, jy, jz) * gate
+                                                                                                                    else:
+                                                                                                                        if mode == 29:
+                                                                                                                            let ang = t * a.x
+                                                                                                                            pos = pos + vec3(cos(ang) * a.y, -abs(sin(t * b.x)) * c.x, sin(ang) * a.y)
+                                                                                                                        else:
+                                                                                                                            if mode == 30:
+                                                                                                                                let tri = abs(fract(t * a.x) * 2.0 - 1.0)
+                                                                                                                                pos = vec3(pos.x, pos.y + tri * a.y, pos.z)
+                                                                                                                                rot = vec3(rot.x + tri * b.x, rot.y, rot.z)
+                                                                                                                            else:
+                                                                                                                                if mode == 31:
+                                                                                                                                    let tt = t * a.x + i as Float * b.x
+                                                                                                                                    pos = pos + vec3(sin(tt) * a.y, cos(tt * 2.0) * b.y, sin(tt * 3.0) * c.x)
+                                                                                                                                else:
+                                                                                                                                    if mode == 32:
+                                                                                                                                        let ang = t * a.x
+                                                                                                                                        pos = pos + vec3(cos(ang) * a.y, sin(t * b.x) * c.x, sin(ang) * a.y)
+                                                                                                                                        rot = vec3(rot.x, rot.y + ang * b.y, rot.z + sin(ang * 2.0) * c.y)
+                                                                                                                                    else:
+                                                                                                                                        if mode == 33:
+                                                                                                                                            let ph = fract(t * a.x)
+                                                                                                                                            let hold = if ph < b.x: 0.0 else: 1.0
+                                                                                                                                            pos = pos + vec3((hold - 0.5) * a.y, sin(t * c.x) * b.y, 0.0)
+                                                                                                                                        else:
+                                                                                                                                            if mode == 34:
+                                                                                                                                                let q0 = (fract(sin((t * a.x + h0) * 131.0) * 104729.0) - 0.5) * a.y
+                                                                                                                                                let q1 = (fract(sin((t * a.x + h1) * 173.0) * 130363.0) - 0.5) * a.y
+                                                                                                                                                let q2 = (fract(sin((t * a.x + h2) * 197.0) * 156007.0) - 0.5) * a.y
+                                                                                                                                                pos = pos + vec3(q0, q1, q2)
+                                                                                                                                                rot = rot + vec3(q2, q0, q1) * b.x
+                                                                                                                                            else:
+                                                                                                                                                if mode == 35:
+                                                                                                                                                    let stretch = 1.0 + sin(t * a.x) * a.y
+                                                                                                                                                    let invs = 1.0 / sqrt(max(stretch, 0.05))
+                                                                                                                                                    scl = vec3(scl.x * invs, scl.y * stretch, scl.z * invs)
+                                                                                                                                                    rot = vec3(rot.x, rot.y + sin(t * b.x) * c.x, rot.z)
+                                                                                                                                                else:
+                                                                                                                                                    if mode == 36:
+                                                                                                                                                        let pull = max(0.0, 1.0 - abs(sin(t * a.x)) * b.x)
+                                                                                                                                                        pos = pos * pull
+                                                                                                                                                        rot = rot + vec3(0.0, t * c.x, 0.0)
+                                                                                                                                                    else:
+                                                                                                                                                        if mode == 37:
+                                                                                                                                                            pos = vec3(pos.x + sin(t * a.x) * a.y, pos.y + abs(sin(t * b.x)) * b.y, pos.z + cos(t * a.x) * a.y)
+                                                                                                                                                            rot = vec3(rot.x, rot.y + sin(t * c.x) * c.y, rot.z)
+                                                                                                                                                        else:
+                                                                                                                                                            if mode == 38:
+                                                                                                                                                                let zz = abs(fract(t * a.x) * 2.0 - 1.0) * 2.0 - 1.0
+                                                                                                                                                                pos = vec3(pos.x + zz * a.y, pos.y, pos.z)
+                                                                                                                                                            else:
+                                                                                                                                                                if mode == 39:
+                                                                                                                                                                    let bo = sin(t * a.x)
+                                                                                                                                                                    pos = vec3(pos.x, pos.y, pos.z + bo * a.y)
+                                                                                                                                                                    rot = vec3(rot.x + bo * b.x, rot.y, rot.z)
+                                                                                                                                                                else:
+                                                                                                                                                                    if mode == 40:
+                                                                                                                                                                        let rw = sin(t * a.x)
+                                                                                                                                                                        pos = vec3(pos.x, pos.y + rw * a.y, pos.z)
+                                                                                                                                                                        rot = vec3(rot.x + rw * b.x, rot.y + cos(t * a.x) * c.x, rot.z)
+                                                                                                                                                                    else:
+                                                                                                                                                                        if mode == 41:
+                                                                                                                                                                            let ang = t * a.x
+                                                                                                                                                                            let ca = cos(ang)
+                                                                                                                                                                            let sa = sin(ang)
+                                                                                                                                                                            let rad = a.y * (1.0 - ca)
+                                                                                                                                                                            pos = vec3(pos.x + rad * ca, pos.y, pos.z + rad * sa)
+                                                                                                                                                                        else:
+                                                                                                                                                                            if mode == 42:
+                                                                                                                                                                                let ang = t * a.x
+                                                                                                                                                                                pos = vec3(pos.x + cos(ang) * a.y, pos.y + sin(t * b.x) * b.y, pos.z + sin(ang) * a.y)
+                                                                                                                                                                                rot = vec3(rot.x, rot.y + ang * c.x, rot.z + sin(ang * 3.0) * c.y)
+                                                                                                                                                                            else:
+                                                                                                                                                                                if mode == 43:
+                                                                                                                                                                                    let g = if fract(t * a.x) > b.x: 1.0 else: 0.0
+                                                                                                                                                                                    let ox = (h0 - 0.5) * a.y * g
+                                                                                                                                                                                    let oy = (h1 - 0.5) * a.y * g
+                                                                                                                                                                                    let oz = (h2 - 0.5) * a.y * g
+                                                                                                                                                                                    pos = pos + vec3(ox, oy, oz)
+                                                                                                                                                                                    rot = rot + vec3(oz, ox, oy) * c.x
+                                                                                                                                                                                else:
+                                                                                                                                                                                    if mode == 44:
+                                                                                                                                                                                        let u = t * a.x
+                                                                                                                                                                                        pos = pos + vec3(sin(3.0 * u) * a.y, sin(2.0 * u + b.x) * b.y, sin(5.0 * u + c.x) * c.y)
+                                                                                                                                                                                    else:
+                                                                                                                                                                                        if mode == 45:
+                                                                                                                                                                                            let tr = abs(sin(t * a.x))
+                                                                                                                                                                                            pos = vec3(pos.x, pos.y + tr * b.x, pos.z + cos(t * a.x) * c.x)
+                                                                                                                                                                                            let sy = 1.0 + tr * a.y
+                                                                                                                                                                                            let sxz = 1.0 / sqrt(max(sy, 0.05))
+                                                                                                                                                                                            scl = vec3(scl.x * sxz, scl.y * sy, scl.z * sxz)
+                                                                                                                                                                                        else:
+                                                                                                                                                                                            if mode == 46:
+                                                                                                                                                                                                let n0 = fract(sin((t * a.x + h0) * 17.1) * 99173.0) - 0.5
+                                                                                                                                                                                                let n1 = fract(sin((t * a.x * 2.0 + h1) * 31.7) * 66361.0) - 0.5
+                                                                                                                                                                                                let n2 = fract(sin((t * a.x * 4.0 + h2) * 57.3) * 44449.0) - 0.5
+                                                                                                                                                                                                let ramp = min(1.0, abs(sin(t * b.x)) + c.x)
+                                                                                                                                                                                                pos = pos + vec3(n0, n1, n2) * a.y * ramp
+                                                                                                                                                                                            else:
+                                                                                                                                                                                                if mode == 47:
+                                                                                                                                                                                                    let pr = sin(t * a.x) * a.y
+                                                                                                                                                                                                    rot = rot + vec3(pr, cos(t * b.x) * b.y, sin(t * c.x) * c.y)
+                                                                                                                                                                                                else:
+                                                                                                                                                                                                    if mode == 48:
+                                                                                                                                                                                                        let lx = sin(t * a.x + i as Float * 0.11) * a.y
+                                                                                                                                                                                                        let ly = sin(t * b.x + i as Float * 0.17) * b.y
+                                                                                                                                                                                                        let lz = sin(t * c.x + i as Float * 0.23) * c.y
+                                                                                                                                                                                                        pos = pos + vec3(lx, ly, lz)
+                                                                                                                                                                                                    else:
+                                                                                                                                                                                                        if mode == 49:
+                                                                                                                                                                                                            let ang = t * a.x
+                                                                                                                                                                                                            let sw = sin(ang)
+                                                                                                                                                                                                            let cw = cos(ang * 1.7)
+                                                                                                                                                                                                            pos = pos + vec3(cos(ang) * a.y + (h0 - 0.5) * b.y, sw * b.x, sin(ang * 1.3) * c.x)
+                                                                                                                                                                                                            rot = rot + vec3(sw * c.y, cw * a.y, sin(ang * 2.3) * b.y)
+                                                                                                                                                                                                            let boost = 1.0 + abs(sw) * a.y
+                                                                                                                                                                                                            scl = scl * max(boost, 0.05)
+
+    // Global layered turbulence pass (always-on for "nuts" polish).
+    let mut octave = 0
+    let mut turb = vec3(0.0, 0.0, 0.0)
+    let mut gain = 1.0
+    let mut freq = 1.0
+    while octave < 4:
+        let nx = fract(sin((t * freq + i as Float * 0.17 + h0) * 13.7) * 15731.9) - 0.5
+        let ny = fract(sin((t * freq + i as Float * 0.31 + h1) * 19.1) * 26317.3) - 0.5
+        let nz = fract(sin((t * freq + i as Float * 0.47 + h2) * 23.3) * 39821.1) - 0.5
+        turb = turb + vec3(nx, ny, nz) * gain
+        freq = freq * 2.03
+        gain = gain * 0.5
+        octave = octave + 1
+
+    pos = pos + turb * (0.025 * global_intensity)
+    rot = rot + turb * (0.01 * global_intensity)
+
+    out_pos[i] = vec4(pos.x, pos.y, pos.z, 1.0)
+    out_rot[i] = vec4(rot.x, rot.y, rot.z, 1.0)
+    out_scl[i] = vec4(max(scl.x, 0.001), max(scl.y, 0.001), max(scl.z, 0.001), 1.0)
+
+    return vec4(pos.x, pos.y, pos.z, 1.0)

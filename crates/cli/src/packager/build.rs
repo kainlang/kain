@@ -40,15 +40,21 @@ fn write_hybrid_bundle(
     let wasm_file_name = wasm_path
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| KainError::runtime(format!("Invalid hybrid wasm path: {}", wasm_path.display())))?;
+        .ok_or_else(|| {
+            KainError::runtime(format!("Invalid hybrid wasm path: {}", wasm_path.display()))
+        })?;
     let js_file_name = js_path
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| KainError::runtime(format!("Invalid hybrid JS path: {}", js_path.display())))?;
+        .ok_or_else(|| {
+            KainError::runtime(format!("Invalid hybrid JS path: {}", js_path.display()))
+        })?;
     let ts_file_name = ts_path
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| KainError::runtime(format!("Invalid hybrid TS path: {}", ts_path.display())))?;
+        .ok_or_else(|| {
+            KainError::runtime(format!("Invalid hybrid TS path: {}", ts_path.display()))
+        })?;
     let descriptor = HybridBundleDescriptor {
         schema_version: 1,
         target: "hybrid",
@@ -58,14 +64,22 @@ fn write_hybrid_bundle(
         wasm_exports: artifacts.wasm_export_names,
     };
     let descriptor_json = serde_json::to_string_pretty(&descriptor).map_err(|err| {
-        KainError::runtime(format!("Failed to serialize hybrid bundle descriptor: {err}"))
+        KainError::runtime(format!(
+            "Failed to serialize hybrid bundle descriptor: {err}"
+        ))
     })?;
 
     fs::write(descriptor_path, descriptor_json).map_err(KainError::Io)?;
-    fs::write(&js_path, patch_hybrid_wasm_reference(artifacts.js, wasm_file_name))
-        .map_err(KainError::Io)?;
-    fs::write(&ts_path, patch_hybrid_wasm_reference(artifacts.ts, wasm_file_name))
-        .map_err(KainError::Io)?;
+    fs::write(
+        &js_path,
+        patch_hybrid_wasm_reference(artifacts.js, wasm_file_name),
+    )
+    .map_err(KainError::Io)?;
+    fs::write(
+        &ts_path,
+        patch_hybrid_wasm_reference(artifacts.ts, wasm_file_name),
+    )
+    .map_err(KainError::Io)?;
     fs::write(&wasm_path, artifacts.wasm).map_err(KainError::Io)?;
     println!("   ✓ {}", descriptor_path.display());
     println!("   ✓ {}", js_path.display());

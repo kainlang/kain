@@ -1,0 +1,36 @@
+struct MathProfile:
+    gain: Float
+    drift: Float
+    pivot: Int
+    window: Int
+
+fn clamp_int(value: Int, floor: Int, ceiling: Int) -> Int:
+    if value < floor:
+        return floor
+    else:
+        if value > ceiling:
+            return ceiling
+    return value
+
+fn curve_bias(value: Float) -> Int:
+    if value > 2.5:
+        return 11
+    else:
+        if value > 1.25:
+            return 5
+    return 1
+
+fn math_score(gain: Float, drift: Float, pivot: Int, window: Int) -> Int:
+    let ratio = gain / drift
+    if ratio > 1.5:
+        return pivot + window + (pivot ^ window) + (pivot & window) + 13
+    else:
+        if ratio > 1.0:
+            return pivot + window + (pivot ^ window) + (pivot & window) + 7
+    return pivot + window + (pivot ^ window) + (pivot & window) - 3
+
+fn main() -> Int:
+    let profile = MathProfile { gain: 4.5, drift: 1.5, pivot: 13, window: 6 }
+    let score = math_score(profile.gain, profile.drift, profile.pivot, profile.window)
+    let bias = curve_bias(profile.gain / profile.drift)
+    return clamp_int(score + bias, 0, 99)

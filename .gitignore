@@ -6,6 +6,8 @@
 tidus/
 **/debug/**
 /smoketest/3D/
+reference/
+/reference
 zender/
 smoketest/3D/
 !/smoketest/3D/intent_forge_quartet/
@@ -14,6 +16,7 @@ smoketest/3D/
 !/smoketest/3D/intent_forge_quartet/launch_native_app.sh
 !/smoketest/3D/intent_forge_quartet/run_smoke.py
 !/smoketest/3D/intent_forge_quartet/smoke.kn
+.tmp/
 zender/
 /zender/
 /target_selfhost_probe*/
@@ -102,6 +105,8 @@ third_party/
 third_party/modular_mojo/
 
 # Materialized app outputs and runtime-state sidecars
+/generated/
+/GENERATED/
 /apps/*/generated/
 website/
 /apps/*/state/
@@ -120,4 +125,5 @@ website/
 /src/.selfhost/
 .reference/
 /.reference/
+zender
 zender

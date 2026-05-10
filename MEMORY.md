@@ -1,5 +1,37 @@
 # Kain Memory
 
+# 2026-05-09 - TypeScript import ambient prelude is generated from TypeScript lib data
+
+The TypeScript import pipeline now uses an embedded ambient manifest instead of hand-maintained Rust lists of JavaScript/DOM globals.
+
+What changed:
+
+- Added `tools/typescript_import/extract_ambient_manifest.py` and `tools/typescript_import/typescript_ambient_overrides.json`.
+- The extractor reads `reference/TypeScript-main/src/lib/*.d.ts`, merges Kain-specific aliases/helpers from the JSON override file, and writes `crates/kain-import/src/typescript/data/typescript_ambient_manifest.json`.
+- `crates/kain-import/src/typescript/ambient.rs` embeds that manifest and exposes lookup helpers for ambient value names and TypeScript utility-type fallbacks.
+- `kain import-ts` now writes the global TS prelude from the manifest, not from hardcoded DOM/JS arrays in `crates/cli/src/import_typescript.rs`.
+- Global runtime constructor aliases such as `Array -> ts_Array` and ecosystem helpers such as Node/test-runner globals live in data, so future additions should update the override JSON and regenerate the manifest.
+- Generated `.kn` validation for the TypeScript importer now uses the TS backend instead of the interpreter target; interpreter validation is not representative for TS imports with external stubs.
+
+Validation:
+
+- `python tools\typescript_import\extract_ambient_manifest.py` generated a manifest with 1051 ambient value symbols and 2206 ambient type symbols.
+- `cargo test -p kain-import ambient --target-dir target\codex-ts-import-manifest` passes.
+- `cargo build -p cli --target-dir target\codex-ts-import-manifest` passes with pre-existing workspace warnings.
+- A focused ambient smoke using `HTMLElement`, `URL`, `ImportMeta`, `Uint8Array`, `Blob`, `Proxy`, `Promise`, `console`, `window`, and `import.meta` imports, parses, validates, and compiles to TS.
+- `target\codex-ts-import-manifest\debug\kain.exe import-ts D:\GreebleFS\src --flat --exclude vendor --output target\codex-ts-import-manifest\greeblefs_src_firstparty.kn --target ts` imported 650/650 first-party files after excluding 392 vendor files; generated `.kn` parse validation, generated `.kn` TS compile validation, and requested TS output compile all passed.
+- After the destructured-param and high-arity `forEach` lowering fixes, PATH `kain import-ts D:\GreebleFS\src --flat --output D:\GreebleFS\src-kain\reflection\imports\greeblefs\greeblefs_src.kn --target ts --report-json D:\GreebleFS\src-kain\reflection\imports\greeblefs\greeblefs_src.import_report.json` emits both `greeblefs_src.kn` and `greeblefs_src.ts`; generated Kain validation and requested TS target compilation both pass.
+
+Current risks:
+
+- Import diagnostics remain high on large React projects because external module imports, JSX fallbacks, object spreads, and destructured props still lower through lossy stubs. Those are now reported as degradation diagnostics, not validation failures.
+- Full `D:\GreebleFS\src` import still reports one source parse failure in `D:\GreebleFS\src\vendor\tiptap\extension-drag-handle\__tests__\edgeDetection.spec.ts` from SWC (`Expected(,, "[")`). The batch continues, writes the reflection artifacts, and compiles the generated Kain/TS outputs, but true 1042/1042 coverage needs a follow-up parser fallback or targeted handling for that test file's syntax.
+- The embedded prelude is intentionally broad. A future optimization can make prelude emission usage-pruned while keeping this manifest as the source of truth.
+
+Recommended next step:
+
+- Add project-aware ambient discovery for `node_modules/@types` or configured `tsconfig` type roots so Node/Vitest/React ecosystem globals can be generated from package declarations instead of only from the stable override JSON.
+
 # 2026-05-08 - Rust import printer now preserves expression-heavy Tauri command bodies
 
 The Rust import pipeline no longer turns most expression bodies into `LOSSY LOWERING [class:unsupported_expr_lowering]` comments when generating `.kn` from already-lowered Rust AST.

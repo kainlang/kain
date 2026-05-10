@@ -16,6 +16,7 @@ use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenam
 use crate::common::ImportContext;
 use crate::{ImportError, Result};
 
+use super::ambient::typescript_ambient_value_name;
 use super::types::TypeMapper;
 
 #[derive(Debug, Clone, Copy)]
@@ -45,6 +46,14 @@ impl Default for LoweringPolicy {
             call_spread: SpreadFallbackMode::KeepExplicitFields,
             jsx_placeholder_prefix: "__jsx__",
         }
+    }
+}
+
+fn any_type(span: Span) -> Type {
+    Type::Named {
+        name: "Any".to_string(),
+        generics: Vec::new(),
+        span,
     }
 }
 
@@ -94,13 +103,7 @@ impl TypeScriptTransformer {
     fn transform_module_decl(&mut self, decl: ts::ModuleDecl) -> Result<Vec<Item>> {
         match decl {
             ts::ModuleDecl::ExportDecl(export) => self.transform_decl(export.decl),
-            ts::ModuleDecl::Import(import) => {
-                self.note(format!(
-                    "import from '{}' skipped (module resolution is not implemented yet)",
-                    import.src.value
-                ));
-                Ok(Vec::new())
-            }
+            ts::ModuleDecl::Import(import) => self.transform_import_decl(import),
             ts::ModuleDecl::ExportDefaultDecl(export) => self.transform_export_default_decl(export),
             ts::ModuleDecl::ExportDefaultExpr(_) => {
                 self.note("default export expression skipped".to_string());
@@ -153,6 +156,110 @@ impl TypeScriptTransformer {
                 Ok(vec![Item::Struct(self.transform_interface(*interface)?)])
             }
         }
+    }
+
+    fn transform_import_decl(&mut self, import: ts::ImportDecl) -> Result<Vec<Item>> {
+        let span = Span::default();
+        let mut items = Vec::new();
+        let mut stubbed_names = Vec::new();
+        let mut stubbed_type_names = Vec::new();
+
+        for specifier in import.specifiers {
+            let local_name = match specifier {
+                ts::ImportSpecifier::Named(named) => {
+                    if named.is_type_only || import.type_only {
+                        let name = self.rename_type(&named.local.sym);
+                        stubbed_type_names.push(name.clone());
+                        items.push(Item::TypeAlias(TypeAlias {
+                            name,
+                            generics: Vec::new(),
+                            target: Type::Named {
+                                name: "Any".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            },
+                            visibility: Visibility::Private,
+                            span,
+                        }));
+                        continue;
+                    }
+                    named.local.sym.to_string()
+                }
+                ts::ImportSpecifier::Default(default) => {
+                    if import.type_only {
+                        let name = self.rename_type(&default.local.sym);
+                        stubbed_type_names.push(name.clone());
+                        items.push(Item::TypeAlias(TypeAlias {
+                            name,
+                            generics: Vec::new(),
+                            target: Type::Named {
+                                name: "Any".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            },
+                            visibility: Visibility::Private,
+                            span,
+                        }));
+                        continue;
+                    }
+                    default.local.sym.to_string()
+                }
+                ts::ImportSpecifier::Namespace(namespace) => {
+                    if import.type_only {
+                        let name = self.rename_type(&namespace.local.sym);
+                        stubbed_type_names.push(name.clone());
+                        items.push(Item::TypeAlias(TypeAlias {
+                            name,
+                            generics: Vec::new(),
+                            target: Type::Named {
+                                name: "Any".to_string(),
+                                generics: Vec::new(),
+                                span,
+                            },
+                            visibility: Visibility::Private,
+                            span,
+                        }));
+                        continue;
+                    }
+                    namespace.local.sym.to_string()
+                }
+            };
+
+            let name = self.rename_value(&local_name);
+            stubbed_names.push(name.clone());
+            items.push(Item::Const(Const {
+                name,
+                ty: Type::Infer(span),
+                value: Expr::None(span),
+                visibility: Visibility::Private,
+                span,
+            }));
+        }
+
+        if stubbed_names.is_empty() && stubbed_type_names.is_empty() {
+            self.note(format!(
+                "type-only import from '{}' skipped (module resolution is not implemented yet)",
+                import.src.value
+            ));
+        } else {
+            let mut pieces = Vec::new();
+            if !stubbed_names.is_empty() {
+                pieces.push(format!("value stub(s): {}", stubbed_names.join(", ")));
+            }
+            if !stubbed_type_names.is_empty() {
+                pieces.push(format!(
+                    "type alias stub(s): {}",
+                    stubbed_type_names.join(", ")
+                ));
+            }
+            self.note(format!(
+                "import from '{}' lowered to external {}",
+                import.src.value,
+                pieces.join("; ")
+            ));
+        }
+
+        Ok(items)
     }
 
     fn transform_top_level_stmt(&mut self, stmt: ts::Stmt) -> Result<Vec<Item>> {
@@ -447,7 +554,12 @@ impl TypeScriptTransformer {
 
         for declarator in decl.decls {
             let Some(name) = self.pat_binding_name(&declarator.name) else {
-                self.note("destructured top-level variable skipped".to_string());
+                let mut bindings = Vec::new();
+                self.collect_pattern_binding_names(&declarator.name, &mut bindings);
+                for name in bindings {
+                    items.push(self.top_level_any_const(name, Expr::None(span), span));
+                }
+                self.note("destructured top-level variable lowered to Any stub(s)".to_string());
                 continue;
             };
 
@@ -474,15 +586,21 @@ impl TypeScriptTransformer {
                             span,
                         }));
                     } else {
+                        items.push(self.top_level_any_const(name.clone(), Expr::None(span), span));
                         self.note(format!(
-                            "const {} skipped because it has no initializer",
+                            "const {} lowered to Any stub because it has no initializer",
                             name
                         ));
                     }
                 }
                 _ => {
+                    items.push(self.top_level_any_const(
+                        name.clone(),
+                        value.unwrap_or(Expr::None(span)),
+                        span,
+                    ));
                     self.note(format!(
-                        "top-level {:?} declaration '{}' skipped (KAIN has no top-level mutable binding item)",
+                        "top-level {:?} declaration '{}' lowered to Any const stub (KAIN has no top-level mutable binding item)",
                         decl.kind, name
                     ));
                 }
@@ -490,6 +608,20 @@ impl TypeScriptTransformer {
         }
 
         Ok(items)
+    }
+
+    fn top_level_any_const(&mut self, name: String, value: Expr, span: Span) -> Item {
+        Item::Const(Const {
+            name: self.rename_value(&name),
+            ty: Type::Named {
+                name: "Any".to_string(),
+                generics: Vec::new(),
+                span,
+            },
+            value,
+            visibility: Visibility::Private,
+            span,
+        })
     }
 
     fn transform_class_method(
@@ -526,12 +658,35 @@ impl TypeScriptTransformer {
         ctor: ts::Constructor,
     ) -> Result<Function> {
         let span = Span::default();
-        let mut params = Vec::new();
+        let mut params = vec![Param {
+            name: "_self".to_string(),
+            ty: Type::Named {
+                name: class_name.to_string(),
+                generics: Vec::new(),
+                span,
+            },
+            mutable: false,
+            default: None,
+            span,
+        }];
+        let mut constructor_prelude = Vec::new();
 
         for param in ctor.params {
             match param {
                 ts::ParamOrTsParamProp::Param(param) => {
-                    params.extend(self.map_params(&[param])?);
+                    let original_pat = param.pat.clone();
+                    let mapped_params = self.map_params(std::slice::from_ref(&param))?;
+                    if !matches!(original_pat, ts::Pat::Ident(_)) {
+                        if let Some(mapped_param) = mapped_params.first() {
+                            constructor_prelude.extend(
+                                self.destructured_binding_lets_from_pattern(
+                                    &original_pat,
+                                    Expr::Ident(mapped_param.name.clone(), span),
+                                ),
+                            );
+                        }
+                    }
+                    params.extend(mapped_params);
                 }
                 ts::ParamOrTsParamProp::TsParamProp(prop) => match prop.param {
                     ts::TsParamPropParam::Ident(ident) => {
@@ -562,18 +717,19 @@ impl TypeScriptTransformer {
             for param in &params {
                 self.define(&param.name, param.ty.clone());
             }
-            let block = self.transform_block_stmt(block)?;
+            let mut block = self.transform_block_stmt(block)?;
+            self.prepend_block_statements(&mut block, constructor_prelude);
             self.pop_scope();
             block
         } else {
             Block {
-                stmts: Vec::new(),
+                stmts: constructor_prelude,
                 span,
             }
         };
 
         Ok(Function {
-            name: "new".to_string(),
+            name: "new_".to_string(),
             generics: Vec::new(),
             params,
             return_type: Some(Type::Named {
@@ -616,7 +772,7 @@ impl TypeScriptTransformer {
         let mut methods = Vec::new();
 
         self.push_scope();
-        let props = self.map_params(&function.params)?;
+        let props = self.map_component_props(&function.params)?;
         for prop in &props {
             self.define(&prop.name, prop.ty.clone());
         }
@@ -1007,13 +1163,15 @@ impl TypeScriptTransformer {
         for param in &params {
             self.define(&param.name, param.ty.clone());
         }
-        let body = match &*arrow.body {
+        let prelude = self.destructured_param_prelude_from_pats(&arrow.params, &params);
+        let mut body = match &*arrow.body {
             ts::BlockStmtOrExpr::BlockStmt(block) => self.transform_block_stmt(block)?,
             ts::BlockStmtOrExpr::Expr(expr) => Block {
                 stmts: vec![Stmt::Return(Some(self.transform_expr(expr)?), span)],
                 span,
             },
         };
+        self.prepend_block_statements(&mut body, prelude);
         self.pop_scope();
 
         Ok(Function {
@@ -1103,7 +1261,8 @@ impl TypeScriptTransformer {
         for param in &params {
             self.define(&param.name, param.ty.clone());
         }
-        let body = if let Some(block) = &function.body {
+        let prelude = self.destructured_param_prelude_from_params(&function.params, &params);
+        let mut body = if let Some(block) = &function.body {
             self.transform_block_stmt(block)?
         } else {
             Block {
@@ -1111,6 +1270,7 @@ impl TypeScriptTransformer {
                 span,
             }
         };
+        self.prepend_block_statements(&mut body, prelude);
         self.pop_scope();
 
         Ok(Function {
@@ -1155,6 +1315,40 @@ impl TypeScriptTransformer {
             out.push(param);
         }
         Ok(out)
+    }
+
+    fn map_component_props(&mut self, params: &[ts::Param]) -> Result<Vec<Param>> {
+        let mut props = Vec::new();
+        for param in params {
+            if matches!(param.pat, ts::Pat::Ident(_)) {
+                props.push(self.map_pat_to_param(&param.pat)?);
+                continue;
+            }
+
+            let mut bindings = Vec::new();
+            self.collect_pattern_binding_names(&param.pat, &mut bindings);
+            if bindings.is_empty() {
+                props.push(self.map_pat_to_param(&param.pat)?);
+                continue;
+            }
+
+            let span = Span::default();
+            for name in bindings {
+                props.push(Param {
+                    name,
+                    ty: Type::Named {
+                        name: "Any".to_string(),
+                        generics: Vec::new(),
+                        span,
+                    },
+                    mutable: false,
+                    default: None,
+                    span,
+                });
+            }
+            self.note("component destructured props expanded to Any-typed props".to_string());
+        }
+        Ok(props)
     }
 
     fn map_pat_to_param(&mut self, pat: &ts::Pat) -> Result<Param> {
@@ -1223,6 +1417,265 @@ impl TypeScriptTransformer {
         })
     }
 
+    fn destructured_param_prelude_from_params(
+        &mut self,
+        params: &[ts::Param],
+        mapped_params: &[Param],
+    ) -> Vec<Stmt> {
+        let span = Span::default();
+        let mut prelude = Vec::new();
+        for (param, mapped_param) in params.iter().zip(mapped_params.iter()) {
+            if !matches!(param.pat, ts::Pat::Ident(_)) {
+                prelude.extend(self.destructured_binding_lets_from_pattern(
+                    &param.pat,
+                    Expr::Ident(mapped_param.name.clone(), span),
+                ));
+            }
+        }
+        prelude
+    }
+
+    fn destructured_param_prelude_from_pats(
+        &mut self,
+        params: &[ts::Pat],
+        mapped_params: &[Param],
+    ) -> Vec<Stmt> {
+        let span = Span::default();
+        let mut prelude = Vec::new();
+        for (param, mapped_param) in params.iter().zip(mapped_params.iter()) {
+            if !matches!(param, ts::Pat::Ident(_)) {
+                prelude.extend(self.destructured_binding_lets_from_pattern(
+                    param,
+                    Expr::Ident(mapped_param.name.clone(), span),
+                ));
+            }
+        }
+        prelude
+    }
+
+    fn destructured_for_head_prelude(&mut self, head: &ts::ForHead) -> Vec<Stmt> {
+        let mut bindings = Vec::new();
+        match head {
+            ts::ForHead::Pat(pat) => {
+                if !matches!(&**pat, ts::Pat::Ident(_)) {
+                    self.collect_pattern_binding_names(pat, &mut bindings);
+                }
+            }
+            ts::ForHead::VarDecl(var) => {
+                for decl in &var.decls {
+                    if !matches!(decl.name, ts::Pat::Ident(_)) {
+                        self.collect_pattern_binding_names(&decl.name, &mut bindings);
+                    }
+                }
+            }
+            ts::ForHead::UsingDecl(using_decl) => {
+                for decl in &using_decl.decls {
+                    if !matches!(decl.name, ts::Pat::Ident(_)) {
+                        self.collect_pattern_binding_names(&decl.name, &mut bindings);
+                    }
+                }
+            }
+        }
+        self.binding_names_to_any_none_lets(bindings)
+    }
+
+    fn collect_pattern_binding_names(&mut self, pat: &ts::Pat, out: &mut Vec<String>) {
+        match pat {
+            ts::Pat::Ident(ident) => {
+                let name = self.rename_value(&ident.id.sym);
+                if name != "_" && !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+            ts::Pat::Assign(assign) => self.collect_pattern_binding_names(&assign.left, out),
+            ts::Pat::Rest(rest) => self.collect_pattern_binding_names(&rest.arg, out),
+            ts::Pat::Array(array) => {
+                for elem in array.elems.iter().flatten() {
+                    self.collect_pattern_binding_names(elem, out);
+                }
+            }
+            ts::Pat::Object(object) => {
+                for prop in &object.props {
+                    match prop {
+                        ts::ObjectPatProp::Assign(assign) => {
+                            let name = self.rename_value(&assign.key.sym);
+                            if name != "_" && !out.contains(&name) {
+                                out.push(name);
+                            }
+                        }
+                        ts::ObjectPatProp::KeyValue(key_value) => {
+                            self.collect_pattern_binding_names(&key_value.value, out);
+                        }
+                        ts::ObjectPatProp::Rest(rest) => {
+                            self.collect_pattern_binding_names(&rest.arg, out);
+                        }
+                    }
+                }
+            }
+            ts::Pat::Expr(_) | ts::Pat::Invalid(_) => {}
+        }
+    }
+
+    fn collect_kain_pattern_binding_names(&self, pattern: &Pattern, out: &mut Vec<String>) {
+        match pattern {
+            Pattern::Binding { name, .. } => {
+                if name != "_" && !out.contains(name) {
+                    out.push(name.clone());
+                }
+            }
+            Pattern::Tuple(items, _)
+            | Pattern::Slice {
+                patterns: items, ..
+            } => {
+                for item in items {
+                    self.collect_kain_pattern_binding_names(item, out);
+                }
+            }
+            Pattern::Struct { fields, .. } => {
+                for (_, field_pattern) in fields {
+                    self.collect_kain_pattern_binding_names(field_pattern, out);
+                }
+            }
+            Pattern::Variant { fields, .. } => match fields {
+                VariantPatternFields::Unit => {}
+                VariantPatternFields::Tuple(items) => {
+                    for item in items {
+                        self.collect_kain_pattern_binding_names(item, out);
+                    }
+                }
+                VariantPatternFields::Struct(fields) => {
+                    for (_, field_pattern) in fields {
+                        self.collect_kain_pattern_binding_names(field_pattern, out);
+                    }
+                }
+            },
+            Pattern::Or(patterns, _) => {
+                for pattern in patterns {
+                    self.collect_kain_pattern_binding_names(pattern, out);
+                }
+            }
+            Pattern::Wildcard(_) | Pattern::Literal(_) | Pattern::Range { .. } => {}
+        }
+    }
+
+    fn binding_names_to_any_none_lets(&self, names: Vec<String>) -> Vec<Stmt> {
+        let span = Span::default();
+        names
+            .into_iter()
+            .map(|name| Stmt::Let {
+                pattern: Pattern::Binding {
+                    name,
+                    mutable: false,
+                    span,
+                },
+                ty: Some(any_type(span)),
+                value: Some(Expr::None(span)),
+                span,
+            })
+            .collect()
+    }
+
+    fn destructured_binding_lets_from_pattern(&mut self, pat: &ts::Pat, source: Expr) -> Vec<Stmt> {
+        let span = Span::default();
+        match pat {
+            ts::Pat::Ident(ident) => {
+                let name = self.rename_value(&ident.id.sym);
+                if name == "_" {
+                    Vec::new()
+                } else {
+                    vec![Stmt::Let {
+                        pattern: Pattern::Binding {
+                            name,
+                            mutable: false,
+                            span,
+                        },
+                        ty: Some(any_type(span)),
+                        value: Some(source),
+                        span,
+                    }]
+                }
+            }
+            ts::Pat::Assign(assign) => {
+                self.destructured_binding_lets_from_pattern(&assign.left, source)
+            }
+            ts::Pat::Rest(rest) => self.destructured_binding_lets_from_pattern(&rest.arg, source),
+            ts::Pat::Array(array) => {
+                let mut out = Vec::new();
+                for (index, elem) in array.elems.iter().enumerate() {
+                    let Some(elem) = elem else {
+                        continue;
+                    };
+                    let indexed_source = Expr::Index {
+                        object: Box::new(source.clone()),
+                        index: Box::new(Expr::Int(index as i64, span)),
+                        span,
+                    };
+                    out.extend(self.destructured_binding_lets_from_pattern(elem, indexed_source));
+                }
+                out
+            }
+            ts::Pat::Object(object) => {
+                let mut out = Vec::new();
+                for prop in &object.props {
+                    match prop {
+                        ts::ObjectPatProp::Assign(assign) => {
+                            let field = self.rename_field(&assign.key.id.sym);
+                            let name = self.rename_value(&assign.key.id.sym);
+                            if name != "_" {
+                                out.push(Stmt::Let {
+                                    pattern: Pattern::Binding {
+                                        name,
+                                        mutable: false,
+                                        span,
+                                    },
+                                    ty: Some(any_type(span)),
+                                    value: Some(Expr::Field {
+                                        object: Box::new(source.clone()),
+                                        field,
+                                        span,
+                                    }),
+                                    span,
+                                });
+                            }
+                        }
+                        ts::ObjectPatProp::KeyValue(key_value) => {
+                            if let Some(raw_field) = self.prop_name_to_string(&key_value.key) {
+                                let field = self.rename_field(&raw_field);
+                                let field_source = Expr::Field {
+                                    object: Box::new(source.clone()),
+                                    field,
+                                    span,
+                                };
+                                out.extend(self.destructured_binding_lets_from_pattern(
+                                    &key_value.value,
+                                    field_source,
+                                ));
+                            }
+                        }
+                        ts::ObjectPatProp::Rest(rest) => {
+                            out.extend(
+                                self.destructured_binding_lets_from_pattern(
+                                    &rest.arg,
+                                    source.clone(),
+                                ),
+                            );
+                        }
+                    }
+                }
+                out
+            }
+            ts::Pat::Expr(_) | ts::Pat::Invalid(_) => Vec::new(),
+        }
+    }
+
+    fn prepend_block_statements(&self, block: &mut Block, mut prelude: Vec<Stmt>) {
+        if prelude.is_empty() {
+            return;
+        }
+        prelude.append(&mut block.stmts);
+        block.stmts = prelude;
+    }
+
     fn transform_block_stmt(&mut self, block: &ts::BlockStmt) -> Result<Block> {
         self.push_scope();
         let mut stmts = Vec::new();
@@ -1259,7 +1712,8 @@ impl TypeScriptTransformer {
                 ret.arg
                     .as_deref()
                     .map(|expr| self.transform_expr(expr))
-                    .transpose()?,
+                    .transpose()?
+                    .or(Some(Expr::None(span))),
                 span,
             )]),
             ts::Stmt::If(if_stmt) => Ok(vec![Stmt::Expr(self.transform_if_stmt(if_stmt)?)]),
@@ -1268,12 +1722,23 @@ impl TypeScriptTransformer {
                 body: self.stmt_to_block(&while_stmt.body)?,
                 span,
             }]),
-            ts::Stmt::ForOf(for_of) => Ok(vec![Stmt::For {
-                binding: self.for_head_to_pattern(&for_of.left),
-                iter: self.transform_expr(&for_of.right)?,
-                body: self.stmt_to_block(&for_of.body)?,
-                span,
-            }]),
+            ts::Stmt::ForOf(for_of) => {
+                let binding = self.for_head_to_pattern(&for_of.left);
+                let mut body = self.stmt_to_block(&for_of.body)?;
+                let mut prelude = self.destructured_for_head_prelude(&for_of.left);
+                if !matches!(binding, Pattern::Binding { .. }) {
+                    let mut lowered_bindings = Vec::new();
+                    self.collect_kain_pattern_binding_names(&binding, &mut lowered_bindings);
+                    prelude.extend(self.binding_names_to_any_none_lets(lowered_bindings));
+                }
+                self.prepend_block_statements(&mut body, prelude);
+                Ok(vec![Stmt::For {
+                    binding,
+                    iter: self.transform_expr(&for_of.right)?,
+                    body,
+                    span,
+                }])
+            }
             ts::Stmt::For(for_stmt) => self.transform_for_stmt(for_stmt),
             ts::Stmt::Switch(switch_stmt) => self.transform_switch_stmt(switch_stmt),
             ts::Stmt::Break(_) => Ok(vec![Stmt::Break(None, span)]),
@@ -1294,6 +1759,32 @@ impl TypeScriptTransformer {
         let mut out = Vec::new();
 
         for declarator in &decl.decls {
+            if !matches!(declarator.name, ts::Pat::Ident(_)) {
+                let mut bindings = Vec::new();
+                self.collect_pattern_binding_names(&declarator.name, &mut bindings);
+                if let Some(init) = declarator.init.as_deref() {
+                    out.push(Stmt::Let {
+                        pattern: Pattern::Wildcard(span),
+                        ty: None,
+                        value: Some(self.transform_expr(init)?),
+                        span,
+                    });
+                }
+                for name in &bindings {
+                    self.define(
+                        name,
+                        Type::Named {
+                            name: "Any".to_string(),
+                            generics: Vec::new(),
+                            span,
+                        },
+                    );
+                }
+                out.extend(self.binding_names_to_any_none_lets(bindings));
+                self.note("destructured local binding expanded to Any locals".to_string());
+                continue;
+            }
+
             let pattern = self.transform_pattern(&declarator.name);
             let ty = self
                 .pat_type_annotation(&declarator.name)
@@ -1524,29 +2015,55 @@ impl TypeScriptTransformer {
         body: &ts::BlockStmtOrExpr,
     ) -> Result<(String, Option<String>, Block)> {
         let span = Span::default();
-        let value_name = params
-            .first()
-            .and_then(|pat| self.pat_binding_name(pat))
-            .map(|name| self.rename_value(&name))
+        let first_param = params.first();
+        let first_param_binding = first_param.and_then(|pat| self.pat_binding_name(pat));
+        let value_name = first_param_binding
+            .as_ref()
+            .map(|name| self.rename_value(name))
             .unwrap_or_else(|| self.fresh_temp("item"));
         let index_name = params
             .get(1)
             .and_then(|pat| self.pat_binding_name(pat))
             .map(|name| self.rename_value(&name));
+        let mut destructured_bindings = Vec::new();
+        let mut destructured_prelude = Vec::new();
+        if first_param_binding.is_none() {
+            if let Some(pat) = first_param {
+                self.collect_pattern_binding_names(pat, &mut destructured_bindings);
+                destructured_prelude = self.destructured_binding_lets_from_pattern(
+                    pat,
+                    Expr::Ident(value_name.clone(), span),
+                );
+            }
+        }
+        let mut extra_callback_bindings = Vec::new();
+        for param in params.iter().skip(2) {
+            self.collect_pattern_binding_names(param, &mut extra_callback_bindings);
+        }
+        let mut extra_callback_prelude =
+            self.binding_names_to_any_none_lets(extra_callback_bindings.clone());
+        destructured_prelude.append(&mut extra_callback_prelude);
 
         self.push_scope();
         self.define(&value_name, Type::Infer(span));
         if let Some(index_name) = &index_name {
             self.define(index_name, Type::Infer(span));
         }
+        for name in &destructured_bindings {
+            self.define(name, any_type(span));
+        }
+        for name in &extra_callback_bindings {
+            self.define(name, any_type(span));
+        }
 
-        let block = match body {
+        let mut block = match body {
             ts::BlockStmtOrExpr::BlockStmt(block) => self.transform_block_stmt(block)?,
             ts::BlockStmtOrExpr::Expr(expr) => Block {
                 stmts: vec![Stmt::Expr(self.transform_expr(expr)?)],
                 span,
             },
         };
+        self.prepend_block_statements(&mut block, destructured_prelude);
         self.pop_scope();
         Ok((value_name, index_name, block))
     }
@@ -1628,17 +2145,7 @@ impl TypeScriptTransformer {
                 span,
             )),
             ts::Expr::Object(obj) => self.transform_object_lit(obj),
-            ts::Expr::Bin(bin) => Ok(Expr::Binary {
-                left: Box::new(self.transform_expr(&bin.left)?),
-                op: map_binary_op(bin.op).ok_or_else(|| {
-                    ImportError::UnsupportedFeature(format!(
-                        "unsupported TypeScript binary op {:?}",
-                        bin.op
-                    ))
-                })?,
-                right: Box::new(self.transform_expr(&bin.right)?),
-                span,
-            }),
+            ts::Expr::Bin(bin) => self.transform_binary_expr(bin),
             ts::Expr::Unary(unary) => {
                 let operand = self.transform_expr(&unary.arg)?;
                 if let Some(op) = map_unary_op(unary.op) {
@@ -1661,7 +2168,10 @@ impl TypeScriptTransformer {
             ts::Expr::TsSatisfies(ts_sat) => self.transform_expr(&ts_sat.expr),
             ts::Expr::TsNonNull(non_null) => self.transform_expr(&non_null.expr),
             ts::Expr::TsTypeAssertion(assertion) => self.transform_expr(&assertion.expr),
+            ts::Expr::TsConstAssertion(assertion) => self.transform_expr(&assertion.expr),
             ts::Expr::TsInstantiation(inst) => self.transform_expr(&inst.expr),
+            ts::Expr::MetaProp(meta) => self.transform_meta_prop_expr(meta),
+            ts::Expr::SuperProp(super_prop) => self.transform_super_prop_expr(super_prop),
             ts::Expr::Member(member) => self.transform_member_expr(member),
             ts::Expr::Call(call) => self.transform_call_expr(call),
             ts::Expr::New(new_expr) => self.transform_new_expr(new_expr),
@@ -1700,6 +2210,80 @@ impl TypeScriptTransformer {
         }
     }
 
+    fn transform_meta_prop_expr(&mut self, meta: &ts::MetaPropExpr) -> Result<Expr> {
+        let span = Span::default();
+        match meta.kind {
+            ts::MetaPropKind::ImportMeta => {
+                self.note("import.meta lowered to import_meta ambient stub".to_string());
+                Ok(Expr::Ident("import_meta".to_string(), span))
+            }
+            ts::MetaPropKind::NewTarget => {
+                self.note("new.target lowered to none".to_string());
+                Ok(Expr::None(span))
+            }
+        }
+    }
+
+    fn transform_super_prop_expr(&mut self, super_prop: &ts::SuperPropExpr) -> Result<Expr> {
+        let span = Span::default();
+        let object = Expr::Ident("super_".to_string(), span);
+        match &super_prop.prop {
+            ts::SuperProp::Ident(ident) => Ok(Expr::Field {
+                object: Box::new(object),
+                field: self.rename_field(&ident.sym),
+                span,
+            }),
+            ts::SuperProp::Computed(computed) => Ok(Expr::Index {
+                object: Box::new(object),
+                index: Box::new(self.transform_expr(&computed.expr)?),
+                span,
+            }),
+        }
+    }
+
+    fn transform_binary_expr(&mut self, bin: &ts::BinExpr) -> Result<Expr> {
+        let span = Span::default();
+        if matches!(bin.op, ts::BinaryOp::In | ts::BinaryOp::InstanceOf) {
+            let helper = match bin.op {
+                ts::BinaryOp::In => "ts_in_operator",
+                ts::BinaryOp::InstanceOf => "ts_instanceof_operator",
+                _ => unreachable!(),
+            };
+            self.note(format!(
+                "TypeScript {:?} operator lowered to {helper}(...) helper call",
+                bin.op
+            ));
+            return Ok(Expr::Call {
+                callee: Box::new(Expr::Ident(helper.to_string(), span)),
+                args: vec![
+                    CallArg {
+                        name: None,
+                        value: self.transform_expr(&bin.left)?,
+                        span,
+                    },
+                    CallArg {
+                        name: None,
+                        value: self.transform_expr(&bin.right)?,
+                        span,
+                    },
+                ],
+                span,
+            });
+        }
+
+        Ok(Expr::Binary {
+            left: Box::new(self.transform_expr(&bin.left)?),
+            op: map_binary_op(bin.op).ok_or_else(|| {
+                ImportError::UnsupportedFeature(format!(
+                    "unsupported TypeScript binary op {:?}",
+                    bin.op
+                ))
+            })?,
+            right: Box::new(self.transform_expr(&bin.right)?),
+            span,
+        })
+    }
+
     fn transform_lit(&mut self, lit: &ts::Lit) -> Result<Expr> {
         let span = Span::default();
         match lit {
@@ -1736,6 +2320,16 @@ impl TypeScriptTransformer {
                         Ok(Expr::String(digits, span))
                     }
                 }
+            }
+            ts::Lit::Regex(value) => {
+                self.note(format!(
+                    "RegExp literal /{}/{} lowered to string literal",
+                    value.exp, value.flags
+                ));
+                Ok(Expr::String(
+                    format!("/{}/{}", value.exp, value.flags),
+                    span,
+                ))
             }
             other => Err(ImportError::UnsupportedFeature(format!(
                 "unsupported TypeScript literal {:?}",
@@ -1785,11 +2379,73 @@ impl TypeScriptTransformer {
                             Expr::Ident(self.rename_value(&ident.sym), span),
                         ));
                     }
+                    ts::Prop::Method(method) => {
+                        if let Some(name) = self.prop_name_to_string(&method.key) {
+                            fields.push((
+                                self.rename_field(&name),
+                                self.transform_function_as_lambda(&method.function)?,
+                            ));
+                        } else {
+                            self.note(
+                                "computed object method key dropped during import".to_string(),
+                            );
+                        }
+                    }
+                    ts::Prop::Getter(getter) => {
+                        if let Some(name) = self.prop_name_to_string(&getter.key) {
+                            let body = getter
+                                .body
+                                .as_ref()
+                                .map(|block| self.transform_block_stmt(block))
+                                .transpose()?
+                                .unwrap_or(Block {
+                                    stmts: Vec::new(),
+                                    span,
+                                });
+                            fields.push((
+                                self.rename_field(&name),
+                                Expr::Lambda {
+                                    params: Vec::new(),
+                                    return_type: None,
+                                    body: Box::new(Expr::Block(body, span)),
+                                    span,
+                                },
+                            ));
+                        } else {
+                            self.note(
+                                "computed object getter key dropped during import".to_string(),
+                            );
+                        }
+                    }
+                    ts::Prop::Setter(setter) => {
+                        if let Some(name) = self.prop_name_to_string(&setter.key) {
+                            let param = self.map_pat_to_param(&setter.param)?;
+                            let body = setter
+                                .body
+                                .as_ref()
+                                .map(|block| self.transform_block_stmt(block))
+                                .transpose()?
+                                .unwrap_or(Block {
+                                    stmts: Vec::new(),
+                                    span,
+                                });
+                            fields.push((
+                                self.rename_field(&name),
+                                Expr::Lambda {
+                                    params: vec![param],
+                                    return_type: None,
+                                    body: Box::new(Expr::Block(body, span)),
+                                    span,
+                                },
+                            ));
+                        } else {
+                            self.note(
+                                "computed object setter key dropped during import".to_string(),
+                            );
+                        }
+                    }
                     other => {
-                        return Err(ImportError::UnsupportedFeature(format!(
-                            "unsupported object literal property {:?}",
-                            other
-                        )));
+                        self.note(format!("object literal property {:?} skipped", other));
                     }
                 },
                 ts::PropOrSpread::Spread(_) => match self.policy.object_spread {
@@ -1807,6 +2463,44 @@ impl TypeScriptTransformer {
             ty: Type::Infer(span),
             fields,
             zero_fill_rest: false,
+            span,
+        })
+    }
+
+    fn transform_function_as_lambda(&mut self, function: &ts::Function) -> Result<Expr> {
+        let span = Span::default();
+        let params = self.map_params(&function.params)?;
+        let return_type = function
+            .return_type
+            .as_ref()
+            .map(|ann| self.type_mapper.map_type(&ann.type_ann, span))
+            .transpose()?;
+
+        self.push_scope();
+        for param in &params {
+            self.define(&param.name, param.ty.clone());
+        }
+        let body = function
+            .body
+            .as_ref()
+            .map(|block| self.transform_block_stmt(block))
+            .transpose()?
+            .unwrap_or(Block {
+                stmts: Vec::new(),
+                span,
+            });
+        self.pop_scope();
+
+        if function.is_async {
+            self.note(
+                "async object method lowered to lambda without async effect metadata".to_string(),
+            );
+        }
+
+        Ok(Expr::Lambda {
+            params,
+            return_type,
+            body: Box::new(Expr::Block(body, span)),
             span,
         })
     }
@@ -1932,10 +2626,14 @@ impl TypeScriptTransformer {
                     span,
                 })
             }
-            other => Err(ImportError::UnsupportedFeature(format!(
-                "unsupported callee {:?}",
-                other
-            ))),
+            ts::Callee::Super(_) => {
+                self.note("super(...) call lowered to super_(...) helper call".to_string());
+                Ok(Expr::Call {
+                    callee: Box::new(Expr::Ident("super_".to_string(), span)),
+                    args,
+                    span,
+                })
+            }
         }
     }
 
@@ -2008,11 +2706,23 @@ impl TypeScriptTransformer {
         for param in &params {
             self.define(&param.name, param.ty.clone());
         }
+        let prelude = self.destructured_param_prelude_from_pats(&arrow.params, &params);
         let body = match &*arrow.body {
             ts::BlockStmtOrExpr::BlockStmt(block) => {
-                Expr::Block(self.transform_block_stmt(block)?, span)
+                let mut block = self.transform_block_stmt(block)?;
+                self.prepend_block_statements(&mut block, prelude);
+                Expr::Block(block, span)
             }
-            ts::BlockStmtOrExpr::Expr(expr) => self.transform_expr(expr)?,
+            ts::BlockStmtOrExpr::Expr(expr) => {
+                let expr = self.transform_expr(expr)?;
+                if prelude.is_empty() {
+                    expr
+                } else {
+                    let mut stmts = prelude;
+                    stmts.push(Stmt::Return(Some(expr), span));
+                    Expr::Block(Block { stmts, span }, span)
+                }
+            }
         };
         self.pop_scope();
 
@@ -2310,9 +3020,7 @@ impl TypeScriptTransformer {
 
     fn member_call_to_kain(&mut self, member: &ts::MemberExpr, args: Vec<CallArg>) -> Expr {
         let span = Span::default();
-        let receiver = self
-            .transform_expr(&member.obj)
-            .unwrap_or(Expr::Ident("invalid_receiver".to_string(), span));
+        let receiver = self.transform_expr(&member.obj).unwrap_or(Expr::None(span));
         match &member.prop {
             ts::MemberProp::Ident(ident) => Expr::MethodCall {
                 receiver: Box::new(receiver),
@@ -2331,7 +3039,7 @@ impl TypeScriptTransformer {
                     object: Box::new(receiver),
                     index: Box::new(
                         self.transform_expr(&computed.expr)
-                            .unwrap_or(Expr::Ident("invalid_index".to_string(), span)),
+                            .unwrap_or(Expr::None(span)),
                     ),
                     span,
                 }),
@@ -2472,6 +3180,11 @@ impl TypeScriptTransformer {
     }
 
     fn rename_value(&mut self, raw: &str) -> String {
+        if let Some(kain_name) = typescript_ambient_value_name(raw) {
+            return self
+                .identifier_renamer
+                .resolve(IdentifierDomain::Value, kain_name);
+        }
         self.identifier_renamer
             .resolve(IdentifierDomain::Value, raw)
     }

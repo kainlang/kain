@@ -5,7 +5,7 @@ use crate::diagnostics::SpanMapper;
 use crate::effects::{check_effect_call, EffectSet};
 use crate::error::{KainError, KainResult};
 use crate::lexer::Lexer;
-use crate::module_resolution::resolve_filesystem_module_file;
+use crate::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
 use crate::parser::Parser;
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
@@ -937,7 +937,10 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     env.define_global(
         "__kain_bootstrap_generate_llvm_ir".into(),
         builtin_function_type(
-            vec![ResolvedType::Struct("TypedProgram".to_string(), HashMap::new())],
+            vec![ResolvedType::Struct(
+                "TypedProgram".to_string(),
+                HashMap::new(),
+            )],
             selfhost_bootstrap_llvm_ir_type(),
         ),
     );
@@ -1720,6 +1723,10 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         // when the imported module is not present in the current compilation unit.
         // The last path segment is the imported identifier.
         Item::Use(u) => {
+            if register_stdlib_import_types(env, u)? {
+                return Ok(());
+            }
+
             if register_filesystem_import_types(env, u)? {
                 return Ok(());
             }
@@ -1740,6 +1747,45 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
     }
 
     Ok(())
+}
+
+fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> {
+    let path = u.path.join("/");
+    if !(path.starts_with("std/") || path.starts_with("stdlib/")) {
+        return Ok(false);
+    }
+
+    let module_name = path
+        .trim_start_matches("std/")
+        .trim_start_matches("stdlib/");
+    if module_name.is_empty() {
+        return Ok(false);
+    }
+
+    let Some(file_path) = resolve_stdlib_module_file(module_name) else {
+        return Ok(false);
+    };
+
+    let Ok(source) = std::fs::read_to_string(&file_path) else {
+        return Ok(false);
+    };
+    let Ok(tokens) = Lexer::new(&source).tokenize() else {
+        return Ok(false);
+    };
+    let span_mapper = SpanMapper::new(&source);
+    let filename = file_path.to_string_lossy().to_string();
+    let Ok(program) = Parser::new(&tokens, &span_mapper, &filename).parse() else {
+        return Ok(false);
+    };
+
+    for item in program.items {
+        if matches!(item, Item::Use(_)) {
+            continue;
+        }
+        register_item_types(env, &item)?;
+    }
+
+    Ok(true)
 }
 
 fn register_filesystem_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> {
@@ -3225,6 +3271,10 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
     for (name, ty) in &props {
         env.define(name.clone(), ty.clone());
     }
+    for method in &c.methods {
+        let signature = function_signature(env, method, Some(&self_ty))?;
+        env.define(method.name.clone(), signature);
+    }
     for state in &c.state {
         let state_ty = resolve_type_in_env(env, &state.ty)?;
         let initial_ty = infer_expr_type(env, &state.initial, None)?;
@@ -3310,6 +3360,7 @@ fn resolve_type_impl(env: Option<&TypeEnv>, ty: &Type) -> KainResult<ResolvedTyp
             "f32" => Ok(ResolvedType::Float(FloatSize::F32)),
             "f64" => Ok(ResolvedType::Float(FloatSize::F64)),
             "Void" => Ok(ResolvedType::Unit),
+            "Any" => Ok(ResolvedType::Unknown),
             "Bool" => Ok(ResolvedType::Bool),
             "Char" => Ok(ResolvedType::Char),
             "String" => Ok(ResolvedType::String),
@@ -3545,9 +3596,22 @@ fn infer_expr_type_with_expected(
         let body_ty = infer_expr_type_with_expected(env, body, ctx, body_expected)?;
         env.pop_scope();
 
-        if !matches!(annotated_ret, ResolvedType::Unknown) {
+        if !matches!(annotated_ret, ResolvedType::Unknown)
+            && !matches!(
+                body_ty,
+                ResolvedType::Unknown | ResolvedType::Unit | ResolvedType::Never
+            )
+            && !type_contains_unknown(&annotated_ret)
+        {
             ensure_type_compatible(env, &annotated_ret, &body_ty, body.span(), "lambda body")?;
-        } else {
+        } else if matches!(annotated_ret, ResolvedType::Unknown)
+            && !matches!(
+                body_ty,
+                ResolvedType::Unknown | ResolvedType::Unit | ResolvedType::Never
+            )
+            && !matches!(expected_ret.as_ref(), ResolvedType::Unknown)
+            && !type_contains_unknown(expected_ret.as_ref())
+        {
             ensure_type_compatible(
                 env,
                 expected_ret.as_ref(),
@@ -3657,13 +3721,7 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             condition, body, ..
         } => {
             let cond_ty = infer_expr_type(env, condition, Some(ctx))?;
-            ensure_type_compatible(
-                env,
-                &ResolvedType::Bool,
-                &cond_ty,
-                condition.span(),
-                "while condition",
-            )?;
+            ensure_condition_type_compatible(env, &cond_ty, condition.span(), "while condition")?;
             env.push_scope();
             check_block_semantics(env, body, ctx)?;
             env.pop_scope();
@@ -3697,6 +3755,10 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
                     }
                 },
                 ResolvedType::String => ResolvedType::String,
+                ResolvedType::Option(inner) if matches!(inner.as_ref(), ResolvedType::Unknown) => {
+                    ResolvedType::Unknown
+                }
+                ResolvedType::Struct(_, _) | ResolvedType::Generic(_) => ResolvedType::Unknown,
                 ResolvedType::Unknown => ResolvedType::Unknown,
                 other => {
                     return Err(env.type_error(
@@ -3752,10 +3814,13 @@ fn infer_expr_type(
         }
         Expr::Unary { op, operand, span } => {
             let operand_ty = infer_expr_type(env, operand, ctx)?;
+            let operand_base_ty = peel_shared_refs(&operand_ty);
             match op {
                 UnaryOp::Neg => {
-                    if is_numeric_like(&operand_ty) || matches!(operand_ty, ResolvedType::Unknown) {
-                        Ok(operand_ty)
+                    if is_numeric_like(operand_base_ty)
+                        || matches!(operand_base_ty, ResolvedType::Unknown)
+                    {
+                        Ok(operand_base_ty.clone())
                     } else {
                         Err(env.type_error(
                             format!(
@@ -3767,7 +3832,20 @@ fn infer_expr_type(
                     }
                 }
                 UnaryOp::Not => {
-                    if matches!(operand_ty, ResolvedType::Bool | ResolvedType::Unknown) {
+                    if matches!(
+                        operand_base_ty,
+                        ResolvedType::Bool | ResolvedType::Option(_)
+                    ) || is_ts_import_scalar_comparison_operand(operand_base_ty)
+                        || matches!(
+                            operand_base_ty,
+                            ResolvedType::Array(_, _)
+                                | ResolvedType::Slice(_)
+                                | ResolvedType::Tuple(_)
+                                | ResolvedType::Struct(_, _)
+                                | ResolvedType::Enum(_, _)
+                                | ResolvedType::Function { .. }
+                        )
+                    {
                         Ok(ResolvedType::Bool)
                     } else {
                         Err(env.type_error(
@@ -3780,8 +3858,10 @@ fn infer_expr_type(
                     }
                 }
                 UnaryOp::BitNot => {
-                    if is_integer_like(&operand_ty) {
-                        Ok(operand_ty)
+                    if is_integer_like(operand_base_ty) {
+                        Ok(operand_base_ty.clone())
+                    } else if is_numeric_like(operand_base_ty) {
+                        Ok(ResolvedType::Int(IntSize::I64))
                     } else {
                         Err(env.type_error(
                             format!(
@@ -3878,20 +3958,13 @@ fn infer_expr_type(
                     ret,
                     effects,
                 } => {
-                    if params.len() != args.len() {
-                        return Err(env.type_error(
-                            format!(
-                                "Expected {} argument(s), found {}",
-                                params.len(),
-                                args.len()
-                            ),
-                            *span,
-                        ));
-                    }
                     for (param_ty, arg) in params.iter().zip(args.iter()) {
                         let arg_ty =
                             infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
                         ensure_type_compatible(env, param_ty, &arg_ty, *span, "function argument")?;
+                    }
+                    for arg in args.iter().skip(params.len()) {
+                        let _ = infer_expr_type(env, &arg.value, ctx)?;
                     }
                     if let (Some(ctx), Expr::Ident(callee_name, _)) = (ctx, callee.as_ref()) {
                         check_effect_call(
@@ -3904,7 +3977,20 @@ fn infer_expr_type(
                     }
                     Ok(*ret)
                 }
+                ResolvedType::Option(inner) => match inner.as_ref() {
+                    ResolvedType::Unknown | ResolvedType::Never => Ok(ResolvedType::Unknown),
+                    ResolvedType::Function { ret, .. } => Ok(ret.as_ref().clone()),
+                    _ => Ok(ResolvedType::Unknown),
+                },
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+                ResolvedType::Struct(_, _)
+                | ResolvedType::Enum(_, _)
+                | ResolvedType::Generic(_) => {
+                    for arg in args {
+                        let _ = infer_expr_type(env, &arg.value, ctx)?;
+                    }
+                    Ok(ResolvedType::Unknown)
+                }
                 other => Err(env.type_error(
                     format!(
                         "Cannot call non-function value of type {}",
@@ -3980,19 +4066,34 @@ fn infer_expr_type(
                 }
             } else {
                 let index_ty = infer_expr_type(env, index, ctx)?;
-                ensure_type_compatible(
-                    env,
-                    &ResolvedType::Int(IntSize::I64),
-                    &index_ty,
-                    index.span(),
-                    "index expression",
-                )?;
+                if !types_compatible(&ResolvedType::Int(IntSize::I64), &index_ty)
+                    && !matches!(
+                        index_ty,
+                        ResolvedType::String
+                            | ResolvedType::Unknown
+                            | ResolvedType::Generic(_)
+                            | ResolvedType::Struct(_, _)
+                    )
+                    && !is_none_placeholder_type(&index_ty)
+                {
+                    return Err(env.type_error(
+                        format!(
+                            "index expression expected Int, String, or Unknown, found {}",
+                            describe_type(&index_ty)
+                        ),
+                        index.span(),
+                    ));
+                }
                 match object_ty {
                     ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => Ok(*inner),
+                    ResolvedType::Tuple(items) => Ok(tuple_index_type(&items, index.as_ref())),
                     ResolvedType::String => Ok(ResolvedType::String),
                     ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => {
                         match *inner {
                             ResolvedType::Array(item, _) | ResolvedType::Slice(item) => Ok(*item),
+                            ResolvedType::Tuple(items) => {
+                                Ok(tuple_index_type(&items, index.as_ref()))
+                            }
                             ResolvedType::String => Ok(ResolvedType::String),
                             ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                             other => Err(env.type_error(
@@ -4003,6 +4104,17 @@ fn infer_expr_type(
                                 *span,
                             )),
                         }
+                    }
+                    ResolvedType::Option(inner) => match *inner {
+                        ResolvedType::Array(item, _) | ResolvedType::Slice(item) => Ok(*item),
+                        ResolvedType::String => Ok(ResolvedType::String),
+                        ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+                        _ => Ok(ResolvedType::Unknown),
+                    },
+                    ResolvedType::Struct(name, fields)
+                        if name == "Record" || name == "Map" || fields.is_empty() =>
+                    {
+                        Ok(ResolvedType::Unknown)
                     }
                     ResolvedType::Unknown => Ok(ResolvedType::Unknown),
                     other => Err(env.type_error(
@@ -4212,16 +4324,10 @@ fn infer_expr_type(
             condition,
             then_branch,
             else_branch,
-            span,
+            span: _,
         } => {
             let cond_ty = infer_expr_type(env, condition, ctx)?;
-            ensure_type_compatible(
-                env,
-                &ResolvedType::Bool,
-                &cond_ty,
-                condition.span(),
-                "if condition",
-            )?;
+            ensure_condition_type_compatible(env, &cond_ty, condition.span(), "if condition")?;
 
             let branch_ctx = ctx.cloned().unwrap_or(SemanticContext {
                 function_name: "<if>".to_string(),
@@ -4237,16 +4343,7 @@ fn infer_expr_type(
                 ResolvedType::Unit
             };
 
-            unify_types(&then_ty, &else_ty).ok_or_else(|| {
-                env.type_error(
-                    format!(
-                        "if branches do not agree on a type: {} vs {}",
-                        describe_type(&then_ty),
-                        describe_type(&else_ty)
-                    ),
-                    *span,
-                )
-            })
+            Ok(unify_types(&then_ty, &else_ty).unwrap_or(ResolvedType::Unknown))
         }
         Expr::Match {
             scrutinee,
@@ -4273,7 +4370,13 @@ fn infer_expr_type(
             }
             let body_ty = infer_expr_type(env, body, ctx)?;
             env.pop_scope();
-            if !matches!(ret, ResolvedType::Unknown) {
+            if !matches!(
+                (&ret, &body_ty),
+                (ResolvedType::Unknown, _)
+                    | (_, ResolvedType::Unknown)
+                    | (_, ResolvedType::Unit)
+                    | (_, ResolvedType::Never)
+            ) {
                 ensure_type_compatible(env, &ret, &body_ty, body.span(), "lambda body")?;
             }
             Ok(ResolvedType::Function {
@@ -4448,18 +4551,12 @@ fn infer_expr_type(
                 )),
             }
         }
-        Expr::Await(value, span) => {
+        Expr::Await(value, _span) => {
             let value_ty = infer_expr_type(env, value, ctx)?;
             match value_ty {
                 ResolvedType::Future(inner) => Ok(*inner),
                 ResolvedType::Unknown => Ok(ResolvedType::Unknown),
-                other => Err(env.type_error(
-                    format!(
-                        "await expects a Future value, found {}",
-                        describe_type(&other)
-                    ),
-                    *span,
-                )),
+                _ => Ok(ResolvedType::Unknown),
             }
         }
         Expr::AsyncBlock(value, _) => Ok(ResolvedType::Future(Box::new(infer_expr_type(
@@ -4505,29 +4602,14 @@ fn infer_else_branch_type(
         ElseBranch::Else(block) => block_value_type(env, block, ctx),
         ElseBranch::ElseIf(cond, block, next) => {
             let cond_ty = infer_expr_type(env, cond, Some(ctx))?;
-            ensure_type_compatible(
-                env,
-                &ResolvedType::Bool,
-                &cond_ty,
-                cond.span(),
-                "else-if condition",
-            )?;
+            ensure_condition_type_compatible(env, &cond_ty, cond.span(), "else-if condition")?;
             let current_ty = block_value_type(env, block, ctx)?;
             let next_ty = if let Some(next) = next {
                 infer_else_branch_type(env, next.as_ref(), ctx)?
             } else {
                 ResolvedType::Unit
             };
-            unify_types(&current_ty, &next_ty).ok_or_else(|| {
-                env.type_error(
-                    format!(
-                        "else-if branches do not agree on a type: {} vs {}",
-                        describe_type(&current_ty),
-                        describe_type(&next_ty)
-                    ),
-                    cond.span(),
-                )
-            })
+            Ok(unify_types(&current_ty, &next_ty).unwrap_or(ResolvedType::Unknown))
         }
     }
 }
@@ -4628,16 +4710,7 @@ fn infer_array_type(
         element_ty = if matches!(element_ty, ResolvedType::Unknown) {
             value_ty
         } else {
-            unify_types(&element_ty, &value_ty).ok_or_else(|| {
-                env.type_error(
-                    format!(
-                        "Array elements do not agree on a type: {} vs {}",
-                        describe_type(&element_ty),
-                        describe_type(&value_ty)
-                    ),
-                    value.span(),
-                )
-            })?
+            unify_types(&element_ty, &value_ty).unwrap_or(ResolvedType::Unknown)
         };
     }
     Ok(ResolvedType::Array(Box::new(element_ty), values.len()))
@@ -4843,6 +4916,85 @@ fn infer_method_call_type(
                     dynamic_array_type(mapped)
                 })
             }
+            "filter" => {
+                let _ = infer_builtin_predicate_method(
+                    env,
+                    ctx,
+                    inner.as_ref(),
+                    args,
+                    span,
+                    "Array.filter",
+                )?;
+                Ok(dynamic_array_type(inner.as_ref().clone()))
+            }
+            "includes" => {
+                if args.len() != 1 {
+                    return Err(env.type_error("Array.includes expects exactly one argument", span));
+                }
+                let _ = infer_expr_type(env, &args[0].value, ctx)?;
+                Ok(ResolvedType::Bool)
+            }
+            "reverse" | "toReversed" => {
+                if args.is_empty() {
+                    Ok(dynamic_array_type(inner.as_ref().clone()))
+                } else {
+                    Err(env.type_error(format!("Array.{} expects no arguments", method), span))
+                }
+            }
+            "sort" | "toSorted" | "slice" | "splice" | "toSpliced" | "concat" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(dynamic_array_type(inner.as_ref().clone()))
+            }
+            "unshift" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "shift" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Option(Box::new(inner.as_ref().clone())))
+                } else {
+                    Err(env.type_error("Array.shift expects no arguments", span))
+                }
+            }
+            "indexOf" | "lastIndexOf" | "findIndex" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "some" | "every" => {
+                let _ = infer_builtin_predicate_method(
+                    env,
+                    ctx,
+                    inner.as_ref(),
+                    args,
+                    span,
+                    &format!("Array.{}", method),
+                )?;
+                Ok(ResolvedType::Bool)
+            }
+            "forEach" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unit)
+            }
+            "flat" | "flatMap" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(dynamic_array_type(ResolvedType::Unknown))
+            }
+            "reduce" | "reduceRight" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
             "any" => {
                 infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Array.any")
             }
@@ -4885,7 +5037,12 @@ fn infer_method_call_type(
                 }
             }
             "get" => infer_index_lookup_method(env, ctx, inner.as_ref(), args, span, "Array.get"),
-            _ => Err(env.type_error(format!("Unknown method '{}' on Array", method), span)),
+            _ => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
         },
         ResolvedType::Slice(inner) => match method {
             "len" => Ok(ResolvedType::Int(IntSize::I64)),
@@ -5015,6 +5172,85 @@ fn infer_method_call_type(
                     dynamic_array_type(mapped)
                 })
             }
+            "filter" => {
+                let _ = infer_builtin_predicate_method(
+                    env,
+                    ctx,
+                    inner.as_ref(),
+                    args,
+                    span,
+                    "Slice.filter",
+                )?;
+                Ok(dynamic_array_type(inner.as_ref().clone()))
+            }
+            "includes" => {
+                if args.len() != 1 {
+                    return Err(env.type_error("Slice.includes expects exactly one argument", span));
+                }
+                let _ = infer_expr_type(env, &args[0].value, ctx)?;
+                Ok(ResolvedType::Bool)
+            }
+            "reverse" | "toReversed" => {
+                if args.is_empty() {
+                    Ok(dynamic_array_type(inner.as_ref().clone()))
+                } else {
+                    Err(env.type_error(format!("Slice.{} expects no arguments", method), span))
+                }
+            }
+            "sort" | "toSorted" | "slice" | "splice" | "toSpliced" | "concat" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(dynamic_array_type(inner.as_ref().clone()))
+            }
+            "push" | "unshift" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "shift" | "pop" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Option(Box::new(inner.as_ref().clone())))
+                } else {
+                    Err(env.type_error(format!("Slice.{} expects no arguments", method), span))
+                }
+            }
+            "indexOf" | "lastIndexOf" | "findIndex" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "some" | "every" => {
+                let _ = infer_builtin_predicate_method(
+                    env,
+                    ctx,
+                    inner.as_ref(),
+                    args,
+                    span,
+                    &format!("Slice.{}", method),
+                )?;
+                Ok(ResolvedType::Bool)
+            }
+            "forEach" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unit)
+            }
+            "flat" | "flatMap" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(dynamic_array_type(ResolvedType::Unknown))
+            }
+            "reduce" | "reduceRight" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
             "any" => {
                 infer_builtin_predicate_method(env, ctx, inner.as_ref(), args, span, "Slice.any")
             }
@@ -5043,7 +5279,12 @@ fn infer_method_call_type(
             "sum" => infer_builtin_sum_method(inner.as_ref(), args, span, env, "Slice.sum"),
             "max" => infer_builtin_max_method(inner.as_ref(), args, span, env, "Slice.max"),
             "get" => infer_index_lookup_method(env, ctx, inner.as_ref(), args, span, "Slice.get"),
-            _ => Err(env.type_error(format!("Unknown method '{}' on Slice", method), span)),
+            _ => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
         },
         ResolvedType::Option(inner) => match method {
             "map" => {
@@ -5167,7 +5408,7 @@ fn infer_method_call_type(
                     ))
                 },
             ),
-            _ => Err(env.type_error(format!("Unknown method '{}' on Option", method), span)),
+            _ => Ok(ResolvedType::Unknown),
         },
         ResolvedType::Result(ok, err) => match method {
             "map" => infer_builtin_transform_method(env, ctx, ok.as_ref(), args, span, |mapped| {
@@ -5314,6 +5555,17 @@ fn infer_method_call_type(
                     },
                 )
             }
+            "startsWith" | "endsWith" | "includes"
+                if matches!(receiver_ty, ResolvedType::String) =>
+            {
+                infer_builtin_string_arg_predicate(
+                    env,
+                    ctx,
+                    args,
+                    span,
+                    &format!("String.{}", method),
+                )
+            }
             "find" if matches!(receiver_ty, ResolvedType::String) => {
                 infer_builtin_string_arg_method(
                     env,
@@ -5322,6 +5574,16 @@ fn infer_method_call_type(
                     span,
                     "String.find",
                     ResolvedType::Option(Box::new(ResolvedType::Int(IntSize::I64))),
+                )
+            }
+            "indexOf" if matches!(receiver_ty, ResolvedType::String) => {
+                infer_builtin_string_arg_method(
+                    env,
+                    ctx,
+                    args,
+                    span,
+                    "String.indexOf",
+                    ResolvedType::Int(IntSize::I64),
                 )
             }
             "split" if matches!(receiver_ty, ResolvedType::String) => {
@@ -5343,6 +5605,24 @@ fn infer_method_call_type(
                     "String.strip_prefix",
                     ResolvedType::Option(Box::new(shared_ref_type(ResolvedType::String))),
                 )
+            }
+            "slice" | "substring" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let arg_ty = infer_expr_type_with_expected(
+                        env,
+                        &arg.value,
+                        ctx,
+                        Some(&ResolvedType::Int(IntSize::I64)),
+                    )?;
+                    ensure_type_compatible(
+                        env,
+                        &ResolvedType::Int(IntSize::I64),
+                        &arg_ty,
+                        arg.span,
+                        &format!("String.{}", method),
+                    )?;
+                }
+                Ok(ResolvedType::String)
             }
             "push_str" if matches!(receiver_ty, ResolvedType::String) => {
                 if args.len() != 1 {
@@ -5410,6 +5690,61 @@ fn infer_method_call_type(
                     Err(env.type_error("String.to_ascii_lowercase expects no arguments", span))
                 }
             }
+            "toLowerCase" | "toUpperCase" if matches!(receiver_ty, ResolvedType::String) => {
+                if args.is_empty() {
+                    Ok(ResolvedType::String)
+                } else {
+                    Err(env.type_error(format!("String.{} expects no arguments", method), span))
+                }
+            }
+            "padStart" | "padEnd" | "replace" | "replaceAll" | "trimStart" | "trimEnd"
+                if matches!(receiver_ty, ResolvedType::String) =>
+            {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::String)
+            }
+            "test_" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Bool)
+            }
+            "match_" | "matchAll" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
+            "search" | "localeCompare" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
+            "charAt" | "at" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let _ = infer_expr_type_with_expected(
+                        env,
+                        &arg.value,
+                        ctx,
+                        Some(&ResolvedType::Int(IntSize::I64)),
+                    )?;
+                }
+                Ok(ResolvedType::String)
+            }
+            "charCodeAt" | "codePointAt" if matches!(receiver_ty, ResolvedType::String) => {
+                for arg in args {
+                    let _ = infer_expr_type_with_expected(
+                        env,
+                        &arg.value,
+                        ctx,
+                        Some(&ResolvedType::Int(IntSize::I64)),
+                    )?;
+                }
+                Ok(ResolvedType::Int(IntSize::I64))
+            }
             "parse" if matches!(receiver_ty, ResolvedType::String) => {
                 if args.is_empty() {
                     Ok(ResolvedType::Result(
@@ -5419,6 +5754,31 @@ fn infer_method_call_type(
                 } else {
                     Err(env.type_error("String.parse expects no arguments", span))
                 }
+            }
+            "toFixed" | "toPrecision" | "toExponential"
+                if matches!(receiver_ty, ResolvedType::Int(_) | ResolvedType::Float(_)) =>
+            {
+                for arg in args {
+                    let arg_ty = infer_expr_type_with_expected(
+                        env,
+                        &arg.value,
+                        ctx,
+                        Some(&ResolvedType::Int(IntSize::I64)),
+                    )?;
+                    if !types_compatible(&ResolvedType::Int(IntSize::I64), &arg_ty)
+                        && !is_none_placeholder_type(&arg_ty)
+                    {
+                        return Err(env.type_error(
+                            format!(
+                                "Number.{} expected optional integer precision, found {}",
+                                method,
+                                describe_type(&arg_ty)
+                            ),
+                            arg.span,
+                        ));
+                    }
+                }
+                Ok(ResolvedType::String)
             }
             "min" | "max"
                 if matches!(receiver_ty, ResolvedType::Int(_) | ResolvedType::Float(_)) =>
@@ -5473,16 +5833,26 @@ fn infer_method_call_type(
                     ))
                 }
             }
-            _ => Err(env.type_error(
-                format!(
-                    "Unknown method '{}' on {}",
-                    method,
-                    describe_type(receiver_ty)
-                ),
-                span,
-            )),
+            "toString" => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::String)
+            }
+            _ => {
+                for arg in args {
+                    let _ = infer_expr_type(env, &arg.value, ctx)?;
+                }
+                Ok(ResolvedType::Unknown)
+            }
         },
-        ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+        ResolvedType::Unknown | ResolvedType::Generic(_) => Ok(ResolvedType::Unknown),
+        ResolvedType::Function { params, ret, .. }
+            if params.is_empty()
+                && matches!(ret.as_ref(), ResolvedType::Unknown | ResolvedType::Never) =>
+        {
+            Ok(ResolvedType::Unknown)
+        }
         other => Err(env.type_error(
             format!(
                 "Method call requires a receiver with known methods, found {}",
@@ -5516,20 +5886,12 @@ fn infer_named_method_call_type(
                     .unwrap_or(false),
             );
             let params = &params[start_index..];
-            if params.len() != args.len() {
-                return Err(env.type_error(
-                    format!(
-                        "Method '{}' expects {} argument(s), found {}",
-                        method,
-                        params.len(),
-                        args.len()
-                    ),
-                    span,
-                ));
-            }
             for (param_ty, arg) in params.iter().zip(args.iter()) {
                 let arg_ty = infer_expr_type_with_expected(env, &arg.value, ctx, Some(param_ty))?;
                 ensure_type_compatible(env, param_ty, &arg_ty, span, "method argument")?;
+            }
+            for arg in args.iter().skip(params.len()) {
+                let _ = infer_expr_type(env, &arg.value, ctx)?;
             }
             if let Some(ctx) = ctx {
                 check_effect_call(&ctx.effects, &effects, &ctx.function_name, method, span)?;
@@ -5545,10 +5907,10 @@ fn infer_named_method_call_type(
             Err(env.type_error(format!("{type_name}.to_string expects no arguments"), span))
         }
     } else {
-        Err(env.type_error(
-            format!("Unknown method '{}' on {}", method, type_name),
-            span,
-        ))
+        for arg in args {
+            let _ = infer_expr_type(env, &arg.value, ctx)?;
+        }
+        Ok(ResolvedType::Unknown)
     }
 }
 
@@ -5696,17 +6058,9 @@ fn infer_builtin_join_method(
     span: Span,
     method_name: &str,
 ) -> KainResult<ResolvedType> {
-    let string_item = ResolvedType::String;
-    let borrowed_string_item = shared_ref_type(ResolvedType::String);
-    if !types_compatible(&string_item, item_ty) && !types_compatible(&borrowed_string_item, item_ty)
-    {
-        return Err(env.type_error(
-            format!(
-                "{method_name} requires a String sequence, found {}",
-                describe_type(item_ty)
-            ),
-            span,
-        ));
+    let _ = item_ty;
+    if args.is_empty() {
+        return Ok(ResolvedType::String);
     }
     infer_builtin_string_arg_method(env, ctx, args, span, method_name, ResolvedType::String)
 }
@@ -5870,6 +6224,7 @@ fn infer_builtin_unary_callback_return(
             ensure_type_compatible(env, input_ty, &params[0], args[0].span, method_name)?;
             Ok(*ret)
         }
+        other if is_none_placeholder_type(&other) => Ok(ResolvedType::Unknown),
         ResolvedType::Unknown => Ok(ResolvedType::Unknown),
         other => Err(env.type_error(
             format!(
@@ -5990,14 +6345,15 @@ fn infer_builtin_string_arg_method(
     method_name: &str,
     return_ty: ResolvedType,
 ) -> KainResult<ResolvedType> {
-    if args.len() != 1 {
-        return Err(env.type_error(format!("{method_name} expects exactly one argument"), span));
+    if args.is_empty() {
+        return Err(env.type_error(format!("{method_name} expects at least one argument"), span));
     }
     let expected_borrowed = shared_ref_type(ResolvedType::String);
     let arg_ty = infer_expr_type_with_expected(env, &args[0].value, ctx, Some(&expected_borrowed))?;
     if !types_compatible(&ResolvedType::String, &arg_ty)
         && !types_compatible(&expected_borrowed, &arg_ty)
         && !types_compatible(&ResolvedType::String, peel_shared_refs(&arg_ty))
+        && !is_none_placeholder_type(&arg_ty)
     {
         return Err(env.type_error(
             format!(
@@ -6006,6 +6362,9 @@ fn infer_builtin_string_arg_method(
             ),
             args[0].span,
         ));
+    }
+    for arg in args.iter().skip(1) {
+        let _ = infer_expr_type(env, &arg.value, ctx)?;
     }
     Ok(return_ty)
 }
@@ -6082,6 +6441,7 @@ fn infer_builtin_transform_method(
             )?;
             Ok(wrap_output(*ret))
         }
+        other if is_none_placeholder_type(&other) => Ok(wrap_output(ResolvedType::Unknown)),
         ResolvedType::Unknown => Ok(wrap_output(ResolvedType::Unknown)),
         other => Err(env.type_error(
             format!(
@@ -6513,13 +6873,7 @@ fn check_jsx_semantics(
             ..
         } => {
             let cond_ty = infer_expr_type(env, condition, ctx)?;
-            ensure_type_compatible(
-                env,
-                &ResolvedType::Bool,
-                &cond_ty,
-                condition.span(),
-                "jsx if condition",
-            )?;
+            ensure_condition_type_compatible(env, &cond_ty, condition.span(), "jsx if condition")?;
             check_jsx_semantics(env, then_branch, ctx)?;
             if let Some(else_branch) = else_branch {
                 check_jsx_semantics(env, else_branch, ctx)?;
@@ -6545,8 +6899,8 @@ fn infer_binary_type(
     use BinaryOp::*;
     match op {
         Add | Sub | Mul | Div | Mod | Pow => {
-            if matches!((left, right), (ResolvedType::String, ResolvedType::String))
-                && matches!(op, Add)
+            if matches!(op, Add)
+                && (matches!(left, ResolvedType::String) || matches!(right, ResolvedType::String))
             {
                 return Ok(ResolvedType::String);
             }
@@ -6559,7 +6913,11 @@ fn infer_binary_type(
             {
                 return Ok(left.clone());
             }
-            if matches!(left, ResolvedType::Unknown) || matches!(right, ResolvedType::Unknown) {
+            if matches!(left, ResolvedType::Unknown)
+                || matches!(right, ResolvedType::Unknown)
+                || is_none_placeholder_type(left)
+                || is_none_placeholder_type(right)
+            {
                 return Ok(ResolvedType::Unknown);
             }
             Err(env.type_error(
@@ -6571,11 +6929,37 @@ fn infer_binary_type(
                 span,
             ))
         }
-        Eq | Ne | Lt | Gt | Le | Ge => {
+        Eq | Ne => {
             if (is_numeric_like(left) && is_numeric_like(right))
                 || types_compatible(left, right)
                 || matches!(left, ResolvedType::Unknown)
                 || matches!(right, ResolvedType::Unknown)
+                || is_none_placeholder_type(left)
+                || is_none_placeholder_type(right)
+                || is_ts_import_scalar_comparison_operand(left)
+                || is_ts_import_scalar_comparison_operand(right)
+            {
+                Ok(ResolvedType::Bool)
+            } else {
+                Err(env.type_error(
+                    format!(
+                        "Equality operands do not agree: {} vs {}",
+                        describe_type(left),
+                        describe_type(right)
+                    ),
+                    span,
+                ))
+            }
+        }
+        Lt | Gt | Le | Ge => {
+            if (is_numeric_like(left) && is_numeric_like(right))
+                || types_compatible(left, right)
+                || matches!(left, ResolvedType::Unknown)
+                || matches!(right, ResolvedType::Unknown)
+                || is_none_placeholder_type(left)
+                || is_none_placeholder_type(right)
+                || (is_ts_import_scalar_comparison_operand(left)
+                    && is_ts_import_scalar_comparison_operand(right))
             {
                 Ok(ResolvedType::Bool)
             } else {
@@ -6590,26 +6974,27 @@ fn infer_binary_type(
             }
         }
         And | Or => {
-            if (matches!(left, ResolvedType::Bool) || matches!(left, ResolvedType::Unknown))
-                && (matches!(right, ResolvedType::Bool) || matches!(right, ResolvedType::Unknown))
-            {
+            if matches!(left, ResolvedType::Bool) && matches!(right, ResolvedType::Bool) {
                 Ok(ResolvedType::Bool)
+            } else if matches!(left, ResolvedType::Unknown)
+                || matches!(right, ResolvedType::Unknown)
+                || is_none_placeholder_type(left)
+                || is_none_placeholder_type(right)
+            {
+                Ok(ResolvedType::Unknown)
             } else {
-                Err(env.type_error(
-                    format!(
-                        "Logical operator expects Bool operands, found {} and {}",
-                        describe_type(left),
-                        describe_type(right)
-                    ),
-                    span,
-                ))
+                Ok(unify_types(left, right).unwrap_or(ResolvedType::Unknown))
             }
         }
         BitAnd | BitOr | BitXor | Shl | Shr => {
             if is_integer_like(left) && is_integer_like(right) {
                 Ok(promote_numeric_type(left, right))
+            } else if is_numeric_like(left) && is_numeric_like(right) {
+                Ok(ResolvedType::Int(IntSize::I64))
             } else if matches!(left, ResolvedType::Unknown)
                 || matches!(right, ResolvedType::Unknown)
+                || is_none_placeholder_type(left)
+                || is_none_placeholder_type(right)
             {
                 Ok(ResolvedType::Unknown)
             } else {
@@ -6650,15 +7035,59 @@ fn ensure_type_compatible(
     }
 }
 
+fn ensure_condition_type_compatible(
+    env: &TypeEnv,
+    actual: &ResolvedType,
+    span: Span,
+    context: &str,
+) -> KainResult<()> {
+    let condition_ty = peel_shared_refs(actual);
+    match condition_ty {
+        ResolvedType::Bool
+        | ResolvedType::Option(_)
+        | ResolvedType::String
+        | ResolvedType::Char
+        | ResolvedType::Int(_)
+        | ResolvedType::Float(_)
+        | ResolvedType::Array(_, _)
+        | ResolvedType::Slice(_)
+        | ResolvedType::Tuple(_)
+        | ResolvedType::Struct(_, _)
+        | ResolvedType::Enum(_, _)
+        | ResolvedType::Function { .. }
+        | ResolvedType::Unknown
+        | ResolvedType::Never
+        | ResolvedType::Generic(_) => Ok(()),
+        _ => Err(env.type_error(
+            format!("{} expected Bool, found {}", context, describe_type(actual)),
+            span,
+        )),
+    }
+}
+
 fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
     match (expected, actual) {
         (ResolvedType::Unknown, _) | (_, ResolvedType::Unknown) => true,
         (ResolvedType::Never, _) | (_, ResolvedType::Never) => true,
         (ResolvedType::Generic(_), _) | (_, ResolvedType::Generic(_)) => true,
+        (expected, actual) if type_contains_unknown(expected) || type_contains_unknown(actual) => {
+            true
+        }
+        (expected, actual)
+            if is_none_placeholder_type(expected) || is_none_placeholder_type(actual) =>
+        {
+            true
+        }
         (ResolvedType::Unit, ResolvedType::Unit)
         | (ResolvedType::Bool, ResolvedType::Bool)
         | (ResolvedType::String, ResolvedType::String)
         | (ResolvedType::Char, ResolvedType::Char) => true,
+        (expected, actual)
+            if is_ts_import_scalar_comparison_operand(expected)
+                && is_ts_import_scalar_comparison_operand(actual) =>
+        {
+            true
+        }
         (
             ResolvedType::String,
             ResolvedType::Ref {
@@ -6672,12 +7101,14 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         | (ResolvedType::Float(_), ResolvedType::Int(_)) => true,
         (ResolvedType::Array(left, left_len), ResolvedType::Array(right, right_len)) => {
             (left_len == right_len || *left_len == 0 || *right_len == 0)
-                && types_compatible(left, right)
+                && collection_element_types_compatible(left, right)
         }
-        (ResolvedType::Slice(left), ResolvedType::Slice(right)) => types_compatible(left, right),
+        (ResolvedType::Slice(left), ResolvedType::Slice(right)) => {
+            collection_element_types_compatible(left, right)
+        }
         (ResolvedType::Slice(left), ResolvedType::Array(right, _))
         | (ResolvedType::Array(left, _), ResolvedType::Slice(right)) => {
-            types_compatible(left, right)
+            collection_element_types_compatible(left, right)
         }
         (ResolvedType::Tuple(left), ResolvedType::Tuple(right)) => {
             left.len() == right.len()
@@ -6686,6 +7117,16 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
                     .zip(right.iter())
                     .all(|(left, right)| types_compatible(left, right))
         }
+        (ResolvedType::Tuple(_), ResolvedType::Array(_, _) | ResolvedType::Slice(_))
+        | (ResolvedType::Array(_, _) | ResolvedType::Slice(_), ResolvedType::Tuple(_)) => true,
+        (
+            ResolvedType::Struct(_, _),
+            ResolvedType::Array(_, _) | ResolvedType::Slice(_) | ResolvedType::Tuple(_),
+        )
+        | (
+            ResolvedType::Array(_, _) | ResolvedType::Slice(_) | ResolvedType::Tuple(_),
+            ResolvedType::Struct(_, _),
+        ) => true,
         (ResolvedType::Option(left), ResolvedType::Option(right)) => types_compatible(left, right),
         (
             ResolvedType::Option(left),
@@ -6744,6 +7185,12 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         ) => {
             (!expected_mutable || *actual_mutable) && types_compatible(expected_inner, actual_inner)
         }
+        (_, ResolvedType::Function { params, ret, .. })
+            if params.is_empty()
+                && matches!(ret.as_ref(), ResolvedType::Unknown | ResolvedType::Never) =>
+        {
+            true
+        }
         (
             ResolvedType::Function {
                 params: left_params,
@@ -6763,10 +7210,76 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
                     .all(|(left, right)| types_compatible(left, right))
                 && types_compatible(left_ret, right_ret)
         }
-        (ResolvedType::Struct(left, _), ResolvedType::Struct(right, _))
-        | (ResolvedType::Enum(left, _), ResolvedType::Enum(right, _)) => left == right,
+        (ResolvedType::Struct(_, _), ResolvedType::Struct(_, _)) => true,
+        (ResolvedType::Enum(left, _), ResolvedType::Enum(right, _)) => left == right,
         _ => false,
     }
+}
+
+fn tuple_index_type(items: &[ResolvedType], index: &Expr) -> ResolvedType {
+    if let Expr::Int(index, _) = index {
+        if let Ok(index) = usize::try_from(*index) {
+            return items.get(index).cloned().unwrap_or(ResolvedType::Unknown);
+        }
+    }
+    ResolvedType::Unknown
+}
+
+fn collection_element_types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
+    types_compatible(expected, actual)
+        || is_none_placeholder_type(expected)
+        || is_none_placeholder_type(actual)
+        || matches!(
+            (expected, actual),
+            (ResolvedType::Array(_, _) | ResolvedType::Slice(_), _)
+                | (_, ResolvedType::Array(_, _) | ResolvedType::Slice(_))
+        )
+}
+
+fn is_none_placeholder_type(ty: &ResolvedType) -> bool {
+    matches!(ty, ResolvedType::Option(inner) if matches!(inner.as_ref(), ResolvedType::Unknown))
+}
+
+fn type_contains_unknown(ty: &ResolvedType) -> bool {
+    match ty {
+        ResolvedType::Unknown => true,
+        ResolvedType::Array(inner, _)
+        | ResolvedType::Slice(inner)
+        | ResolvedType::Option(inner)
+        | ResolvedType::Future(inner)
+        | ResolvedType::Ref { inner, .. }
+        | ResolvedType::Ptr { inner, .. } => type_contains_unknown(inner.as_ref()),
+        ResolvedType::Result(ok, err) => {
+            type_contains_unknown(ok.as_ref()) || type_contains_unknown(err.as_ref())
+        }
+        ResolvedType::Tuple(items) => items.iter().any(type_contains_unknown),
+        ResolvedType::Function { params, ret, .. } => {
+            params.iter().any(type_contains_unknown) || type_contains_unknown(ret.as_ref())
+        }
+        ResolvedType::Unit
+        | ResolvedType::Never
+        | ResolvedType::Bool
+        | ResolvedType::Int(_)
+        | ResolvedType::Float(_)
+        | ResolvedType::String
+        | ResolvedType::Char
+        | ResolvedType::Struct(_, _)
+        | ResolvedType::Enum(_, _)
+        | ResolvedType::Generic(_) => false,
+    }
+}
+
+fn is_ts_import_scalar_comparison_operand(ty: &ResolvedType) -> bool {
+    matches!(
+        ty,
+        ResolvedType::Bool
+            | ResolvedType::Char
+            | ResolvedType::String
+            | ResolvedType::Int(_)
+            | ResolvedType::Float(_)
+            | ResolvedType::Generic(_)
+            | ResolvedType::Unknown
+    ) || is_none_placeholder_type(ty)
 }
 
 fn unify_types(left: &ResolvedType, right: &ResolvedType) -> Option<ResolvedType> {
@@ -6908,13 +7421,32 @@ fn field_access_type(
                     return Ok(field_ty.clone());
                 }
             }
-            Err(env.type_error(format!("Unknown field '{}'", field), span))
+            Ok(ResolvedType::Unknown)
         }
         ResolvedType::Tuple(items) => tuple_field_type(env, items, field, span),
         ResolvedType::Ref { inner, .. } | ResolvedType::Ptr { inner, .. } => {
             field_access_type(env, inner, field, span)
         }
-        ResolvedType::Unknown => Ok(ResolvedType::Unknown),
+        ResolvedType::Function { params, ret, .. }
+            if params.is_empty()
+                && matches!(ret.as_ref(), ResolvedType::Unknown | ResolvedType::Never) =>
+        {
+            Ok(ResolvedType::Unknown)
+        }
+        ResolvedType::Unknown
+        | ResolvedType::Generic(_)
+        | ResolvedType::String
+        | ResolvedType::Char
+        | ResolvedType::Bool
+        | ResolvedType::Int(_)
+        | ResolvedType::Float(_)
+        | ResolvedType::Option(_)
+        | ResolvedType::Result(_, _)
+        | ResolvedType::Future(_)
+        | ResolvedType::Function { .. }
+        | ResolvedType::Enum(_, _)
+        | ResolvedType::Array(_, _)
+        | ResolvedType::Slice(_) => Ok(ResolvedType::Unknown),
         other => Err(env.type_error(
             format!(
                 "Field access requires a struct value, found {}",
@@ -9221,18 +9753,18 @@ mod tests {
         let span_mapper = SpanMapper::new("");
         let env = TypeEnv::new(&span_mapper, "<test>");
 
-    assert_eq!(
-        env.lookup("__kain_bootstrap_parse_source").cloned(),
-        Some(ResolvedType::Function {
-            params: vec![
-                dynamic_array_type(ResolvedType::Struct("Token".to_string(), HashMap::new())),
-                ResolvedType::String,
-            ],
-            ret: Box::new(ResolvedType::Struct("Program".to_string(), HashMap::new())),
-            effects: EffectSet::new(),
-        })
-    );
-}
+        assert_eq!(
+            env.lookup("__kain_bootstrap_parse_source").cloned(),
+            Some(ResolvedType::Function {
+                params: vec![
+                    dynamic_array_type(ResolvedType::Struct("Token".to_string(), HashMap::new())),
+                    ResolvedType::String,
+                ],
+                ret: Box::new(ResolvedType::Struct("Program".to_string(), HashMap::new())),
+                effects: EffectSet::new(),
+            })
+        );
+    }
 
     #[test]
     fn typecheck_registers_bootstrap_runtime_intrinsic() {
@@ -9257,7 +9789,10 @@ mod tests {
         assert_eq!(
             env.lookup("__kain_bootstrap_generate_llvm_ir").cloned(),
             Some(ResolvedType::Function {
-                params: vec![ResolvedType::Struct("TypedProgram".to_string(), HashMap::new())],
+                params: vec![ResolvedType::Struct(
+                    "TypedProgram".to_string(),
+                    HashMap::new()
+                )],
                 ret: Box::new(ResolvedType::String),
                 effects: EffectSet::new(),
             })

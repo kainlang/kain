@@ -1,0 +1,368 @@
+{
+  "schema_version": 1,
+  "value_aliases": [
+    {
+      "ts_name": "String",
+      "kain_name": "ts_String",
+      "reason": "Avoid collision with Kain's native String type while preserving JavaScript's runtime String constructor value."
+    },
+    {
+      "ts_name": "Number",
+      "kain_name": "ts_Number",
+      "reason": "Avoid collision with Kain's native numeric type names while preserving JavaScript's runtime Number constructor value."
+    },
+    {
+      "ts_name": "Boolean",
+      "kain_name": "ts_Boolean",
+      "reason": "Avoid collision with Kain's native Bool type while preserving JavaScript's runtime Boolean constructor value."
+    },
+    {
+      "ts_name": "Array",
+      "kain_name": "ts_Array",
+      "reason": "Avoid collision with Kain's Array type syntax while preserving JavaScript's runtime Array constructor value."
+    },
+    {
+      "ts_name": "Object",
+      "kain_name": "ts_Object",
+      "reason": "Avoid collision with Kain object/struct terminology while preserving JavaScript's runtime Object constructor value."
+    },
+    {
+      "ts_name": "Map",
+      "kain_name": "ts_Map",
+      "reason": "Avoid collision with Kain's Map container type while preserving JavaScript's runtime Map constructor value."
+    },
+    {
+      "ts_name": "Set",
+      "kain_name": "ts_Set",
+      "reason": "Avoid collision with Kain's Set container type while preserving JavaScript's runtime Set constructor value."
+    },
+    {
+      "ts_name": "Promise",
+      "kain_name": "ts_Promise",
+      "reason": "Avoid collision with Kain async/future lowering while preserving JavaScript's runtime Promise constructor value."
+    }
+  ],
+  "suppressed_type_names": [
+    "Any",
+    "Array",
+    "Bool",
+    "Boolean",
+    "Char",
+    "Float",
+    "Int",
+    "Map",
+    "Never",
+    "Number",
+    "Object",
+    "Option",
+    "Promise",
+    "Result",
+    "Set",
+    "String",
+    "Void"
+  ],
+  "type_names_lowered_to_any": [
+    "Awaited",
+    "Capitalize",
+    "ConstructorParameters",
+    "Exclude",
+    "Extract",
+    "InstanceType",
+    "Lowercase",
+    "NoInfer",
+    "NonNullable",
+    "Omit",
+    "OmitThisParameter",
+    "Parameters",
+    "Partial",
+    "Pick",
+    "Readonly",
+    "Record",
+    "Required",
+    "ReturnType",
+    "ThisParameterType",
+    "ThisType",
+    "Uncapitalize",
+    "Uppercase"
+  ],
+  "synthetic_values": [
+    {
+      "ts_name": "undefined",
+      "kain_name": "undefined",
+      "kind": "typescript_intrinsic",
+      "reason": "The TypeScript libs use undefined as an intrinsic value rather than declaring it as an ambient var."
+    },
+    {
+      "ts_name": "NaN",
+      "kain_name": "NaN",
+      "kind": "typescript_intrinsic",
+      "reason": "The TypeScript libs document NaN heavily but do not expose it through the same declaration form as DOM globals."
+    },
+    {
+      "ts_name": "Infinity",
+      "kain_name": "Infinity",
+      "kind": "typescript_intrinsic",
+      "reason": "The TypeScript libs document Infinity heavily but do not expose it through the same declaration form as DOM globals."
+    },
+    {
+      "ts_name": "globalThis",
+      "kain_name": "globalThis",
+      "kind": "typescript_intrinsic",
+      "reason": "The TypeScript compiler treats globalThis specially; the import prelude needs a value binding for lowered references."
+    },
+    {
+      "ts_name": "global",
+      "kain_name": "global",
+      "kind": "node_global",
+      "reason": "Common Node and Electron/Tauri-adjacent TypeScript projects reference the Node global object without importing @types/node into the ambient lib set."
+    },
+    {
+      "ts_name": "process",
+      "kain_name": "process",
+      "kind": "node_global",
+      "reason": "Common Node and Electron/Tauri-adjacent TypeScript projects reference process without importing @types/node into the ambient lib set."
+    },
+    {
+      "ts_name": "Buffer",
+      "kain_name": "Buffer",
+      "kind": "node_global",
+      "reason": "Common Node TypeScript projects reference Buffer as a runtime global."
+    },
+    {
+      "ts_name": "require",
+      "kain_name": "require",
+      "kind": "node_commonjs_global",
+      "reason": "CommonJS TypeScript and generated code may reference require without a local import."
+    },
+    {
+      "ts_name": "module",
+      "kain_name": "module",
+      "kind": "node_commonjs_global",
+      "reason": "CommonJS TypeScript and generated code may reference module without a local import."
+    },
+    {
+      "ts_name": "exports",
+      "kain_name": "exports",
+      "kind": "node_commonjs_global",
+      "reason": "CommonJS TypeScript and generated code may reference exports without a local import."
+    },
+    {
+      "ts_name": "__dirname",
+      "kain_name": "__dirname",
+      "kind": "node_commonjs_global",
+      "reason": "CommonJS TypeScript often references __dirname as a runtime global."
+    },
+    {
+      "ts_name": "__filename",
+      "kain_name": "__filename",
+      "kind": "node_commonjs_global",
+      "reason": "CommonJS TypeScript often references __filename as a runtime global."
+    },
+    {
+      "ts_name": "describe",
+      "kain_name": "describe",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference describe globally."
+    },
+    {
+      "ts_name": "it",
+      "kain_name": "it",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference it globally."
+    },
+    {
+      "ts_name": "test",
+      "kain_name": "test_",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference test globally."
+    },
+    {
+      "ts_name": "expect",
+      "kain_name": "expect",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference expect globally."
+    },
+    {
+      "ts_name": "beforeEach",
+      "kain_name": "beforeEach",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference beforeEach globally."
+    },
+    {
+      "ts_name": "afterEach",
+      "kain_name": "afterEach",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference afterEach globally."
+    },
+    {
+      "ts_name": "beforeAll",
+      "kain_name": "beforeAll",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference beforeAll globally."
+    },
+    {
+      "ts_name": "afterAll",
+      "kain_name": "afterAll",
+      "kind": "test_runner_global",
+      "reason": "Vitest/Jest-style TypeScript tests commonly reference afterAll globally."
+    },
+    {
+      "ts_name": "vi",
+      "kain_name": "vi",
+      "kind": "test_runner_global",
+      "reason": "Vitest TypeScript tests commonly reference vi globally."
+    },
+    {
+      "ts_name": "jest",
+      "kain_name": "jest",
+      "kind": "test_runner_global",
+      "reason": "Jest TypeScript tests commonly reference jest globally."
+    },
+    {
+      "ts_name": "screen",
+      "kain_name": "screen",
+      "kind": "testing_library_global",
+      "reason": "Testing Library helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "fireEvent",
+      "kain_name": "fireEvent",
+      "kind": "testing_library_global",
+      "reason": "Testing Library helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "render",
+      "kain_name": "render",
+      "kind": "testing_library_global",
+      "reason": "Testing Library helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "waitFor",
+      "kain_name": "waitFor",
+      "kind": "testing_library_global",
+      "reason": "Testing Library helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "act",
+      "kain_name": "act",
+      "kind": "testing_library_global",
+      "reason": "React test helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "cleanup",
+      "kain_name": "cleanup",
+      "kind": "testing_library_global",
+      "reason": "Testing Library cleanup helpers are often configured as globals in UI test projects."
+    },
+    {
+      "ts_name": "import_dynamic",
+      "kain_name": "import_dynamic",
+      "kind": "kain_lowering_helper",
+      "reason": "Dynamic import() expressions lower to this Kain helper symbol."
+    },
+    {
+      "ts_name": "import_meta",
+      "kain_name": "import_meta",
+      "kind": "kain_lowering_helper",
+      "reason": "import.meta expressions lower to this Kain helper symbol."
+    },
+    {
+      "ts_name": "super_",
+      "kain_name": "super_",
+      "kind": "kain_lowering_helper",
+      "reason": "super property reads lower through this Kain placeholder receiver."
+    },
+    {
+      "ts_name": "_self",
+      "kain_name": "_self",
+      "kind": "kain_lowering_helper",
+      "reason": "Imported class constructors receive an explicit self-like placeholder parameter."
+    },
+    {
+      "ts_name": "ts_in_operator",
+      "kain_name": "ts_in_operator",
+      "kind": "kain_lowering_helper",
+      "reason": "TypeScript in-operator expressions lower to this helper call."
+    },
+    {
+      "ts_name": "ts_instanceof_operator",
+      "kain_name": "ts_instanceof_operator",
+      "kind": "kain_lowering_helper",
+      "reason": "TypeScript instanceof expressions lower to this helper call."
+    }
+  ],
+  "synthetic_types": [
+    {
+      "ts_name": "ReactNode",
+      "kain_name": "ReactNode",
+      "kind": "ecosystem_type",
+      "reason": "Common TSX projects reference ReactNode even when React's declarations are not imported into the ambient lib set."
+    },
+    {
+      "ts_name": "Proxy",
+      "kain_name": "Proxy",
+      "kind": "constructor_type_alias",
+      "reason": "The TypeScript lib declares Proxy as a value and ProxyConstructor as a type; imported source often uses Proxy as a loose type."
+    },
+    {
+      "ts_name": "NodeJS",
+      "kain_name": "NodeJS",
+      "kind": "node_namespace_type",
+      "reason": "Node TypeScript declarations commonly qualify runtime types under the NodeJS namespace."
+    },
+    {
+      "ts_name": "Process",
+      "kain_name": "Process",
+      "kind": "node_global_type",
+      "reason": "Node TypeScript projects commonly annotate process-like values as Process."
+    },
+    {
+      "ts_name": "Buffer",
+      "kain_name": "Buffer",
+      "kind": "node_global_type",
+      "reason": "Node TypeScript projects commonly annotate binary values as Buffer."
+    },
+    {
+      "ts_name": "BufferEncoding",
+      "kain_name": "BufferEncoding",
+      "kind": "node_global_type",
+      "reason": "Node TypeScript projects commonly use BufferEncoding in filesystem and process APIs."
+    },
+    {
+      "ts_name": "JSX",
+      "kain_name": "JSX",
+      "kind": "tsx_namespace_type",
+      "reason": "TSX projects commonly reference the JSX namespace even when React declarations are project-local."
+    },
+    {
+      "ts_name": "React",
+      "kain_name": "React",
+      "kind": "tsx_namespace_type",
+      "reason": "React TSX projects commonly reference React namespace types."
+    },
+    {
+      "ts_name": "ReactElement",
+      "kain_name": "ReactElement",
+      "kind": "tsx_type",
+      "reason": "React TSX projects commonly annotate rendered nodes as ReactElement."
+    },
+    {
+      "ts_name": "Mock",
+      "kain_name": "Mock",
+      "kind": "test_runner_type",
+      "reason": "Vitest/Jest-style TypeScript tests commonly annotate mocks with a package-provided Mock type."
+    },
+    {
+      "ts_name": "MockInstance",
+      "kain_name": "MockInstance",
+      "kind": "test_runner_type",
+      "reason": "Vitest/Jest-style TypeScript tests commonly annotate spies with MockInstance."
+    },
+    {
+      "ts_name": "SpyInstance",
+      "kain_name": "SpyInstance",
+      "kind": "test_runner_type",
+      "reason": "Vitest/Jest-style TypeScript tests commonly annotate spies with SpyInstance."
+    }
+  ]
+}

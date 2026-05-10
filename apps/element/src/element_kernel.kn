@@ -1,0 +1,293 @@
+pub enum ElementFamily:
+    NobleGas
+    AlkaliMetal
+    Chalcogen
+    Pnictogen
+    TransitionMetal
+    Unknown
+
+pub enum ElementOwnershipMode:
+    Copy
+    Borrow
+    AffineBorrow
+    Move
+    SharedRead
+
+pub enum ElementThreadMode:
+    DefaultSingleOwner
+    ImmutableThreadSafe
+    RequiresAtomicFence
+    ShareableReadOnly
+
+pub enum ElementBondRole:
+    Input
+    BranchCondition
+    BranchTrue
+    BranchFalse
+    State
+    Continuation
+
+pub enum DiagnosticSeverity:
+    Error
+    Warning
+    Note
+
+pub enum ElementSemanticKind:
+    OwnershipSink
+    BranchCoordinator
+    Unknown
+
+pub struct ElementDiagnostic:
+    severity: DiagnosticSeverity
+    code: String
+    message: String
+
+pub struct ElementBond:
+    role: ElementBondRole
+    label: String
+    target_symbol: String
+    owns_value: Bool
+    mutable_access: Bool
+
+pub struct ElementNode:
+    instruction_symbol: String
+    debug_name: String
+    bonds: Array<ElementBond>
+    moved_input_count: Int
+    borrowed_input_count: Int
+    emitted_value_count: Int
+    local_storage_bits: Int
+    heap_allocated: Bool
+    touches_shared_state: Bool
+    requires_parallel_safety: Bool
+
+pub struct ElementPhysicalProfile:
+    symbol: String
+    display_name: String
+    atomic_number: Int
+    period_number: Int
+    group_number: Int
+    standard_atomic_weight_milli: Int
+    pauling_electronegativity_milli: Int
+    valence_electron_count: Int
+    typical_covalent_bond_count: Int
+    lone_pair_count: Int
+    common_oxidation_states: Array<Int>
+    default_molecular_form: String
+
+pub struct ElementSemanticProjection:
+    kind: ElementSemanticKind
+    exact_valency: Int
+    memory_width_bits: Int
+    hidden_context_slots: Int
+    minimum_moved_owners: Int
+    maximum_moved_owners: Int
+    minimum_borrow_visible_inputs: Int
+    maximum_surviving_borrows: Int
+    default_ownership: ElementOwnershipMode
+    thread_mode: ElementThreadMode
+    family: ElementFamily
+    semantic_shape: String
+    lowering_hint: String
+    requires_single_emitted_value: Bool
+    rejects_mutable_inputs: Bool
+    rejects_shared_state: Bool
+
+pub struct ElementContract:
+    symbol: String
+    display_name: String
+    physical_profile: ElementPhysicalProfile
+    semantic_projection: ElementSemanticProjection
+
+pub fn make_diagnostic(severity: DiagnosticSeverity, code: String, message: String) -> ElementDiagnostic:
+    return ElementDiagnostic { severity: severity, code: code, message: message }
+
+pub fn push_error(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Error, code, message))
+
+pub fn push_warning(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Warning, code, message))
+
+pub fn push_note(diagnostics: Array<ElementDiagnostic>, code: String, message: String) -> Unit:
+    push(diagnostics, make_diagnostic(DiagnosticSeverity::Note, code, message))
+
+pub fn append_diagnostics(target: Array<ElementDiagnostic>, incoming: Array<ElementDiagnostic>) -> Unit:
+    for item in incoming:
+        push(target, item)
+
+pub fn count_bonds_with_role(node: ElementNode, role: ElementBondRole) -> Int:
+    let count = 0
+    for bond in node.bonds:
+        if bond.role == role:
+            count = count + 1
+    return count
+
+pub fn recommended_memory_width_bits(profile: ElementPhysicalProfile) -> Int:
+    if profile.standard_atomic_weight_milli <= 4000:
+        return 8
+    if profile.standard_atomic_weight_milli <= 40000:
+        return 16
+    if profile.standard_atomic_weight_milli <= 120000:
+        return 32
+    return 64
+
+pub fn has_negative_oxidation_state(profile: ElementPhysicalProfile) -> Bool:
+    for oxidation_state in profile.common_oxidation_states:
+        if oxidation_state < 0:
+            return true
+    return false
+
+pub fn oxidation_state_span(profile: ElementPhysicalProfile) -> Int:
+    let has_value = false
+    let minimum_state = 0
+    let maximum_state = 0
+    for oxidation_state in profile.common_oxidation_states:
+        if !has_value:
+            minimum_state = oxidation_state
+            maximum_state = oxidation_state
+            has_value = true
+        else:
+            if oxidation_state < minimum_state:
+                minimum_state = oxidation_state
+            if oxidation_state > maximum_state:
+                maximum_state = oxidation_state
+    if !has_value:
+        return 0
+    return maximum_state - minimum_state
+
+pub fn validate_projection_matches_physical_profile(contract: ElementContract) -> Array<ElementDiagnostic>:
+    let diagnostics = []
+    let profile = contract.physical_profile
+    let projection = contract.semantic_projection
+    let expected_family = ElementFamily::Unknown
+    if profile.group_number == 18:
+        expected_family = ElementFamily::NobleGas
+        if profile.group_number == 1:
+            expected_family = ElementFamily::AlkaliMetal
+            if profile.group_number == 16:
+                expected_family = ElementFamily::Chalcogen
+                if profile.group_number == 15:
+                    expected_family = ElementFamily::Pnictogen
+                    if profile.group_number >= 3 and profile.group_number <= 12:
+                        expected_family = ElementFamily::TransitionMetal
+                        if profile.symbol != contract.symbol:
+                            push_error(diagnostics, "symbol-drift", contract.display_name + " contract symbol does not match its physical profile symbol")
+                        if profile.display_name != contract.display_name:
+                            push_error(diagnostics, "name-drift", contract.symbol + " contract name does not match its physical profile name")
+                        if projection.family != expected_family:
+                            push_error(diagnostics, "family-mismatch", contract.symbol + " semantic family does not match periodic-table group " + str(profile.group_number))
+                        if profile.group_number >= 13 and profile.group_number <= 18:
+                            let expected_valence_electrons = profile.group_number - 10
+                            if profile.valence_electron_count != expected_valence_electrons:
+                                push_error(diagnostics, "valence-electron-mismatch", contract.symbol + " profile valence-electron count does not match group-derived p-block occupancy")
+                        let expected_octet_leftovers = profile.valence_electron_count - profile.typical_covalent_bond_count
+                        if expected_octet_leftovers != profile.lone_pair_count * 2:
+                            push_error(diagnostics, "lone-pair-mismatch", contract.symbol + " profile lone-pair count does not match valence-electron leftovers after typical covalent bonding")
+                        if projection.exact_valency != profile.typical_covalent_bond_count:
+                            push_error(diagnostics, "projection-valency-mismatch", contract.symbol + " semantic valency does not match the physical profile covalent bond count")
+                        if projection.hidden_context_slots > profile.lone_pair_count:
+                            push_error(diagnostics, "hidden-context-overflow", contract.symbol + " semantic projection uses more hidden context slots than the element has lone pairs")
+                        let recommended_memory_width = recommended_memory_width_bits(profile)
+                        if projection.memory_width_bits != recommended_memory_width:
+                            push_error(diagnostics, "memory-tier-mismatch", contract.symbol + " semantic memory width does not match the mass-derived storage tier")
+                        if projection.minimum_moved_owners > projection.maximum_moved_owners:
+                            push_error(diagnostics, "move-window-invalid", contract.symbol + " semantic move window is inverted")
+                        if projection.maximum_moved_owners > projection.exact_valency:
+                            push_error(diagnostics, "move-window-overflow", contract.symbol + " semantic move window exceeds public bond capacity")
+                        if projection.minimum_borrow_visible_inputs > projection.maximum_surviving_borrows:
+                            push_error(diagnostics, "borrow-window-invalid", contract.symbol + " semantic borrow window is inverted")
+                        if projection.maximum_surviving_borrows > projection.exact_valency:
+                            push_error(diagnostics, "borrow-window-overflow", contract.symbol + " semantic borrow window exceeds public bond capacity")
+                        match projection.kind:
+                            ElementSemanticKind::OwnershipSink =>
+                                if profile.pauling_electronegativity_milli < 330:
+                                    push_error(diagnostics, "ownership-sink-electronegativity", contract.symbol + " is not electronegative enough to justify a hard ownership-sink role")
+                                if !has_negative_oxidation_state(profile):
+                                    push_error(diagnostics, "ownership-sink-oxidation", contract.symbol + " does not expose a negative oxidation posture to justify ownership pulling")
+                                if projection.minimum_moved_owners < 1:
+                                    push_error(diagnostics, "ownership-sink-move-floor", contract.symbol + " ownership-sink projection must consume at least one owner")
+                                let maximum_sink_borrows = profile.typical_covalent_bond_count - 1
+                                if projection.maximum_surviving_borrows > maximum_sink_borrows:
+                                    push_error(diagnostics, "ownership-sink-borrow-ceiling", contract.symbol + " ownership-sink projection leaves too many surviving borrows for its bond count")
+                            ElementSemanticKind::BranchCoordinator =>
+                                if profile.lone_pair_count < 1:
+                                    push_error(diagnostics, "branch-lone-pair-missing", contract.symbol + " branch-coordinator projection requires at least one lone pair")
+                                if oxidation_state_span(profile) < 4:
+                                    push_error(diagnostics, "branch-oxidation-span", contract.symbol + " branch-coordinator projection expects a wider oxidation span for multi-outcome coordination")
+                                if projection.hidden_context_slots < 1:
+                                    push_error(diagnostics, "branch-hidden-context-floor", contract.symbol + " branch-coordinator projection must reserve hidden control context")
+                                if projection.maximum_moved_owners > 1:
+                                    push_error(diagnostics, "branch-move-ceiling", contract.symbol + " branch-coordinator projection consumes too many owners")
+                                if projection.minimum_borrow_visible_inputs < 2:
+                                    push_error(diagnostics, "branch-borrow-floor", contract.symbol + " branch-coordinator projection must keep at least two inputs borrow-visible")
+                            ElementSemanticKind::Unknown => push_warning(diagnostics, "unknown-semantic-kind", contract.symbol + " projection kind is still unknown and should be specialized")
+                        if len(diagnostics) == 0:
+                            push_note(diagnostics, "projection-audited", contract.symbol + " semantic projection is mechanically consistent with its physical profile")
+                        return diagnostics
+                    pub fn validate_exact_valency(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        let expected_valency = contract.semantic_projection.exact_valency
+                        let actual_bond_count = len(node.bonds)
+                        if actual_bond_count != expected_valency:
+                            push_error(diagnostics, "valency-mismatch", node.debug_name + " uses " + str(actual_bond_count) + " bonds, but " + contract.display_name + " only permits " + str(expected_valency))
+                        return diagnostics
+                    pub fn validate_local_storage(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        let memory_width_bits = contract.semantic_projection.memory_width_bits
+                        if node.local_storage_bits > memory_width_bits and !node.heap_allocated:
+                            push_error(diagnostics, "memory-width-overflow", node.debug_name + " requests " + str(node.local_storage_bits) + " local bits, but " + contract.symbol + " only grants " + str(memory_width_bits) + " before heap promotion")
+                        if node.heap_allocated:
+                            push_note(diagnostics, "heap-promotion", node.debug_name + " exceeds the native " + contract.symbol + " footprint and is treated as a promoted heap-backed molecule")
+                        return diagnostics
+                    pub fn validate_emits_single_value(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        if contract.semantic_projection.requires_single_emitted_value:
+                            if node.emitted_value_count != 1:
+                                push_error(diagnostics, "emission-arity", contract.symbol + " must collapse into exactly one outgoing value, but " + node.debug_name + " emits " + str(node.emitted_value_count))
+                        return diagnostics
+                    pub fn validate_ownership_window(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        let projection = contract.semantic_projection
+                        if node.moved_input_count < projection.minimum_moved_owners:
+                            push_error(diagnostics, "move-floor-violation", node.debug_name + " moves too few owners for " + contract.symbol)
+                        if node.moved_input_count > projection.maximum_moved_owners:
+                            push_error(diagnostics, "move-ceiling-violation", node.debug_name + " moves too many owners for " + contract.symbol)
+                        if node.borrowed_input_count < projection.minimum_borrow_visible_inputs:
+                            push_warning(diagnostics, "borrow-floor-violation", node.debug_name + " keeps too little borrow-visible context for " + contract.symbol)
+                        if node.borrowed_input_count > projection.maximum_surviving_borrows:
+                            push_error(diagnostics, "borrow-ceiling-violation", node.debug_name + " keeps too many surviving borrows for " + contract.symbol)
+                        return diagnostics
+                    pub fn validate_no_unfenced_shared_state(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        let projection = contract.semantic_projection
+                        if node.touches_shared_state:
+                            if projection.rejects_shared_state:
+                                push_error(diagnostics, "shared-state-forbidden", node.debug_name + " touches shared state, but " + contract.symbol + " is projected as a non-stateful element")
+                            if node.requires_parallel_safety and projection.thread_mode != ElementThreadMode::RequiresAtomicFence:
+                                push_error(diagnostics, "parallel-state-violation", node.debug_name + " mutates shared state under parallel pressure, but " + contract.symbol + " does not auto-upgrade into an atomic region")
+                        return diagnostics
+                    pub fn validate_no_mutable_inputs(contract: ElementContract, node: ElementNode) -> Array<ElementDiagnostic>:
+                        let diagnostics = []
+                        if contract.semantic_projection.rejects_mutable_inputs:
+                            for bond in node.bonds:
+                                if bond.mutable_access:
+                                    push_error(diagnostics, "mutable-bond-forbidden", contract.symbol + " does not accept mutable bond " + bond.label + "; mutation must be modeled by a more reactive element")
+                        return diagnostics
+                    pub fn describe_thread_mode(mode: ElementThreadMode) -> String:
+                        match mode:
+                            ElementThreadMode::DefaultSingleOwner => "single-owner"
+                            ElementThreadMode::ImmutableThreadSafe => "immutable-thread-safe"
+                            ElementThreadMode::RequiresAtomicFence => "requires-atomic-fence"
+                            ElementThreadMode::ShareableReadOnly => "shareable-read-only"
+                    pub fn describe_ownership_mode(mode: ElementOwnershipMode) -> String:
+                        match mode:
+                            ElementOwnershipMode::Copy => "copy"
+                            ElementOwnershipMode::Borrow => "borrow"
+                            ElementOwnershipMode::AffineBorrow => "affine-borrow"
+                            ElementOwnershipMode::Move => "move"
+                            ElementOwnershipMode::SharedRead => "shared-read"
+                    pub fn describe_semantic_kind(kind: ElementSemanticKind) -> String:
+                        match kind:
+                            ElementSemanticKind::OwnershipSink => "ownership-sink"
+                            ElementSemanticKind::BranchCoordinator => "branch-coordinator"
+                            ElementSemanticKind::Unknown => "unknown"

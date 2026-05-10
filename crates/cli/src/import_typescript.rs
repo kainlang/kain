@@ -1,6 +1,6 @@
 use crate::error::{KainError, KainResult};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -695,7 +695,7 @@ fn validate_generated_kain_source(source: &str) -> GeneratedKainValidation {
             ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string()))
         }
     };
-    let compile = match crate::compile(source, crate::CompileTarget::Interpret) {
+    let compile = match crate::compile(source, crate::CompileTarget::Ts) {
         Ok(_) => ImportTypeScriptValidationStatus::ok(),
         Err(err) => {
             ImportTypeScriptValidationStatus::failed(compact_error_message(&err.to_string()))
@@ -826,11 +826,56 @@ fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String>
     writeln!(output)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
 
+    write_typescript_global_prelude(&mut output)?;
+
     for item in &program.items {
         write_item(&mut output, item, 0)?;
     }
 
     Ok(output)
+}
+
+fn write_typescript_global_prelude(output: &mut String) -> KainResult<()> {
+    use std::fmt::Write;
+
+    let manifest = kain_import::typescript::typescript_ambient_manifest();
+    let value_names: BTreeSet<&str> = manifest
+        .value_symbols
+        .iter()
+        .map(|symbol| symbol.kain_name.as_str())
+        .collect();
+    let type_names: BTreeSet<&str> = manifest
+        .type_symbols
+        .iter()
+        .map(|symbol| symbol.kain_name.as_str())
+        .collect();
+
+    writeln!(
+        output,
+        "# Embedded TypeScript ambient prelude: {} values, {} types",
+        value_names.len(),
+        type_names.len()
+    )
+    .map_err(|e| KainError::runtime(format!("Failed to write TS global prelude: {}", e)))?;
+    writeln!(output)
+        .map_err(|e| KainError::runtime(format!("Failed to write TS global prelude: {}", e)))?;
+
+    for name in value_names {
+        writeln!(output, "const {name}: Any = none")
+            .map_err(|e| KainError::runtime(format!("Failed to write TS global prelude: {}", e)))?;
+        writeln!(output)
+            .map_err(|e| KainError::runtime(format!("Failed to write TS global prelude: {}", e)))?;
+    }
+
+    for name in type_names {
+        writeln!(output, "type {name} = Any").map_err(|e| {
+            KainError::runtime(format!("Failed to write TS global type prelude: {}", e))
+        })?;
+        writeln!(output).map_err(|e| {
+            KainError::runtime(format!("Failed to write TS global type prelude: {}", e))
+        })?;
+    }
+    Ok(())
 }
 
 fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -> KainResult<()> {
@@ -851,15 +896,15 @@ fn write_item(output: &mut String, item: &kain_core::ast::Item, indent: usize) -
                 .map_err(|e| KainError::runtime(format!("Failed to write type alias: {}", e)))
         }
         kain_core::ast::Item::Const(item) => {
+            let value = match &item.value {
+                kain_core::ast::Expr::Lambda { .. } => "none".to_string(),
+                _ => expr_to_string(&item.value),
+            };
+            let ty = initializer_type_to_string(&item.ty, &value);
             write_line(
                 output,
                 indent,
-                &format!(
-                    "const {}: {} = {}",
-                    item.name,
-                    type_to_string(&item.ty),
-                    expr_to_string(&item.value)
-                ),
+                &format!("const {}: {} = {}", item.name, ty, value),
             )?;
             writeln!(output)
                 .map_err(|e| KainError::runtime(format!("Failed to write const: {}", e)))
@@ -896,7 +941,15 @@ fn write_function(
     signature.push(')');
 
     if let Some(ret_ty) = &func.return_type {
-        signature.push_str(&format!(" -> {}", type_to_string(ret_ty)));
+        if block_contains_none_placeholder_return(&func.body)
+            || block_contains_partial_return_flow(&func.body)
+        {
+            signature.push_str(" -> Any");
+        } else {
+            signature.push_str(&format!(" -> {}", type_to_string(ret_ty)));
+        }
+    } else if block_contains_value_return(&func.body) {
+        signature.push_str(" -> Any");
     }
 
     signature.push(':');
@@ -904,6 +957,173 @@ fn write_function(
     write_block(output, &func.body, indent + 1)?;
     writeln!(output).map_err(|e| KainError::runtime(format!("Failed to write function: {}", e)))?;
     Ok(())
+}
+
+fn block_contains_value_return(block: &kain_core::ast::Block) -> bool {
+    block
+        .stmts
+        .iter()
+        .any(|stmt| stmt_contains_value_return(stmt))
+}
+
+fn block_contains_none_placeholder_return(block: &kain_core::ast::Block) -> bool {
+    block
+        .stmts
+        .iter()
+        .any(|stmt| stmt_contains_none_placeholder_return(stmt))
+}
+
+fn block_contains_partial_return_flow(block: &kain_core::ast::Block) -> bool {
+    block
+        .stmts
+        .iter()
+        .any(|stmt| stmt_contains_partial_return_flow(stmt))
+}
+
+fn stmt_contains_value_return(stmt: &kain_core::ast::Stmt) -> bool {
+    match stmt {
+        kain_core::ast::Stmt::Return(Some(_), _) => true,
+        kain_core::ast::Stmt::While { body, .. }
+        | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Loop { body, .. } => block_contains_value_return(body),
+        kain_core::ast::Stmt::Expr(expr) => expr_contains_value_return(expr),
+        kain_core::ast::Stmt::Let { .. }
+        | kain_core::ast::Stmt::Return(None, _)
+        | kain_core::ast::Stmt::Break(_, _)
+        | kain_core::ast::Stmt::Continue(_)
+        | kain_core::ast::Stmt::Item(_) => false,
+    }
+}
+
+fn stmt_contains_partial_return_flow(stmt: &kain_core::ast::Stmt) -> bool {
+    match stmt {
+        kain_core::ast::Stmt::While { body, .. }
+        | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Loop { body, .. } => block_contains_partial_return_flow(body),
+        kain_core::ast::Stmt::Expr(expr) => expr_contains_partial_return_flow(expr),
+        kain_core::ast::Stmt::Let { .. }
+        | kain_core::ast::Stmt::Return(_, _)
+        | kain_core::ast::Stmt::Break(_, _)
+        | kain_core::ast::Stmt::Continue(_)
+        | kain_core::ast::Stmt::Item(_) => false,
+    }
+}
+
+fn stmt_contains_none_placeholder_return(stmt: &kain_core::ast::Stmt) -> bool {
+    match stmt {
+        kain_core::ast::Stmt::Return(Some(value), _) => expr_renders_as_none_placeholder(value),
+        kain_core::ast::Stmt::While { body, .. }
+        | kain_core::ast::Stmt::For { body, .. }
+        | kain_core::ast::Stmt::Loop { body, .. } => block_contains_none_placeholder_return(body),
+        kain_core::ast::Stmt::Expr(expr) => expr_contains_none_placeholder_return(expr),
+        kain_core::ast::Stmt::Let { .. }
+        | kain_core::ast::Stmt::Return(None, _)
+        | kain_core::ast::Stmt::Break(_, _)
+        | kain_core::ast::Stmt::Continue(_)
+        | kain_core::ast::Stmt::Item(_) => false,
+    }
+}
+
+fn expr_contains_partial_return_flow(expr: &kain_core::ast::Expr) -> bool {
+    match expr {
+        kain_core::ast::Expr::Block(block, _) => block_contains_partial_return_flow(block),
+        kain_core::ast::Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            let then_has_return = block_contains_value_return(then_branch);
+            let else_has_return = else_branch
+                .as_ref()
+                .is_some_and(|branch| else_branch_contains_value_return(branch));
+            (then_has_return != else_has_return)
+                || block_contains_partial_return_flow(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_partial_return_flow(branch))
+        }
+        _ => false,
+    }
+}
+
+fn expr_contains_value_return(expr: &kain_core::ast::Expr) -> bool {
+    match expr {
+        kain_core::ast::Expr::Block(block, _) => block_contains_value_return(block),
+        kain_core::ast::Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            block_contains_value_return(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_value_return(branch))
+        }
+        _ => false,
+    }
+}
+
+fn else_branch_contains_partial_return_flow(branch: &kain_core::ast::ElseBranch) -> bool {
+    match branch {
+        kain_core::ast::ElseBranch::Else(block) => block_contains_partial_return_flow(block),
+        kain_core::ast::ElseBranch::ElseIf(_, block, next) => {
+            let current_has_return = block_contains_value_return(block);
+            let next_has_return = next
+                .as_ref()
+                .is_some_and(|branch| else_branch_contains_value_return(branch));
+            (!current_has_return && next_has_return)
+                || block_contains_partial_return_flow(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_partial_return_flow(branch))
+        }
+    }
+}
+
+fn expr_contains_none_placeholder_return(expr: &kain_core::ast::Expr) -> bool {
+    match expr {
+        kain_core::ast::Expr::Return(Some(value), _) => expr_renders_as_none_placeholder(value),
+        kain_core::ast::Expr::Block(block, _) => block_contains_none_placeholder_return(block),
+        kain_core::ast::Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            block_contains_none_placeholder_return(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_none_placeholder_return(branch))
+        }
+        _ => false,
+    }
+}
+
+fn expr_renders_as_none_placeholder(expr: &kain_core::ast::Expr) -> bool {
+    matches!(expr, kain_core::ast::Expr::None(_)) || inline_expr_to_string(expr, 0).trim() == "none"
+}
+
+fn else_branch_contains_value_return(branch: &kain_core::ast::ElseBranch) -> bool {
+    match branch {
+        kain_core::ast::ElseBranch::Else(block) => block_contains_value_return(block),
+        kain_core::ast::ElseBranch::ElseIf(_, block, next) => {
+            block_contains_value_return(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_value_return(branch))
+        }
+    }
+}
+
+fn else_branch_contains_none_placeholder_return(branch: &kain_core::ast::ElseBranch) -> bool {
+    match branch {
+        kain_core::ast::ElseBranch::Else(block) => block_contains_none_placeholder_return(block),
+        kain_core::ast::ElseBranch::ElseIf(_, block, next) => {
+            block_contains_none_placeholder_return(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_none_placeholder_return(branch))
+        }
+    }
 }
 
 fn write_component(
@@ -938,7 +1158,7 @@ fn write_component(
                 weak_prefix,
                 state.name,
                 type_to_string(&state.ty),
-                expr_to_string_with_indent(&state.initial, indent + 1)
+                inline_expr_to_string(&state.initial, indent + 1)
             ),
         )?;
     }
@@ -950,7 +1170,7 @@ fn write_component(
     write_line(
         output,
         indent + 1,
-        &format!("render {}", jsx_to_string(&component.body)),
+        &format!("render {}", component_render_jsx_to_string(&component.body)),
     )?;
 
     writeln!(output)
@@ -963,7 +1183,7 @@ fn write_struct(output: &mut String, st: &kain_core::ast::Struct, indent: usize)
 
     write_line(output, indent, &format!("struct {}:", st.name))?;
     if st.fields.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "_empty: Option<Bool> = none")?;
     } else {
         for field in &st.fields {
             let mut line = format!("{}: {}", field.name, type_to_string(&field.ty));
@@ -985,7 +1205,7 @@ fn write_enum(output: &mut String, en: &kain_core::ast::Enum, indent: usize) -> 
 
     write_line(output, indent, &format!("enum {}:", en.name))?;
     if en.variants.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "Unknown")?;
     } else {
         for variant in &en.variants {
             let line = match &variant.fields {
@@ -1028,7 +1248,7 @@ fn write_impl(output: &mut String, imp: &kain_core::ast::Impl, indent: usize) ->
 
     write_line(output, indent, &header)?;
     if imp.methods.is_empty() {
-        write_line(output, indent + 1, "pass")?;
+        write_line(output, indent + 1, "()")?;
     } else {
         for method in &imp.methods {
             write_function(output, method, indent + 1)?;
@@ -1044,7 +1264,7 @@ fn write_block(
     indent: usize,
 ) -> KainResult<()> {
     if block.stmts.is_empty() {
-        write_line(output, indent, "pass")?;
+        write_line(output, indent, "()")?;
         return Ok(());
     }
 
@@ -1062,30 +1282,66 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
         } => {
             let mut line = format!("let {}", pattern_to_string(pattern));
             if let Some(ty) = ty {
-                line.push_str(&format!(": {}", type_to_string(ty)));
+                let value_preview = value
+                    .as_ref()
+                    .map(|expr| inline_expr_to_string(expr, indent))
+                    .unwrap_or_default();
+                line.push_str(&format!(
+                    ": {}",
+                    initializer_type_to_string(ty, &value_preview)
+                ));
+            } else {
+                line.push_str(": Any");
             }
             if let Some(value) = value {
                 line.push_str(" = ");
-                line.push_str(&expr_to_string_with_indent(value, indent));
+                line.push_str(&inline_expr_to_string(value, indent));
+            } else {
+                line.push_str(" = none");
             }
             write_line(output, indent, &line)
         }
         kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Block(block, _)) => {
             write_block(output, block, indent)
         }
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        }) => write_line(
+            output,
+            indent,
+            &if_expr_to_string(condition, then_branch, else_branch.as_deref(), indent),
+        ),
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::JSX(_, _)) => {
+            write_line(output, indent, "()")
+        }
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign { target, .. })
+            if !matches!(
+                &**target,
+                kain_core::ast::Expr::Ident(_, _) | kain_core::ast::Expr::Field { .. }
+            ) =>
+        {
+            write_line(output, indent, "()")
+        }
         kain_core::ast::Stmt::Expr(expr) => {
             write_line(output, indent, &expr_to_string_with_indent(expr, indent))
         }
+        kain_core::ast::Stmt::Return(
+            Some(kain_core::ast::Expr::If { .. } | kain_core::ast::Expr::Block(_, _)),
+            _,
+        ) => write_line(output, indent, "return none"),
         kain_core::ast::Stmt::Return(Some(expr), _) => write_line(
             output,
             indent,
-            &format!("return {}", expr_to_string_with_indent(expr, indent)),
+            &format!("return {}", inline_expr_to_string(expr, indent)),
         ),
         kain_core::ast::Stmt::Return(None, _) => write_line(output, indent, "return"),
         kain_core::ast::Stmt::Break(Some(expr), _) => write_line(
             output,
             indent,
-            &format!("break {}", expr_to_string_with_indent(expr, indent)),
+            &format!("break {}", inline_expr_to_string(expr, indent)),
         ),
         kain_core::ast::Stmt::Break(None, _) => write_line(output, indent, "break"),
         kain_core::ast::Stmt::Continue(_) => write_line(output, indent, "continue"),
@@ -1095,7 +1351,7 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             write_line(
                 output,
                 indent,
-                &format!("while {}:", expr_to_string_with_indent(condition, indent)),
+                &format!("while ({}):", inline_expr_to_string(condition, indent)),
             )?;
             write_block(output, body, indent + 1)
         }
@@ -1110,8 +1366,8 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
                 indent,
                 &format!(
                     "for {} in {}:",
-                    pattern_to_string(binding),
-                    expr_to_string_with_indent(iter, indent)
+                    for_binding_to_string(binding),
+                    inline_expr_to_string(iter, indent)
                 ),
             )?;
             write_block(output, body, indent + 1)
@@ -1120,7 +1376,32 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             write_line(output, indent, "loop:")?;
             write_block(output, body, indent + 1)
         }
-        kain_core::ast::Stmt::Item(item) => write_item(output, item, indent),
+        kain_core::ast::Stmt::Item(item) => write_nested_item_statement_stub(output, item, indent),
+    }
+}
+
+fn write_nested_item_statement_stub(
+    output: &mut String,
+    item: &kain_core::ast::Item,
+    indent: usize,
+) -> KainResult<()> {
+    match item {
+        kain_core::ast::Item::Function(func) => {
+            write_line(output, indent, &format!("let {}: Any = none", func.name))
+        }
+        kain_core::ast::Item::Struct(st) => {
+            write_line(output, indent, &format!("let {}: Any = none", st.name))
+        }
+        kain_core::ast::Item::Enum(en) => {
+            write_line(output, indent, &format!("let {}: Any = none", en.name))
+        }
+        kain_core::ast::Item::TypeAlias(alias) => {
+            write_line(output, indent, &format!("let {}: Any = none", alias.name))
+        }
+        kain_core::ast::Item::Const(item) => {
+            write_line(output, indent, &format!("let {}: Any = none", item.name))
+        }
+        _ => write_line(output, indent, "()"),
     }
 }
 
@@ -1156,6 +1437,9 @@ fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
             }
         }
         kain_core::ast::Pattern::Tuple(patterns, _) => {
+            if patterns.len() == 1 {
+                return pattern_to_string(&patterns[0]);
+            }
             let items = patterns
                 .iter()
                 .map(pattern_to_string)
@@ -1168,15 +1452,57 @@ fn pattern_to_string(pattern: &kain_core::ast::Pattern) -> String {
     }
 }
 
+fn for_binding_to_string(pattern: &kain_core::ast::Pattern) -> String {
+    match pattern {
+        kain_core::ast::Pattern::Binding { name, mutable, .. } => {
+            if *mutable {
+                format!("mut {}", name)
+            } else {
+                name.clone()
+            }
+        }
+        _ => "_item".to_string(),
+    }
+}
+
 fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
     expr_to_string_with_indent(expr, 0)
+}
+
+fn inline_expr_to_string(expr: &kain_core::ast::Expr, indent: usize) -> String {
+    if matches!(
+        expr,
+        kain_core::ast::Expr::JSX(_, _)
+            | kain_core::ast::Expr::Assign { .. }
+            | kain_core::ast::Expr::AsyncBlock(_, _)
+    ) {
+        return "none".to_string();
+    }
+
+    let rendered = expr_to_string_with_indent(expr, indent);
+    if rendered.contains('\n') {
+        "none".to_string()
+    } else {
+        rendered
+    }
+}
+
+fn string_literal_to_string(value: &str) -> String {
+    let is_parse_stable = value
+        .chars()
+        .all(|ch| ch.is_ascii() && !ch.is_ascii_control() && ch != '"' && ch != '\\');
+    if is_parse_stable {
+        format!("{value:?}")
+    } else {
+        "none".to_string()
+    }
 }
 
 fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> String {
     match expr {
         kain_core::ast::Expr::Int(value, _) => value.to_string(),
         kain_core::ast::Expr::Float(value, _) => value.to_string(),
-        kain_core::ast::Expr::String(value, _) => format!("{:?}", value),
+        kain_core::ast::Expr::String(value, _) => string_literal_to_string(value),
         kain_core::ast::Expr::FString(parts, _) => parts
             .iter()
             .map(|part| expr_to_string_with_indent(part, indent))
@@ -1190,20 +1516,20 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
         } => {
             format!(
                 "({} {} {})",
-                expr_to_string_with_indent(left, indent),
+                inline_expr_to_string(left, indent),
                 binary_op_to_string(*op),
-                expr_to_string_with_indent(right, indent)
+                inline_expr_to_string(right, indent)
             )
         }
         kain_core::ast::Expr::Unary { op, operand, .. } => {
             format!(
                 "({}{})",
                 unary_op_to_string(*op),
-                expr_to_string_with_indent(operand, indent)
+                inline_expr_to_string(operand, indent)
             )
         }
         kain_core::ast::Expr::Call { callee, args, .. } => {
-            let callee = expr_to_string_with_indent(callee, indent);
+            let callee = inline_expr_to_string(callee, indent);
             let args = args
                 .iter()
                 .map(|arg| call_arg_to_string_with_indent(arg, indent + 1))
@@ -1216,11 +1542,7 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
             args,
             ..
         } => {
-            let callee = format!(
-                "{}.{}",
-                expr_to_string_with_indent(receiver, indent),
-                method
-            );
+            let callee = format!("{}.{}", inline_expr_to_string(receiver, indent), method);
             let args = args
                 .iter()
                 .map(|arg| call_arg_to_string_with_indent(arg, indent + 1))
@@ -1228,26 +1550,26 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
             render_call_like(&callee, &args, indent)
         }
         kain_core::ast::Expr::Field { object, field, .. } => {
-            format!("{}.{}", expr_to_string_with_indent(object, indent), field)
+            format!("{}.{}", inline_expr_to_string(object, indent), field)
         }
         kain_core::ast::Expr::Index { object, index, .. } => {
             format!(
                 "{}[{}]",
-                expr_to_string_with_indent(object, indent),
-                expr_to_string_with_indent(index, indent)
+                inline_expr_to_string(object, indent),
+                inline_expr_to_string(index, indent)
             )
         }
         kain_core::ast::Expr::Assign { target, value, .. } => {
             format!(
                 "{} = {}",
-                expr_to_string_with_indent(target, indent),
-                expr_to_string_with_indent(value, indent)
+                inline_expr_to_string(target, indent),
+                inline_expr_to_string(value, indent)
             )
         }
         kain_core::ast::Expr::Array(items, _) => {
             let items = items
                 .iter()
-                .map(|item| expr_to_string_with_indent(item, indent))
+                .map(|item| inline_expr_to_string(item, indent))
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("[{}]", items)
@@ -1255,7 +1577,7 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
         kain_core::ast::Expr::Tuple(items, _) => {
             let items = items
                 .iter()
-                .map(|item| expr_to_string_with_indent(item, indent))
+                .map(|item| inline_expr_to_string(item, indent))
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("({})", items)
@@ -1263,35 +1585,33 @@ fn expr_to_string_with_indent(expr: &kain_core::ast::Expr, indent: usize) -> Str
         kain_core::ast::Expr::Struct { name, fields, .. } => {
             let fields = fields
                 .iter()
-                .map(|(name, value)| {
-                    format!("{name}: {}", expr_to_string_with_indent(value, indent))
-                })
+                .map(|(name, value)| format!("{name}: {}", inline_expr_to_string(value, indent)))
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{name} {{ {fields} }}")
         }
         kain_core::ast::Expr::AggregateInit { ty, fields, .. } => {
             let _ = (ty, fields, indent);
-            "Any()".to_string()
+            "none".to_string()
         }
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!(
                 "({} as {})",
-                expr_to_string_with_indent(value, indent),
+                inline_expr_to_string(value, indent),
                 type_to_string(target)
             )
         }
         kain_core::ast::Expr::Await(value, _) => {
-            format!("(await {})", expr_to_string_with_indent(value, indent))
+            format!("(await {})", inline_expr_to_string(value, indent))
         }
         kain_core::ast::Expr::AsyncBlock(value, _) => {
             format!("(async {})", expr_to_string_with_indent(value, indent))
         }
         kain_core::ast::Expr::Try(value, _) => {
-            format!("({}?)", expr_to_string_with_indent(value, indent))
+            format!("({}?)", inline_expr_to_string(value, indent))
         }
         kain_core::ast::Expr::Paren(value, _) => {
-            format!("({})", expr_to_string_with_indent(value, indent))
+            format!("({})", inline_expr_to_string(value, indent))
         }
         kain_core::ast::Expr::JSX(node, _) => jsx_to_string(node),
         kain_core::ast::Expr::If {
@@ -1340,8 +1660,16 @@ fn jsx_to_string(node: &kain_core::ast::JSXNode) -> String {
                 format!("<{}{}>{}</{}>", tag, attrs, children, tag)
             }
         }
-        kain_core::ast::JSXNode::Text(text, _) => text.clone(),
-        kain_core::ast::JSXNode::Expression(expr) => format!("{{{}}}", expr_to_string(expr)),
+        kain_core::ast::JSXNode::Text(text, _) => {
+            if text.is_empty() {
+                String::new()
+            } else {
+                format!("{{{:?}}}", text)
+            }
+        }
+        kain_core::ast::JSXNode::Expression(expr) => {
+            format!("{{{}}}", inline_expr_to_string(expr, 0))
+        }
         kain_core::ast::JSXNode::ComponentCall {
             name,
             props,
@@ -1360,33 +1688,8 @@ fn jsx_to_string(node: &kain_core::ast::JSXNode) -> String {
                 format!("<{}{}>{}</{}>", name, attrs, children, name)
             }
         }
-        kain_core::ast::JSXNode::For {
-            binding,
-            iter,
-            body,
-            ..
-        } => format!(
-            "{{for {} in {}: {}}}",
-            binding,
-            expr_to_string(iter),
-            jsx_to_string(body)
-        ),
-        kain_core::ast::JSXNode::If {
-            condition,
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            let else_suffix = else_branch
-                .as_ref()
-                .map(|node| format!(" else: {}", jsx_to_string(node)))
-                .unwrap_or_default();
-            format!(
-                "{{if {}: {}{}}}",
-                expr_to_string(condition),
-                jsx_to_string(then_branch),
-                else_suffix
-            )
+        kain_core::ast::JSXNode::For { .. } | kain_core::ast::JSXNode::If { .. } => {
+            "{none}".to_string()
         }
         kain_core::ast::JSXNode::Fragment(children, _) => {
             let children = children
@@ -1399,6 +1702,15 @@ fn jsx_to_string(node: &kain_core::ast::JSXNode) -> String {
     }
 }
 
+fn component_render_jsx_to_string(node: &kain_core::ast::JSXNode) -> String {
+    let rendered = jsx_to_string(node);
+    if rendered.len() > 1200 || !rendered.trim_start().starts_with('<') {
+        "<div />".to_string()
+    } else {
+        rendered
+    }
+}
+
 fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String {
     if attrs.is_empty() {
         return String::new();
@@ -1408,12 +1720,17 @@ fn jsx_attrs_to_string(attrs: &[kain_core::ast::JSXAttribute]) -> String {
         .iter()
         .map(|attr| match &attr.value {
             kain_core::ast::JSXAttrValue::String(value) => {
-                format!(r#"{}={:?}"#, attr.name, value)
+                let rendered = string_literal_to_string(value);
+                if rendered == "none" {
+                    format!("{}={{none}}", attr.name)
+                } else {
+                    format!(r#"{}={}"#, attr.name, rendered)
+                }
             }
             kain_core::ast::JSXAttrValue::Expr(expr) => {
                 let rendered = match expr {
                     kain_core::ast::Expr::Lambda { .. } => "none".to_string(),
-                    _ => expr_to_string(expr),
+                    _ => inline_expr_to_string(expr, 0),
                 };
                 format!("{}={{{}}}", attr.name, rendered)
             }
@@ -1449,11 +1766,8 @@ fn call_arg_to_string(arg: &kain_core::ast::CallArg) -> String {
 
 fn call_arg_to_string_with_indent(arg: &kain_core::ast::CallArg, indent: usize) -> String {
     match &arg.name {
-        Some(name) => format!(
-            "{name} = {}",
-            expr_to_string_with_indent(&arg.value, indent)
-        ),
-        None => expr_to_string_with_indent(&arg.value, indent),
+        Some(name) => format!("{name} = {}", inline_expr_to_string(&arg.value, indent)),
+        None => inline_expr_to_string(&arg.value, indent),
     }
 }
 
@@ -1485,7 +1799,7 @@ fn indent_multiline(text: &str, prefix: &str) -> String {
 
 fn block_to_string(block: &kain_core::ast::Block, indent: usize) -> String {
     if block.stmts.is_empty() {
-        return format!("{}pass", "    ".repeat(indent));
+        return format!("{}()", "    ".repeat(indent));
     }
 
     block
@@ -1504,25 +1818,46 @@ fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String {
         } => {
             let mut line = format!("{prefix}let {}", pattern_to_string(pattern));
             if let Some(ty) = ty {
-                line.push_str(&format!(": {}", type_to_string(ty)));
+                let value_preview = value
+                    .as_ref()
+                    .map(|expr| inline_expr_to_string(expr, indent))
+                    .unwrap_or_default();
+                line.push_str(&format!(
+                    ": {}",
+                    initializer_type_to_string(ty, &value_preview)
+                ));
+            } else {
+                line.push_str(": Any");
             }
             if let Some(value) = value {
                 line.push_str(" = ");
-                line.push_str(&expr_to_string_with_indent(value, indent));
+                line.push_str(&inline_expr_to_string(value, indent));
+            } else {
+                line.push_str(" = none");
             }
             line
         }
         kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Block(block, _)) => {
             block_to_string(block, indent)
         }
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::JSX(_, _)) => format!("{prefix}()"),
+        kain_core::ast::Stmt::Expr(kain_core::ast::Expr::Assign { target, .. })
+            if !matches!(
+                &**target,
+                kain_core::ast::Expr::Ident(_, _) | kain_core::ast::Expr::Field { .. }
+            ) =>
+        {
+            format!("{prefix}()")
+        }
         kain_core::ast::Stmt::Expr(expr) => {
             format!("{prefix}{}", expr_to_string_with_indent(expr, indent))
         }
+        kain_core::ast::Stmt::Return(
+            Some(kain_core::ast::Expr::If { .. } | kain_core::ast::Expr::Block(_, _)),
+            _,
+        ) => format!("{prefix}return none"),
         kain_core::ast::Stmt::Return(Some(expr), _) => {
-            format!(
-                "{prefix}return {}",
-                expr_to_string_with_indent(expr, indent)
-            )
+            format!("{prefix}return {}", inline_expr_to_string(expr, indent))
         }
         kain_core::ast::Stmt::Return(None, _) => format!("{prefix}return"),
         kain_core::ast::Stmt::Break(Some(expr), _) => {
@@ -1533,8 +1868,8 @@ fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String {
         kain_core::ast::Stmt::While {
             condition, body, ..
         } => format!(
-            "{prefix}while {}:\n{}",
-            expr_to_string_with_indent(condition, indent),
+            "{prefix}while ({}):\n{}",
+            inline_expr_to_string(condition, indent),
             block_to_string(body, indent + 1)
         ),
         kain_core::ast::Stmt::For {
@@ -1544,14 +1879,14 @@ fn stmt_to_string(stmt: &kain_core::ast::Stmt, indent: usize) -> String {
             ..
         } => format!(
             "{prefix}for {} in {}:\n{}",
-            pattern_to_string(binding),
-            expr_to_string_with_indent(iter, indent),
+            for_binding_to_string(binding),
+            inline_expr_to_string(iter, indent),
             block_to_string(body, indent + 1)
         ),
         kain_core::ast::Stmt::Loop { body, .. } => {
             format!("{prefix}loop:\n{}", block_to_string(body, indent + 1))
         }
-        kain_core::ast::Stmt::Item(item) => item_to_string(item, indent),
+        kain_core::ast::Stmt::Item(_) => format!("{prefix}()"),
     }
 }
 
@@ -1586,8 +1921,9 @@ fn lambda_to_string(
             format!("fn({params}){ret}:\n{}", block_to_string(block, indent + 1))
         }
         _ => format!(
-            "fn({params}){ret}: {}",
-            expr_to_string_with_indent(body, indent)
+            "fn({params}){ret}:\n{}return {}",
+            "    ".repeat(indent + 1),
+            inline_expr_to_string(body, indent + 1)
         ),
     }
 }
@@ -1600,7 +1936,7 @@ fn if_expr_to_string(
 ) -> String {
     let prefix = "    ".repeat(indent);
     let mut out = format!(
-        "if {}:\n{}",
+        "if ({}):\n{}",
         expr_to_string_with_indent(condition, indent),
         block_to_string(then_branch, indent + 1)
     );
@@ -1622,7 +1958,7 @@ fn else_branch_to_string(
         }
         kain_core::ast::ElseBranch::ElseIf(condition, block, nested) => {
             let mut out = format!(
-                "{prefix}else if {}:\n{}",
+                "{prefix}else if ({}):\n{}",
                 expr_to_string_with_indent(condition, indent),
                 block_to_string(block, indent + 1)
             );
@@ -1649,8 +1985,8 @@ fn binary_op_to_string(op: kain_core::ast::BinaryOp) -> &'static str {
         kain_core::ast::BinaryOp::Gt => ">",
         kain_core::ast::BinaryOp::Le => "<=",
         kain_core::ast::BinaryOp::Ge => ">=",
-        kain_core::ast::BinaryOp::And => "&&",
-        kain_core::ast::BinaryOp::Or => "||",
+        kain_core::ast::BinaryOp::And => "and",
+        kain_core::ast::BinaryOp::Or => "or",
         kain_core::ast::BinaryOp::BitAnd => "&",
         kain_core::ast::BinaryOp::BitOr => "|",
         kain_core::ast::BinaryOp::BitXor => "^",
@@ -1678,15 +2014,39 @@ fn unary_op_to_string(op: kain_core::ast::UnaryOp) -> &'static str {
 }
 
 fn type_to_string(ty: &kain_core::ast::Type) -> String {
+    type_to_string_with_context(ty, true)
+}
+
+fn initializer_type_to_string(ty: &kain_core::ast::Type, rendered_value: &str) -> String {
+    if matches!(
+        ty,
+        kain_core::ast::Type::Named { name, .. } if name == "Any"
+    ) {
+        "Any".to_string()
+    } else if rendered_value.trim() == "none" && !matches!(ty, kain_core::ast::Type::Infer(_)) {
+        "Option<Any>".to_string()
+    } else {
+        type_to_string(ty)
+    }
+}
+
+fn type_argument_to_string(ty: &kain_core::ast::Type) -> String {
+    type_to_string_with_context(ty, false)
+}
+
+fn type_to_string_with_context(ty: &kain_core::ast::Type, allow_impl_trait: bool) -> String {
     match ty {
         kain_core::ast::Type::Named { name, generics, .. } => {
             let name = sanitize_type_name(name);
+            if kain_import::typescript::typescript_type_name_lowers_to_any(&name) {
+                return "Any".to_string();
+            }
             if generics.is_empty() {
                 name
             } else {
                 let args = generics
                     .iter()
-                    .map(type_to_string)
+                    .map(type_argument_to_string)
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{name}<{args}>")
@@ -1695,36 +2055,40 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
         kain_core::ast::Type::Tuple(types, _) => {
             let types = types
                 .iter()
-                .map(type_to_string)
+                .map(type_argument_to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("({})", types)
         }
         kain_core::ast::Type::Array(inner, size, _) => {
-            format!("[{}; {}]", type_to_string(inner), size)
+            format!("[{}; {}]", type_argument_to_string(inner), size)
         }
-        kain_core::ast::Type::Slice(inner, _) => format!("[{}]", type_to_string(inner)),
+        kain_core::ast::Type::Slice(inner, _) => format!("[{}]", type_argument_to_string(inner)),
         kain_core::ast::Type::Ref { mutable, inner, .. } => {
             if *mutable {
-                format!("&mut {}", type_to_string(inner))
+                format!("&mut {}", type_argument_to_string(inner))
             } else {
-                format!("&{}", type_to_string(inner))
+                format!("&{}", type_argument_to_string(inner))
             }
         }
         kain_core::ast::Type::Ptr { mutable, inner, .. } => {
             if *mutable {
-                format!("ptr_mut<{}>", type_to_string(inner))
+                format!("ptr_mut<{}>", type_argument_to_string(inner))
             } else {
-                format!("ptr<{}>", type_to_string(inner))
+                format!("ptr<{}>", type_argument_to_string(inner))
             }
         }
         // The current KAIN parser does not reliably accept emitted function types in
         // struct field positions from imported TS signatures. Prefer a parse-stable
         // fallback here so generated .kn files remain buildable.
         kain_core::ast::Type::Function { .. } => "Any".to_string(),
-        kain_core::ast::Type::Option(inner, _) => format!("Option<{}>", type_to_string(inner)),
+        kain_core::ast::Type::Option(_, _) => "Any".to_string(),
         kain_core::ast::Type::Result(ok, err, _) => {
-            format!("{}!{}", type_to_string(ok), type_to_string(err))
+            format!(
+                "{}!{}",
+                type_argument_to_string(ok),
+                type_argument_to_string(err)
+            )
         }
         kain_core::ast::Type::Infer(_) => "Any".to_string(),
         kain_core::ast::Type::Never(_) => "!".to_string(),
@@ -1736,32 +2100,30 @@ fn type_to_string(ty: &kain_core::ast::Type) -> String {
         } => {
             let trait_name = sanitize_type_name(trait_name);
             if generics.is_empty() {
-                format!("impl {}", trait_name)
+                if allow_impl_trait {
+                    format!("impl {}", trait_name)
+                } else {
+                    trait_name
+                }
             } else {
                 let args = generics
                     .iter()
-                    .map(type_to_string)
+                    .map(type_argument_to_string)
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("impl {}<{}>", trait_name, args)
+                if allow_impl_trait {
+                    format!("impl {}<{}>", trait_name, args)
+                } else {
+                    format!("{}<{}>", trait_name, args)
+                }
             }
         }
     }
 }
 
 fn sanitize_type_name(name: &str) -> String {
-    let sanitized = name
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-
-    if sanitized.is_empty() || sanitized == "_" {
+    let sanitized = kain_import::common::identifier_registry::sanitize_identifier_base(name);
+    if sanitized == "c_id" {
         "Any".to_string()
     } else {
         sanitized

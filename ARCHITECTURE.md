@@ -320,6 +320,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [labs](/M:/Code/Kain/labs): focused validation labs
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
+- [labs/llvmzone](/M:/Code/Kain/labs/llvmzone): five-app LLVM utility lane that keeps separate executables for enum/match, world/patch/orchestrate, actor mailbox, float/bitwise, and native UI/viewport coverage
 - [labs/chronos_native](/M:/Code/Kain/labs/chronos_native): first native Chronos proof app for the `kain native-ui dev` loop, combining compiler-owned world state, native UI shells, viewport3d authoring, and packaged shader sidecars from one Kain source file
 - [labs/threejs_node_ffi_space_lab](/M:/Code/Kain/labs/threejs_node_ffi_space_lab): Node-first localhost sculpt-suite proof that now dogfoods Kain hybrid codegen too, layering manifest-driven Three.js viewport modes, a Kain-authored JS + WASM motion bundle, and a Rust-built WASM brush core behind the `std::javascript::bridge` orchestration seam
 - [generated](/M:/Code/Kain/generated): disposable generated outputs
@@ -360,6 +361,7 @@ Typical commands:
 - `kain fabric run`
 - `python3 scripts/python/validate_dcc_parity_matrix.py`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
+- `python tools\typescript_import\extract_ambient_manifest.py` to regenerate the embedded TypeScript ambient manifest from `reference/TypeScript-main/src/lib` plus `tools/typescript_import/typescript_ambient_overrides.json`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `./runtime/fixtures/validate_all.sh`
 - `./runtime/conformance/run_all.sh`
@@ -391,6 +393,7 @@ If the debug CLI is missing:
 - Prefer data-driven capabilities, manifests, registries, and bundle metadata over scattered string checks and host-local assumptions.
 - Keep the interpreter/runtime lane and emitted bundle/codegen lanes semantically aligned. A packaged target may optimize or lower behavior, but it should not silently define different language meaning than `kain-core`.
 - Preserve the distinction between authored language semantics, importer behavior, and backend/runtime support.
+- TypeScript import ambient globals must stay data-driven: generated data lives at `crates/kain-import/src/typescript/data/typescript_ambient_manifest.json`, Kain-specific aliases/helpers live in `tools/typescript_import/typescript_ambient_overrides.json`, and `crates/cli/src/import_typescript.rs` should consume that manifest instead of reintroducing hardcoded DOM/JS prelude arrays.
 - Vendor runtimes may strengthen `runtime/native`, but they must land behind Kain-owned service families, startup contracts, diagnostics, and scheduler policy instead of becoming the public contract themselves.
 - UI vendors follow that same rule more aggressively: Qt, ImGui, Yoga, RmlUi, Slint, CEF, Skia, and future backends are adapters or substrates behind Kain-owned semantic trees, layout intent, runtime metadata, and service contracts. Do not let a host UI stack become the source of authored truth.
 - Do not confuse the Qt smoke shell skin with the Kain UI contract. The smoke host may use a fixed look to prove the lane quickly, but app-authored UI should continue to flow through theme data, style tokens, and Kain-owned surface metadata rather than hardcoded host visuals.

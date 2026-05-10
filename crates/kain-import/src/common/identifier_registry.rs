@@ -16,6 +16,9 @@ pub enum IdentifierDomain {
 const EXTRA_LEXER_KEYWORDS: &[&str] = &[
     // These tokenize as operators and cannot appear in identifier positions.
     "and", "or",
+    // First-class/contextual tokens that the parser does not accept in normal
+    // imported value/type/field positions even when the source language does.
+    "shader", "state", "vertex", "fragment", "Pure", "IO", "GPU", "Reactive", "Unsafe",
 ];
 
 pub fn is_reserved_identifier(name: &str) -> bool {
@@ -110,6 +113,7 @@ mod tests {
     fn sanitize_identifier_handles_reserved_and_digits() {
         assert_eq!(sanitize_identifier_base("type"), "type_");
         assert_eq!(sanitize_identifier_base("in"), "in_");
+        assert_eq!(sanitize_identifier_base("state"), "state_");
         assert_eq!(sanitize_identifier_base("123abc"), "c_123abc");
     }
 
