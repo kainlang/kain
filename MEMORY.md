@@ -1,5 +1,25 @@
 # Kain Memory
 
+# 2026-05-11 - Blade smoke workspace became the Singularity Atlas executable proof
+
+`labs/blades_workspace_smoke` is now a full Blade workspace proof instead of a lightweight demo. The lab still exercises root workspace discovery, `apps/*`, `blades/*`, `crates/*`, C ABI, Rust crate, Kain, Fabric, GPU, and synthetic Cargo blades, but it now also builds and runs a real executable named `blade_singularity_atlas`.
+
+What changed:
+
+- The `gpu-compute` blade emits three Kain-authored shader artifacts: `gpu_step`, `nebula_field`, and `spectral_lattice`, with SPIR-V, HLSL, reflection JSON, and shader bundle outputs validated by the smoke runner.
+- The synthetic Cargo blade now depends on `kain-blades` and `kain-fs`, builds `blade_singularity_atlas`, discovers the Blade workspace graph, reads GPU artifacts through `kain-fs`, and renders an atlas report as SVG, PPM, JSON, and HTML under `outputs/singularity-atlas`.
+- `scripts/run_blades_smoke.py` now executes the built binary from `.kain/build`, validates the atlas output, checks the expected compute keys, and still proves cache reuse and clean lab cache rebuilds.
+
+Design decisions:
+
+- Keep executable smoke artifacts produced by real Blade build tasks. The lab runner may validate and run them, but it should not become a replacement build system.
+- Runtime admire/report outputs can live under `outputs/` when they are produced by the built executable; build artifacts, stamps, and build reports still belong under `.kain/build`, `.kain/cache/build`, and `.kain/reports/build`.
+- Current GPU artifact generation accepts sample-based Float math in these smoke shaders; avoid unsupported `Float(index)`-style casts until the shader compiler surface explicitly supports them.
+
+Validation:
+
+- `cargo check --manifest-path labs\blades_workspace_smoke\crates\synthetic_reporter\Cargo.toml --target-dir target\codex-blade-atlas-check`
+- `$env:KAIN_BIN=(Resolve-Path target\codex-fs-unified\debug\kain.exe).Path; $env:BLADE_BIN=(Resolve-Path target\codex-fs-unified\debug\blade.exe).Path; python labs\blades_workspace_smoke\scripts\run_blades_smoke.py --clean-cache`
 # 2026-05-11 - kain-3D primitives moved to Kain-authored mesh ingestion
 
 `crates/kain-3D` no longer carries a Rust-backed primitive catalog or procedural shape builders. Primitive support is now an authored mesh pipeline: Kain/source data owns the actual vertices, indices, normals, UVs, and primitive recipes; Rust validates and converts that data into `Geometry`, `Mesh`, scene metadata, and host/runtime values.

@@ -169,6 +169,8 @@ def assert_blade_build(
         "cargo:native-metrics",
         "cargo:synthetic-reporter",
         "gpu:gpu-compute:gpu_step",
+        "gpu:gpu-compute:nebula_field",
+        "gpu:gpu-compute:spectral_lattice",
         "blade-check",
         "fabric-validate:kain-fabric",
         "fabric-run:kain-fabric",
@@ -192,9 +194,11 @@ def assert_blade_build(
     if not native_output.exists():
         raise RuntimeError(f"native sidecar was not materialized: {native_output}")
 
-    gpu_outputs = list((lab_root / ".kain" / "build").rglob("gpu_step.spv"))
-    if not gpu_outputs:
-        raise RuntimeError("blade build did not emit GPU artifacts under .kain/build")
+    gpu_outputs = sorted((lab_root / ".kain" / "build").rglob("*.spv"))
+    expected_spirv = {"gpu_step.spv", "nebula_field.spv", "spectral_lattice.spv"}
+    actual_spirv = {path.name for path in gpu_outputs}
+    if not expected_spirv.issubset(actual_spirv):
+        raise RuntimeError(f"blade build did not emit expected GPU artifacts: {sorted(expected_spirv - actual_spirv)}")
 
     report_root = lab_root / "outputs" / "fabric" / "reports"
     if not report_root.exists() or not any(report_root.rglob("*.json")):
@@ -204,6 +208,49 @@ def assert_blade_build(
         gpu_report_root = lab_root / "outputs" / "gpu-fabric" / "reports"
         if not gpu_report_root.exists() or not any(gpu_report_root.rglob("*.json")):
             raise RuntimeError("GPU Fabric run did not emit JSON reports")
+
+    assert_singularity_atlas(lab_root, env)
+
+
+def assert_singularity_atlas(lab_root: Path, env: dict[str, str]) -> None:
+    executable = find_lab_executable(lab_root, "blade_singularity_atlas")
+    output_root = lab_root / "outputs" / "singularity-atlas"
+    run_command(
+        [
+            str(executable),
+            "--workspace",
+            str(lab_root),
+            "--output",
+            str(output_root),
+        ],
+        cwd=lab_root,
+        env=env,
+    )
+
+    report_path = output_root / "atlas.json"
+    html_path = output_root / "index.html"
+    svg_path = output_root / "atlas.svg"
+    ppm_path = output_root / "atlas.ppm"
+    for path in [report_path, html_path, svg_path, ppm_path]:
+        if not path.exists() or path.stat().st_size == 0:
+            raise RuntimeError(f"singularity atlas did not emit {path}")
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if report.get("shader_count", 0) < 3:
+        raise RuntimeError("singularity atlas did not see all shader artifact sets")
+    if report.get("total_spirv_bytes", 0) <= 0:
+        raise RuntimeError("singularity atlas reported empty SPIR-V output")
+    for compute_key in ["BladeSmokeCopy", "BladeNebulaForge", "BladeSpectralLattice"]:
+        if compute_key not in report.get("compute_keys", []):
+            raise RuntimeError(f"singularity atlas missed compute key {compute_key}")
+
+
+def find_lab_executable(lab_root: Path, stem: str) -> Path:
+    binary_name = platform_binary_name(stem)
+    matches = sorted((lab_root / ".kain" / "build").rglob(binary_name))
+    if not matches:
+        raise RuntimeError(f"could not find lab executable {binary_name} under .kain/build")
+    return matches[-1]
 
 
 def assert_blade_workspace(kain: str, lab_root: Path, env: dict[str, str]) -> None:
@@ -279,8 +326,9 @@ def assert_blade_workspace(kain: str, lab_root: Path, env: dict[str, str]) -> No
         env=env,
         capture_json=True,
     ).parsed_json
-    if "BladeSmokeCopy" not in equip_gpu.get("compute_keys", []):
-        raise RuntimeError("gpu-compute did not expose BladeSmokeCopy")
+    for compute_key in ["BladeSmokeCopy", "BladeNebulaForge", "BladeSpectralLattice"]:
+        if compute_key not in equip_gpu.get("compute_keys", []):
+            raise RuntimeError(f"gpu-compute did not expose {compute_key}")
 
 
 def main() -> int:

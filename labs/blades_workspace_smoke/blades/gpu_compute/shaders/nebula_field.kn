@@ -1,4 +1,4 @@
-shader compute BladeSmokeCopy(id: UVec3) -> Vec4:
+shader compute BladeNebulaForge(id: UVec3) -> Vec4:
     uniform src: StorageBuffer<Float> @0
     uniform dst: StorageBuffer<Float> @1
     uniform LOCAL_SIZE_X: UInt @100
@@ -7,19 +7,21 @@ shader compute BladeSmokeCopy(id: UVec3) -> Vec4:
 
     comptime:
         let compute = (
-            [8, 1, 1],
+            [16, 1, 1],
             [
                 ("src", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
                 ("dst", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
             ],
             [
-                ("blade_smoke_copy", "copy_stream", ["src"], ["dst"], false),
+                ("blade_nebula_forge", "spectral_fold", ["src"], ["dst"], false),
             ],
         )
 
     let index = id.x
-    let input_value = src[index]
-    let ember = input_value * 0.625 + input_value * input_value * 0.125
-    let pulse = ember * (1.0 - input_value * 0.125)
-    dst[index] = pulse
-    return vec4(pulse, pulse * 0.45 + 0.15, 1.0 - pulse * 0.35, 1.0)
+    let sample = src[index]
+    let phase = sample * 0.75 + sample * sample * 0.03125
+    let dust = phase * (1.0 - sample * 0.2)
+    let flare = sample * sample + 0.125
+    let signal = dust * 0.55 + flare * 0.45
+    dst[index] = signal
+    return vec4(signal, flare * 0.7, 1.0 - dust * 0.25, 1.0)

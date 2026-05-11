@@ -13,6 +13,7 @@ It covers:
 - a GPU compute blade discovered through blade GPU metadata
 - CPU Fabric execution through Python -> Kain -> C ABI -> Rust crate -> Node
 - GPU shader artifact generation, plus a GPU Fabric manifest that validates blade-backed `gpu_compute`
+- a real Cargo-built executable, `blade_singularity_atlas`, that inspects the Blade graph plus emitted SPIR-V/reflection artifacts and renders `outputs/singularity-atlas/index.html`
 
 Run the smoke from the repo root after building the CLI package:
 
@@ -20,7 +21,7 @@ Run the smoke from the repo root after building the CLI package:
 python labs\blades_workspace_smoke\scripts\run_blades_smoke.py
 ```
 
-The runner invokes `blade build . --json` inside the lab. The build system materializes the C shared library, builds Rust crate blades through Cargo, emits GPU artifacts under `.kain/build`, validates blade paths, validates Fabric manifests, and runs the CPU Fabric pipeline. The runner then drives the repo-local `kain` binary through list, graph, check, and equip assertions.
+The runner invokes `blade build . --json` inside the lab. The build system materializes the C shared library, builds Rust crate blades through Cargo, emits GPU artifacts under `.kain/build`, validates blade paths, validates Fabric manifests, and runs the CPU Fabric pipeline. The runner then executes the Cargo-built `blade_singularity_atlas` binary, which renders an HTML/SVG/PPM atlas from the SPIR-V outputs, and drives the repo-local `kain` binary through list, graph, check, and equip assertions.
 
 Use `--clean-cache` when you specifically want to force the lab-local `.kain` build/cache roots and Fabric reports to rebuild.
 

@@ -11,6 +11,10 @@ module_roots = ["shaders"]
 build_targets = ["gpu-artifacts"]
 
 [blade.gpu]
-shader_sources = ["shaders/gpu_step.kn"]
+shader_sources = [
+    "shaders/gpu_step.kn",
+    "shaders/nebula_field.kn",
+    "shaders/spectral_lattice.kn",
+]
 shader_roots = ["shaders"]
-compute_keys = ["BladeSmokeCopy"]
+compute_keys = ["BladeSmokeCopy", "BladeNebulaForge", "BladeSpectralLattice"]
