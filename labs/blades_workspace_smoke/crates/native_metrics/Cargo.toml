@@ -1,0 +1,10 @@
+[package]
+name = "blade_smoke_native_metrics"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "blade_smoke_native_metrics"
+path = "src/lib.rs"
+
+[workspace]

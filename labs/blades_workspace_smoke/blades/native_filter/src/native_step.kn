@@ -1,0 +1,26 @@
+use c::blade_filter
+use std::interop::bridge
+
+struct NativeFilterOutputs:
+    filtered_image: Any
+    snapshot: Any
+    signature: String
+
+fn main() -> NativeFilterOutputs:
+    let image = fabric_inputs.kain_orchestrator.image
+    let settings = fabric_inputs.python_source.settings
+    let info = interop_shared_image_info(image)
+    let before = blade_filter_checksum(image, info.byte_length)
+    blade_filter_apply_rgba(image, info.byte_length, settings.accent)
+    let after = blade_filter_checksum(image, info.byte_length)
+    assert(before != after, "expected blade filter to mutate the shared image")
+    let bytes = interop_shared_image_bytes(image)
+    let snapshot = interop_shared_buffer_from_bytes(
+        bytes,
+        "u8",
+        [len(bytes)],
+        "rgba8",
+        "application/octet-stream",
+    )
+    let signature = blade_filter_signature(info.width, info.height, after)
+    return NativeFilterOutputs { filtered_image: image, snapshot: snapshot, signature: signature }

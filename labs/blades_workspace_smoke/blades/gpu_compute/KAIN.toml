@@ -1,0 +1,16 @@
+[package]
+name = "gpu-compute"
+version = "0.1.0"
+description = "GPU compute blade discovered from blade metadata"
+
+[blade]
+name = "gpu-compute"
+kind = "gpu_compute"
+source_roots = ["shaders"]
+module_roots = ["shaders"]
+build_targets = ["gpu-artifacts"]
+
+[blade.gpu]
+shader_sources = ["shaders/gpu_step.kn"]
+shader_roots = ["shaders"]
+compute_keys = ["BladeSmokeCopy"]

@@ -1,0 +1,36 @@
+use std::interop::bridge
+
+struct SignalConsoleOutputs:
+    image: Any
+    report: String
+
+fn build_pixels(width: Int, height: Int, accent: Int, stride: Int) -> Array<Int>:
+    let bytes = []
+    let y = 0
+    while y < height:
+        let x = 0
+        while x < width:
+            let seed = (x * stride + y * 23 + accent) % 255
+            bytes.push(seed)
+            bytes.push((seed + accent + x) % 255)
+            bytes.push((255 - seed + y) % 255)
+            bytes.push(255)
+            x = x + 1
+        y = y + 1
+    return bytes
+
+fn main() -> SignalConsoleOutputs:
+    let settings = fabric_inputs.python_source.settings
+    let pixels = build_pixels(settings.width, settings.height, settings.accent, settings.stride)
+    let image = interop_shared_image_from_bytes(
+        pixels,
+        settings.width,
+        settings.height,
+        4,
+        "HWC",
+        "rgba8",
+        "image/x-kain-blade-smoke",
+    )
+    let info = interop_shared_image_info(image)
+    let report = settings.title + ":" + str(info.width) + "x" + str(info.height) + ":stride=" + str(settings.stride)
+    return SignalConsoleOutputs { image: image, report: report }

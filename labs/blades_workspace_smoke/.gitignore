@@ -1,0 +1,12 @@
+outputs/
+.kain/
+**/.kain/
+**/target/
+**/__pycache__/
+**/Cargo.lock
+blades/native_filter/native/blade_filter.build.txt
+blades/native_filter/native/blade_filter.dll
+blades/native_filter/native/blade_filter.exp
+blades/native_filter/native/blade_filter.lib
+blades/native_filter/native/libblade_filter.so
+blades/native_filter/native/libblade_filter.dylib

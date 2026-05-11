@@ -1,0 +1,18 @@
+[package]
+name = "native-filter"
+version = "0.1.0"
+description = "C ABI blade for mutating the smoke image"
+
+[blade]
+name = "native-filter"
+kind = "c_ffi"
+entry = "src/native_step.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "blade_filter"
+header = "native/blade_filter.h"
+shared_lib = "native/${kain_dynlib:blade_filter}"

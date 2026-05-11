@@ -1,0 +1,14 @@
+[package]
+name = "blade-workspace-smoke"
+version = "0.1.0"
+description = "Full local Kain blades workspace smoke fixture"
+
+[workspace]
+blades = ["apps/*", "blades/*", "crates/*"]
+search_roots = ["apps", "blades", "crates", "scripts"]
+generated_root = "outputs/generated"
+
+[build]
+entry = "apps/signal_console/src/main.kn"
+module_roots = ["blades/signal_math/src"]
+targets = ["run", "fabric", "gpu-artifacts"]

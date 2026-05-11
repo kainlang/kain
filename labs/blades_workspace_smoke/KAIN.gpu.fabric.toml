@@ -1,0 +1,61 @@
+version = 1
+
+[workspace]
+root = "."
+search_roots = ["apps", "blades", "crates", "scripts"]
+
+[[requires]]
+key = "session.local"
+version = 1
+optional = false
+
+[[steps]]
+id = "python_source"
+runtime = "python"
+entry = "scripts/python_source.py"
+
+[[steps.outputs]]
+name = "settings"
+kind = "value"
+
+[[steps]]
+id = "gpu_seed"
+runtime = "kain"
+entry = "apps/signal_console/src/gpu_seed.kn"
+depends_on = ["python_source"]
+
+[[steps.outputs]]
+name = "src"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "dst"
+kind = "shared_buffer"
+
+[[steps.outputs]]
+name = "report"
+kind = "value"
+
+[[steps]]
+id = "gpu_copy"
+runtime = "gpu_compute"
+blade = "gpu-compute"
+depends_on = ["gpu_seed"]
+
+[[steps.outputs]]
+name = "dst"
+kind = "shared_buffer"
+
+[[steps]]
+id = "node_gpu_report"
+runtime = "node"
+entry = "scripts/node_gpu_report.mjs"
+depends_on = ["gpu_seed", "gpu_copy"]
+
+[[steps.outputs]]
+name = "summary"
+kind = "value"
+
+[reports]
+directory = "outputs/gpu-fabric/reports"
+emit_jsonl_events = true

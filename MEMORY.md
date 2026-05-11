@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-11 - Full blades workspace smoke landed under labs
+
+Kain now has a repo-local smoke that exercises the blades system as a complete workspace instead of as isolated unit tests.
+
+What changed:
+
+- Added `labs/blades_workspace_smoke` with a root `KAIN.toml` workspace over `apps/*`, `blades/*`, and `crates/*`.
+- Added an app blade (`signal-console`), a Kain utility blade (`signal-math`), a C ABI blade (`native-filter`), a Rust crate blade with Kain glue (`native-metrics`), a Cargo-only synthetic blade (`synthetic-reporter`), and a GPU metadata blade (`gpu-compute`).
+- Added CPU Fabric execution through `blade = "..."` references for Python -> Kain -> C ABI -> Rust crate -> Node, plus a GPU Fabric manifest that validates blade-backed `gpu_compute`.
+- Added `scripts/run_blades_smoke.py`, which builds the platform C shared library, checks blade list/graph/check/equip JSON, validates both Fabric manifests, runs the CPU Fabric pipeline, and emits GPU artifacts. It keeps lab-local `.kain` bridge caches by default and supports `--clean-cache` for cold-cache proofing.
+- Updated `labs/README.md` and `ARCHITECTURE.md` so future agents can find the smoke and know the validation command.
+
+Design decisions:
+
+- The smoke is intentionally shaped like a real workspace, not a minimal fixture. It proves root workspace discovery, explicit blade metadata, synthetic Cargo discovery, graph edges, C/Rust FFI fallback through blades, and GPU compute metadata in one place.
+- The default runner validates GPU by generating artifacts instead of dispatching Vulkan. Use `--include-vulkan` only on machines with a working Vulkan compute runtime.
+- The C checksum returns a bounded signed `int64_t`; importing a raw `uint64_t` checksum into Kain `Int` can overflow at runtime.
+
+Validation:
+
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-blades-smoke`
+- `$env:KAIN_BIN='D:\\Kain-Lang\\target\\codex-blades-smoke\\debug\\kain.exe'; python labs\\blades_workspace_smoke\\scripts\\run_blades_smoke.py`
+- `python -m py_compile labs\\blades_workspace_smoke\\scripts\\run_blades_smoke.py`
+
+Current risks:
+
+- A stale `target\\debug\\kain.exe` may not have the `blades` subcommand. Set `KAIN_BIN` to a freshly built CLI when running the smoke from an isolated target dir.
+- The generated C shared library, `.kain` bridge caches, and `outputs/` are ignored and disposable. `kain blades check` is expected to pass after the runner builds the C sidecar.
+- The GPU Fabric manifest is validation-ready, but full Vulkan dispatch is opt-in because local machines may lack a working Vulkan compute runtime.
+
+Recommended next step:
+
+- Add this smoke to any future blades CI lane once the repo has a stable way to select a freshly built `kain` binary and a policy for local C/Rust FFI bridge cache reuse.
+
 # 2026-05-11 - Kain check/test pipeline hardened into a Rust-inspired v1
 
 The reusable source validation pipeline now has a sturdier first-class shape instead of being only a thin CLI addition.

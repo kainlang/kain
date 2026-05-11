@@ -5,6 +5,7 @@
 Current lanes:
 
 - `brainfuck/` for the Kain-native Brainfuck interpreter and Turing-completeness proof
+- `blades_workspace_smoke/` for a full local blades workspace proof across app, Kain library, C ABI, Rust crate, synthetic Cargo, GPU metadata, Fabric execution, and `kain equip`
 - `kain_native_taste_lab/` for a compact native-ui dev taste test covering world state, dock tabs, viewport props, shader canvases, and packaged desktop materialization
 - `llvm_world_dogfood_lab/` for the canonical LLVM dogfood app covering world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering
 - `llvmzone/` for a five-app LLVM utility lane that compiles separate native executables and stress-tests enums, loops, actors, world/patch/orchestrate, floats, and native UI/viewport surfaces

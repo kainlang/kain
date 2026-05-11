@@ -348,6 +348,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [docs/kainplan](/M:/Code/Kain/docs/kainplan): legacy design and execution docs
 - [docs/pipeline](/M:/Code/Kain/docs/pipeline): legacy pipeline notes and operational docs
 - [labs](/M:/Code/Kain/labs): focused validation labs
+- [labs/blades_workspace_smoke](/M:/Code/Kain/labs/blades_workspace_smoke): full local blades workspace smoke with root `KAIN.toml`, `apps/*`, `blades/*`, and `crates/*`, covering app, Kain library, C ABI, Rust crate, synthetic Cargo, GPU metadata, Fabric `blade = "..."`, `kain equip`, CPU Fabric execution, and GPU artifact generation
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
 - [labs/llvmzone](/M:/Code/Kain/labs/llvmzone): five-app LLVM utility lane that keeps separate executables for enum/match, world/patch/orchestrate, actor mailbox, float/bitwise, and native UI/viewport coverage
@@ -388,6 +389,7 @@ Typical commands:
 - `kain omni build`
 - `kain check <file-or-dir>` and `kain test <file-or-dir>` for structured source checking and compiletest-style pass/fail suites
 - `kain blades list`, `kain blades graph`, `kain blades check`, and `kain equip <blade>` for blade workspace inspection and resolution
+- `python labs\blades_workspace_smoke\scripts\run_blades_smoke.py` for the full blade workspace smoke. Set `KAIN_BIN` when validating against a freshly built non-default target dir.
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
 - `kain fabric run`
@@ -486,6 +488,8 @@ If the debug CLI is missing:
 - Node-backed browser labs such as `labs/threejs_node_ffi_space_lab` depend on a local package install inside the lab root. If bundling fails, check the lab-local `node_modules` state before assuming the browser app regressed; if the Rust sculpt lane fails, verify `rustup target add wasm32-unknown-unknown` in the local environment before blaming the app code; if Kain execution itself fails with unknown `js_import` / `js_bridge_import` identifiers, treat that as host-backed bridge registration drift in the current checkout.
 - `kain build -t hybrid` is now expected to materialize four aligned artifacts at once: a `.hybrid` descriptor plus `.js`, `.ts`, and `.wasm` sidecars. If a browser proof emits only JS text or the generated JS starts fetching its sidecar relative to the page root instead of the script URL, treat that as a CLI/driver regression rather than app-local config drift.
 - General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
+- The blade workspace smoke intentionally builds the C ABI sidecar before `kain blades check`; a fresh checkout will not have `blades/native_filter/native/blade_filter.dll` or the platform equivalent until `labs/blades_workspace_smoke/scripts/run_blades_smoke.py` runs. If `target\debug\kain.exe` predates the `blades` subcommand, build the CLI into an isolated target dir and set `KAIN_BIN`.
+- C ABI functions imported into interpreted Kain should return signed, bounded integer values when Kain code treats them as `Int`; a raw `uint64_t` checksum can overflow the bridge at runtime.
 - Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.
 - Fabric runtime ownership is now split cleanly: `kain-omni` owns `KAIN.fabric.toml` schema/validation/report types, while `kain-host` owns local execution, dependency plumbing, and runtime adapter behavior.

@@ -1,0 +1,9 @@
+use rust::blade_smoke_native_metrics
+use std::interop::bridge
+
+fn main() -> String:
+    let snapshot = fabric_inputs.native_filter.snapshot
+    let info = interop_shared_buffer_info(snapshot)
+    let bytes = interop_shared_buffer_bytes(snapshot)
+    let checksum = weighted_checksum(bytes)
+    return build_metric_label(info.byte_length, checksum, fabric_inputs.native_filter.signature)
