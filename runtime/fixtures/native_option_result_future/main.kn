@@ -1,0 +1,27 @@
+fn maybe(flag: Bool) -> Option<Int>:
+    if flag:
+        return Some(41)
+    return None
+
+fn parse(flag: Bool) -> Result<Int, String>:
+    if flag:
+        return Result::Ok(1)
+    return Result::Err("parse failed")
+
+fn ready_value() -> impl Future<Int>:
+    return async 2
+
+fn parsed_value() -> Result<Int, String>:
+    let parsed: Int = parse(true)?
+    return Result::Ok(parsed)
+
+fn main() -> Int:
+    let fallback: Int = maybe(false).unwrap_or(3)
+    let parsed: Int = parsed_value().unwrap()
+    let awaited: Int = await ready_value()
+
+    if maybe(true).is_some() and parse(false).is_err():
+        if fallback + parsed + awaited == 6:
+            return 0
+
+    return 1

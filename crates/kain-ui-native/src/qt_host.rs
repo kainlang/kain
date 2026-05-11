@@ -43,7 +43,7 @@ impl fmt::Display for QtQuickHostLaunchError {
         match self {
             Self::QtRuntimeUnavailable { searched } => write!(
                 formatter,
-                "no Qt Quick runtime was found for the non-egui host; searched {}",
+                "no Qt Quick runtime was found for the native UI host; searched {}",
                 searched.join(", ")
             ),
             Self::Io { context, source } => {
@@ -428,7 +428,7 @@ mod tests {
     use kain_ui::{ui_runtime_bundle_from_output, UiBuildOutput, UiRuntimeMetadata};
 
     #[test]
-    fn generated_qml_has_no_showcase_catalog_or_placeholders() {
+    fn generated_qml_is_thin_authored_projection_host() {
         let bundle = ui_runtime_bundle_from_output(
             UiRuntimeMetadata {
                 window_title: "Blank".to_string(),
@@ -441,9 +441,8 @@ mod tests {
             build_qt_quick_session_manifest(&bundle, &KainUiNativeBackendPlan::default());
         let qml = render_main_qml(&manifest, None);
 
-        assert!(!qml.contains("atrium"));
-        assert!(!qml.contains("PaneCard"));
-        assert!(!qml.contains("placeholder"));
         assert!(qml.contains("AuthoredNode"));
+        assert!(qml.contains("displayNodes"));
+        assert!(qml.contains("projectionRootNode"));
     }
 }

@@ -204,9 +204,66 @@ fn main() -> Int:
     assert!(llvm.contains("call i64 @choose_value(i64"));
     assert!(llvm.contains("call i64 @stage_bias(i64"));
     assert!(llvm.contains("call i64 @pipeline(i64"));
+    assert!(llvm.contains("call i64 @kain_native_patch_begin"));
+    assert!(llvm.contains("call i64 @kain_native_patch_record_i64"));
+    assert!(llvm.contains("call i64 @kain_native_patch_commit"));
+    assert!(llvm.contains("call i64 @kain_native_entangle_record_i64"));
+    assert!(llvm.contains("define i64 @choose_value__spec"));
+    assert!(llvm.contains("define i64 @choose_value__fast_interpret_lane"));
+    assert!(llvm.contains("call i64 @kain_native_converge_record_i64"));
+    assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_begin"));
+    assert!(llvm.contains("call i64 @kain_native_orchestrate_stage_end_i64"));
     assert!(llvm.contains("Studio.counter"));
     assert!(llvm.contains("Mirror.counter"));
     assert!(llvm.contains("single_writer"));
+}
+
+#[test]
+fn llvm_lowers_option_result_future_to_native_tagged_runtime() {
+    let source = r#"
+fn maybe(flag: Bool) -> Option<Int>:
+    if flag:
+        return Some(7)
+    return None
+
+fn parse(flag: Bool) -> Result<Int, String>:
+    if flag:
+        return Result::Ok(9)
+    return Result::Err("bad")
+
+fn ready() -> impl Future<Int>:
+    return async 11
+
+fn use_result() -> Result<Int, String>:
+    let parsed: Int = parse(true)?
+    return Result::Ok(parsed)
+
+fn main() -> Int:
+    let fallback: Int = maybe(false).unwrap_or(3)
+    let parsed: Int = use_result().unwrap()
+    let awaited: Int = await ready()
+    if maybe(true).is_some() and parse(false).is_err():
+        return fallback + parsed + awaited
+    return 1
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define i8* @maybe(i1 %arg0)"));
+    assert!(llvm.contains("define i8* @parse(i1 %arg0)"));
+    assert!(llvm.contains("define i8* @ready()"));
+    assert!(llvm.contains("call i8* @kain_native_option_none()"));
+    assert!(llvm.contains("call i8* @kain_native_option_some"));
+    assert!(llvm.contains("call i8* @kain_native_result_ok"));
+    assert!(llvm.contains("call i8* @kain_native_result_err"));
+    assert!(llvm.contains("call i64 @kain_native_tagged_is_success"));
+    assert!(llvm.contains("call i64 @kain_native_tagged_payload_copy"));
+    assert!(llvm.contains("call i64 @kain_native_option_is_some"));
+    assert!(llvm.contains("call i64 @kain_native_result_is_err"));
+    assert!(llvm.contains("call i8* @kain_native_future_ready_from_value"));
+    assert!(llvm.contains("call i64 @kain_native_future_await_payload_copy"));
 }
 
 #[test]

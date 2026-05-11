@@ -19,6 +19,27 @@ fn kain_native_entangle_get_policy(index: Int) -> String
 @extern
 fn kain_native_entangle_get_type_name(index: Int) -> String
 
+@extern
+fn kain_native_patch_journal_count() -> Int
+
+@extern
+fn kain_native_patch_last_path() -> String
+
+@extern
+fn kain_native_entangle_propagation_count() -> Int
+
+@extern
+fn kain_native_entangle_last_authority() -> String
+
+@extern
+fn kain_native_entangle_last_mirror() -> String
+
+@extern
+fn kain_native_converge_mismatch_count() -> Int
+
+@extern
+fn kain_native_orchestrate_stage_count() -> Int
+
 pub fn native_entangle_reset() -> Int:
     return kain_native_entangle_reset()
 
@@ -42,6 +63,27 @@ pub fn native_entangle_get_policy(index: Int) -> String:
 
 pub fn native_entangle_get_type_name(index: Int) -> String:
     return kain_native_entangle_get_type_name(index)
+
+pub fn native_patch_journal_count() -> Int:
+    return kain_native_patch_journal_count()
+
+pub fn native_patch_last_path() -> String:
+    return kain_native_patch_last_path()
+
+pub fn native_entangle_propagation_count() -> Int:
+    return kain_native_entangle_propagation_count()
+
+pub fn native_entangle_last_authority() -> String:
+    return kain_native_entangle_last_authority()
+
+pub fn native_entangle_last_mirror() -> String:
+    return kain_native_entangle_last_mirror()
+
+pub fn native_converge_mismatch_count() -> Int:
+    return kain_native_converge_mismatch_count()
+
+pub fn native_orchestrate_stage_count() -> Int:
+    return kain_native_orchestrate_stage_count()
 
 pub fn native_law_status(valid: Bool) -> Int:
     if valid:

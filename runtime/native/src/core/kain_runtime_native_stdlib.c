@@ -5,6 +5,7 @@
 #include "../../include/kain_runtime_native_stdlib.h"
 
 #include "../../include/kain_runtime_actor.h"
+#include "../../include/kain_runtime_async.h"
 #include "../../include/kain_runtime_base.h"
 #include "../../include/kain_runtime_diagnostics.h"
 #include "../../include/kain_runtime_entangle.h"
@@ -26,6 +27,30 @@
 
 void* kain_alloc_rc(size_t size, long long type_tag);
 
+#define KAIN_NATIVE_TAG_OPTION_NONE 0
+#define KAIN_NATIVE_TAG_OPTION_SOME 1
+#define KAIN_NATIVE_TAG_RESULT_OK 2
+#define KAIN_NATIVE_TAG_RESULT_ERR 3
+#define KAIN_NATIVE_TAG_FUTURE 4
+
+typedef struct KainNativeTaggedValue {
+    int64_t tag;
+    int64_t payload_size;
+    unsigned char payload[];
+} KainNativeTaggedValue;
+
+typedef struct KainNativeReadyFuturePayload {
+    int64_t payload_size;
+    unsigned char payload[];
+} KainNativeReadyFuturePayload;
+
+typedef struct KainNativeFutureValue {
+    int64_t tag;
+    int64_t payload_size;
+    KainTaskId task_id;
+    void* cached_result;
+} KainNativeFutureValue;
+
 static KainDiagnostic kain_native_diag(void) {
     KainDiagnostic diag;
     kain_diagnostic_init(&diag);
@@ -40,6 +65,294 @@ int64_t kain_native_runtime_init(void) {
 int64_t kain_native_runtime_shutdown(void) {
     kain_actor_runtime_shutdown();
     return 0;
+}
+
+static void* kain_native_copy_payload_allocation(const void* payload, int64_t payload_size) {
+    size_t allocation_size;
+    KainNativeTaggedValue* value;
+
+    if (payload_size < 0) {
+        return 0;
+    }
+
+    allocation_size = sizeof(KainNativeTaggedValue) + (size_t)payload_size;
+    value = (KainNativeTaggedValue*)kain_alloc_rc(allocation_size, 4);
+    if (value == 0) {
+        return 0;
+    }
+    value->tag = 0;
+    value->payload_size = payload_size;
+    if (payload != 0 && payload_size > 0) {
+        memcpy(value->payload, payload, (size_t)payload_size);
+    } else if (payload_size > 0) {
+        memset(value->payload, 0, (size_t)payload_size);
+    }
+    return value;
+}
+
+static void* kain_native_tagged_new(int64_t tag, const void* payload, int64_t payload_size) {
+    KainNativeTaggedValue* value = (KainNativeTaggedValue*)kain_native_copy_payload_allocation(payload, payload_size);
+    if (value == 0) {
+        return 0;
+    }
+    value->tag = tag;
+    return value;
+}
+
+static const KainNativeTaggedValue* kain_native_as_tagged(const void* value) {
+    if (value == 0) {
+        return 0;
+    }
+    return (const KainNativeTaggedValue*)value;
+}
+
+void* kain_native_option_none(void) {
+    return kain_native_tagged_new(KAIN_NATIVE_TAG_OPTION_NONE, 0, 0);
+}
+
+void* kain_native_option_some(const void* payload, int64_t payload_size) {
+    return kain_native_tagged_new(KAIN_NATIVE_TAG_OPTION_SOME, payload, payload_size);
+}
+
+int64_t kain_native_option_is_some(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged != 0 && tagged->tag == KAIN_NATIVE_TAG_OPTION_SOME;
+}
+
+int64_t kain_native_option_is_none(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged == 0 || tagged->tag == KAIN_NATIVE_TAG_OPTION_NONE;
+}
+
+int64_t kain_native_tagged_matches(const void* value, int64_t tag) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged != 0 && tagged->tag == tag;
+}
+
+int64_t kain_native_tagged_is_success(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged != 0 &&
+        (tagged->tag == KAIN_NATIVE_TAG_OPTION_SOME || tagged->tag == KAIN_NATIVE_TAG_RESULT_OK);
+}
+
+int64_t kain_native_tagged_payload_copy(const void* value, void* out_payload, int64_t out_payload_size) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    if (tagged == 0 || out_payload == 0 || out_payload_size < 0) {
+        return -1;
+    }
+    if (tagged->payload_size > out_payload_size) {
+        return -2;
+    }
+    if (tagged->payload_size > 0) {
+        memcpy(out_payload, tagged->payload, (size_t)tagged->payload_size);
+    }
+    if (out_payload_size > tagged->payload_size) {
+        memset(
+            (unsigned char*)out_payload + tagged->payload_size,
+            0,
+            (size_t)(out_payload_size - tagged->payload_size)
+        );
+    }
+    return tagged->payload_size;
+}
+
+int64_t kain_native_option_payload_copy(const void* value, void* out_payload, int64_t out_payload_size) {
+    if (!kain_native_option_is_some(value)) {
+        return -1;
+    }
+    return kain_native_tagged_payload_copy(value, out_payload, out_payload_size);
+}
+
+void* kain_native_result_ok(const void* payload, int64_t payload_size) {
+    return kain_native_tagged_new(KAIN_NATIVE_TAG_RESULT_OK, payload, payload_size);
+}
+
+void* kain_native_result_err(const void* payload, int64_t payload_size) {
+    return kain_native_tagged_new(KAIN_NATIVE_TAG_RESULT_ERR, payload, payload_size);
+}
+
+int64_t kain_native_result_is_ok(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged != 0 && tagged->tag == KAIN_NATIVE_TAG_RESULT_OK;
+}
+
+int64_t kain_native_result_is_err(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    return tagged != 0 && tagged->tag == KAIN_NATIVE_TAG_RESULT_ERR;
+}
+
+int64_t kain_native_result_payload_copy(const void* value, void* out_payload, int64_t out_payload_size) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    if (tagged == 0 ||
+        (tagged->tag != KAIN_NATIVE_TAG_RESULT_OK && tagged->tag != KAIN_NATIVE_TAG_RESULT_ERR)) {
+        return -1;
+    }
+    return kain_native_tagged_payload_copy(value, out_payload, out_payload_size);
+}
+
+void* kain_native_result_ok_option(const void* value) {
+    const KainNativeTaggedValue* tagged = kain_native_as_tagged(value);
+    if (tagged == 0 || tagged->tag != KAIN_NATIVE_TAG_RESULT_OK) {
+        return kain_native_option_none();
+    }
+    return kain_native_option_some(tagged->payload, tagged->payload_size);
+}
+
+static KainPollResult kain_native_ready_future_task(
+    KainFutureContext* context,
+    void* user_data,
+    void** result
+) {
+    const KainNativeReadyFuturePayload* ready_payload = (const KainNativeReadyFuturePayload*)user_data;
+    void* copied;
+    (void)context;
+
+    if (result == 0) {
+        return KAIN_POLL_ERROR;
+    }
+    *result = 0;
+    if (ready_payload == 0 || ready_payload->payload_size < 0) {
+        return KAIN_POLL_ERROR;
+    }
+    if (ready_payload->payload_size == 0) {
+        return KAIN_POLL_READY;
+    }
+
+    copied = malloc((size_t)ready_payload->payload_size);
+    if (copied == 0) {
+        return KAIN_POLL_ERROR;
+    }
+    memcpy(copied, ready_payload->payload, (size_t)ready_payload->payload_size);
+    *result = copied;
+    return KAIN_POLL_READY;
+}
+
+static KainNativeReadyFuturePayload* kain_native_ready_future_payload_new(
+    const void* payload,
+    int64_t payload_size
+) {
+    KainNativeReadyFuturePayload* ready_payload;
+    size_t allocation_size;
+
+    if (payload_size < 0) {
+        return 0;
+    }
+    allocation_size = sizeof(KainNativeReadyFuturePayload) + (size_t)payload_size;
+    ready_payload = (KainNativeReadyFuturePayload*)malloc(allocation_size);
+    if (ready_payload == 0) {
+        return 0;
+    }
+    ready_payload->payload_size = payload_size;
+    if (payload != 0 && payload_size > 0) {
+        memcpy(ready_payload->payload, payload, (size_t)payload_size);
+    } else if (payload_size > 0) {
+        memset(ready_payload->payload, 0, (size_t)payload_size);
+    }
+    return ready_payload;
+}
+
+void* kain_native_future_ready_from_value(const void* payload, int64_t payload_size) {
+    KainDiagnostic diag = kain_native_diag();
+    KainTaskSpawnConfig config;
+    KainNativeReadyFuturePayload* ready_payload = kain_native_ready_future_payload_new(payload, payload_size);
+    KainNativeFutureValue* future_value;
+
+    if (ready_payload == 0) {
+        return 0;
+    }
+
+    future_value = (KainNativeFutureValue*)kain_alloc_rc(sizeof(KainNativeFutureValue), 4);
+    if (future_value == 0) {
+        free(ready_payload);
+        return 0;
+    }
+
+    kain_task_spawn_config_init(&config);
+    config.task_fn = kain_native_ready_future_task;
+    config.user_data = ready_payload;
+    config.result_size = (size_t)payload_size;
+
+    future_value->tag = KAIN_NATIVE_TAG_FUTURE;
+    future_value->payload_size = payload_size;
+    future_value->cached_result = 0;
+    future_value->task_id = kain_task_spawn(&config, &diag);
+    if (future_value->task_id == KAIN_TASK_ID_INVALID) {
+        free(ready_payload);
+        return 0;
+    }
+    return future_value;
+}
+
+static KainNativeFutureValue* kain_native_as_future(const void* future_value) {
+    KainNativeFutureValue* future = (KainNativeFutureValue*)future_value;
+    if (future == 0 || future->tag != KAIN_NATIVE_TAG_FUTURE) {
+        return 0;
+    }
+    return future;
+}
+
+int64_t kain_native_future_state(const void* future_value) {
+    KainNativeFutureValue* future = kain_native_as_future(future_value);
+    if (future == 0) {
+        return -1;
+    }
+    return (int64_t)kain_task_get_state(future->task_id);
+}
+
+int64_t kain_native_future_await_payload_copy(const void* future_value, void* out_payload, int64_t out_payload_size) {
+    KainDiagnostic diag = kain_native_diag();
+    KainNativeFutureValue* future = kain_native_as_future(future_value);
+    void* result = 0;
+
+    if (future == 0 || out_payload == 0 || out_payload_size < 0) {
+        return -1;
+    }
+    if (future->payload_size > out_payload_size) {
+        return -2;
+    }
+
+    if (future->cached_result != 0) {
+        result = future->cached_result;
+    } else if (kain_task_await(future->task_id, &result, &diag) != 0) {
+        return -3;
+    } else {
+        future->cached_result = result;
+    }
+
+    if (future->payload_size > 0 && result == 0) {
+        return -4;
+    }
+    if (future->payload_size > 0) {
+        memcpy(out_payload, result, (size_t)future->payload_size);
+    }
+    if (out_payload_size > future->payload_size) {
+        memset(
+            (unsigned char*)out_payload + future->payload_size,
+            0,
+            (size_t)(out_payload_size - future->payload_size)
+        );
+    }
+    return future->payload_size;
+}
+
+void* kain_native_async_sleep_future(int64_t milliseconds) {
+    KainDiagnostic diag = kain_native_diag();
+    KainNativeFutureValue* future_value;
+    if (milliseconds < 0) {
+        return 0;
+    }
+    future_value = (KainNativeFutureValue*)kain_alloc_rc(sizeof(KainNativeFutureValue), 4);
+    if (future_value == 0) {
+        return 0;
+    }
+    future_value->tag = KAIN_NATIVE_TAG_FUTURE;
+    future_value->payload_size = 0;
+    future_value->cached_result = 0;
+    future_value->task_id = kain_async_sleep((unsigned long long)milliseconds, &diag);
+    if (future_value->task_id == KAIN_TASK_ID_INVALID) {
+        return 0;
+    }
+    return future_value;
 }
 
 int64_t kain_native_actor_abi_version(void) {
@@ -334,6 +647,171 @@ const char* kain_native_entangle_get_policy(int64_t index) {
 const char* kain_native_entangle_get_type_name(int64_t index) {
     const KainRuntimeEntangleBinding* binding = kain_native_entangle_binding_at(index);
     return binding ? binding->type_name : "";
+}
+
+#define KAIN_NATIVE_PATCH_JOURNAL_MAX 256
+
+typedef struct KainNativePatchJournalEntry {
+    char patch_name[128];
+    char path[256];
+    int64_t old_value;
+    int64_t new_value;
+    int active;
+    int committed;
+    int undone;
+} KainNativePatchJournalEntry;
+
+static KainNativePatchJournalEntry g_kain_native_patch_journal[KAIN_NATIVE_PATCH_JOURNAL_MAX];
+static int64_t g_kain_native_patch_journal_count = 0;
+static char g_kain_native_active_patch[128] = "";
+static int64_t g_kain_native_entangle_propagation_count = 0;
+static char g_kain_native_entangle_last_authority[256] = "";
+static char g_kain_native_entangle_last_mirror[256] = "";
+static int64_t g_kain_native_converge_mismatch_count = 0;
+static int64_t g_kain_native_orchestrate_stage_count = 0;
+
+static void kain_native_copy_text(char* destination, size_t destination_size, const char* source) {
+    size_t index = 0;
+    if (destination == 0 || destination_size == 0) {
+        return;
+    }
+    if (source != 0) {
+        while (source[index] != '\0' && index + 1 < destination_size) {
+            destination[index] = source[index];
+            index++;
+        }
+    }
+    destination[index] = '\0';
+}
+
+int64_t kain_native_patch_begin(const char* patch_name) {
+    kain_native_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);
+    return 0;
+}
+
+int64_t kain_native_patch_record_i64(const char* patch_name, const char* path, int64_t old_value, int64_t new_value) {
+    KainNativePatchJournalEntry* entry;
+    if (g_kain_native_patch_journal_count >= KAIN_NATIVE_PATCH_JOURNAL_MAX) {
+        return -3;
+    }
+    entry = &g_kain_native_patch_journal[g_kain_native_patch_journal_count];
+    memset(entry, 0, sizeof(*entry));
+    kain_native_copy_text(entry->patch_name, sizeof(entry->patch_name), patch_name);
+    kain_native_copy_text(entry->path, sizeof(entry->path), path);
+    entry->old_value = old_value;
+    entry->new_value = new_value;
+    entry->active = 1;
+    entry->committed = 0;
+    entry->undone = 0;
+    g_kain_native_patch_journal_count += 1;
+    return 0;
+}
+
+int64_t kain_native_patch_commit(const char* patch_name) {
+    int64_t committed = 0;
+    int64_t index;
+    for (index = 0; index < g_kain_native_patch_journal_count; index++) {
+        KainNativePatchJournalEntry* entry = &g_kain_native_patch_journal[index];
+        if (entry->active && !entry->committed &&
+            (patch_name == 0 || strcmp(entry->patch_name, patch_name) == 0)) {
+            entry->committed = 1;
+            committed += 1;
+        }
+    }
+    g_kain_native_active_patch[0] = '\0';
+    return committed;
+}
+
+int64_t kain_native_patch_undo_last(void) {
+    int64_t index;
+    for (index = g_kain_native_patch_journal_count - 1; index >= 0; index--) {
+        KainNativePatchJournalEntry* entry = &g_kain_native_patch_journal[index];
+        if (entry->committed && !entry->undone) {
+            entry->undone = 1;
+            return entry->old_value;
+        }
+    }
+    return 0;
+}
+
+int64_t kain_native_patch_journal_count(void) {
+    return g_kain_native_patch_journal_count;
+}
+
+const char* kain_native_patch_last_path(void) {
+    if (g_kain_native_patch_journal_count <= 0) {
+        return string_new("");
+    }
+    return string_new(g_kain_native_patch_journal[g_kain_native_patch_journal_count - 1].path);
+}
+
+int64_t kain_native_entangle_record_i64(const char* authority, const char* mirror, int64_t value) {
+    (void)value;
+    kain_native_copy_text(
+        g_kain_native_entangle_last_authority,
+        sizeof(g_kain_native_entangle_last_authority),
+        authority
+    );
+    kain_native_copy_text(
+        g_kain_native_entangle_last_mirror,
+        sizeof(g_kain_native_entangle_last_mirror),
+        mirror
+    );
+    g_kain_native_entangle_propagation_count += 1;
+    return g_kain_native_entangle_propagation_count;
+}
+
+int64_t kain_native_entangle_propagation_count(void) {
+    return g_kain_native_entangle_propagation_count;
+}
+
+const char* kain_native_entangle_last_authority(void) {
+    return string_new(g_kain_native_entangle_last_authority);
+}
+
+const char* kain_native_entangle_last_mirror(void) {
+    return string_new(g_kain_native_entangle_last_mirror);
+}
+
+int64_t kain_native_converge_record_i64(const char* converge_name, const char* lane_name, int64_t spec_value, int64_t fast_value) {
+    (void)converge_name;
+    (void)lane_name;
+    if (spec_value != fast_value) {
+        g_kain_native_converge_mismatch_count += 1;
+        return 1;
+    }
+    return 0;
+}
+
+int64_t kain_native_converge_record_bool(const char* converge_name, const char* lane_name, int fast_matches) {
+    (void)converge_name;
+    (void)lane_name;
+    if (!fast_matches) {
+        g_kain_native_converge_mismatch_count += 1;
+        return 1;
+    }
+    return 0;
+}
+
+int64_t kain_native_converge_mismatch_count(void) {
+    return g_kain_native_converge_mismatch_count;
+}
+
+int64_t kain_native_orchestrate_stage_begin(const char* runtime_name, const char* function_name) {
+    (void)runtime_name;
+    (void)function_name;
+    g_kain_native_orchestrate_stage_count += 1;
+    return g_kain_native_orchestrate_stage_count;
+}
+
+int64_t kain_native_orchestrate_stage_end_i64(const char* runtime_name, const char* function_name, int64_t status) {
+    (void)runtime_name;
+    (void)function_name;
+    return status;
+}
+
+int64_t kain_native_orchestrate_stage_count(void) {
+    return g_kain_native_orchestrate_stage_count;
 }
 
 int64_t kain_native_now_millis(void) {

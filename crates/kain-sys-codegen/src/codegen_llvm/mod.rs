@@ -138,6 +138,7 @@ struct LlvmGenerator {
     target: &'static LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
     native_entanglements: Vec<NativeEntangleBinding>,
+    current_patch_name: Option<String>,
 }
 
 impl LlvmGenerator {
@@ -165,6 +166,7 @@ impl LlvmGenerator {
             target: resolve_host_llvm_target_descriptor(),
             world_globals: HashMap::new(),
             native_entanglements: Vec::new(),
+            current_patch_name: None,
         }
     }
 
@@ -239,9 +241,12 @@ impl LlvmGenerator {
             kain_core::ast::Type::Array(inner, _, _)
             | kain_core::ast::Type::Slice(inner, _)
             | kain_core::ast::Type::Option(inner, _)
-            | kain_core::ast::Type::Result(inner, _, _)
             | kain_core::ast::Type::Ref { inner, .. }
             | kain_core::ast::Type::Ptr { inner, .. } => self.collect_tuple_types_from_ast(inner),
+            kain_core::ast::Type::Result(ok, err, _) => {
+                self.collect_tuple_types_from_ast(ok);
+                self.collect_tuple_types_from_ast(err);
+            }
             _ => {}
         }
     }
@@ -379,7 +384,12 @@ impl LlvmGenerator {
 
     fn map_type_from_ast(&self, ty: &kain_core::ast::Type) -> String {
         match ty {
-            kain_core::ast::Type::Named { name, .. } => self.map_type_from_str(name),
+            kain_core::ast::Type::Named { name, generics, .. } => match name.as_str() {
+                "Option" if generics.len() == 1 => "i8*".into(),
+                "Result" if generics.len() == 2 => "i8*".into(),
+                "Future" if generics.len() == 1 => "i8*".into(),
+                _ => self.map_type_from_str(name),
+            },
             kain_core::ast::Type::Tuple(items, _) => {
                 let field_tys = items
                     .iter()
@@ -395,8 +405,9 @@ impl LlvmGenerator {
             kain_core::ast::Type::Ptr { inner, .. } => {
                 format!("{}*", self.map_type_from_ast(inner))
             }
-            kain_core::ast::Type::Option(inner, _) => self.map_type_from_ast(inner),
-            kain_core::ast::Type::Result(ok, _, _) => self.map_type_from_ast(ok),
+            kain_core::ast::Type::Impl { trait_name, .. } if trait_name == "Future" => "i8*".into(),
+            kain_core::ast::Type::Option(_, _) => "i8*".into(),
+            kain_core::ast::Type::Result(_, _, _) => "i8*".into(),
             kain_core::ast::Type::Unit(_) => "void".into(),
             kain_core::ast::Type::Never(_) => "void".into(),
             _ => "i64".into(),
@@ -450,9 +461,9 @@ impl LlvmGenerator {
             ResolvedType::Enum(name, _) => format!("%{}*", name),
             ResolvedType::Array(_, _) => "i64".into(), // Arrays are opaque pointers for now
             ResolvedType::Slice(_) => "i64".into(),
-            ResolvedType::Option(inner) => self.map_type(inner),
-            ResolvedType::Result(ok, _) => self.map_type(ok),
-            ResolvedType::Future(inner) => self.map_type(inner),
+            ResolvedType::Option(_) => "i8*".into(),
+            ResolvedType::Result(_, _) => "i8*".into(),
+            ResolvedType::Future(_) => "i8*".into(),
             ResolvedType::Function { .. } => "i64".into(), // Function pointers
             ResolvedType::Generic(name) => self.map_type_from_str(name),
             ResolvedType::Tuple(items) => {
@@ -574,7 +585,118 @@ impl LlvmGenerator {
         expr: &Expr,
         target_ty: &str,
     ) -> KainResult<(String, String)> {
+        match expr {
+            Expr::Await(value, span) => {
+                return self.compile_await_for_target_type(value, target_ty, *span);
+            }
+            Expr::Try(value, span) => {
+                return self.compile_try_for_target_type(value, target_ty, *span);
+            }
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                span,
+            } if matches!(method.as_str(), "unwrap" | "expect") => {
+                let (boxed_value, boxed_ty) = self.compile_expr(receiver)?;
+                if boxed_ty == "i8*" {
+                    if method == "expect" && args.len() != 1 {
+                        return Err(KainError::codegen(
+                            "expect expects exactly one message argument",
+                            *span,
+                        ));
+                    }
+                    if method == "unwrap" && !args.is_empty() {
+                        return Err(KainError::codegen("unwrap expects no arguments", *span));
+                    }
+                    return self.compile_tagged_payload_copy(
+                        &boxed_value,
+                        target_ty,
+                        "kain_native_tagged_payload_copy",
+                        *span,
+                    );
+                }
+            }
+            Expr::MethodCall {
+                receiver,
+                method,
+                args,
+                span,
+            } if method == "unwrap_or" => {
+                if args.len() != 1 {
+                    return Err(KainError::codegen(
+                        "unwrap_or expects exactly one default argument",
+                        *span,
+                    ));
+                }
+                let (boxed_value, boxed_ty) = self.compile_expr(receiver)?;
+                if boxed_ty == "i8*" {
+                    let is_success_i64 = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = call i64 @kain_native_tagged_is_success(i8* {})",
+                        is_success_i64, boxed_value
+                    ));
+                    let is_success = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = icmp ne i64 {}, 0",
+                        is_success, is_success_i64
+                    ));
+                    let payload_label = self.next_label();
+                    let default_label = self.next_label();
+                    let merge_label = self.next_label();
+                    self.emit(&format!(
+                        "  br i1 {}, label %{}, label %{}",
+                        is_success, payload_label, default_label
+                    ));
+
+                    self.emit_label(&payload_label);
+                    let (payload_value, payload_ty) = self.compile_tagged_payload_copy(
+                        &boxed_value,
+                        target_ty,
+                        "kain_native_tagged_payload_copy",
+                        *span,
+                    )?;
+                    let payload_block = self.current_block.clone();
+                    self.emit(&format!("  br label %{}", merge_label));
+
+                    self.emit_label(&default_label);
+                    let (default_value, default_ty) =
+                        self.compile_expr_for_target_type(&args[0].value, target_ty)?;
+                    let default_block = self.current_block.clone();
+                    self.emit(&format!("  br label %{}", merge_label));
+
+                    if payload_ty != default_ty {
+                        return Err(KainError::codegen(
+                            "unwrap_or payload and default produced different LLVM types",
+                            *span,
+                        ));
+                    }
+                    self.emit_label(&merge_label);
+                    let merged = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = phi {} [ {}, %{} ], [ {}, %{} ]",
+                        merged,
+                        target_ty,
+                        payload_value,
+                        payload_block,
+                        default_value,
+                        default_block
+                    ));
+                    return Ok((merged, target_ty.to_string()));
+                }
+            }
+            _ => {}
+        }
+
         if matches!(expr, Expr::None(_)) {
+            if target_ty == "i8*" {
+                let value = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @kain_native_option_none()",
+                    value
+                ));
+                return Ok((value, target_ty.to_string()));
+            }
             return Ok((self.zero_value_for_ty(target_ty), target_ty.to_string()));
         }
 
@@ -752,6 +874,251 @@ impl LlvmGenerator {
         ));
 
         Ok((stored_value, stored_ty))
+    }
+
+    fn compile_payload_pointer_from_value(
+        &mut self,
+        value: &str,
+        value_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, usize)> {
+        if value_ty == "void" {
+            return Ok(("null".to_string(), 0));
+        }
+
+        let (payload_size, _) = self.abi_layout_for_ty(value_ty, span)?;
+        if value_ty == "i8*" {
+            self.emit(&format!("  call void @rc_retain(i8* {})", value));
+        } else if value_ty.starts_with('%') && value_ty.ends_with('*') {
+            let retained = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast {} {} to i8*",
+                retained, value_ty, value
+            ));
+            self.emit(&format!("  call void @rc_retain(i8* {})", retained));
+        }
+        let stack_slot = self.next_reg();
+        self.emit(&format!("  {} = alloca {}", stack_slot, value_ty));
+        self.emit(&format!(
+            "  store {} {}, {}* {}",
+            value_ty, value, value_ty, stack_slot
+        ));
+        let payload_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {}* {} to i8*",
+            payload_ptr, value_ty, stack_slot
+        ));
+        Ok((payload_ptr, payload_size))
+    }
+
+    fn compile_tagged_payload_copy(
+        &mut self,
+        boxed_value: &str,
+        target_ty: &str,
+        copy_function: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        if target_ty == "void" {
+            return Ok(("0".to_string(), "i64".to_string()));
+        }
+
+        let (payload_size, _) = self.abi_layout_for_ty(target_ty, span)?;
+        let out_slot = self.next_reg();
+        self.emit(&format!("  {} = alloca {}", out_slot, target_ty));
+        let out_i8 = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast {}* {} to i8*",
+            out_i8, target_ty, out_slot
+        ));
+        let status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @{}(i8* {}, i8* {}, i64 {})",
+            status, copy_function, boxed_value, out_i8, payload_size
+        ));
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            loaded, target_ty, target_ty, out_slot
+        ));
+        Ok((loaded, target_ty.to_string()))
+    }
+
+    fn compile_native_option_or_result_variant(
+        &mut self,
+        enum_name: &str,
+        variant: &str,
+        fields: &kain_core::ast::EnumVariantFields,
+        span: Span,
+    ) -> KainResult<Option<(String, String)>> {
+        let constructor = match (enum_name, variant) {
+            ("Option", "None") => {
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @kain_native_option_none()",
+                    result
+                ));
+                return Ok(Some((result, "i8*".to_string())));
+            }
+            ("Option", "Some") => "kain_native_option_some",
+            ("Result", "Ok") => "kain_native_result_ok",
+            ("Result", "Err") => "kain_native_result_err",
+            _ => return Ok(None),
+        };
+
+        let values = match fields {
+            kain_core::ast::EnumVariantFields::Tuple(values) if values.len() == 1 => values,
+            _ => {
+                return Err(KainError::codegen(
+                    format!("{}::{} expects exactly one payload", enum_name, variant),
+                    span,
+                ))
+            }
+        };
+
+        let (payload_value, payload_ty) = self.compile_expr(&values[0])?;
+        let (payload_ptr, payload_size) =
+            self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @{}(i8* {}, i64 {})",
+            result, constructor, payload_ptr, payload_size
+        ));
+        Ok(Some((result, "i8*".to_string())))
+    }
+
+    fn compile_native_variant_function_call(
+        &mut self,
+        func_name: &str,
+        args: &[kain_core::ast::CallArg],
+        span: Span,
+    ) -> KainResult<Option<(String, String)>> {
+        match func_name {
+            "Some" => {
+                if args.len() != 1 {
+                    return Err(KainError::codegen(
+                        "Some expects exactly one argument",
+                        span,
+                    ));
+                }
+                let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
+                let (payload_ptr, payload_size) =
+                    self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @kain_native_option_some(i8* {}, i64 {})",
+                    result, payload_ptr, payload_size
+                ));
+                Ok(Some((result, "i8*".to_string())))
+            }
+            "Ok" | "Err" => {
+                if args.len() != 1 {
+                    return Err(KainError::codegen(
+                        format!("{} expects exactly one argument", func_name),
+                        span,
+                    ));
+                }
+                let constructor = if func_name == "Ok" {
+                    "kain_native_result_ok"
+                } else {
+                    "kain_native_result_err"
+                };
+                let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
+                let (payload_ptr, payload_size) =
+                    self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @{}(i8* {}, i64 {})",
+                    result, constructor, payload_ptr, payload_size
+                ));
+                Ok(Some((result, "i8*".to_string())))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn compile_async_block(&mut self, body: &Expr, span: Span) -> KainResult<(String, String)> {
+        let (payload_value, payload_ty) = self.compile_expr(body)?;
+        let (payload_ptr, payload_size) =
+            self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
+        let future = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @kain_native_future_ready_from_value(i8* {}, i64 {})",
+            future, payload_ptr, payload_size
+        ));
+        Ok((future, "i8*".to_string()))
+    }
+
+    fn compile_await_for_target_type(
+        &mut self,
+        future_expr: &Expr,
+        target_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let (future_value, future_ty) = self.compile_expr(future_expr)?;
+        if future_ty != "i8*" {
+            return Err(KainError::codegen(
+                format!("await expected native Future handle, found {}", future_ty),
+                span,
+            ));
+        }
+        self.compile_tagged_payload_copy(
+            &future_value,
+            target_ty,
+            "kain_native_future_await_payload_copy",
+            span,
+        )
+    }
+
+    fn compile_try_for_target_type(
+        &mut self,
+        value_expr: &Expr,
+        target_ty: &str,
+        span: Span,
+    ) -> KainResult<(String, String)> {
+        let (boxed_value, boxed_ty) = self.compile_expr(value_expr)?;
+        if boxed_ty != "i8*" {
+            return Err(KainError::codegen(
+                format!(
+                    "'?' expected native Option or Result handle, found {}",
+                    boxed_ty
+                ),
+                span,
+            ));
+        }
+
+        let success_i64 = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_native_tagged_is_success(i8* {})",
+            success_i64, boxed_value
+        ));
+        let success = self.next_reg();
+        self.emit(&format!("  {} = icmp ne i64 {}, 0", success, success_i64));
+
+        let payload_label = self.next_label();
+        let residual_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            success, payload_label, residual_label
+        ));
+
+        self.emit_label(&residual_label);
+        if self.current_return_type.as_deref() == Some("i8*") {
+            self.emit_all_scopes_cleanup();
+            self.emit(&format!("  ret i8* {}", boxed_value));
+        } else {
+            return Err(KainError::codegen(
+                "'?' residual propagation requires an Option or Result return type in LLVM",
+                span,
+            ));
+        }
+
+        self.emit_label(&payload_label);
+        self.compile_tagged_payload_copy(
+            &boxed_value,
+            target_ty,
+            "kain_native_tagged_payload_copy",
+            span,
+        )
     }
 
     fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> String {
@@ -1071,6 +1438,26 @@ impl LlvmGenerator {
                 Ok(current)
             }
             Pattern::Variant { variant, .. } => {
+                if scrutinee_ty == "i8*" {
+                    let native_tag = match variant.as_str() {
+                        "None" => Some(0),
+                        "Some" => Some(1),
+                        "Ok" => Some(2),
+                        "Err" => Some(3),
+                        _ => None,
+                    };
+                    if let Some(tag) = native_tag {
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @kain_native_tagged_matches(i8* {}, i64 {})",
+                            status, scrutinee_val, tag
+                        ));
+                        let cmp = self.next_reg();
+                        self.emit(&format!("  {} = icmp ne i64 {}, 0", cmp, status));
+                        return Ok(cmp);
+                    }
+                }
+
                 let enum_name = enum_name.ok_or_else(|| {
                     KainError::codegen("Variant pattern requires an enum scrutinee", span)
                 })?;
@@ -1331,6 +1718,32 @@ impl LlvmGenerator {
             Pattern::Variant {
                 variant, fields, ..
             } => {
+                if scrutinee_ty == "i8*" {
+                    match fields {
+                        VariantPatternFields::Unit => return Ok(()),
+                        VariantPatternFields::Tuple(patterns) if patterns.len() == 1 => {
+                            let target_ty = "i64";
+                            let (payload_value, payload_ty) = self.compile_tagged_payload_copy(
+                                scrutinee_val,
+                                target_ty,
+                                "kain_native_tagged_payload_copy",
+                                span,
+                            )?;
+                            return self.bind_local_pattern_value(
+                                &patterns[0],
+                                payload_value,
+                                payload_ty,
+                            );
+                        }
+                        _ => {
+                            return Err(KainError::codegen(
+                                format!("Unsupported native tagged pattern fields for {}", variant),
+                                span,
+                            ))
+                        }
+                    }
+                }
+
                 let enum_name = enum_name.ok_or_else(|| {
                     KainError::codegen("Variant pattern requires an enum scrutinee", span)
                 })?;
@@ -1359,23 +1772,81 @@ impl LlvmGenerator {
         }
     }
 
-    fn struct_name_and_ptr_type(&self, ty: &str) -> Option<(String, String)> {
-        if let Some(struct_name) = self.ptr_struct_name(ty) {
-            return Some((struct_name.to_string(), ty.to_string()));
-        }
-
-        if ty.starts_with('%') {
-            return Some((ty[1..].to_string(), format!("{}*", ty)));
-        }
-
-        None
-    }
-
     fn field_index(&self, struct_name: &str, field: &str) -> Option<usize> {
         self.struct_defs
             .get(struct_name)?
             .iter()
             .position(|(name, _)| name == field)
+    }
+
+    fn native_world_field_path(&self, struct_name: &str, field: &str) -> Option<String> {
+        if self.world_globals.contains_key(struct_name) {
+            Some(format!("{}.{}", struct_name, field))
+        } else {
+            None
+        }
+    }
+
+    fn native_entangle_authority_binding(&self, path: &str) -> Option<NativeEntangleBinding> {
+        self.native_entanglements
+            .iter()
+            .find(|binding| binding.authority == path)
+            .cloned()
+    }
+
+    fn native_entangle_mirror_binding(&self, path: &str) -> Option<NativeEntangleBinding> {
+        self.native_entanglements
+            .iter()
+            .find(|binding| binding.mirror == path)
+            .cloned()
+    }
+
+    fn emit_patch_record_i64(&mut self, path: &str, old_value: &str, new_value: &str) {
+        if let Some(patch_name) = self.current_patch_name.clone() {
+            let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+            let path_ptr = self.compile_static_c_string_literal(path);
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_patch_record_i64(i8* {}, i8* {}, i64 {}, i64 {})",
+                status, patch_name_ptr, path_ptr, old_value, new_value
+            ));
+        }
+    }
+
+    fn emit_entangle_i64_propagation(
+        &mut self,
+        binding: &NativeEntangleBinding,
+        propagated_value: &str,
+    ) -> KainResult<()> {
+        let Some((mirror_world, mirror_field)) = binding.mirror.split_once('.') else {
+            return Ok(());
+        };
+        let Some(world_info) = self.world_globals.get(mirror_world).cloned() else {
+            return Ok(());
+        };
+        let Some(field_index) = self.field_index(mirror_world, mirror_field) else {
+            return Ok(());
+        };
+
+        self.emit(&format!("  call void @{}()", world_info.init_fn_name));
+        let mirror_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+            mirror_ptr, mirror_world, mirror_world, world_info.global_symbol, field_index
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}",
+            propagated_value, mirror_ptr
+        ));
+
+        let authority = self.compile_static_c_string_literal(&binding.authority);
+        let mirror = self.compile_static_c_string_literal(&binding.mirror);
+        let status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_native_entangle_record_i64(i8* {}, i8* {}, i64 {})",
+            status, authority, mirror, propagated_value
+        ));
+        Ok(())
     }
 
     fn compile_temporary_address(&mut self, expr: &Expr) -> KainResult<(String, String)> {
@@ -2577,6 +3048,32 @@ impl LlvmGenerator {
         self.emit("declare i64 @array_get(i8*, i64)");
         self.emit("declare void @array_set(i8*, i64, i64)");
         self.emit("declare i64 @array_len(i8*)");
+        self.emit("declare i8* @kain_native_option_none()");
+        self.emit("declare i8* @kain_native_option_some(i8*, i64)");
+        self.emit("declare i64 @kain_native_option_is_some(i8*)");
+        self.emit("declare i64 @kain_native_option_is_none(i8*)");
+        self.emit("declare i64 @kain_native_option_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @kain_native_result_ok(i8*, i64)");
+        self.emit("declare i8* @kain_native_result_err(i8*, i64)");
+        self.emit("declare i64 @kain_native_result_is_ok(i8*)");
+        self.emit("declare i64 @kain_native_result_is_err(i8*)");
+        self.emit("declare i8* @kain_native_result_ok_option(i8*)");
+        self.emit("declare i64 @kain_native_result_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i64 @kain_native_tagged_is_success(i8*)");
+        self.emit("declare i64 @kain_native_tagged_matches(i8*, i64)");
+        self.emit("declare i64 @kain_native_tagged_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @kain_native_future_ready_from_value(i8*, i64)");
+        self.emit("declare i64 @kain_native_future_state(i8*)");
+        self.emit("declare i64 @kain_native_future_await_payload_copy(i8*, i8*, i64)");
+        self.emit("declare i8* @kain_native_async_sleep_future(i64)");
+        self.emit("declare i64 @kain_native_patch_begin(i8*)");
+        self.emit("declare i64 @kain_native_patch_record_i64(i8*, i8*, i64, i64)");
+        self.emit("declare i64 @kain_native_patch_commit(i8*)");
+        self.emit("declare i64 @kain_native_entangle_record_i64(i8*, i8*, i64)");
+        self.emit("declare i64 @kain_native_converge_record_i64(i8*, i8*, i64, i64)");
+        self.emit("declare i64 @kain_native_converge_record_bool(i8*, i8*, i32)");
+        self.emit("declare i64 @kain_native_orchestrate_stage_begin(i8*, i8*)");
+        self.emit("declare i64 @kain_native_orchestrate_stage_end_i64(i8*, i8*, i64)");
 
         // Canonical actor runtime ABI
         self.emit("declare void @kain_actor_spawn_config_init(%KainActorSpawnConfig*)");
@@ -2939,6 +3436,15 @@ impl LlvmGenerator {
             self.emit("  call void @__kain_register_entanglements()");
         }
 
+        if let Some(patch_name) = self.current_patch_name.clone() {
+            let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_patch_begin(i8* {})",
+                status, patch_name_ptr
+            ));
+        }
+
         for (index, param) in params.iter().enumerate() {
             let param_ty = param_type_strings[index].clone();
             let addr_reg = format!("%{}.addr", param.name);
@@ -2964,6 +3470,15 @@ impl LlvmGenerator {
         }
         self.emit_scope_exit();
 
+        if let Some(patch_name) = self.current_patch_name.clone() {
+            let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                status, patch_name_ptr
+            ));
+        }
+
         if ret_type == "void" {
             self.emit("  ret void");
         } else if is_main {
@@ -2979,14 +3494,17 @@ impl LlvmGenerator {
     }
 
     fn compile_patch(&mut self, patch: &kain_core::types::TypedPatch) -> KainResult<()> {
-        self.compile_named_callable(
+        let previous_patch = self.current_patch_name.replace(patch.ast.name.clone());
+        let result = self.compile_named_callable(
             &patch.ast.name,
             &patch.ast.params,
             patch.ast.return_type.as_ref(),
             &patch.ast.body,
             &patch.resolved_type,
             patch.ast.span,
-        )
+        );
+        self.current_patch_name = previous_patch;
+        result
     }
 
     fn compile_law(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
@@ -3001,14 +3519,185 @@ impl LlvmGenerator {
     }
 
     fn compile_converge(&mut self, converge: &kain_core::types::TypedConverge) -> KainResult<()> {
+        let Some(fast_lane) = converge.ast.fast_lanes.first() else {
+            return self.compile_named_callable(
+                &converge.ast.name,
+                &converge.ast.params,
+                converge.ast.return_type.as_ref(),
+                &converge.ast.spec_lane.body,
+                &converge.resolved_type,
+                converge.ast.span,
+            );
+        };
+
+        let spec_name = format!("{}__spec", converge.ast.name);
+        let fast_name = format!(
+            "{}__fast_{}",
+            converge.ast.name,
+            Self::sanitize_type_fragment(&fast_lane.lane_name)
+        );
+
         self.compile_named_callable(
-            &converge.ast.name,
+            &spec_name,
             &converge.ast.params,
             converge.ast.return_type.as_ref(),
             &converge.ast.spec_lane.body,
             &converge.resolved_type,
             converge.ast.span,
-        )
+        )?;
+        self.compile_named_callable(
+            &fast_name,
+            &converge.ast.params,
+            converge.ast.return_type.as_ref(),
+            &fast_lane.body,
+            &converge.resolved_type,
+            converge.ast.span,
+        )?;
+
+        self.reg_count = 0;
+        self.locals.clear();
+        self.borrowed_locals.clear();
+        self.scopes.clear();
+        self.scopes.push(Vec::new());
+
+        let (param_types, mut ret_type) = self.callable_signature(
+            &converge.resolved_type,
+            &converge.ast.name,
+            converge.ast.span,
+        )?;
+        if let Some(return_type) = &converge.ast.return_type {
+            ret_type = self.map_type_from_ast(return_type);
+        }
+        self.current_return_type = Some(ret_type.clone());
+        let param_type_strings =
+            self.ast_param_codegen_types(&converge.ast.params, &param_types)?;
+        let params = param_type_strings
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| format!("{} %arg{}", ty, index))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let args = param_type_strings
+            .iter()
+            .enumerate()
+            .map(|(index, ty)| format!("{} %arg{}", ty, index))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        self.emit(&format!(
+            "define {} @{}({}) {{",
+            ret_type, converge.ast.name, params
+        ));
+        self.emit_label("entry");
+
+        if ret_type == "void" {
+            self.emit(&format!("  call void @{}({})", spec_name, args));
+            self.emit(&format!("  call void @{}({})", fast_name, args));
+            let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
+            let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
+            let _status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 1)",
+                _status, converge_name, lane_name
+            ));
+            self.emit("  ret void");
+            self.emit("}");
+            self.emit("");
+            self.current_return_type = None;
+            return Ok(());
+        }
+
+        let spec_value = self.next_reg();
+        self.emit(&format!(
+            "  {} = call {} @{}({})",
+            spec_value, ret_type, spec_name, args
+        ));
+        let fast_value = self.next_reg();
+        self.emit(&format!(
+            "  {} = call {} @{}({})",
+            fast_value, ret_type, fast_name, args
+        ));
+
+        let matches = self.next_reg();
+        match ret_type.as_str() {
+            "i64" => {
+                self.emit(&format!(
+                    "  {} = icmp eq i64 {}, {}",
+                    matches, spec_value, fast_value
+                ));
+                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
+                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_native_converge_record_i64(i8* {}, i8* {}, i64 {}, i64 {})",
+                    status, converge_name, lane_name, spec_value, fast_value
+                ));
+            }
+            "i1" => {
+                self.emit(&format!(
+                    "  {} = icmp eq i1 {}, {}",
+                    matches, spec_value, fast_value
+                ));
+                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
+                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
+                let matches_i32 = self.next_reg();
+                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
+                    status, converge_name, lane_name, matches_i32
+                ));
+            }
+            "double" => {
+                self.emit(&format!(
+                    "  {} = fcmp oeq double {}, {}",
+                    matches, spec_value, fast_value
+                ));
+                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
+                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
+                let matches_i32 = self.next_reg();
+                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
+                    status, converge_name, lane_name, matches_i32
+                ));
+            }
+            "i8*" => {
+                self.emit(&format!(
+                    "  {} = call i1 @deep_eq(i8* {}, i8* {})",
+                    matches, spec_value, fast_value
+                ));
+                let converge_name = self.compile_static_c_string_literal(&converge.ast.name);
+                let lane_name = self.compile_static_c_string_literal(&fast_lane.lane_name);
+                let matches_i32 = self.next_reg();
+                self.emit(&format!("  {} = zext i1 {} to i32", matches_i32, matches));
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @kain_native_converge_record_bool(i8* {}, i8* {}, i32 {})",
+                    status, converge_name, lane_name, matches_i32
+                ));
+            }
+            _ => {
+                self.emit("  ; converge verification fallback: returning spec lane for unsupported result ABI");
+                self.emit(&format!("  ret {} {}", ret_type, spec_value));
+                self.emit("}");
+                self.emit("");
+                self.current_return_type = None;
+                return Ok(());
+            }
+        }
+
+        let selected = self.next_reg();
+        self.emit(&format!(
+            "  {} = select i1 {}, {} {}, {} {}",
+            selected, matches, ret_type, fast_value, ret_type, spec_value
+        ));
+        self.emit(&format!("  ret {} {}", ret_type, selected));
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+        Ok(())
     }
 
     fn compile_world_initializer(
@@ -3311,6 +4000,14 @@ impl LlvmGenerator {
                     }
 
                     self.emit_all_scopes_cleanup();
+                    if let Some(patch_name) = self.current_patch_name.clone() {
+                        let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                            status, patch_name_ptr
+                        ));
+                    }
 
                     if let Some(return_slot) = actor_return_slot {
                         self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, return_slot));
@@ -3324,6 +4021,14 @@ impl LlvmGenerator {
                     }
                 } else {
                     self.emit_all_scopes_cleanup();
+                    if let Some(patch_name) = self.current_patch_name.clone() {
+                        let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
+                        let status = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = call i64 @kain_native_patch_commit(i8* {})",
+                            status, patch_name_ptr
+                        ));
+                    }
                     if let Some(return_label) = actor_return_label {
                         self.emit(&format!("  br label %{}", return_label));
                     } else {
@@ -3588,7 +4293,22 @@ impl LlvmGenerator {
             runtime.as_str(),
             function
         ));
-        self.compile_direct_call(function, args)
+        let runtime_name = self.compile_static_c_string_literal(runtime.as_str());
+        let function_name = self.compile_static_c_string_literal(function);
+        let begin_status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i64 @kain_native_orchestrate_stage_begin(i8* {}, i8* {})",
+            begin_status, runtime_name, function_name
+        ));
+        let (value, ty) = self.compile_direct_call(function, args)?;
+        if ty == "i64" {
+            let end_status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @kain_native_orchestrate_stage_end_i64(i8* {}, i8* {}, i64 {})",
+                end_status, runtime_name, function_name, value
+            ));
+        }
+        Ok((value, ty))
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
@@ -3606,7 +4326,14 @@ impl LlvmGenerator {
                 }
                 Ok((acc, "i8*".to_string()))
             }
-            Expr::None(_) => Ok(("0".into(), "i64".to_string())),
+            Expr::None(_) => {
+                let value = self.next_reg();
+                self.emit(&format!("  {} = call i8* @kain_native_option_none()", value));
+                Ok((value, "i8*".to_string()))
+            }
+            Expr::Try(value, span) => self.compile_try_for_target_type(value, "i64", *span),
+            Expr::Await(value, span) => self.compile_await_for_target_type(value, "i64", *span),
+            Expr::AsyncBlock(body, span) => self.compile_async_block(body, *span),
             Expr::JSX(node, _) => self.compile_jsx(node),
             Expr::Paren(inner, _) => self.compile_expr(inner),
             Expr::Block(block, _) => self
@@ -3828,17 +4555,83 @@ impl LlvmGenerator {
                     }
                 }
                 Expr::Field { object, field, .. } => {
-                    let field_expr = Expr::Field {
-                        object: object.clone(),
-                        field: field.clone(),
-                        span: *span,
+                    let (obj_val, obj_ty) = self.compile_expr(object)?;
+                    let (struct_name, struct_ptr, field_index) =
+                        if let Some(struct_name) = self.ptr_struct_name(&obj_ty) {
+                            let index = self.field_index(struct_name, field).ok_or_else(|| {
+                                KainError::codegen(
+                                    format!("Unknown field '{}' on {}", field, struct_name),
+                                    *span,
+                                )
+                            })?;
+                            (struct_name.to_string(), obj_val, index)
+                        } else if obj_ty.starts_with('%') {
+                            let struct_name = obj_ty[1..].to_string();
+                            let index = self.field_index(&struct_name, field).ok_or_else(|| {
+                                KainError::codegen(
+                                    format!("Unknown field '{}' on {}", field, struct_name),
+                                    *span,
+                                )
+                            })?;
+                            let tmp_addr = self.next_reg();
+                            self.emit(&format!("  {} = alloca {}", tmp_addr, obj_ty));
+                            self.emit(&format!(
+                                "  store {} {}, {}* {}",
+                                obj_ty, obj_val, obj_ty, tmp_addr
+                            ));
+                            (struct_name, tmp_addr, index)
+                        } else {
+                            return Err(KainError::codegen(
+                                "Field assignment requires a struct or struct pointer",
+                                *span,
+                            ));
+                        };
+                    let field_ty = self
+                        .struct_defs
+                        .get(&struct_name)
+                        .and_then(|fields| fields.get(field_index))
+                        .map(|(_, ty)| ty.clone())
+                        .unwrap_or_else(|| "i64".to_string());
+                    let field_path = self.native_world_field_path(&struct_name, field);
+                    if let Some(path) = field_path.as_ref() {
+                        if let Some(binding) = self.native_entangle_mirror_binding(path) {
+                            return Err(KainError::codegen(
+                                format!(
+                                    "cannot write entangle mirror '{}' directly; write authority '{}'",
+                                    binding.mirror, binding.authority
+                                ),
+                                *span,
+                            ));
+                        }
+                    }
+                    let field_ptr = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                        field_ptr, struct_name, struct_name, struct_ptr, field_index
+                    ));
+                    let old_value = if self.current_patch_name.is_some() && field_ty == "i64" {
+                        let loaded = self.next_reg();
+                        self.emit(&format!("  {} = load i64, i64* {}", loaded, field_ptr));
+                        Some(loaded)
+                    } else {
+                        None
                     };
-                    let (field_ptr, field_ty) = self.compile_addressable_ptr(&field_expr)?;
                     let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &field_ty)?;
+                    if let (Some(path), Some(old_value)) = (field_path.as_ref(), old_value.as_ref())
+                    {
+                        self.emit_patch_record_i64(path, old_value, &rhs);
+                    }
                     self.emit(&format!(
                         "  store {} {}, {}* {}",
                         rhs_ty, rhs, field_ty, field_ptr
                     ));
+                    if field_ty == "i64" {
+                        if let Some(path) = field_path.as_ref() {
+                            if let Some(binding) = self.native_entangle_authority_binding(path) {
+                                self.emit_entangle_i64_propagation(&binding, &rhs)?;
+                            }
+                        }
+                    }
                     Ok((rhs, rhs_ty))
                 }
                 Expr::Index { object, index, .. } => {
@@ -4431,7 +5224,11 @@ impl LlvmGenerator {
                 }
             }
             Expr::Ident(name, span) => {
-                if let Some((ptr, ty)) = self.locals.get(name).cloned() {
+                if name == "None" {
+                    let value = self.next_reg();
+                    self.emit(&format!("  {} = call i8* @kain_native_option_none()", value));
+                    Ok((value, "i8*".to_string()))
+                } else if let Some((ptr, ty)) = self.locals.get(name).cloned() {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
                     Ok((reg, ty))
@@ -4636,6 +5433,92 @@ impl LlvmGenerator {
                 let (obj_val, obj_ty) = self.compile_expr(receiver)?;
 
                 // 1. Struct Methods: Call Struct_method(obj, args...)
+                if obj_ty == "i8*" {
+                    match method.as_str() {
+                        "is_some" => {
+                            if !args.is_empty() {
+                                return Err(KainError::codegen("is_some expects no arguments", *span));
+                            }
+                            let status = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i64 @kain_native_option_is_some(i8* {})",
+                                status, obj_val
+                            ));
+                            let result = self.next_reg();
+                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            return Ok((result, "i1".to_string()));
+                        }
+                        "is_none" => {
+                            if !args.is_empty() {
+                                return Err(KainError::codegen("is_none expects no arguments", *span));
+                            }
+                            let status = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i64 @kain_native_option_is_none(i8* {})",
+                                status, obj_val
+                            ));
+                            let result = self.next_reg();
+                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            return Ok((result, "i1".to_string()));
+                        }
+                        "is_ok" => {
+                            if !args.is_empty() {
+                                return Err(KainError::codegen("is_ok expects no arguments", *span));
+                            }
+                            let status = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i64 @kain_native_result_is_ok(i8* {})",
+                                status, obj_val
+                            ));
+                            let result = self.next_reg();
+                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            return Ok((result, "i1".to_string()));
+                        }
+                        "is_err" => {
+                            if !args.is_empty() {
+                                return Err(KainError::codegen("is_err expects no arguments", *span));
+                            }
+                            let status = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i64 @kain_native_result_is_err(i8* {})",
+                                status, obj_val
+                            ));
+                            let result = self.next_reg();
+                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            return Ok((result, "i1".to_string()));
+                        }
+                        "ok" => {
+                            if !args.is_empty() {
+                                return Err(KainError::codegen("Result.ok expects no arguments", *span));
+                            }
+                            let result = self.next_reg();
+                            self.emit(&format!(
+                                "  {} = call i8* @kain_native_result_ok_option(i8* {})",
+                                result, obj_val
+                            ));
+                            return Ok((result, "i8*".to_string()));
+                        }
+                        "unwrap" | "expect" => {
+                            if method == "expect" && args.len() != 1 {
+                                return Err(KainError::codegen(
+                                    "expect expects exactly one message argument",
+                                    *span,
+                                ));
+                            }
+                            if method == "unwrap" && !args.is_empty() {
+                                return Err(KainError::codegen("unwrap expects no arguments", *span));
+                            }
+                            return self.compile_tagged_payload_copy(
+                                &obj_val,
+                                "i64",
+                                "kain_native_tagged_payload_copy",
+                                *span,
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+
                 if obj_ty.starts_with("%") && obj_ty.ends_with("*") {
                     let struct_name = &obj_ty[1..obj_ty.len() - 1]; // Remove % and *
                     let func_name = format!("{}_{}", struct_name, method);
@@ -4686,6 +5569,11 @@ impl LlvmGenerator {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(result) = self.compile_lowered_helper_call(name, args, *span) {
                         return result;
+                    }
+                    if let Some(result) =
+                        self.compile_native_variant_function_call(name, args, *span)?
+                    {
+                        return Ok(result);
                     }
                 }
 
@@ -4739,8 +5627,14 @@ impl LlvmGenerator {
                 enum_name,
                 variant,
                 fields,
-                ..
+                span,
             } => {
+                if let Some(result) =
+                    self.compile_native_option_or_result_variant(enum_name, variant, fields, *span)?
+                {
+                    return Ok(result);
+                }
+
                 let struct_ty = format!("%{}", enum_name);
                 let ptr_ty = format!("{}*", struct_ty);
 

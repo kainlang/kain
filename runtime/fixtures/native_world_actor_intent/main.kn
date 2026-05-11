@@ -59,9 +59,11 @@ fn main() -> Int:
     let updated = set_health(physics, 41)
     let law_status = native_law_status(health_valid(updated))
     let orchestration_status = native_orchestrate_merge_status(init_status, law_status)
+    let pipeline_result = pipeline(updated)
+    let native_intent_runtime_ok = native_patch_journal_count() >= 1 and native_entangle_propagation_count() >= 1 and native_converge_mismatch_count() == 0 and native_orchestrate_stage_count() >= 1
 
-    if native_status_ok(orchestration_status) and registered_entanglements >= 1 and actor_abi_ok and actor_timeout_ok and actor_supervision_ok:
-        let published = native_converge_choose_int(pipeline(updated), 44)
+    if native_status_ok(orchestration_status) and registered_entanglements >= 1 and actor_abi_ok and actor_timeout_ok and actor_supervision_ok and native_intent_runtime_ok:
+        let published = native_converge_choose_int(pipeline_result, 44)
         if published == 44 and native_int_between(initial_queue_depth, 0, 999999):
             native_runtime_shutdown()
             return 0

@@ -8,6 +8,7 @@ sources = [
     "native/src/core/kain_runtime_core.c",
     "native/src/core/kain_runtime_version.c",
     "native/src/core/kain_runtime_diagnostics.c",
+    "native/src/core/kain_runtime_async.c",
     "native/src/core/kain_runtime_actor.c",
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",

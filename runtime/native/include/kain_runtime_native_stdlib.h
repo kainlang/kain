@@ -12,6 +12,28 @@ extern "C" {
 int64_t kain_native_runtime_init(void);
 int64_t kain_native_runtime_shutdown(void);
 
+void* kain_native_option_none(void);
+void* kain_native_option_some(const void* payload, int64_t payload_size);
+int64_t kain_native_option_is_some(const void* value);
+int64_t kain_native_option_is_none(const void* value);
+int64_t kain_native_option_payload_copy(const void* value, void* out_payload, int64_t out_payload_size);
+
+void* kain_native_result_ok(const void* payload, int64_t payload_size);
+void* kain_native_result_err(const void* payload, int64_t payload_size);
+int64_t kain_native_result_is_ok(const void* value);
+int64_t kain_native_result_is_err(const void* value);
+void* kain_native_result_ok_option(const void* value);
+int64_t kain_native_result_payload_copy(const void* value, void* out_payload, int64_t out_payload_size);
+
+int64_t kain_native_tagged_is_success(const void* value);
+int64_t kain_native_tagged_matches(const void* value, int64_t tag);
+int64_t kain_native_tagged_payload_copy(const void* value, void* out_payload, int64_t out_payload_size);
+
+void* kain_native_future_ready_from_value(const void* payload, int64_t payload_size);
+int64_t kain_native_future_state(const void* future_value);
+int64_t kain_native_future_await_payload_copy(const void* future_value, void* out_payload, int64_t out_payload_size);
+void* kain_native_async_sleep_future(int64_t milliseconds);
+
 int64_t kain_native_actor_abi_version(void);
 int64_t kain_native_actor_invalid_id(void);
 int64_t kain_native_actor_default_mailbox_capacity(void);
@@ -58,6 +80,26 @@ const char* kain_native_entangle_get_authority(int64_t index);
 const char* kain_native_entangle_get_mirror(int64_t index);
 const char* kain_native_entangle_get_policy(int64_t index);
 const char* kain_native_entangle_get_type_name(int64_t index);
+
+int64_t kain_native_patch_begin(const char* patch_name);
+int64_t kain_native_patch_record_i64(const char* patch_name, const char* path, int64_t old_value, int64_t new_value);
+int64_t kain_native_patch_commit(const char* patch_name);
+int64_t kain_native_patch_undo_last(void);
+int64_t kain_native_patch_journal_count(void);
+const char* kain_native_patch_last_path(void);
+
+int64_t kain_native_entangle_record_i64(const char* authority, const char* mirror, int64_t value);
+int64_t kain_native_entangle_propagation_count(void);
+const char* kain_native_entangle_last_authority(void);
+const char* kain_native_entangle_last_mirror(void);
+
+int64_t kain_native_converge_record_i64(const char* converge_name, const char* lane_name, int64_t spec_value, int64_t fast_value);
+int64_t kain_native_converge_record_bool(const char* converge_name, const char* lane_name, int fast_matches);
+int64_t kain_native_converge_mismatch_count(void);
+
+int64_t kain_native_orchestrate_stage_begin(const char* runtime_name, const char* function_name);
+int64_t kain_native_orchestrate_stage_end_i64(const char* runtime_name, const char* function_name, int64_t status);
+int64_t kain_native_orchestrate_stage_count(void);
 
 int64_t kain_native_now_millis(void);
 int64_t kain_native_sleep_millis(int64_t milliseconds);
