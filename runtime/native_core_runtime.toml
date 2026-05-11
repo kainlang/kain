@@ -1,0 +1,23 @@
+name = "kain-native-core-runtime"
+
+# Lean runtime manifest for normal LLVM/direct-C file builds.
+# Keep this focused on the ABI needed by the core language, native stdlib,
+# actors, entanglement, and intent helpers. The broader native_runtime.toml
+# remains the opt-in app/UI/vendor bundle.
+sources = [
+    "native/src/core/kain_runtime_core.c",
+    "native/src/core/kain_runtime_version.c",
+    "native/src/core/kain_runtime_diagnostics.c",
+    "native/src/core/kain_runtime_actor.c",
+    "native/src/core/kain_runtime_entangle.c",
+    "native/src/core/kain_runtime_native_stdlib.c",
+]
+
+include_dirs = [
+    "native/include",
+]
+
+[link]
+windows = []
+linux = []
+macos = []

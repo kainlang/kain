@@ -1,0 +1,31 @@
+pub fn native_result_ok() -> Int:
+    return 0
+
+pub fn native_result_cancelled() -> Int:
+    return 1
+
+pub fn native_result_invalid_argument() -> Int:
+    return -1
+
+pub fn native_result_not_found() -> Int:
+    return -2
+
+pub fn native_result_capacity_exceeded() -> Int:
+    return -3
+
+pub fn native_result_runtime_unavailable() -> Int:
+    return -4
+
+pub fn native_result_is_ok(status: Int) -> Bool:
+    return status == native_result_ok()
+
+pub fn native_result_is_error(status: Int) -> Bool:
+    return status < native_result_ok()
+
+pub fn native_result_is_control(status: Int) -> Bool:
+    return status > native_result_ok()
+
+pub fn native_result_combine(left: Int, right: Int) -> Int:
+    if left != 0:
+        return left
+    return right

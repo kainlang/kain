@@ -43,6 +43,7 @@ struct CGen {
     world_names: HashSet<String>,
     local_types: HashMap<String, String>,
     function_return_types: HashMap<String, String>,
+    has_entanglements: bool,
 }
 
 impl CGen {
@@ -53,6 +54,7 @@ impl CGen {
             world_names: HashSet::new(),
             local_types: HashMap::new(),
             function_return_types: HashMap::new(),
+            has_entanglements: false,
         }
     }
 
@@ -69,6 +71,8 @@ impl CGen {
         self.write_line("#include <stddef.h>");
         self.write_line("#include <stdint.h>");
         self.write_line("#include <stdio.h>");
+        self.write_blank();
+        self.write_line("typedef void* Any;");
         self.write_blank();
         self.write_print_helpers();
         self.write_blank();
@@ -133,8 +137,10 @@ impl CGen {
         for item in &program.items {
             match item {
                 TypedItem::Function(function) => {
-                    self.gen_function(&function.ast)?;
-                    self.write_blank();
+                    if !Self::function_is_extern(&function.ast) {
+                        self.gen_function(&function.ast)?;
+                        self.write_blank();
+                    }
                 }
                 TypedItem::Patch(patch) => {
                     self.gen_patch(&patch.ast)?;
@@ -154,14 +160,18 @@ impl CGen {
                 }
                 TypedItem::Struct(st) => {
                     for method in &st.ast.methods {
-                        self.gen_function(method)?;
-                        self.write_blank();
+                        if !Self::function_is_extern(method) {
+                            self.gen_function(method)?;
+                            self.write_blank();
+                        }
                     }
                 }
                 TypedItem::Impl(imp) => {
                     for method in &imp.ast.methods {
-                        self.gen_function(method)?;
-                        self.write_blank();
+                        if !Self::function_is_extern(method) {
+                            self.gen_function(method)?;
+                            self.write_blank();
+                        }
                     }
                 }
                 TypedItem::Const(_)
@@ -247,6 +257,13 @@ impl CGen {
         )
     }
 
+    fn function_is_extern(function: &Function) -> bool {
+        function
+            .attributes
+            .iter()
+            .any(|attribute| attribute.name == "extern")
+    }
+
     fn callable_item_signature(&self, item: &TypedItem) -> KainResult<Option<String>> {
         match item {
             TypedItem::Function(function) => Ok(Some(self.function_signature(&function.ast)?)),
@@ -287,7 +304,11 @@ impl CGen {
         if entanglements.is_empty() {
             return Ok(());
         }
+        self.has_entanglements = true;
 
+        self.write_line(
+            "int64_t kain_native_entangle_register(const char * authority, const char * mirror, const char * policy, const char * type_name);",
+        );
         self.write_line("typedef struct KainCEntangleBinding {");
         self.push_indent();
         self.write_line("const char *authority;");
@@ -312,6 +333,16 @@ impl CGen {
         self.write_line(
             "static const size_t __kain_entanglement_count = sizeof(__kain_entanglements) / sizeof(__kain_entanglements[0]);",
         );
+        self.write_line("static void __kain_register_entanglements(void) {");
+        self.push_indent();
+        self.write_line("for (size_t index = 0; index < __kain_entanglement_count; index++) {");
+        self.push_indent();
+        self.write_line("const KainCEntangleBinding *binding = &__kain_entanglements[index];");
+        self.write_line("(void)kain_native_entangle_register(binding->authority, binding->mirror, binding->policy, binding->type_name);");
+        self.pop_indent();
+        self.write_line("}");
+        self.pop_indent();
+        self.write_line("}");
         Ok(())
     }
 
@@ -405,6 +436,9 @@ impl CGen {
         self.begin_function_scope(&function.params)?;
         self.write_line(&format!("{} {{", self.function_signature(function)?));
         self.push_indent();
+        if function.name == "main" && self.has_entanglements {
+            self.write_line("__kain_register_entanglements();");
+        }
         let needs_implicit_return = function.return_type.is_some();
         self.gen_block_with_implicit_return(&function.body, needs_implicit_return)?;
         if function.name == "main" && function.return_type.is_none() {
@@ -494,7 +528,7 @@ impl CGen {
     }
 
     fn callable_return_type(&self, name: &str, return_type: Option<&Type>) -> KainResult<String> {
-        if name == "main" && return_type.is_none() {
+        if name == "main" {
             Ok("int".to_string())
         } else if let Some(return_type) = return_type {
             self.map_type(return_type)
@@ -741,6 +775,22 @@ impl CGen {
                     rendered_args.join(", ")
                 ))
             }
+            Expr::Spawn { actor, init, .. } => Ok(format!(
+                "kain_native_actor_spawn(\"{}\", \"{}\")",
+                self.escape_string(actor),
+                self.escape_string(&self.render_actor_payload_pairs(init)?)
+            )),
+            Expr::SendMsg {
+                target,
+                message,
+                data,
+                ..
+            } => Ok(format!(
+                "kain_native_actor_send({}, \"{}\", \"{}\")",
+                self.gen_expr(target)?,
+                self.escape_string(message),
+                self.escape_string(&self.render_actor_payload_pairs(data)?)
+            )),
             Expr::Field { object, field, .. } => self.gen_field_access(object, field),
             Expr::Index { object, index, .. } => Ok(format!(
                 "{}[{}]",
@@ -908,6 +958,7 @@ impl CGen {
             Expr::Bool(_, _) => Ok("bool".to_string()),
             Expr::Ident(name, _) if self.world_names.contains(name) => Ok(format!("{name}*")),
             Expr::Struct { name, .. } => Ok(name.clone()),
+            Expr::Spawn { .. } | Expr::SendMsg { .. } => Ok("int64_t".to_string()),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(return_type) = self.function_return_types.get(name) {
@@ -939,6 +990,31 @@ impl CGen {
         }
     }
 
+    fn render_actor_payload_pairs(&self, pairs: &[(String, Expr)]) -> KainResult<String> {
+        let rendered = pairs
+            .iter()
+            .map(|(name, value)| {
+                Ok(format!(
+                    "{}={}",
+                    name,
+                    self.render_actor_payload_value(value)?
+                ))
+            })
+            .collect::<KainResult<Vec<_>>>()?;
+        Ok(rendered.join(";"))
+    }
+
+    fn render_actor_payload_value(&self, value: &Expr) -> KainResult<String> {
+        match value {
+            Expr::Int(value, _) => Ok(value.to_string()),
+            Expr::Float(value, _) => Ok(format!("{value:.6}")),
+            Expr::String(value, _) => Ok(value.clone()),
+            Expr::Bool(value, _) => Ok(if *value { "true" } else { "false" }.to_string()),
+            Expr::Ident(name, _) => Ok(format!("${name}")),
+            _ => Ok(format!("<{}>", self.gen_expr(value)?)),
+        }
+    }
+
     fn map_type(&self, ty: &Type) -> KainResult<String> {
         match ty {
             Type::Named { name, generics, .. } => {
@@ -949,7 +1025,14 @@ impl CGen {
                     ));
                 }
                 Ok(match name.as_str() {
-                    "Int" | "isize" | "usize" => "int64_t",
+                    "Int" | "isize" | "i64" => "int64_t",
+                    "UInt" | "usize" | "u64" => "uint64_t",
+                    "i32" => "int32_t",
+                    "u32" => "uint32_t",
+                    "i16" => "int16_t",
+                    "u16" => "uint16_t",
+                    "i8" => "int8_t",
+                    "u8" => "uint8_t",
                     "Float" => "double",
                     "Bool" => "bool",
                     "String" => "const char *",

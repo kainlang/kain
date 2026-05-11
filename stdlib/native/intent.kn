@@ -1,0 +1,86 @@
+@extern
+fn kain_native_entangle_reset() -> Int
+
+@extern
+fn kain_native_entangle_registered_count() -> Int
+
+@extern
+fn kain_native_entangle_register(authority: String, mirror: String, policy: String, type_name: String) -> Int
+
+@extern
+fn kain_native_entangle_get_authority(index: Int) -> String
+
+@extern
+fn kain_native_entangle_get_mirror(index: Int) -> String
+
+@extern
+fn kain_native_entangle_get_policy(index: Int) -> String
+
+@extern
+fn kain_native_entangle_get_type_name(index: Int) -> String
+
+pub fn native_entangle_reset() -> Int:
+    return kain_native_entangle_reset()
+
+pub fn native_entangle_registered_count() -> Int:
+    return kain_native_entangle_registered_count()
+
+pub fn native_entangle_register(authority: String, mirror: String, policy: String, type_name: String) -> Int:
+    return kain_native_entangle_register(authority, mirror, policy, type_name)
+
+pub fn native_entangle_has_bindings() -> Bool:
+    return native_entangle_registered_count() > 0
+
+pub fn native_entangle_get_authority(index: Int) -> String:
+    return kain_native_entangle_get_authority(index)
+
+pub fn native_entangle_get_mirror(index: Int) -> String:
+    return kain_native_entangle_get_mirror(index)
+
+pub fn native_entangle_get_policy(index: Int) -> String:
+    return kain_native_entangle_get_policy(index)
+
+pub fn native_entangle_get_type_name(index: Int) -> String:
+    return kain_native_entangle_get_type_name(index)
+
+pub fn native_law_status(valid: Bool) -> Int:
+    if valid:
+        return 0
+    return -1
+
+pub fn native_law_is_valid_status(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_patch_status(changed: Bool) -> Int:
+    if changed:
+        return 1
+    return 0
+
+pub fn native_patch_is_noop(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_patch_applied(status: Int) -> Bool:
+    return status > 0
+
+pub fn native_converge_choose_int(spec_value: Int, fast_value: Int) -> Int:
+    if spec_value == fast_value:
+        return fast_value
+    return spec_value
+
+pub fn native_converge_choose_bool(spec_value: Bool, fast_value: Bool) -> Bool:
+    if spec_value == fast_value:
+        return fast_value
+    return spec_value
+
+pub fn native_converge_status(spec_value: Int, fast_value: Int) -> Int:
+    if spec_value == fast_value:
+        return 0
+    return 1
+
+pub fn native_orchestrate_stage_status(status: Int) -> Int:
+    return status
+
+pub fn native_orchestrate_merge_status(left: Int, right: Int) -> Int:
+    if left != 0:
+        return left
+    return right

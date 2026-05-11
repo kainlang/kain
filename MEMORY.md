@@ -1,5 +1,53 @@
 # Kain Memory
 
+# 2026-05-11 - Native stdlib and runtime facade landed for LLVM and direct C
+
+Kain now has a target-scoped native stdlib profile and C ABI facade that let actor, entangle, patch, law, converge, orchestrate, world, timing, diagnostics, and runtime helpers compile through both `-t llvm` and `-t c`.
+
+What changed:
+
+- Added `stdlib/native` as the shared native target stdlib profile for LLVM and direct C, plus `stdlib/c` as the direct C bridge layer. `crates/kain-core/src/stdlib.rs` loads all matching profiles for a target, so C gets `native` then `c`, while LLVM gets `native` only.
+- Added `runtime/native/include/kain_runtime_native_stdlib.h` and `runtime/native/src/core/kain_runtime_native_stdlib.c` as the narrow C ABI facade for native Kain stdlib calls. It wraps runtime init/shutdown, actor registry/spawn/send/scheduler helpers, entangle registry helpers, status/diagnostics, and timing.
+- Added `runtime/native_core_runtime.toml` as the default lean native runtime manifest for normal LLVM/direct-C file builds. The broader `runtime/native_runtime.toml` remains the app/vendor manifest and now also includes the native stdlib facade source.
+- Updated `crates/cli/src/main.rs` so native builds prefer `runtime/native_core_runtime.toml` before the broad manifest, and only stage the GPU runtime DLL when the LLVM artifact stage actually produced compute residency payloads.
+- Updated `crates/cli/src/llvm_native_stage.rs` so shader artifact staging only runs for source that declares shader items, avoiding shader/GPU sidecar work for native stdlib-only actor/intent programs.
+- Updated `crates/kain-sys-codegen/src/codegen_c.rs` so `@extern` functions become declarations only, `spawn`/`send` lower to the native actor facade, `main` emits a valid C `int`, unsigned integer casts map to C integer types, and direct C entangle metadata registers with the native runtime through a generated `__kain_register_entanglements()` thunk.
+- Added `runtime/fixtures/native_world_actor_intent/main.kn` as the all-in-one native proof for `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and the native stdlib facade.
+- Added `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` to exercise the facade directly from C.
+
+Design decisions:
+
+- The native stdlib is target-scoped on purpose. Do not let LLVM/C native builds fall back to the root stdlib unless the target profile is absent; the generic root includes richer constructs that direct C does not yet own.
+- `runtime/native_core_runtime.toml` is the safe default for ordinary language/native proof builds. Use the full `runtime/native_runtime.toml` when the task needs the broader app/UI/vendor runtime surface.
+- Direct C now links against the same native runtime facade as LLVM for first-class actor and entangle behavior. It remains an experimental subset, but unsupported forms should fail explicitly rather than silently erasing core language declarations.
+- The current actor facade spawn path uses a generic blocking actor bootstrap for named-payload mailbox traffic. It proves runtime wiring and send/spawn ABI, not compiler-generated per-actor handler specialization for direct C yet.
+
+Validation:
+
+- `cargo test -p kain-core stdlib --target-dir target\\codex-native-stdlib-core`
+- `cargo test -p kain-entangle --target-dir target\\codex-native-entangle`
+- `cargo test -p kain-sys-codegen c_backend --target-dir target\\codex-native-stdlib -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-native-stdlib-cli`
+- `cargo test -p cli --lib "stage_llvm_native_artifacts_" --target-dir target\\codex-native-stdlib-cli-test -- --nocapture`
+- `cargo test -p cli --bin kain native_runtime_manifest_candidates_prefer_core_runtime --target-dir target\\codex-native-stdlib-cli-bin-test -- --nocapture`
+- `toolchain\\llvm\\bin\\clang.exe -c runtime\\native\\src\\core\\kain_runtime_native_stdlib.c -Iruntime\\native\\include -o target\\codex-native-stdlib\\kain_runtime_native_stdlib.obj`
+- `toolchain\\llvm\\bin\\clang.exe runtime\\conformance\\native_stdlib_bridge\\test_native_stdlib_bridge.c runtime\\native\\src\\core\\kain_runtime_core.c runtime\\native\\src\\core\\kain_runtime_version.c runtime\\native\\src\\core\\kain_runtime_diagnostics.c runtime\\native\\src\\core\\kain_runtime_actor.c runtime\\native\\src\\core\\kain_runtime_entangle.c runtime\\native\\src\\core\\kain_runtime_native_stdlib.c -Iruntime\\native\\include -o target\\codex-native-stdlib\\native_stdlib_bridge.exe -lws2_32 -luser32 -lgdi32 -lopengl32`
+- `target\\codex-native-stdlib\\native_stdlib_bridge.exe`
+- `target\\codex-native-stdlib-cli\\debug\\kain.exe build runtime\\fixtures\\native_world_actor_intent\\main.kn -t llvm -o target\\codex-native-stdlib\\native_world_actor_intent.ll`
+- `target\\codex-native-stdlib\\native_world_actor_intent.exe`
+- `target\\codex-native-stdlib-cli\\debug\\kain.exe build runtime\\fixtures\\native_world_actor_intent\\main.kn -t c -o target\\codex-native-stdlib\\native_world_actor_intent_c.c`
+- `target\\codex-native-stdlib\\native_world_actor_intent_c.exe`
+
+Current risks:
+
+- The broad `runtime/native_runtime.toml` still carries the larger app/vendor surface. Prefer `runtime/native_core_runtime.toml` for core language proofing until the full app/vendor lane is refreshed end to end.
+- Direct C actor lowering currently routes through the generic facade instead of emitting specialized actor handler loops. That is enough for spawn/send/link proofing and runtime smoke coverage, but generated direct-C actor semantics still need a deeper pass.
+- The C backend still emits noisy but harmless comparison-parentheses warnings in some stdlib helper expressions.
+
+Recommended next step:
+
+- Promote `runtime/fixtures/native_world_actor_intent/main.kn` and `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` into a single scripted smoke so future runtime/compiler changes prove LLVM, direct C, and the C facade together without hand-running each command.
+
 # 2026-05-11 - Full blades workspace smoke landed under labs
 
 Kain now has a repo-local smoke that exercises the blades system as a complete workspace instead of as isolated unit tests.

@@ -1,0 +1,67 @@
+world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: Int = 100
+    surface web => App
+
+component App():
+    render <panel title="NativeIntent" />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+
+actor Probe:
+    state total: Int = 0
+
+    on Add(value: Int):
+        self.total = self.total + value
+
+    on Stop():
+        return
+
+patch set_health(physics: Physics, value: Int) -> Int:
+    physics.player_health = value
+    return physics.player_health
+
+law health_valid(value: Int) -> Bool:
+    return value >= 0
+
+converge choose_value(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    fast interpret_lane when target("interpret"):
+        return value + 1
+    fast native_lane when capability("native.actor"):
+        return value + 1
+    verify random(4)
+
+fn stage_bias(value: Int) -> Int:
+    return value + 2
+
+orchestrate pipeline(value: Int) -> Int:
+    let staged: Int = kain choose_value(value)
+    let biased: Int = rust stage_bias(staged)
+    return biased
+
+fn main() -> Int:
+    let init_status = native_runtime_init()
+    let registered_entanglements = native_entangle_registered_count()
+    let initial_queue_depth = native_actor_scheduler_queue_depth()
+    let probe = spawn Probe(total = 0)
+    send probe.Add(value = 3)
+    send probe.Stop()
+
+    let physics = Physics
+    let updated = set_health(physics, 41)
+    let law_status = native_law_status(health_valid(updated))
+    let orchestration_status = native_orchestrate_merge_status(init_status, law_status)
+
+    if native_status_ok(orchestration_status) and registered_entanglements >= 1:
+        let published = native_converge_choose_int(pipeline(updated), 44)
+        if published == 44 and native_int_between(initial_queue_depth, 0, 999999):
+            native_runtime_shutdown()
+            return 0
+
+    native_runtime_shutdown()
+    return 1

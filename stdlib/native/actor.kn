@@ -1,0 +1,182 @@
+@extern
+fn kain_native_actor_invalid_id() -> Int
+
+@extern
+fn kain_native_actor_default_mailbox_capacity() -> Int
+
+@extern
+fn kain_native_actor_unbounded_mailbox_capacity() -> Int
+
+@extern
+fn kain_native_actor_spawn(actor_name: String, init_payload: String) -> Int
+
+@extern
+fn kain_native_actor_send(actor_id: Int, message_name: String, data_payload: String) -> Int
+
+@extern
+fn kain_native_actor_state_invalid(actor_id: Int) -> Bool
+
+@extern
+fn kain_native_actor_get_state(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_shutdown(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_kill(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_registry_lookup(name: String) -> Int
+
+@extern
+fn kain_native_actor_registry_register(name: String, actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_registry_unregister(name: String) -> Int
+
+@extern
+fn kain_native_actor_monitor(monitor_id: Int, monitored_id: Int) -> Int
+
+@extern
+fn kain_native_actor_demonitor(monitor_id: Int, monitored_id: Int) -> Int
+
+@extern
+fn kain_native_actor_link(actor_a: Int, actor_b: Int) -> Int
+
+@extern
+fn kain_native_actor_unlink(actor_a: Int, actor_b: Int) -> Int
+
+@extern
+fn kain_native_actor_supervision_observed_child_exit_count(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_supervision_restart_attempt_count(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_supervision_escalation_count(actor_id: Int) -> Int
+
+@extern
+fn kain_native_actor_supervision_limit_hit(actor_id: Int) -> Bool
+
+@extern
+fn kain_native_actor_scheduler_queue_depth() -> Int
+
+@extern
+fn kain_native_actor_scheduler_max_queue_depth() -> Int
+
+@extern
+fn kain_native_actor_scheduler_total_enqueued() -> Int
+
+@extern
+fn kain_native_actor_scheduler_total_dequeued() -> Int
+
+@extern
+fn kain_native_actor_scheduler_worker_count() -> Int
+
+@extern
+fn kain_native_actor_scheduler_active_workers() -> Int
+
+@extern
+fn kain_native_actor_scheduler_busy_workers() -> Int
+
+@extern
+fn kain_native_actor_scheduler_overflow_thread_spawns() -> Int
+
+pub fn native_actor_invalid_id() -> Int:
+    return kain_native_actor_invalid_id()
+
+pub fn native_actor_default_mailbox_capacity() -> Int:
+    return kain_native_actor_default_mailbox_capacity()
+
+pub fn native_actor_unbounded_mailbox_capacity() -> Int:
+    return kain_native_actor_unbounded_mailbox_capacity()
+
+pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:
+    return kain_native_actor_spawn(actor_name, init_payload)
+
+pub fn native_actor_send(actor_id: Int, message_name: String, data_payload: String) -> Int:
+    return kain_native_actor_send(actor_id, message_name, data_payload)
+
+pub fn native_actor_id_is_valid(actor_id: Int) -> Bool:
+    return actor_id != native_actor_invalid_id()
+
+pub fn native_actor_state_invalid(actor_id: Int) -> Bool:
+    return kain_native_actor_state_invalid(actor_id)
+
+pub fn native_actor_get_state(actor_id: Int) -> Int:
+    return kain_native_actor_get_state(actor_id)
+
+pub fn native_actor_is_running(actor_id: Int) -> Bool:
+    return native_actor_get_state(actor_id) == 2
+
+pub fn native_actor_is_terminal(actor_id: Int) -> Bool:
+    let actor_status = native_actor_get_state(actor_id)
+    if actor_status == 5:
+        return true
+    return actor_status == 6
+
+pub fn native_actor_shutdown(actor_id: Int) -> Int:
+    return kain_native_actor_shutdown(actor_id)
+
+pub fn native_actor_kill(actor_id: Int) -> Int:
+    return kain_native_actor_kill(actor_id)
+
+pub fn native_actor_registry_lookup(name: String) -> Int:
+    return kain_native_actor_registry_lookup(name)
+
+pub fn native_actor_registry_register(name: String, actor_id: Int) -> Int:
+    return kain_native_actor_registry_register(name, actor_id)
+
+pub fn native_actor_registry_unregister(name: String) -> Int:
+    return kain_native_actor_registry_unregister(name)
+
+pub fn native_actor_registry_has(name: String) -> Bool:
+    return native_actor_id_is_valid(native_actor_registry_lookup(name))
+
+pub fn native_actor_monitor(monitor_id: Int, monitored_id: Int) -> Int:
+    return kain_native_actor_monitor(monitor_id, monitored_id)
+
+pub fn native_actor_demonitor(monitor_id: Int, monitored_id: Int) -> Int:
+    return kain_native_actor_demonitor(monitor_id, monitored_id)
+
+pub fn native_actor_link(actor_a: Int, actor_b: Int) -> Int:
+    return kain_native_actor_link(actor_a, actor_b)
+
+pub fn native_actor_unlink(actor_a: Int, actor_b: Int) -> Int:
+    return kain_native_actor_unlink(actor_a, actor_b)
+
+pub fn native_actor_supervision_observed_child_exit_count(actor_id: Int) -> Int:
+    return kain_native_actor_supervision_observed_child_exit_count(actor_id)
+
+pub fn native_actor_supervision_restart_attempt_count(actor_id: Int) -> Int:
+    return kain_native_actor_supervision_restart_attempt_count(actor_id)
+
+pub fn native_actor_supervision_escalation_count(actor_id: Int) -> Int:
+    return kain_native_actor_supervision_escalation_count(actor_id)
+
+pub fn native_actor_supervision_limit_hit(actor_id: Int) -> Bool:
+    return kain_native_actor_supervision_limit_hit(actor_id)
+
+pub fn native_actor_scheduler_queue_depth() -> Int:
+    return kain_native_actor_scheduler_queue_depth()
+
+pub fn native_actor_scheduler_max_queue_depth() -> Int:
+    return kain_native_actor_scheduler_max_queue_depth()
+
+pub fn native_actor_scheduler_total_enqueued() -> Int:
+    return kain_native_actor_scheduler_total_enqueued()
+
+pub fn native_actor_scheduler_total_dequeued() -> Int:
+    return kain_native_actor_scheduler_total_dequeued()
+
+pub fn native_actor_scheduler_worker_count() -> Int:
+    return kain_native_actor_scheduler_worker_count()
+
+pub fn native_actor_scheduler_active_workers() -> Int:
+    return kain_native_actor_scheduler_active_workers()
+
+pub fn native_actor_scheduler_busy_workers() -> Int:
+    return kain_native_actor_scheduler_busy_workers()
+
+pub fn native_actor_scheduler_overflow_thread_spawns() -> Int:
+    return kain_native_actor_scheduler_overflow_thread_spawns()

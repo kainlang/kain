@@ -1,0 +1,34 @@
+pub fn native_status_ok(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_status_failed(status: Int) -> Bool:
+    return status != 0
+
+pub fn native_status_error(status: Int) -> Bool:
+    return status < 0
+
+pub fn native_status_warning(status: Int) -> Bool:
+    return status > 0
+
+pub fn native_status_or(status: Int, fallback: Int) -> Int:
+    if status == 0:
+        return fallback
+    return status
+
+pub fn native_bool_to_status(value: Bool) -> Int:
+    if value:
+        return 0
+    return -1
+
+pub fn native_status_to_bool(status: Int) -> Bool:
+    return status == 0
+
+pub fn native_first_error(left: Int, right: Int) -> Int:
+    if left != 0:
+        return left
+    return right
+
+pub fn native_count_failure(status: Int, count: Int) -> Int:
+    if status != 0:
+        return count + 1
+    return count

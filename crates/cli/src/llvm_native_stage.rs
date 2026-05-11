@@ -2,6 +2,10 @@ use crate::{
     compile_realtime_app_bundle, compile_runtime_contract_bundle, compile_shader_artifact_bundle,
     CompileTarget,
 };
+use kain_core::ast::Item;
+use kain_core::diagnostics::SpanMapper;
+use kain_core::lexer::Lexer;
+use kain_core::parser::Parser;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,6 +20,12 @@ pub struct LlvmNativeArtifactStage {
     pub compute_residency_path: Option<PathBuf>,
     pub compute_residency_payload_paths: Vec<PathBuf>,
     pub shader_bundle_path: Option<PathBuf>,
+}
+
+impl LlvmNativeArtifactStage {
+    pub fn requires_gpu_runtime_dll(&self) -> bool {
+        self.compute_residency_path.is_some() || !self.compute_residency_payload_paths.is_empty()
+    }
 }
 
 pub fn stage_llvm_native_artifacts(
@@ -69,23 +79,27 @@ pub fn stage_native_backend_artifacts(
         })
         .collect::<Vec<_>>();
 
-    let shader_bundle_path = match compile_shader_artifact_bundle(source) {
-        Ok(bundle_output) => {
-            let shader_path = shader_bundle_artifact_path(output_path);
-            write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;
-            Some(shader_path)
-        }
-        Err(err) => {
-            let message = err.to_string();
-            if message.contains("no entry points")
-                || message.contains("expected a shader item")
-                || message.contains("SPIR-V backend emitted no entry points")
-            {
-                None
-            } else {
-                return Err(message);
+    let shader_bundle_path = if source_declares_shader_item(source) {
+        match compile_shader_artifact_bundle(source) {
+            Ok(bundle_output) => {
+                let shader_path = shader_bundle_artifact_path(output_path);
+                write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;
+                Some(shader_path)
+            }
+            Err(err) => {
+                let message = err.to_string();
+                if message.contains("no entry points")
+                    || message.contains("expected a shader item")
+                    || message.contains("SPIR-V backend emitted no entry points")
+                {
+                    None
+                } else {
+                    return Err(message);
+                }
             }
         }
+    } else {
+        None
     };
 
     Ok(LlvmNativeArtifactStage {
@@ -95,6 +109,29 @@ pub fn stage_native_backend_artifacts(
         compute_residency_payload_paths,
         shader_bundle_path,
     })
+}
+
+fn source_declares_shader_item(source: &str) -> bool {
+    let Ok(tokens) = Lexer::new(source).tokenize() else {
+        return true;
+    };
+    let mapper = SpanMapper::new(source);
+    let Ok(program) = Parser::new(&tokens, &mapper, "<native-backend-shader-scan>").parse() else {
+        return true;
+    };
+    program.items.iter().any(item_declares_shader_item)
+}
+
+fn item_declares_shader_item(item: &Item) -> bool {
+    match item {
+        Item::Shader(_) => true,
+        Item::Mod(module) => module
+            .inline
+            .as_ref()
+            .map(|items| items.iter().any(item_declares_shader_item))
+            .unwrap_or(false),
+        _ => false,
+    }
 }
 
 pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, String> {
@@ -245,6 +282,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
 
         assert!(staged.runtime_contract_path.exists());
         assert!(staged.realtime_app_path.exists());
+        assert!(staged.requires_gpu_runtime_dll());
         assert!(staged.compute_residency_path.is_some());
         assert!(!staged.compute_residency_payload_paths.is_empty());
         assert!(staged
@@ -284,6 +322,29 @@ component App():
 
         assert!(staged.runtime_contract_path.exists());
         assert!(staged.realtime_app_path.exists());
+        assert!(!staged.requires_gpu_runtime_dll());
+        assert!(staged.compute_residency_path.is_none());
+        assert!(staged.compute_residency_payload_paths.is_empty());
+        assert!(staged.shader_bundle_path.is_none());
+    }
+
+    #[test]
+    fn stage_llvm_native_artifacts_skips_shader_compilation_for_native_stdlib_only_source() {
+        let temp = TempDir::new().expect("temp dir");
+        let output_path = temp.path().join("build").join("demo.ll");
+        let source = r#"
+fn main() -> Int:
+    let status = native_runtime_init()
+    native_runtime_shutdown()
+    return status
+"#;
+
+        let staged = stage_llvm_native_artifacts(source, &output_path, None)
+            .expect("llvm native artifacts should stage");
+
+        assert!(staged.runtime_contract_path.exists());
+        assert!(staged.realtime_app_path.exists());
+        assert!(!staged.requires_gpu_runtime_dll());
         assert!(staged.compute_residency_path.is_none());
         assert!(staged.compute_residency_payload_paths.is_empty());
         assert!(staged.shader_bundle_path.is_none());
@@ -322,6 +383,73 @@ entangle Physics.player_health <-> UI.health_display with single_writer
             assert!(json.contains("UI.health_display"));
             assert!(json.contains("single_writer"));
             assert!(json.contains("state.entangle"));
+        }
+    }
+
+    #[test]
+    fn stage_llvm_native_artifacts_materializes_full_native_intent_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let output_path = temp
+            .path()
+            .join("build")
+            .join("native_world_actor_intent.ll");
+        let source = r#"
+world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: Int = 100
+    surface web => App
+
+component App():
+    render <panel />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+
+patch set_health(physics: Physics, value: Int) -> Int:
+    physics.player_health = value
+    return physics.player_health
+
+law health_valid(value: Int) -> Bool:
+    return value >= 0
+
+converge choose_value(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    fast interpret_lane when target("interpret"):
+        return value + 1
+
+fn stage_bias(value: Int) -> Int:
+    return value + 2
+
+orchestrate pipeline(value: Int) -> Int:
+    let staged: Int = kain choose_value(value)
+    let echoed: Int = rust stage_bias(staged)
+    return echoed
+"#;
+
+        let staged = stage_llvm_native_artifacts(source, &output_path, None)
+            .expect("llvm native artifacts should stage");
+
+        let contract_json = fs::read_to_string(&staged.runtime_contract_path)
+            .expect("runtime contract json should exist");
+        let realtime_json =
+            fs::read_to_string(&staged.realtime_app_path).expect("realtime app json should exist");
+
+        for json in [&contract_json, &realtime_json] {
+            assert!(json.contains("\"worlds\""));
+            assert!(json.contains("\"patches\""));
+            assert!(json.contains("\"laws\""));
+            assert!(json.contains("\"converges\""));
+            assert!(json.contains("\"orchestrations\""));
+            assert!(json.contains("\"entanglements\""));
+            assert!(json.contains("Physics.player_health"));
+            assert!(json.contains("UI.health_display"));
+            assert!(json.contains("set_health"));
+            assert!(json.contains("health_valid"));
+            assert!(json.contains("choose_value"));
+            assert!(json.contains("pipeline"));
         }
     }
 }

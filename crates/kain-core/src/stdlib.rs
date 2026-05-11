@@ -739,17 +739,17 @@ pub(crate) fn load_kn_files_from_dir(path: &std::path::Path) -> Option<String> {
 const DEFAULT_PROFILE_ORDER: &[&str] = &[""];
 
 const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
-    (CompileTarget::Ue5, &["ue5", ""]),
-    (CompileTarget::Ue5Editor, &["ue5", ""]),
-    (CompileTarget::Usf, &["ue5", ""]),
+    (CompileTarget::Ue5, &["ue5"]),
+    (CompileTarget::Ue5Editor, &["ue5"]),
+    (CompileTarget::Usf, &["ue5"]),
     (CompileTarget::Hlsl, &[""]),
     (CompileTarget::Spirv, &[""]),
     (CompileTarget::Wasm, &[""]),
     (CompileTarget::Js, &[""]),
     (CompileTarget::Ts, &[""]),
     (CompileTarget::Hybrid, &[""]),
-    (CompileTarget::Llvm, &[""]),
-    (CompileTarget::C, &["c", ""]),
+    (CompileTarget::Llvm, &["native"]),
+    (CompileTarget::C, &["native", "c"]),
     (CompileTarget::Rust, &[""]),
     (CompileTarget::Cpp, &[""]),
     (CompileTarget::Interpret, &[""]),
@@ -781,14 +781,18 @@ fn parse_profile_env_override() -> Option<Vec<String>> {
 
 fn load_stdlib_from_profiles(search_roots: &[std::path::PathBuf], profiles: &[String]) -> String {
     for root in search_roots {
+        let mut chunks = Vec::new();
         for profile in profiles {
             let candidate_dir = resolve_profile_path(root, profile);
             if candidate_dir.exists() && candidate_dir.is_dir() {
                 if let Some(stdlib_source) = load_kn_files_from_dir(&candidate_dir) {
                     eprintln!("Loaded stdlib from: {}", candidate_dir.display());
-                    return stdlib_source;
+                    chunks.push(stdlib_source);
                 }
             }
+        }
+        if !chunks.is_empty() {
+            return chunks.join("\n");
         }
     }
     String::new()
@@ -1134,6 +1138,9 @@ mod tests {
         let c_dir = stdlib_dir.join("c");
         fs::create_dir(&c_dir).unwrap();
         create_kn_file(&c_dir, "c.kn", "// c stdlib");
+        let native_dir = stdlib_dir.join("native");
+        fs::create_dir(&native_dir).unwrap();
+        create_kn_file(&native_dir, "native.kn", "// native stdlib");
         let roots = vec![stdlib_dir.clone()];
         let ts_profiles = target_profiles(CompileTarget::Ts)
             .iter()
@@ -1159,6 +1166,10 @@ mod tests {
             .iter()
             .map(|p| (*p).to_string())
             .collect::<Vec<_>>();
+        let llvm_profiles = target_profiles(CompileTarget::Llvm)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
 
         let ts_stdlib = load_stdlib_from_profiles(&roots, &ts_profiles);
         assert!(ts_stdlib.contains("// root stdlib"));
@@ -1174,13 +1185,24 @@ mod tests {
 
         let ue5_stdlib = load_stdlib_from_profiles(&roots, &ue5_profiles);
         assert!(ue5_stdlib.contains("// ue5 stdlib"));
+        assert!(!ue5_stdlib.contains("// root stdlib"));
 
         let usf_stdlib = load_stdlib_from_profiles(&roots, &usf_profiles);
         assert!(usf_stdlib.contains("// ue5 stdlib"));
+        assert!(!usf_stdlib.contains("// root stdlib"));
+
+        let llvm_stdlib = load_stdlib_from_profiles(&roots, &llvm_profiles);
+        assert!(llvm_stdlib.contains("// native stdlib"));
+        assert!(!llvm_stdlib.contains("// root stdlib"));
+        assert!(!llvm_stdlib.contains("// c stdlib"));
 
         let c_stdlib = load_stdlib_from_profiles(&roots, &c_profiles);
+        assert!(c_stdlib.contains("// native stdlib"));
         assert!(c_stdlib.contains("// c stdlib"));
         assert!(!c_stdlib.contains("// root stdlib"));
+        let native_pos = c_stdlib.find("// native stdlib").unwrap();
+        let c_pos = c_stdlib.find("// c stdlib").unwrap();
+        assert!(native_pos < c_pos);
     }
 
     #[test]

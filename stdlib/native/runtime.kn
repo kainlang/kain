@@ -1,0 +1,22 @@
+@extern
+fn kain_native_runtime_init() -> Int
+
+@extern
+fn kain_native_runtime_shutdown() -> Int
+
+pub fn native_runtime_init() -> Int:
+    return kain_native_runtime_init()
+
+pub fn native_runtime_shutdown() -> Int:
+    return kain_native_runtime_shutdown()
+
+pub fn native_runtime_with_status(status: Int) -> Int:
+    if status == 0:
+        return native_runtime_init()
+    return status
+
+pub fn native_runtime_cleanup_status(status: Int) -> Int:
+    let shutdown_status = native_runtime_shutdown()
+    if status != 0:
+        return status
+    return shutdown_status

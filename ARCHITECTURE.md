@@ -79,7 +79,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [docs/reference/dcc-parity-matrix.md](/M:/Code/Kain/docs/reference/dcc-parity-matrix.md): flagship KSculpt and KPainter parity inventory, baseline rules, and validation entrypoint
 - [scripts/python/validate_dcc_parity_matrix.py](/M:/Code/Kain/scripts/python/validate_dcc_parity_matrix.py): strict validator for the machine-readable parity inventory owned by `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
 - [scripts/python/run_dcc_parity_harness.py](/M:/Code/Kain/scripts/python/run_dcc_parity_harness.py): executable scenario harness for the highest-priority shared, sculpt, and painter parity hooks
-- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data, including the root `gen_server.kn` helper that layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives; `start_link` is currently naming-only until real link semantics land
+- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data. The root profile holds general helpers; `stdlib/native` is the LLVM/direct-C native profile for actor, entangle, runtime, diagnostics, time, and intent helpers; `stdlib/c` is the direct C bridge overlay; and the root `gen_server.kn` helper layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives. `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
 - [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
@@ -109,7 +109,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
 - [kain-check](/M:/Code/Kain/crates/kain-check) and [kain-test](/M:/Code/Kain/crates/kain-test): reusable source checking and compiletest-style suite harnesses behind `kain check` and `kain test`, kept separate from the CLI so IDE, CI, and future agents can reuse structured reports without shelling through command output.
-- [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`
+- [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`. The direct C backend emits extern declarations for `@extern`, lowers actor `spawn`/`send` to the native stdlib facade, and registers entangle metadata at generated `main` entry.
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
 - [kain-codebase](/M:/Code/Kain/crates/kain-codebase): trusted-local workspace control for discovering roots, reading/writing/deleting/scanning files, JSON/TOML round trips, structured command execution, and first-class Node/Cargo/Python/C/TypeScript runtime operators
@@ -150,13 +150,24 @@ That same frontend lane now owns six compiler-owned intent declarations:
 - `patch` lowers to transactional mutation metadata with inferred undo mode plus explicit `patches[]` contract sections.
 - `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and executable `verify random(n)` verification through `converges[]`.
 - `world` lowers to shared state/surface projection metadata through sparse `worlds[]` entries and compiler-owned active-world selection.
-- `entangle` lowers to single-writer state-coupling metadata through `entanglements[]` and the `state.entangle` capability; v1 interpreter semantics propagate authority endpoint writes to mirrors and reject direct mirror writes. The LLVM lane also emits `@__kain_register_entanglements` calls into the native C runtime registry, while the direct C backend preserves entanglements in a static metadata table.
+- `entangle` lowers to single-writer state-coupling metadata through `entanglements[]` and the `state.entangle` capability; v1 interpreter semantics propagate authority endpoint writes to mirrors and reject direct mirror writes. The LLVM lane emits `@__kain_register_entanglements` calls into the native C runtime registry, and the direct C backend now emits a static metadata table plus a generated `__kain_register_entanglements()` thunk called from `main`.
 - `orchestrate` lowers to strict typed stage metadata through `orchestrations[]`.
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
 
 Native target codegen for compiler-owned intents is intentionally explicit:
-`crates/kain-sys-codegen/src/codegen_llvm/mod.rs` owns LLVM lowering for `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate`; `crates/kain-sys-codegen/src/codegen_c.rs` owns the experimental direct C source lane; and `runtime/native/include/kain_runtime_entangle.h` plus `runtime/native/src/core/kain_runtime_entangle.c` provide the C ABI registry used by LLVM-generated programs.
+`crates/kain-sys-codegen/src/codegen_llvm/mod.rs` owns LLVM lowering for `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate`; `crates/kain-sys-codegen/src/codegen_c.rs` owns the experimental direct C source lane; `runtime/native/include/kain_runtime_entangle.h` plus `runtime/native/src/core/kain_runtime_entangle.c` provide the low-level C ABI registry; and `runtime/native/include/kain_runtime_native_stdlib.h` plus `runtime/native/src/core/kain_runtime_native_stdlib.c` provide the stdlib-facing C ABI facade consumed by LLVM/direct-C native builds.
+
+### Native Stdlib And Runtime Facade
+
+Native Kain builds use explicit stdlib/runtime profiles instead of the generic root stdlib:
+
+- `stdlib/native` is loaded for `CompileTarget::Llvm` and `CompileTarget::C`. It exposes runtime init/shutdown, actor, entangle, diagnostics, time, collections, result/status, and intent helpers as Kain-callable declarations/wrappers.
+- `stdlib/c` is loaded after `stdlib/native` only for direct C output and keeps C bridge helpers as `@extern` declarations.
+- `runtime/native_core_runtime.toml` is the default lean manifest for normal file builds. It links the owned C core, diagnostics, actor, entangle, and native stdlib facade sources.
+- `runtime/native_runtime.toml` remains the broad app/vendor manifest. Use it when the task needs the larger native app/UI/vendor surface instead of the core language proof runtime.
+- `runtime/fixtures/native_world_actor_intent/main.kn` is the current all-in-one fixture proving `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and stdlib facade calls through both `-t llvm` and `-t c`.
+- `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` is the direct C conformance entrypoint for the facade itself.
 
 ### LLVM Native Actor ABI
 
@@ -472,7 +483,7 @@ If the debug CLI is missing:
 - The smoke now also compiles through the LLVM/native executable lane into `smoketest/3D/material_atrium_showcase/llvm-native/material-atrium-showcase`, but Linux still uses the Qt presentation shell. Treat the standalone binary as the native compile proof, not as the full presenter yet.
 - The Qt launcher still packages `material_atrium_visual_example.png` as a host sidecar and forwards it through `KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH`, but that image is now an optional compatibility fallback rather than the source of truth for the smoke.
 - The Windows native viewport now has a dedicated `material_atrium` profile and geometry branch, so the scene can be exercised from the runtime-owned side without relying only on the older demo profiles. The deterministic artifact generator still exists for comparison, but the authored smoke source is the real entrypoint.
-- LLVM/native actor proof depends on mailbox initialization happening in LLVM `spawn` lowering. Actor structs reserve field 0 for `__mailbox`, and the backend must allocate it with `mq_new()` before `KAIN_spawn` or the produced executable will crash when `send` lowers to `mq_push`.
+- LLVM/native actor proof now uses the canonical native actor runtime and the stdlib facade. If actor `spawn`/`send` regresses, check `runtime/native/include/kain_runtime_actor.h`, `runtime/native/src/core/kain_runtime_actor.c`, `runtime/native/src/core/kain_runtime_native_stdlib.c`, and the lowering in `crates/kain-sys-codegen` together; the legacy `KAIN_spawn` / `mq_*` path is not the active native ABI.
 - The compute pipeline is mid-transition from heuristic metadata to compiler-owned truth. When touching it, prefer extending bundle contracts over adding new runtime-only inference.
 - Multiple authored `world` roots are now treated as an explicit-selection problem, not a guessing problem. If build/run flows see more than one world, require a caller-provided selection instead of silently picking one.
 - Frontend bridge registration must be target-scoped. Host/runtime extensions that are valid for `Interpret` or `Test` must not leak into shader artifact compilation or other non-host targets, or Fabric and direct driver paths will diverge.

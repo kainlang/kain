@@ -1123,6 +1123,8 @@ fn run_source(
                     compiled_output.len()
                 );
 
+                let mut native_artifacts_require_gpu_runtime = false;
+
                 if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
                     match llvm_native_stage::stage_native_backend_artifacts(
                         &source,
@@ -1131,6 +1133,8 @@ fn run_source(
                         None,
                     ) {
                         Ok(staged) => {
+                            native_artifacts_require_gpu_runtime =
+                                staged.requires_gpu_runtime_dll();
                             println!(
                                 " Runtime contract: {}",
                                 staged.runtime_contract_path.display()
@@ -1499,14 +1503,16 @@ fn run_source(
                     match status {
                         Ok(s) if s.success() => {
                             println!(" Generated executable: {}", exe_path.display());
-                            match llvm_native_stage::stage_gpu_runtime_dll(&exe_path) {
-                                Ok(Some(dll_path)) => {
-                                    println!(" Compute runtime DLL: {}", dll_path.display());
-                                }
-                                Ok(None) => {}
-                                Err(err) => {
-                                    eprintln!(" Failed to stage compute runtime DLL: {}", err);
-                                    return false;
+                            if native_artifacts_require_gpu_runtime {
+                                match llvm_native_stage::stage_gpu_runtime_dll(&exe_path) {
+                                    Ok(Some(dll_path)) => {
+                                        println!(" Compute runtime DLL: {}", dll_path.display());
+                                    }
+                                    Ok(None) => {}
+                                    Err(err) => {
+                                        eprintln!(" Failed to stage compute runtime DLL: {}", err);
+                                        return false;
+                                    }
                                 }
                             }
                         }
@@ -4051,13 +4057,8 @@ fn find_native_runtime_manifest() -> Option<PathBuf> {
         }
     }
 
-    let candidate_suffixes = [
-        PathBuf::from("runtime/native_runtime.toml"),
-        PathBuf::from("runtime/native/runtime.toml"),
-    ];
-
     for root in runtime_search_roots() {
-        for suffix in &candidate_suffixes {
+        for suffix in native_runtime_manifest_candidate_suffixes() {
             let candidate = root.join(suffix);
             if candidate.exists() {
                 return Some(candidate);
@@ -4066,6 +4067,14 @@ fn find_native_runtime_manifest() -> Option<PathBuf> {
     }
 
     None
+}
+
+fn native_runtime_manifest_candidate_suffixes() -> [PathBuf; 3] {
+    [
+        PathBuf::from("runtime/native_core_runtime.toml"),
+        PathBuf::from("runtime/native_runtime.toml"),
+        PathBuf::from("runtime/native/runtime.toml"),
+    ]
 }
 
 fn runtime_search_roots() -> Vec<PathBuf> {
@@ -4104,6 +4113,18 @@ mod tests {
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
         assert_eq!(sanitize_runtime_name("Kain Runtime"), "kain_runtime");
         assert_eq!(sanitize_runtime_name("###"), "runtime");
+    }
+
+    #[test]
+    fn native_runtime_manifest_candidates_prefer_core_runtime() {
+        let candidates = super::native_runtime_manifest_candidate_suffixes();
+
+        assert_eq!(
+            candidates[0],
+            PathBuf::from("runtime/native_core_runtime.toml")
+        );
+        assert!(candidates.contains(&PathBuf::from("runtime/native_runtime.toml")));
+        assert!(candidates.contains(&PathBuf::from("runtime/native/runtime.toml")));
     }
 
     #[test]
