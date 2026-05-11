@@ -12,6 +12,7 @@ sources = [
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",
+    "native/src/core/kain_native_graphics_system.c",
     "native/src/core/kain_runtime_renderer_backend.c",
     "native/src/core/kain_runtime_renderer_session.c",
     "native/src/core/kain_runtime_scene.c",
@@ -369,6 +370,40 @@ requirement = "required"
 status = "available"
 platforms = ["windows"]
 description = "Win32 viewport host and OpenGL rendering"
+
+[[services]]
+key = "gfx.raw-native"
+name = "Raw Native Graphics"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands"
+
+[[services]]
+key = "gfx.shader.spirv"
+name = "SPIR-V Shader Modules"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical native shader payload registration for Kain-authored graphics and compute pipelines"
+
+[[services]]
+key = "gfx.backend.vulkan"
+name = "Vulkan Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Kain-visible Vulkan backend selection and capability probe; direct command execution is not attached in this runtime build"
+
+[[services]]
+key = "gfx.backend.d3d12"
+name = "DirectX 12 Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows"]
+description = "Kain-visible DirectX 12 backend selection and capability probe; direct command execution is not attached in this runtime build"
 
 [[services]]
 key = "gfx.backend.bgfx"

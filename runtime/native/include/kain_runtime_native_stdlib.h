@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#include "kain_native_graphics_system.h"
 #include "kain_native_ui_system.h"
 
 #ifdef __cplusplus

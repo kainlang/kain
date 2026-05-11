@@ -72,6 +72,7 @@ static const KainServiceKeyAlias g_kain_native_runtime_service_aliases[] = {
     {"native.app-host", KAIN_SERVICE_KEY_PLATFORM_APP_HOST},
     {"native.input", KAIN_SERVICE_KEY_PLATFORM_INPUT},
     {"native.viewport", KAIN_SERVICE_KEY_GFX_VIEWPORT},
+    {"native.graphics", KAIN_SERVICE_KEY_GFX_RAW_NATIVE},
     {"native.scene", KAIN_SERVICE_KEY_SCENE_RUNTIME},
     {"native.scene.query", KAIN_SERVICE_KEY_SCENE_QUERY},
     {"native.scene.mutation", KAIN_SERVICE_KEY_SCENE_MUTATION},
@@ -81,6 +82,10 @@ static const KainServiceKeyAlias g_kain_native_runtime_service_aliases[] = {
     {"native.asset.ingestion", KAIN_SERVICE_KEY_ASSET_INGESTION},
     {"native.ui.compiled-bundle", KAIN_SERVICE_KEY_UI_BUNDLE},
     {"native.compute", KAIN_SERVICE_KEY_GFX_COMPUTE},
+    {"native.shader.spirv", KAIN_SERVICE_KEY_GFX_SHADER_SPIRV},
+    {"native.vulkan", KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN},
+    {"native.dx12", KAIN_SERVICE_KEY_GFX_BACKEND_D3D12},
+    {"native.d3d12", KAIN_SERVICE_KEY_GFX_BACKEND_D3D12},
 };
 
 static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
@@ -440,6 +445,46 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         "Compute bundle validation, dispatch planning, and native runtime handoff",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_RAW_NATIVE,
+        "Raw Native Graphics",
+        "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_SHADER_SPIRV,
+        "SPIR-V Shader Modules",
+        "Canonical native shader payload registration for Kain-authored graphics and compute pipelines",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN,
+        "Vulkan Backend Target",
+        "Kain-visible Vulkan backend selection and capability probe; direct command execution is not attached in this runtime build",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_D3D12,
+        "DirectX 12 Backend Target",
+        "Kain-visible DirectX 12 backend selection and capability probe; direct command execution is not attached in this runtime build",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL

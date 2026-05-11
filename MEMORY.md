@@ -1,27 +1,25 @@
 # Kain Memory
 
-# 2026-05-11 - REPL moved into a dedicated kain-repl crate
+# 2026-05-11 - Raw native graphics kernel exposes engine-building primitives to Kain
 
-Kain's interactive REPL is now owned by `crates/kain-repl` instead of living as a hidden loop in `crates/cli/src/main.rs`. The new crate follows the focused-module shape used by `kain-actor`: `lib.rs` is only the public index, while `command.rs`, `session.rs`, `evaluation.rs`, `terminal.rs`, `source.rs`, and `metadata.rs` own dot directives, multiline buffering, interpret-target evaluation, terminal IO, script normalization, and build-banner metadata.
+Kain now has a generic native graphics system kernel at the C ABI floor instead of relying on runtime-authored scenes or host-side primitive/default-scene behavior. `runtime/native/include/kain_native_graphics_system.h` and `runtime/native/src/core/kain_native_graphics_system.c` expose low-level sessions, backend target selection, truthful backend availability/status probes, SPIR-V shader module registration, authored buffer handles, mesh handles, pipeline handles, draw command recording, frame present bookkeeping, and diagnostics. `stdlib/native/graphics.kn` exposes thin `native_graphics_*` wrappers for LLVM/direct-C Kain source.
 
 Design decisions:
 
-- Keep `crates/cli` as the command host. It now depends on `kain-repl`, exposes explicit `kain repl` / `kn repl`, and preserves the old `kn` no-args terminal behavior through the same crate entrypoint.
-- `kain-repl` currently evaluates buffered source through `kain-driver::DriverSession` with `CompileTarget::Interpret`, so it shares the same frontend/runtime truth as `kain run`.
-- Source BOM/shebang normalization moved to `kain-repl::normalize_script_source` so CLI file/stdin reads and REPL buffered snippets do not drift.
-- The current REPL is still batch-buffered source evaluation, not a persistent lexical/semantic environment. Treat that as the next overhaul target rather than recreating CLI-local state.
+- Keep this layer catalog-free. The runtime knows handles, backend target ids, SPIR-V byte counts, buffer metadata, mesh counts, pipelines, draw commands, and diagnostics; Kain source owns engine policy, scenes, primitive recipes, simulation loops, materials, cameras, and tools.
+- Vulkan and DirectX 12 are first-class backend targets in the access layer, but direct command execution is reported as unavailable/degraded until a real backend executor is attached. Do not claim vendor-direct rendering based only on target selection.
+- `runtime/fixtures/native_graphics_engine/main.kn` is the focused LLVM proof shape: one Kain file creates two different authored graphics submissions through the same raw kernel without runtime-provided geometry.
+- The language-wide rule is now explicit in `ARCHITECTURE.md`: native/Rust/C code provides capabilities, ABI substrate, validation, diagnostics, and target integration; Kain authors behavior and systems.
 
 Validation:
 
-- `cargo fmt -p kain-repl -p cli`
-- `cargo test -p kain-repl --target-dir target\codex-kain-repl -- --nocapture`
-- `cargo build -p cli --target-dir target\codex-kain-repl-cli`
-- `$inputText = "fn main() -> Int:`r`n    return 42`r`n`r`n.exit`r`n"; $inputText | target\codex-kain-repl-cli\debug\kain.exe repl`
-- `$inputText = ".help`r`n.exit`r`n"; $inputText | target\codex-kain-repl-cli\debug\kn.exe repl`
+- `bash runtime/conformance/graphics_runtime/run_tests.sh --verbose`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_graphics_engine_primitives_without_scene_catalog --target-dir target\\codex-native-graphics-kernel -- --nocapture`
+- Build and run `runtime/fixtures/native_graphics_engine/main.kn` through the LLVM native fixture path after rebuilding the CLI.
 
 Recommended next step:
 
-- Turn `kain-repl` into a true stateful semantic session: persistent bindings, history/editing adapter, structured evaluation events, and a future UI/API host surface should land in the crate modules first, with CLI remaining a thin caller.
+- Attach the raw graphics command buffer to a real Vulkan or DirectX 12 executor behind the same `kain_native_graphics_*` handles, then add backend-specific conformance that proves actual frame execution without widening the Kain-facing API.
 
 # 2026-05-11 - Raw native UI C ABI makes single-file LLVM UI authoring possible
 

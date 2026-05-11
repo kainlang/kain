@@ -29,6 +29,7 @@ FIXTURE_NAMES=(
     llvm_heap_memory
     llvm_actor_message
     llvm_world_pipeline
+    native_graphics_engine
 )
 
 resolve_kain_bin() {
@@ -52,7 +53,7 @@ resolve_kain_bin() {
 
 build_target_for_fixture() {
     case "$1" in
-        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline)
+        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine)
             printf '%s\n' "llvm"
             ;;
         *)
@@ -138,6 +139,16 @@ define void @__kain_init_world_Studio()
 call void @__kain_init_world_Studio()
 call i64 @choose_value(i64
 call i64 @stage_bias(i64
+EOF
+            ;;
+        native_graphics_engine)
+            cat <<'EOF'
+call i64 @kain_native_graphics_session_create(
+call i64 @kain_native_graphics_shader_spirv_from_hex(
+call i64 @kain_native_graphics_buffer_create_from_hex(
+call i64 @kain_native_graphics_mesh_create(
+call i64 @kain_native_graphics_pipeline_create(
+call i64 @kain_native_graphics_draw_mesh(
 EOF
             ;;
     esac

@@ -1,0 +1,251 @@
+@extern
+fn kain_native_graphics_reset() -> Int
+
+@extern
+fn kain_native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_graphics_session_destroy(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_session_count() -> Int
+
+@extern
+fn kain_native_graphics_backend_supported(backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_backend_available(backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_backend_status(backend_id: String) -> String
+
+@extern
+fn kain_native_graphics_backend_select(session_id: Int, backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_active_backend(session_id: Int) -> String
+
+@extern
+fn kain_native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_graphics_end_frame(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_present(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_frame_index(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_last_presented_frame(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_buffer_create(session_id: Int, kind: String, label: String, byte_length: Int, element_stride: Int) -> Int
+
+@extern
+fn kain_native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int
+
+@extern
+fn kain_native_graphics_buffer_byte_length(session_id: Int, buffer_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_buffer_byte_at(session_id: Int, buffer_id: Int, byte_offset: Int) -> Int
+
+@extern
+fn kain_native_graphics_buffer_kind(session_id: Int, buffer_id: Int) -> String
+
+@extern
+fn kain_native_graphics_buffer_label(session_id: Int, buffer_id: Int) -> String
+
+@extern
+fn kain_native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int
+
+@extern
+fn kain_native_graphics_shader_spirv_from_file(session_id: Int, key: String, stage: String, entry_point: String, path: String) -> Int
+
+@extern
+fn kain_native_graphics_shader_byte_length(session_id: Int, shader_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_shader_byte_at(session_id: Int, shader_id: Int, byte_offset: Int) -> Int
+
+@extern
+fn kain_native_graphics_shader_key(session_id: Int, shader_id: Int) -> String
+
+@extern
+fn kain_native_graphics_shader_stage(session_id: Int, shader_id: Int) -> String
+
+@extern
+fn kain_native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int
+
+@extern
+fn kain_native_graphics_mesh_vertex_count(session_id: Int, mesh_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_mesh_index_count(session_id: Int, mesh_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_mesh_label(session_id: Int, mesh_id: Int) -> String
+
+@extern
+fn kain_native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_pipeline_label(session_id: Int, pipeline_id: Int) -> String
+
+@extern
+fn kain_native_graphics_pipeline_backend(session_id: Int, pipeline_id: Int) -> String
+
+@extern
+fn kain_native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int
+
+@extern
+fn kain_native_graphics_draw_command_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_graphics_draw_command_kind(session_id: Int, command_index: Int) -> String
+
+@extern
+fn kain_native_graphics_draw_command_mesh(session_id: Int, command_index: Int) -> Int
+
+@extern
+fn kain_native_graphics_draw_command_pipeline(session_id: Int, command_index: Int) -> Int
+
+@extern
+fn kain_native_graphics_draw_command_instances(session_id: Int, command_index: Int) -> Int
+
+@extern
+fn kain_native_graphics_last_status() -> Int
+
+@extern
+fn kain_native_graphics_last_error_kind() -> String
+
+@extern
+fn kain_native_graphics_last_error_message() -> String
+
+pub fn native_graphics_reset() -> Int:
+    return kain_native_graphics_reset()
+
+pub fn native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int:
+    return kain_native_graphics_session_create(app_name, width, height)
+
+pub fn native_graphics_session_destroy(session_id: Int) -> Int:
+    return kain_native_graphics_session_destroy(session_id)
+
+pub fn native_graphics_session_count() -> Int:
+    return kain_native_graphics_session_count()
+
+pub fn native_graphics_backend_supported(backend_id: String) -> Int:
+    return kain_native_graphics_backend_supported(backend_id)
+
+pub fn native_graphics_backend_available(backend_id: String) -> Int:
+    return kain_native_graphics_backend_available(backend_id)
+
+pub fn native_graphics_backend_status(backend_id: String) -> String:
+    return kain_native_graphics_backend_status(backend_id)
+
+pub fn native_graphics_backend_select(session_id: Int, backend_id: String) -> Int:
+    return kain_native_graphics_backend_select(session_id, backend_id)
+
+pub fn native_graphics_active_backend(session_id: Int) -> String:
+    return kain_native_graphics_active_backend(session_id)
+
+pub fn native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int:
+    return kain_native_graphics_begin_frame(session_id, delta_ms)
+
+pub fn native_graphics_end_frame(session_id: Int) -> Int:
+    return kain_native_graphics_end_frame(session_id)
+
+pub fn native_graphics_present(session_id: Int) -> Int:
+    return kain_native_graphics_present(session_id)
+
+pub fn native_graphics_frame_index(session_id: Int) -> Int:
+    return kain_native_graphics_frame_index(session_id)
+
+pub fn native_graphics_last_presented_frame(session_id: Int) -> Int:
+    return kain_native_graphics_last_presented_frame(session_id)
+
+pub fn native_graphics_buffer_create(session_id: Int, kind: String, label: String, byte_length: Int, element_stride: Int) -> Int:
+    return kain_native_graphics_buffer_create(session_id, kind, label, byte_length, element_stride)
+
+pub fn native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int:
+    return kain_native_graphics_buffer_create_from_hex(session_id, kind, label, bytes_hex, element_stride)
+
+pub fn native_graphics_buffer_byte_length(session_id: Int, buffer_id: Int) -> Int:
+    return kain_native_graphics_buffer_byte_length(session_id, buffer_id)
+
+pub fn native_graphics_buffer_byte_at(session_id: Int, buffer_id: Int, byte_offset: Int) -> Int:
+    return kain_native_graphics_buffer_byte_at(session_id, buffer_id, byte_offset)
+
+pub fn native_graphics_buffer_kind(session_id: Int, buffer_id: Int) -> String:
+    return kain_native_graphics_buffer_kind(session_id, buffer_id)
+
+pub fn native_graphics_buffer_label(session_id: Int, buffer_id: Int) -> String:
+    return kain_native_graphics_buffer_label(session_id, buffer_id)
+
+pub fn native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int:
+    return kain_native_graphics_shader_spirv_from_hex(session_id, key, stage, entry_point, bytes_hex)
+
+pub fn native_graphics_shader_spirv_from_file(session_id: Int, key: String, stage: String, entry_point: String, path: String) -> Int:
+    return kain_native_graphics_shader_spirv_from_file(session_id, key, stage, entry_point, path)
+
+pub fn native_graphics_shader_byte_length(session_id: Int, shader_id: Int) -> Int:
+    return kain_native_graphics_shader_byte_length(session_id, shader_id)
+
+pub fn native_graphics_shader_byte_at(session_id: Int, shader_id: Int, byte_offset: Int) -> Int:
+    return kain_native_graphics_shader_byte_at(session_id, shader_id, byte_offset)
+
+pub fn native_graphics_shader_key(session_id: Int, shader_id: Int) -> String:
+    return kain_native_graphics_shader_key(session_id, shader_id)
+
+pub fn native_graphics_shader_stage(session_id: Int, shader_id: Int) -> String:
+    return kain_native_graphics_shader_stage(session_id, shader_id)
+
+pub fn native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int:
+    return kain_native_graphics_mesh_create(session_id, label, vertex_buffer_id, index_buffer_id, vertex_count, index_count)
+
+pub fn native_graphics_mesh_vertex_count(session_id: Int, mesh_id: Int) -> Int:
+    return kain_native_graphics_mesh_vertex_count(session_id, mesh_id)
+
+pub fn native_graphics_mesh_index_count(session_id: Int, mesh_id: Int) -> Int:
+    return kain_native_graphics_mesh_index_count(session_id, mesh_id)
+
+pub fn native_graphics_mesh_label(session_id: Int, mesh_id: Int) -> String:
+    return kain_native_graphics_mesh_label(session_id, mesh_id)
+
+pub fn native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int:
+    return kain_native_graphics_pipeline_create(session_id, label, vertex_shader_id, fragment_shader_id, backend_id)
+
+pub fn native_graphics_pipeline_label(session_id: Int, pipeline_id: Int) -> String:
+    return kain_native_graphics_pipeline_label(session_id, pipeline_id)
+
+pub fn native_graphics_pipeline_backend(session_id: Int, pipeline_id: Int) -> String:
+    return kain_native_graphics_pipeline_backend(session_id, pipeline_id)
+
+pub fn native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int:
+    return kain_native_graphics_draw_mesh(session_id, pipeline_id, mesh_id, instance_count)
+
+pub fn native_graphics_draw_command_count(session_id: Int) -> Int:
+    return kain_native_graphics_draw_command_count(session_id)
+
+pub fn native_graphics_draw_command_kind(session_id: Int, command_index: Int) -> String:
+    return kain_native_graphics_draw_command_kind(session_id, command_index)
+
+pub fn native_graphics_draw_command_mesh(session_id: Int, command_index: Int) -> Int:
+    return kain_native_graphics_draw_command_mesh(session_id, command_index)
+
+pub fn native_graphics_draw_command_pipeline(session_id: Int, command_index: Int) -> Int:
+    return kain_native_graphics_draw_command_pipeline(session_id, command_index)
+
+pub fn native_graphics_draw_command_instances(session_id: Int, command_index: Int) -> Int:
+    return kain_native_graphics_draw_command_instances(session_id, command_index)
+
+pub fn native_graphics_last_status() -> Int:
+    return kain_native_graphics_last_status()
+
+pub fn native_graphics_last_error_kind() -> String:
+    return kain_native_graphics_last_error_kind()
+
+pub fn native_graphics_last_error_message() -> String:
+    return kain_native_graphics_last_error_message()

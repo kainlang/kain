@@ -12,6 +12,7 @@ sources = [
     "native/src/core/kain_runtime_actor.c",
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",
+    "native/src/core/kain_native_graphics_system.c",
     "native/src/ui/kain_native_ui_system.c",
 ]
 

@@ -137,6 +137,92 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_native_graphics_engine_primitives_without_scene_catalog() {
+    let source = r#"
+@extern
+fn kain_native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_graphics_backend_select(session_id: Int, backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int
+
+@extern
+fn kain_native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int
+
+@extern
+fn kain_native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int
+
+@extern
+fn kain_native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int
+
+@extern
+fn kain_native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int
+
+@extern
+fn kain_native_graphics_present(session_id: Int) -> Int
+
+pub fn native_graphics_session_create(app_name: String, width: Int, height: Int) -> Int:
+    return kain_native_graphics_session_create(app_name, width, height)
+
+pub fn native_graphics_backend_select(session_id: Int, backend_id: String) -> Int:
+    return kain_native_graphics_backend_select(session_id, backend_id)
+
+pub fn native_graphics_shader_spirv_from_hex(session_id: Int, key: String, stage: String, entry_point: String, bytes_hex: String) -> Int:
+    return kain_native_graphics_shader_spirv_from_hex(session_id, key, stage, entry_point, bytes_hex)
+
+pub fn native_graphics_buffer_create_from_hex(session_id: Int, kind: String, label: String, bytes_hex: String, element_stride: Int) -> Int:
+    return kain_native_graphics_buffer_create_from_hex(session_id, kind, label, bytes_hex, element_stride)
+
+pub fn native_graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, index_buffer_id: Int, vertex_count: Int, index_count: Int) -> Int:
+    return kain_native_graphics_mesh_create(session_id, label, vertex_buffer_id, index_buffer_id, vertex_count, index_count)
+
+pub fn native_graphics_pipeline_create(session_id: Int, label: String, vertex_shader_id: Int, fragment_shader_id: Int, backend_id: String) -> Int:
+    return kain_native_graphics_pipeline_create(session_id, label, vertex_shader_id, fragment_shader_id, backend_id)
+
+pub fn native_graphics_begin_frame(session_id: Int, delta_ms: Float) -> Int:
+    return kain_native_graphics_begin_frame(session_id, delta_ms)
+
+pub fn native_graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int:
+    return kain_native_graphics_draw_mesh(session_id, pipeline_id, mesh_id, instance_count)
+
+pub fn native_graphics_present(session_id: Int) -> Int:
+    return kain_native_graphics_present(session_id)
+
+fn main() -> Int:
+    let session = native_graphics_session_create("kain-authored-engine", 1280, 720)
+    let _backend = native_graphics_backend_select(session, "vulkan")
+    let vertex_shader = native_graphics_shader_spirv_from_hex(session, "engine.vertex", "vertex", "main", "03022307")
+    let fragment_shader = native_graphics_shader_spirv_from_hex(session, "engine.fragment", "fragment", "main", "03022307")
+    let vertex_buffer = native_graphics_buffer_create_from_hex(session, "vertex", "author.mesh.vertices", "000000000100000002000000", 12)
+    let index_buffer = native_graphics_buffer_create_from_hex(session, "index", "author.mesh.indices", "000000000100000002000000", 4)
+    let mesh = native_graphics_mesh_create(session, "author.mesh.triangle", vertex_buffer, index_buffer, 3, 3)
+    let pipeline = native_graphics_pipeline_create(session, "author.pipeline", vertex_shader, fragment_shader, "vulkan")
+    let _frame = native_graphics_begin_frame(session, 8.33)
+    let _draw = native_graphics_draw_mesh(session, pipeline, mesh, 1)
+    return native_graphics_present(session)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains(
+        "declare i64 @kain_native_graphics_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"
+    ));
+    assert!(llvm.contains("declare i64 @kain_native_graphics_shader_spirv_from_hex"));
+    assert!(llvm.contains("declare i64 @kain_native_graphics_buffer_create_from_hex"));
+    assert!(llvm.contains("call i64 @kain_native_graphics_draw_mesh"));
+    assert!(llvm.contains("author.mesh.triangle"));
+    assert!(llvm.contains("vulkan"));
+    assert!(!llvm.contains("geometry_fixture"));
+}
+
+#[test]
 fn llvm_generates_world_patch_converge_and_orchestrate_paths() {
     let source = r#"
 world Studio:

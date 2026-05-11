@@ -25,6 +25,8 @@ It is not only a `KAIN.toml`/materialization language or an orchestration shell 
 
 The build, packaging, and adapter crates matter because Kain is meant to ship into multiple targets, not because the language is limited to manifests and glue. The durable architecture rule is: keep authored logic in Kain when it belongs to Kain semantics, and use host bridges when the capability is genuinely platform-, ABI-, or ecosystem-owned.
 
+Important language-wide rule: native/Rust/C code provides capabilities, ABI substrate, validation, diagnostics, and target integration. Kain source authors behavior, engines, scenes, UI structures, primitives, simulation loops, and workflows. Do not add host-side catalogs, templates, default scenes, built-in primitives, or product layouts when a generic capability surface would let Kain author the system directly.
+
 The repo currently spans five connected layers:
 
 1. `crates/kain-core`
@@ -37,7 +39,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 `runtime/native` is the canonical ABI floor and C runtime substrate. `crates/kain-host`, `crates/kain-sdk`, `crates/kain-reflect`, `crates/kain-c-ffi`, `crates/kain-crate-ffi`, `crates/kain-python`, `crates/kain-node`, `crates/kain-codebase`, and `crates/kain-interop` provide host/runtime integration.
 
 4. UI, native desktop, and 3D
-`crates/kain-ui`, `crates/kain-ui-native`, and `crates/kain-3D` are the semantic UI and accelerated native presentation stack. The low-level single-file LLVM UI lane lives at the C ABI floor in `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c`: it exposes sessions, arbitrary authored node kinds, rects, styles, events, hit testing, focus, dirty tracking, and draw-command buffers without a host-owned component catalog.
+`crates/kain-ui`, `crates/kain-ui-native`, and `crates/kain-3D` are the semantic UI and accelerated native presentation stack. The low-level single-file LLVM UI lane lives at the C ABI floor in `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c`: it exposes sessions, arbitrary authored node kinds, rects, styles, events, hit testing, focus, dirty tracking, and draw-command buffers without a host-owned component catalog. The low-level native graphics lane lives at `runtime/native/include/kain_native_graphics_system.h` and `runtime/native/src/core/kain_native_graphics_system.c`: it exposes sessions, backend targets, SPIR-V module registration, authored buffers, meshes, pipelines, frame submission, draw-command inspection, and diagnostics without a host-owned scene or primitive catalog.
 
 5. Target adapters
 `crates/web`, `crates/gpu`, `crates/kain-gpu-runtime`, and the `crates/ue5*` family consume compiler-owned contracts for specific runtime environments.
@@ -50,6 +52,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `crates/kain-driver` owns emitted bundle truth and app/runtime materialization.
 - `runtime/native` owns the stable ABI floor, startup, service contracts, and low-level host/runtime substrate.
 - Native UI primitives are ABI substrate, not product UI. The runtime may expose generic handles and buffers, but buttons, panels, inspectors, viewports, shells, and catalogs must be authored in Kain source or `stdlib/native`, not hardcoded as Rust/C host recipes.
+- Native graphics primitives are ABI substrate, not a game engine or DCC catalog. The runtime may expose sessions, buffers, shader modules, pipeline handles, draw commands, and backend probes; scenes, meshes, primitive recipes, simulation loops, renderers, editors, and engine policy must be authored in Kain source or data.
 - Host bridges and adapters extend Kain into external ecosystems; they do not downgrade Kain source into "configuration only."
 - Accelerated Rust lanes may optimize execution, but they must consume the same compiler-owned bundles rather than inventing a second semantic model.
 - Web, UE5, selfhost, and future lanes are adapters, not alternate definitions of what Kain source means.
@@ -113,7 +116,6 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-build](/M:/Code/Kain/crates/kain-build): workspace build orchestration for blades plus the older Cargo `build.rs` helper surface. `src/workspace.rs` plans and executes C shared libraries, Cargo crates, GPU artifacts, Kain checks, Fabric validation/runs, and explicit Node/Bun/custom tasks from one DAG with artifact roots under `.kain/build`, stamps under `.kain/cache/build`, and JSON/JSONL reports under `.kain/reports/build`. Its artifact, cache, report, clean, fingerprint, and discovery IO is routed through `kain-fs`.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
-- [kain-repl](/M:/Code/Kain/crates/kain-repl): interactive REPL ownership point for line buffering, dot directives, source normalization, interpret-target evaluation, terminal IO, and REPL build metadata. `lib.rs` is only the public index; extend focused files such as `command.rs`, `session.rs`, `evaluation.rs`, `terminal.rs`, `source.rs`, and `metadata.rs`. The CLI should call this crate through `kain repl` / `kn repl` or the `kn` no-args launcher path instead of growing another interactive loop in `crates/cli/src/main.rs`.
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
 - [kain-check](/M:/Code/Kain/crates/kain-check) and [kain-test](/M:/Code/Kain/crates/kain-test): reusable source checking and compiletest-style suite harnesses behind `kain check` and `kain test`, kept separate from the CLI so IDE, CI, and future agents can reuse structured reports without shelling through command output.
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`. The direct C backend emits extern declarations for `@extern`, lowers actor `spawn`/`send` to the native stdlib facade, and registers entangle metadata at generated `main` entry.
@@ -127,6 +129,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-ui](/M:/Code/Kain/crates/kain-ui): semantic UI graph and patch-oriented UI meaning
 - [kain-ui-native](/M:/Code/Kain/crates/kain-ui-native): authored native desktop host/runtime lane. Default non-egui flow is `app.rs` -> `session.rs` -> `qt_host.rs`: compile Kain source into `UiBuildOutput`, project authored surfaces/nodes into `KainUiNativeSessionManifest`, and launch a thin Qt shell that renders only authored projection data. Do not add Rust-side UI catalogs, placeholder pane lanes, renderer switchboards, sample dashboards, or default widget layouts here; dead polluted/legacy hosts should be deleted rather than archived inside this crate.
 - [native UI system C ABI](/M:/Code/Kain/runtime/native/include/kain_native_ui_system.h): raw single-file LLVM UI substrate exposed through [stdlib/native/ui.kn](/M:/Code/Kain/stdlib/native/ui.kn). It gives Kain source enough low-level power to build its own UI system: sessions, windows, arbitrary node kind strings, parent/rect/text/style/flag mutation, focus, hit testing, events, dirty counts, and draw commands. Keep it generic; do not add baked component kinds or a catalog to this layer.
+- [native graphics system C ABI](/M:/Code/Kain/runtime/native/include/kain_native_graphics_system.h): raw LLVM/direct-C graphics substrate exposed through [stdlib/native/graphics.kn](/M:/Code/Kain/stdlib/native/graphics.kn). It gives Kain source enough low-level power to build its own 3D engine path: sessions, backend target selection, truthful Vulkan/D3D12 availability probes, SPIR-V shader modules, authored buffers, meshes, pipelines, draw commands, frame submission, and diagnostics. Keep it generic; do not add baked scenes, primitives, or default engine policy to this layer.
 - [kain-ui-tauri](/M:/Code/Kain/crates/kain-ui-tauri): Tauri 2 desktop adapter generator, reflective bridge manifest builder, capability/permission preset catalog, and generated host/frontend scaffold for the webview desktop lane
 - [kain-3D](/M:/Code/Kain/crates/kain-3D): native 3D renderer and viewport runtime
 
@@ -170,13 +173,14 @@ Native target codegen for compiler-owned intents and filesystem calls is intenti
 
 Native Kain builds use explicit stdlib/runtime profiles instead of the generic root stdlib:
 
-- `stdlib/native` is loaded for `CompileTarget::Llvm` and `CompileTarget::C`. It exposes runtime init/shutdown, actor, entangle, filesystem, diagnostics, time, collections, result/status, and intent helpers as Kain-callable declarations/wrappers.
+- `stdlib/native` is loaded for `CompileTarget::Llvm` and `CompileTarget::C`. It exposes runtime init/shutdown, actor, entangle, filesystem, diagnostics, time, collections, result/status, intent, raw native UI, and raw native graphics helpers as Kain-callable declarations/wrappers.
 - `stdlib/c` is loaded after `stdlib/native` only for direct C output and keeps C bridge helpers as `@extern` declarations.
 - `runtime/native_core_runtime.toml` is the default lean manifest for normal file builds. It links the owned C core, diagnostics, actor, async, entangle, filesystem-capable native stdlib facade, and related sources.
 - `runtime/native_runtime.toml` remains the broad app/vendor manifest. Use it when the task needs the larger native app/UI/vendor surface instead of the core language proof runtime.
 - `runtime/fixtures/native_option_result_future/main.kn` is the focused LLVM fixture for native tagged `Option`, `Result`, `Future`, `async`, `await`, `?`, and unwrap-style helpers.
 - `runtime/fixtures/native_world_actor_intent/main.kn` is the current all-in-one fixture proving `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and stdlib facade calls through both `-t llvm` and `-t c`.
 - `runtime/fixtures/native_fs/main.kn` is the focused filesystem fixture proving text writes/appends/reads, ranged text and byte-hex reads, temp directories, path joins, existence/type checks, structured metadata text, directory path listings, streaming copies, SHA-256 hashing, recursive removal, and native stdlib status plumbing through both `-t llvm` and `-t c`.
+- `runtime/fixtures/native_graphics_engine/main.kn` is the focused LLVM fixture proving Kain-authored graphics sessions, Vulkan/D3D12 target probes, SPIR-V module registration, authored vertex/index buffers, mesh handles, pipeline handles, draw command submission, and two distinct authored mesh submissions through the raw native graphics kernel.
 - `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` is the direct C conformance entrypoint for the facade itself.
 
 The LLVM native lane represents `Option<T>`, `Result<Ok, Err>`, and `Future<T>` as native tagged `i8*` handles at the ABI boundary rather than erasing them to their payload type. The C facade exposes constructors, tag checks, payload-copy helpers, ready-future/await helpers, and intent counters. This is the compatibility layer until the backend grows fully typed aggregate payloads for every `T`; for now, generated payload extraction is strongest for scalar payloads and focused fixture coverage.
@@ -216,14 +220,6 @@ Keep new actor-system capabilities in focused `kain-actor/src/*.rs` modules, not
 `Kain source -> kain-core lexer/parser -> compiler-owned AST printer -> kain-driver helper -> cli format command`
 
 The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentionally compiler-owned. The rule is the same as the rest of the toolchain: editors, CLIs, and future LLM workflows should reuse the compiler printer instead of growing lane-local pretty-printers that drift from the actual grammar.
-
-### REPL flow
-
-`terminal input -> kain-repl session/directives -> ReplEvaluator -> kain-driver CompileTarget::Interpret -> kain-core runtime/interpreter`
-
-`crates/kain-repl` owns the REPL's interactive mechanics. `session.rs` owns buffered multiline source and prompt state, `command.rs` owns dot directives such as `.run`, `.clear`, `.exit`, and `.help`, `source.rs` owns BOM/shebang normalization shared with CLI source reads, `evaluation.rs` owns diagnostics-formatted interpret-target evaluation through `kain-driver`, and `terminal.rs` owns process IO.
-
-The CLI exposes this through explicit `kain repl` / `kn repl` commands and preserves the `kn` no-args terminal launcher behavior. Future REPL overhaul work should extend `kain-repl` first, then keep `crates/cli/src/main.rs` as the thin command host.
 
 ### Checking and source test flow
 
@@ -399,6 +395,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - `kain-3D` now owns the reusable manipulator drag contract as well: screen drag, axis/plane constraints, snap application, and local-vs-world transform math live in `crates/kain-3D/src/interaction.rs`, while `kain-ui-native` should stay a host/input forwarder instead of carrying a second copy of viewport-edit math
 - `kain-3D` owns primitive support as an authored mesh ingestion system, not as a Rust shape catalog. `crates/kain-3D/src/primitive.rs` validates Kain-authored primitive identities, metadata, registries, and explicit geometry; it must not grow built-in cube/sphere/capsule/torus builders or default primitive libraries.
 - authored `.kn` code reaches that seam through the `zen3d` prelude and the generic runtime-native `__zen3d_triangle_geometry` binding. Kain source owns primitive recipes and vertex/index data; Rust owns validation, conversion into `Geometry`/`Mesh`, scene attachment, and runtime consumption.
+- raw LLVM/direct-C Kain code reaches the lower-level engine-building surface through `stdlib/native/graphics.kn` and `kain_native_graphics_system`. That layer is intentionally below `kain-3D`: it records authored buffers, SPIR-V modules, meshes, pipelines, backend targets, and draw commands, but does not manufacture a scene, geometry, material, camera, or engine loop.
 
 ## Important Folders By Intent
 
@@ -506,7 +503,6 @@ If the debug CLI is missing:
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
 - The PATH `kain` launcher can drift from the repo-local binary. Before trusting the docs example suite, run `./target/debug/kain doctor` or call `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`.
-- The REPL is crate-owned now. Use `kain repl` / `kn repl` or test `crates/kain-repl` directly; do not patch a second interactive loop into `crates/cli/src/main.rs`.
 - `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Filesystem imports now share lookup through `crates/kain-core/src/module_resolution.rs`. `use module::item` can fall back from `module/item.kn` to `module.kn` or `src/module.kn` and register the requested top-level item, while `use module::*` exposes top-level module items to best-effort typechecking. Lookup is still rooted in the process current directory, so launch nested scripts from the intended project/runtime root until source-file-relative module roots are added.
 - Filesystem stdlib globals are ABI-sensitive now. When adding new native-callable `fs_*` helpers, update `crates/kain-core/src/stdlib.rs` with precise return types, keep `stdlib/native/fs.kn` wrapper signatures explicit, and ensure LLVM skips declaring stdlib functions that the target stdlib defines in Kain source.

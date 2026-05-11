@@ -48,6 +48,7 @@ echo ""
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_core.c" -o "$OUT_DIR/kain_runtime_core.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_version.c" -o "$OUT_DIR/kain_runtime_version.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$OUT_DIR/kain_runtime_diagnostics.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_native_graphics_system.c" -o "$OUT_DIR/kain_native_graphics_system.o"
 "$C_COMPILER" $CFLAGS -c "$PLATFORM_SHARED_SOURCE" -o "$OUT_DIR/kain_runtime_platform_shared.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_realtime.c" -o "$OUT_DIR/kain_runtime_realtime.o"
 if [[ -n "$PLATFORM_GRAPHICS_SOURCE" ]]; then
@@ -71,6 +72,18 @@ fi
     $LDFLAGS
 
 echo ""
+echo "=== Compiling Native Graphics System Kernel ==="
+
+"$C_COMPILER" $CFLAGS \
+    "$SCRIPT_DIR/test_native_graphics_system_kernel.c" \
+    "$OUT_DIR/kain_native_graphics_system.o" \
+    "$OUT_DIR/kain_runtime_core.o" \
+    "$OUT_DIR/kain_runtime_version.o" \
+    "$OUT_DIR/kain_runtime_diagnostics.o" \
+    -o "$OUT_DIR/native_graphics_system_kernel.exe" \
+    $LDFLAGS
+
+echo ""
 echo "=== Compiling Graphics Binding Rules ==="
 
 "$C_COMPILER" $CFLAGS \
@@ -88,4 +101,5 @@ echo ""
 echo "=== Compilation Complete ==="
 echo "Run tests with:"
 echo "  $OUT_DIR/graphics_runtime_smoke.exe"
+echo "  $OUT_DIR/native_graphics_system_kernel.exe"
 echo "  $OUT_DIR/graphics_runtime_binding_rules.exe"

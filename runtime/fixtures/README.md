@@ -168,6 +168,20 @@ cd runtime/fixtures/llvm_heap_memory
 
 ---
 
+### 8. Native Graphics Engine (`native_graphics_engine/`)
+
+**Purpose:** Validates Kain-authored graphics engine primitives through the raw native graphics stdlib.
+
+**What it tests:**
+- Native graphics session creation
+- Backend target support for Vulkan and DirectX 12 without claiming direct executors
+- SPIR-V shader module registration
+- Authored vertex/index buffer and mesh handles
+- Authored pipeline and draw-command submission
+- Two different authored mesh submissions through the same generic runtime kernel
+
+---
+
 ## Design Principles
 
 ### Minimal by Design

@@ -61,7 +61,8 @@
       "native/src/core/kain_runtime_memory.c",
       "native/src/core/kain_runtime_bitfield.c",
       "native/src/core/kain_runtime_union.c",
-      "native/src/core/kain_runtime_actor.c"
+      "native/src/core/kain_runtime_actor.c",
+      "native/src/core/kain_native_graphics_system.c"
     ],
     "asset": [
       "native/src/asset/kain_asset_gltf.c"
@@ -424,6 +425,45 @@
       "requirement": "required",
       "status": "available",
       "description": "Win32 viewport host and OpenGL rendering",
+      "platforms": [
+        "windows"
+      ]
+    },
+    {
+      "key": "gfx.raw-native",
+      "name": "Raw Native Graphics",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "description": "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands"
+    },
+    {
+      "key": "gfx.shader.spirv",
+      "name": "SPIR-V Shader Modules",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "available",
+      "description": "Canonical native shader payload registration for Kain-authored graphics and compute pipelines"
+    },
+    {
+      "key": "gfx.backend.vulkan",
+      "name": "Vulkan Backend Target",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "degraded",
+      "description": "Kain-visible Vulkan backend selection and capability probe; direct command execution is not attached in this runtime build",
+      "platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "key": "gfx.backend.d3d12",
+      "name": "DirectX 12 Backend Target",
+      "provider": "native-core",
+      "requirement": "optional",
+      "status": "degraded",
+      "description": "Kain-visible DirectX 12 backend selection and capability probe; direct command execution is not attached in this runtime build",
       "platforms": [
         "windows"
       ]

@@ -125,6 +125,39 @@ else
 fi
 
 echo ""
+echo "Executing native graphics system kernel..."
+
+if [[ ! -x "$SCRIPT_DIR/bin/native_graphics_system_kernel.exe" ]]; then
+    echo "Native graphics kernel binary missing: $SCRIPT_DIR/bin/native_graphics_system_kernel.exe" >&2
+    popd > /dev/null
+    exit 1
+fi
+
+if [[ $VERBOSE -eq 1 ]]; then
+    set +e
+    run_with_timeout "$TEST_TIMEOUT_SEC" "native graphics system kernel" "$SCRIPT_DIR/bin/native_graphics_system_kernel.exe"
+    kernel_status=$?
+    set -e
+else
+    set +e
+    run_with_timeout "$TEST_TIMEOUT_SEC" "native graphics system kernel" "$SCRIPT_DIR/bin/native_graphics_system_kernel.exe" > /dev/null 2>&1
+    kernel_status=$?
+    set -e
+fi
+
+if [[ $kernel_status -eq 0 ]]; then
+    echo "[PASS] native graphics system kernel"
+else
+    if [[ $kernel_status -eq 124 ]]; then
+        echo "[TIMEOUT] native graphics system kernel" >&2
+    else
+        echo "[FAIL] native graphics system kernel" >&2
+    fi
+    popd > /dev/null
+    exit $kernel_status
+fi
+
+echo ""
 echo "Executing graphics binding rules..."
 
 if [[ ! -x "$SCRIPT_DIR/bin/graphics_runtime_binding_rules.exe" ]]; then
@@ -161,8 +194,8 @@ popd > /dev/null
 
 echo ""
 echo "Graphics runtime summary"
-echo "  total:   2"
-echo "  passed:  2"
+echo "  total:   3"
+echo "  passed:  3"
 echo "  failed:  0"
 echo "  timeout: 0"
 
