@@ -927,7 +927,9 @@ dependencies = [
  "gpu",
  "heck 0.5.0",
  "kain-asm",
+ "kain-blades",
  "kain-c-ffi",
+ "kain-check",
  "kain-codebase",
  "kain-core",
  "kain-crate-ffi",
@@ -937,6 +939,7 @@ dependencies = [
  "kain-omni",
  "kain-repair",
  "kain-sys-codegen",
+ "kain-test",
  "minijinja",
  "notify",
  "prettyplease",
@@ -2819,6 +2822,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-blades"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "toml",
+]
+
+[[package]]
 name = "kain-build"
 version = "0.1.0"
 dependencies = [
@@ -2830,6 +2844,7 @@ name = "kain-c-ffi"
 version = "0.1.0"
 dependencies = [
  "heck 0.5.0",
+ "kain-blades",
  "kain-core",
  "kain-import",
  "kain-interop",
@@ -2842,6 +2857,16 @@ dependencies = [
  "sha2",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "kain-check"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-driver",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -2866,6 +2891,7 @@ dependencies = [
  "chumsky",
  "flume",
  "indexmap 2.11.1",
+ "kain-blades",
  "kain-entangle",
  "kain-ui",
  "logos",
@@ -2884,6 +2910,7 @@ name = "kain-crate-ffi"
 version = "0.1.0"
 dependencies = [
  "heck 0.5.0",
+ "kain-blades",
  "kain-core",
  "libloading 0.8.9",
  "once_cell",
@@ -2959,6 +2986,7 @@ dependencies = [
 name = "kain-host"
 version = "0.1.0"
 dependencies = [
+ "kain-blades",
  "kain-c-ffi",
  "kain-codebase",
  "kain-core",
@@ -3030,6 +3058,7 @@ version = "0.1.0"
 dependencies = [
  "gpu",
  "kain-asm",
+ "kain-blades",
  "kain-core",
  "kain-driver",
  "kain-import",
@@ -3098,6 +3127,17 @@ dependencies = [
  "kain-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kain-test"
+version = "0.1.0"
+dependencies = [
+ "kain-check",
+ "kain-core",
+ "kain-driver",
+ "serde",
+ "tempfile",
 ]
 
 [[package]]

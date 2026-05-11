@@ -103,6 +103,8 @@ pub struct FabricStep {
     pub id: String,
     pub runtime: FabricRuntimeKind,
     #[serde(default)]
+    pub blade: Option<String>,
+    #[serde(default)]
     pub entry: Option<PathBuf>,
     #[serde(default)]
     pub module: Option<String>,
@@ -292,6 +294,8 @@ pub struct FabricResolvedInputRecord {
 pub struct FabricStepExecution {
     pub id: String,
     pub runtime: FabricRuntimeKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blade: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -735,11 +739,15 @@ fn validate_capability_requirement(
 }
 
 fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
+    let has_blade = step
+        .blade
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
     match step.runtime {
         FabricRuntimeKind::Kain => {
-            if step.entry.is_none() {
+            if step.entry.is_none() && !has_blade {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'kain' must declare 'entry'",
+                    "Fabric step '{}' with runtime 'kain' must declare 'entry' or 'blade'",
                     step.id
                 )));
             }
@@ -763,37 +771,38 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
                 .crate_name
                 .as_ref()
                 .is_none_or(|value| value.trim().is_empty())
+                && !has_blade
             {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'rust_crate' must declare 'crate_name'",
+                    "Fabric step '{}' with runtime 'rust_crate' must declare 'crate_name' or 'blade'",
                     step.id
                 )));
             }
-            if step.entry.is_none() {
+            if step.entry.is_none() && !has_blade {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'rust_crate' must declare 'entry' so kain-host can run local glue against the imported crate",
+                    "Fabric step '{}' with runtime 'rust_crate' must declare 'entry' or a blade with a Kain glue entry",
                     step.id
                 )));
             }
         }
         FabricRuntimeKind::CAbi => {
-            if step.library.is_none() {
+            if step.library.is_none() && !has_blade {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'c_abi' must declare 'library'",
+                    "Fabric step '{}' with runtime 'c_abi' must declare 'library' or 'blade'",
                     step.id
                 )));
             }
-            if step.entry.is_none() {
+            if step.entry.is_none() && !has_blade {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'c_abi' must declare 'entry' so kain-host can run local glue against the imported library",
+                    "Fabric step '{}' with runtime 'c_abi' must declare 'entry' or a blade with a Kain glue entry",
                     step.id
                 )));
             }
         }
         FabricRuntimeKind::GpuCompute => {
-            if step.shader_source.is_none() {
+            if step.shader_source.is_none() && !has_blade {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source' pointing to a .kn shader file",
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source' or 'blade'",
                     step.id
                 )));
             }
@@ -801,9 +810,10 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
                 .compute_key
                 .as_ref()
                 .is_none_or(|k| k.trim().is_empty())
+                && !has_blade
             {
                 return Err(OmniError::Config(format!(
-                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key'",
+                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key' or a blade compute key",
                     step.id
                 )));
             }
@@ -1075,6 +1085,7 @@ fn local_manifest_template() -> FabricManifest {
         steps: vec![FabricStep {
             id: "main".to_string(),
             runtime: FabricRuntimeKind::Kain,
+            blade: None,
             entry: Some(PathBuf::from("src/main.kn")),
             module: None,
             crate_name: None,
@@ -1114,6 +1125,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "python_source".to_string(),
                 runtime: FabricRuntimeKind::Python,
+                blade: None,
                 entry: Some(PathBuf::from("scripts/python_step.py")),
                 module: None,
                 crate_name: None,
@@ -1131,6 +1143,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "kain_orchestrator".to_string(),
                 runtime: FabricRuntimeKind::Kain,
+                blade: None,
                 entry: Some(PathBuf::from("src/main.kn")),
                 module: None,
                 crate_name: None,
@@ -1154,6 +1167,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "native_filter".to_string(),
                 runtime: FabricRuntimeKind::CAbi,
+                blade: None,
                 entry: Some(PathBuf::from("src/native_step.kn")),
                 module: Some("image_fx".to_string()),
                 crate_name: None,
@@ -1177,6 +1191,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "rust_analyzer".to_string(),
                 runtime: FabricRuntimeKind::RustCrate,
+                blade: None,
                 entry: Some(PathBuf::from("src/rust_step.kn")),
                 module: None,
                 crate_name: Some("fabric_runtime_lab".to_string()),
@@ -1194,6 +1209,7 @@ fn polyglot_manifest_template() -> FabricManifest {
             FabricStep {
                 id: "node_packager".to_string(),
                 runtime: FabricRuntimeKind::Node,
+                blade: None,
                 entry: Some(PathBuf::from("scripts/node_step.mjs")),
                 module: None,
                 crate_name: None,
@@ -1276,11 +1292,14 @@ mod tests {
                 FabricStep {
                     id: "dup".to_string(),
                     runtime: FabricRuntimeKind::Kain,
+                    blade: None,
                     entry: Some(PathBuf::from("src/main.kn")),
                     module: None,
                     crate_name: None,
                     manifest_path: None,
                     library: None,
+                    shader_source: None,
+                    compute_key: None,
                     depends_on: Vec::new(),
                     requires: Vec::new(),
                     outputs: Vec::new(),
@@ -1288,11 +1307,14 @@ mod tests {
                 FabricStep {
                     id: "dup".to_string(),
                     runtime: FabricRuntimeKind::Node,
+                    blade: None,
                     entry: Some(PathBuf::from("scripts/node_step.mjs")),
                     module: None,
                     crate_name: None,
                     manifest_path: None,
                     library: None,
+                    shader_source: None,
+                    compute_key: None,
                     depends_on: Vec::new(),
                     requires: Vec::new(),
                     outputs: Vec::new(),
@@ -1316,11 +1338,14 @@ mod tests {
                 FabricStep {
                     id: "a".to_string(),
                     runtime: FabricRuntimeKind::Kain,
+                    blade: None,
                     entry: Some(PathBuf::from("src/main.kn")),
                     module: None,
                     crate_name: None,
                     manifest_path: None,
                     library: None,
+                    shader_source: None,
+                    compute_key: None,
                     depends_on: vec!["b".to_string()],
                     requires: Vec::new(),
                     outputs: Vec::new(),
@@ -1328,11 +1353,14 @@ mod tests {
                 FabricStep {
                     id: "b".to_string(),
                     runtime: FabricRuntimeKind::Node,
+                    blade: None,
                     entry: Some(PathBuf::from("scripts/node_step.mjs")),
                     module: None,
                     crate_name: None,
                     manifest_path: None,
                     library: None,
+                    shader_source: None,
+                    compute_key: None,
                     depends_on: vec!["a".to_string()],
                     requires: Vec::new(),
                     outputs: Vec::new(),

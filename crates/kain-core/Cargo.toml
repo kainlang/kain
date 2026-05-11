@@ -16,6 +16,7 @@ tokio = { workspace = true }
 once_cell = { workspace = true }
 flume = { workspace = true }
 reqwest = { workspace = true }
+kain-blades = { path = "../kain-blades" }
 kain-entangle = { path = "../kain-entangle" }
 kain-ui = { path = "../kain-ui" }
 

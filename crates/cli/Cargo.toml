@@ -14,6 +14,9 @@ path = "src/bin/kn.rs"
 
 [dependencies]
 kain-core = { path = "../kain-core" }
+kain-blades = { path = "../kain-blades" }
+kain-check = { path = "../kain-check" }
+kain-test = { path = "../kain-test" }
 kain-driver = { path = "../kain-driver", default-features = false }
 kain-c-ffi = { path = "../kain-c-ffi" }
 kain-codebase = { path = "../kain-codebase" }

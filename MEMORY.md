@@ -1,5 +1,49 @@
 # Kain Memory
 
+# 2026-05-11 - Kain blades landed as the local crate-like workspace system
+
+Kain now has a first-class `kain-blades` crate that makes the "blades" idea real across CLI, Fabric, module lookup, Rust crate FFI, and C ABI FFI.
+
+What changed:
+
+- Added `crates/kain-blades` as the typed discovery/resolution layer for local blade workspaces. It discovers default `blades/*`, `apps/*`, and `crates/*` roots, honors `[workspace] blades`, `blade_roots`, and `members` from `KAIN.toml`, parses `[blade]` metadata, and treats plain `Cargo.toml` packages as synthetic Rust blades.
+- Added `kain blades list`, `kain blades graph`, `kain blades check`, and `kain equip <blade>` to the CLI, with text and JSON output.
+- Committed the existing `kain-check` and `kain-test` crates as the reusable libraries behind the already-planned `kain check` and `kain test` CLI commands; their stale failure fixtures were updated to use syntax errors instead of type mismatch cases that the current frontend accepts.
+- Wired blade module roots into `kain-core` filesystem module candidates so a blade can expose Kain modules without callers hardcoding folder paths.
+- Wired blade fallback into `kain-crate-ffi` and `kain-c-ffi`, so Rust crate imports and C ABI library imports can resolve through the same blade graph.
+- Extended Fabric schema/execution with `blade = "..."` support. Kain, Rust crate, C ABI, and GPU Fabric steps can now resolve entries/manifests/shaders/compute keys from a blade instead of repeating path fields.
+- Fixed the pre-existing CLI exhaustiveness blocker by wiring `Commands::Check` and `Commands::Test` through the `kain-check` and `kain-test` crates, which allowed a full `cargo build -p cli` proof.
+
+Design decisions:
+
+- Blades are local-first and crate-like today, not a remote package manager yet. Future `sharpen` behavior should extend `kain-blades` rather than making a separate registry/update path.
+- Rust crates and Kain blades are deliberately interchangeable at the folder-boundary level: a Cargo crate under `crates/*` can be equipped as a blade, and a `KAIN.toml` blade can point at Rust/C/Fabric/GPU artifacts.
+- `kain-blades` is the one place that should know default blade patterns and manifest semantics. Callers should consume `ResolvedBlade`, module roots, Rust crate blade resolution, or C FFI library resolution instead of reimplementing scans.
+
+Validation:
+
+- `rustfmt --edition 2021 crates/kain-blades/src/lib.rs crates/cli/src/blades.rs crates/kain-core/src/module_resolution.rs crates/kain-crate-ffi/src/resolve.rs crates/kain-c-ffi/src/lib.rs crates/kain-omni/src/fabric.rs crates/kain-host/src/fabric.rs`
+- `cargo test -p kain-blades --target-dir target\\codex-blades`
+- `cargo test -p kain-core blade_module_roots_extend_filesystem_candidates --target-dir target\\codex-blades`
+- `cargo test -p kain-omni validate_default_polyglot_template_succeeds --target-dir target\\codex-blades`
+- `cargo test -p kain-host python_harness_supports_mixed_multi_output_steps --target-dir target\\codex-blades`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-blades`
+- `target\\codex-blades\\debug\\kain.exe equip kain-core --json`
+- `target\\codex-blades\\debug\\kain.exe blades list .`
+- `cargo test -p kain-crate-ffi --target-dir target\\codex-blades`
+- `cargo test -p kain-c-ffi --target-dir target\\codex-blades`
+- `cargo test -p kain-check -p kain-test --target-dir target\\codex-blades`
+
+Current risks:
+
+- `cargo test -p kain-omni --target-dir target\\codex-blades` still has one non-blades failure in `tests::build_emits_rust_from_import_aware_entry` with `Unknown identifier 'helper'`; the focused Fabric blade-adjacent validation passed.
+- `blades check` can report missing generated/shared-library artifacts for blades whose native sidecars have not been built yet.
+- There is no remote registry, lockfile, install, or `sharpen` implementation yet. The current crate is the local graph and resolver foundation.
+
+Recommended next step:
+
+- Add a smoke blade under `blades/` with Kain, Rust crate, C ABI, Fabric, and GPU sections, then run `kain equip`, `kain fabric run`, and both FFI import paths against that one intentional fixture.
+
 # 2026-05-11 - LLVM and direct C native intent backends refreshed
 
 Kain's native backend path now handles the compiler-owned intent suite more honestly across LLVM, direct C output, and the native C runtime.

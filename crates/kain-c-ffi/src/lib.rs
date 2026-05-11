@@ -341,32 +341,46 @@ fn resolve_library(
         .and_then(|value| value.parent().map(Path::to_path_buf))
         .or_else(|| prepare.current_dir.clone())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let manifest_root = find_kain_manifest_root(&start_dir).ok_or_else(|| {
-        KainError::runtime(format!(
-            "Could not resolve KAIN.toml for C FFI import '{}'",
-            import_name
-        ))
-    })?;
-    let config = load_c_ffi_config(&manifest_root)?.ok_or_else(|| {
-        KainError::runtime(format!(
-            "KAIN.toml at '{}' is missing [c_ffi] configuration",
-            manifest_root.display()
-        ))
-    })?;
-    let library = config
+    if let Some(manifest_root) = find_kain_manifest_root(&start_dir) {
+        if let Some(resolved) = resolve_library_from_manifest_root(import_name, &manifest_root)? {
+            return Ok(resolved);
+        }
+    }
+
+    if let Some((blade, _library)) =
+        kain_blades::resolve_c_ffi_library_blade(&start_dir, import_name).map_err(|err| {
+            KainError::runtime(format!(
+                "C FFI blade discovery failed while resolving '{import_name}': {err}"
+            ))
+        })?
+    {
+        if let Some(resolved) = resolve_library_from_manifest_root(import_name, &blade.root)? {
+            return Ok(resolved);
+        }
+    }
+
+    Err(KainError::runtime(format!(
+        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml or discovered blades"
+    )))
+}
+
+fn resolve_library_from_manifest_root(
+    import_name: &str,
+    manifest_root: &Path,
+) -> Result<Option<(ResolvedCLibrary, model::ManifestContext)>, KainError> {
+    let Some(config) = load_c_ffi_config(manifest_root)? else {
+        return Ok(None);
+    };
+    let Some(library) = config
         .libraries
         .iter()
         .find(|value| value.name == import_name)
         .cloned()
-        .ok_or_else(|| {
-            KainError::runtime(format!(
-                "No [c_ffi] library named '{}' found in '{}'",
-                import_name,
-                manifest_root.join("KAIN.toml").display()
-            ))
-        })?;
+    else {
+        return Ok(None);
+    };
 
-    let header_path = resolve_relative_path(&manifest_root, &library.header);
+    let header_path = resolve_relative_path(manifest_root, &library.header);
     if !header_path.exists() {
         return Err(KainError::runtime(format!(
             "C FFI header '{}' does not exist",
@@ -376,22 +390,22 @@ fn resolve_library(
     let shared_lib_path = library
         .shared_lib
         .as_ref()
-        .map(|value| resolve_relative_path(&manifest_root, value));
+        .map(|value| resolve_relative_path(manifest_root, value));
 
-    Ok((
+    Ok(Some((
         ResolvedCLibrary {
             import_name: import_name.to_string(),
-            manifest_root: manifest_root.clone(),
+            manifest_root: manifest_root.to_path_buf(),
             header_path,
             shared_lib_path,
             config: library,
             global_config: config.clone(),
         },
         model::ManifestContext {
-            root_dir: Some(manifest_root),
+            root_dir: Some(manifest_root.to_path_buf()),
             config: Some(config),
         },
-    ))
+    )))
 }
 
 fn load_c_ffi_config(root: &Path) -> Result<Option<config::CFfiConfig>, KainError> {

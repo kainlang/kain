@@ -104,9 +104,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ## Key Crates
 
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
+- [kain-blades](/M:/Code/Kain/crates/kain-blades): crate-like local workspace discovery for Kain blades. It treats `blades/*`, `apps/*`, and `crates/*` as interchangeable blade roots, resolves explicit `KAIN.toml` blade metadata plus synthetic `Cargo.toml` Rust blades, and feeds `kain equip`, Fabric steps, Kain module lookup, Rust crate FFI, and C ABI FFI.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
+- [kain-check](/M:/Code/Kain/crates/kain-check) and [kain-test](/M:/Code/Kain/crates/kain-test): reusable source checking and compiletest-style suite harnesses behind `kain check` and `kain test`, kept separate from the CLI so IDE, CI, and future agents can reuse structured reports without shelling through command output.
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
 - [kain-host](/M:/Code/Kain/crates/kain-host): Rust embedding and native function registration
@@ -184,6 +186,14 @@ Current native-ui packaging rule for C ABI imports:
 
 - `kain-c-ffi` is no longer only an `Interpret`/`Test` lane concern. The Rust/native-ui packaging lane now emits packaged bridge manifests, copies bridge/shared-library sidecars into the app artifact set, and has the generated native app launcher load those packaged bridges before boot.
 - This does not mean the current native UI host is a full general-purpose Kain interpreter. The lane is still bundle-driven; the packaging change makes foreign bridge dependencies explicit and shippable rather than hidden behind cache-local host-backed behavior.
+
+### Blade workspace flow
+
+`workspace root -> kain-blades discovers blade roots -> resolved blade graph -> CLI, Fabric, filesystem modules, Rust crate FFI, and C ABI FFI consume the same blade metadata`
+
+The blade system is intentionally local-first and crate-like. A `KAIN.toml` can declare `[blade]` metadata and optional `rust`, `cffi`, `fabric`, and `gpu` sections, while a plain `Cargo.toml` under `crates/*`, `apps/*`, or `blades/*` is still exposed as a synthetic Rust blade. This makes a Kain blade able to live beside Rust crates, and a Rust crate able to be equipped from blade-aware workflows without duplicating path rules.
+
+`kain equip <blade>` is the human-facing resolver. `kain blades list`, `kain blades graph`, and `kain blades check` are the inspection and validation surface. Runtime code should call `kain-blades` instead of re-scanning folders directly; future remote update/install work should extend this crate rather than inventing a second registry path.
 
 ### Selfhost lanes
 
@@ -366,6 +376,8 @@ Typical commands:
 - `kain selfhost bootstrap --link-native` to drive the owned lane through native runtime resolution and final link
 - `kain selfhost bootstrap --verify-ouroboros` to run the first native self-recompile/parity check
 - `kain omni build`
+- `kain check <file-or-dir>` and `kain test <file-or-dir>` for structured source checking and compiletest-style pass/fail suites
+- `kain blades list`, `kain blades graph`, `kain blades check`, and `kain equip <blade>` for blade workspace inspection and resolution
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
 - `kain fabric run`
@@ -401,6 +413,7 @@ If the debug CLI is missing:
 - Do not push Kain-expressible business/domain logic into host bridges by default. Bridge when a capability is genuinely external, not because the language/runtime lane was ignored.
 - Do not invent lane-specific shader, UI, or compute metadata when compiler-owned bundles already exist.
 - Prefer data-driven capabilities, manifests, registries, and bundle metadata over scattered string checks and host-local assumptions.
+- Keep blade lookup centralized in `crates/kain-blades`. Do not add new `blades/*`, `apps/*`, or `crates/*` scans inside Fabric, FFI, or module-resolution call sites when a typed resolver already exists.
 - Keep the interpreter/runtime lane and emitted bundle/codegen lanes semantically aligned. A packaged target may optimize or lower behavior, but it should not silently define different language meaning than `kain-core`.
 - Preserve the distinction between authored language semantics, importer behavior, and backend/runtime support.
 - TypeScript import ambient globals must stay data-driven: generated data lives at `crates/kain-import/src/typescript/data/typescript_ambient_manifest.json`, Kain-specific aliases/helpers live in `tools/typescript_import/typescript_ambient_overrides.json`, and `crates/cli/src/import_typescript.rs` should consume that manifest instead of reintroducing hardcoded DOM/JS prelude arrays.

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::bridge::struct_value;
+use kain_blades::ResolvedBlade;
 use kain_c_ffi::{
     import_library, ArtifactMode as CArtifactMode, ImportCOptions,
     PrepareContext as CPrepareContext,
@@ -243,6 +244,7 @@ impl FabricExecutor {
                     FabricStepExecution {
                         id: step.id.clone(),
                         runtime: step.runtime.clone(),
+                        blade: step.blade.clone(),
                         entry: step.entry.clone(),
                         module: step.module.clone(),
                         crate_name: step.crate_name.clone(),
@@ -464,6 +466,12 @@ struct FabricAdapterContext<'a> {
     resolved_inputs: &'a [FabricResolvedInputRecord],
 }
 
+#[derive(Clone, Copy)]
+enum RuntimeManifestNeed {
+    Cargo,
+    Kain,
+}
+
 #[derive(Clone)]
 struct FabricStoredOutput {
     name: String,
@@ -525,16 +533,8 @@ impl FabricRuntimeAdapter for KainAdapter {
     }
 
     fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason> {
-        let entry = context.step.entry.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_entry",
-                format!(
-                    "Fabric step '{}' is missing an entry path for runtime 'kain'",
-                    context.step.id
-                ),
-            )
-        })?;
-        let resolved_entry = resolve_fabric_path(context.workspace_root, entry);
+        let blade = resolve_step_blade(context)?;
+        let resolved_entry = resolve_step_entry_path(context, blade.as_ref(), "Kain")?;
         let source = read_step_source(&resolved_entry, context.step, "Kain")?;
         interpret_fabric_kain_source(context, &source)
     }
@@ -569,38 +569,41 @@ impl FabricRuntimeAdapter for RustCrateAdapter {
     }
 
     fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason> {
-        let crate_name = context.step.crate_name.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_crate_name",
-                format!(
-                    "Fabric step '{}' is missing crate_name for runtime 'rust_crate'",
-                    context.step.id
-                ),
-            )
-        })?;
-        let entry_path = context.step.entry.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_entry",
-                format!(
-                    "Fabric step '{}' must declare entry for runtime 'rust_crate'",
-                    context.step.id
-                ),
-            )
-        })?;
-        let resolved_entry = resolve_fabric_path(context.workspace_root, entry_path);
-        let entry_source = read_step_source(&resolved_entry, context.step, "Rust crate glue")?;
-        let resolved_manifest_path = resolve_runtime_manifest_path(context.manifest_root, context.step)
+        let blade = resolve_step_blade(context)?;
+        let crate_name = context
+            .step
+            .crate_name
+            .clone()
+            .or_else(|| {
+                blade
+                    .as_ref()
+                    .and_then(|blade| blade.rust_crate_name.clone())
+            })
+            .or_else(|| blade.as_ref().map(|blade| blade.name.clone()))
             .ok_or_else(|| {
                 fabric_failure(
-                    "missing_manifest_path",
+                    "missing_crate_name",
                     format!(
-                        "Fabric step '{}' with runtime 'rust_crate' requires manifest_path or a Cargo.toml beside the Fabric manifest",
+                        "Fabric step '{}' is missing crate_name or blade for runtime 'rust_crate'",
                         context.step.id
                     ),
                 )
             })?;
+        let resolved_entry = resolve_step_entry_path(context, blade.as_ref(), "Rust crate glue")?;
+        let entry_source = read_step_source(&resolved_entry, context.step, "Rust crate glue")?;
+        let resolved_manifest_path =
+            resolve_step_runtime_manifest_path(context, blade.as_ref(), RuntimeManifestNeed::Cargo)?
+                .ok_or_else(|| {
+                    fabric_failure(
+                        "missing_manifest_path",
+                        format!(
+                            "Fabric step '{}' with runtime 'rust_crate' requires manifest_path, a blade cargo manifest, or a Cargo.toml beside the Fabric manifest",
+                            context.step.id
+                        ),
+                    )
+                })?;
         let imported = import_crate(
-            crate_name,
+            &crate_name,
             &ImportCrateOptions {
                 manifest_path: Some(resolved_manifest_path.clone()),
                 mode: RustArtifactMode::Both,
@@ -634,31 +637,30 @@ impl FabricRuntimeAdapter for CAbiAdapter {
     }
 
     fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason> {
-        let entry_path = context.step.entry.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_entry",
-                format!(
-                    "Fabric step '{}' must declare entry for runtime 'c_abi'",
-                    context.step.id
-                ),
-            )
-        })?;
-        let resolved_entry = resolve_fabric_path(context.workspace_root, entry_path);
+        let blade = resolve_step_blade(context)?;
+        let resolved_entry = resolve_step_entry_path(context, blade.as_ref(), "C ABI glue")?;
         let entry_source = read_step_source(&resolved_entry, context.step, "C ABI glue")?;
-        let resolved_manifest_path = resolve_runtime_manifest_path(context.manifest_root, context.step)
-            .ok_or_else(|| {
-                fabric_failure(
-                    "missing_manifest_path",
-                    format!(
-                        "Fabric step '{}' with runtime 'c_abi' requires manifest_path or a KAIN.toml beside the Fabric manifest",
-                        context.step.id
-                    ),
-                )
-            })?;
+        let resolved_manifest_path =
+            resolve_step_runtime_manifest_path(context, blade.as_ref(), RuntimeManifestNeed::Kain)?
+                .ok_or_else(|| {
+                    fabric_failure(
+                        "missing_manifest_path",
+                        format!(
+                            "Fabric step '{}' with runtime 'c_abi' requires manifest_path, a blade KAIN.toml, or a KAIN.toml beside the Fabric manifest",
+                            context.step.id
+                        ),
+                    )
+                })?;
         let import_name = context
             .step
             .module
             .clone()
+            .or_else(|| {
+                blade
+                    .as_ref()
+                    .and_then(|blade| blade.c_ffi_libraries.first())
+                    .map(|library| library.name.clone())
+            })
             .or_else(|| {
                 context
                     .step
@@ -728,26 +730,45 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
     }
 
     fn execute(&self, context: &FabricAdapterContext) -> Result<Value, FabricFailureReason> {
-        let shader_source = context.step.shader_source.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_shader_source",
-                format!(
-                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source'",
-                    context.step.id
-                ),
-            )
-        })?;
-        let compute_key = context.step.compute_key.as_ref().ok_or_else(|| {
-            fabric_failure(
-                "missing_compute_key",
-                format!(
-                    "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key'",
-                    context.step.id
-                ),
-            )
-        })?;
+        let blade = resolve_step_blade(context)?;
+        let shader_source = context
+            .step
+            .shader_source
+            .clone()
+            .or_else(|| {
+                blade
+                    .as_ref()
+                    .and_then(|blade| blade.gpu_shader_sources.first().cloned())
+            })
+            .ok_or_else(|| {
+                fabric_failure(
+                    "missing_shader_source",
+                    format!(
+                        "Fabric step '{}' with runtime 'gpu_compute' must declare 'shader_source' or blade GPU shader source",
+                        context.step.id
+                    ),
+                )
+            })?;
+        let compute_key = context
+            .step
+            .compute_key
+            .clone()
+            .or_else(|| {
+                blade
+                    .as_ref()
+                    .and_then(|blade| blade.compute_keys.first().cloned())
+            })
+            .ok_or_else(|| {
+                fabric_failure(
+                    "missing_compute_key",
+                    format!(
+                        "Fabric step '{}' with runtime 'gpu_compute' must declare 'compute_key' or blade compute key",
+                        context.step.id
+                    ),
+                )
+            })?;
 
-        let resolved_shader = resolve_fabric_path(context.workspace_root, shader_source);
+        let resolved_shader = resolve_fabric_path(context.workspace_root, &shader_source);
         let shader_text = fs::read_to_string(&resolved_shader).map_err(|err| {
             fabric_failure(
                 "shader_read_failed",
@@ -779,10 +800,10 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
         })?;
 
         // Build compute residency from artifact bundle metadata plus authored compute plan details.
-        let compute_metadata = parse_compute_metadata_for_shader(&shader_text, compute_key)?;
+        let compute_metadata = parse_compute_metadata_for_shader(&shader_text, &compute_key)?;
         let residency = build_compute_residency_from_artifact(
             context,
-            compute_key,
+            &compute_key,
             &artifact_output.bundle,
             compute_metadata.as_ref(),
         )?;
@@ -817,7 +838,7 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
             )
         })?;
         let dispatch_result = executor
-            .dispatch_from_sidecars(&shader_bundle_path, &residency_path, compute_key)
+            .dispatch_from_sidecars(&shader_bundle_path, &residency_path, &compute_key)
             .map_err(|err| {
                 fabric_failure(
                     "compute_dispatch_failed",
@@ -2101,6 +2122,72 @@ fn read_step_source(
     })
 }
 
+fn resolve_step_blade(
+    context: &FabricAdapterContext,
+) -> Result<Option<ResolvedBlade>, FabricFailureReason> {
+    let Some(blade_name) = &context.step.blade else {
+        return Ok(None);
+    };
+
+    kain_blades::resolve_blade(context.workspace_root, blade_name)
+        .map(Some)
+        .map_err(|err| {
+            fabric_failure(
+                "blade_resolve_failed",
+                format!(
+                    "Fabric step '{}': failed to equip blade '{}': {}",
+                    context.step.id, blade_name, err
+                ),
+            )
+        })
+}
+
+fn resolve_step_entry_path(
+    context: &FabricAdapterContext,
+    blade: Option<&ResolvedBlade>,
+    runtime_label: &str,
+) -> Result<PathBuf, FabricFailureReason> {
+    if let Some(entry) = &context.step.entry {
+        return Ok(resolve_fabric_path(context.workspace_root, entry));
+    }
+    if let Some(entry) = blade.and_then(|blade| blade.entry.as_ref()) {
+        return Ok(entry.clone());
+    }
+
+    Err(fabric_failure(
+        "missing_entry",
+        format!(
+            "Fabric step '{}' with runtime '{}' requires entry or an equipped blade with an entry",
+            context.step.id, runtime_label
+        ),
+    ))
+}
+
+fn resolve_step_runtime_manifest_path(
+    context: &FabricAdapterContext,
+    blade: Option<&ResolvedBlade>,
+    need: RuntimeManifestNeed,
+) -> Result<Option<PathBuf>, FabricFailureReason> {
+    if let Some(path) = &context.step.manifest_path {
+        return Ok(Some(resolve_fabric_path(context.manifest_root, path)));
+    }
+
+    if let Some(blade) = blade {
+        let path = match need {
+            RuntimeManifestNeed::Cargo => blade.cargo_manifest.clone(),
+            RuntimeManifestNeed::Kain => blade.kain_manifest.clone(),
+        };
+        if path.is_some() {
+            return Ok(path);
+        }
+    }
+
+    Ok(resolve_runtime_manifest_path(
+        context.manifest_root,
+        context.step,
+    ))
+}
+
 fn resolve_runtime_manifest_path(manifest_root: &Path, step: &FabricStep) -> Option<PathBuf> {
     if let Some(path) = &step.manifest_path {
         return Some(resolve_fabric_path(manifest_root, path));
@@ -2521,6 +2608,7 @@ mod tests {
         let step = FabricStep {
             id: "python_bridge".to_string(),
             runtime: FabricRuntimeKind::Python,
+            blade: None,
             entry: None,
             module: Some("fabric_python_bridge".to_string()),
             crate_name: None,
@@ -2573,6 +2661,7 @@ mod tests {
         let step = FabricStep {
             id: "node_bridge".to_string(),
             runtime: FabricRuntimeKind::Node,
+            blade: None,
             entry: None,
             module: Some("fabric_node_bridge".to_string()),
             crate_name: None,
@@ -2682,6 +2771,7 @@ mod tests {
         let step = FabricStep {
             id: "gpu_enrich".to_string(),
             runtime: FabricRuntimeKind::GpuCompute,
+            blade: None,
             entry: None,
             module: None,
             crate_name: None,

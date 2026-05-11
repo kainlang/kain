@@ -109,6 +109,10 @@ pub fn resolve_crate(
         }
     }
 
+    if let Some(resolved) = resolve_blade_crate(crate_name, &start_dir, options)? {
+        return Ok((resolved, manifest_context));
+    }
+
     let mut searched = Vec::new();
     if let Some(manifest_path) = manifest_context.manifest_path.as_ref() {
         searched.push(format!(
@@ -136,6 +140,29 @@ pub fn resolve_crate(
         "Rust crate FFI could not resolve crate '{crate_name}'. Searched: {}",
         searched.join(", ")
     )))
+}
+
+fn resolve_blade_crate(
+    crate_name: &str,
+    start_dir: &Path,
+    options: &ImportCrateOptions,
+) -> Result<Option<ResolvedCrate>, KainError> {
+    let Some(blade) =
+        kain_blades::resolve_rust_crate_blade(start_dir, crate_name).map_err(|err| {
+            KainError::runtime(format!(
+                "Rust crate FFI blade discovery failed while resolving '{crate_name}': {err}"
+            ))
+        })?
+    else {
+        return Ok(None);
+    };
+    let Some(cargo_manifest) = blade.cargo_manifest else {
+        return Ok(None);
+    };
+    resolve_explicit_crate_path(crate_name, &cargo_manifest, options).map(|mut resolved| {
+        resolved.resolution_kind = ResolutionKind::PathConfig;
+        Some(resolved)
+    })
 }
 
 pub fn load_manifest_context(

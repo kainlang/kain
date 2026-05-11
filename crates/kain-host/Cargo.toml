@@ -10,6 +10,7 @@ default = ["derive"]
 derive = ["dep:kain-host-derive"]
 
 [dependencies]
+kain-blades = { path = "../kain-blades" }
 kain-c-ffi = { path = "../kain-c-ffi" }
 kain-codebase = { path = "../kain-codebase" }
 kain-crate-ffi = { path = "../kain-crate-ffi" }

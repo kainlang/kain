@@ -2,7 +2,10 @@
 members = [
     # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/kain-core",
+    "crates/kain-blades",
     "crates/kain-entangle",
+    "crates/kain-check",
+    "crates/kain-test",
     "crates/kain-interop",
     "crates/kain-c-ffi",
     "crates/kain-node",

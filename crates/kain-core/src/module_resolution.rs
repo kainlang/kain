@@ -103,7 +103,41 @@ pub fn filesystem_module_candidates(path_segments: &[String]) -> Vec<PathBuf> {
         push_unique_path(&mut candidates, module_base_path.with_extension("god"));
     }
 
+    append_blade_module_candidates(&mut candidates, path_segments);
+
     candidates
+}
+
+fn append_blade_module_candidates(candidates: &mut Vec<PathBuf>, path_segments: &[String]) {
+    let Ok(current_dir) = std::env::current_dir() else {
+        return;
+    };
+    let Ok(module_roots) = kain_blades::discover_blade_module_roots_from(current_dir) else {
+        return;
+    };
+    append_blade_module_candidates_for_roots(candidates, path_segments, &module_roots);
+}
+
+fn append_blade_module_candidates_for_roots(
+    candidates: &mut Vec<PathBuf>,
+    path_segments: &[String],
+    module_roots: &[PathBuf],
+) {
+    if path_segments.is_empty() {
+        return;
+    }
+    let path = path_segments.join("/");
+    let module_base = path_segments
+        .first()
+        .map(|segment| segment.as_str())
+        .unwrap_or(path.as_str());
+
+    for root in module_roots {
+        push_unique_path(candidates, root.join(&path).with_extension("kn"));
+        if path_segments.len() > 1 {
+            push_unique_path(candidates, root.join(module_base).with_extension("kn"));
+        }
+    }
 }
 
 fn filesystem_item_import_fallback_start(
@@ -120,5 +154,21 @@ fn filesystem_item_import_fallback_start(
 fn push_unique_path(paths: &mut Vec<PathBuf>, path: PathBuf) {
     if !paths.iter().any(|existing| existing == &path) {
         paths.push(path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blade_module_roots_extend_filesystem_candidates() {
+        let mut candidates = filesystem_module_candidates(&["local".to_string()]);
+        let root = PathBuf::from("blades/math/src");
+        append_blade_module_candidates_for_roots(&mut candidates, &["math".to_string()], &[root]);
+
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.ends_with("blades/math/src/math.kn")));
     }
 }

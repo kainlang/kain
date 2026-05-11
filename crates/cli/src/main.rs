@@ -1,6 +1,7 @@
 // KAIN Compiler CLI
 
 use clap::{CommandFactory, FromArgMatches, Parser as ClapParser};
+use cli::blades;
 use cli::codebase;
 use cli::fabric;
 use cli::import_asm;
@@ -368,6 +369,46 @@ enum Commands {
         write: bool,
     },
 
+    /// Check Kain source without emitting backend artifacts
+    Check {
+        /// Input Kain source file or directory. Use '-' to read from stdin.
+        input: PathBuf,
+
+        /// Target profile to typecheck against
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed file
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write a structured JSON check report
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
+
+    /// Run Kain source tests using Rust-style pass/fail directives
+    Test {
+        /// Input Kain source file or directory
+        input: PathBuf,
+
+        /// Override test mode: check-pass, check-fail, run-pass, run-fail, kain-test
+        #[arg(long)]
+        mode: Option<String>,
+
+        /// Default target profile for check modes
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed case
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write a structured JSON test report
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
+
     /// Run self-host bootstrap workflows
     Selfhost {
         #[command(subcommand)]
@@ -384,6 +425,26 @@ enum Commands {
     Fabric {
         #[command(subcommand)]
         command: fabric::FabricCommand,
+    },
+
+    /// Resolve and inspect local Kain blade workspaces
+    Blades {
+        #[command(subcommand)]
+        command: blades::BladesCommand,
+    },
+
+    /// Equip a local blade by name and print its resolved build/import plan
+    Equip {
+        /// Blade name to resolve
+        blade: String,
+
+        /// Path inside the workspace to inspect
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
     },
 
     /// Build project or file. Without input, reads KAIN.toml for multi-target build.
@@ -1644,6 +1705,119 @@ fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
     }
 }
 
+fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&Path>) -> bool {
+    let Some(target) = parse_compile_target(target) else {
+        eprintln!(" Unknown check target. Use: {}", supported_targets_csv());
+        return false;
+    };
+    let mut options = kain_check::CheckOptions::new(target);
+    options.fail_fast = fail_fast;
+
+    let report = kain_check::check_path(input, &options);
+    if let Some(path) = json {
+        if !write_structured_report(path, &report, "check") {
+            return false;
+        }
+    }
+
+    println!(
+        " Check {}: {}/{} passed",
+        if report.is_success() {
+            "passed"
+        } else {
+            "failed"
+        },
+        report.passed,
+        report.total
+    );
+    for file in report.files.iter().filter(|file| !file.passed()) {
+        if let Some(error) = &file.error {
+            eprintln!("  {}: {}", file.path, error);
+        }
+    }
+    report.is_success()
+}
+
+fn run_test_command(
+    input: &Path,
+    mode: Option<&str>,
+    target: &str,
+    fail_fast: bool,
+    json: Option<&Path>,
+) -> bool {
+    let Some(default_target) = parse_compile_target(target) else {
+        eprintln!(" Unknown test target. Use: {}", supported_targets_csv());
+        return false;
+    };
+    let mode_override = match mode {
+        Some(value) => match kain_test::KainTestMode::parse(value) {
+            Some(mode) => Some(mode),
+            None => {
+                eprintln!(
+                    " Unknown test mode '{}'. Use: check-pass, check-fail, run-pass, run-fail, kain-test",
+                    value
+                );
+                return false;
+            }
+        },
+        None => None,
+    };
+    let mut options = kain_test::KainTestOptions::new(default_target);
+    options.mode_override = mode_override;
+    options.fail_fast = fail_fast;
+
+    let report = kain_test::run_path(input, &options);
+    if let Some(path) = json {
+        if !write_structured_report(path, &report, "test") {
+            return false;
+        }
+    }
+
+    println!(
+        " Test {}: {}/{} passed",
+        if report.is_success() {
+            "passed"
+        } else {
+            "failed"
+        },
+        report.passed,
+        report.total
+    );
+    for case in report.cases.iter().filter(|case| !case.passed()) {
+        if let Some(error) = &case.error {
+            eprintln!("  {} [{}]: {}", case.path, case.mode, error);
+        }
+    }
+    report.is_success()
+}
+
+fn write_structured_report<T: Serialize>(path: &Path, value: &T, label: &str) -> bool {
+    if !ensure_parent_dir(path) {
+        return false;
+    }
+    match serde_json::to_string_pretty(value) {
+        Ok(encoded) => match fs::write(path, encoded) {
+            Ok(()) => {
+                println!(" Wrote {} report: {}", label, path.display());
+                true
+            }
+            Err(error) => {
+                eprintln!(
+                    " Failed to write {} report '{}': {}",
+                    label,
+                    path.display(),
+                    error
+                );
+                false
+            }
+        },
+        Err(error) => {
+            eprintln!(" Failed to serialize {} report: {}", label, error);
+            false
+        }
+    }
+}
+
 fn watch_mode(
     input: PathBuf,
     target: CompileTarget,
@@ -1872,6 +2046,33 @@ fn main() {
                         std::process::exit(1);
                     }
                 }
+                Some(Commands::Check {
+                    input,
+                    target,
+                    fail_fast,
+                    json,
+                }) => {
+                    if !run_check_command(&input, &target, fail_fast, json.as_deref()) {
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Test {
+                    input,
+                    mode,
+                    target,
+                    fail_fast,
+                    json,
+                }) => {
+                    if !run_test_command(
+                        &input,
+                        mode.as_deref(),
+                        &target,
+                        fail_fast,
+                        json.as_deref(),
+                    ) {
+                        std::process::exit(1);
+                    }
+                }
                 Some(Commands::Selfhost { command }) => {
                     if let Err(e) = selfhost::run(command) {
                         eprintln!(" Selfhost failed: {}", e);
@@ -1887,6 +2088,18 @@ fn main() {
                 Some(Commands::Fabric { command }) => {
                     if let Err(e) = fabric::run(command) {
                         eprintln!(" Fabric command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Blades { command }) => {
+                    if let Err(e) = blades::run(command) {
+                        eprintln!(" Blades command failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Equip { blade, path, json }) => {
+                    if let Err(e) = blades::run_equip(blade, path, json) {
+                        eprintln!(" Equip failed: {}", e);
                         std::process::exit(1);
                     }
                 }

@@ -8,6 +8,7 @@ pub use kain_core::*;
 
 // CLI-specific modules
 pub mod bridge;
+pub mod blades;
 pub mod codebase;
 pub mod error;
 pub mod fabric;
@@ -76,6 +77,8 @@ const KN_SHORTCUTS: &[&str] = &[
     "kn <file.kn> --watch        Re-run on save for fast authoring",
     "kn native-ui dev <file.kn>  Launch native desktop dev loop with hot reload",
     "kn run <file.kn>            Explicit interpret mode",
+    "kn check <file.kn>          Typecheck Kain source without emitting artifacts",
+    "kn test <path>              Run Kain test directives and `test` items",
     "kn build <file.kn> -t rust  Generate Rust output",
     "kn fmt <file.kn>            Canonicalize Kain source",
     "kn doctor                   Inspect PATH + runtime wiring",

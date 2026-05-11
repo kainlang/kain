@@ -11,6 +11,7 @@ default = ["typescript-import"]
 typescript-import = ["kain-import/typescript"]
 
 [dependencies]
+kain-blades = { path = "../kain-blades" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false, features = ["ue5", "gpu", "web", "sys"] }
 kain-import = { path = "../kain-import", default-features = false, features = ["c", "rust", "usf"] }
