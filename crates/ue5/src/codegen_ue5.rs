@@ -7194,6 +7194,7 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
         TypedItem::Test(t) => block_uses_kain_runtime(&t.ast.body),
         TypedItem::Mod(module) => module.items.iter().any(item_uses_kain_runtime),
         TypedItem::Trait(_)
+        | TypedItem::Entangle(_)
         | TypedItem::TypeAlias(_)
         | TypedItem::Enum(_)
         | TypedItem::Macro(_)

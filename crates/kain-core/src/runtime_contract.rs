@@ -7,7 +7,7 @@ use crate::ast::{
 };
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
-    PatchUndoMode, TypedConverge, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+    PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
@@ -31,6 +31,8 @@ pub struct RuntimeContractBundle {
     pub worlds: Vec<RuntimeWorldContract>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_world: Option<RuntimeWorldContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entanglements: Vec<RuntimeEntangleContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orchestrations: Vec<RuntimeOrchestrationContract>,
     pub reflection: RuntimeReflectionSummary,
@@ -173,6 +175,14 @@ pub struct RuntimeWorldContract {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeEntangleContract {
+    pub authority: String,
+    pub mirror: String,
+    pub policy: String,
+    pub type_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeOrchestrationStageContract {
     pub runtime: String,
     pub function: String,
@@ -271,6 +281,7 @@ pub fn emit_runtime_contract_bundle(
     } else {
         None
     };
+    let entanglements = collect_entangle_contracts(&program.items);
     let orchestrations = collect_orchestration_contracts(&program.items);
 
     let summary = summarize_items(&program.items);
@@ -304,6 +315,7 @@ pub fn emit_runtime_contract_bundle(
         converges,
         worlds,
         active_world,
+        entanglements,
         orchestrations,
         reflection: RuntimeReflectionSummary {
             emitted: reflection_emitted,
@@ -476,6 +488,13 @@ fn collect_runtime_capabilities(
             Some("Program declares multi-lane converge dispatch semantics."),
         ));
     }
+    if summary.entanglements > 0 {
+        capabilities.push(runtime_capability(
+            kain_entangle::STATE_ENTANGLE_CAPABILITY,
+            "kain-core.runtime",
+            Some("Program declares compiler-owned state entanglement semantics."),
+        ));
+    }
     if summary.orchestrations > 0 {
         capabilities.push(runtime_capability(
             "orchestrate.pipeline",
@@ -622,6 +641,13 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
+    if summary.entanglements > 0 {
+        bindings.push(runtime_service_binding(
+            kain_entangle::STATE_ENTANGLE_CAPABILITY,
+            "kain-entangle",
+            runtime_lane_name(target),
+        ));
+    }
     if summary.orchestrations > 0 {
         bindings.push(runtime_service_binding(
             "orchestrate.pipeline",
@@ -722,6 +748,16 @@ fn collect_runtime_items(
             TypedItem::World(world) => {
                 output.push(runtime_contract_item("world", &world.ast.name));
                 reflection_names.insert(world.ast.name.clone());
+            }
+            TypedItem::Entangle(entangle) => {
+                output.push(runtime_contract_item(
+                    "entangle",
+                    &format!(
+                        "{}<->{}",
+                        entangle.ast.left.authored_path(),
+                        entangle.ast.right.authored_path()
+                    ),
+                ));
             }
             TypedItem::Orchestrate(orchestrate) => {
                 output.push(runtime_contract_item("orchestrate", &orchestrate.ast.name));
@@ -1008,6 +1044,36 @@ fn runtime_world_contract(world: &TypedWorld) -> RuntimeWorldContract {
     }
 }
 
+fn collect_entangle_contracts(items: &[TypedItem]) -> Vec<RuntimeEntangleContract> {
+    let mut contracts = Vec::new();
+    collect_entangle_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| {
+        left.authority
+            .cmp(&right.authority)
+            .then_with(|| left.mirror.cmp(&right.mirror))
+    });
+    contracts
+}
+
+fn collect_entangle_contracts_into(items: &[TypedItem], output: &mut Vec<RuntimeEntangleContract>) {
+    for item in items {
+        match item {
+            TypedItem::Entangle(entangle) => output.push(runtime_entangle_contract(entangle)),
+            TypedItem::Mod(module) => collect_entangle_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_entangle_contract(entangle: &TypedEntangle) -> RuntimeEntangleContract {
+    RuntimeEntangleContract {
+        authority: entangle.ast.left.authored_path(),
+        mirror: entangle.ast.right.authored_path(),
+        policy: entangle.ast.policy.as_str().to_string(),
+        type_name: entangle.endpoint_type_name.clone(),
+    }
+}
+
 fn collect_orchestration_contracts(items: &[TypedItem]) -> Vec<RuntimeOrchestrationContract> {
     let mut contracts = Vec::new();
     collect_orchestration_contracts_into(items, &mut contracts);
@@ -1191,6 +1257,7 @@ struct ItemSummary {
     laws: usize,
     converges: usize,
     worlds: usize,
+    entanglements: usize,
     orchestrations: usize,
     world_native_ui: usize,
     world_viewport3d: usize,
@@ -1233,6 +1300,7 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                     }
                 }
             }
+            TypedItem::Entangle(_) => summary.entanglements += 1,
             TypedItem::Orchestrate(_) => summary.orchestrations += 1,
             TypedItem::Shader(shader) => {
                 summary.shaders += 1;
@@ -1483,6 +1551,22 @@ fn collect_reflection_data(
                     item_id,
                     name: converge.ast.name.clone(),
                     kind: "converge".to_string(),
+                    module_path: module_path.to_string(),
+                    type_id: None,
+                });
+            }
+            TypedItem::Entangle(entangle) => {
+                let item_id = *item_id_counter;
+                *item_id_counter += 1;
+
+                items.push(ReflectedItem {
+                    item_id,
+                    name: format!(
+                        "{}<->{}",
+                        entangle.ast.left.authored_path(),
+                        entangle.ast.right.authored_path()
+                    ),
+                    kind: "entangle".to_string(),
                     module_path: module_path.to_string(),
                     type_id: None,
                 });

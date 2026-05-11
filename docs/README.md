@@ -75,7 +75,7 @@ These files define the truth that the guides are derived from:
 | `syntax-and-semantics/domain-items.md` | Components, shaders, materials, graphs, GAS, and editor items |
 | `runtime/runtime-model.md` | Interpreter model, runtime state, and environment wiring |
 | `runtime/stdlib-and-builtins.md` | Source stdlib loader, runtime natives, and helper functions |
-| `runtime/compiler-owned-intents.md` | `patch`, `law`, `converge`, `world`, and `orchestrate` runtime contracts |
+| `runtime/compiler-owned-intents.md` | `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate` runtime contracts |
 | `runtime/effects-io-async-and-patching.md` | Effects, I/O, async, and patch semantics |
 | `runtime/native-runtime-overview.md` | Native runtime role in the LLVM/native lane |
 | `native-c-runtime/abi-contract.md` | ABI contract, versions, startup validation, and compatibility |

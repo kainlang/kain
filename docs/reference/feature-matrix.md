@@ -20,6 +20,7 @@ For the flagship DCC parity inventory, use
 - `crates/kain-core/src/language_features.rs`
 - `crates/kain-core/src/runtime_contract.rs`
 - `crates/kain-core/src/realtime_app_bundle.rs`
+- `crates/kain-entangle/src/lib.rs`
 - `runtime/native/include/*.h`
 - `src/.rustimport/reference/kain-omni/lib.kn`
 - `src/.rustimport/reference/kain-omni/fabric.kn`
@@ -68,7 +69,7 @@ here.
 | Family | Variants | Primary guide |
 | --- | --- | --- |
 | Core declarations | `Function`, `Struct`, `Enum`, `Trait`, `Impl`, `TypeAlias`, `Use`, `Mod`, `Const`, `Comptime`, `Macro`, `Test` | `syntax-and-semantics/modules-and-items.md`, `syntax-and-semantics/module-resolution.md`, `syntax-and-semantics/functions-traits-and-impls.md`, `syntax-and-semantics/macros-and-comptime.md` |
-| Compiler-owned program contracts | `Patch`, `Law`, `Converge`, `World`, `Orchestrate` | `runtime/compiler-owned-intents.md`, `runtime/effects-io-async-and-patching.md` |
+| Compiler-owned program contracts | `Patch`, `Law`, `Converge`, `World`, `Entangle`, `Orchestrate` | `runtime/compiler-owned-intents.md`, `runtime/effects-io-async-and-patching.md` |
 | Runtime and domain items | `Component`, `Shader`, `Actor`, `MaterialGraph`, `MaterialFunction`, `GraphEditor`, `GraphRuntime`, `StateMachine`, `AsyncTask`, `EditorModule`, `GameplayTags`, `GameplayAbility`, `GameplayEffect`, `GameplayCue`, `AbilityTask`, `TargetActor` | `syntax-and-semantics/domain-items.md`, `syntax-and-semantics/async-actors-and-concurrency.md` |
 
 Domain enums that matter to authored code are also part of the surface:

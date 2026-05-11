@@ -2866,6 +2866,7 @@ dependencies = [
  "chumsky",
  "flume",
  "indexmap 2.11.1",
+ "kain-entangle",
  "kain-ui",
  "logos",
  "once_cell",
@@ -2919,6 +2920,13 @@ dependencies = [
  "ue5-editor",
  "ue5-shaders",
  "web",
+]
+
+[[package]]
+name = "kain-entangle"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

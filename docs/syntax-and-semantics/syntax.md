@@ -7,9 +7,9 @@ explain how each form behaves.
 
 Kain syntax is built from these families:
 
-- top-level items: functions, patches, laws, converges, worlds, orchestrates,
-  components, shaders, actors, structs, enums, traits, impls, aliases, uses,
-  modules, consts, comptime blocks, macros, tests, and domain items
+- top-level items: functions, patches, laws, converges, worlds, entanglements,
+  orchestrates, components, shaders, actors, structs, enums, traits, impls,
+  aliases, uses, modules, consts, comptime blocks, macros, tests, and domain items
 - statements: `let`, expression statements, `return`, `break`, `continue`,
   `for`, `while`, `loop`, nested items
 - expressions: literals, calls, binary/unary operators, field/index access,
@@ -26,8 +26,8 @@ The parser and LSP both treat these as language keywords or keyword-like forms:
 `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`,
 `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`,
 `true`, `false`, `none`, `component`, `patch`, `law`, `converge`, `world`,
-`orchestrate`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`,
-`comptime`, `macro`, `vertex`, `fragment`, `test`
+`entangle`, `orchestrate`, `shader`, `actor`, `state`, `spawn`, `send`,
+`receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `test`
 
 ## Reading Rule
 

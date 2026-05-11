@@ -1,5 +1,44 @@
 # Kain Memory
 
+# 2026-05-11 - First-class entangle state coupling landed
+
+Kain now has a v1 first-class `entangle` declaration for compiler-owned Topological State Coupling between stable state endpoints.
+
+What changed:
+
+- Added `crates/kain-entangle` as the shared semantic/runtime metadata crate. It owns `state.entangle`, `EntangleGraph`, endpoint ids, single-writer binding descriptors, duplicate endpoint checks, self-entanglement rejection, mirror lookup, and mirror-write denial.
+- Added parser, AST, typechecker, formatter, interpreter, runtime contract, realtime app bundle, LSP, and UE5-codegen awareness for:
+  - `entangle Physics.player_health <-> UI.health_display with single_writer`
+- `crates/kain-core` now lowers entanglements into typed metadata, `RuntimeContractBundle.entanglements`, `RealtimeAppBundle.entanglements`, the reflection payload, and required capability/service-binding metadata.
+- The interpreter registers entanglements during program setup, treats the left endpoint as the authority, propagates authority writes into the right mirror endpoint, and rejects direct mirror writes under the v1 `single_writer` policy.
+- Docs now list entangle as the sixth compiler-owned intent family and describe the v1 syntax, capability, contract shape, interpreter semantics, and current limits.
+
+Design decisions:
+
+- `entangle` is a contextual top-level item keyword rather than a hard lexer keyword, matching other compiler-owned intent forms.
+- V1 supports only stable dotted storage endpoints with at least two path segments. The typechecker resolves world state and struct-field paths through the existing value/type environment.
+- V1 requires strict matching resolved storage types after shared-reference peeling. It intentionally does not use the looser assignment-compatibility rule.
+- The left endpoint is authoritative and the right endpoint is the mirror. The policy is explicit as `with single_writer` so future policies can be added without reshaping the syntax.
+- Backend/codegen crates currently treat entanglements as metadata-only unless they consume the runtime contract or realtime bundle.
+
+Validation:
+
+- `cargo test -p kain-entangle --target-dir target\codex-entangle`
+- `cargo test -p kain-core entangle --target-dir target\codex-entangle -- --nocapture`
+- `cargo test -p kain-core --test compiler_owned_intent_test --target-dir target\codex-entangle -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\codex-entangle`
+- `git diff --check`
+
+Current risks:
+
+- Interpreter propagation keys off the authored assignment path. `Physics.player_health -= 10` propagates, but alias-based writes such as `let p = Physics; p.player_health -= 10` do not yet canonicalize back to the entangled endpoint.
+- Native ABI, LLVM, C/C++/TS/WASM, and distributed side-channel lowering are not implemented yet. Those targets should consume the emitted `entanglements[]` metadata and `state.entangle` requirement.
+- Only `single_writer` exists today. Multi-writer conflict policy, timestamp/vector-clock resolution, atomics, shared-memory rings, and cross-process transport are future work.
+
+Recommended next step:
+
+- Add backend lowering that consumes `RuntimeContractBundle.entanglements` and emits target-specific write barriers or adapter hooks, starting with the realtime/native UI path where the `state.entangle` service binding already makes the requirement visible.
+
 # 2026-05-10 - Windows git index writes now have a repo-local safe-write escape hatch
 
 This checkout can still hit a Windows-only git failure where index-mutating commands finish their work and then die on the final `.git/index.lock -> .git/index` swap with `fatal: unable to write new index file`.

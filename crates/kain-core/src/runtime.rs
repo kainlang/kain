@@ -11,6 +11,7 @@ use crate::parser::Parser;
 use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
+use kain_entangle::{EntangleBindingDescriptor, EntangleEndpointId, EntangleGraph};
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -351,6 +352,7 @@ pub struct Env {
     converges: HashMap<String, ConvergeDef>,
     orchestrates: HashMap<String, OrchestrateDef>,
     worlds: HashMap<String, Arc<RwLock<HashMap<String, Value>>>>,
+    entanglements: EntangleGraph,
     components: HashMap<String, Component>,
     inline_modules: HashMap<String, Vec<Item>>,
     /// Methods: type_name -> method_name -> function
@@ -385,6 +387,7 @@ impl Env {
             converges: HashMap::new(),
             orchestrates: HashMap::new(),
             worlds: HashMap::new(),
+            entanglements: EntangleGraph::default(),
             components: HashMap::new(),
             inline_modules: HashMap::new(),
             methods: HashMap::new(),
@@ -2741,6 +2744,16 @@ impl Env {
         self.components.insert(component.name.clone(), component);
     }
 
+    fn ensure_active_capability(&mut self, capability: String) {
+        if !self
+            .active_capabilities
+            .iter()
+            .any(|entry| entry == &capability)
+        {
+            self.active_capabilities.push(capability);
+        }
+    }
+
     fn set_execution_lane(&mut self, lane: ExecutionLane) {
         self.execution_lane = lane;
         self.active_capabilities.retain(|capability| {
@@ -2793,6 +2806,20 @@ impl Env {
             world.name.clone(),
             Value::Struct(world.name.clone(), world_value),
         );
+        Ok(())
+    }
+
+    fn register_entangle_value(&mut self, entangle: &EntangleDef) -> KainResult<()> {
+        let binding = match entangle.policy {
+            EntanglePolicy::SingleWriter => EntangleBindingDescriptor::single_writer(
+                EntangleEndpointId::new(entangle.left.authored_path()),
+                EntangleEndpointId::new(entangle.right.authored_path()),
+            ),
+        };
+        self.entanglements
+            .register(binding)
+            .map_err(|err| KainError::runtime(err.to_string()))?;
+        self.ensure_active_capability(kain_entangle::STATE_ENTANGLE_CAPABILITY.to_string());
         Ok(())
     }
 
@@ -2960,6 +2987,9 @@ impl Env {
             Item::World(world) => {
                 self.register_world_value(world)?;
             }
+            Item::Entangle(entangle) => {
+                self.register_entangle_value(entangle)?;
+            }
             Item::Orchestrate(orchestrate) => {
                 self.register_orchestrate_value(orchestrate);
             }
@@ -3072,6 +3102,9 @@ impl Env {
             }
             TypedItem::World(world) => {
                 self.register_world_value(&world.ast)?;
+            }
+            TypedItem::Entangle(entangle) => {
+                self.register_entangle_value(&entangle.ast)?;
             }
             TypedItem::Orchestrate(orchestrate) => {
                 self.register_orchestrate_value(&orchestrate.ast);
@@ -3268,6 +3301,34 @@ impl Env {
             }
         }
         Err(KainError::runtime(format!("Undefined variable '{}'", name)))
+    }
+
+    fn ensure_entangle_write_allowed(&self, endpoint: &str) -> KainResult<()> {
+        self.entanglements
+            .ensure_write_allowed(endpoint)
+            .map_err(|err| KainError::runtime(err.to_string()))
+    }
+
+    fn propagate_entangled_write(&mut self, endpoint: &str, value: Value) -> KainResult<()> {
+        for mirror in self.entanglements.mirrors_for_authority(endpoint) {
+            self.assign_entangled_endpoint(&mirror, value.clone())?;
+        }
+        Ok(())
+    }
+
+    fn assign_entangled_endpoint(&mut self, endpoint: &str, value: Value) -> KainResult<()> {
+        let segments = endpoint.split('.').collect::<Vec<_>>();
+        let Some((root, fields)) = segments.split_first() else {
+            return Err(KainError::runtime("Empty entangle endpoint"));
+        };
+        if fields.is_empty() {
+            return self.assign(root, value);
+        }
+        let root_value = self
+            .lookup(root)
+            .cloned()
+            .ok_or_else(|| KainError::runtime(format!("Undefined entangle root '{}'", root)))?;
+        assign_entangled_field_path(root_value, fields, value)
     }
 
     fn lookup(&self, name: &str) -> Option<&Value> {
@@ -3622,7 +3683,13 @@ fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
 }
 
 fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()> {
-    match target {
+    let target_path = runtime_patch_target_path(target);
+    if let Some(path) = &target_path {
+        env.ensure_entangle_write_allowed(path)?;
+    }
+
+    let assigned_value = value.clone();
+    let result = match target {
         Expr::Ident(name, _) => {
             env.assign(name, value)?;
             Ok(())
@@ -3696,7 +3763,38 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
             Ok(())
         }
         _ => Err(KainError::runtime("Invalid assignment target")),
+    };
+
+    result?;
+    if let Some(path) = target_path {
+        env.propagate_entangled_write(&path, assigned_value)?;
     }
+    Ok(())
+}
+
+fn assign_entangled_field_path(current: Value, fields: &[&str], value: Value) -> KainResult<()> {
+    let Some((field, rest)) = fields.split_first() else {
+        return Ok(());
+    };
+
+    let Value::Struct(_, slots) = current else {
+        return Err(KainError::runtime(
+            "Entangle mirror propagation only supports struct field paths",
+        ));
+    };
+
+    if rest.is_empty() {
+        slots.write().unwrap().insert((*field).to_string(), value);
+        return Ok(());
+    }
+
+    let next = slots
+        .read()
+        .unwrap()
+        .get(*field)
+        .cloned()
+        .ok_or_else(|| KainError::runtime(format!("Entangle field '{}' not found", field)))?;
+    assign_entangled_field_path(next, rest, value)
 }
 
 fn eval_else_branch(env: &mut Env, else_branch: &ElseBranch) -> KainResult<Value> {
@@ -4746,6 +4844,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let converges = env.converges.clone();
             let orchestrates = env.orchestrates.clone();
             let worlds = env.worlds.clone();
+            let entanglements = env.entanglements.clone();
             let global_scope = env.scopes.first().cloned().unwrap_or_default();
             let actor_name = actor.clone();
             let self_sender = tx.clone();
@@ -4763,6 +4862,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     converges,
                     orchestrates,
                     worlds,
+                    entanglements,
                     components,
                     inline_modules,
                     methods,

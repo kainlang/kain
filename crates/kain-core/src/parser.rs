@@ -536,7 +536,10 @@ impl<'a> Parser<'a> {
     }
 
     fn is_contextual_item_start_name(name: &str) -> bool {
-        matches!(name, "patch" | "law" | "converge" | "world" | "orchestrate")
+        matches!(
+            name,
+            "patch" | "law" | "converge" | "world" | "entangle" | "orchestrate"
+        )
     }
 
     fn parse_path_name(&mut self) -> KainResult<String> {
@@ -762,12 +765,15 @@ impl<'a> Parser<'a> {
                 self.parse_converge(vis, attributes)
             }
             TokenKind::Ident(ref name) if name == "world" => self.parse_world(vis, attributes),
+            TokenKind::Ident(ref name) if name == "entangle" => {
+                self.parse_entangle(vis, attributes)
+            }
             TokenKind::Ident(ref name) if name == "orchestrate" => {
                 self.parse_orchestrate(vis, attributes)
             }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, law, converge, world, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
+                    "Expected item (fn, patch, law, converge, world, entangle, orchestrate, struct, enum, actor, component, shader, material, trait, impl, mod, use, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1608,6 +1614,55 @@ impl<'a> Parser<'a> {
         Ok(WorldSurfaceProjection {
             kind,
             expr,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_entangle(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("entangle")?;
+        let left = self.parse_entangle_endpoint()?;
+        self.expect(TokenKind::Lt)?;
+        self.expect(TokenKind::Arrow)?;
+        let right = self.parse_entangle_endpoint()?;
+        self.expect(TokenKind::With)?;
+        let policy = match self.peek_kind() {
+            TokenKind::Ident(ref value) if value == kain_entangle::SINGLE_WRITER_POLICY => {
+                self.advance();
+                EntanglePolicy::SingleWriter
+            }
+            _ => {
+                return Err(self.parser_error(
+                    "Expected entangle policy 'single_writer'",
+                    self.current_span(),
+                ))
+            }
+        };
+        Ok(Item::Entangle(EntangleDef {
+            left,
+            right,
+            policy,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_entangle_endpoint(&mut self) -> KainResult<EntangleEndpoint> {
+        let start = self.current_span();
+        let mut segments = vec![self.parse_ident()?];
+        while self.check(TokenKind::Dot) {
+            self.advance();
+            segments.push(self.parse_ident()?);
+        }
+        if segments.len() < 2 {
+            return Err(self.parser_error(
+                "Entangle endpoint must be a stable dotted lvalue path like World.state",
+                start,
+            ));
+        }
+        Ok(EntangleEndpoint {
+            segments,
             span: start.merge(self.current_span()),
         })
     }

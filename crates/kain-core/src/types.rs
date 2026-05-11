@@ -40,12 +40,20 @@ pub struct TypedMod {
 }
 
 #[derive(Debug, Clone)]
+pub struct TypedEntangle {
+    pub ast: EntangleDef,
+    pub endpoint_type: ResolvedType,
+    pub endpoint_type_name: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum TypedItem {
     Function(TypedFunction),
     Patch(TypedPatch),
     Law(TypedLaw),
     Converge(TypedConverge),
     World(TypedWorld),
+    Entangle(TypedEntangle),
     Orchestrate(TypedOrchestrate),
     Component(TypedComponent),
     Shader(TypedShader),
@@ -309,6 +317,7 @@ pub struct TypeEnv<'a> {
     globals: HashMap<String, ResolvedType>,
     methods: HashMap<String, HashMap<String, ResolvedType>>,
     enum_variants: HashMap<String, HashMap<String, EnumVariantTypeInfo>>,
+    entangle_endpoints: HashSet<String>,
     span_mapper: &'a SpanMapper,
     filename: &'a str,
 }
@@ -321,6 +330,7 @@ impl<'a> TypeEnv<'a> {
             globals: HashMap::new(),
             methods: HashMap::new(),
             enum_variants: HashMap::new(),
+            entangle_endpoints: HashSet::new(),
             span_mapper,
             filename,
         };
@@ -2351,6 +2361,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Law(law) => Ok(TypedItem::Law(check_law(env, law)?)),
         Item::Converge(converge) => Ok(TypedItem::Converge(check_converge(env, converge)?)),
         Item::World(world) => Ok(TypedItem::World(check_world(env, world)?)),
+        Item::Entangle(entangle) => Ok(TypedItem::Entangle(check_entangle(env, entangle)?)),
         Item::Orchestrate(orchestrate) => {
             Ok(TypedItem::Orchestrate(check_orchestrate(env, orchestrate)?))
         }
@@ -2725,6 +2736,83 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
         check_world_surface_projection(env, surface)?;
     }
     Ok(TypedWorld { ast: world.clone() })
+}
+
+fn check_entangle(env: &mut TypeEnv, entangle: &EntangleDef) -> KainResult<TypedEntangle> {
+    let left_path = entangle.left.authored_path();
+    let right_path = entangle.right.authored_path();
+    for path in [&left_path, &right_path] {
+        if !env.entangle_endpoints.insert(path.clone()) {
+            return Err(env.type_error(
+                format!("entangle endpoint '{path}' is already coupled"),
+                entangle.span,
+            ));
+        }
+    }
+
+    let left_ty = resolve_entangle_endpoint_type(env, &entangle.left)?;
+    let right_ty = resolve_entangle_endpoint_type(env, &entangle.right)?;
+    if peel_shared_refs(&left_ty) != peel_shared_refs(&right_ty) {
+        return Err(env.type_error(
+            format!(
+                "entangle endpoint expected {}, found {}",
+                describe_type(&left_ty),
+                describe_type(&right_ty)
+            ),
+            entangle.right.span,
+        ));
+    }
+
+    Ok(TypedEntangle {
+        ast: entangle.clone(),
+        endpoint_type_name: describe_type(&left_ty),
+        endpoint_type: left_ty,
+    })
+}
+
+fn resolve_entangle_endpoint_type(
+    env: &TypeEnv,
+    endpoint: &EntangleEndpoint,
+) -> KainResult<ResolvedType> {
+    let root = endpoint
+        .segments
+        .first()
+        .ok_or_else(|| env.type_error("entangle endpoint is empty", endpoint.span))?;
+    let mut current = env.lookup(root).cloned().ok_or_else(|| {
+        env.type_error(
+            format!("entangle endpoint root '{root}' is not defined"),
+            endpoint.span,
+        )
+    })?;
+
+    for segment in endpoint.segments.iter().skip(1) {
+        current = match peel_shared_refs(&current) {
+            ResolvedType::Struct(type_name, fields) => {
+                fields.get(segment).cloned().ok_or_else(|| {
+                    env.type_error(
+                        format!(
+                            "entangle endpoint '{}' has no field '{}' on {}",
+                            endpoint.authored_path(),
+                            segment,
+                            type_name
+                        ),
+                        endpoint.span,
+                    )
+                })?
+            }
+            other => return Err(env.type_error(
+                format!(
+                    "entangle endpoint '{}' is not an assignable struct path; '{}' resolves to {}",
+                    endpoint.authored_path(),
+                    segment,
+                    describe_type(other)
+                ),
+                endpoint.span,
+            )),
+        };
+    }
+
+    Ok(current)
 }
 
 fn check_orchestrate(
@@ -3718,6 +3806,7 @@ fn item_span(item: &Item) -> Span {
         Item::Law(law) => law.span,
         Item::Converge(converge) => converge.span,
         Item::World(world) => world.span,
+        Item::Entangle(entangle) => entangle.span,
         Item::Orchestrate(orchestrate) => orchestrate.span,
         Item::Struct(s) => s.span,
         Item::Enum(e) => e.span,

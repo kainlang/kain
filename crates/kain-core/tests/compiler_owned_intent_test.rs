@@ -99,6 +99,26 @@ patch bump(studio: Studio) -> Int:
 "#
 }
 
+fn entangle_source() -> &'static str {
+    r#"world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: Int = 100
+    surface web => App
+
+component App():
+    render <panel />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+
+fn main() -> Int:
+    Physics.player_health -= 10
+    return UI.health_display
+"#
+}
+
 fn extract_single_int_arg(name: &str, args: &[Value]) -> Result<i64, error::KainError> {
     match args {
         [Value::Int(value)] => Ok(*value),
@@ -180,6 +200,36 @@ fn parse_and_typecheck_compiler_owned_intent_forms() {
         .items
         .iter()
         .any(|item| matches!(item, TypedItem::Orchestrate(_))));
+}
+
+#[test]
+fn parse_and_typecheck_entangle_intent_form() {
+    let typed = parse_and_typecheck(entangle_source()).expect("entangle source should typecheck");
+
+    assert!(typed
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Entangle(_))));
+}
+
+#[test]
+fn typecheck_rejects_entangle_type_mismatch() {
+    let source = r#"world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: String = "100"
+    surface web => App
+
+component App():
+    render <panel />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+"#;
+
+    let error = parse_and_typecheck(source).expect_err("mismatched endpoints should fail");
+    assert!(error.to_string().contains("entangle endpoint"), "{error}");
 }
 
 #[test]
@@ -276,6 +326,22 @@ fn runtime_contract_emits_compiler_owned_intent_sections() {
 }
 
 #[test]
+fn runtime_contract_emits_entangle_contracts() {
+    let typed = parse_and_typecheck(entangle_source()).expect("typecheck");
+    let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Rust);
+
+    assert_eq!(bundle.entanglements.len(), 1);
+    assert_eq!(bundle.entanglements[0].authority, "Physics.player_health");
+    assert_eq!(bundle.entanglements[0].mirror, "UI.health_display");
+    assert_eq!(bundle.entanglements[0].policy, "single_writer");
+    assert_eq!(bundle.entanglements[0].type_name, "Int");
+    assert!(bundle
+        .required_capabilities
+        .iter()
+        .any(|capability| capability.key == "state.entangle"));
+}
+
+#[test]
 fn runtime_contract_marks_calling_patches_as_best_effort() {
     let typed = parse_and_typecheck(best_effort_patch_source()).expect("typecheck");
     let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Rust);
@@ -337,6 +403,27 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
 }
 
 #[test]
+fn realtime_bundle_emits_entangle_bindings() {
+    let source = entangle_source();
+    let typed = parse_and_typecheck(source).expect("typecheck");
+    let ui = build_ui_output_from_source(source, "App").expect("ui");
+    let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Rust);
+
+    assert_eq!(bundle.entanglements.len(), 1);
+    assert_eq!(bundle.entanglements[0].authority, "Physics.player_health");
+    assert_eq!(bundle.entanglements[0].mirror, "UI.health_display");
+    assert_eq!(bundle.entanglements[0].policy, "single_writer");
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "state.entangle"));
+    assert!(bundle
+        .requirements
+        .iter()
+        .any(|entry| entry == "state.entangle"));
+}
+
+#[test]
 fn runtime_executes_patch_converge_law_and_orchestrate_and_records_patch_transactions() {
     let typed = parse_and_typecheck_with_extra_globals(
         compiler_owned_intent_source(),
@@ -372,6 +459,49 @@ fn runtime_executes_patch_converge_law_and_orchestrate_and_records_patch_transac
     assert_eq!(
         env.patch_collaboration_events()[0].mutation_paths,
         vec!["studio.counter"]
+    );
+}
+
+#[test]
+fn runtime_entangle_propagates_authority_writes_to_mirror() {
+    let typed = parse_and_typecheck(entangle_source()).expect("typecheck");
+    let mut env = Env::new();
+    let result = interpret_with_env(&mut env, &typed).expect("interpret entangle");
+
+    match result {
+        Value::Int(value) => assert_eq!(value, 90),
+        other => panic!("expected Int(90), got {other:?}"),
+    }
+}
+
+#[test]
+fn runtime_entangle_rejects_direct_mirror_writes() {
+    let source = r#"world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: Int = 100
+    surface web => App
+
+component App():
+    render <panel />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+
+fn main() -> Int:
+    UI.health_display = 1
+    return UI.health_display
+"#;
+    let typed = parse_and_typecheck(source).expect("typecheck");
+    let mut env = Env::new();
+    let error = interpret_with_env(&mut env, &typed).expect_err("mirror write should fail");
+
+    assert!(
+        error
+            .to_string()
+            .contains("cannot write entangle mirror 'UI.health_display'"),
+        "{error}"
     );
 }
 

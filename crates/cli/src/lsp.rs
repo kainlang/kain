@@ -3,9 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::{
-    Actor, Component, Const, Enum, Field, Function, Impl, Item, MacroDef, MessageHandler, Param,
-    Program, Shader, StateDecl, Struct, TestDef, Trait, TraitMethod, Type, Uniform, Variant,
-    Visibility,
+    Actor, Component, Const, EntangleDef, Enum, Field, Function, Impl, Item, MacroDef,
+    MessageHandler, Param, Program, Shader, StateDecl, Struct, TestDef, Trait, TraitMethod, Type,
+    Uniform, Variant, Visibility,
 };
 use crate::diagnostic_registry::spec_for_code;
 use crate::error::KainError;
@@ -98,6 +98,7 @@ const KEYWORD_ITEMS: &[&str] = &[
     "converge",
     "world",
     "orchestrate",
+    "entangle",
     "shader",
     "actor",
     "state",
@@ -474,6 +475,7 @@ impl<'a> AnalysisBuilder<'a> {
                 SymbolKind::MODULE,
                 AnalysisCompletionKind::Module,
             ),
+            Item::Entangle(entangle) => self.collect_entangle_symbol(entangle),
             Item::Orchestrate(orchestrate) => self.simple_named_item_symbol(
                 &orchestrate.name,
                 orchestrate.span,
@@ -1208,6 +1210,34 @@ impl<'a> AnalysisBuilder<'a> {
             deprecated: None,
             range,
             selection_range: range,
+            children: None,
+        })
+    }
+
+    fn collect_entangle_symbol(&mut self, entangle: &EntangleDef) -> Option<DocumentSymbol> {
+        let selection_range = find_identifier_range(self.text, "entangle", Some(entangle.span))?;
+        let full_range = span_to_range(self.text, entangle.span);
+        let authority = entangle.left.authored_path();
+        let mirror = entangle.right.authored_path();
+        let name = format!("{authority} <-> {mirror}");
+        let detail = Some(format!(
+            "entangle {authority} <-> {mirror} with {}",
+            entangle.policy.as_str()
+        ));
+        self.add_semantic_token_from_range(
+            selection_range,
+            SemanticTokenType::KEYWORD,
+            MOD_DECLARATION,
+            5,
+        );
+        Some(DocumentSymbol {
+            name,
+            detail,
+            kind: SymbolKind::PROPERTY,
+            tags: None,
+            deprecated: None,
+            range: full_range,
+            selection_range,
             children: None,
         })
     }

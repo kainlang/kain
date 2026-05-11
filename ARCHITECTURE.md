@@ -21,7 +21,7 @@ When the docs and code disagree, treat the mismatch as a signal to update the ca
 
 Kain is a compiled multi-target language toolchain, an executable semantic runtime, and an embeddable host stack.
 
-It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor semantics, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, and `orchestrate`.
+It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor semantics, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, `entangle`, and `orchestrate`.
 
 The build, packaging, and adapter crates matter because Kain is meant to ship into multiple targets, not because the language is limited to manifests and glue. The durable architecture rule is: keep authored logic in Kain when it belongs to Kain semantics, and use host bridges when the capability is genuinely platform-, ABI-, or ecosystem-owned.
 
@@ -60,7 +60,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [guides](/M:/Code/Kain/guides): canonical long-form guide tree for the live language, runtime, CLI, and example lanes
 - [guides/reference/legacy-crosswalk.md](/M:/Code/Kain/guides/reference/legacy-crosswalk.md): bridge from stale prose to the current canonical docs
 - [docs/kainplan/ui_slate_x100](/M:/Code/Kain/docs/kainplan/ui_slate_x100): legacy UI overhaul docs, acceptance criteria, regression notes, and Gamma operator guidance
-- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): legacy syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, and `orchestrate`
+- [docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md](/M:/Code/Kain/docs/kainplan/08_COMPILER_OWNED_INTENT_QUARTET.md): legacy syntax, lowering, bundle contracts, and validation notes for the compiler-owned intent suite: `law`, `patch`, `converge`, `world`, `entangle`, and `orchestrate`
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
@@ -97,13 +97,14 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `scripts/python/run_dcc_parity_harness.py` is the executable scenario layer for the DCC parity program. Keep structural/shared scenario checks there instead of inventing ad-hoc one-off validation snippets.
 - `guides/pipelines/*` and `guides/ue5/*` are conceptual deep-dive pages for orchestration and Unreal-facing authoring. Keep the CLI pages focused on command syntax and keep the conceptual pages focused on data models, validation, and outputs.
 - `guides/syntax-and-semantics/functions-traits-and-impls.md` is the canonical chapter for function signatures, traits, and impl blocks.
-- `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, and `orchestrate`.
+- `guides/syntax-and-semantics/low-level-memory.md` is the canonical memory/provenance chapter, and `guides/runtime/compiler-owned-intents.md` is the canonical runtime-intent chapter for `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate`.
 - `guides/reference/troubleshooting.md` is for recurring operator failures and should point readers to the live code, the current CLI, and the legacy crosswalk when old terminology shows up.
 - `guides/reference/legacy-crosswalk.md` is the bridge from stale prose to current docs; update it whenever old terminology or historical topics surface again.
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `orchestrate`)
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
+- [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`
@@ -131,7 +132,7 @@ This repo does not only compile source outward into foreign runtimes. `kain-core
 - async/await and future/poll semantics in the in-language runtime lane
 - actor state initialization, message handling, and runtime-side actor behavior
 - JSX/UI expression evaluation and signal-driven UI contract execution
-- runtime execution of `law`, `patch`, `converge`, and `orchestrate`, including law calls, converge verification, and patch transaction recording
+- runtime execution of `law`, `patch`, `converge`, `entangle`, and `orchestrate`, including law calls, converge verification, entangled state propagation, and patch transaction recording
 
 When `kain run` succeeds, Kain is not merely validating authored source before handing work to another backend. In many cases it is executing the language's own semantic model directly. Treat that lane as a first-class truth source for what Kain code means.
 
@@ -141,12 +142,13 @@ When `kain run` succeeds, Kain is not merely validating authored source before h
 
 The semantic-analysis part of that pipeline now includes real executable-body checks in `kain-core`, not only declaration registration. The compiler validates return values, call arguments, `match` arm type agreement, duplicate boolean arms, and `await` / `async` future typing before downstream codegen and bundle emission consume the typed program. That typechecked program also feeds the runtime/interpreter lane; bundle/codegen flows are downstream consumers of the same semantic truth, not a replacement for it.
 
-That same frontend lane now owns five compiler-owned intent declarations:
+That same frontend lane now owns six compiler-owned intent declarations:
 
 - `law` lowers to callable invariant metadata through explicit `laws[]` contract sections.
 - `patch` lowers to transactional mutation metadata with inferred undo mode plus explicit `patches[]` contract sections.
 - `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and executable `verify random(n)` verification through `converges[]`.
 - `world` lowers to shared state/surface projection metadata through sparse `worlds[]` entries and compiler-owned active-world selection.
+- `entangle` lowers to single-writer state-coupling metadata through `entanglements[]` and the `state.entangle` capability; v1 interpreter semantics propagate authority endpoint writes to mirrors and reject direct mirror writes.
 - `orchestrate` lowers to strict typed stage metadata through `orchestrations[]`.
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.

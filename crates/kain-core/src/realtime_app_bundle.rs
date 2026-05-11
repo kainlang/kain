@@ -5,7 +5,7 @@ use crate::ast::{
     COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
-    PatchUndoMode, TypedConverge, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+    PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
@@ -33,6 +33,8 @@ pub struct RealtimeAppBundle {
     pub worlds: Vec<RealtimeWorldBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_world: Option<RealtimeWorldBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entanglements: Vec<RealtimeEntangleBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orchestrations: Vec<RealtimeOrchestrationBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -402,6 +404,14 @@ pub struct RealtimeWorldBinding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeEntangleBinding {
+    pub authority: String,
+    pub mirror: String,
+    pub policy: String,
+    pub type_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RealtimeOrchestrationStageBinding {
     pub runtime: String,
     pub function: String,
@@ -435,6 +445,7 @@ pub fn emit_realtime_app_bundle(
     } else {
         None
     };
+    let entanglements = collect_entangle_bindings(program);
     let orchestrations = collect_orchestration_bindings(program);
     let assets = collect_assets(ui_output);
     let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
@@ -443,6 +454,7 @@ pub fn emit_realtime_app_bundle(
         ui_output,
         &shader_canvases,
         &worlds,
+        !entanglements.is_empty(),
         !patches.is_empty(),
         !laws.is_empty(),
         !converges.is_empty(),
@@ -456,6 +468,7 @@ pub fn emit_realtime_app_bundle(
         &shader_bundle_refs,
         &worlds,
         &tool_caps,
+        !entanglements.is_empty(),
         !patches.is_empty(),
         !laws.is_empty(),
         !converges.is_empty(),
@@ -473,6 +486,7 @@ pub fn emit_realtime_app_bundle(
         converges,
         worlds,
         active_world,
+        entanglements,
         orchestrations,
         shader_canvases,
         shader_bundle_refs,
@@ -920,6 +934,36 @@ fn realtime_world_binding(world: &TypedWorld) -> RealtimeWorldBinding {
             })
             .collect(),
         surfaces,
+    }
+}
+
+fn collect_entangle_bindings(program: &TypedProgram) -> Vec<RealtimeEntangleBinding> {
+    let mut bindings = Vec::new();
+    collect_entangle_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| {
+        left.authority
+            .cmp(&right.authority)
+            .then_with(|| left.mirror.cmp(&right.mirror))
+    });
+    bindings
+}
+
+fn collect_entangle_bindings_into(items: &[TypedItem], output: &mut Vec<RealtimeEntangleBinding>) {
+    for item in items {
+        match item {
+            TypedItem::Entangle(entangle) => output.push(realtime_entangle_binding(entangle)),
+            TypedItem::Mod(module) => collect_entangle_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_entangle_binding(entangle: &TypedEntangle) -> RealtimeEntangleBinding {
+    RealtimeEntangleBinding {
+        authority: entangle.ast.left.authored_path(),
+        mirror: entangle.ast.right.authored_path(),
+        policy: entangle.ast.policy.as_str().to_string(),
+        type_name: entangle.endpoint_type_name.clone(),
     }
 }
 
@@ -1917,6 +1961,7 @@ fn collect_tool_caps(
     ui_output: Option<&UiBuildOutput>,
     shader_canvases: &[RealtimeShaderCanvasBinding],
     worlds: &[RealtimeWorldBinding],
+    has_entanglements: bool,
     has_patches: bool,
     has_laws: bool,
     has_converges: bool,
@@ -1932,6 +1977,9 @@ fn collect_tool_caps(
     }
     if has_converges {
         caps.push("converge.dispatch".to_string());
+    }
+    if has_entanglements {
+        caps.push(kain_entangle::STATE_ENTANGLE_CAPABILITY.to_string());
     }
     if has_orchestrations {
         caps.push("orchestrate.pipeline".to_string());
@@ -2010,6 +2058,7 @@ fn collect_requirements(
     shader_bundle_refs: &[RealtimeShaderBundleRef],
     worlds: &[RealtimeWorldBinding],
     tool_caps: &[String],
+    has_entanglements: bool,
     has_patches: bool,
     has_laws: bool,
     has_converges: bool,
@@ -2035,6 +2084,9 @@ fn collect_requirements(
     }
     if has_converges {
         requirements.push("converge.dispatch".to_string());
+    }
+    if has_entanglements {
+        requirements.push(kain_entangle::STATE_ENTANGLE_CAPABILITY.to_string());
     }
     if has_orchestrations {
         requirements.push("orchestrate.pipeline".to_string());

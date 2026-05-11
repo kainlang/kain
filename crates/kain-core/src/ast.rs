@@ -55,6 +55,9 @@ pub enum Item {
     /// `world Name: state/surface projections`
     World(WorldDef),
 
+    /// `entangle A.path <-> B.path with single_writer`
+    Entangle(EntangleDef),
+
     /// `orchestrate name(args) -> Type: stages`
     Orchestrate(OrchestrateDef),
 
@@ -246,6 +249,41 @@ pub struct WorldSurfaceProjection {
     pub kind: WorldSurfaceKind,
     pub expr: Expr,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntangleDef {
+    pub left: EntangleEndpoint,
+    pub right: EntangleEndpoint,
+    pub policy: EntanglePolicy,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntangleEndpoint {
+    pub segments: Vec<String>,
+    pub span: Span,
+}
+
+impl EntangleEndpoint {
+    pub fn authored_path(&self) -> String {
+        self.segments.join(".")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntanglePolicy {
+    SingleWriter,
+}
+
+impl EntanglePolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SingleWriter => kain_entangle::SINGLE_WRITER_POLICY,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2543,7 +2581,7 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
                 collect_type_names_from_item(&Item::Function(method.clone()), out);
             }
         }
-        Item::Use(_) | Item::Mod(_) => {
+        Item::Use(_) | Item::Mod(_) | Item::Entangle(_) => {
             // Uses and mods don't contain type references we can extract
         }
     }

@@ -175,6 +175,10 @@ impl SourceFormatter {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_world(value)?);
             }
+            Item::Entangle(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
+                self.push_text(&mut output, &self.format_entangle(value)?);
+            }
             Item::Orchestrate(value) => {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_orchestrate(value)?);
@@ -430,6 +434,16 @@ impl SourceFormatter {
             ));
         }
         self.format_header_with_body(&header, &entries.join("\n"))
+    }
+
+    fn format_entangle(&self, value: &EntangleDef) -> KainResult<String> {
+        Ok(format!(
+            "{}entangle {} <-> {} with {}",
+            self.visibility_prefix(value.visibility),
+            value.left.authored_path(),
+            value.right.authored_path(),
+            value.policy.as_str()
+        ))
     }
 
     fn format_component(&self, value: &Component) -> KainResult<String> {
