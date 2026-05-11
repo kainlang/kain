@@ -63,6 +63,7 @@ if [[ ! -f "$HELPER_SCRIPT" ]]; then
 fi
 
 TEST_BINARIES=(
+    "test_actor_abi_contract"
     "test_actor_spawn_basic"
     "test_actor_registry"
     "test_mailbox_backpressure"

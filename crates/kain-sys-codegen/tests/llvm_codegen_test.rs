@@ -565,10 +565,11 @@ fn drive() -> Int:
 
     assert!(llvm.contains("%KainActorMessage = type { i64, i8*, i64, i64 }"));
     assert!(llvm.contains(
-        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, [128 x i8] }"
+        "%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [128 x i8] }"
     ));
     assert!(llvm.contains("define i32 @Printer_run(i64 %actor_id, i8* %mailbox, i8* %user_data)"));
     assert!(llvm.contains("call void @kain_actor_spawn_config_init(%KainActorSpawnConfig*"));
+    assert!(llvm.contains("store i32 1, i32*"));
     assert!(llvm.contains("call i64 @kain_actor_spawn(%KainActorSpawnConfig*"));
     assert!(llvm.contains("call i32 @kain_actor_receive(i8* %mailbox, %KainActorMessage*"));
     assert!(llvm.contains("call i32 @kain_actor_send(i64 "));

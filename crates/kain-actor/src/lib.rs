@@ -31,12 +31,22 @@ pub use lifecycle::{
     ActorExitReason, ActorLifecyclePolicy, ActorState, RestartPolicy, SupervisionStrategy,
     DEFAULT_ASK_TIMEOUT_MS, DEFAULT_SHUTDOWN_GRACE_MS,
 };
-pub use mailbox::{MailboxCapacity, MailboxOverflowPolicy, MailboxPolicy, MailboxStats};
+pub use mailbox::{
+    MailboxCapacity, MailboxOverflowPolicy, MailboxPolicy, MailboxStats, DEFAULT_MAILBOX_CAPACITY,
+};
 pub use message::{
     DeliverySemantics, MessageCatalog, MessageEnvelope, MessageName, MessageParameter,
     MessageReplyContract, MessageSignature,
 };
-pub use native::{NativeActorAbi, NativeActorLoweringContract};
+pub use native::{
+    NativeActorAbi, NativeActorAbiLayout, NativeActorExitReasonDiscriminant,
+    NativeActorLoweringContract, NativeActorStateDiscriminant, NativeRestartPolicyDiscriminant,
+    NativeSupervisionStrategyDiscriminant, NATIVE_ACTOR_ABI_VERSION, NATIVE_ACTOR_ID_BITS,
+    NATIVE_ACTOR_MONITOR_EXIT_TAG_BASE, NATIVE_ACTOR_NAME_MAX_BYTES,
+    NATIVE_ACTOR_REGISTRY_CAPACITY, NATIVE_ACTOR_SCHEDULER_WORKER_COUNT,
+    NATIVE_ACTOR_TABLE_CAPACITY, NATIVE_ACTOR_UNBOUNDED_MAILBOX_CAPACITY,
+    REQUIRED_NATIVE_ACTOR_SYMBOLS, REQUIRED_NATIVE_STDLIB_ACTOR_SYMBOLS,
+};
 pub use registry::{ActorNameBinding, ActorRegistryModel};
 pub use runtime::{
     ActorRefMetadata, ActorRegistryEntry, ActorRuntimeCapabilities, ActorRuntimeEvent,
@@ -45,6 +55,7 @@ pub use runtime::{
 pub use scheduler::{ActorSchedulerPolicy, SchedulerLaneKind, SchedulerLanePolicy};
 pub use supervision::{
     ChildKind, ChildSpec, LinkMode, MonitorSpec, RestartIntensity, SupervisorSpec,
+    DEFAULT_RESTART_INTENSITY_MAX_RESTARTS, DEFAULT_RESTART_INTENSITY_WINDOW_MS,
 };
 pub use system::{ActorSystemDefinition, ActorSystemValidationError, ActorSystemValidationResult};
 pub use validation::{

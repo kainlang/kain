@@ -188,8 +188,10 @@ Native LLVM/direct-C builds load `stdlib/native/fs.kn`, which wraps the C facade
 `crates/kain-sys-codegen` now lowers actors against the canonical native runtime actor header instead of the legacy `KAIN_spawn` / `mq_*` lane.
 
 - LLVM actor entrypoints use the canonical `(actor_id, mailbox, user_data)` signature and talk to `kain_actor_spawn_config_init`, `kain_actor_spawn`, `kain_actor_send`, and `kain_actor_receive`.
-- The LLVM actor message and spawn-config layouts are emitted as explicit ABI types, so any change to `runtime/native/include/kain_runtime_actor.h` must be reflected in codegen and fixture validation together.
-- Actor state ownership in the LLVM lane follows the native runtime contract: compiler-owned actor state is passed as `user_data`, and received message payload buffers are freed after dispatch.
+- The LLVM actor message and spawn-config layouts are emitted as explicit ABI types, so any change to `runtime/native/include/kain_runtime_actor.h` must be reflected in codegen, `crates/kain-actor/src/native.rs`, and fixture validation together. `crates/kain-sys-codegen` depends directly on `kain-actor` for actor ABI sizing where possible.
+- Actor state ownership in the LLVM lane follows the native runtime contract: compiler-owned actor state is passed as `user_data` with `retain_user_data = 1`, while host/C/C++ callers default to borrowed `user_data` with no retain/release. Do not reintroduce unconditional `rc_retain` on actor `user_data`.
+- Native actor ABI compatibility is queryable at runtime through `KainActorAbiDescriptor`, `kain_actor_abi_descriptor`, and `kain_actor_abi_descriptor_is_compatible`.
+- `runtime/conformance/actor_runtime/run_tests.sh` is the broad native actor C conformance runner. It includes `test_actor_abi_contract.c`, which catches ABI drift, mailbox payload-size retention, user-data ownership mistakes, monitor tags, supervision snapshots, links, registry behavior, and scheduler statistics.
 
 ### Actor Crate Flow
 

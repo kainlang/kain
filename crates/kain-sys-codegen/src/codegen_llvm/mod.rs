@@ -4,6 +4,7 @@
 //! by `clang` or `llc`. This approach is chosen for maximum portability and
 //! reliability without requiring local LLVM library linking during the build.
 
+use kain_actor::native::NATIVE_ACTOR_NAME_MAX_BYTES;
 use kain_core::ast::{
     BinaryOp, Block, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt, Type, UnaryOp,
     VariantPatternFields,
@@ -2547,7 +2548,10 @@ impl LlvmGenerator {
     fn emit_runtime_abi_types(&mut self) {
         self.emit("; Canonical native runtime ABI types");
         self.emit("%KainActorMessage = type { i64, i8*, i64, i64 }");
-        self.emit("%KainActorSpawnConfig = type { i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, [128 x i8] }");
+        self.emit(&format!(
+            "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8] }}",
+            NATIVE_ACTOR_NAME_MAX_BYTES
+        ));
         self.emit("");
     }
 
@@ -4102,6 +4106,13 @@ impl LlvmGenerator {
                     user_data_ptr, config_ptr
                 ));
                 self.emit(&format!("  store i8* {}, i8** {}", mem_reg, user_data_ptr));
+
+                let retain_user_data_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorSpawnConfig, %KainActorSpawnConfig* {}, i32 0, i32 6",
+                    retain_user_data_ptr, config_ptr
+                ));
+                self.emit(&format!("  store i32 1, i32* {}", retain_user_data_ptr));
 
                 // Initialize fields.
                 let mut provided: HashMap<String, Expr> = init.iter().cloned().collect();

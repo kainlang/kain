@@ -6,6 +6,10 @@
 #include <stddef.h>
 #include <time.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations from kain_runtime_base.h */
 typedef struct MessageNode MessageNode;
 
@@ -29,7 +33,9 @@ typedef struct MessageNode MessageNode;
 /* Actor ID Type */
 typedef unsigned long long KainActorId;
 
-#define KAIN_ACTOR_ID_INVALID 0
+#define KAIN_ACTOR_ABI_VERSION 1U
+#define KAIN_ACTOR_ID_BITS 64U
+#define KAIN_ACTOR_ID_INVALID 0ULL
 
 /* Actor State */
 typedef enum {
@@ -68,13 +74,48 @@ typedef enum {
 /* Supervision Configuration */
 #define KAIN_SUPERVISION_MAX_RESTARTS 5
 #define KAIN_SUPERVISION_RESTART_WINDOW_SECONDS 60
+#define KAIN_SUPERVISION_RESTART_WINDOW_MILLIS 60000ULL
 
 /* Mailbox Configuration */
 #define KAIN_MAILBOX_DEFAULT_CAPACITY 1024
 #define KAIN_MAILBOX_UNBOUNDED_CAPACITY 0
+#define KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS 30000ULL
+#define KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS 5000ULL
 
 /* String Buffer Sizes */
 #define KAIN_ACTOR_NAME_MAX 128
+
+/* Runtime Capacity Configuration */
+#define KAIN_ACTOR_TABLE_CAPACITY 1024
+#define KAIN_ACTOR_REGISTRY_CAPACITY 256
+#define KAIN_ACTOR_SCHEDULER_WORKER_COUNT 4
+
+/* Monitor Notification Message Tag Base */
+#define KAIN_ACTOR_MONITOR_EXIT_TAG_BASE 0xDEAD0000ULL
+
+/*
+ * Native Actor ABI Descriptor
+ *
+ * This is the runtime-owned contract that Rust model crates, LLVM lowering,
+ * direct C lowering, stdlib wrappers, and C++ consumers can use to assert they
+ * are targeting the same native actor floor.
+ */
+typedef struct {
+    unsigned int abi_version;
+    unsigned short actor_id_bits;
+    KainActorId invalid_actor_id;
+    size_t default_mailbox_capacity;
+    size_t unbounded_mailbox_capacity;
+    unsigned long long default_ask_timeout_ms;
+    unsigned long long default_shutdown_grace_ms;
+    unsigned int supervision_max_restarts;
+    unsigned long long supervision_restart_window_millis;
+    size_t actor_name_max;
+    size_t scheduler_worker_count;
+    size_t actor_table_capacity;
+    size_t registry_capacity;
+    unsigned long long monitor_exit_tag_base;
+} KainActorAbiDescriptor;
 
 /*
  * Actor Message
@@ -231,6 +272,8 @@ typedef struct {
     KainSupervisionStrategy supervision_strategy;
     KainRestartPolicy restart_policy;
     KainActorId supervisor_id;
+    /* 1 when user_data is a Kain RC allocation the runtime must retain/release. */
+    int retain_user_data;
     char name[KAIN_ACTOR_NAME_MAX];
 } KainActorSpawnConfigStored;
 
@@ -380,6 +423,8 @@ typedef struct {
     KainSupervisionStrategy supervision_strategy;
     KainRestartPolicy restart_policy;
     KainActorId supervisor_id;
+    /* 1 when user_data is a Kain RC allocation the runtime must retain/release. */
+    int retain_user_data;
     char name[KAIN_ACTOR_NAME_MAX];
 } KainActorSpawnConfig;
 
@@ -389,6 +434,17 @@ typedef struct {
  * Must be called before any actor operations.
  */
 void kain_actor_runtime_init(void);
+
+/*
+ * Return the native actor ABI descriptor.
+ */
+KainActorAbiDescriptor kain_actor_abi_descriptor(void);
+
+/*
+ * Check whether an expected descriptor exactly matches this runtime.
+ * Returns 1 for compatible, 0 for incompatible.
+ */
+int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expected);
 
 /*
  * Shutdown Actor Runtime
@@ -621,5 +677,9 @@ int kain_actor_mailbox_is_full(const KainActorMailbox* mailbox);
  * Returns the current scheduler queue and worker statistics.
  */
 void kain_actor_scheduler_snapshot(KainActorSchedulerSnapshot* snapshot);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KAIN_RUNTIME_ACTOR_H */

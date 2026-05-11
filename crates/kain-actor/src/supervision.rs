@@ -2,6 +2,9 @@ use crate::id::ActorId;
 use crate::lifecycle::{RestartPolicy, SupervisionStrategy};
 use serde::{Deserialize, Serialize};
 
+pub const DEFAULT_RESTART_INTENSITY_MAX_RESTARTS: u32 = 5;
+pub const DEFAULT_RESTART_INTENSITY_WINDOW_MS: u64 = 60_000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LinkMode {
     Linked,
@@ -24,8 +27,8 @@ pub struct RestartIntensity {
 impl Default for RestartIntensity {
     fn default() -> Self {
         Self {
-            max_restarts: 3,
-            within_ms: 5_000,
+            max_restarts: DEFAULT_RESTART_INTENSITY_MAX_RESTARTS,
+            within_ms: DEFAULT_RESTART_INTENSITY_WINDOW_MS,
         }
     }
 }

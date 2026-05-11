@@ -16,7 +16,7 @@
 #include <time.h>
 
 /* Global actor table */
-#define KAIN_ACTOR_TABLE_SIZE 1024
+#define KAIN_ACTOR_TABLE_SIZE KAIN_ACTOR_TABLE_CAPACITY
 
 typedef struct {
     KainActorState_Internal* actors[KAIN_ACTOR_TABLE_SIZE];
@@ -32,7 +32,7 @@ static KainActorTable g_actor_table = {0};
 static int g_actor_runtime_initialized = 0;
 
 /* Actor registry */
-#define KAIN_ACTOR_REGISTRY_SIZE 256
+#define KAIN_ACTOR_REGISTRY_SIZE KAIN_ACTOR_REGISTRY_CAPACITY
 
 typedef struct KainActorRegistryEntry {
     char name[KAIN_ACTOR_NAME_MAX];
@@ -52,7 +52,7 @@ typedef struct {
 static KainActorRegistry g_actor_registry = {0};
 
 /* Actor scheduler - work queue for actor execution */
-#define KAIN_SCHEDULER_WORKER_COUNT 4
+#define KAIN_SCHEDULER_WORKER_COUNT KAIN_ACTOR_SCHEDULER_WORKER_COUNT
 #define KAIN_SCHEDULER_USE_POOLED 1  /* 1 = use worker pool, 0 = thread-per-actor */
 
 typedef struct {
@@ -99,10 +99,12 @@ static int kain_actor_should_restart(KainActorState_Internal* child);
 static KainActorId kain_actor_restart_child(KainActorState_Internal* child, KainDiagnostic* diag);
 static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child);
 static void kain_actor_close_mailbox(KainActorState_Internal* actor);
+static void kain_actor_registry_clear(void);
 static void kain_actor_finalize_exit_state(
     KainActorState_Internal* actor,
     KainActorExitReason bootstrap_exit_reason
 );
+static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor);
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
 
 /*
@@ -134,6 +136,51 @@ void kain_actor_runtime_init(void) {
     }
 
     g_actor_runtime_initialized = 1;
+}
+
+KainActorAbiDescriptor kain_actor_abi_descriptor(void) {
+    KainActorAbiDescriptor descriptor;
+
+    descriptor.abi_version = KAIN_ACTOR_ABI_VERSION;
+    descriptor.actor_id_bits = (unsigned short)KAIN_ACTOR_ID_BITS;
+    descriptor.invalid_actor_id = KAIN_ACTOR_ID_INVALID;
+    descriptor.default_mailbox_capacity = KAIN_MAILBOX_DEFAULT_CAPACITY;
+    descriptor.unbounded_mailbox_capacity = KAIN_MAILBOX_UNBOUNDED_CAPACITY;
+    descriptor.default_ask_timeout_ms = KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS;
+    descriptor.default_shutdown_grace_ms = KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS;
+    descriptor.supervision_max_restarts = KAIN_SUPERVISION_MAX_RESTARTS;
+    descriptor.supervision_restart_window_millis = KAIN_SUPERVISION_RESTART_WINDOW_MILLIS;
+    descriptor.actor_name_max = KAIN_ACTOR_NAME_MAX;
+    descriptor.scheduler_worker_count = KAIN_ACTOR_SCHEDULER_WORKER_COUNT;
+    descriptor.actor_table_capacity = KAIN_ACTOR_TABLE_CAPACITY;
+    descriptor.registry_capacity = KAIN_ACTOR_REGISTRY_CAPACITY;
+    descriptor.monitor_exit_tag_base = KAIN_ACTOR_MONITOR_EXIT_TAG_BASE;
+
+    return descriptor;
+}
+
+int kain_actor_abi_descriptor_is_compatible(const KainActorAbiDescriptor* expected) {
+    KainActorAbiDescriptor current;
+
+    if (expected == NULL) {
+        return 0;
+    }
+
+    current = kain_actor_abi_descriptor();
+    return expected->abi_version == current.abi_version &&
+           expected->actor_id_bits == current.actor_id_bits &&
+           expected->invalid_actor_id == current.invalid_actor_id &&
+           expected->default_mailbox_capacity == current.default_mailbox_capacity &&
+           expected->unbounded_mailbox_capacity == current.unbounded_mailbox_capacity &&
+           expected->default_ask_timeout_ms == current.default_ask_timeout_ms &&
+           expected->default_shutdown_grace_ms == current.default_shutdown_grace_ms &&
+           expected->supervision_max_restarts == current.supervision_max_restarts &&
+           expected->supervision_restart_window_millis == current.supervision_restart_window_millis &&
+           expected->actor_name_max == current.actor_name_max &&
+           expected->scheduler_worker_count == current.scheduler_worker_count &&
+           expected->actor_table_capacity == current.actor_table_capacity &&
+           expected->registry_capacity == current.registry_capacity &&
+           expected->monitor_exit_tag_base == current.monitor_exit_tag_base;
 }
 
 /*
@@ -171,6 +218,8 @@ void kain_actor_runtime_shutdown(void) {
     if (KAIN_SCHEDULER_USE_POOLED) {
         kain_scheduler_shutdown();
     }
+
+    kain_actor_registry_clear();
 
 #ifdef _WIN32
     EnterCriticalSection(&g_actor_table.lock);
@@ -255,13 +304,20 @@ static void kain_actor_close_mailbox(KainActorState_Internal* actor) {
         return;
     }
 
+#ifdef _WIN32
+    EnterCriticalSection(&actor->mailbox.lock);
+#else
+    pthread_mutex_lock(&actor->mailbox.lock);
+#endif
     actor->mailbox.closed = 1;
 #ifdef _WIN32
     SetEvent(actor->mailbox.not_empty);
     SetEvent(actor->mailbox.not_full);
+    LeaveCriticalSection(&actor->mailbox.lock);
 #else
     pthread_cond_broadcast(&actor->mailbox.not_empty);
     pthread_cond_broadcast(&actor->mailbox.not_full);
+    pthread_mutex_unlock(&actor->mailbox.lock);
 #endif
 }
 
@@ -335,6 +391,17 @@ static DWORD WINAPI kain_actor_thread_proc(LPVOID param) {
 static void* kain_actor_thread_proc(void* param) {
 #endif
     KainActorState_Internal* actor = (KainActorState_Internal*)param;
+
+    if (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
+        actor->state == KAIN_ACTOR_STATE_FAILED) {
+        kain_actor_finalize_exit_state(actor, actor->exit_reason);
+        kain_actor_complete_exit_side_effects(actor);
+#ifdef _WIN32
+        return 0;
+#else
+        return NULL;
+#endif
+    }
     
     /* Update state to running */
     actor->state = KAIN_ACTOR_STATE_RUNNING;
@@ -347,18 +414,7 @@ static void* kain_actor_thread_proc(void* param) {
     );
     
     kain_actor_finalize_exit_state(actor, exit_reason);
-    
-    /* Handle supervision if actor has a supervisor */
-    if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
-        kain_actor_handle_child_exit(actor);
-    }
-    
-    /* Notify monitors and propagate links */
-    kain_actor_notify_monitors(actor);
-    if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
-        actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
-        kain_actor_propagate_links(actor);
-    }
+    kain_actor_complete_exit_side_effects(actor);
     
 #ifdef _WIN32
     return 0;
@@ -394,6 +450,22 @@ static void kain_actor_finalize_exit_state(
         : KAIN_ACTOR_STATE_FAILED;
 }
 
+static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor) {
+    if (actor == NULL) {
+        return;
+    }
+
+    if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
+        kain_actor_handle_child_exit(actor);
+    }
+
+    kain_actor_notify_monitors(actor);
+    if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
+        actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
+        kain_actor_propagate_links(actor);
+    }
+}
+
 /*
  * Actor Spawn Configuration
  */
@@ -404,6 +476,7 @@ void kain_actor_spawn_config_init(KainActorSpawnConfig* config) {
     config->supervision_strategy = KAIN_SUPERVISION_STRATEGY_ONE_FOR_ONE;
     config->restart_policy = KAIN_RESTART_POLICY_TEMPORARY;
     config->supervisor_id = KAIN_ACTOR_ID_INVALID;
+    config->retain_user_data = 0;
 }
 
 /*
@@ -489,6 +562,7 @@ KainActorId kain_actor_spawn(
     actor->spawn_config.supervision_strategy = config->supervision_strategy;
     actor->spawn_config.restart_policy = config->restart_policy;
     actor->spawn_config.supervisor_id = config->supervisor_id;
+    actor->spawn_config.retain_user_data = config->retain_user_data;
     kain_actor_copy_name(
         actor->spawn_config.name,
         sizeof(actor->spawn_config.name),
@@ -499,7 +573,7 @@ KainActorId kain_actor_spawn(
      * Keep the runtime's own reference for the lifetime of the actor so
      * the LLVM lane can target the canonical actor ABI without inventing a
      * second ownership model. */
-    if (actor->user_data != NULL) {
+    if (actor->user_data != NULL && config->retain_user_data) {
         rc_retain(actor->user_data);
     }
 
@@ -513,7 +587,7 @@ KainActorId kain_actor_spawn(
             diag->code = KAIN_DIAG_CODE_ACTOR_SPAWN_FAILED;
             snprintf(diag->message, sizeof(diag->message), "Actor table full");
         }
-        if (actor->user_data != NULL) {
+        if (actor->user_data != NULL && config->retain_user_data) {
             rc_release(actor->user_data);
         }
         kain_actor_mailbox_destroy(&actor->mailbox);
@@ -538,7 +612,7 @@ KainActorId kain_actor_spawn(
 
             if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
                 kain_actor_table_remove(actor_id);
-                if (actor->user_data != NULL) {
+                if (actor->user_data != NULL && config->retain_user_data) {
                     rc_release(actor->user_data);
                 }
                 kain_actor_mailbox_destroy(&actor->mailbox);
@@ -553,7 +627,7 @@ KainActorId kain_actor_spawn(
         /* Use dedicated thread per actor */
         if (kain_actor_spawn_direct_thread(actor, diag) != 0) {
             kain_actor_table_remove(actor_id);
-            if (actor->user_data != NULL) {
+            if (actor->user_data != NULL && config->retain_user_data) {
                 rc_release(actor->user_data);
             }
             kain_actor_mailbox_destroy(&actor->mailbox);
@@ -641,6 +715,7 @@ int kain_actor_send(
 
     node->type_tag = message->type_tag;
     node->sender_id = message->sender_id;
+    node->data_size = message->data_size;
     node->next = NULL;
 
     /* Copy message data */
@@ -740,7 +815,7 @@ int kain_actor_receive(
     /* Copy message data */
     message->type_tag = node->type_tag;
     message->data = node->data;
-    message->data_size = 0; /* Size not stored in MessageNode */
+    message->data_size = node->data_size;
     message->sender_id = node->sender_id;
 
     free(node);
@@ -799,7 +874,7 @@ int kain_actor_try_receive(
     /* Copy message data */
     message->type_tag = node->type_tag;
     message->data = node->data;
-    message->data_size = 0;
+    message->data_size = node->data_size;
     message->sender_id = node->sender_id;
 
     free(node);
@@ -931,7 +1006,7 @@ static void kain_actor_cleanup(KainActorState_Internal* actor) {
 
     /* Release the compiler-owned actor state once the runtime no longer
      * needs to keep the actor alive. */
-    if (actor->user_data != NULL) {
+    if (actor->user_data != NULL && actor->spawn_config.retain_user_data) {
         rc_release(actor->user_data);
         actor->user_data = NULL;
     }
@@ -1231,6 +1306,30 @@ static unsigned int kain_actor_registry_hash(const char* name) {
         hash = ((hash << 5) + hash) + c;
     }
     return hash % KAIN_ACTOR_REGISTRY_SIZE;
+}
+
+static void kain_actor_registry_clear(void) {
+#ifdef _WIN32
+    EnterCriticalSection(&g_actor_registry.lock);
+#else
+    pthread_mutex_lock(&g_actor_registry.lock);
+#endif
+
+    for (int i = 0; i < KAIN_ACTOR_REGISTRY_SIZE; i++) {
+        KainActorRegistryEntry* entry = g_actor_registry.buckets[i];
+        while (entry != NULL) {
+            KainActorRegistryEntry* next = entry->next;
+            free(entry);
+            entry = next;
+        }
+        g_actor_registry.buckets[i] = NULL;
+    }
+
+#ifdef _WIN32
+    LeaveCriticalSection(&g_actor_registry.lock);
+#else
+    pthread_mutex_unlock(&g_actor_registry.lock);
+#endif
 }
 
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {
@@ -1535,17 +1634,7 @@ static void* kain_scheduler_worker_thread(void* param) {
             );
             
             kain_actor_finalize_exit_state(actor, exit_reason);
-            
-            /* Handle supervision if actor has a supervisor */
-            if (actor->supervisor.supervisor_id != KAIN_ACTOR_ID_INVALID) {
-                kain_actor_handle_child_exit(actor);
-            }
-            
-            kain_actor_notify_monitors(actor);
-            if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
-                actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
-                kain_actor_propagate_links(actor);
-            }
+            kain_actor_complete_exit_side_effects(actor);
 
 #ifdef _WIN32
             EnterCriticalSection(&g_scheduler.lock);
@@ -1560,6 +1649,11 @@ static void* kain_scheduler_worker_thread(void* param) {
 #else
             pthread_mutex_unlock(&g_scheduler.lock);
 #endif
+        } else if (actor != NULL &&
+                   (actor->state == KAIN_ACTOR_STATE_SHUTTING_DOWN ||
+                    actor->state == KAIN_ACTOR_STATE_FAILED)) {
+            kain_actor_finalize_exit_state(actor, actor->exit_reason);
+            kain_actor_complete_exit_side_effects(actor);
         }
     }
 
@@ -1904,6 +1998,7 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
     config.supervision_strategy = child->spawn_config.supervision_strategy;
     config.supervisor_id = child->spawn_config.supervisor_id;
     config.restart_policy = child->spawn_config.restart_policy;
+    config.retain_user_data = child->spawn_config.retain_user_data;
     
     kain_actor_copy_name(config.name, sizeof(config.name), child->spawn_config.name);
 

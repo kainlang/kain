@@ -1,5 +1,53 @@
 # Kain Memory
 
+# 2026-05-11 - Native actor ABI contract and C runtime hardening landed
+
+Kain's native actor lane now has an executable ABI contract instead of relying on matching comments between Rust, LLVM IR, and C headers.
+
+What changed:
+
+- Expanded `crates/kain-actor/src/native.rs` into the canonical Rust-side native actor ABI descriptor: ABI version, actor ID width, invalid ID, mailbox defaults, ask/shutdown timing, supervision restart window, actor name/table/registry/scheduler capacities, monitor notification tag base, required C runtime symbols, required native stdlib actor symbols, and the native message/spawn-config layout.
+- Added actor header parity tests in `kain-actor` that read `runtime/native/include/kain_runtime_actor.h` and `kain_runtime_native_stdlib.h`, so Rust model constants and C ABI symbols drift loudly.
+- Added `KainActorAbiDescriptor`, `kain_actor_abi_descriptor`, and `kain_actor_abi_descriptor_is_compatible` to the native actor runtime.
+- Added explicit `retain_user_data` ownership to `KainActorSpawnConfig` and `KainActorSpawnConfigStored`. Native C/C++ callers now default to plain borrowed `user_data`, while LLVM actor lowering sets `retain_user_data = 1` for Kain RC-managed actor state.
+- Fixed native mailbox payload-size retention by storing `data_size` in `MessageNode`; `kain_actor_receive` and `kain_actor_try_receive` now return the original payload size.
+- Hardened shutdown-before-first-run behavior: actors closed while still queued now finalize lifecycle side effects, including monitor notifications, supervisor observations, and link propagation when appropriate.
+- Added `runtime/conformance/actor_runtime/test_actor_abi_contract.c` and wired it into the actor runtime conformance runner. The test covers ABI descriptor compatibility, spawn defaults, message size retention, registry, monitor notification tags, links, supervision snapshots, and scheduler stats.
+- Exposed native actor constants through `runtime/native/include/kain_runtime_native_stdlib.h`, `runtime/native/src/core/kain_runtime_native_stdlib.c`, and `stdlib/native/actor.kn`, then updated `runtime/fixtures/native_world_actor_intent/main.kn` to prove them through LLVM and direct C.
+- Updated LLVM actor spawn layout to include `retain_user_data` and made `crates/kain-sys-codegen` depend directly on `kain-actor` for actor ABI sizing.
+
+Design decisions:
+
+- `retain_user_data` is the ABI boundary between compiler-owned Kain RC state and arbitrary host/C/C++ pointers. Do not reintroduce unconditional `rc_retain`/`rc_release` on `user_data`.
+- C actor ABI compatibility should be checked through `KainActorAbiDescriptor` and the `kain-actor` parity tests, not only by eyeballing struct comments.
+- Native actor stdlib wrappers should expose stable constants where Kain source needs to reason about runtime behavior.
+
+Validation:
+
+- `cargo fmt -p kain-actor -p kain-sys-codegen`
+- `cargo test -p kain-actor --target-dir target\\codex-actor-runtime`
+- `cargo test -p kain-core --test actor_contract_test --target-dir target\\codex-actor-runtime-core`
+- `cargo test -p kain-core ask_timeout_builtin_round_trips_actor_reply --target-dir target\\codex-actor-runtime-core -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_generates_actor_spawn_and_send_message_paths --target-dir target\\codex-actor-runtime-codegen -- --nocapture`
+- `bash runtime/conformance/actor_runtime/run_tests.sh --test-timeout 45 --verbose`
+- `target\\codex-actor-runtime\\native_stdlib_bridge.exe`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-actor-runtime-cli`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe check runtime\\fixtures\\native_world_actor_intent\\main.kn --target llvm`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe build runtime\\fixtures\\native_world_actor_intent\\main.kn -t llvm -o target\\codex-actor-runtime\\native_world_actor_intent.ll`
+- `target\\codex-actor-runtime\\native_world_actor_intent.exe`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe check runtime\\fixtures\\native_world_actor_intent\\main.kn --target c`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe build runtime\\fixtures\\native_world_actor_intent\\main.kn -t c -o target\\codex-actor-runtime\\native_world_actor_intent_c.c`
+- `target\\codex-actor-runtime\\native_world_actor_intent_c.exe`
+
+Current risks:
+
+- Direct C actor lowering still uses the generic native actor facade rather than generated per-actor handler loops. The runtime substrate is much sturdier now, but specialized direct-C actor semantics remain a deeper compiler pass.
+- The native actor conformance runner is Bash-first. It works under the current Windows Git Bash environment, but a PowerShell wrapper would make the Windows lane easier for future agents.
+
+Recommended next step:
+
+- Promote the actor conformance runner plus LLVM/direct-C native fixture into one repo-local smoke command, then add generated per-actor direct-C handler lowering on top of the now-explicit ABI contract.
+
 # 2026-05-11 - Kain FS v2 added sandboxed virtual roots, streaming, watchers, and transactions
 
 Kain's filesystem lane now has a real v2 substrate on top of the initial `kain-fs` crate work.

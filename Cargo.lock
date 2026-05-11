@@ -3159,6 +3159,7 @@ name = "kain-sys-codegen"
 version = "0.1.0"
 dependencies = [
  "inkwell",
+ "kain-actor",
  "kain-core",
  "serde",
  "serde_json",

@@ -1,4 +1,7 @@
 @extern
+fn kain_native_actor_abi_version() -> Int
+
+@extern
 fn kain_native_actor_invalid_id() -> Int
 
 @extern
@@ -6,6 +9,18 @@ fn kain_native_actor_default_mailbox_capacity() -> Int
 
 @extern
 fn kain_native_actor_unbounded_mailbox_capacity() -> Int
+
+@extern
+fn kain_native_actor_default_ask_timeout_ms() -> Int
+
+@extern
+fn kain_native_actor_default_shutdown_grace_ms() -> Int
+
+@extern
+fn kain_native_actor_supervision_max_restarts() -> Int
+
+@extern
+fn kain_native_actor_supervision_restart_window_millis() -> Int
 
 @extern
 fn kain_native_actor_spawn(actor_name: String, init_payload: String) -> Int
@@ -85,11 +100,26 @@ fn kain_native_actor_scheduler_overflow_thread_spawns() -> Int
 pub fn native_actor_invalid_id() -> Int:
     return kain_native_actor_invalid_id()
 
+pub fn native_actor_abi_version() -> Int:
+    return kain_native_actor_abi_version()
+
 pub fn native_actor_default_mailbox_capacity() -> Int:
     return kain_native_actor_default_mailbox_capacity()
 
 pub fn native_actor_unbounded_mailbox_capacity() -> Int:
     return kain_native_actor_unbounded_mailbox_capacity()
+
+pub fn native_actor_default_ask_timeout_ms() -> Int:
+    return kain_native_actor_default_ask_timeout_ms()
+
+pub fn native_actor_default_shutdown_grace_ms() -> Int:
+    return kain_native_actor_default_shutdown_grace_ms()
+
+pub fn native_actor_supervision_max_restarts() -> Int:
+    return kain_native_actor_supervision_max_restarts()
+
+pub fn native_actor_supervision_restart_window_millis() -> Int:
+    return kain_native_actor_supervision_restart_window_millis()
 
 pub fn native_actor_spawn(actor_name: String, init_payload: String) -> Int:
     return kain_native_actor_spawn(actor_name, init_payload)

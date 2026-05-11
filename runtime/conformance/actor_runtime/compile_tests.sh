@@ -52,6 +52,10 @@ echo "Compiling runtime sources..."
 
 # Compile tests
 echo ""
+echo "Compiling test_actor_abi_contract..."
+"$C_COMPILER" $CFLAGS test_actor_abi_contract.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_abi_contract" $LDFLAGS
+
+echo ""
 echo "Compiling test_actor_spawn_basic..."
 "$C_COMPILER" $CFLAGS test_actor_spawn_basic.c "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" "$BIN_DIR/kain_runtime_actor.o" -o "$BIN_DIR/test_actor_spawn_basic" $LDFLAGS
 
@@ -77,6 +81,7 @@ echo ""
 echo "=== Compilation Complete ==="
 echo ""
 echo "Run tests with:"
+echo "  $BIN_DIR/test_actor_abi_contract"
 echo "  $BIN_DIR/test_actor_spawn_basic"
 echo "  $BIN_DIR/test_actor_registry"
 echo "  $BIN_DIR/test_mailbox_backpressure"

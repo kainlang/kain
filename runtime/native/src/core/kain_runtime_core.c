@@ -892,6 +892,8 @@ void mq_push(void* mq_ptr, long long type_tag, void* data) {
     if (!node) return;
     node->type_tag = type_tag;
     node->data = data;
+    node->data_size = 0;
+    node->sender_id = 0ULL;
     node->next = NULL;
 
 #ifdef _WIN32
