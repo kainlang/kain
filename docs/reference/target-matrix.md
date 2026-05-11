@@ -1,6 +1,6 @@
 # Target Matrix
 
-Snapshot: April 12, 2026.
+Snapshot: May 11, 2026.
 
 This page is the canonical view of compile targets, aliases, and output
 extensions. The live target registry comes from `crates/kain-driver/src/lib.rs`.
@@ -25,6 +25,7 @@ The `CompileTarget` enum itself lives in `crates/kain-core/src/lib.rs`.
 | --- | --- | --- | --- |
 | `Wasm` | `wasm`, `w` | `.wasm` | browser-oriented module output |
 | `Llvm` | `llvm`, `native`, `n` | `.ll` | LLVM IR plus native runtime staging |
+| `C` | `c` | `.c` | experimental C source plus raw-native runtime contract staging |
 | `Spirv` | `spirv`, `gpu`, `shader`, `s` | `.spv` | binary SPIR-V |
 | `Hlsl` | `hlsl`, `h` | `.hlsl` | HLSL shader text |
 | `Usf` | `usf` | `.usf` | UE5 shader source |
@@ -52,6 +53,7 @@ The `CompileTarget` enum itself lives in `crates/kain-core/src/lib.rs`.
 ### Native and system
 
 - `Llvm`
+- `C`
 - `Rust`
 - `Cpp`
 
@@ -76,6 +78,7 @@ The `CompileTarget` enum itself lives in `crates/kain-core/src/lib.rs`.
 The most important alias differences are:
 
 - The CLI accepts `native` and `n` for LLVM output.
+- The CLI accepts `c` for direct experimental C output.
 - The CLI accepts `gpu`, `shader`, and `s` for SPIR-V output.
 - The CLI accepts `web` for the hybrid JS lane.
 - The CLI accepts `slate` and `ue5editor` for the editor target, while the

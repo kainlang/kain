@@ -8,10 +8,13 @@ It is meant for:
 - inspecting shared buffer and shared image payloads passed into or out of native code
 - keeping C-native payload work on the same `kain-interop` contracts used by Python and Node
 
-The current runtime lane is host-backed only:
+The current runtime lane is split:
 
 - `interpret`
 - `test`
+- direct `c` codegen uses this profile before the generic root stdlib so the
+  experimental C backend does not inherit full-runtime helpers it cannot lower
+  yet
 
 Core wrapper module:
 

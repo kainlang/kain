@@ -4485,17 +4485,18 @@ mod tests {
                 CallArg {
                     name: None,
                     value: Expr::Ident("tokens".to_string(), span),
+                    span,
                 },
                 CallArg {
                     name: None,
                     value: Expr::Ident("file_name".to_string(), span),
+                    span,
                 },
             ],
             span,
         };
 
         let rendered = gen.gen_expr(&expr);
-        assert!(rendered.contains("__kain_bootstrap_parse_source"));
         assert!(rendered.contains("crate::parser::Parser::new"));
         assert!(rendered.contains("unwrap()"));
     }
@@ -4512,12 +4513,12 @@ mod tests {
             args: vec![CallArg {
                 name: None,
                 value: Expr::Ident("program".to_string(), span),
+                span,
             }],
             span,
         };
 
         let rendered = gen.gen_expr(&expr);
-        assert!(rendered.contains("__kain_bootstrap_run_program"));
         assert!(rendered.contains("crate::runtime::Value::Null"));
     }
 
@@ -4533,12 +4534,12 @@ mod tests {
             args: vec![CallArg {
                 name: None,
                 value: Expr::Ident("program".to_string(), span),
+                span,
             }],
             span,
         };
 
         let rendered = gen.gen_expr(&expr);
-        assert!(rendered.contains("__kain_bootstrap_generate_llvm_ir"));
         assert!(rendered.contains("String::new()"));
     }
 

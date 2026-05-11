@@ -37,6 +37,14 @@ struct WorldGlobalInfo {
     init_fn_name: String,
 }
 
+#[derive(Clone, Debug)]
+struct NativeEntangleBinding {
+    authority: String,
+    mirror: String,
+    policy: String,
+    type_name: String,
+}
+
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
     id: LlvmTargetId::WindowsX64Msvc,
     triple: "x86_64-pc-windows-msvc",
@@ -126,6 +134,7 @@ struct LlvmGenerator {
     actor_return_slot: Option<String>,
     target: &'static LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
+    native_entanglements: Vec<NativeEntangleBinding>,
 }
 
 impl LlvmGenerator {
@@ -151,6 +160,7 @@ impl LlvmGenerator {
             actor_return_slot: None,
             target: resolve_host_llvm_target_descriptor(),
             world_globals: HashMap::new(),
+            native_entanglements: Vec::new(),
         }
     }
 
@@ -283,6 +293,13 @@ impl LlvmGenerator {
                     if let Some(ret) = &patch.ast.return_type {
                         self.collect_tuple_types_from_ast(ret);
                     }
+                }
+                TypedItem::Law(law) => {
+                    self.collect_tuple_types_from_resolved(&law.resolved_type);
+                    for param in &law.ast.params {
+                        self.collect_tuple_types_from_ast(&param.ty);
+                    }
+                    self.collect_tuple_types_from_ast(&law.ast.return_type);
                 }
                 TypedItem::Converge(converge) => {
                     self.collect_tuple_types_from_resolved(&converge.resolved_type);
@@ -471,6 +488,25 @@ impl LlvmGenerator {
             reg_rc, reg_static
         ));
         (reg_rc, "i8*".to_string())
+    }
+
+    fn compile_static_c_string_literal(&mut self, s: &str) -> String {
+        let global_name = if let Some(name) = self.strings.get(s) {
+            name.clone()
+        } else {
+            let name = format!("@.str.{}", self.string_counter);
+            self.string_counter += 1;
+            self.strings.insert(s.to_string(), name.clone());
+            name
+        };
+
+        let reg_static = self.next_reg();
+        let len = s.len() + 1;
+        self.emit(&format!(
+            "  {} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+            reg_static, len, len, global_name
+        ));
+        reg_static
     }
 
     fn concat_strings(&mut self, lhs: &str, rhs: &str) -> String {
@@ -1979,6 +2015,41 @@ impl LlvmGenerator {
         func.ast.attributes.iter().any(|attr| attr.name == "extern")
     }
 
+    fn register_callable_signature(
+        &mut self,
+        name: &str,
+        resolved_type: &ResolvedType,
+        span: Span,
+    ) -> KainResult<()> {
+        let (params, ret_ty) = self.callable_signature(resolved_type, name, span)?;
+        self.functions.insert(name.to_string(), ret_ty);
+        self.function_params.insert(
+            name.to_string(),
+            params
+                .into_iter()
+                .map(|param| self.map_type(&param))
+                .collect(),
+        );
+        Ok(())
+    }
+
+    fn collect_native_entanglements(&mut self, items: &[TypedItem]) {
+        for item in items {
+            match item {
+                TypedItem::Entangle(entangle) => {
+                    self.native_entanglements.push(NativeEntangleBinding {
+                        authority: entangle.ast.left.authored_path(),
+                        mirror: entangle.ast.right.authored_path(),
+                        policy: entangle.ast.policy.as_str().to_string(),
+                        type_name: entangle.endpoint_type_name.clone(),
+                    });
+                }
+                TypedItem::Mod(module) => self.collect_native_entanglements(&module.items),
+                _ => {}
+            }
+        }
+    }
+
     fn register_world_type_and_global(
         &mut self,
         world: &kain_core::types::TypedWorld,
@@ -2032,6 +2103,7 @@ impl LlvmGenerator {
         self.emit(&format!("target triple = \"{}\"", self.target.triple));
         self.emit("");
 
+        self.collect_native_entanglements(&program.items);
         self.collect_program_tuple_types(program);
         self.emit_runtime_abi_types();
 
@@ -2172,23 +2244,25 @@ impl LlvmGenerator {
                     );
                 }
             } else if let TypedItem::Patch(patch) = item {
-                let (_, ret_ty) =
-                    self.callable_signature(&patch.resolved_type, &patch.ast.name, patch.ast.span)?;
-                self.functions.insert(patch.ast.name.clone(), ret_ty);
+                self.register_callable_signature(
+                    &patch.ast.name,
+                    &patch.resolved_type,
+                    patch.ast.span,
+                )?;
+            } else if let TypedItem::Law(law) = item {
+                self.register_callable_signature(&law.ast.name, &law.resolved_type, law.ast.span)?;
             } else if let TypedItem::Converge(converge) = item {
-                let (_, ret_ty) = self.callable_signature(
-                    &converge.resolved_type,
+                self.register_callable_signature(
                     &converge.ast.name,
+                    &converge.resolved_type,
                     converge.ast.span,
                 )?;
-                self.functions.insert(converge.ast.name.clone(), ret_ty);
             } else if let TypedItem::Orchestrate(orchestrate) = item {
-                let (_, ret_ty) = self.callable_signature(
-                    &orchestrate.resolved_type,
+                self.register_callable_signature(
                     &orchestrate.ast.name,
+                    &orchestrate.resolved_type,
                     orchestrate.ast.span,
                 )?;
-                self.functions.insert(orchestrate.ast.name.clone(), ret_ty);
             } else if let TypedItem::Impl(imp) = item {
                 if let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type {
                     for method in &imp.ast.methods {
@@ -2217,12 +2291,14 @@ impl LlvmGenerator {
         // 3. Emit External Declarations (stdlib)
         self.emit_externs();
         self.emit_runtime();
+        self.compile_entangle_registration_function();
 
         // 4. Compile Items
         for item in &program.items {
             match item {
                 TypedItem::Function(func) => self.compile_function(func)?,
                 TypedItem::Patch(patch) => self.compile_patch(patch)?,
+                TypedItem::Law(law) => self.compile_law(law)?,
                 TypedItem::Converge(converge) => self.compile_converge(converge)?,
                 TypedItem::World(world) => self.compile_world_initializer(world)?,
                 TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
@@ -2488,6 +2564,12 @@ impl LlvmGenerator {
         self.emit("declare void @free(i8*)");
         self.emit("declare i1 @deep_eq(i8*, i8*)");
 
+        if !self.native_entanglements.is_empty() {
+            self.emit("");
+            self.emit("; Compiler-owned entangle runtime registration");
+            self.emit("declare i32 @kain_runtime_entangle_register(i8*, i8*, i8*, i8*)");
+        }
+
         // Low-Level Memory Helpers (Canonical ABI)
         // Source: runtime/native/include/kain_runtime_memory.h
         // Requirements: 1.4, 3.1, 3.4, 3.5
@@ -2748,6 +2830,38 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn compile_entangle_registration_function(&mut self) {
+        if self.native_entanglements.is_empty() {
+            return;
+        }
+
+        self.reg_count = 0;
+        self.current_return_type = Some("void".to_string());
+        self.emit("define void @__kain_register_entanglements() {");
+        self.emit_label("entry");
+
+        for binding in self.native_entanglements.clone() {
+            self.emit(&format!(
+                "  ; entangle {} <-> {} with {}",
+                binding.authority, binding.mirror, binding.policy
+            ));
+            let authority = self.compile_static_c_string_literal(&binding.authority);
+            let mirror = self.compile_static_c_string_literal(&binding.mirror);
+            let policy = self.compile_static_c_string_literal(&binding.policy);
+            let type_name = self.compile_static_c_string_literal(&binding.type_name);
+            let status = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i32 @kain_runtime_entangle_register(i8* {}, i8* {}, i8* {}, i8* {})",
+                status, authority, mirror, policy, type_name
+            ));
+        }
+
+        self.emit("  ret void");
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+    }
+
     fn compile_named_callable(
         &mut self,
         callable_name: &str,
@@ -2790,6 +2904,10 @@ impl LlvmGenerator {
         ));
         self.emit_label("entry");
 
+        if is_main && !self.native_entanglements.is_empty() {
+            self.emit("  call void @__kain_register_entanglements()");
+        }
+
         for (index, param) in params.iter().enumerate() {
             let param_ty = self.map_type(&param_types[index]);
             let addr_reg = format!("%{}.addr", param.name);
@@ -2828,6 +2946,16 @@ impl LlvmGenerator {
             &patch.ast.body,
             &patch.resolved_type,
             patch.ast.span,
+        )
+    }
+
+    fn compile_law(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
+        self.compile_named_callable(
+            &law.ast.name,
+            &law.ast.params,
+            &law.ast.body,
+            &law.resolved_type,
+            law.ast.span,
         )
     }
 
@@ -3404,6 +3532,20 @@ impl LlvmGenerator {
             ));
             Ok((res, ret_ty))
         }
+    }
+
+    fn compile_stage_call(
+        &mut self,
+        runtime: &kain_core::ast::OrchestrateStageRuntime,
+        function: &str,
+        args: &[kain_core::ast::CallArg],
+    ) -> KainResult<(String, String)> {
+        self.emit(&format!(
+            "  ; orchestrate stage {} -> {}",
+            runtime.as_str(),
+            function
+        ));
+        self.compile_direct_call(function, args)
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
@@ -4537,7 +4679,12 @@ impl LlvmGenerator {
                 };
                 self.compile_direct_call(&func_name, args)
             }
-            Expr::StageCall { function, args, .. } => self.compile_direct_call(function, args),
+            Expr::StageCall {
+                runtime,
+                function,
+                args,
+                ..
+            } => self.compile_stage_call(runtime, function, args),
             Expr::EnumVariant {
                 enum_name,
                 variant,

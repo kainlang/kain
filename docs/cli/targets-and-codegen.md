@@ -1,6 +1,6 @@
 # Targets And Codegen
 
-Snapshot: April 12, 2026.
+Snapshot: May 11, 2026.
 
 This page explains the live target registry, the difference between compile
 targets and orchestration commands, and where KainScript belongs in the current
@@ -21,7 +21,7 @@ answers the second. The docs should keep those two ideas separate.
 | Family | Typical aliases | What it means |
 | --- | --- | --- |
 | Web and scripting | `wasm`, `js`, `ts`, `hybrid`, `ks` | browser, script, and KainScript outputs |
-| Native and system | `llvm`, `rust`, `cpp` | native lowering and source-emission lanes |
+| Native and system | `llvm`, `c`, `rust`, `cpp` | native lowering and source-emission lanes |
 | GPU and shader | `spirv`, `hlsl`, `usf` | shader and compute output families |
 | UE5 | `ue5`, `ue5editor` | plugin and editor-facing codegen |
 | Runtime lanes | `interpret`, `test` | execution and validation paths |
@@ -65,6 +65,7 @@ Different targets imply different output families:
 
 - `wasm` emits WebAssembly modules
 - `js` and `ts` emit script source
+- `c` emits experimental C source and uses the raw-native sidecar staging path
 - `rust` emits Rust source
 - `cpp` emits C++ source
 - `spirv`, `hlsl`, and `usf` emit shader source or binaries
@@ -91,6 +92,7 @@ Keep those workflows separate when you document or debug them.
 - `crates/kain-core/src/lib.rs`
 - `crates/kain-driver/src/lib.rs`
 - `crates/cli/src/main.rs`
+- `crates/kain-sys-codegen/src/codegen_c.rs`
 - `crates/cli/src/native_ui_build.rs`
 - `crates/cli/src/packager/`
 - `crates/web/src/codegen_ks.rs`

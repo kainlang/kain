@@ -749,6 +749,7 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::Ts, &[""]),
     (CompileTarget::Hybrid, &[""]),
     (CompileTarget::Llvm, &[""]),
+    (CompileTarget::C, &["c", ""]),
     (CompileTarget::Rust, &[""]),
     (CompileTarget::Cpp, &[""]),
     (CompileTarget::Interpret, &[""]),
@@ -1130,6 +1131,9 @@ mod tests {
         let ue5_dir = stdlib_dir.join("ue5");
         fs::create_dir(&ue5_dir).unwrap();
         create_kn_file(&ue5_dir, "ue5.kn", "// ue5 stdlib");
+        let c_dir = stdlib_dir.join("c");
+        fs::create_dir(&c_dir).unwrap();
+        create_kn_file(&c_dir, "c.kn", "// c stdlib");
         let roots = vec![stdlib_dir.clone()];
         let ts_profiles = target_profiles(CompileTarget::Ts)
             .iter()
@@ -1151,6 +1155,10 @@ mod tests {
             .iter()
             .map(|p| (*p).to_string())
             .collect::<Vec<_>>();
+        let c_profiles = target_profiles(CompileTarget::C)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
 
         let ts_stdlib = load_stdlib_from_profiles(&roots, &ts_profiles);
         assert!(ts_stdlib.contains("// root stdlib"));
@@ -1169,6 +1177,10 @@ mod tests {
 
         let usf_stdlib = load_stdlib_from_profiles(&roots, &usf_profiles);
         assert!(usf_stdlib.contains("// ue5 stdlib"));
+
+        let c_stdlib = load_stdlib_from_profiles(&roots, &c_profiles);
+        assert!(c_stdlib.contains("// c stdlib"));
+        assert!(!c_stdlib.contains("// root stdlib"));
     }
 
     #[test]

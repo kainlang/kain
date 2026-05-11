@@ -144,14 +144,17 @@ The semantic-analysis part of that pipeline now includes real executable-body ch
 
 That same frontend lane now owns six compiler-owned intent declarations:
 
-- `law` lowers to callable invariant metadata through explicit `laws[]` contract sections.
+- `law` lowers to callable invariant metadata through explicit `laws[]` contract sections, and the LLVM/C backends now emit laws as callable native-target functions.
 - `patch` lowers to transactional mutation metadata with inferred undo mode plus explicit `patches[]` contract sections.
 - `converge` lowers to dispatcher-plus-lane metadata with deterministic selection and executable `verify random(n)` verification through `converges[]`.
 - `world` lowers to shared state/surface projection metadata through sparse `worlds[]` entries and compiler-owned active-world selection.
-- `entangle` lowers to single-writer state-coupling metadata through `entanglements[]` and the `state.entangle` capability; v1 interpreter semantics propagate authority endpoint writes to mirrors and reject direct mirror writes.
+- `entangle` lowers to single-writer state-coupling metadata through `entanglements[]` and the `state.entangle` capability; v1 interpreter semantics propagate authority endpoint writes to mirrors and reject direct mirror writes. The LLVM lane also emits `@__kain_register_entanglements` calls into the native C runtime registry, while the direct C backend preserves entanglements in a static metadata table.
 - `orchestrate` lowers to strict typed stage metadata through `orchestrations[]`.
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
+
+Native target codegen for compiler-owned intents is intentionally explicit:
+`crates/kain-sys-codegen/src/codegen_llvm/mod.rs` owns LLVM lowering for `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate`; `crates/kain-sys-codegen/src/codegen_c.rs` owns the experimental direct C source lane; and `runtime/native/include/kain_runtime_entangle.h` plus `runtime/native/src/core/kain_runtime_entangle.c` provide the C ABI registry used by LLVM-generated programs.
 
 ### LLVM Native Actor ABI
 

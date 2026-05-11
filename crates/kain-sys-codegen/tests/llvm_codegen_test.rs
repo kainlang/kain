@@ -60,12 +60,21 @@ world Studio:
     state counter: Int = 1
     surface native_ui => App
 
+world Mirror:
+    state counter: Int = 1
+    surface web => App
+
 component App():
     render <text>{"studio"}</text>
+
+entangle Studio.counter <-> Mirror.counter with single_writer
 
 patch set_counter(studio: Studio, value: Int) -> Int:
     studio.counter = value
     return studio.counter
+
+law revision_is_valid(value: Int) -> Bool:
+    return value >= 0
 
 converge choose_value(value: Int) -> Int:
     spec reference:
@@ -84,7 +93,9 @@ orchestrate pipeline(value: Int) -> Int:
 fn main() -> Int:
     let studio = Studio
     let updated = set_counter(studio, 7)
-    return pipeline(updated)
+    if revision_is_valid(updated):
+        return pipeline(updated)
+    return 0
 "#;
 
     let program = typed_program_from_source(source);
@@ -92,16 +103,27 @@ fn main() -> Int:
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%Studio = type { i64 }"));
+    assert!(llvm.contains("%Mirror = type { i64 }"));
     assert!(llvm.contains("@__kain_world_Studio = internal global %Studio zeroinitializer"));
+    assert!(llvm.contains("@__kain_world_Mirror = internal global %Mirror zeroinitializer"));
     assert!(llvm.contains("@__kain_world_init_flag_Studio = internal global i1 0"));
     assert!(llvm.contains("define void @__kain_init_world_Studio()"));
     assert!(llvm.contains("define i64 @set_counter(%Studio* %arg0, i64 %arg1)"));
+    assert!(llvm.contains("define i1 @revision_is_valid(i64 %arg0)"));
     assert!(llvm.contains("define i64 @choose_value(i64 %arg0)"));
     assert!(llvm.contains("define i64 @pipeline(i64 %arg0)"));
+    assert!(llvm.contains("declare i32 @kain_runtime_entangle_register(i8*, i8*, i8*, i8*)"));
+    assert!(llvm.contains("define void @__kain_register_entanglements()"));
+    assert!(llvm.contains("call i32 @kain_runtime_entangle_register"));
+    assert!(llvm.contains("call void @__kain_register_entanglements()"));
     assert!(llvm.contains("call void @__kain_init_world_Studio()"));
+    assert!(llvm.contains("call i1 @revision_is_valid(i64"));
     assert!(llvm.contains("call i64 @choose_value(i64"));
     assert!(llvm.contains("call i64 @stage_bias(i64"));
     assert!(llvm.contains("call i64 @pipeline(i64"));
+    assert!(llvm.contains("Studio.counter"));
+    assert!(llvm.contains("Mirror.counter"));
+    assert!(llvm.contains("single_writer"));
 }
 
 #[test]

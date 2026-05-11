@@ -1,6 +1,6 @@
 # Compiler-Owned Intents
 
-Snapshot: April 12, 2026.
+Snapshot: May 11, 2026.
 
 `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate` are first-class Kain
 declarations. They are not just names or documentation conventions. The core
@@ -65,6 +65,10 @@ The emitted contract records:
 That makes laws suitable for runtime checks, validator passes, and other
 semantic consumers that need a stable rule surface.
 
+The LLVM and direct C backends now lower laws as callable functions, so Kain
+code can call authored invariants from native-targeted functions instead of
+only seeing laws in sidecar metadata.
+
 ## `converge`
 
 `converge` is the dispatch family.
@@ -124,9 +128,18 @@ The runtime contract and realtime bundle both track:
 - endpoint type
 - `state.entangle` capability and requirement metadata
 
-Native ABI, JS/TS/WASM lowering, cross-process coupling, and distributed
-replication are future target-adapter layers. They should consume the emitted
-`entanglements[]` metadata instead of redefining the language meaning.
+Native target support now has two concrete surfaces:
+
+- LLVM emits `@__kain_register_entanglements`, called from `main`, which passes
+  each binding into the native C runtime hook
+  `kain_runtime_entangle_register(authority, mirror, policy, type_name)`.
+- The direct C backend emits a static `KainCEntangleBinding` metadata table so
+  C output preserves the same contract shape even when it is not linked through
+  the LLVM runtime-registration path.
+
+Cross-process coupling, distributed replication, and richer write barriers are
+still target-adapter layers. They should consume the emitted `entanglements[]`
+metadata or the native registry instead of redefining the language meaning.
 
 ## `orchestrate`
 
@@ -154,7 +167,11 @@ ordered list of callbacks.
 - `crates/kain-core/src/realtime_app_bundle.rs`
 - `crates/kain-entangle/src/lib.rs`
 - `crates/kain-driver/src/lib.rs`
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/kain-sys-codegen/src/codegen_c.rs`
 - `crates/kain-core/src/ast.rs`
+- `runtime/native/include/kain_runtime_entangle.h`
+- `runtime/native/src/core/kain_runtime_entangle.c`
 
 ## Practical Rule
 

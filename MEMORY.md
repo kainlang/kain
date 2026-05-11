@@ -1,5 +1,41 @@
 # Kain Memory
 
+# 2026-05-11 - LLVM and direct C native intent backends refreshed
+
+Kain's native backend path now handles the compiler-owned intent suite more honestly across LLVM, direct C output, and the native C runtime.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now registers and emits `law` declarations as real LLVM callables, records parameter types for `patch`/`law`/`converge`/`orchestrate`, preserves orchestrate stage runtime comments, and emits an entangle registration function that calls the C runtime from `main`.
+- `runtime/native/include/kain_runtime_entangle.h` and `runtime/native/src/core/kain_runtime_entangle.c` add a small fixed-capacity native entangle registry. `runtime/native_runtime.toml` now includes that source in the manifest-driven C runtime bundle.
+- `crates/kain-sys-codegen/src/codegen_c.rs` now lowers worlds to C structs/static world instances, emits `patch`, `law`, `converge`, and `orchestrate` as callable functions, preserves entangles as a static metadata table, supports stage calls, and maps world parameters/fields through pointer-style C access.
+- `crates/kain-core/src/stdlib.rs` now routes `CompileTarget::C` through `stdlib/c` before root fallback, keeping the experimental C backend away from the full generic stdlib unless the C profile is absent.
+- The Rust backend bootstrap intrinsic tests were corrected after missing `CallArg.span` fields were restored; those intrinsics now assert the rendered intrinsic behavior instead of stale raw-call fallback text.
+
+Design decisions:
+
+- LLVM entangle support uses the typed entangle items already produced by `kain-core` and emits a narrow native registration ABI. Rich write barriers, cross-process propagation, and distributed conflict policy remain future runtime adapters.
+- Direct C output keeps entangle metadata local instead of forcing every generated C file to link a runtime registration symbol. Runtime-linked registration is currently the LLVM lane's responsibility.
+- The C backend remains an explicit subset, but it should now fail on truly unsupported expression/type forms rather than silently ignoring first-class intent declarations.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --target-dir target\\codex-llvm-refresh`
+- `cargo test -p kain-core test_load_stdlib_for_target_uses_target_profile_order --target-dir target\\codex-llvm-refresh -- --nocapture`
+- `cargo test -p kain-entangle --target-dir target\\codex-llvm-refresh`
+- `cargo test -p cli --lib stage_llvm_native_artifacts_materializes_entangle_metadata --target-dir target\\codex-llvm-refresh -- --nocapture`
+- `toolchain\\llvm\\bin\\clang.exe -c runtime\\native\\src\\core\\kain_runtime_entangle.c -Iruntime\\native\\include -o target\\codex-llvm-refresh\\kain_runtime_entangle.obj`
+
+Current risks:
+
+- Full `cargo test -p cli ...` still fails in this checkout because the pre-existing dirty CLI command enum has `Commands::Check` and `Commands::Test` variants that are not handled in `main.rs`. Use `cargo test -p cli --lib ...` for the native staging test until that unrelated CLI work is reconciled.
+- The C backend does not yet implement every expression form, generic type, container ABI, or runtime registration path. It now covers the compiler-owned intent declarations, but deep C parity still needs focused backend work.
+- Entangle alias canonicalization remains an interpreter/runtime risk from the earlier entangle pass: alias writes such as `let p = Physics; p.player_health -= 10` still need canonical path recovery.
+
+Recommended next step:
+
+- Add a native-link smoke that compiles a generated LLVM file with `kain_runtime_entangle.c` included from `native_runtime.toml`, then asserts the registry contains the emitted binding after `main` runs.
+
 # 2026-05-11 - First-class entangle state coupling landed
 
 Kain now has a v1 first-class `entangle` declaration for compiler-owned Topological State Coupling between stable state endpoints.

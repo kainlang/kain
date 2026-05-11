@@ -288,4 +288,40 @@ component App():
         assert!(staged.compute_residency_payload_paths.is_empty());
         assert!(staged.shader_bundle_path.is_none());
     }
+
+    #[test]
+    fn stage_llvm_native_artifacts_materializes_entangle_metadata() {
+        let temp = TempDir::new().expect("temp dir");
+        let output_path = temp.path().join("build").join("demo.ll");
+        let source = r#"
+world Physics:
+    state player_health: Int = 100
+    surface native_ui => App
+
+world UI:
+    state health_display: Int = 100
+    surface web => App
+
+component App():
+    render <panel />
+
+entangle Physics.player_health <-> UI.health_display with single_writer
+"#;
+
+        let staged = stage_llvm_native_artifacts(source, &output_path, None)
+            .expect("llvm native artifacts should stage");
+
+        let contract_json = fs::read_to_string(&staged.runtime_contract_path)
+            .expect("runtime contract json should exist");
+        let realtime_json =
+            fs::read_to_string(&staged.realtime_app_path).expect("realtime app json should exist");
+
+        for json in [&contract_json, &realtime_json] {
+            assert!(json.contains("\"entanglements\""));
+            assert!(json.contains("Physics.player_health"));
+            assert!(json.contains("UI.health_display"));
+            assert!(json.contains("single_writer"));
+            assert!(json.contains("state.entangle"));
+        }
+    }
 }
