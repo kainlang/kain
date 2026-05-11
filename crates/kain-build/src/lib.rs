@@ -263,11 +263,11 @@ mod tests {
         );
 
         let result = build.build().expect("export build");
-        let module_text = std::fs::read_to_string(&result.export.module_path).expect("module text");
+        let module_text = kain_fs::read_text(&result.export.module_path).expect("module text");
 
         assert!(module_text.contains("struct Vec3:"));
         assert!(module_text.contains("fn host_double(value: Int) -> Int:"));
 
-        std::fs::remove_dir_all(export_dir).expect("cleanup export dir");
+        kain_fs::remove_dir_all(export_dir).expect("cleanup export dir");
     }
 }

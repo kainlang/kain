@@ -6,6 +6,7 @@ description = "Local-first Kain blade workspace discovery and build graph planni
 license = "MIT"
 
 [dependencies]
+kain-fs = { path = "../kain-fs" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

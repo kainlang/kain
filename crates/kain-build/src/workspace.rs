@@ -3,13 +3,12 @@ use kain_blades::{
     KainManifest, ResolvedBlade, ResolvedCffiLibrary, FABRIC_MANIFEST_NAME,
 };
 use kain_core::CompileTarget;
+use kain_fs as kfs;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,6 +25,8 @@ pub type BuildResult<T> = Result<T, BuildError>;
 pub enum BuildError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("filesystem error: {0}")]
+    Fs(#[from] kain_fs::FsError),
     #[error("blade workspace error: {0}")]
     Blade(#[from] BladeError),
     #[error("Fabric error: {0}")]
@@ -733,7 +734,7 @@ fn execute_plan(
     if options.clean && !options.dry_run {
         clean_build_roots(&plan)?;
     }
-    fs::create_dir_all(&plan.report_root)?;
+    kfs::create_dir_all(&plan.report_root)?;
     let started_unix_ms = unix_timestamp_ms();
     let report_path = plan.report_root.join(format!(
         "session-{started_unix_ms}-{}.json",
@@ -814,7 +815,7 @@ fn execute_plan(
     };
     let encoded = serde_json::to_string_pretty(&report)
         .map_err(|err| BuildError::Config(format!("failed to serialize build report: {err}")))?;
-    fs::write(&report_path, encoded)?;
+    kfs::atomic_write_text(&report_path, &encoded)?;
     if failed {
         Err(BuildError::Command(format!(
             "blade build failed; report written to {}",
@@ -962,7 +963,7 @@ fn run_kain_check(entry: &Path, target: CompileTarget) -> BuildResult<String> {
 }
 
 fn run_cargo_build(manifest_path: &Path, target_dir: &Path, release: bool) -> BuildResult<String> {
-    fs::create_dir_all(target_dir)?;
+    kfs::create_dir_all(target_dir)?;
     let mut command = Command::new("cargo");
     command
         .arg("build")
@@ -997,7 +998,7 @@ fn run_c_shared_library(
     }
     let clang = find_clang(workspace_root)?;
     if let Some(parent) = canonical_output.parent() {
-        fs::create_dir_all(parent)?;
+        kfs::create_dir_all(parent)?;
     }
     let mut command = Command::new(&clang);
     command.arg("-shared").arg("-O2");
@@ -1024,35 +1025,35 @@ fn run_c_shared_library(
     if let Some(materialized_output) = materialized_output {
         if materialized_output != canonical_output {
             if let Some(parent) = materialized_output.parent() {
-                fs::create_dir_all(parent)?;
+                kfs::create_dir_all(parent)?;
             }
-            fs::copy(canonical_output, materialized_output)?;
+            kfs::copy_file(canonical_output, materialized_output)?;
         }
     }
     Ok(message)
 }
 
 fn run_gpu_artifacts(source: &Path, output_base: &Path) -> BuildResult<String> {
-    let source_text = fs::read_to_string(source)?;
+    let source_text = kfs::read_text(source)?;
     let artifacts = kain_driver::compile_shader_artifact_bundle(&source_text)?;
     if let Some(parent) = output_base.parent() {
-        fs::create_dir_all(parent)?;
+        kfs::create_dir_all(parent)?;
     }
-    fs::write(output_base.with_extension("spv"), &artifacts.spirv)?;
-    fs::write(
+    kfs::atomic_write_bytes(output_base.with_extension("spv"), &artifacts.spirv)?;
+    kfs::atomic_write_text(
         with_file_name_suffix(output_base, ".gpu", "rs"),
-        artifacts.rust_host.as_bytes(),
+        &artifacts.rust_host,
     )?;
-    fs::write(
+    kfs::atomic_write_text(
         with_file_name_suffix(output_base, ".reflect", "json"),
-        artifacts.reflection_json.as_bytes(),
+        &artifacts.reflection_json,
     )?;
-    fs::write(
+    kfs::atomic_write_text(
         with_file_name_suffix(output_base, ".shader_bundle", "json"),
-        artifacts.bundle_json.as_bytes(),
+        &artifacts.bundle_json,
     )?;
     if let Some(hlsl) = artifacts.derived_hlsl {
-        fs::write(output_base.with_extension("hlsl"), hlsl.as_bytes())?;
+        kfs::atomic_write_text(output_base.with_extension("hlsl"), &hlsl)?;
     }
     Ok(format!("emitted GPU artifacts for {}", source.display()))
 }
@@ -1146,16 +1147,17 @@ fn task_is_cached(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<bool> 
         return Ok(false);
     }
     let expected = task_stamp(task, plan)?;
-    let actual = fs::read_to_string(stamp_path)?;
+    let actual = kfs::read_text(stamp_path)?;
     Ok(actual == expected)
 }
 
 fn write_task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<()> {
     let stamp_path = stamp_path(task, plan);
     if let Some(parent) = stamp_path.parent() {
-        fs::create_dir_all(parent)?;
+        kfs::create_dir_all(parent)?;
     }
-    fs::write(stamp_path, task_stamp(task, plan)?)?;
+    let stamp = task_stamp(task, plan)?;
+    kfs::atomic_write_text(stamp_path, &stamp)?;
     Ok(())
 }
 
@@ -1185,21 +1187,18 @@ fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
 fn hash_path_into(hasher: &mut Sha256, path: &Path) -> BuildResult<()> {
     hasher.update(path.display().to_string().as_bytes());
     if path.is_file() {
-        hasher.update(fs::read(path)?);
+        hasher.update(kfs::hash_file(path)?.as_bytes());
     } else if path.is_dir() {
-        let mut entries = fs::read_dir(path)?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<Result<Vec<_>, _>>()?;
-        entries.sort();
-        for entry in entries {
+        for entry in kfs::read_dir_entries(path)? {
             let name = entry
+                .path
                 .file_name()
                 .and_then(|value| value.to_str())
                 .unwrap_or("");
             if matches!(name, ".kain" | "target" | "node_modules" | ".git") {
                 continue;
             }
-            hash_path_into(hasher, &entry)?;
+            hash_path_into(hasher, &entry.path)?;
         }
     }
     Ok(())
@@ -1342,8 +1341,8 @@ fn discover_fabric_manifests(workspace: &BladeWorkspace) -> BuildResult<Vec<Path
     if root_conventional.exists() {
         manifests.insert(root_conventional);
     }
-    for entry in fs::read_dir(&workspace.root)? {
-        let path = entry?.path();
+    for entry in kfs::read_dir_entries(&workspace.root)? {
+        let path = entry.path;
         let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
@@ -1382,11 +1381,12 @@ fn resolve_c_sources(library: &ResolvedCffiLibrary) -> Vec<PathBuf> {
     if exact.exists() {
         return vec![exact];
     }
-    let Ok(entries) = fs::read_dir(parent) else {
+    let Ok(entries) = kfs::read_dir_entries(parent) else {
         return Vec::new();
     };
     let mut sources = entries
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .into_iter()
+        .map(|entry| entry.path)
         .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("c"))
         .collect::<Vec<_>>();
     sources.sort();
@@ -1438,15 +1438,17 @@ fn clean_build_roots(plan: &BladeBuildPlan) -> BuildResult<()> {
     for root in [&plan.artifact_root, &plan.cache_root, &plan.report_root] {
         if root.exists() {
             ensure_safe_clean_root(&plan.workspace_root, root)?;
-            fs::remove_dir_all(root)?;
+            kfs::remove_dir_all(root)?;
         }
     }
     Ok(())
 }
 
 fn ensure_safe_clean_root(workspace_root: &Path, root: &Path) -> BuildResult<()> {
-    let workspace = fs::canonicalize(workspace_root)?;
-    let target = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    let workspace = PathBuf::from(kfs::canonicalize_path(workspace_root)?);
+    let target = kfs::canonicalize_path(root)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| root.to_path_buf());
     if target == workspace || !target.starts_with(&workspace) {
         return Err(BuildError::Config(format!(
             "refusing to clean build path outside workspace: {}",
@@ -1518,16 +1520,17 @@ fn unix_timestamp_ms() -> u128 {
 }
 
 struct EventWriter {
-    file: fs::File,
+    path: PathBuf,
 }
 
 impl EventWriter {
     fn new(path: &Path) -> BuildResult<Self> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            kfs::create_dir_all(parent)?;
         }
+        kfs::atomic_write_text(path, "")?;
         Ok(Self {
-            file: fs::File::create(path)?,
+            path: path.to_path_buf(),
         })
     }
 
@@ -1542,7 +1545,7 @@ impl EventWriter {
             "error": execution.error,
         }))
         .map_err(|err| BuildError::Config(format!("failed to serialize build event: {err}")))?;
-        writeln!(self.file, "{encoded}")?;
+        kfs::append_text(&self.path, &format!("{encoded}\n"))?;
         Ok(())
     }
 }

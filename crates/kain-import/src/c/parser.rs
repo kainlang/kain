@@ -2,6 +2,7 @@
 
 use super::CImportOptions;
 use crate::{ImportError, Result};
+use kain_fs as kfs;
 use lang_c::ast::TranslationUnit;
 use lang_c::driver::{parse, parse_preprocessed, Config};
 use lang_c::span::Span as CSpan;
@@ -86,7 +87,7 @@ pub(crate) fn parse_c_file_with_metadata(
     path: &Path,
     options: &CImportOptions,
 ) -> Result<ParsedCTranslationUnit> {
-    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    let source = kfs::read_text(path)?;
     let layout = CSourceLayoutMetadata::from_source(&source);
     let config = build_driver_config(options);
     let defined_symbols = collect_defined_symbols(options);
@@ -887,10 +888,10 @@ mod tests {
                 return a + b;
             }
         "#;
-        std::fs::write(&path, source).unwrap();
+        kfs::write_text(&path, source).unwrap();
 
         let result = parse_c_file(&path);
-        let _ = std::fs::remove_file(&path);
+        let _ = kfs::remove_file(&path);
         assert!(result.is_ok());
     }
 

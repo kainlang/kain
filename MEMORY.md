@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-11 - Blade, Fabric, FFI, import, and codebase IO moved onto kain-fs
+
+The Blade workspace pipeline and its adjacent import/FFI/workspace helpers now consume the shared `kain-fs` crate instead of carrying their own `std::fs` behavior.
+
+What changed:
+
+- Wired `kain-fs` into `kain-build`, `kain-blades`, `kain-check`, `kain-test`, `kain-omni`, `kain-host`, `kain-c-ffi`, `kain-crate-ffi`, `kain-import`, and `kain-codebase`.
+- Migrated Blade build artifacts, cache stamps, report JSON/JSONL, safe clean, input hashing, C sidecar copying, GPU artifact writes, Fabric manifest/report IO, Omni staging, check/test source discovery, C/Rust FFI generated artifacts, importer source reads, and trusted-local codebase file helpers onto `kain-fs`.
+- Kept raw `std::fs` out of the core Blade/build/check/test/host/omni/FFI/import/codebase lanes, except for literal type names and lower-level surfaces outside this pass such as UE/vendor/demo/runtime adapters.
+- Fixed the host Fabric test helper to use `kain_fs::DirectoryEntry.file_name` and verified the full `/labs/blades_workspace_smoke` against rebuilt `kain.exe` and `blade.exe`.
+
+Design decisions:
+
+- `kain-fs` is now the expected filesystem owner for artifact-producing and workspace-scanning Kain crates, not only for in-language `fs_*` calls.
+- Generated reports and artifacts should prefer `kain_fs::atomic_write_text` / `atomic_write_bytes` when replacing complete files; append-only event streams should use `append_text`.
+- FFI/import crates map `FsError` into their existing crate-level error surfaces rather than leaking raw `std::io::Error` conversions from each call site.
+
+Validation:
+
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo check -p kain-codebase -p kain-import -p kain-c-ffi -p kain-crate-ffi -p kain-build -p kain-blades -p kain-check -p kain-test -p kain-omni -p kain-host --target-dir target\\codex-fs-unified`
+- `cargo test -p kain-blades -p kain-build -p kain-check -p kain-test --target-dir target\\codex-fs-unified -- --nocapture`
+- `cargo test -p kain-codebase -p kain-import --target-dir target\\codex-fs-unified -- --nocapture` (`kain-codebase` passed; `kain-import` still has 5 pre-existing transformer test failures unrelated to file IO)
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo test -p kain-crate-ffi --target-dir target\\codex-fs-unified -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo test -p kain-c-ffi --target-dir target\\codex-fs-unified -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo test -p kain-omni validate_default_polyglot_template_succeeds --target-dir target\\codex-fs-unified -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo test -p kain-host python_harness_supports_mixed_multi_output_steps --target-dir target\\codex-fs-unified -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-fs-unified`
+- `$env:KAIN_BIN=(Resolve-Path target\\codex-fs-unified\\debug\\kain.exe).Path; $env:BLADE_BIN=(Resolve-Path target\\codex-fs-unified\\debug\\blade.exe).Path; python labs\\blades_workspace_smoke\\scripts\\run_blades_smoke.py --clean-cache`
+
+Current risks:
+
+- Broad repo scans still find raw `std::fs` in CLI packagers, UI/demo apps, native/runtime adapters, vendor code, and UE-facing lanes. Those were intentionally left alone unless they were part of the core Blade/import/FFI/workspace unification.
+- `kain-import` has unrelated C/Rust transformer unit failures in the current checkout; avoid treating those as filesystem regressions without checking the specific failing transformer assertions first.
+
+Recommended next step:
+
+- Continue migrating high-value artifact producers such as `kain-driver` native/Tauri app materialization and non-UE CLI import/packaging paths onto `kain-fs`, then add a small lint/check script that fails new raw `std::fs` use in the core Kain FS-owned lanes.
+
 # 2026-05-11 - LLVM native semantic handles and intent runtime hooks landed
 
 Kain's LLVM native lane now preserves the core semantic shapes that were previously erased for smoke-test convenience.

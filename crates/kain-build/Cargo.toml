@@ -10,6 +10,7 @@ kain-blades = { path = "../kain-blades" }
 kain-check = { path = "../kain-check" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver" }
+kain-fs = { path = "../kain-fs" }
 kain-host = { path = "../kain-host", default-features = false }
 kain-omni = { path = "../kain-omni" }
 serde = { workspace = true }

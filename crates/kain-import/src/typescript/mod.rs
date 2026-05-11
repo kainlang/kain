@@ -42,8 +42,9 @@ pub use ambient::{
 };
 pub use transformer::TypeScriptTransformer;
 
-use crate::{ImportError, Result};
+use crate::Result;
 use kain_core::ast::Program;
+use kain_fs as kfs;
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -70,7 +71,7 @@ pub fn import_ts_file(path: &Path) -> Result<Program> {
 }
 
 pub fn import_typescript_file_detailed(path: &Path) -> Result<TypeScriptImportDiagnostics> {
-    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    let source = kfs::read_text(path)?;
     import_typescript_source_detailed(&source, path)
 }
 
@@ -146,7 +147,7 @@ fn import_typescript_project_modular(paths: &[&Path]) -> Result<Program> {
     let span = kain_core::span::Span::default();
 
     for path in paths {
-        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+        let source = kfs::read_text(path)?;
         let module = parser::parse_typescript(&source, path)?;
         let mut tx = TypeScriptTransformer::new();
         let program = tx.transform(module)?;
@@ -180,9 +181,8 @@ fn collect_typescript_files(dir: &Path) -> Result<Vec<std::path::PathBuf>> {
 }
 
 fn collect_typescript_files_into(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> Result<()> {
-    for entry in std::fs::read_dir(dir).map_err(ImportError::IoError)? {
-        let entry = entry.map_err(ImportError::IoError)?;
-        let path = entry.path();
+    for entry in kfs::read_dir_entries(dir)? {
+        let path = entry.path;
         if path.is_dir() {
             collect_typescript_files_into(&path, files)?;
         } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {

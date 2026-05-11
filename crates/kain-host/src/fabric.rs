@@ -1,6 +1,4 @@
 use std::collections::{BTreeMap, HashMap};
-use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -21,6 +19,7 @@ use kain_crate_ffi::{
     import_crate, ArtifactMode as RustArtifactMode, ImportCrateOptions,
     PrepareContext as RustPrepareContext,
 };
+use kain_fs as kfs;
 use kain_gpu_runtime::VulkanComputeExecutor;
 use kain_interop::{
     extract_shared_buffer, extract_shared_image, shared_buffer_value, shared_image_value,
@@ -61,12 +60,12 @@ impl FabricSession {
             .unwrap_or_else(|| PathBuf::from("."));
         let workspace_root = resolve_fabric_path(&manifest_root, &manifest.workspace.root);
         let report_root = resolve_fabric_path(&workspace_root, &manifest.reports.directory);
-        fs::create_dir_all(&report_root)?;
+        kfs::create_dir_all(&report_root)?;
 
         let started_unix_ms = unix_timestamp_ms();
         let session_id = format!("session-{}-{}", started_unix_ms, std::process::id());
         let session_directory = report_root.join(&session_id);
-        fs::create_dir_all(&session_directory)?;
+        kfs::create_dir_all(&session_directory)?;
 
         let report_path = session_directory.join("report.json");
         let lock_path = session_directory.join("session.lock.json");
@@ -491,24 +490,25 @@ impl FabricStoredOutput {
 }
 
 struct FabricEventWriter {
-    file: Option<fs::File>,
+    path: Option<PathBuf>,
 }
 
 impl FabricEventWriter {
     fn new(path: Option<&Path>) -> OmniResult<Self> {
-        let file = match path {
-            Some(path) => Some(fs::File::create(path)?),
-            None => None,
-        };
-        Ok(Self { file })
+        if let Some(path) = path {
+            kfs::atomic_write_text(path, "")?;
+        }
+        Ok(Self {
+            path: path.map(Path::to_path_buf),
+        })
     }
 
     fn write(&mut self, event: &FabricEventRecord) -> OmniResult<()> {
-        if let Some(file) = &mut self.file {
+        if let Some(path) = &self.path {
             let encoded = serde_json::to_string(event).map_err(|err| {
                 OmniError::Config(format!("Failed to serialize Fabric event: {err}"))
             })?;
-            writeln!(file, "{encoded}")?;
+            kfs::append_text(path, &format!("{encoded}\n"))?;
         }
         Ok(())
     }
@@ -769,7 +769,7 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
             })?;
 
         let resolved_shader = resolve_fabric_path(context.workspace_root, &shader_source);
-        let shader_text = fs::read_to_string(&resolved_shader).map_err(|err| {
+        let shader_text = kfs::read_text(&resolved_shader).map_err(|err| {
             fabric_failure(
                 "shader_read_failed",
                 format!(
@@ -792,12 +792,14 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
         let shader_bundle_path = context
             .session_directory
             .join(format!("{}_shader_bundle.json", context.step.id));
-        fs::write(&shader_bundle_path, &artifact_output.bundle_json).map_err(|err| {
-            fabric_failure(
-                "shader_bundle_write_failed",
-                format!("Fabric step '{}': {}", context.step.id, err),
-            )
-        })?;
+        kfs::atomic_write_text(&shader_bundle_path, &artifact_output.bundle_json).map_err(
+            |err| {
+                fabric_failure(
+                    "shader_bundle_write_failed",
+                    format!("Fabric step '{}': {}", context.step.id, err),
+                )
+            },
+        )?;
 
         // Build compute residency from artifact bundle metadata plus authored compute plan details.
         let compute_metadata = parse_compute_metadata_for_shader(&shader_text, &compute_key)?;
@@ -816,7 +818,7 @@ impl FabricRuntimeAdapter for GpuComputeAdapter {
         let residency_path = context
             .session_directory
             .join(format!("{}_compute_residency.json", context.step.id));
-        fs::write(&residency_path, &residency_json).map_err(|err| {
+        kfs::atomic_write_text(&residency_path, &residency_json).map_err(|err| {
             fabric_failure(
                 "residency_write_failed",
                 format!("Fabric step '{}': {}", context.step.id, err),
@@ -1285,7 +1287,7 @@ fn write_residency_payload_files(
             let payload_path = root.join(&binding.payload_file);
             let bytes = resolve_upstream_binding_bytes(context, &binding.key)
                 .unwrap_or_else(|| zero_fill_binding(&binding.shape, &binding.element_type));
-            fs::write(&payload_path, &bytes).map_err(|err| {
+            kfs::atomic_write_bytes(&payload_path, &bytes).map_err(|err| {
                 fabric_failure(
                     "payload_write_failed",
                     format!(
@@ -2110,7 +2112,7 @@ fn read_step_source(
     step: &FabricStep,
     runtime_label: &str,
 ) -> Result<String, FabricFailureReason> {
-    fs::read_to_string(resolved_entry).map_err(|err| {
+    kfs::read_text(resolved_entry).map_err(|err| {
         fabric_failure(
             "read_entry_failed",
             format!(
@@ -2419,7 +2421,9 @@ fn optional_string_value(value: Option<String>) -> Value {
 }
 
 fn path_to_node_specifier(path: &Path) -> String {
-    let normalized_path = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let normalized_path = kfs::canonicalize_path(path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| path.to_path_buf());
     let mut rendered = normalized_path.display().to_string().replace('\\', "/");
     if let Some(stripped) = rendered.strip_prefix("//?/") {
         rendered = stripped.to_string();
@@ -2545,7 +2549,7 @@ mod tests {
             result.status,
             FabricSessionStatus::Succeeded,
             "{}",
-            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+            kfs::read_text(&result.report_path).unwrap_or_else(|_| {
                 format!(
                     "failed to read Fabric report at {}",
                     result.report_path.display()
@@ -2581,7 +2585,7 @@ mod tests {
             result.status,
             FabricSessionStatus::Succeeded,
             "{}",
-            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+            kfs::read_text(&result.report_path).unwrap_or_else(|_| {
                 format!(
                     "failed to read Fabric report at {}",
                     result.report_path.display()
@@ -2760,7 +2764,7 @@ mod tests {
             .to_path_buf();
         let shader_path =
             repo_root.join("smoketest/fabric/gpu_compute_convergence/shaders/gpu_step.kn");
-        let shader_text = fs::read_to_string(&shader_path).expect("read gpu fabric shader");
+        let shader_text = kfs::read_text(&shader_path).expect("read gpu fabric shader");
         let bundle = kain_driver::DriverSession::default()
             .compile_shader_artifact_bundle(&shader_text)
             .expect("compile shader artifact bundle");
@@ -2895,7 +2899,7 @@ mod tests {
             result.status,
             FabricSessionStatus::Succeeded,
             "{}",
-            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+            kfs::read_text(&result.report_path).unwrap_or_else(|_| {
                 format!(
                     "failed to read Fabric report at {}",
                     result.report_path.display()
@@ -2963,7 +2967,7 @@ mod tests {
             result.status,
             FabricSessionStatus::Succeeded,
             "{}",
-            fs::read_to_string(&result.report_path).unwrap_or_else(|_| {
+            kfs::read_text(&result.report_path).unwrap_or_else(|_| {
                 format!(
                     "failed to read Fabric report at {}",
                     result.report_path.display()
@@ -3040,15 +3044,13 @@ mod tests {
     }
 
     fn copy_fixture(source: &Path, destination: &Path) {
-        fs::create_dir_all(destination).expect("create destination");
-        for entry in fs::read_dir(source).expect("read fixture directory") {
-            let entry = entry.expect("fixture entry");
-            let entry_type = entry.file_type().expect("fixture file type");
-            let destination_path = destination.join(entry.file_name());
-            if entry_type.is_dir() {
-                copy_fixture(&entry.path(), &destination_path);
-            } else if entry_type.is_file() {
-                fs::copy(entry.path(), destination_path).expect("copy fixture file");
+        kfs::create_dir_all(destination).expect("create destination");
+        for entry in kfs::read_dir_entries(source).expect("read fixture directory") {
+            let destination_path = destination.join(&entry.file_name);
+            if entry.file_type == kain_fs::FsFileType::Directory {
+                copy_fixture(&entry.path, &destination_path);
+            } else if entry.file_type == kain_fs::FsFileType::File {
+                kfs::copy_file(&entry.path, destination_path).expect("copy fixture file");
             }
         }
     }
@@ -3056,8 +3058,8 @@ mod tests {
     fn rewrite_fixture_native_library_names(fixture_root: &Path, output_name: &str) {
         for relative in ["KAIN.toml", "KAIN.fabric.toml"] {
             let path = fixture_root.join(relative);
-            let source = fs::read_to_string(&path).expect("read fixture manifest");
-            fs::write(&path, source.replace("image_fx.dll", output_name))
+            let source = kfs::read_text(&path).expect("read fixture manifest");
+            kfs::write_text(&path, &source.replace("image_fx.dll", output_name))
                 .expect("rewrite fixture manifest");
         }
     }
@@ -3073,7 +3075,7 @@ mod tests {
     }
 
     fn prepare_fabric_test_workspace(root: &Path) {
-        fs::create_dir_all(root).expect("create fabric test root");
+        kfs::create_dir_all(root).expect("create fabric test root");
         clear_directory_except(root, Some(".kain"));
         let kain_dir = root.join(".kain");
         if kain_dir.exists() {
@@ -3082,20 +3084,18 @@ mod tests {
     }
 
     fn clear_directory_except(root: &Path, preserved_name: Option<&str>) {
-        for entry in fs::read_dir(root).expect("read test workspace") {
-            let entry = entry.expect("workspace entry");
-            let path = entry.path();
+        for entry in kfs::read_dir_entries(root).expect("read test workspace") {
+            let path = entry.path;
             if preserved_name
-                .map(|name| entry.file_name().to_string_lossy() == name)
+                .map(|name| entry.file_name == name)
                 .unwrap_or(false)
             {
                 continue;
             }
-            let entry_type = entry.file_type().expect("workspace entry type");
-            if entry_type.is_dir() {
-                fs::remove_dir_all(path).expect("remove workspace directory");
+            if entry.file_type == kain_fs::FsFileType::Directory {
+                kfs::remove_dir_all(path).expect("remove workspace directory");
             } else {
-                fs::remove_file(path).expect("remove workspace file");
+                kfs::remove_file(path).expect("remove workspace file");
             }
         }
     }
@@ -3103,14 +3103,14 @@ mod tests {
     fn assert_missing_output_failure(runtime: FabricRuntimeKind, entry: &str, source: &str) {
         let dir = tempfile::tempdir().expect("temp dir");
         let entry_path = dir.path().join(entry);
-        fs::create_dir_all(entry_path.parent().expect("entry parent"))
+        kfs::create_dir_all(entry_path.parent().expect("entry parent"))
             .expect("create entry parent");
-        fs::write(&entry_path, source).expect("write step source");
+        kfs::write_text(&entry_path, source).expect("write step source");
 
         let manifest_path = dir.path().join("KAIN.fabric.toml");
-        fs::write(
+        kfs::write_text(
             &manifest_path,
-            format!(
+            &format!(
                 "version = 1\n\n[workspace]\nroot = \".\"\nsearch_roots = [\"scripts\"]\n\n[[requires]]\nkey = \"session.local\"\nversion = 1\noptional = false\n\n[[steps]]\nid = \"bridge_step\"\nruntime = \"{}\"\nentry = \"{}\"\n\n[[steps.outputs]]\nname = \"report\"\nkind = \"value\"\n\n[[steps.outputs]]\nname = \"missing\"\nkind = \"value\"\n",
                 runtime.display_name(),
                 entry.replace('\\', "/"),
@@ -3145,22 +3145,22 @@ mod tests {
     ) {
         let dir = tempfile::tempdir().expect("temp dir");
         let seed_path = dir.path().join("src/seed.kn");
-        fs::create_dir_all(seed_path.parent().expect("seed parent")).expect("create seed parent");
-        fs::write(
+        kfs::create_dir_all(seed_path.parent().expect("seed parent")).expect("create seed parent");
+        kfs::write_text(
             &seed_path,
             "use std::interop::bridge\n\nstruct SeedOutputs:\n    image: Any\n    snapshot: Any\n\nfn main() -> SeedOutputs:\n    let image = interop_shared_image_from_bytes([1, 2, 3, 4], 1, 1, 4, \"HWC\", \"rgba8\", \"image/x-kain-raster\")\n    let snapshot = interop_shared_buffer_from_bytes([10, 20, 30, 40], \"u8\", [4], \"bytes\", \"application/octet-stream\")\n    return SeedOutputs { image: image, snapshot: snapshot }\n",
         )
         .expect("write seed source");
 
         let entry_path = dir.path().join(entry);
-        fs::create_dir_all(entry_path.parent().expect("entry parent"))
+        kfs::create_dir_all(entry_path.parent().expect("entry parent"))
             .expect("create entry parent");
-        fs::write(&entry_path, source).expect("write consumer source");
+        kfs::write_text(&entry_path, source).expect("write consumer source");
 
         let manifest_path = dir.path().join("KAIN.fabric.toml");
-        fs::write(
+        kfs::write_text(
             &manifest_path,
-            format!(
+            &format!(
                 "version = 1\n\n[workspace]\nroot = \".\"\nsearch_roots = [\"src\", \"scripts\"]\n\n[[requires]]\nkey = \"session.local\"\nversion = 1\noptional = false\n\n[[steps]]\nid = \"seed\"\nruntime = \"kain\"\nentry = \"src/seed.kn\"\n\n[[steps.outputs]]\nname = \"image\"\nkind = \"shared_image\"\n\n[[steps.outputs]]\nname = \"snapshot\"\nkind = \"shared_buffer\"\n\n[[steps]]\nid = \"consumer\"\nruntime = \"{}\"\nentry = \"{}\"\ndepends_on = [\"seed\"]\n\n[[steps.outputs]]\nname = \"report\"\nkind = \"value\"\n",
                 runtime.display_name(),
                 entry.replace('\\', "/"),

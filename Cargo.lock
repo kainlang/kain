@@ -2840,6 +2840,7 @@ dependencies = [
 name = "kain-blades"
 version = "0.1.0"
 dependencies = [
+ "kain-fs",
  "serde",
  "serde_json",
  "tempfile",
@@ -2855,6 +2856,7 @@ dependencies = [
  "kain-check",
  "kain-core",
  "kain-driver",
+ "kain-fs",
  "kain-host",
  "kain-omni",
  "serde",
@@ -2870,6 +2872,7 @@ dependencies = [
  "heck 0.5.0",
  "kain-blades",
  "kain-core",
+ "kain-fs",
  "kain-import",
  "kain-interop",
  "lang-c",
@@ -2889,6 +2892,7 @@ version = "0.1.0"
 dependencies = [
  "kain-core",
  "kain-driver",
+ "kain-fs",
  "serde",
  "tempfile",
 ]
@@ -2898,6 +2902,7 @@ name = "kain-codebase"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-fs",
  "libloading 0.8.9",
  "once_cell",
  "serde",
@@ -2938,6 +2943,7 @@ dependencies = [
  "heck 0.5.0",
  "kain-blades",
  "kain-core",
+ "kain-fs",
  "libloading 0.8.9",
  "once_cell",
  "regex",
@@ -3027,6 +3033,7 @@ dependencies = [
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
+ "kain-fs",
  "kain-gpu-runtime",
  "kain-host-derive",
  "kain-interop",
@@ -3053,6 +3060,7 @@ name = "kain-import"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-fs",
  "lang-c",
  "pretty_assertions",
  "proc-macro2",
@@ -3096,6 +3104,7 @@ dependencies = [
  "kain-blades",
  "kain-core",
  "kain-driver",
+ "kain-fs",
  "kain-import",
  "kain-sys-codegen",
  "serde",
@@ -3172,6 +3181,7 @@ dependencies = [
  "kain-check",
  "kain-core",
  "kain-driver",
+ "kain-fs",
  "serde",
  "tempfile",
 ]

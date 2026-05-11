@@ -1,6 +1,7 @@
+use kain_fs as kfs;
+use kain_fs::FsFileType;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 pub const KAIN_MANIFEST_NAMES: &[&str] = &["KAIN.toml", "kain.toml"];
@@ -14,6 +15,8 @@ pub type BladeResult<T> = Result<T, BladeError>;
 pub enum BladeError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("filesystem error: {0}")]
+    Fs(#[from] kain_fs::FsError),
     #[error("TOML error: {0}")]
     Toml(#[from] toml::de::Error),
     #[error("{0}")]
@@ -421,7 +424,7 @@ pub fn discover_workspace_root(start: impl AsRef<Path>) -> BladeResult<PathBuf> 
 }
 
 pub fn load_kain_manifest(path: &Path) -> BladeResult<KainManifest> {
-    let source = fs::read_to_string(path)?;
+    let source = kfs::read_text(path)?;
     Ok(toml::from_str(&source)?)
 }
 
@@ -571,7 +574,7 @@ fn resolve_kain_blade(root: &Path, manifest_path: &Path) -> BladeResult<Resolved
 }
 
 fn resolve_synthetic_cargo_blade(root: &Path, manifest_path: &Path) -> BladeResult<ResolvedBlade> {
-    let source = fs::read_to_string(manifest_path)?;
+    let source = kfs::read_text(manifest_path)?;
     let manifest: CargoManifest = toml::from_str(&source)?;
     let package = manifest.package.unwrap_or_default();
     let name = package.name.unwrap_or_else(|| fallback_folder_name(root));
@@ -647,15 +650,14 @@ fn expand_blade_pattern(root: &Path, pattern: &Path) -> BladeResult<Vec<PathBuf>
     }
 
     let mut results = Vec::new();
-    for entry in fs::read_dir(base)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
+    for entry in kfs::read_dir_entries(base)? {
+        if entry.file_type != FsFileType::Directory {
             continue;
         }
         let candidate = if suffix.is_empty() {
-            entry.path()
+            entry.path
         } else {
-            entry.path().join(suffix)
+            entry.path.join(suffix)
         };
         if candidate.exists() {
             results.push(candidate);
@@ -880,7 +882,9 @@ fn normalize_name(value: &str) -> String {
 }
 
 fn canonicalize_lossy(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    kfs::canonicalize_path(path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| path.to_path_buf())
 }
 
 #[cfg(test)]
@@ -890,10 +894,10 @@ mod tests {
     #[test]
     fn discovers_kain_blade_from_default_blades_root() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         let blade_root = tmp.path().join("blades").join("fabric");
-        fs::create_dir_all(blade_root.join("src")).unwrap();
-        fs::write(
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::write_text(
             blade_root.join("KAIN.toml"),
             r#"
 [package]
@@ -906,7 +910,7 @@ targets = ["run", "hybrid"]
 "#,
         )
         .unwrap();
-        fs::write(
+        kfs::write_text(
             blade_root.join("src").join("main.kn"),
             "fn main() -> Int:\n    return 1\n",
         )
@@ -924,7 +928,7 @@ targets = ["run", "hybrid"]
     fn manifest_parses_workspace_build_tasks_and_artifact_roots() {
         let tmp = tempfile::tempdir().unwrap();
         let manifest_path = tmp.path().join("KAIN.toml");
-        fs::write(
+        kfs::write_text(
             &manifest_path,
             r#"
 [package]
@@ -963,10 +967,10 @@ depends_on = ["prepare"]
     #[test]
     fn discovers_synthetic_rust_crate_from_crates_root() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         let crate_root = tmp.path().join("crates").join("native_math");
-        fs::create_dir_all(crate_root.join("src")).unwrap();
-        fs::write(
+        kfs::create_dir_all(crate_root.join("src")).unwrap();
+        kfs::write_text(
             crate_root.join("Cargo.toml"),
             "[package]\nname = \"native-math\"\nversion = \"0.2.0\"\nedition = \"2021\"\n",
         )
@@ -987,15 +991,15 @@ depends_on = ["prepare"]
     #[test]
     fn resolves_c_ffi_library_blade_by_library_name() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+        kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         let blade_root = tmp.path().join("blades").join("native_ops");
-        fs::create_dir_all(blade_root.join("native")).unwrap();
-        fs::write(
+        kfs::create_dir_all(blade_root.join("native")).unwrap();
+        kfs::write_text(
             blade_root.join("native").join("ops.h"),
             "int add(int a, int b);\n",
         )
         .unwrap();
-        fs::write(
+        kfs::write_text(
             blade_root.join("KAIN.toml"),
             r#"
 [package]
@@ -1022,14 +1026,14 @@ sources = ["native/ops.c"]
     #[test]
     fn workspace_manifest_can_override_blade_patterns() {
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(
+        kfs::write_text(
             tmp.path().join("KAIN.toml"),
             "[workspace]\nblades = [\"packages/*\"]\n",
         )
         .unwrap();
         let blade_root = tmp.path().join("packages").join("omni");
-        fs::create_dir_all(blade_root.join("src")).unwrap();
-        fs::write(
+        kfs::create_dir_all(blade_root.join("src")).unwrap();
+        kfs::write_text(
             blade_root.join("KAIN.toml"),
             "[package]\nname = \"omni\"\n\n[build]\nentry = \"src/main.kn\"\n",
         )

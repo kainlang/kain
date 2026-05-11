@@ -1,5 +1,4 @@
 use std::collections::BTreeSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 pub mod fabric;
@@ -9,6 +8,7 @@ use kain_core::ast::{Block, Expr, Function, Impl, Item, Pattern, Program, Stmt, 
 use kain_core::error::KainError;
 use kain_core::CompileTarget;
 use kain_driver::{self as driver, GpuArtifactOutput, RustBundleOutput};
+use kain_fs as kfs;
 use kain_import::c::{import_c_file_with_options, CImportOptions};
 use kain_import::rust::import_rust_file;
 #[cfg(feature = "typescript-import")]
@@ -22,6 +22,8 @@ pub use fabric::*;
 pub enum OmniError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("Filesystem error: {0}")]
+    Fs(#[from] kain_fs::FsError),
     #[error("TOML parse error: {0}")]
     Toml(#[from] toml::de::Error),
     #[error("TOML serialize error: {0}")]
@@ -189,15 +191,15 @@ impl Default for OmniRustBundleConfig {
 }
 
 pub fn init_manifest(root: &Path) -> OmniResult<PathBuf> {
-    fs::create_dir_all(root)?;
+    kfs::create_dir_all(root)?;
     let manifest_path = root.join("KAIN.omni.toml");
     let manifest = OmniManifest::default();
-    fs::write(&manifest_path, toml::to_string_pretty(&manifest)?)?;
+    kfs::atomic_write_text(&manifest_path, &toml::to_string_pretty(&manifest)?)?;
     Ok(manifest_path)
 }
 
 pub fn load_manifest(path: &Path) -> OmniResult<OmniManifest> {
-    let content = fs::read_to_string(path)?;
+    let content = kfs::read_text(path)?;
     Ok(toml::from_str(&content)?)
 }
 
@@ -218,8 +220,8 @@ pub fn build(
     let build_root = resolve_from_root(project_root, &manifest.project.build_dir);
     let staged_dir = build_root.join("staged_imports");
     let resolved_dir = build_root.join("resolved");
-    fs::create_dir_all(&staged_dir)?;
-    fs::create_dir_all(&resolved_dir)?;
+    kfs::create_dir_all(&staged_dir)?;
+    kfs::create_dir_all(&resolved_dir)?;
 
     let staged_imports = stage_imports(project_root, &staged_dir, &manifest.imports)?;
     let entry_path = resolve_from_root(project_root, &manifest.project.entry);
@@ -229,7 +231,7 @@ pub fn build(
             &build_search_roots(project_root, &staged_imports, &manifest.import_resolution),
         )?
     } else {
-        fs::read_to_string(&entry_path)?
+        kfs::read_text(&entry_path)?
     };
 
     let resolved_entry = resolved_dir.join(
@@ -237,13 +239,13 @@ pub fn build(
             .file_name()
             .unwrap_or_else(|| std::ffi::OsStr::new("entry.kn")),
     );
-    fs::write(&resolved_entry, &resolved_source)?;
+    kfs::atomic_write_text(&resolved_entry, &resolved_source)?;
 
     let mut written_outputs = Vec::new();
     for target in &manifest.targets {
         let output = resolve_from_root(project_root, &target.output);
         if let Some(parent) = output.parent() {
-            fs::create_dir_all(parent)?;
+            kfs::create_dir_all(parent)?;
         }
         let mut outputs = build_target(&resolved_source, &resolved_entry, &output, target)?;
         written_outputs.append(&mut outputs);
@@ -290,22 +292,22 @@ fn stage_imports(
             .map(|path| resolve_from_root(project_root, path))
             .unwrap_or_else(|| staged_dir.join(default_generated_name(&source_path)));
         if let Some(parent) = generated_kn_path.parent() {
-            fs::create_dir_all(parent)?;
+            kfs::create_dir_all(parent)?;
         }
 
         match import.language {
             OmniSourceLanguage::Kain => {
-                fs::copy(&source_path, &generated_kn_path)?;
+                kfs::copy_file(&source_path, &generated_kn_path)?;
             }
             OmniSourceLanguage::Rust => {
                 let program = import_rust_path(&source_path, import)?;
-                fs::write(&generated_kn_path, render_program(&program)?)?;
+                kfs::atomic_write_text(&generated_kn_path, &render_program(&program)?)?;
             }
             OmniSourceLanguage::TypeScript => {
                 #[cfg(feature = "typescript-import")]
                 {
                     let program = import_typescript_path(&source_path, import)?;
-                    fs::write(&generated_kn_path, render_program(&program)?)?;
+                    kfs::atomic_write_text(&generated_kn_path, &render_program(&program)?)?;
                 }
                 #[cfg(not(feature = "typescript-import"))]
                 {
@@ -316,7 +318,7 @@ fn stage_imports(
             }
             OmniSourceLanguage::C => {
                 let program = import_c_path(&source_path, import)?;
-                fs::write(&generated_kn_path, render_program(&program)?)?;
+                kfs::atomic_write_text(&generated_kn_path, &render_program(&program)?)?;
             }
             OmniSourceLanguage::Asm => {
                 kain_asm::import_asm(
@@ -395,9 +397,8 @@ fn collect_language_files_into(
     allowed_extensions: &[&str],
     files: &mut Vec<PathBuf>,
 ) -> OmniResult<()> {
-    for entry in fs::read_dir(current)? {
-        let entry = entry?;
-        let path = entry.path();
+    for entry in kfs::read_dir_entries(current)? {
+        let path = entry.path;
         if path.is_dir() {
             if config.recursive {
                 collect_language_files_into(root, &path, config, allowed_extensions, files)?;
@@ -787,7 +788,7 @@ fn build_target(
         }
         OmniTargetKind::Spirv => {
             let bytes = compile_spirv_binary(source)?;
-            fs::write(output, bytes)?;
+            kfs::atomic_write_bytes(output, &bytes)?;
             Ok(vec![output.to_path_buf()])
         }
         _ => {
@@ -797,9 +798,9 @@ fn build_target(
             let compiled = compile_to_text(source, compile_target)?;
             let final_output = ensure_target_extension(output, compile_target);
             if let Some(parent) = final_output.parent() {
-                fs::create_dir_all(parent)?;
+                kfs::create_dir_all(parent)?;
             }
-            fs::write(&final_output, compiled)?;
+            kfs::atomic_write_text(&final_output, &compiled)?;
             Ok(vec![final_output])
         }
     }
@@ -861,16 +862,16 @@ fn write_gpu_artifacts_bundle(
         &hlsl_path,
     ] {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            kfs::create_dir_all(parent)?;
         }
     }
-    fs::write(&spirv_path, &artifacts.spirv)?;
-    fs::write(&rust_path, artifacts.rust_host.as_bytes())?;
-    fs::write(&json_path, artifacts.reflection_json.as_bytes())?;
-    fs::write(&bundle_path, artifacts.bundle_json.as_bytes())?;
+    kfs::atomic_write_bytes(&spirv_path, &artifacts.spirv)?;
+    kfs::atomic_write_text(&rust_path, &artifacts.rust_host)?;
+    kfs::atomic_write_text(&json_path, &artifacts.reflection_json)?;
+    kfs::atomic_write_text(&bundle_path, &artifacts.bundle_json)?;
     let mut written = vec![spirv_path, rust_path, json_path, bundle_path];
     if let Some(hlsl) = &artifacts.derived_hlsl {
-        fs::write(&hlsl_path, hlsl.as_bytes())?;
+        kfs::atomic_write_text(&hlsl_path, hlsl)?;
         written.push(hlsl_path);
     }
     Ok(written)
@@ -893,11 +894,11 @@ fn write_rust_bundle_outputs(
     config: &OmniRustBundleConfig,
     compiled: &RustBundleOutput,
 ) -> OmniResult<Vec<PathBuf>> {
-    fs::create_dir_all(output_root)?;
+    kfs::create_dir_all(output_root)?;
     let mut written = Vec::new();
     if config.artifacts.contains(&OmniRustArtifact::Source) {
         let path = output_root.join(format!("{base_name}.rs"));
-        fs::write(&path, compiled.bundle.primary.contents.as_bytes())?;
+        kfs::atomic_write_text(&path, &compiled.bundle.primary.contents)?;
         written.push(path);
     }
     for artifact in &compiled.bundle.supplemental {
@@ -920,13 +921,13 @@ fn write_rust_bundle_outputs(
                 output_root.join(format!("{base_name}.reflect.json"))
             }
         };
-        fs::write(&path, artifact.contents.as_bytes())?;
+        kfs::atomic_write_text(&path, &artifact.contents)?;
         written.push(path);
     }
     if config.artifacts.contains(&OmniRustArtifact::Spirv) {
         if let Some(spirv) = &compiled.spirv {
             let path = output_root.join(format!("{base_name}.spv"));
-            fs::write(&path, spirv)?;
+            kfs::atomic_write_bytes(&path, spirv)?;
             written.push(path);
         }
     }
@@ -987,11 +988,13 @@ fn resolve_kain_file(
     visited: &mut BTreeSet<PathBuf>,
     ordered: &mut Vec<String>,
 ) -> OmniResult<()> {
-    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let canonical = kfs::canonicalize_path(path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| path.to_path_buf());
     if !visited.insert(canonical.clone()) {
         return Ok(());
     }
-    let source = fs::read_to_string(&canonical)?;
+    let source = kfs::read_text(&canonical)?;
     let mut local_body = Vec::new();
     for line in source.lines() {
         if let Some(import_spec) = parse_quoted_import(line) {
@@ -1093,11 +1096,11 @@ mod tests {
     fn resolves_dotted_import_to_kn_file() {
         let dir = tempfile::tempdir().unwrap();
         let module_dir = dir.path().join("Unreal");
-        fs::create_dir_all(&module_dir).unwrap();
+        kfs::create_dir_all(&module_dir).unwrap();
         let module_path = module_dir.join("Core.kn");
-        fs::write(&module_path, "fn core():\n    return 1\n").unwrap();
+        kfs::write_text(&module_path, "fn core():\n    return 1\n").unwrap();
         let entry = dir.path().join("main.kn");
-        fs::write(&entry, "import \"Unreal.Core\"\nfn main():\n    return 0\n").unwrap();
+        kfs::write_text(&entry, "import \"Unreal.Core\"\nfn main():\n    return 0\n").unwrap();
 
         let resolved =
             resolve_quoted_import(&entry, "Unreal.Core", &[dir.path().to_path_buf()]).unwrap();
@@ -1109,8 +1112,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let shared = dir.path().join("shared.kn");
         let entry = dir.path().join("main.kn");
-        fs::write(&shared, "fn helper():\n    return 7\n").unwrap();
-        fs::write(
+        kfs::write_text(&shared, "fn helper():\n    return 7\n").unwrap();
+        kfs::write_text(
             &entry,
             "import \"shared.kn\"\nfn main():\n    return helper()\n",
         )
@@ -1127,9 +1130,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let project_root = dir.path().join("project");
         let src_dir = project_root.join("src");
-        fs::create_dir_all(&src_dir).unwrap();
+        kfs::create_dir_all(&src_dir).unwrap();
 
-        fs::write(
+        kfs::write_text(
             src_dir.join("main.kn"),
             "fn main() -> Int:\n    return 42\n",
         )
@@ -1150,7 +1153,7 @@ mod tests {
         };
 
         let manifest_path = project_root.join("KAIN.omni.toml");
-        fs::write(&manifest_path, toml::to_string_pretty(&manifest).unwrap()).unwrap();
+        kfs::write_text(&manifest_path, &toml::to_string_pretty(&manifest).unwrap()).unwrap();
 
         let result = build_manifest_path(&manifest_path).unwrap();
         let resolved_entry = project_root.join(
@@ -1175,8 +1178,8 @@ mod tests {
         let root = dir.path();
         let entry = root.join("main.kn");
         let shared = root.join("shared.kn");
-        fs::write(&shared, "fn helper() -> Int:\n    return 7\n").unwrap();
-        fs::write(
+        kfs::write_text(&shared, "fn helper() -> Int:\n    return 7\n").unwrap();
+        kfs::write_text(
             &entry,
             "import \"shared.kn\"\nfn main() -> Int:\n    return helper()\n",
         )

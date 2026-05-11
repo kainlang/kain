@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 # Core KAIN dependencies
 kain-core = { path = "../kain-core" }
+kain-fs = { path = "../kain-fs" }
 
 # C parsing
 lang-c = { version = "0.15", optional = true }

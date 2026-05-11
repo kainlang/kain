@@ -7,8 +7,8 @@
 use kain_check::{check_source, compile_target_name, discover_kain_files, CheckOptions};
 use kain_core::{runtime, CompileTarget};
 use kain_driver::DriverSession;
+use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -163,7 +163,7 @@ pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
 }
 
 pub fn run_file(path: &Path, options: &KainTestOptions) -> KainTestCaseReport {
-    match fs::read_to_string(path) {
+    match kfs::read_text(path) {
         Ok(source) => run_source(&path.display().to_string(), &source, options),
         Err(error) => KainTestCaseReport {
             path: path.display().to_string(),
@@ -476,7 +476,7 @@ mod tests {
     fn run_path_for_sources(sources: &[(&str, &str)]) -> KainTestSuiteReport {
         let temp = tempfile::tempdir().expect("temp dir");
         for (path, source) in sources {
-            fs::write(temp.path().join(path), source).expect("write source");
+            kfs::write_text(temp.path().join(path), source).expect("write source");
         }
         run_path(temp.path(), &KainTestOptions::new(CompileTarget::Interpret))
     }

@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
@@ -399,21 +399,21 @@ pub fn init_fabric_manifest(
     root: &Path,
     template: FabricTemplateKind,
 ) -> OmniResult<FabricInitResult> {
-    fs::create_dir_all(root)?;
+    kfs::create_dir_all(root)?;
 
     let manifest = match template {
         FabricTemplateKind::Local => local_manifest_template(),
         FabricTemplateKind::Polyglot => polyglot_manifest_template(),
     };
     let manifest_path = root.join(FABRIC_MANIFEST_FILE_NAME);
-    fs::write(&manifest_path, toml::to_string_pretty(&manifest)?)?;
+    kfs::atomic_write_text(&manifest_path, &toml::to_string_pretty(&manifest)?)?;
 
     let mut created_paths = vec![manifest_path.clone()];
 
     match template {
         FabricTemplateKind::Local => {
             let src_dir = root.join("src");
-            fs::create_dir_all(&src_dir)?;
+            kfs::create_dir_all(&src_dir)?;
             let kain_entry = src_dir.join("main.kn");
             write_if_missing(
                 &kain_entry,
@@ -427,10 +427,10 @@ pub fn init_fabric_manifest(
             let native_dir = root.join("native");
             let local_crate_dir = root.join("local_crate");
             let local_crate_src_dir = local_crate_dir.join("src");
-            fs::create_dir_all(&src_dir)?;
-            fs::create_dir_all(&scripts_dir)?;
-            fs::create_dir_all(&native_dir)?;
-            fs::create_dir_all(&local_crate_src_dir)?;
+            kfs::create_dir_all(&src_dir)?;
+            kfs::create_dir_all(&scripts_dir)?;
+            kfs::create_dir_all(&native_dir)?;
+            kfs::create_dir_all(&local_crate_src_dir)?;
 
             let kain_entry = src_dir.join("main.kn");
             write_if_missing(&kain_entry, POLYGLOT_KAIN_ENTRY)?;
@@ -487,7 +487,7 @@ pub fn init_fabric_manifest(
 }
 
 pub fn load_fabric_manifest(path: &Path) -> OmniResult<FabricManifest> {
-    let content = fs::read_to_string(path)?;
+    let content = kfs::read_text(path)?;
     Ok(toml::from_str(&content)?)
 }
 
@@ -708,7 +708,7 @@ pub fn resolve_fabric_path(base: &Path, path: &Path) -> PathBuf {
 pub fn write_fabric_json<T: Serialize>(path: &Path, value: &T) -> OmniResult<()> {
     let encoded = serde_json::to_string_pretty(value)
         .map_err(|err| OmniError::Config(format!("Failed to serialize Fabric artifact: {err}")))?;
-    fs::write(path, encoded)?;
+    kfs::atomic_write_text(path, &encoded)?;
     Ok(())
 }
 
@@ -834,7 +834,7 @@ fn validate_step_shape(step: &FabricStep) -> OmniResult<()> {
 
 fn write_if_missing(path: &Path, content: &str) -> OmniResult<()> {
     if !path.exists() {
-        fs::write(path, content)?;
+        kfs::atomic_write_text(path, content)?;
     }
     Ok(())
 }
@@ -1263,7 +1263,7 @@ mod tests {
             .created_paths
             .iter()
             .any(|path| path.ends_with("local_crate\\Cargo.toml")));
-        let readme = fs::read_to_string(dir.path().join("FABRIC.README.md")).unwrap();
+        let readme = kfs::read_text(dir.path().join("FABRIC.README.md")).unwrap();
         assert!(readme.contains("smoketest/fabric/polyglot_local"));
         assert!(readme.contains("kain fabric run --manifest KAIN.fabric.toml"));
         assert_eq!(manifest.steps.len(), 5);

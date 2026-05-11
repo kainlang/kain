@@ -3986,7 +3986,7 @@ fn load_module(env: &mut Env, u: &Use) -> KainResult<()> {
     };
 
     let (file_path, selected_item, _) = module_resolution;
-    let source = std::fs::read_to_string(&file_path)
+    let source = kain_fs::read_text(&file_path)
         .map_err(|e| KainError::runtime(format!("Failed to read module {}: {}", path, e)))?;
 
     let lexer = Lexer::new(&source);

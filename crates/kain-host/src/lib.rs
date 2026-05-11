@@ -9,7 +9,6 @@
 extern crate self as kain_host;
 
 use std::collections::{BTreeMap, HashMap};
-use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -17,6 +16,7 @@ pub use kain_core::ast::Program;
 pub use kain_core::error::KainError;
 pub use kain_core::runtime::{Env, NativeFn, Value};
 pub use kain_core::{CompileTarget, TypedProgram};
+use kain_fs as kfs;
 pub use kain_reflect as reflect;
 pub use kain_reflect::{KainReflect, StaticTypeRef, TypeRegistry, TypeSchema};
 
@@ -685,7 +685,7 @@ impl HostSession {
         &self,
         config: &EngineModuleExportConfig,
     ) -> HostResult<EngineModuleExport> {
-        fs::create_dir_all(&config.output_dir).map_err(io_to_host_error)?;
+        kfs::create_dir_all(&config.output_dir).map_err(fs_to_host_error)?;
 
         let mut module_source = self.emit_engine_module_source();
         if config.include_banner {
@@ -696,7 +696,7 @@ impl HostSession {
         }
 
         let module_path = config.module_path();
-        fs::write(&module_path, &module_source).map_err(io_to_host_error)?;
+        kfs::write_text(&module_path, &module_source).map_err(fs_to_host_error)?;
 
         let import_shim = config.import_shim_path().map(|path| {
             let source = format!("use {}::*\n", config.module_name);
@@ -704,7 +704,7 @@ impl HostSession {
         });
 
         if let Some((path, source)) = &import_shim {
-            fs::write(path, source).map_err(io_to_host_error)?;
+            kfs::write_text(path, source).map_err(fs_to_host_error)?;
         }
 
         Ok(EngineModuleExport {
@@ -831,8 +831,8 @@ fn indent_block(input: &str, spaces: usize) -> String {
         .join("\n")
 }
 
-fn io_to_host_error(error: std::io::Error) -> KainError {
-    KainError::runtime(format!("I/O error: {error}"))
+fn fs_to_host_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
 }
 
 fn unresolved_native_stub(_env: &mut Env, _args: Vec<Value>) -> HostResult<Value> {
@@ -1053,15 +1053,15 @@ fn run(value: Int) -> Int:
             .export_engine_module(&config)
             .expect("export engine module");
 
-        let module_text = std::fs::read_to_string(&export.module_path).expect("read module");
+        let module_text = kfs::read_text(&export.module_path).expect("read module");
         let shim_path = export.import_shim_path.clone().expect("import shim path");
-        let shim_text = std::fs::read_to_string(&shim_path).expect("read import shim");
+        let shim_text = kfs::read_text(&shim_path).expect("read import shim");
 
         assert!(module_text.contains("struct Vec3:"));
         assert!(module_text.contains("fn host_double(value: Int) -> Int:"));
         assert!(!module_text.contains("mod engine:"));
         assert_eq!(shim_text, "use engine::*\n");
 
-        std::fs::remove_dir_all(export_dir).expect("cleanup export dir");
+        kfs::remove_dir_all(export_dir).expect("cleanup export dir");
     }
 }

@@ -6,8 +6,8 @@
 
 use kain_core::{emit_runtime_contract_bundle, CompileTarget, TypedItem, TypedProgram};
 use kain_driver::DriverSession;
+use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -131,7 +131,7 @@ pub fn check_source(source_name: &str, source: &str, options: &CheckOptions) -> 
 }
 
 pub fn check_file(path: &Path, options: &CheckOptions) -> CheckFileReport {
-    match fs::read_to_string(path) {
+    match kfs::read_text(path) {
         Ok(source) => check_source(&path.display().to_string(), &source, options),
         Err(error) => CheckFileReport {
             path: path.display().to_string(),
@@ -244,9 +244,10 @@ fn discover_kain_files_into(path: &Path, output: &mut Vec<PathBuf>) -> Result<()
         return Ok(());
     }
 
-    for entry in fs::read_dir(path).map_err(|error| format!("failed to read dir: {error}"))? {
-        let entry = entry.map_err(|error| format!("failed to read dir entry: {error}"))?;
-        let path = entry.path();
+    for entry in
+        kfs::read_dir_entries(path).map_err(|error| format!("failed to read dir: {error}"))?
+    {
+        let path = entry.path;
         if path.is_dir() {
             discover_kain_files_into(&path, output)?;
         } else if is_kain_source_file(&path) {
@@ -339,13 +340,14 @@ mod tests {
     #[test]
     fn discover_kain_files_skips_generated_directories() {
         let temp = tempfile::tempdir().expect("temp dir");
-        fs::write(
+        kfs::write_text(
             temp.path().join("root.kn"),
             "fn main() -> Int:\n    return 0\n",
         )
         .expect("root source");
-        fs::create_dir_all(temp.path().join("generated")).expect("generated dir");
-        fs::write(temp.path().join("generated").join("skip.kn"), "").expect("generated source");
+        kfs::create_dir_all(temp.path().join("generated")).expect("generated dir");
+        kfs::write_text(temp.path().join("generated").join("skip.kn"), "")
+            .expect("generated source");
 
         let files = discover_kain_files(temp.path()).expect("discover files");
         assert_eq!(files, vec![temp.path().join("root.kn")]);

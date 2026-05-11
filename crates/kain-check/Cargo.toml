@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
+kain-fs = { path = "../kain-fs" }
 serde = { workspace = true }
 
 [dev-dependencies]

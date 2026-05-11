@@ -50,8 +50,9 @@ pub use selfhost::{
 };
 pub use transformer::RustTransformer;
 
-use crate::{ImportError, Result};
+use crate::Result;
 use kain_core::ast::Program;
+use kain_fs as kfs;
 use std::path::Path;
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -63,13 +64,13 @@ use std::path::Path;
 /// kain import-rust ./crates/kain-core/src/lib.rs --output kain-core.kn
 /// ```
 pub fn import_rust_file(path: &Path) -> Result<Program> {
-    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    let source = kfs::read_text(path)?;
     import_rust_source(&source, path)
 }
 
 /// Import a single Rust source file and return diagnostics.
 pub fn import_rust_file_detailed(path: &Path) -> Result<(Program, Vec<String>)> {
-    let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+    let source = kfs::read_text(path)?;
     import_rust_source_detailed(&source, path)
 }
 
@@ -101,7 +102,7 @@ pub fn import_rust_project_detailed(paths: &[&Path]) -> Result<(Program, Vec<Str
     let span = kain_core::span::Span::default();
 
     for path in paths {
-        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+        let source = kfs::read_text(path)?;
         let file = parser::parse_rust(&source, path)?;
         let mut tx = RustTransformer::new();
         let program = tx.transform(file)?;
@@ -145,7 +146,7 @@ fn import_rust_project_modular_detailed(paths: &[&Path]) -> Result<(Program, Vec
     let span = kain_core::span::Span::default();
 
     for path in paths {
-        let source = std::fs::read_to_string(path).map_err(ImportError::IoError)?;
+        let source = kfs::read_text(path)?;
         let file = parser::parse_rust(&source, path)?;
         let mut tx = RustTransformer::new();
         let program = tx.transform(file)?;
@@ -249,9 +250,8 @@ fn collect_rust_files(dir: &Path) -> Result<Vec<std::path::PathBuf>> {
 }
 
 fn collect_rust_files_into(dir: &Path, files: &mut Vec<std::path::PathBuf>) -> Result<()> {
-    for entry in std::fs::read_dir(dir).map_err(ImportError::IoError)? {
-        let entry = entry.map_err(ImportError::IoError)?;
-        let path = entry.path();
+    for entry in kfs::read_dir_entries(dir)? {
+        let path = entry.path;
         if path.is_dir() {
             collect_rust_files_into(&path, files)?;
         } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {

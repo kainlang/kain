@@ -2514,7 +2514,7 @@ fn register_stdlib_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bool> 
         return Ok(false);
     };
 
-    let Ok(source) = std::fs::read_to_string(&file_path) else {
+    let Ok(source) = kain_fs::read_text(&file_path) else {
         return Ok(false);
     };
     let Ok(tokens) = Lexer::new(&source).tokenize() else {
@@ -2552,7 +2552,7 @@ fn register_filesystem_import_types(env: &mut TypeEnv, u: &Use) -> KainResult<bo
         return Ok(false);
     };
 
-    let Ok(source) = std::fs::read_to_string(&resolution.file_path) else {
+    let Ok(source) = kain_fs::read_text(&resolution.file_path) else {
         return Ok(false);
     };
     let Ok(tokens) = Lexer::new(&source).tokenize() else {
@@ -6435,6 +6435,13 @@ fn infer_method_call_type(
                     Err(env.type_error("Result.ok expects no arguments", span))
                 }
             }
+            "is_ok" | "is_err" => {
+                if args.is_empty() {
+                    Ok(ResolvedType::Bool)
+                } else {
+                    Err(env.type_error(format!("Result.{method} expects no arguments"), span))
+                }
+            }
             _ => Err(env.type_error(format!("Unknown method '{}' on Result", method), span)),
         },
         ResolvedType::Int(_)
@@ -7886,8 +7893,8 @@ fn infer_binary_type(
                 || matches!(right, ResolvedType::Unknown)
                 || is_none_placeholder_type(left)
                 || is_none_placeholder_type(right)
-                || is_ts_import_scalar_comparison_operand(left)
-                || is_ts_import_scalar_comparison_operand(right)
+                || (is_ts_import_scalar_comparison_operand(left)
+                    && is_ts_import_scalar_comparison_operand(right))
             {
                 Ok(ResolvedType::Bool)
             } else {
@@ -8032,12 +8039,6 @@ fn types_compatible(expected: &ResolvedType, actual: &ResolvedType) -> bool {
         | (ResolvedType::Bool, ResolvedType::Bool)
         | (ResolvedType::String, ResolvedType::String)
         | (ResolvedType::Char, ResolvedType::Char) => true,
-        (expected, actual)
-            if is_ts_import_scalar_comparison_operand(expected)
-                && is_ts_import_scalar_comparison_operand(actual) =>
-        {
-            true
-        }
         (
             ResolvedType::String,
             ResolvedType::Ref {

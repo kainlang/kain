@@ -7,6 +7,7 @@ use super::{parser, RustTransformer};
 use crate::common::language_schema::KainLanguageSchema;
 use crate::{ImportError, Result};
 use kain_core::ast::{Item, Mod, Program, Visibility};
+use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -36,24 +37,22 @@ impl RustSelfHostOptions {
     pub fn from_inventory_dir(inventory_dir: &Path) -> Result<Self> {
         let allowlist_path = inventory_dir.join("selfhost_allowlist.json");
         let module_map_path = inventory_dir.join("module_map.json");
-        let allowlist: SelfHostAllowlist = serde_json::from_str(
-            &std::fs::read_to_string(&allowlist_path).map_err(ImportError::IoError)?,
-        )
-        .map_err(|e| {
-            ImportError::TransformError(format!(
-                "failed to parse {}: {e}",
-                allowlist_path.display()
-            ))
-        })?;
-        let module_map: SelfHostModuleMap = serde_json::from_str(
-            &std::fs::read_to_string(&module_map_path).map_err(ImportError::IoError)?,
-        )
-        .map_err(|e| {
-            ImportError::TransformError(format!(
-                "failed to parse {}: {e}",
-                module_map_path.display()
-            ))
-        })?;
+        let allowlist_source = kfs::read_text(&allowlist_path)?;
+        let allowlist: SelfHostAllowlist =
+            serde_json::from_str(&allowlist_source).map_err(|e| {
+                ImportError::TransformError(format!(
+                    "failed to parse {}: {e}",
+                    allowlist_path.display()
+                ))
+            })?;
+        let module_map_source = kfs::read_text(&module_map_path)?;
+        let module_map: SelfHostModuleMap =
+            serde_json::from_str(&module_map_source).map_err(|e| {
+                ImportError::TransformError(format!(
+                    "failed to parse {}: {e}",
+                    module_map_path.display()
+                ))
+            })?;
 
         Ok(Self {
             allow_external_mod_decls: true,
@@ -142,7 +141,7 @@ pub fn import_rust_selfhost_dir_detailed(
     let mut diagnostics = Vec::new();
 
     for module in &graph.modules {
-        let source = std::fs::read_to_string(&module.file_path).map_err(ImportError::IoError)?;
+        let source = kfs::read_text(&module.file_path)?;
         let file = parser::parse_rust(&source, &module.file_path)?;
         let mut tx = RustTransformer::with_options(options.transform_options());
         let program = tx.transform(file)?;
@@ -188,9 +187,8 @@ fn collect_modules(
     modules: &mut Vec<RustModuleNode>,
     entry_points: &mut BTreeMap<String, PathBuf>,
 ) -> Result<()> {
-    for entry in std::fs::read_dir(dir).map_err(ImportError::IoError)? {
-        let entry = entry.map_err(ImportError::IoError)?;
-        let path = entry.path();
+    for entry in kfs::read_dir_entries(dir)? {
+        let path = entry.path;
         if path.is_dir() {
             let name = path
                 .file_name()

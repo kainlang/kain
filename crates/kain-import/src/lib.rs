@@ -67,6 +67,9 @@ pub enum ImportError {
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("Filesystem error: {0}")]
+    FsError(#[from] kain_fs::FsError),
+
     #[error("Type resolution error: {0}")]
     TypeError(String),
 }

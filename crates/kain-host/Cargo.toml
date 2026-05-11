@@ -16,6 +16,7 @@ kain-codebase = { path = "../kain-codebase" }
 kain-crate-ffi = { path = "../kain-crate-ffi" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
+kain-fs = { path = "../kain-fs" }
 kain-interop = { path = "../kain-interop" }
 kain-node = { path = "../kain-node" }
 kain-python = { path = "../kain-python" }
