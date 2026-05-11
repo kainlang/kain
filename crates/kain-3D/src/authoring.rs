@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::math::{Mat4, Vec2};
-use crate::primitive::{PrimitiveDefinition, PrimitiveLibrary, PrimitiveShape};
+use crate::primitive::{AuthoredPrimitive, AuthoredPrimitiveError, AuthoredPrimitiveRegistry};
 use crate::scene::{
     BackgroundGradient, Camera, DirectionalLight, LightingRig, Material, Mesh, PointLight,
     SceneDescription, SceneInstance, Vertex,
@@ -72,6 +72,7 @@ pub enum GeometryError {
     },
     InvalidIndex(u32),
     InvalidTriangleIndexCount(usize),
+    InvalidUnindexedTriangleVertexCount(usize),
     UnsupportedTopology(GeometryTopology),
 }
 
@@ -93,6 +94,10 @@ impl std::fmt::Display for GeometryError {
             Self::InvalidTriangleIndexCount(count) => write!(
                 f,
                 "triangle geometry requires an index count divisible by 3, found {count}"
+            ),
+            Self::InvalidUnindexedTriangleVertexCount(count) => write!(
+                f,
+                "unindexed triangle geometry requires a vertex count divisible by 3, found {count}"
             ),
             Self::UnsupportedTopology(topology) => {
                 write!(f, "operation does not support topology `{topology:?}`")
@@ -123,95 +128,15 @@ impl Geometry {
         Self::new(GeometryTopology::Triangles)
     }
 
-    pub fn plane(size: Vec2) -> Self {
-        PrimitiveShape::Plane {
-            size,
-            width_segments: 1,
-            depth_segments: 1,
-        }
-        .build_geometry()
+    pub fn indexed_triangle_mesh(positions: Vec<Vec3>, indices: Vec<u32>) -> Self {
+        Self::triangle_mesh()
+            .with_positions(positions)
+            .with_indices(indices)
     }
 
-    pub fn box_mesh(size: Vec3) -> Self {
-        PrimitiveShape::Box {
-            size,
-            width_segments: 1,
-            height_segments: 1,
-            depth_segments: 1,
-        }
-        .build_geometry()
-    }
-
-    pub fn uv_sphere(radius: f32, latitude_segments: usize, longitude_segments: usize) -> Self {
-        PrimitiveShape::UvSphere {
-            radius,
-            latitude_segments,
-            longitude_segments,
-        }
-        .build_geometry()
-    }
-
-    pub fn cylinder(
-        radius: f32,
-        height: f32,
-        radial_segments: usize,
-        height_segments: usize,
-    ) -> Self {
-        PrimitiveShape::Cylinder {
-            radius,
-            height,
-            radial_segments,
-            height_segments,
-            cap_segments: 1,
-        }
-        .build_geometry()
-    }
-
-    pub fn cone(radius: f32, height: f32, radial_segments: usize, height_segments: usize) -> Self {
-        PrimitiveShape::Cone {
-            radius,
-            height,
-            radial_segments,
-            height_segments,
-            cap_segments: 1,
-        }
-        .build_geometry()
-    }
-
-    pub fn capsule(
-        radius: f32,
-        height: f32,
-        radial_segments: usize,
-        hemisphere_segments: usize,
-        body_segments: usize,
-    ) -> Self {
-        PrimitiveShape::Capsule {
-            radius,
-            height,
-            radial_segments,
-            hemisphere_segments,
-            body_segments,
-        }
-        .build_geometry()
-    }
-
-    pub fn torus(
-        major_radius: f32,
-        minor_radius: f32,
-        major_segments: usize,
-        minor_segments: usize,
-    ) -> Self {
-        PrimitiveShape::Torus {
-            major_radius,
-            minor_radius,
-            major_segments,
-            minor_segments,
-        }
-        .build_geometry()
-    }
-
-    pub fn quad_sphere(radius: f32, resolution: usize) -> Self {
-        PrimitiveShape::QuadSphere { radius, resolution }.build_geometry()
+    pub fn with_triangle_indices(mut self, triangles: Vec<[u32; 3]>) -> Self {
+        self.indices = triangles.into_iter().flatten().collect();
+        self
     }
 
     pub fn from_mesh(mesh: &Mesh) -> Self {
@@ -356,6 +281,14 @@ impl Geometry {
             && self.indices.len() % 3 != 0
         {
             return Err(GeometryError::InvalidTriangleIndexCount(self.indices.len()));
+        }
+        if self.topology == GeometryTopology::Triangles
+            && self.indices.is_empty()
+            && vertex_count % 3 != 0
+        {
+            return Err(GeometryError::InvalidUnindexedTriangleVertexCount(
+                vertex_count,
+            ));
         }
 
         for index in &self.indices {
@@ -1093,75 +1026,77 @@ impl Scene {
         self
     }
 
-    pub fn add_primitive_definition(&mut self, definition: &PrimitiveDefinition) -> &mut Self {
+    pub fn add_authored_primitive(
+        &mut self,
+        primitive: &AuthoredPrimitive,
+    ) -> Result<&mut Self, AuthoredPrimitiveError> {
+        primitive.validate()?;
         self.geometries
-            .insert(definition.id.clone(), definition.build_geometry());
-        self.metadata.insert(
-            format!("primitive_definition.{}.resource_uri", definition.id),
-            definition.resource_uri.clone(),
-        );
-        self.metadata.insert(
-            format!("primitive_definition.{}.display_name", definition.id),
-            definition.display_name.clone(),
-        );
-        self.metadata.insert(
-            format!("primitive_definition.{}.subdivision_ready", definition.id),
-            definition.subdivision_ready.to_string(),
-        );
-        self.metadata.insert(
-            format!("primitive_definition.{}.authored_intent", definition.id),
-            definition.authored_intent.clone(),
-        );
-        self
+            .insert(primitive.id.clone(), primitive.geometry.clone());
+        if let Some(resource_uri) = &primitive.resource_uri {
+            self.metadata.insert(
+                format!("authored_primitive.{}.resource_uri", primitive.id),
+                resource_uri.clone(),
+            );
+        }
+        if let Some(display_name) = &primitive.display_name {
+            self.metadata.insert(
+                format!("authored_primitive.{}.display_name", primitive.id),
+                display_name.clone(),
+            );
+        }
+        for (key, value) in &primitive.metadata {
+            self.metadata.insert(
+                format!("authored_primitive.{}.metadata.{key}", primitive.id),
+                value.clone(),
+            );
+        }
+        Ok(self)
     }
 
-    pub fn add_primitive_library(&mut self, library: &PrimitiveLibrary) -> &mut Self {
+    pub fn add_authored_primitive_registry(
+        &mut self,
+        registry: &AuthoredPrimitiveRegistry,
+    ) -> Result<&mut Self, AuthoredPrimitiveError> {
+        registry.validate()?;
         self.metadata.insert(
-            "primitive_library.resource_document_uri".to_string(),
-            library.resource_document_uri.clone(),
+            "authored_primitive_registry.id".to_string(),
+            registry.id.clone(),
         );
-        self.metadata.insert(
-            "primitive_library.startup_primitive_id".to_string(),
-            library.startup_primitive_id.clone(),
-        );
-        if let Some(startup_definition) = library.definition(&library.startup_primitive_id) {
+        if let Some(resource_uri) = &registry.resource_document_uri {
             self.metadata.insert(
-                "primitive_library.startup_primitive_display_name".to_string(),
-                startup_definition.display_name.clone(),
+                "authored_primitive_registry.resource_document_uri".to_string(),
+                resource_uri.clone(),
+            );
+        }
+        if let Some(startup_id) = &registry.startup_primitive_id {
+            self.metadata.insert(
+                "authored_primitive_registry.startup_primitive_id".to_string(),
+                startup_id.clone(),
             );
         }
         self.metadata.insert(
-            "primitive_library.authored_policy".to_string(),
-            library.authored_policy.clone(),
+            "authored_primitive_registry.primitive_count".to_string(),
+            registry.len().to_string(),
         );
         self.metadata.insert(
-            "primitive_library.definition_count".to_string(),
-            library.definitions.len().to_string(),
+            "authored_primitive_registry.summary".to_string(),
+            registry.summary(),
         );
         self.metadata.insert(
-            "primitive_library.subdivision_ready_count".to_string(),
-            library
-                .definitions
-                .values()
-                .filter(|definition| definition.subdivision_ready)
-                .count()
-                .to_string(),
+            "authored_primitive_registry.primitive_ids".to_string(),
+            registry.ids().cloned().collect::<Vec<_>>().join(","),
         );
-        self.metadata
-            .insert("primitive_library.summary".to_string(), library.summary());
-        self.metadata.insert(
-            "primitive_library.definition_ids".to_string(),
-            library
-                .definitions
-                .keys()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        for definition in library.definitions.values() {
-            self.add_primitive_definition(definition);
+        for (key, value) in &registry.metadata {
+            self.metadata.insert(
+                format!("authored_primitive_registry.metadata.{key}"),
+                value.clone(),
+            );
         }
-        self
+        for primitive in registry.iter() {
+            self.add_authored_primitive(primitive)?;
+        }
+        Ok(self)
     }
 
     pub fn add_material(&mut self, name: impl Into<String>, material: Material) -> &mut Self {
@@ -1524,17 +1459,49 @@ mod tests {
     use super::*;
     use crate::{RenderResolution, SoftwareRenderer};
 
+    fn authored_quad_geometry(size: f32) -> Geometry {
+        let half = size * 0.5;
+        Geometry::triangle_mesh()
+            .with_positions(vec![
+                Vec3::new(-half, 0.0, -half),
+                Vec3::new(half, 0.0, -half),
+                Vec3::new(half, 0.0, half),
+                Vec3::new(-half, 0.0, half),
+            ])
+            .with_normals(vec![Vec3::UP; 4])
+            .with_indices(vec![0, 1, 2, 0, 2, 3])
+    }
+
+    fn authored_block_geometry(size: Vec3) -> Geometry {
+        let half = size * 0.5;
+        Geometry::triangle_mesh()
+            .with_positions(vec![
+                Vec3::new(-half.x, -half.y, -half.z),
+                Vec3::new(half.x, -half.y, -half.z),
+                Vec3::new(half.x, half.y, -half.z),
+                Vec3::new(-half.x, half.y, -half.z),
+                Vec3::new(-half.x, -half.y, half.z),
+                Vec3::new(half.x, -half.y, half.z),
+                Vec3::new(half.x, half.y, half.z),
+                Vec3::new(-half.x, half.y, half.z),
+            ])
+            .with_indices(vec![
+                0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 1, 2, 6, 1,
+                6, 5, 0, 4, 7, 0, 7, 3,
+            ])
+    }
+
     #[test]
-    fn box_geometry_roundtrips_to_render_mesh() {
-        let geometry = Geometry::box_mesh(Vec3::new(2.0, 2.0, 2.0));
-        let mesh = geometry.to_mesh().expect("box mesh should convert");
+    fn authored_geometry_roundtrips_to_render_mesh() {
+        let geometry = authored_block_geometry(Vec3::new(2.0, 2.0, 2.0));
+        let mesh = geometry.to_mesh().expect("authored mesh should convert");
         assert_eq!(mesh.triangles.len(), 12);
-        assert_eq!(mesh.vertices.len(), 24);
+        assert_eq!(mesh.vertices.len(), 8);
     }
 
     #[test]
     fn modifiers_and_effectors_change_authoring_output() {
-        let source = Geometry::plane(Vec2::new(2.0, 2.0));
+        let source = authored_quad_geometry(2.0);
         let deformed = source
             .apply_modifiers(&[
                 Modifier::Twist {
@@ -1585,14 +1552,17 @@ mod tests {
     fn scene_flattens_into_renderable_description() {
         let mut scene = Scene::new("authoring_demo");
         scene
-            .add_geometry("box", Geometry::box_mesh(Vec3::new(1.2, 1.2, 1.2)))
+            .add_geometry(
+                "authored_block",
+                authored_block_geometry(Vec3::new(1.2, 1.2, 1.2)),
+            )
             .add_material("hero", Material::glossy(ColorRgb::new(0.25, 0.72, 0.98)))
             .add_material(
                 "instanced",
                 Material::matte(ColorRgb::new(0.92, 0.62, 0.28)),
             );
 
-        let hero = scene.spawn_mesh("hero", "box", "hero");
+        let hero = scene.spawn_mesh("hero", "authored_block", "hero");
         scene
             .node_mut(hero)
             .expect("hero node should exist")
@@ -1601,7 +1571,12 @@ mod tests {
             mesh.modifiers.push(Modifier::Spherify { factor: 0.35 });
         }
 
-        let instancer = Instancer::grid("box", "instanced", [4, 1, 4], Vec3::new(1.8, 0.0, 1.8));
+        let instancer = Instancer::grid(
+            "authored_block",
+            "instanced",
+            [4, 1, 4],
+            Vec3::new(1.8, 0.0, 1.8),
+        );
         let clones = scene.spawn_instancer("clones", instancer);
         scene
             .node_mut(clones)

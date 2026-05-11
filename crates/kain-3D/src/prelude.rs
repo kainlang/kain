@@ -180,21 +180,7 @@ mod zen3d:
     fn rgb(r: Float, g: Float, b: Float) -> ColorRgb:
         return ColorRgb { r: r, g: g, b: b }
 
-    @extern fn __zen3d_box_geometry(size: Vec3) -> Geometry
-
-    @extern fn __zen3d_plane_geometry(size: Vec2) -> Geometry
-
-    @extern fn __zen3d_uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry
-
-    @extern fn __zen3d_quad_sphere(radius: Float, resolution: Int) -> Geometry
-
-    @extern fn __zen3d_cylinder(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry
-
-    @extern fn __zen3d_cone(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry
-
-    @extern fn __zen3d_capsule(radius: Float, height: Float, radial_segments: Int, hemisphere_segments: Int, body_segments: Int) -> Geometry
-
-    @extern fn __zen3d_torus(major_radius: Float, minor_radius: Float, major_segments: Int, minor_segments: Int) -> Geometry
+    @extern fn __zen3d_triangle_geometry(positions: Array<Vec3>, normals: Array<Vec3>, uvs: Array<Vec2>, indices: Array<Int>) -> Geometry
 
     @extern fn __zen3d_standard_material(base_color: ColorRgb) -> Material
 
@@ -212,29 +198,11 @@ mod zen3d:
 
     @extern fn __zen3d_brush(radius: Float, strength: Float) -> Brush
 
-    fn box_geometry(size: Vec3) -> Geometry:
-        return __zen3d_box_geometry(size)
+    fn triangle_geometry(positions: Array<Vec3>, normals: Array<Vec3>, uvs: Array<Vec2>, indices: Array<Int>) -> Geometry:
+        return __zen3d_triangle_geometry(positions, normals, uvs, indices)
 
-    fn plane_geometry(size: Vec2) -> Geometry:
-        return __zen3d_plane_geometry(size)
-
-    fn uv_sphere(radius: Float, latitude_segments: Int, longitude_segments: Int) -> Geometry:
-        return __zen3d_uv_sphere(radius, latitude_segments, longitude_segments)
-
-    fn quad_sphere(radius: Float, resolution: Int) -> Geometry:
-        return __zen3d_quad_sphere(radius, resolution)
-
-    fn cylinder(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry:
-        return __zen3d_cylinder(radius, height, radial_segments, height_segments)
-
-    fn cone(radius: Float, height: Float, radial_segments: Int, height_segments: Int) -> Geometry:
-        return __zen3d_cone(radius, height, radial_segments, height_segments)
-
-    fn capsule(radius: Float, height: Float, radial_segments: Int, hemisphere_segments: Int, body_segments: Int) -> Geometry:
-        return __zen3d_capsule(radius, height, radial_segments, hemisphere_segments, body_segments)
-
-    fn torus(major_radius: Float, minor_radius: Float, major_segments: Int, minor_segments: Int) -> Geometry:
-        return __zen3d_torus(major_radius, minor_radius, major_segments, minor_segments)
+    fn mesh_geometry(positions: Array<Vec3>, indices: Array<Int>) -> Geometry:
+        return __zen3d_triangle_geometry(positions, [], [], indices)
 
     fn standard_material(base_color: ColorRgb) -> Material:
         return __zen3d_standard_material(base_color)
@@ -308,9 +276,8 @@ mod tests {
         assert!(prelude.contains("struct Vec3"));
         assert!(prelude.contains("struct Geometry"));
         assert!(prelude.contains("mod zen3d:"));
-        assert!(prelude.contains("fn __zen3d_box_geometry"));
-        assert!(prelude.contains("fn __zen3d_capsule"));
-        assert!(prelude.contains("fn torus("));
+        assert!(prelude.contains("fn __zen3d_triangle_geometry"));
+        assert!(prelude.contains("fn triangle_geometry("));
         assert!(prelude.contains("use zen3d::*"));
     }
 }

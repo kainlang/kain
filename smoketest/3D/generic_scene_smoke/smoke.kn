@@ -99,7 +99,7 @@ component App():
         <panel scope="atrium" variant="nav" layout="row" gap={16}>
             <slot layout="column" gap={4}>
                 <text role="eyebrow">KAIN GENERIC SCENE SMOKE</text>
-                <text role="caption">Source-first smoke. Native-owner metadata. Kain primitives. Qt is the current presentation fallback.</text>
+                <text role="caption">Source-first smoke. Native-owner metadata. Kain-authored mesh data. Qt is the current presentation fallback.</text>
             </slot>
             <slot layout="row" gap={10}>
                 <button onclick={"geometry_fixture.backend.bgfx"}>bgfx</button>
@@ -170,9 +170,9 @@ component App():
 
         <panel title="Scene Geometry" scope="atrium" variant="section" layout="grid" columns={4} gap={14}>
             <panel scope="atrium" variant="card">
-                <text role="eyebrow">STARTUP CUBE</text>
+                <text role="eyebrow">AUTHORED BLOCK</text>
                 <text role="title">Structural anchor</text>
-                <text role="caption">The clean block primitive used for the central plinth and stable massing.</text>
+                <text role="caption">The authored mesh data used for the central plinth and stable massing.</text>
             </panel>
             <panel scope="atrium" variant="card">
                 <text role="eyebrow">STUDIO COLUMNS</text>

@@ -23,7 +23,7 @@ pub use interaction::{
 };
 pub use math::{ColorRgb, Mat4, Transform, Vec2, Vec3};
 pub use prelude::{emit_kain_prelude, reflected_type_registry};
-pub use primitive::{PrimitiveDefinition, PrimitiveLibrary, PrimitiveShape};
+pub use primitive::{AuthoredPrimitive, AuthoredPrimitiveError, AuthoredPrimitiveRegistry};
 pub use renderer::{
     FrameCameraSource, FrameDiagnostics, RenderBackend, RenderError, RenderFrame, RenderResolution,
     RenderStats, RenderViewSettings, SoftwareRenderer, SoftwareRendererConfig,

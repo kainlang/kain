@@ -1,5 +1,25 @@
 # Kain Memory
 
+# 2026-05-11 - kain-3D primitives moved to Kain-authored mesh ingestion
+
+`crates/kain-3D` no longer carries a Rust-backed primitive catalog or procedural shape builders. Primitive support is now an authored mesh pipeline: Kain/source data owns the actual vertices, indices, normals, UVs, and primitive recipes; Rust validates and converts that data into `Geometry`, `Mesh`, scene metadata, and host/runtime values.
+
+What changed:
+
+- Replaced the old Rust shape-definition/default-library stack with `AuthoredPrimitive`, `AuthoredPrimitiveRegistry`, and validation errors in `crates/kain-3D/src/primitive.rs`.
+- Removed Rust shape factories for box, plane, spheres, cylinder, cone, capsule, and torus. Generic mesh helpers such as `Geometry::indexed_triangle_mesh` remain because they do not encode product primitives.
+- Replaced the Kain prelude's shape-specific native functions with `triangle_geometry(...)` / `mesh_geometry(...)` over explicit authored arrays, backed by the generic `__zen3d_triangle_geometry` runtime native.
+- Updated `Scene` to register authored primitive registries without manufacturing default shape definitions.
+- Updated smoke/test fixtures to use explicit fixture mesh data instead of the removed primitive factories.
+
+Design decision:
+
+- Going forward, do not add Rust-side primitive recipes to `kain-3D`. If Kain needs a cube, sphere, bevelled block, or generated modeling primitive, author that recipe in Kain/source assets and pass explicit mesh data through the generic pipeline.
+
+Validation target:
+
+- Run `cargo test -p kain-3d --target-dir target\\codex-kain-3d-authored-primitives-test` and `cargo check -p kain-3d --bins --lib --target-dir target\\codex-kain-3d-authored-primitives-check` after touching this lane.
+
 # 2026-05-11 - Blade, Fabric, FFI, import, and codebase IO moved onto kain-fs
 
 The Blade workspace pipeline and its adjacent import/FFI/workspace helpers now consume the shared `kain-fs` crate instead of carrying their own `std::fs` behavior.
@@ -829,7 +849,7 @@ Recommended next step:
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::density_label()` now accounts for materials, animations, and black-hole presence in addition to meshes, instances, emitters, and terrain, so the sparse/balanced/dense cue better reflects actual scene complexity. The regression test now covers material/animation-heavy balanced scenes and black-hole-heavy dense scenes. Validation was blocked by the same local Windows GNU linker gap before the focused test binary could link: `cargo test -p kain-3d scene::tests::composition_summary_density_label_tracks_authoring_scale -- --nocapture` failed because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-16): `crates/kain-3D` now carries catalog resolution metadata through `FrameDiagnostics` for catalog renders, so frame logs can distinguish exact scene hits from aliases and default fallbacks instead of dropping that context after resolution. The software renderer also now preserves that metadata on the returned frame, which makes alias/default debugging easier for tooling and smoke reports. Validation hit the same local Windows GNU linker gap before the focused test binary could finish linking: `cargo test -p kain-3d renderer::tests -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-16): auto-framed camera placement now uses an aspect-aware framing direction helper in `crates/kain-3D`, so the camera bias adapts more predictably to wide vs. tall compositions instead of using one hardcoded diagonal. Added a regression test for the direction helper. Validation was blocked by the repo-local Windows GNU linker gap when trying to run `cargo test -p kain-3d scene::tests`, and repo-wide `cargo fmt --all --check` is still blocked by trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
-- New Kain 3D pass (2026-04-16): the authored primitive library summary now self-identifies as an authored catalog and includes the catalog policy in `primitive_library.summary`, so native inspectors and tooling can distinguish the startup primitive contract from generic counts without extra parsing. This stays on the scene metadata path and makes the primitive lane a little easier to read at a glance.
+- Superseded Kain 3D primitive note (2026-04-16): the old Rust-authored primitive catalog metadata was removed on 2026-05-11. Future primitive work should use the Kain-authored mesh ingestion registry instead of reviving catalog-policy metadata.
 - New Kain 3D pass (2026-04-16): the `material_atrium_smoke` report now preserves catalog-resolution diagnostics in its JSON payload (`requested_name`, `resolved_name`, and resolution kind), so smoke consumers can distinguish exact, alias, and default scene resolution without re-parsing renderer internals. Validation of the crate still hits the local Windows GNU linker gap before the test binary can link (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 - New Kain 3D pass (2026-04-16): fixed the WGPU renderer's camera-resolution plumbing by passing `RenderResolution` into the internal camera resolver, so the GPU 3D path can auto-frame scenes using the actual viewport size instead of a missing local variable. The WGPU frame diagnostics now also mirror the CPU renderer's structured composition cues (`scene_role`, `scene_scale`, `scene_profile`, and `framing_hint`), so GPU-backed frames are just as self-describing for scene tooling. The repo-local Windows GNU toolchain still blocks full `cargo check` / `cargo test` validation here (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`), so the next best follow-up is to run the same crate checks in a host with a working Windows GNU or compatible toolchain.
 - New Kain 3D pass (2026-04-16): `material_atrium_smoke` now emits structured scene-composition tags in its JSON payload (`scene_role`, `scene_profile`, `scene_density`) instead of only relying on the human-readable brief label. This makes the smoke report easier for inspectors and downstream automation to query without parsing a concatenated string. Validation still hit the repo-local Windows GNU linker gap before `cargo test -p kain-3d` could link (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).

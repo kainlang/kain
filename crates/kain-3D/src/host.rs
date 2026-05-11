@@ -53,14 +53,7 @@ impl Default for Kain3dSession {
 }
 
 pub fn install_runtime_natives(env: &mut Env) {
-    env.register_native_fn("__zen3d_box_geometry", native_box_geometry);
-    env.register_native_fn("__zen3d_plane_geometry", native_plane_geometry);
-    env.register_native_fn("__zen3d_uv_sphere", native_uv_sphere);
-    env.register_native_fn("__zen3d_quad_sphere", native_quad_sphere);
-    env.register_native_fn("__zen3d_cylinder", native_cylinder);
-    env.register_native_fn("__zen3d_cone", native_cone);
-    env.register_native_fn("__zen3d_capsule", native_capsule);
-    env.register_native_fn("__zen3d_torus", native_torus);
+    env.register_native_fn("__zen3d_triangle_geometry", native_triangle_geometry);
     env.register_native_fn("__zen3d_standard_material", native_standard_material);
     env.register_native_fn("__zen3d_matte_material", native_matte_material);
     env.register_native_fn("__zen3d_glossy_material", native_glossy_material);
@@ -204,22 +197,24 @@ impl FromKainValue for Geometry {
         let topology = bridge::take_struct_field::<GeometryTopology>(&mut fields, "topology")?;
         let mut geometry = Geometry::new(topology)
             .with_positions(positions)
-            .with_normals(normals)
-            .with_uvs(uvs)
-            .with_colors(colors)
-            .with_indices(
-                indices
-                    .into_iter()
-                    .map(|value| {
-                        u32::try_from(value).map_err(|_| KainError::runtime("index out of range"))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            );
-        if geometry.normals().is_none()
-            || geometry.normals().is_some_and(|values| values.is_empty())
-        {
-            let _ = geometry.compute_vertex_normals();
+            .with_indices(convert_geometry_indices("__zen3d Geometry", indices)?);
+        if !normals.is_empty() {
+            geometry = geometry.with_normals(normals);
         }
+        if !uvs.is_empty() {
+            geometry = geometry.with_uvs(uvs);
+        }
+        if !colors.is_empty() {
+            geometry = geometry.with_colors(colors);
+        }
+        if geometry.topology == GeometryTopology::Triangles && geometry.normals().is_none() {
+            geometry
+                .compute_vertex_normals()
+                .map_err(|error| KainError::runtime(format!("invalid geometry: {error}")))?;
+        }
+        geometry
+            .validate()
+            .map_err(|error| KainError::runtime(format!("invalid geometry: {error}")))?;
         Ok(geometry)
     }
 }
@@ -513,102 +508,40 @@ impl FromKainValue for Brush {
     }
 }
 
-fn native_box_geometry(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    let size = expect_single::<Vec3>("__zen3d_box_geometry", args)?;
-    Ok(Geometry::box_mesh(size).to_kain_value())
-}
-
-fn native_plane_geometry(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    let size = expect_single::<Vec2>("__zen3d_plane_geometry", args)?;
-    Ok(Geometry::plane(size).to_kain_value())
-}
-
-fn native_uv_sphere(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
+fn native_triangle_geometry(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
     match args.as_slice() {
-        [radius, lat, lon] => Ok(Geometry::uv_sphere(
-            f32::from_kain_value(radius.clone())?,
-            usize::from_kain_value(lat.clone())?,
-            usize::from_kain_value(lon.clone())?,
-        )
-        .to_kain_value()),
-        _ => Err(KainError::runtime(
-            "__zen3d_uv_sphere expects (Float, Int, Int)",
-        )),
-    }
-}
+        [positions, normals, uvs, indices] => {
+            let positions = Vec::<Vec3>::from_kain_value(positions.clone())?;
+            let normals = Vec::<Vec3>::from_kain_value(normals.clone())?;
+            let uvs = Vec::<Vec2>::from_kain_value(uvs.clone())?;
+            let indices = convert_geometry_indices(
+                "__zen3d_triangle_geometry",
+                Vec::<i64>::from_kain_value(indices.clone())?,
+            )?;
 
-fn native_quad_sphere(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    match args.as_slice() {
-        [radius, resolution] => Ok(Geometry::quad_sphere(
-            f32::from_kain_value(radius.clone())?,
-            usize::from_kain_value(resolution.clone())?,
-        )
-        .to_kain_value()),
-        _ => Err(KainError::runtime(
-            "__zen3d_quad_sphere expects (Float, Int)",
-        )),
-    }
-}
-
-fn native_cylinder(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    match args.as_slice() {
-        [radius, height, radial_segments, height_segments] => Ok(Geometry::cylinder(
-            f32::from_kain_value(radius.clone())?,
-            f32::from_kain_value(height.clone())?,
-            usize::from_kain_value(radial_segments.clone())?,
-            usize::from_kain_value(height_segments.clone())?,
-        )
-        .to_kain_value()),
-        _ => Err(KainError::runtime(
-            "__zen3d_cylinder expects (Float, Float, Int, Int)",
-        )),
-    }
-}
-
-fn native_cone(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    match args.as_slice() {
-        [radius, height, radial_segments, height_segments] => Ok(Geometry::cone(
-            f32::from_kain_value(radius.clone())?,
-            f32::from_kain_value(height.clone())?,
-            usize::from_kain_value(radial_segments.clone())?,
-            usize::from_kain_value(height_segments.clone())?,
-        )
-        .to_kain_value()),
-        _ => Err(KainError::runtime(
-            "__zen3d_cone expects (Float, Float, Int, Int)",
-        )),
-    }
-}
-
-fn native_capsule(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    match args.as_slice() {
-        [radius, height, radial_segments, hemisphere_segments, body_segments] => {
-            Ok(Geometry::capsule(
-                f32::from_kain_value(radius.clone())?,
-                f32::from_kain_value(height.clone())?,
-                usize::from_kain_value(radial_segments.clone())?,
-                usize::from_kain_value(hemisphere_segments.clone())?,
-                usize::from_kain_value(body_segments.clone())?,
-            )
-            .to_kain_value())
+            let mut geometry = Geometry::indexed_triangle_mesh(positions, indices);
+            if !normals.is_empty() {
+                geometry = geometry.with_normals(normals);
+            }
+            if !uvs.is_empty() {
+                geometry = geometry.with_uvs(uvs);
+            }
+            if geometry.normals().is_none() {
+                geometry.compute_vertex_normals().map_err(|error| {
+                    KainError::runtime(format!(
+                        "__zen3d_triangle_geometry invalid geometry: {error}"
+                    ))
+                })?;
+            }
+            geometry.validate().map_err(|error| {
+                KainError::runtime(format!(
+                    "__zen3d_triangle_geometry invalid geometry: {error}"
+                ))
+            })?;
+            Ok(geometry.to_kain_value())
         }
         _ => Err(KainError::runtime(
-            "__zen3d_capsule expects (Float, Float, Int, Int, Int)",
-        )),
-    }
-}
-
-fn native_torus(_env: &mut Env, args: Vec<Value>) -> HostResult<Value> {
-    match args.as_slice() {
-        [major_radius, minor_radius, major_segments, minor_segments] => Ok(Geometry::torus(
-            f32::from_kain_value(major_radius.clone())?,
-            f32::from_kain_value(minor_radius.clone())?,
-            usize::from_kain_value(major_segments.clone())?,
-            usize::from_kain_value(minor_segments.clone())?,
-        )
-        .to_kain_value()),
-        _ => Err(KainError::runtime(
-            "__zen3d_torus expects (Float, Float, Int, Int)",
+            "__zen3d_triangle_geometry expects (Array<Vec3>, Array<Vec3>, Array<Vec2>, Array<Int>)",
         )),
     }
 }
@@ -708,6 +641,17 @@ where
     }
 }
 
+fn convert_geometry_indices(name: &str, indices: Vec<i64>) -> HostResult<Vec<u32>> {
+    indices
+        .into_iter()
+        .map(|value| {
+            u32::try_from(value).map_err(|_| {
+                KainError::runtime(format!("{name} received an index outside u32 range"))
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -719,7 +663,17 @@ mod tests {
             .load_source(
                 r#"
 fn build_geometry() -> Geometry:
-    return torus(1.4, 0.35, 48, 18)
+    return triangle_geometry(
+        [
+            Vec3 { x: -1.0, y: -1.0, z: 0.0 },
+            Vec3 { x: 1.0, y: -1.0, z: 0.0 },
+            Vec3 { x: 1.0, y: 1.0, z: 0.0 },
+            Vec3 { x: -1.0, y: 1.0, z: 0.0 }
+        ],
+        [],
+        [],
+        [0, 1, 2, 0, 2, 3]
+    )
 
 fn build_material() -> Material:
     return glossy_material(ColorRgb { r: 0.2, g: 0.6, b: 0.9 })
@@ -740,7 +694,7 @@ fn build_modifier() -> Modifier:
             .call::<Modifier>("build_modifier", vec![])
             .expect("call build_modifier");
 
-        assert!(geometry.vertex_count() > 800);
+        assert_eq!(geometry.vertex_count(), 4);
         assert_eq!(material.shininess, 36.0);
         assert!(matches!(modifier, Modifier::Twist { .. }));
     }

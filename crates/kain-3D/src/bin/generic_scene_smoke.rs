@@ -96,6 +96,38 @@ fn print_help() {
     println!("generic_scene_smoke [--output-image PATH] [--output-json PATH] [--scene NAME] [--width PX] [--height PX]");
 }
 
+fn authored_block_fixture_geometry(size: Vec3) -> Geometry {
+    let half = size * 0.5;
+    Geometry::triangle_mesh()
+        .with_positions(vec![
+            Vec3::new(-half.x, -half.y, -half.z),
+            Vec3::new(half.x, -half.y, -half.z),
+            Vec3::new(half.x, half.y, -half.z),
+            Vec3::new(-half.x, half.y, -half.z),
+            Vec3::new(-half.x, -half.y, half.z),
+            Vec3::new(half.x, -half.y, half.z),
+            Vec3::new(half.x, half.y, half.z),
+            Vec3::new(-half.x, half.y, half.z),
+        ])
+        .with_indices(vec![
+            0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 1, 2, 6, 1, 6,
+            5, 0, 4, 7, 0, 7, 3,
+        ])
+}
+
+fn authored_floor_fixture_geometry(size: f32) -> Geometry {
+    let half = size * 0.5;
+    Geometry::triangle_mesh()
+        .with_positions(vec![
+            Vec3::new(-half, 0.0, -half),
+            Vec3::new(half, 0.0, -half),
+            Vec3::new(half, 0.0, half),
+            Vec3::new(-half, 0.0, half),
+        ])
+        .with_normals(vec![Vec3::UP; 4])
+        .with_indices(vec![0, 1, 2, 0, 2, 3])
+}
+
 fn generic_fixture_catalog() -> Result<SceneCatalog, Box<dyn Error>> {
     let scene = generic_fixture_scene()?;
     Ok(SceneCatalog::new(
@@ -109,11 +141,11 @@ fn generic_fixture_catalog() -> Result<SceneCatalog, Box<dyn Error>> {
 }
 
 fn generic_fixture_scene() -> Result<SceneDescription, Box<dyn Error>> {
-    let cube = Geometry::box_mesh(Vec3::new(2.0, 2.0, 2.0)).to_mesh()?;
-    let floor = Geometry::plane(kain_3d::Vec2::new(8.0, 8.0)).to_mesh()?;
+    let center_block = authored_block_fixture_geometry(Vec3::new(2.0, 2.0, 2.0)).to_mesh()?;
+    let floor = authored_floor_fixture_geometry(8.0).to_mesh()?;
 
     let mut meshes = BTreeMap::new();
-    meshes.insert("cube".to_string(), cube);
+    meshes.insert("center_block".to_string(), center_block);
     meshes.insert("floor".to_string(), floor);
 
     let mut materials = BTreeMap::new();
@@ -177,8 +209,8 @@ fn generic_fixture_scene() -> Result<SceneDescription, Box<dyn Error>> {
                 transform: Transform::identity().with_translation(Vec3::new(0.0, -1.05, 0.0)),
             },
             SceneInstance {
-                id: "cube".to_string(),
-                mesh: "cube".to_string(),
+                id: "center_block".to_string(),
+                mesh: "center_block".to_string(),
                 material: "matte_blue".to_string(),
                 transform: Transform::identity().with_translation(Vec3::new(0.0, 0.0, 0.0)),
             },

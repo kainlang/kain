@@ -592,12 +592,31 @@ mod tests {
 
     use super::*;
 
-    fn single_cube_scene() -> SceneDescription {
-        let mesh = Geometry::box_mesh(Vec3::new(2.0, 2.0, 2.0))
+    fn authored_block_geometry(size: Vec3) -> Geometry {
+        let half = size * 0.5;
+        Geometry::triangle_mesh()
+            .with_positions(vec![
+                Vec3::new(-half.x, -half.y, -half.z),
+                Vec3::new(half.x, -half.y, -half.z),
+                Vec3::new(half.x, half.y, -half.z),
+                Vec3::new(-half.x, half.y, -half.z),
+                Vec3::new(-half.x, -half.y, half.z),
+                Vec3::new(half.x, -half.y, half.z),
+                Vec3::new(half.x, half.y, half.z),
+                Vec3::new(-half.x, half.y, half.z),
+            ])
+            .with_indices(vec![
+                0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 1, 2, 6, 1,
+                6, 5, 0, 4, 7, 0, 7, 3,
+            ])
+    }
+
+    fn single_authored_block_scene() -> SceneDescription {
+        let mesh = authored_block_geometry(Vec3::new(2.0, 2.0, 2.0))
             .to_mesh()
-            .expect("box mesh should build");
+            .expect("authored mesh should build");
         let mut meshes = BTreeMap::new();
-        meshes.insert("cube".to_string(), mesh);
+        meshes.insert("authored_block".to_string(), mesh);
 
         let mut materials = BTreeMap::new();
         materials.insert(
@@ -648,7 +667,7 @@ mod tests {
             materials,
             instances: vec![SceneInstance {
                 id: "hero".to_string(),
-                mesh: "cube".to_string(),
+                mesh: "authored_block".to_string(),
                 material: "matte".to_string(),
                 transform: Transform::identity(),
             }],
@@ -658,8 +677,8 @@ mod tests {
     }
 
     #[test]
-    fn center_ray_hits_cube() {
-        let scene = single_cube_scene();
+    fn center_ray_hits_authored_block() {
+        let scene = single_authored_block_scene();
         let camera = CameraPose {
             position: Vec3::new(0.0, 0.0, 6.0),
             target: Vec3::ZERO,
@@ -680,8 +699,8 @@ mod tests {
     }
 
     #[test]
-    fn offscreen_ray_misses_cube() {
-        let scene = single_cube_scene();
+    fn offscreen_ray_misses_authored_block() {
+        let scene = single_authored_block_scene();
         let camera = CameraPose {
             position: Vec3::new(0.0, 0.0, 6.0),
             target: Vec3::ZERO,
