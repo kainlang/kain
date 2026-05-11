@@ -80,6 +80,63 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_single_file_native_ui_primitives_without_component_catalog() {
+    let source = r#"
+@extern
+fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+
+@extern
+fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+
+@extern
+fn kain_native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+
+@extern
+fn kain_native_ui_present(session_id: Int) -> Int
+
+pub fn native_ui_session_create(app_name: String, width: Int, height: Int) -> Int:
+    return kain_native_ui_session_create(app_name, width, height)
+
+pub fn native_ui_node_create(session_id: Int, kind: String) -> Int:
+    return kain_native_ui_node_create(session_id, kind)
+
+pub fn native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
+    return kain_native_ui_node_set_rect(session_id, node_id, x, y, width, height)
+
+pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
+    return kain_native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
+
+pub fn native_ui_present(session_id: Int) -> Int:
+    return kain_native_ui_present(session_id)
+
+fn main() -> Int:
+    let session = native_ui_session_create("single-file-authoring", 960, 540)
+    let root = native_ui_node_create(session, "app.workspace.root")
+    let command = native_ui_node_create(session, "user.authored.command-strip")
+    let _root_rect = native_ui_node_set_rect(session, root, 0.0, 0.0, 960.0, 540.0)
+    let _command_rect = native_ui_node_set_rect(session, command, 16.0, 16.0, 240.0, 44.0)
+    let _draw = native_ui_draw_rect(session, command, 16.0, 16.0, 240.0, 44.0, "accent-fill")
+    return native_ui_present(session)
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm
+        .contains("declare i64 @kain_native_ui_session_create(i8* %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_node_create(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_rect(i64 %arg0, i64 %arg1, double %arg2, double %arg3, double %arg4, double %arg5)"));
+    assert!(llvm.contains("call i64 @kain_native_ui_draw_rect"));
+    assert!(llvm.contains("user.authored.command-strip"));
+    assert!(!llvm.contains("button"));
+    assert!(!llvm.contains("panel"));
+}
+
+#[test]
 fn llvm_generates_world_patch_converge_and_orchestrate_paths() {
     let source = r#"
 world Studio:

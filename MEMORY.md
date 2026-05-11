@@ -1,5 +1,24 @@
 # Kain Memory
 
+# 2026-05-11 - Raw native UI C ABI makes single-file LLVM UI authoring possible
+
+Kain now has a generic native UI system kernel at the C ABI floor instead of another host-authored component catalog. `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c` expose low-level sessions, arbitrary node kind strings, parent/rect/text/style/flag mutation, focus, hit testing, dirty tracking, event polling, and draw-command buffers. The source is included in both `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml`, and `stdlib/native/ui.kn` exposes thin `native_ui_*` wrappers for LLVM/direct-C Kain source.
+
+Design decisions:
+
+- Keep this layer catalog-free. The runtime knows handles, strings, geometry, events, and commands; Kain source or `stdlib/native` owns higher-level buttons, panels, inspectors, tabs, and app-specific UI systems.
+- `runtime/fixtures/native_ui_single_file/main.kn` is the current proof shape: one Kain file defines its own surface helper functions, creates arbitrary UI node kinds, draws, routes focus/events, hit-tests, and returns success through LLVM-compatible calls.
+- `runtime/conformance/ui_runtime/test_native_ui_system_kernel.c` proves the raw C ABI without involving the older compiled-bundle overlay path.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_single_file_native_ui_primitives_without_component_catalog --target-dir target\codex-native-ui-system -- --nocapture`
+- `bash runtime/conformance/ui_runtime/run_tests.sh --verbose`
+
+Recommended next step:
+
+- Connect `kain_native_ui_system` to an actual Win32/bgfx or Qt host frame loop so `native_ui_draw_*` buffers can present pixels live, then add hot reload by rebuilding the single Kain file and replaying session state through stable node ids.
+
 # 2026-05-11 - Blade resolver crate import surface renamed to `blade`
 
 The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/kain-blades`, the workspace member path remains `crates/kain-blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.

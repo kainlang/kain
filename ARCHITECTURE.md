@@ -37,7 +37,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 `runtime/native` is the canonical ABI floor and C runtime substrate. `crates/kain-host`, `crates/kain-sdk`, `crates/kain-reflect`, `crates/kain-c-ffi`, `crates/kain-crate-ffi`, `crates/kain-python`, `crates/kain-node`, `crates/kain-codebase`, and `crates/kain-interop` provide host/runtime integration.
 
 4. UI, native desktop, and 3D
-`crates/kain-ui`, `crates/kain-ui-native`, and `crates/kain-3D` are the semantic UI and accelerated native presentation stack.
+`crates/kain-ui`, `crates/kain-ui-native`, and `crates/kain-3D` are the semantic UI and accelerated native presentation stack. The low-level single-file LLVM UI lane lives at the C ABI floor in `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c`: it exposes sessions, arbitrary authored node kinds, rects, styles, events, hit testing, focus, dirty tracking, and draw-command buffers without a host-owned component catalog.
 
 5. Target adapters
 `crates/web`, `crates/gpu`, `crates/kain-gpu-runtime`, and the `crates/ue5*` family consume compiler-owned contracts for specific runtime environments.
@@ -49,6 +49,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - `crates/kain-fs` owns portable filesystem semantics: path normalization, text/byte file operations, metadata and directory-entry shapes, temp paths, atomic writes, copy/move/remove behavior, sandbox/capability policy, `fs://` virtual roots, chunked/ranged IO, polling watchers, transactional filesystem journals, and typed filesystem errors shared by interpreter and native-facing stdlib code.
 - `crates/kain-driver` owns emitted bundle truth and app/runtime materialization.
 - `runtime/native` owns the stable ABI floor, startup, service contracts, and low-level host/runtime substrate.
+- Native UI primitives are ABI substrate, not product UI. The runtime may expose generic handles and buffers, but buttons, panels, inspectors, viewports, shells, and catalogs must be authored in Kain source or `stdlib/native`, not hardcoded as Rust/C host recipes.
 - Host bridges and adapters extend Kain into external ecosystems; they do not downgrade Kain source into "configuration only."
 - Accelerated Rust lanes may optimize execution, but they must consume the same compiler-owned bundles rather than inventing a second semantic model.
 - Web, UE5, selfhost, and future lanes are adapters, not alternate definitions of what Kain source means.
@@ -81,7 +82,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [docs/reference/dcc-parity-matrix.md](/M:/Code/Kain/docs/reference/dcc-parity-matrix.md): flagship KSculpt and KPainter parity inventory, baseline rules, and validation entrypoint
 - [scripts/python/validate_dcc_parity_matrix.py](/M:/Code/Kain/scripts/python/validate_dcc_parity_matrix.py): strict validator for the machine-readable parity inventory owned by `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
 - [scripts/python/run_dcc_parity_harness.py](/M:/Code/Kain/scripts/python/run_dcc_parity_harness.py): executable scenario harness for the highest-priority shared, sculpt, and painter parity hooks
-- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data. The root profile holds general helpers; `stdlib/native` is the LLVM/direct-C native profile for actor, entangle, filesystem, runtime, diagnostics, time, and intent helpers; `stdlib/c` is the direct C bridge overlay; and the root `gen_server.kn` helper layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives. `start_link` is currently naming-only until real link semantics land
+- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data. The root profile holds general helpers; `stdlib/native` is the LLVM/direct-C native profile for actor, entangle, filesystem, runtime, diagnostics, time, intent, and raw native UI helpers; `stdlib/c` is the direct C bridge overlay; and the root `gen_server.kn` helper layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives. `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
 - [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
@@ -124,6 +125,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
 - [kain-ui](/M:/Code/Kain/crates/kain-ui): semantic UI graph and patch-oriented UI meaning
 - [kain-ui-native](/M:/Code/Kain/crates/kain-ui-native): authored native desktop host/runtime lane. Default non-egui flow is `app.rs` -> `session.rs` -> `qt_host.rs`: compile Kain source into `UiBuildOutput`, project authored surfaces/nodes into `KainUiNativeSessionManifest`, and launch a thin Qt shell that renders only authored projection data. Do not add Rust-side UI catalogs, placeholder pane lanes, renderer switchboards, sample dashboards, or default widget layouts here; dead polluted/legacy hosts should be deleted rather than archived inside this crate.
+- [native UI system C ABI](/M:/Code/Kain/runtime/native/include/kain_native_ui_system.h): raw single-file LLVM UI substrate exposed through [stdlib/native/ui.kn](/M:/Code/Kain/stdlib/native/ui.kn). It gives Kain source enough low-level power to build its own UI system: sessions, windows, arbitrary node kind strings, parent/rect/text/style/flag mutation, focus, hit testing, events, dirty counts, and draw commands. Keep it generic; do not add baked component kinds or a catalog to this layer.
 - [kain-ui-tauri](/M:/Code/Kain/crates/kain-ui-tauri): Tauri 2 desktop adapter generator, reflective bridge manifest builder, capability/permission preset catalog, and generated host/frontend scaffold for the webview desktop lane
 - [kain-3D](/M:/Code/Kain/crates/kain-3D): native 3D renderer and viewport runtime
 

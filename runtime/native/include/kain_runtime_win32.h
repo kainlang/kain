@@ -70,35 +70,6 @@ typedef LRESULT (*KainWin32AppMessageFn)(
     int* handled
 );
 
-typedef struct {
-    const char* id;
-    const char* label;
-    const char* scene_aliases;
-    float clear_color[4];
-    float fog_color[4];
-    float ambient_light[4];
-    float diffuse_light[4];
-    float light_position[4];
-    float accent_a[3];
-    float accent_b[3];
-    int default_width;
-    int default_height;
-    double move_speed;
-    double sprint_multiplier;
-    double jump_velocity;
-    double gravity;
-    double mouse_sensitivity;
-    double eye_height;
-    double fog_density;
-    int particle_count;
-} KainViewportProfile;
-
-typedef struct {
-    double x;
-    double y;
-    double z;
-} KainVec3;
-
 struct KainWin32GlSurface {
     HDC dc;
     HGLRC glrc;

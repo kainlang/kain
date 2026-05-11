@@ -1,0 +1,311 @@
+@extern
+fn kain_native_ui_reset() -> Int
+
+@extern
+fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_ui_session_destroy(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_session_count() -> Int
+
+@extern
+fn kain_native_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_ui_window_close(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_ui_end_frame(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_present(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_frame_index(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_last_presented_frame(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+
+@extern
+fn kain_native_ui_node_destroy(session_id: Int, node_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_exists(session_id: Int, node_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_parent(session_id: Int, node_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_child_count(session_id: Int, node_id: Int) -> Int
+
+@extern
+fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+
+@extern
+fn kain_native_ui_node_x(session_id: Int, node_id: Int) -> Float
+
+@extern
+fn kain_native_ui_node_y(session_id: Int, node_id: Int) -> Float
+
+@extern
+fn kain_native_ui_node_width(session_id: Int, node_id: Int) -> Float
+
+@extern
+fn kain_native_ui_node_height(session_id: Int, node_id: Int) -> Float
+
+@extern
+fn kain_native_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int
+
+@extern
+fn kain_native_ui_node_text(session_id: Int, node_id: Int) -> String
+
+@extern
+fn kain_native_ui_node_kind(session_id: Int, node_id: Int) -> String
+
+@extern
+fn kain_native_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int
+
+@extern
+fn kain_native_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int
+
+@extern
+fn kain_native_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
+
+@extern
+fn kain_native_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int
+
+@extern
+fn kain_native_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
+
+@extern
+fn kain_native_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
+
+@extern
+fn kain_native_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float
+
+@extern
+fn kain_native_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
+
+@extern
+fn kain_native_ui_focus(session_id: Int, node_id: Int) -> Int
+
+@extern
+fn kain_native_ui_focused_node(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int
+
+@extern
+fn kain_native_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int
+
+@extern
+fn kain_native_ui_dirty_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int
+
+@extern
+fn kain_native_ui_poll_event(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_event_kind(session_id: Int) -> String
+
+@extern
+fn kain_native_ui_event_target(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_event_x(session_id: Int) -> Float
+
+@extern
+fn kain_native_ui_event_y(session_id: Int) -> Float
+
+@extern
+fn kain_native_ui_event_key_code(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_event_text(session_id: Int) -> String
+
+@extern
+fn kain_native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+
+@extern
+fn kain_native_ui_draw_text(session_id: Int, node_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
+
+@extern
+fn kain_native_ui_draw_command_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_draw_command_kind(session_id: Int, command_index: Int) -> String
+
+@extern
+fn kain_native_ui_draw_command_node(session_id: Int, command_index: Int) -> Int
+
+pub fn native_ui_reset() -> Int:
+    return kain_native_ui_reset()
+
+pub fn native_ui_session_create(app_name: String, width: Int, height: Int) -> Int:
+    return kain_native_ui_session_create(app_name, width, height)
+
+pub fn native_ui_session_destroy(session_id: Int) -> Int:
+    return kain_native_ui_session_destroy(session_id)
+
+pub fn native_ui_session_count() -> Int:
+    return kain_native_ui_session_count()
+
+pub fn native_ui_window_open(session_id: Int, title: String, width: Int, height: Int) -> Int:
+    return kain_native_ui_window_open(session_id, title, width, height)
+
+pub fn native_ui_window_close(session_id: Int) -> Int:
+    return kain_native_ui_window_close(session_id)
+
+pub fn native_ui_begin_frame(session_id: Int, delta_ms: Float) -> Int:
+    return kain_native_ui_begin_frame(session_id, delta_ms)
+
+pub fn native_ui_end_frame(session_id: Int) -> Int:
+    return kain_native_ui_end_frame(session_id)
+
+pub fn native_ui_present(session_id: Int) -> Int:
+    return kain_native_ui_present(session_id)
+
+pub fn native_ui_frame_index(session_id: Int) -> Int:
+    return kain_native_ui_frame_index(session_id)
+
+pub fn native_ui_last_presented_frame(session_id: Int) -> Int:
+    return kain_native_ui_last_presented_frame(session_id)
+
+pub fn native_ui_node_create(session_id: Int, kind: String) -> Int:
+    return kain_native_ui_node_create(session_id, kind)
+
+pub fn native_ui_node_destroy(session_id: Int, node_id: Int) -> Int:
+    return kain_native_ui_node_destroy(session_id, node_id)
+
+pub fn native_ui_node_count(session_id: Int) -> Int:
+    return kain_native_ui_node_count(session_id)
+
+pub fn native_ui_node_exists(session_id: Int, node_id: Int) -> Int:
+    return kain_native_ui_node_exists(session_id, node_id)
+
+pub fn native_ui_node_set_parent(session_id: Int, node_id: Int, parent_id: Int) -> Int:
+    return kain_native_ui_node_set_parent(session_id, node_id, parent_id)
+
+pub fn native_ui_node_parent(session_id: Int, node_id: Int) -> Int:
+    return kain_native_ui_node_parent(session_id, node_id)
+
+pub fn native_ui_node_child_count(session_id: Int, node_id: Int) -> Int:
+    return kain_native_ui_node_child_count(session_id, node_id)
+
+pub fn native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int:
+    return kain_native_ui_node_set_rect(session_id, node_id, x, y, width, height)
+
+pub fn native_ui_node_x(session_id: Int, node_id: Int) -> Float:
+    return kain_native_ui_node_x(session_id, node_id)
+
+pub fn native_ui_node_y(session_id: Int, node_id: Int) -> Float:
+    return kain_native_ui_node_y(session_id, node_id)
+
+pub fn native_ui_node_width(session_id: Int, node_id: Int) -> Float:
+    return kain_native_ui_node_width(session_id, node_id)
+
+pub fn native_ui_node_height(session_id: Int, node_id: Int) -> Float:
+    return kain_native_ui_node_height(session_id, node_id)
+
+pub fn native_ui_node_set_text(session_id: Int, node_id: Int, text: String) -> Int:
+    return kain_native_ui_node_set_text(session_id, node_id, text)
+
+pub fn native_ui_node_text(session_id: Int, node_id: Int) -> String:
+    return kain_native_ui_node_text(session_id, node_id)
+
+pub fn native_ui_node_kind(session_id: Int, node_id: Int) -> String:
+    return kain_native_ui_node_kind(session_id, node_id)
+
+pub fn native_ui_node_set_flag(session_id: Int, node_id: Int, flag: String, enabled: Int) -> Int:
+    return kain_native_ui_node_set_flag(session_id, node_id, flag, enabled)
+
+pub fn native_ui_node_has_flag(session_id: Int, node_id: Int, flag: String) -> Int:
+    return kain_native_ui_node_has_flag(session_id, node_id, flag)
+
+pub fn native_ui_node_set_style_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int:
+    return kain_native_ui_node_set_style_i64(session_id, node_id, key, value)
+
+pub fn native_ui_node_set_style_f64(session_id: Int, node_id: Int, key: String, value: Float) -> Int:
+    return kain_native_ui_node_set_style_f64(session_id, node_id, key, value)
+
+pub fn native_ui_node_set_style_string(session_id: Int, node_id: Int, key: String, value: String) -> Int:
+    return kain_native_ui_node_set_style_string(session_id, node_id, key, value)
+
+pub fn native_ui_node_style_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int:
+    return kain_native_ui_node_style_i64(session_id, node_id, key, fallback)
+
+pub fn native_ui_node_style_f64(session_id: Int, node_id: Int, key: String, fallback: Float) -> Float:
+    return kain_native_ui_node_style_f64(session_id, node_id, key, fallback)
+
+pub fn native_ui_node_style_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String:
+    return kain_native_ui_node_style_string(session_id, node_id, key, fallback)
+
+pub fn native_ui_focus(session_id: Int, node_id: Int) -> Int:
+    return kain_native_ui_focus(session_id, node_id)
+
+pub fn native_ui_focused_node(session_id: Int) -> Int:
+    return kain_native_ui_focused_node(session_id)
+
+pub fn native_ui_hit_test(session_id: Int, x: Float, y: Float) -> Int:
+    return kain_native_ui_hit_test(session_id, x, y)
+
+pub fn native_ui_mark_dirty(session_id: Int, node_id: Int, reason: Int) -> Int:
+    return kain_native_ui_mark_dirty(session_id, node_id, reason)
+
+pub fn native_ui_dirty_count(session_id: Int) -> Int:
+    return kain_native_ui_dirty_count(session_id)
+
+pub fn native_ui_push_event(session_id: Int, kind: String, target_node_id: Int, x: Float, y: Float, key_code: Int, text: String) -> Int:
+    return kain_native_ui_push_event(session_id, kind, target_node_id, x, y, key_code, text)
+
+pub fn native_ui_poll_event(session_id: Int) -> Int:
+    return kain_native_ui_poll_event(session_id)
+
+pub fn native_ui_event_kind(session_id: Int) -> String:
+    return kain_native_ui_event_kind(session_id)
+
+pub fn native_ui_event_target(session_id: Int) -> Int:
+    return kain_native_ui_event_target(session_id)
+
+pub fn native_ui_event_x(session_id: Int) -> Float:
+    return kain_native_ui_event_x(session_id)
+
+pub fn native_ui_event_y(session_id: Int) -> Float:
+    return kain_native_ui_event_y(session_id)
+
+pub fn native_ui_event_key_code(session_id: Int) -> Int:
+    return kain_native_ui_event_key_code(session_id)
+
+pub fn native_ui_event_text(session_id: Int) -> String:
+    return kain_native_ui_event_text(session_id)
+
+pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
+    return kain_native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
+
+pub fn native_ui_draw_text(session_id: Int, node_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
+    return kain_native_ui_draw_text(session_id, node_id, x, y, text, style_key)
+
+pub fn native_ui_draw_command_count(session_id: Int) -> Int:
+    return kain_native_ui_draw_command_count(session_id)
+
+pub fn native_ui_draw_command_kind(session_id: Int, command_index: Int) -> String:
+    return kain_native_ui_draw_command_kind(session_id, command_index)
+
+pub fn native_ui_draw_command_node(session_id: Int, command_index: Int) -> Int:
+    return kain_native_ui_draw_command_node(session_id, command_index)

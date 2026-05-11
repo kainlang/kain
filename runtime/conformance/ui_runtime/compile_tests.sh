@@ -44,8 +44,12 @@ rm -f "$BIN_DIR"/*.o "$BIN_DIR"/*.obj "$BIN_DIR"/*.exe "$BIN_DIR"/* 2>/dev/null 
 
 echo "Compiling supporting runtime objects..."
 "$C_COMPILER" $CFLAGS -c "$PLATFORM_SHARED_SOURCE" -o "$BIN_DIR/kain_runtime_platform_shared.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_core.c" -o "$BIN_DIR/kain_runtime_core.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_version.c" -o "$BIN_DIR/kain_runtime_version.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/kain_runtime_diagnostics.c" -o "$BIN_DIR/kain_runtime_diagnostics.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_bundle.c" -o "$BIN_DIR/kain_ui_compiled_bundle.o"
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_runtime.c" -o "$BIN_DIR/kain_ui_runtime.o"
+"$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_native_ui_system.c" -o "$BIN_DIR/kain_native_ui_system.o"
 
 echo "Compiling overlay sources (compile-only smoke)..."
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/ui/kain_ui_compiled_overlay.c" -o "$BIN_DIR/kain_ui_compiled_overlay.o"
@@ -60,6 +64,9 @@ echo "Compiling test_ui_runtime_focus..."
 
 echo "Compiling test_ui_runtime_parity..."
 "$C_COMPILER" $CFLAGS test_ui_runtime_parity.c "$BIN_DIR/kain_ui_runtime.o" "$BIN_DIR/kain_ui_compiled_bundle.o" "$BIN_DIR/kain_runtime_platform_shared.o" -o "$BIN_DIR/test_ui_runtime_parity.exe" $LDFLAGS
+
+echo "Compiling test_native_ui_system_kernel..."
+"$C_COMPILER" $CFLAGS test_native_ui_system_kernel.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_kernel.exe" $LDFLAGS
 
 echo ""
 echo "=== Compilation Complete ==="

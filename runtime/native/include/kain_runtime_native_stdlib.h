@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "kain_native_ui_system.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
