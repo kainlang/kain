@@ -7,8 +7,8 @@
 pub use kain_core::*;
 
 // CLI-specific modules
-pub mod bridge;
 pub mod blades;
+pub mod bridge;
 pub mod codebase;
 pub mod error;
 pub mod fabric;

@@ -15,4 +15,5 @@ module_roots = ["src"]
 [[c_ffi.libraries]]
 name = "blade_filter"
 header = "native/blade_filter.h"
+sources = ["native/blade_filter.c"]
 shared_lib = "native/${kain_dynlib:blade_filter}"

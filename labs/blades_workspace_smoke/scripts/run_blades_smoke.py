@@ -27,6 +27,10 @@ def resolve_repo_paths() -> tuple[Path, Path]:
     return repo_root, lab_root
 
 
+def platform_binary_name(stem: str) -> str:
+    return f"{stem}.exe" if platform.system().lower() == "windows" else stem
+
+
 def platform_dynlib_name(stem: str) -> str:
     system = platform.system().lower()
     if system == "windows":
@@ -36,40 +40,38 @@ def platform_dynlib_name(stem: str) -> str:
     return f"lib{stem}.so"
 
 
-def find_kain_binary(repo_root: Path) -> str:
-    env_binary = os.environ.get("KAIN_BIN")
+def find_binary(repo_root: Path, env_key: str, stem: str) -> str:
+    env_binary = os.environ.get(env_key)
     if env_binary:
         return env_binary
 
-    binary_name = "kain.exe" if platform.system().lower() == "windows" else "kain"
+    binary_name = platform_binary_name(stem)
     repo_binary = repo_root / "target" / "debug" / binary_name
     if repo_binary.exists():
         return str(repo_binary)
 
-    path_binary = shutil.which("kain")
+    path_binary = shutil.which(stem)
     if path_binary:
         return path_binary
 
     raise RuntimeError(
-        "could not find a kain binary; build one with `cargo build -p cli` or set KAIN_BIN"
+        f"could not find a {stem} binary; build one with `cargo build -p cli` or set {env_key}"
     )
 
 
-def find_clang(repo_root: Path) -> str:
-    candidates = [
-        os.environ.get("KAIN_CLANG_PATH"),
-        shutil.which("clang"),
-        str(repo_root / "toolchain" / "llvm" / "bin" / "clang.exe"),
-        r"C:\LLVM-21\bin\clang.exe",
-        r"C:\Program Files\LLVM\bin\clang.exe",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return candidate
-    raise RuntimeError("could not find clang; set KAIN_CLANG_PATH to a working clang binary")
+def find_blade_binary(repo_root: Path, kain_binary: str) -> str:
+    env_binary = os.environ.get("BLADE_BIN")
+    if env_binary:
+        return env_binary
+
+    kain_sibling = Path(kain_binary).with_name(platform_binary_name("blade"))
+    if kain_sibling.exists():
+        return str(kain_sibling)
+
+    return find_binary(repo_root, "BLADE_BIN", "blade")
 
 
-def smoke_env(repo_root: Path, clang: str) -> dict[str, str]:
+def smoke_env(repo_root: Path) -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("KAIN_STDLIB_PATH", str(repo_root / "stdlib"))
     env.setdefault("KAIN_RUNTIME_C_PATH", str(repo_root / "runtime" / "kain_runtime.c"))
@@ -77,7 +79,6 @@ def smoke_env(repo_root: Path, clang: str) -> dict[str, str]:
         "KAIN_RUNTIME_MANIFEST_PATH",
         str(repo_root / "runtime" / "native_runtime.toml"),
     )
-    env.setdefault("KAIN_CLANG_PATH", clang)
     llvm_bin = repo_root / "toolchain" / "llvm" / "bin"
     if llvm_bin.exists():
         env["PATH"] = f"{llvm_bin}{os.pathsep}{env.get('PATH', '')}"
@@ -114,17 +115,27 @@ def run_command(
 
 
 def extract_json_payload(stdout: str) -> str:
-    object_index = stdout.find("{")
-    array_index = stdout.find("[")
-    candidates = [index for index in [object_index, array_index] if index >= 0]
-    if not candidates:
+    decoder = json.JSONDecoder()
+    fallback_payload: str | None = None
+    for index, char in enumerate(stdout):
+        if char not in "{[":
+            continue
+        try:
+            _, end = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        payload = stdout[index : index + end]
+        if not stdout[index + end :].strip():
+            return payload
+        fallback_payload = payload
+
+    if fallback_payload is None:
         raise RuntimeError("command output did not contain a JSON object or array")
-    return stdout[min(candidates):]
+    return fallback_payload
 
 
 def clean_generated_outputs(lab_root: Path, clean_cache: bool) -> None:
-    outputs = (lab_root / "outputs").resolve()
-    paths = [outputs]
+    paths = [(lab_root / "outputs").resolve()]
     if clean_cache:
         paths.append((lab_root / ".kain").resolve())
     lab_resolved = lab_root.resolve()
@@ -135,17 +146,64 @@ def clean_generated_outputs(lab_root: Path, clean_cache: bool) -> None:
             shutil.rmtree(path)
 
 
-def build_native_filter(lab_root: Path, clang: str, env: dict[str, str]) -> Path:
-    native_root = lab_root / "blades" / "native_filter" / "native"
-    source = native_root / "blade_filter.c"
-    output = native_root / platform_dynlib_name("blade_filter")
-    command = [clang, "-shared", "-O2"]
-    if platform.system().lower() != "windows":
-        command.append("-fPIC")
-    command.extend([str(source), "-o", str(output)])
-    run_command(command, cwd=lab_root, env=env)
-    (native_root / "blade_filter.build.txt").write_text(f"{output.name}\n", encoding="utf-8")
-    return output
+def assert_blade_build(
+    blade: str,
+    lab_root: Path,
+    env: dict[str, str],
+    include_vulkan: bool,
+    clean_cache: bool,
+) -> None:
+    args = [blade, "build", ".", "--json"]
+    if include_vulkan:
+        args.append("--include-vulkan")
+    if clean_cache:
+        args.append("--clean")
+    build_report = run_command(args, cwd=lab_root, env=env, capture_json=True).parsed_json
+
+    if build_report["status"] != "succeeded":
+        raise RuntimeError("blade build report did not succeed")
+
+    tasks = {task["id"]: task for task in build_report["tasks"]}
+    expected_fragments = [
+        "c:native-filter:blade_filter",
+        "cargo:native-metrics",
+        "cargo:synthetic-reporter",
+        "gpu:gpu-compute:gpu_step",
+        "blade-check",
+        "fabric-validate:kain-fabric",
+        "fabric-run:kain-fabric",
+        "fabric-validate:kain-gpu-fabric",
+    ]
+    missing = [fragment for fragment in expected_fragments if not any(fragment in task_id for task_id in tasks)]
+    if missing:
+        raise RuntimeError(f"blade build report missed expected tasks: {missing}")
+
+    for task in build_report["tasks"]:
+        if task["status"] not in {"succeeded", "cached"}:
+            raise RuntimeError(f"blade build task did not succeed: {task}")
+
+    native_output = (
+        lab_root
+        / "blades"
+        / "native_filter"
+        / "native"
+        / platform_dynlib_name("blade_filter")
+    )
+    if not native_output.exists():
+        raise RuntimeError(f"native sidecar was not materialized: {native_output}")
+
+    gpu_outputs = list((lab_root / ".kain" / "build").rglob("gpu_step.spv"))
+    if not gpu_outputs:
+        raise RuntimeError("blade build did not emit GPU artifacts under .kain/build")
+
+    report_root = lab_root / "outputs" / "fabric" / "reports"
+    if not report_root.exists() or not any(report_root.rglob("*.json")):
+        raise RuntimeError("CPU Fabric run did not emit JSON reports")
+
+    if include_vulkan:
+        gpu_report_root = lab_root / "outputs" / "gpu-fabric" / "reports"
+        if not gpu_report_root.exists() or not any(gpu_report_root.rglob("*.json")):
+            raise RuntimeError("GPU Fabric run did not emit JSON reports")
 
 
 def assert_blade_workspace(kain: str, lab_root: Path, env: dict[str, str]) -> None:
@@ -225,55 +283,6 @@ def assert_blade_workspace(kain: str, lab_root: Path, env: dict[str, str]) -> No
         raise RuntimeError("gpu-compute did not expose BladeSmokeCopy")
 
 
-def assert_fabric_and_gpu(kain: str, lab_root: Path, env: dict[str, str], include_vulkan: bool) -> None:
-    run_command(
-        [kain, "fabric", "validate", "--manifest", "KAIN.fabric.toml"],
-        cwd=lab_root,
-        env=env,
-    )
-    run_command(
-        [kain, "fabric", "validate", "--manifest", "KAIN.gpu.fabric.toml"],
-        cwd=lab_root,
-        env=env,
-    )
-    run_command(
-        [kain, "fabric", "run", "--manifest", "KAIN.fabric.toml"],
-        cwd=lab_root,
-        env=env,
-    )
-
-    run_command(
-        [
-            kain,
-            "gpu-artifacts",
-            "blades/gpu_compute/shaders/gpu_step.kn",
-            "--output",
-            "outputs/gpu/blade_smoke_gpu",
-        ],
-        cwd=lab_root,
-        env=env,
-    )
-    expected_gpu_outputs = [
-        lab_root / "outputs" / "gpu" / "blade_smoke_gpu" / "gpu_step.spv",
-        lab_root / "outputs" / "gpu" / "blade_smoke_gpu" / "gpu_step.gpu.rs",
-        lab_root / "outputs" / "gpu" / "blade_smoke_gpu" / "gpu_step.reflect.json",
-    ]
-    missing_gpu_outputs = [path for path in expected_gpu_outputs if not path.exists()]
-    if missing_gpu_outputs:
-        raise RuntimeError(f"gpu artifact command missed outputs: {missing_gpu_outputs}")
-
-    report_root = lab_root / "outputs" / "fabric" / "reports"
-    if not report_root.exists() or not any(report_root.rglob("*.json")):
-        raise RuntimeError("CPU Fabric run did not emit JSON reports")
-
-    if include_vulkan:
-        run_command(
-            [kain, "fabric", "run", "--manifest", "KAIN.gpu.fabric.toml"],
-            cwd=lab_root,
-            env=env,
-        )
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the full local Kain blades workspace smoke.")
     parser.add_argument(
@@ -284,22 +293,18 @@ def main() -> int:
     parser.add_argument(
         "--clean-cache",
         action="store_true",
-        help="remove lab-local .kain bridge caches before running",
+        help="remove lab-local build/cache artifacts before running",
     )
     args = parser.parse_args()
 
     repo_root, lab_root = resolve_repo_paths()
-    kain = find_kain_binary(repo_root)
-    clang = find_clang(repo_root)
-    env = smoke_env(repo_root, clang)
+    kain = find_binary(repo_root, "KAIN_BIN", "kain")
+    blade = find_blade_binary(repo_root, kain)
+    env = smoke_env(repo_root)
 
     clean_generated_outputs(lab_root, args.clean_cache)
-    native_output = build_native_filter(lab_root, clang, env)
-    if not native_output.exists():
-        raise RuntimeError(f"native sidecar was not produced: {native_output}")
-
+    assert_blade_build(blade, lab_root, env, args.include_vulkan, args.clean_cache)
     assert_blade_workspace(kain, lab_root, env)
-    assert_fabric_and_gpu(kain, lab_root, env, args.include_vulkan)
 
     print("PASS: blades workspace smoke completed")
     return 0

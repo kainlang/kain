@@ -1461,8 +1461,8 @@ impl NodeProcess {
         for candidate in runtime_command_candidates(&config.command) {
             let mut command = Command::new(&candidate);
             command.args(&config.args);
-            command.arg(&config.bridge_script_path);
-            command.current_dir(&config.cwd);
+            command.arg(process_portable_path(&config.bridge_script_path));
+            command.current_dir(process_portable_path(&config.cwd));
             command.stdin(Stdio::piped());
             command.stdout(Stdio::piped());
             command.stderr(Stdio::inherit());
@@ -1673,6 +1673,20 @@ fn resolve_relative_path(root: &Path, path: &Path) -> PathBuf {
     }
 }
 
+fn process_portable_path(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let rendered = path.as_os_str().to_string_lossy();
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{stripped}"));
+        }
+        if let Some(stripped) = rendered.strip_prefix(r"\\?\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    path.to_path_buf()
+}
+
 fn source_uses_node_ffi(source: &str) -> bool {
     static USE_IMPORT_REGEX: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(?m)^\s*use\s+std(?:::|/)javascript(?:::|/)bridge").expect("regex")
@@ -1693,6 +1707,8 @@ mod tests {
     use kain_core::types;
     use kain_core::CompileTarget;
     use std::fs;
+    #[cfg(windows)]
+    use std::path::PathBuf;
     use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1724,6 +1740,19 @@ mod tests {
         assert!(stdlib.functions.contains_key("kain_shared_buffer_from_js"));
         assert!(stdlib.functions.contains_key("kain_shared_image_from_js"));
         assert!(stdlib.functions.contains_key("node_package_run"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn process_portable_path_strips_windows_verbatim_prefix() {
+        assert_eq!(
+            super::process_portable_path(&PathBuf::from(r"\\?\D:\Kain\script.cjs")),
+            PathBuf::from(r"D:\Kain\script.cjs")
+        );
+        assert_eq!(
+            super::process_portable_path(&PathBuf::from(r"\\?\UNC\server\share\script.cjs")),
+            PathBuf::from(r"\\server\share\script.cjs")
+        );
     }
 
     #[test]

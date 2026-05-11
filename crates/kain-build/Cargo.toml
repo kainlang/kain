@@ -2,8 +2,17 @@
 name = "kain-build"
 version = "0.1.0"
 edition = "2021"
-description = "Cargo build.rs helpers for exporting stable KAIN engine modules from Rust projects"
+description = "KAIN build orchestration and Cargo build.rs helpers"
 license = "MIT"
 
 [dependencies]
+kain-blades = { path = "../kain-blades" }
+kain-check = { path = "../kain-check" }
+kain-core = { path = "../kain-core" }
+kain-driver = { path = "../kain-driver" }
 kain-host = { path = "../kain-host", default-features = false }
+kain-omni = { path = "../kain-omni" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+thiserror = { workspace = true }

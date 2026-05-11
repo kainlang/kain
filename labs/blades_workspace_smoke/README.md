@@ -7,22 +7,22 @@ It covers:
 - root `KAIN.toml` workspace discovery with `apps/*`, `blades/*`, and `crates/*`
 - an app blade resolved by `kain equip` and Fabric `blade = "..."`
 - a Kain library blade that contributes module roots and graph edges
-- a C ABI blade with a generated platform shared library
+- a C ABI blade whose platform shared library is built by `blade build`
 - a Rust crate blade with Kain glue and Cargo metadata
 - a synthetic Cargo-only blade discovered from `crates/*`
 - a GPU compute blade discovered through blade GPU metadata
 - CPU Fabric execution through Python -> Kain -> C ABI -> Rust crate -> Node
 - GPU shader artifact generation, plus a GPU Fabric manifest that validates blade-backed `gpu_compute`
 
-Run the smoke from the repo root:
+Run the smoke from the repo root after building the CLI package:
 
 ```powershell
 python labs\blades_workspace_smoke\scripts\run_blades_smoke.py
 ```
 
-The runner builds `blades/native_filter/native/blade_filter.dll` or the platform equivalent before `kain blades check`, then drives the repo-local `kain` binary through list, graph, check, equip, Fabric validate, Fabric run, and GPU artifact generation.
+The runner invokes `blade build . --json` inside the lab. The build system materializes the C shared library, builds Rust crate blades through Cargo, emits GPU artifacts under `.kain/build`, validates blade paths, validates Fabric manifests, and runs the CPU Fabric pipeline. The runner then drives the repo-local `kain` binary through list, graph, check, and equip assertions.
 
-Use `--clean-cache` when you specifically want to force the lab-local C/Rust FFI bridge crates to rebuild.
+Use `--clean-cache` when you specifically want to force the lab-local `.kain` build/cache roots and Fabric reports to rebuild.
 
 Use the optional Vulkan dispatch pass only on machines with a working Vulkan compute runtime:
 

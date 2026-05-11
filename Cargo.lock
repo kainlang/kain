@@ -928,6 +928,7 @@ dependencies = [
  "heck 0.5.0",
  "kain-asm",
  "kain-blades",
+ "kain-build",
  "kain-c-ffi",
  "kain-check",
  "kain-codebase",
@@ -2844,7 +2845,16 @@ dependencies = [
 name = "kain-build"
 version = "0.1.0"
 dependencies = [
+ "kain-blades",
+ "kain-check",
+ "kain-core",
+ "kain-driver",
  "kain-host",
+ "kain-omni",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

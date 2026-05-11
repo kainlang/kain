@@ -37,6 +37,37 @@ pub enum BladesCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Build the full local blade workspace through the Kain build orchestrator
+    Build {
+        /// Path inside the workspace to build
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Build profile used for artifact layout and tool adapters
+        #[arg(long)]
+        profile: Option<String>,
+
+        /// Target lane label used for artifact layout
+        #[arg(long)]
+        target: Option<String>,
+
+        /// Print the resolved task graph without executing it
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Clean .kain build/cache/report roots before executing
+        #[arg(long)]
+        clean: bool,
+
+        /// Also run GPU Fabric manifests that dispatch Vulkan compute
+        #[arg(long)]
+        include_vulkan: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -87,6 +118,15 @@ pub fn run(command: BladesCommand) -> Result<(), String> {
                 Err("blade check failed".to_string())
             }
         }
+        BladesCommand::Build {
+            path,
+            profile,
+            target,
+            dry_run,
+            clean,
+            include_vulkan,
+            json,
+        } => run_build(path, profile, target, dry_run, clean, include_vulkan, json),
     }
 }
 
@@ -202,6 +242,57 @@ fn print_equipped_blade(blade: &ResolvedBlade) {
 fn print_diagnostics(workspace: &BladeWorkspace) {
     for diagnostic in &workspace.diagnostics {
         println!("  {}: {}", diagnostic.severity, diagnostic.message);
+    }
+}
+
+pub fn run_build(
+    path: PathBuf,
+    profile: Option<String>,
+    target: Option<String>,
+    dry_run: bool,
+    clean: bool,
+    include_vulkan: bool,
+    json: bool,
+) -> Result<(), String> {
+    let mut options = kain_build::BladeBuildOptions::new(path);
+    options.profile = profile;
+    options.target = target;
+    options.dry_run = dry_run;
+    options.clean = clean;
+    options.include_vulkan = include_vulkan;
+
+    match kain_build::build_blade_workspace(&options) {
+        Ok(report) => {
+            if json {
+                print_json(&report)?;
+            } else {
+                print_build_report(&report);
+            }
+            Ok(())
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn print_build_report(report: &kain_build::BladeBuildReport) {
+    println!("Blade build: {}", report.workspace_root.display());
+    println!("  status: {:?}", report.status);
+    println!("  profile: {}", report.profile);
+    println!("  target: {}", report.target);
+    println!("  artifacts: {}", report.artifact_root.display());
+    println!("  report: {}", report.report_path.display());
+    println!("  tasks: {}", report.tasks.len());
+    for task in &report.tasks {
+        let blade = task
+            .blade
+            .as_deref()
+            .map(|value| format!(" blade={value}"))
+            .unwrap_or_default();
+        let cached = if task.cache_hit { " cached" } else { "" };
+        println!("    {:?} {}{}{}", task.status, task.id, blade, cached);
+        if let Some(error) = &task.error {
+            println!("      error: {error}");
+        }
     }
 }
 

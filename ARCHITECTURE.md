@@ -106,7 +106,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
 - [kain-actor](/M:/Code/Kain/crates/kain-actor): actor-system foundation for reusable Rust/native model types. `lib.rs` is only the public index; extend focused files such as `id.rs`, `message.rs`, `definition.rs`, `mailbox.rs`, `lifecycle.rs`, `supervision.rs`, `scheduler.rs`, `behavior.rs`, `registry.rs`, `system.rs`, and `native.rs`. `kain-core` consumes this crate for validated typed actor contracts and runtime actor IDs/messages while keeping AST ownership local to the compiler frontend.
-- [kain-blades](/M:/Code/Kain/crates/kain-blades): crate-like local workspace discovery for Kain blades. It treats `blades/*`, `apps/*`, and `crates/*` as interchangeable blade roots, resolves explicit `KAIN.toml` blade metadata plus synthetic `Cargo.toml` Rust blades, and feeds `kain equip`, Fabric steps, Kain module lookup, Rust crate FFI, and C ABI FFI.
+- [kain-blades](/M:/Code/Kain/crates/kain-blades): crate-like local workspace discovery for Kain blades. It treats `blades/*`, `apps/*`, and `crates/*` as interchangeable blade roots, resolves explicit `KAIN.toml` blade metadata plus synthetic `Cargo.toml` Rust blades, and feeds `kain equip`, Fabric steps, Kain module lookup, Rust crate FFI, C ABI FFI, and the blade build graph.
+- [kain-build](/M:/Code/Kain/crates/kain-build): workspace build orchestration for blades plus the older Cargo `build.rs` helper surface. `src/workspace.rs` plans and executes C shared libraries, Cargo crates, GPU artifacts, Kain checks, Fabric validation/runs, and explicit Node/Bun/custom tasks from one DAG with artifact roots under `.kain/build`, stamps under `.kain/cache/build`, and JSON/JSONL reports under `.kain/reports/build`.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
@@ -222,11 +223,19 @@ Current native-ui packaging rule for C ABI imports:
 
 ### Blade workspace flow
 
-`workspace root -> kain-blades discovers blade roots -> resolved blade graph -> CLI, Fabric, filesystem modules, Rust crate FFI, and C ABI FFI consume the same blade metadata`
+`workspace root -> kain-blades discovers blade roots -> kain-build plans a typed task DAG -> CLI, Fabric, filesystem modules, Rust crate FFI, C ABI FFI, Cargo, GPU, Node/Bun, and reports consume the same blade metadata`
 
 The blade system is intentionally local-first and crate-like. A `KAIN.toml` can declare `[blade]` metadata and optional `rust`, `cffi`, `fabric`, and `gpu` sections, while a plain `Cargo.toml` under `crates/*`, `apps/*`, or `blades/*` is still exposed as a synthetic Rust blade. This makes a Kain blade able to live beside Rust crates, and a Rust crate able to be equipped from blade-aware workflows without duplicating path rules.
 
-`kain equip <blade>` is the human-facing resolver. `kain blades list`, `kain blades graph`, and `kain blades check` are the inspection and validation surface. Runtime code should call `kain-blades` instead of re-scanning folders directly; future remote update/install work should extend this crate rather than inventing a second registry path.
+`kain equip <blade>` is the human-facing resolver. `kain blades list`, `kain blades graph`, and `kain blades check` are the inspection and validation surface. `kain blades build .` and the standalone `blade build .` command are the build surface. Runtime code should call `kain-blades` or `kain-build` instead of re-scanning folders directly; future remote update/install work should extend this crate boundary rather than inventing a second registry path.
+
+Build artifacts are deliberately workspace-local and disposable:
+
+- `.kain/build/<profile>/<target>/...` owns canonical build products, including C sidecars, Cargo target dirs, and GPU bundles.
+- `.kain/cache/build/stamps/*.stamp` owns task fingerprints over inputs, adapter settings, outputs, profile, and target.
+- `.kain/reports/build/session-*.json` plus `.jsonl` owns build reports and event streams.
+
+`[build]` in root or blade `KAIN.toml` can override `artifact_root`, `cache_root`, and `profile`, and `[[build.tasks]]` can add explicit tasks with `kind`, `entry`, `manifest`, `command`, `args`, `cwd`, `inputs`, `outputs`, and `depends_on`. Prefer manifest-declared tasks over lab-local build scripts.
 
 ### Selfhost lanes
 
@@ -371,7 +380,7 @@ Viewport startup intent now follows the same compiler-owned pattern:
 - [docs/kainplan](/M:/Code/Kain/docs/kainplan): legacy design and execution docs
 - [docs/pipeline](/M:/Code/Kain/docs/pipeline): legacy pipeline notes and operational docs
 - [labs](/M:/Code/Kain/labs): focused validation labs
-- [labs/blades_workspace_smoke](/M:/Code/Kain/labs/blades_workspace_smoke): full local blades workspace smoke with root `KAIN.toml`, `apps/*`, `blades/*`, and `crates/*`, covering app, Kain library, C ABI, Rust crate, synthetic Cargo, GPU metadata, Fabric `blade = "..."`, `kain equip`, CPU Fabric execution, and GPU artifact generation
+- [labs/blades_workspace_smoke](/M:/Code/Kain/labs/blades_workspace_smoke): full local blades workspace smoke with root `KAIN.toml`, `apps/*`, `blades/*`, and `crates/*`, covering app, Kain library, C ABI, Rust crate, synthetic Cargo, GPU metadata, Fabric `blade = "..."`, `kain equip`, `blade build`, CPU Fabric execution, build-cache hits, and GPU artifact generation
 - [labs/playground/piano](/M:/Code/Kain/labs/playground/piano): Linux-native 2D piano lab that drives the semantic UI surface through a C audio bridge, note playback, and loop recording
 - [labs/llvm_world_dogfood_lab](/M:/Code/Kain/labs/llvm_world_dogfood_lab): canonical LLVM dogfood lab that exercises world, patch, converge, orchestrate, actor mailbox traffic, and native UI + viewport rendering from one authored entrypoint
 - [labs/llvmzone](/M:/Code/Kain/labs/llvmzone): five-app LLVM utility lane that keeps separate executables for enum/match, world/patch/orchestrate, actor mailbox, float/bitwise, and native UI/viewport coverage
@@ -411,8 +420,9 @@ Typical commands:
 - `kain selfhost bootstrap --verify-ouroboros` to run the first native self-recompile/parity check
 - `kain omni build`
 - `kain check <file-or-dir>` and `kain test <file-or-dir>` for structured source checking and compiletest-style pass/fail suites
-- `kain blades list`, `kain blades graph`, `kain blades check`, and `kain equip <blade>` for blade workspace inspection and resolution
-- `python labs\blades_workspace_smoke\scripts\run_blades_smoke.py` for the full blade workspace smoke. Set `KAIN_BIN` when validating against a freshly built non-default target dir.
+- `kain blades list`, `kain blades graph`, `kain blades check`, `kain blades build .`, and `kain equip <blade>` for blade workspace inspection, build orchestration, and resolution
+- `blade build . --json` for the standalone blade build command. Use `--clean` for safe cleanup of workspace-local `.kain` build/cache/report roots and `--include-vulkan` only when a machine has a working Vulkan compute runtime.
+- `python labs\blades_workspace_smoke\scripts\run_blades_smoke.py` for the full blade workspace smoke. Set `KAIN_BIN` and `BLADE_BIN` when validating against freshly built non-default target dirs.
 - `kain fabric init --template polyglot`
 - `kain fabric validate`
 - `kain fabric run`
@@ -511,7 +521,8 @@ If the debug CLI is missing:
 - Node-backed browser labs such as `labs/threejs_node_ffi_space_lab` depend on a local package install inside the lab root. If bundling fails, check the lab-local `node_modules` state before assuming the browser app regressed; if the Rust sculpt lane fails, verify `rustup target add wasm32-unknown-unknown` in the local environment before blaming the app code; if Kain execution itself fails with unknown `js_import` / `js_bridge_import` identifiers, treat that as host-backed bridge registration drift in the current checkout.
 - `kain build -t hybrid` is now expected to materialize four aligned artifacts at once: a `.hybrid` descriptor plus `.js`, `.ts`, and `.wasm` sidecars. If a browser proof emits only JS text or the generated JS starts fetching its sidecar relative to the page root instead of the script URL, treat that as a CLI/driver regression rather than app-local config drift.
 - General named-argument `TypeName(field = value)` construction is not live KAIN syntax. Use a struct literal like `TypeName { field: value }` or construct the value empty and assign fields explicitly.
-- The blade workspace smoke intentionally builds the C ABI sidecar before `kain blades check`; a fresh checkout will not have `blades/native_filter/native/blade_filter.dll` or the platform equivalent until `labs/blades_workspace_smoke/scripts/run_blades_smoke.py` runs. If `target\debug\kain.exe` predates the `blades` subcommand, build the CLI into an isolated target dir and set `KAIN_BIN`.
+- The blade workspace smoke now delegates sidecar/artifact work to `blade build . --json`; a fresh checkout will not have `blades/native_filter/native/blade_filter.dll` or the platform equivalent until the build graph runs. If `target\debug\kain.exe` or `blade.exe` predates the build command, build the CLI into an isolated target dir and set `KAIN_BIN` / `BLADE_BIN`.
+- Windows `std::fs::canonicalize` can produce verbatim `\\?\` paths. Rust can usually consume those, but Node's CLI can fail when launched with them. Keep process-bound path normalization in bridge crates such as `kain-node` instead of pushing workaround paths into manifests.
 - C ABI functions imported into interpreted Kain should return signed, bounded integer values when Kain code treats them as `Int`; a raw `uint64_t` checksum can overflow the bridge at runtime.
 - Function-valued actor state is not callable through `self.field(...)` because that parses as a method call. Load the state field into a local first, then call the local closure value.
 - Fabric Python execution should stay behind `kain-python` helpers. Do not make `kain-host` reach directly into `pyo3` imports or `PythonScopeState` internals when the Python lane can expose a narrower execution API.

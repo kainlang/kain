@@ -1,6 +1,9 @@
 use std::env;
 use std::path::PathBuf;
 
+pub mod workspace;
+pub use workspace::*;
+
 pub use kain_host::{
     EngineModuleExport, EngineModuleExportConfig, HostResult, HostSession, HostType, KainError,
     KainReflect, NativeParam, TypeSchema,

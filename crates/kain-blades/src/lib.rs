@@ -64,6 +64,28 @@ pub struct KainBuildSection {
     pub module_roots: Vec<PathBuf>,
     pub module_search_paths: Vec<PathBuf>,
     pub targets: Vec<String>,
+    pub artifact_root: Option<PathBuf>,
+    pub cache_root: Option<PathBuf>,
+    pub profile: Option<String>,
+    pub tasks: Vec<KainBuildTaskSection>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct KainBuildTaskSection {
+    pub id: String,
+    pub kind: String,
+    pub blade: Option<String>,
+    pub entry: Option<PathBuf>,
+    pub manifest: Option<PathBuf>,
+    pub command: Option<String>,
+    pub args: Vec<String>,
+    pub cwd: Option<PathBuf>,
+    pub target: Option<String>,
+    pub profile: Option<String>,
+    pub inputs: Vec<PathBuf>,
+    pub outputs: Vec<PathBuf>,
+    pub depends_on: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -166,6 +188,7 @@ pub struct CffiSection {
 pub struct CffiLibrarySection {
     pub name: String,
     pub header: PathBuf,
+    pub sources: Vec<PathBuf>,
     pub shared_lib: Option<PathBuf>,
     pub symbols: BTreeMap<String, String>,
     pub include_paths: Vec<PathBuf>,
@@ -191,7 +214,11 @@ struct CargoPackageSection {
 pub struct ResolvedCffiLibrary {
     pub name: String,
     pub header: PathBuf,
+    pub sources: Vec<PathBuf>,
     pub shared_lib: Option<PathBuf>,
+    pub include_paths: Vec<PathBuf>,
+    pub defines: Vec<String>,
+    pub cpp_options: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -665,10 +692,22 @@ fn resolved_c_ffi_libraries(root: &Path, section: &CffiSection) -> Vec<ResolvedC
         .map(|library| ResolvedCffiLibrary {
             name: library.name.clone(),
             header: resolve_path(root, &library.header),
+            sources: library
+                .sources
+                .iter()
+                .map(|path| resolve_path(root, path))
+                .collect(),
             shared_lib: library
                 .shared_lib
                 .as_ref()
                 .map(|path| resolve_path(root, path)),
+            include_paths: library
+                .include_paths
+                .iter()
+                .map(|path| resolve_path(root, path))
+                .collect(),
+            defines: library.defines.clone(),
+            cpp_options: library.cpp_options.clone(),
         })
         .collect()
 }
@@ -882,6 +921,46 @@ targets = ["run", "hybrid"]
     }
 
     #[test]
+    fn manifest_parses_workspace_build_tasks_and_artifact_roots() {
+        let tmp = tempfile::tempdir().unwrap();
+        let manifest_path = tmp.path().join("KAIN.toml");
+        fs::write(
+            &manifest_path,
+            r#"
+[package]
+name = "tasked-workspace"
+
+[build]
+artifact_root = ".kain/build"
+cache_root = ".kain/cache/build"
+profile = "release"
+
+[[build.tasks]]
+id = "native-filter"
+kind = "c"
+inputs = ["native/filter.c"]
+outputs = ["native/filter.dll"]
+depends_on = ["prepare"]
+"#,
+        )
+        .unwrap();
+
+        let manifest = load_kain_manifest(&manifest_path).unwrap();
+        assert_eq!(
+            manifest.build.artifact_root,
+            Some(PathBuf::from(".kain/build"))
+        );
+        assert_eq!(
+            manifest.build.cache_root,
+            Some(PathBuf::from(".kain/cache/build"))
+        );
+        assert_eq!(manifest.build.profile.as_deref(), Some("release"));
+        assert_eq!(manifest.build.tasks.len(), 1);
+        assert_eq!(manifest.build.tasks[0].kind, "c");
+        assert_eq!(manifest.build.tasks[0].depends_on, vec!["prepare"]);
+    }
+
+    #[test]
     fn discovers_synthetic_rust_crate_from_crates_root() {
         let tmp = tempfile::tempdir().unwrap();
         fs::write(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
@@ -926,6 +1005,7 @@ name = "native-ops"
 [[c_ffi.libraries]]
 name = "ops"
 header = "native/ops.h"
+sources = ["native/ops.c"]
 "#,
         )
         .unwrap();
@@ -936,6 +1016,7 @@ header = "native/ops.h"
         assert_eq!(blade.name, "native-ops");
         assert_eq!(library.name, "ops");
         assert!(library.header.ends_with("native/ops.h"));
+        assert_eq!(library.sources.len(), 1);
     }
 
     #[test]

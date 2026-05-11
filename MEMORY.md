@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-11 - Blade build system v1 landed in kain-build
+
+Kain now has a real blade workspace build orchestrator instead of lab-local build scripts.
+
+What changed:
+
+- Added `crates/kain-build/src/workspace.rs` as the typed Blade build planner/executor. It discovers a blade workspace through `kain-blades`, builds a DAG, topologically orders tasks, stamps cacheable work, and emits JSON/JSONL build reports.
+- `kain-build` now owns adapters for C shared libraries, Cargo manifests, GPU shader artifacts, Kain source checks, Fabric validation/runs, and explicit Node/Bun/custom tasks declared in `[[build.tasks]]`.
+- Extended `KAIN.toml` blade metadata with `[build] artifact_root`, `cache_root`, `profile`, and `[[build.tasks]]`, and extended C FFI library metadata with `sources`.
+- Added `kain blades build .` plus a standalone `blade build .` binary. Both support `--json`, `--dry-run`, `--clean`, `--profile`, `--target`, and `--include-vulkan`.
+- Reworked `labs/blades_workspace_smoke` so its runner invokes `blade build . --json` instead of compiling the C sidecar itself. The smoke now proves cold builds, cache hits, C sidecar materialization, Cargo blades, GPU artifacts, CPU Fabric execution, GPU Fabric validation, and `kain blades/equip` inspection.
+- Fixed the shared Node bridge process boundary on Windows by stripping `\\?\` verbatim prefixes before spawning Node. Fabric Node steps were otherwise able to fail before the bridge script could answer.
+
+Design decisions:
+
+- Build products are workspace-local and disposable: `.kain/build/<profile>/<target>/...` for canonical artifacts, `.kain/cache/build/stamps` for fingerprints, and `.kain/reports/build` for build reports/events.
+- `kain-blades` still owns discovery and manifest resolution; `kain-build` owns build graph planning and execution. Callers should not rescan `blades/*`, `apps/*`, or `crates/*`, and labs should not carry custom build scripts for artifacts the build graph can own.
+- Fabric GPU manifests are validated by default and only run when `--include-vulkan` is passed, because local machines may not have a working Vulkan compute runtime.
+- Safe clean is intentionally narrow: `--clean` removes only workspace-local `.kain` artifact/cache/report roots.
+
+Validation:
+
+- `cargo check -p kain-build --target-dir target\\codex-blade-build`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo check -p cli --target-dir target\\codex-blade-build-cli`
+- `cargo test -p kain-blades --target-dir target\\codex-blade-test-blades`
+- `cargo test -p kain-build --target-dir target\\codex-blade-test-build`
+- `cargo test -p kain-node process_portable_path_strips_windows_verbatim_prefix --target-dir target\\codex-blade-test-node`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-blade-build-cli`
+- `$env:KAIN_BIN=(Resolve-Path target\\codex-blade-build-cli\\debug\\kain.exe).Path; $env:BLADE_BIN=(Resolve-Path target\\codex-blade-build-cli\\debug\\blade.exe).Path; python labs\\blades_workspace_smoke\\scripts\\run_blades_smoke.py`
+- Same smoke with `--clean-cache`
+
+Current risks:
+
+- `kain-build` v1 is sequential. The DAG and cache fingerprints are ready for parallel scheduling, but execution currently stays simple and deterministic.
+- Explicit `[[build.tasks]] depends_on` handling is intentionally conservative and needs a deeper pass before complex cross-blade user-authored dependency aliases become a public contract.
+- JSON output can still be preceded by lower-layer compiler/runtime chatter. The lab smoke extracts the final JSON payload robustly, but a future CLI quiet mode would be cleaner.
+
+Recommended next step:
+
+- Add parallel task execution with a small scheduler and stable report ordering, then promote a blade-build CI lane that runs the clean-cache lab smoke from freshly built `kain` and `blade` binaries.
+
 # 2026-05-11 - Dedicated kain-actor crate landed as actor-system foundation
 
 Kain now has a real `crates/kain-actor` crate instead of keeping all actor-system vocabulary hidden inside `kain-core`.
