@@ -501,6 +501,7 @@ fn lower_typed_item_memory(
                 .iter()
                 .map(|(name, ty)| (name.clone(), lower_resolved_type_memory(ty)))
                 .collect(),
+            actor_contract: actor.actor_contract.clone(),
         }),
         TypedItem::Const(constant) => TypedItem::Const(TypedConst {
             ast: Const {

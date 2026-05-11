@@ -8,6 +8,10 @@ use crate::lexer::Lexer;
 use crate::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
 use crate::parser::Parser;
 use crate::span::Span;
+use kain_actor::{
+    validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
+    ActorStateSlot, MessageParameter, MessageSignature,
+};
 use std::collections::{HashMap, HashSet};
 
 /// Type-checked AST node
@@ -106,6 +110,7 @@ pub struct TypedMacro {
 pub struct TypedActor {
     pub ast: Actor,
     pub state_types: HashMap<String, ResolvedType>,
+    pub actor_contract: ActorDefinition,
 }
 
 #[derive(Debug, Clone)]
@@ -2430,6 +2435,7 @@ fn check_const(env: &mut TypeEnv, c: &Const) -> KainResult<TypedConst> {
 
 fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
     let mut state_types = HashMap::new();
+    let mut actor_contract = ActorDefinition::new(a.name.clone());
     for s in &a.state {
         let ty = resolve_type_in_env(env, &s.ty)?;
         let initial_ty = infer_expr_type(env, &s.initial, None)?;
@@ -2440,6 +2446,10 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
             s.initial.span(),
             "actor state initializer",
         )?;
+        actor_contract.state.push(ActorStateSlot::new(
+            s.name.clone(),
+            resolved_type_contract_name(&ty),
+        ));
         state_types.insert(s.name.clone(), ty);
     }
 
@@ -2453,22 +2463,138 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
         };
         env.push_scope();
         env.define("self".to_string(), self_ty.clone());
+        let mut message_params = Vec::with_capacity(handler.params.len());
         for param in &handler.params {
             let ty = resolve_param_type(env, param, Some(&self_ty))?;
+            message_params.push(MessageParameter::required(
+                param.name.clone(),
+                resolved_type_contract_name(&ty),
+            ));
             env.define(param.name.clone(), ty);
         }
         check_block_semantics(env, &handler.body, &ctx)?;
         env.pop_scope();
+        actor_contract
+            .handlers
+            .push(ActorHandlerSignature::cast(MessageSignature::cast(
+                handler.message_type.clone(),
+                message_params,
+            )));
     }
 
     for method in &a.methods {
-        check_function_with_self(env, method, &self_ty)?;
+        let typed_method = check_function_with_self(env, method, &self_ty)?;
+        actor_contract
+            .methods
+            .push(actor_method_contract(method, &typed_method.resolved_type));
+    }
+
+    validate_actor_definition(&actor_contract)
+        .map_err(|error| KainError::type_error(error.to_string(), a.span))?;
+
+    if actor_contract.handlers.is_empty() && actor_contract.methods.is_empty() {
+        actor_contract
+            .capabilities
+            .retain(|capability| !matches!(capability, kain_actor::ActorCapability::Ask));
     }
 
     Ok(TypedActor {
         ast: a.clone(),
         state_types,
+        actor_contract,
     })
+}
+
+fn actor_method_contract(method: &Function, resolved_type: &ResolvedType) -> ActorMethodSignature {
+    match resolved_type {
+        ResolvedType::Function {
+            params,
+            ret,
+            effects,
+        } => {
+            let message_params = method
+                .params
+                .iter()
+                .zip(params.iter())
+                .map(|(param, ty)| {
+                    MessageParameter::required(param.name.clone(), resolved_type_contract_name(ty))
+                })
+                .collect();
+            ActorMethodSignature::new(
+                method.name.clone(),
+                message_params,
+                resolved_type_contract_name(ret),
+                effect_contract_names(effects),
+            )
+        }
+        _ => ActorMethodSignature::new(method.name.clone(), Vec::new(), "Unit", Vec::new()),
+    }
+}
+
+fn effect_contract_names(effects: &EffectSet) -> Vec<String> {
+    let mut names: Vec<String> = effects
+        .effects
+        .iter()
+        .map(|effect| format!("{effect:?}"))
+        .collect();
+    names.sort();
+    names
+}
+
+fn resolved_type_contract_name(ty: &ResolvedType) -> String {
+    match ty {
+        ResolvedType::Unit => "Unit".to_string(),
+        ResolvedType::Bool => "Bool".to_string(),
+        ResolvedType::Int(size) => format!("{size:?}"),
+        ResolvedType::Float(size) => format!("{size:?}"),
+        ResolvedType::String => "String".to_string(),
+        ResolvedType::Char => "Char".to_string(),
+        ResolvedType::Array(inner, count) => {
+            format!("[{}; {}]", resolved_type_contract_name(inner), count)
+        }
+        ResolvedType::Slice(inner) => format!("[{}]", resolved_type_contract_name(inner)),
+        ResolvedType::Tuple(items) => {
+            let labels = items
+                .iter()
+                .map(resolved_type_contract_name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("({labels})")
+        }
+        ResolvedType::Option(inner) => format!("Option<{}>", resolved_type_contract_name(inner)),
+        ResolvedType::Result(ok, err) => format!(
+            "Result<{}, {}>",
+            resolved_type_contract_name(ok),
+            resolved_type_contract_name(err)
+        ),
+        ResolvedType::Future(inner) => format!("Future<{}>", resolved_type_contract_name(inner)),
+        ResolvedType::Ref { mutable, inner } => {
+            if *mutable {
+                format!("&mut {}", resolved_type_contract_name(inner))
+            } else {
+                format!("&{}", resolved_type_contract_name(inner))
+            }
+        }
+        ResolvedType::Ptr { mutable, inner } => {
+            if *mutable {
+                format!("ptr_mut<{}>", resolved_type_contract_name(inner))
+            } else {
+                format!("ptr<{}>", resolved_type_contract_name(inner))
+            }
+        }
+        ResolvedType::Function { params, ret, .. } => {
+            let labels = params
+                .iter()
+                .map(resolved_type_contract_name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("fn({labels}) -> {}", resolved_type_contract_name(ret))
+        }
+        ResolvedType::Struct(name, _) | ResolvedType::Enum(name, _) => name.clone(),
+        ResolvedType::Generic(name) => name.clone(),
+        ResolvedType::Never => "!".to_string(),
+        ResolvedType::Unknown => "Unknown".to_string(),
+    }
 }
 
 fn check_test(env: &mut TypeEnv, t: &TestDef) -> KainResult<TypedTest> {

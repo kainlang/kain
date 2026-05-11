@@ -21,7 +21,7 @@ When the docs and code disagree, treat the mismatch as a signal to update the ca
 
 Kain is a compiled multi-target language toolchain, an executable semantic runtime, and an embeddable host stack.
 
-It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor semantics, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, `entangle`, and `orchestrate`.
+It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor runtime execution, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, `entangle`, and `orchestrate`. Shared actor vocabulary now lives in `crates/kain-actor` so supervision, mailboxes, scheduler policy, behavior contracts, native ABI descriptors, and typed actor contracts have a dedicated crate instead of hiding only inside `kain-core`.
 
 The build, packaging, and adapter crates matter because Kain is meant to ship into multiple targets, not because the language is limited to manifests and glue. The durable architecture rule is: keep authored logic in Kain when it belongs to Kain semantics, and use host bridges when the capability is genuinely platform-, ABI-, or ecosystem-owned.
 
@@ -45,6 +45,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ## Non-Negotiable Ownership
 
 - `crates/kain-core` owns language meaning, typed metadata, executable semantics, capability requirements, and shader/compute-plan semantics.
+- `crates/kain-actor` owns reusable actor-system model types: actor IDs, addresses, message contracts, mailbox policy, lifecycle/supervision metadata, scheduler policy, behavior contracts, native ABI descriptors, registry snapshots, actor-system validation, and the typed actor contract consumed by `kain-core`.
 - `crates/kain-driver` owns emitted bundle truth and app/runtime materialization.
 - `runtime/native` owns the stable ABI floor, startup, service contracts, and low-level host/runtime substrate.
 - Host bridges and adapters extend Kain into external ecosystems; they do not downgrade Kain source into "configuration only."
@@ -104,6 +105,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 ## Key Crates
 
 - [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
+- [kain-actor](/M:/Code/Kain/crates/kain-actor): actor-system foundation for reusable Rust/native model types. `lib.rs` is only the public index; extend focused files such as `id.rs`, `message.rs`, `definition.rs`, `mailbox.rs`, `lifecycle.rs`, `supervision.rs`, `scheduler.rs`, `behavior.rs`, `registry.rs`, `system.rs`, and `native.rs`. `kain-core` consumes this crate for validated typed actor contracts and runtime actor IDs/messages while keeping AST ownership local to the compiler frontend.
 - [kain-blades](/M:/Code/Kain/crates/kain-blades): crate-like local workspace discovery for Kain blades. It treats `blades/*`, `apps/*`, and `crates/*` as interchangeable blade roots, resolves explicit `KAIN.toml` blade metadata plus synthetic `Cargo.toml` Rust blades, and feeds `kain equip`, Fabric steps, Kain module lookup, Rust crate FFI, and C ABI FFI.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
@@ -132,7 +134,7 @@ This repo does not only compile source outward into foreign runtimes. `kain-core
 
 - direct evaluation of functions, blocks, loops, assignment, field/index mutation, closures, and pattern matching
 - async/await and future/poll semantics in the in-language runtime lane
-- actor state initialization, message handling, and runtime-side actor behavior
+- actor state initialization, message handling, runtime-side actor behavior, and `kain-actor` typed actor contract construction/validation
 - JSX/UI expression evaluation and signal-driven UI contract execution
 - runtime execution of `law`, `patch`, `converge`, `entangle`, and `orchestrate`, including law calls, converge verification, entangled state propagation, and patch transaction recording
 
@@ -176,6 +178,16 @@ Native Kain builds use explicit stdlib/runtime profiles instead of the generic r
 - LLVM actor entrypoints use the canonical `(actor_id, mailbox, user_data)` signature and talk to `kain_actor_spawn_config_init`, `kain_actor_spawn`, `kain_actor_send`, and `kain_actor_receive`.
 - The LLVM actor message and spawn-config layouts are emitted as explicit ABI types, so any change to `runtime/native/include/kain_runtime_actor.h` must be reflected in codegen and fixture validation together.
 - Actor state ownership in the LLVM lane follows the native runtime contract: compiler-owned actor state is passed as `user_data`, and received message payload buffers are freed after dispatch.
+
+### Actor Crate Flow
+
+`crates/kain-actor` is the shared actor-system model crate. It is intentionally independent from `kain-core` AST types so future native schedulers, LLVM lowering, C ABI glue, IDE tooling, and stdlib helpers can reuse the same vocabulary without importing the whole compiler frontend.
+
+Current flow:
+
+`Kain actor AST in kain-core -> typechecker resolves state/handler/method types -> TypedActor.actor_contract: kain_actor::ActorDefinition -> runtime-contract reflection and interpreter/runtime actor IDs/messages consume kain-actor primitives`
+
+Keep new actor-system capabilities in focused `kain-actor/src/*.rs` modules, not in `kain-actor/src/lib.rs` and not as more hidden structs in `kain-core/src/runtime.rs`. `kain-core` should continue to own parsing, AST, typechecking, and interpreter execution; `kain-actor` should own reusable actor-system contracts, validation, mailbox/scheduler/supervision policy, behavior contracts, registry/address model, and native ABI descriptors.
 
 ### Formatting flow
 

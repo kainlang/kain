@@ -1485,8 +1485,13 @@ fn collect_reflection_data(
                 actors.push(ReflectedActor {
                     item_id,
                     name: actor.ast.name.clone(),
-                    message_types: Vec::new(),
-                    state_type: None,
+                    message_types: actor
+                        .actor_contract
+                        .message_catalog()
+                        .names()
+                        .map(str::to_string)
+                        .collect(),
+                    state_type: Some(format!("{}State", actor.actor_contract.name)),
                 });
             }
             TypedItem::Component(component) => {

@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-11 - Dedicated kain-actor crate landed as actor-system foundation
+
+Kain now has a real `crates/kain-actor` crate instead of keeping all actor-system vocabulary hidden inside `kain-core`.
+
+What changed:
+
+- Added `crates/kain-actor` to the workspace with focused modules for actor IDs, addresses/paths, messages, actor definitions, mailbox policy, lifecycle, supervision, scheduler policy, behavior contracts, registry snapshots, actor-system validation, runtime snapshots/events, and native ABI descriptors.
+- Kept `kain-actor/src/lib.rs` as a public index only. Future actor work should extend the focused module that owns the concept instead of growing a giant lib file.
+- Wired `kain-core` to consume `kain-actor` for `ActorId`, `ActorIdAllocator`, `MessageEnvelope<Value>`, default ask timeout, and typed actor contracts.
+- `TypedActor` now carries `actor_contract: kain_actor::ActorDefinition`, built during typechecking from resolved actor state slots, handler message parameters, and actor method signatures.
+- Actor contract validation now catches duplicate handler names, duplicate state slots, duplicate method names, invalid message/parameter shapes, and supervisor child mistakes through reusable `kain-actor` validators.
+- Runtime-contract reflection now emits actor message names from the shared actor contract instead of leaving actor reflection empty.
+- Added focused tests for the actor crate model and for `kain-core` actor contract construction/duplicate-handler rejection.
+
+Design decisions:
+
+- `kain-core` still owns actor syntax, AST, typechecking, and interpreter execution. `kain-actor` owns reusable actor-system model data that can be consumed by core, native runtime work, LLVM/direct-C lowering, IDE tooling, and future stdlib layers.
+- The first crate pass is deliberately model/contract-heavy, not a replacement scheduler. That gives supervision, mailbox, behavior, registry, and native ABI work stable files to extend without destabilizing existing interpreter semantics.
+- Actor IDs now reserve raw `0` as invalid so Rust actor model data stays aligned with the native C runtime ABI.
+
+Validation:
+
+- `cargo fmt -p kain-actor -p kain-core`
+- `cargo test -p kain-actor --target-dir target\\codex-kain-actor`
+- `cargo test -p kain-core --test actor_contract_test --target-dir target\\codex-kain-actor-core`
+- `cargo test -p kain-core ask_timeout_builtin_round_trips_actor_reply --target-dir target\\codex-kain-actor-core`
+- `cargo test -p kain-core actor --target-dir target\\codex-kain-actor-core` was also attempted. The actor contract/runtime cases passed, but the broad filter failed on existing missing fixture `m:/Code/Factory/Example_GAS/test_targets.kn` in `test_target_actor_parser`.
+
+Current risks:
+
+- `kain-actor` is now the correct home for actor-system model expansion, but the interpreter still runs actor loops in `kain-core/src/runtime.rs`. Moving scheduling/mailbox execution behind reusable runtime traits should be a separate, careful pass.
+- Direct C and LLVM actor lowering can consume the new native ABI descriptors, but generated specialized per-actor handler loops are still future work.
+- There are unrelated dirty filesystem/blades/native-runtime changes in this checkout. Do not stage or revert them as part of actor work.
+
+Recommended next step:
+
+- Add a second pass that gives `kain-actor` executable mailbox/supervision runtime traits, then have `kain-core` delegate spawn/send/ask through those traits while native LLVM/C lowering consumes the same actor contract metadata.
+
 # 2026-05-11 - Native stdlib and runtime facade landed for LLVM and direct C
 
 Kain now has a target-scoped native stdlib profile and C ABI facade that let actor, entangle, patch, law, converge, orchestrate, world, timing, diagnostics, and runtime helpers compile through both `-t llvm` and `-t c`.

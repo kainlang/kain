@@ -11,6 +11,7 @@ use crate::parser::Parser;
 use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
+use kain_actor::{ActorId, ActorIdAllocator, MessageEnvelope, DEFAULT_ASK_TIMEOUT_MS};
 use kain_entangle::{EntangleBindingDescriptor, EntangleEndpointId, EntangleGraph};
 use once_cell::sync::Lazy;
 use std::any::Any;
@@ -264,16 +265,12 @@ impl Value {
 /// Reference to an actor
 #[derive(Debug, Clone)]
 pub struct ActorRef {
-    pub id: u64,
+    pub id: ActorId,
     pub sender: Sender<Message>,
 }
 
 /// Message for actor communication
-#[derive(Debug, Clone)]
-pub struct Message {
-    pub name: String,
-    pub args: Vec<Value>,
-}
+pub type Message = MessageEnvelope<Value>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExecutionLane {
@@ -358,12 +355,12 @@ pub struct Env {
     /// Methods: type_name -> method_name -> function
     methods: HashMap<String, HashMap<String, Function>>,
     #[allow(dead_code)]
-    actors: HashMap<u64, Sender<Message>>,
+    actors: HashMap<ActorId, Sender<Message>>,
     #[allow(dead_code)]
-    next_actor_id: u64,
+    actor_ids: ActorIdAllocator,
     actor_defs: HashMap<String, Actor>,
     /// ID of the current actor if running inside one
-    self_actor_id: Option<u64>,
+    self_actor_id: Option<ActorId>,
     execution_lane: ExecutionLane,
     active_capabilities: Vec<String>,
     active_patch_frames: Vec<ActivePatchFrame>,
@@ -392,7 +389,7 @@ impl Env {
             inline_modules: HashMap::new(),
             methods: HashMap::new(),
             actors: HashMap::new(),
-            next_actor_id: 1,
+            actor_ids: ActorIdAllocator::default(),
             actor_defs: HashMap::new(),
             self_actor_id: None,
             execution_lane: ExecutionLane::Interpret,
@@ -1942,8 +1939,7 @@ impl Env {
                 _ => return Err(KainError::runtime("ask: second argument must be string")),
             };
 
-            let reply_id = env.next_actor_id;
-            env.next_actor_id += 1;
+            let reply_id = env.actor_ids.allocate();
 
             let (reply_tx, reply_rx) = flume::unbounded();
             let reply_actor_ref = ActorRef {
@@ -1968,7 +1964,7 @@ impl Env {
                 ));
             }
 
-            match reply_rx.recv_timeout(std::time::Duration::from_secs(30)) {
+            match reply_rx.recv_timeout(std::time::Duration::from_millis(DEFAULT_ASK_TIMEOUT_MS)) {
                 Ok(message) => match message.args.len() {
                     0 => Ok(Value::Unit),
                     1 => Ok(message.args[0].clone()),
@@ -2010,8 +2006,7 @@ impl Env {
                 _ => return Err(KainError::runtime("ask_timeout: timeout must be an int")),
             };
 
-            let reply_id = env.next_actor_id;
-            env.next_actor_id += 1;
+            let reply_id = env.actor_ids.allocate();
 
             let (reply_tx, reply_rx) = flume::unbounded();
             let reply_actor_ref = ActorRef {
@@ -4783,7 +4778,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
                     // Allow accessing actor fields? For now maybe just id
                     if field == "id" {
-                        return Ok(Value::Int(r.id as i64));
+                        return Ok(Value::Int(r.id.as_u64() as i64));
                     }
                     Err(KainError::runtime("Actor fields not accessible"))
                 }
@@ -4826,8 +4821,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
             // Create channel
             let (tx, rx) = flume::unbounded();
-            let id = env.next_actor_id;
-            env.next_actor_id += 1;
+            let id = env.actor_ids.allocate();
             let sender = tx.clone();
             env.actors.insert(id, sender.clone());
 
@@ -4867,7 +4861,9 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     inline_modules,
                     methods,
                     actors: HashMap::new(),
-                    next_actor_id: 0,
+                    actor_ids: ActorIdAllocator::starting_after(
+                        id.as_u64().saturating_mul(1_000_000),
+                    ),
                     actor_defs,
                     self_actor_id: Some(id),
                     execution_lane,
