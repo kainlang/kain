@@ -28,7 +28,7 @@ fn magma_motion_score(terrace_radius: Float, move_speed: Float, jump_velocity: F
     return ring_steps + sprint_steps + jump_steps + arc_energy + wave_bias
 
 fn build_forge_report(profile: String, terrace_count: Int, particle_count: Int, motion_score: Int, vent_count: Int, shard_count: Int) -> String:
-    let report = "KAIN RAW NATIVE MAGMA FORGE LAB REPORT\n"
+    let report = "KAIN RAW NATIVE GENERIC VIEWPORT LAB REPORT\n"
     report = report + "profile=" + profile + "\n"
     report = report + "terrace_count=" + to_string(terrace_count) + "\n"
     report = report + "particle_count=" + to_string(particle_count) + "\n"
@@ -39,7 +39,7 @@ fn build_forge_report(profile: String, terrace_count: Int, particle_count: Int, 
     return report
 
 fn configure_magma_forge() -> Int:
-    let profile = "magma_terraces"
+    let profile = "default_viewport"
     let terrace_radius = 26.0
     let rings = terraced_ring_count(14)
     let vent_count = 12
@@ -98,7 +98,7 @@ fn configure_magma_forge() -> Int:
     return motion_score + terrace_score + particle_count
 
 fn main() -> Int:
-    println("Kain is driving the raw native magma forge lab.")
+    println("Kain is driving the raw native generic viewport lab.")
     let launch_score = configure_magma_forge()
     println(launch_score)
     spawn_native_viewport(0.0, 0.0)

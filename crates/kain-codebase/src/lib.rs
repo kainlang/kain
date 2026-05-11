@@ -1,13 +1,12 @@
 use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
+use kain_fs::{self as kfs, FsFileType};
 use libloading::Library;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value as JsonValue};
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Once, RwLock};
@@ -133,14 +132,11 @@ pub fn discover_workspace_root(path: impl AsRef<Path>) -> KainResult<PathBuf> {
 }
 
 pub fn read_text(path: impl AsRef<Path>) -> KainResult<String> {
-    fs::read_to_string(path.as_ref()).map_err(KainError::Io)
+    kfs::read_text(path.as_ref()).map_err(fs_to_kain_error)
 }
 
 pub fn write_text(path: impl AsRef<Path>, content: &str) -> KainResult<()> {
-    if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent).map_err(KainError::Io)?;
-    }
-    fs::write(path.as_ref(), content).map_err(KainError::Io)
+    kfs::write_text(path.as_ref(), content).map_err(fs_to_kain_error)
 }
 
 pub fn delete_path(path: impl AsRef<Path>) -> KainResult<()> {
@@ -149,37 +145,22 @@ pub fn delete_path(path: impl AsRef<Path>) -> KainResult<()> {
         return Ok(());
     }
     if path.is_dir() {
-        fs::remove_dir_all(path).map_err(KainError::Io)
+        kfs::remove_dir_all(path).map_err(fs_to_kain_error)
     } else {
-        fs::remove_file(path).map_err(KainError::Io)
+        kfs::remove_file(path).map_err(fs_to_kain_error)
     }
 }
 
 pub fn copy_path(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> KainResult<()> {
-    let source = source.as_ref();
-    let destination = destination.as_ref();
-    if source.is_dir() {
-        copy_directory(source, destination)
-    } else {
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(KainError::Io)?;
-        }
-        fs::copy(source, destination)
-            .map(|_| ())
-            .map_err(KainError::Io)
-    }
+    kfs::copy_path(source.as_ref(), destination.as_ref()).map_err(fs_to_kain_error)
 }
 
 pub fn move_path(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> KainResult<()> {
-    let destination = destination.as_ref();
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(KainError::Io)?;
-    }
-    fs::rename(source.as_ref(), destination).map_err(KainError::Io)
+    kfs::move_path(source.as_ref(), destination.as_ref()).map_err(fs_to_kain_error)
 }
 
 pub fn create_directory(path: impl AsRef<Path>) -> KainResult<()> {
-    fs::create_dir_all(path.as_ref()).map_err(KainError::Io)
+    kfs::create_dir_all(path.as_ref()).map_err(fs_to_kain_error)
 }
 
 pub fn read_json_file(path: impl AsRef<Path>) -> KainResult<JsonValue> {
@@ -217,10 +198,7 @@ pub fn scan_path(path: impl AsRef<Path>) -> KainResult<Vec<CodebaseFileEntry>> {
 }
 
 pub fn hash_file(path: impl AsRef<Path>) -> KainResult<String> {
-    let bytes = fs::read(path.as_ref()).map_err(KainError::Io)?;
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    Ok(format!("{:x}", hasher.finalize()))
+    kfs::hash_file(path.as_ref()).map_err(fs_to_kain_error)
 }
 
 pub fn run_command(
@@ -892,26 +870,6 @@ fn builtin_ts_compile(_env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
     )
 }
 
-fn copy_directory(source: &Path, destination: &Path) -> KainResult<()> {
-    fs::create_dir_all(destination).map_err(KainError::Io)?;
-    for entry in fs::read_dir(source).map_err(KainError::Io)? {
-        let entry = entry.map_err(KainError::Io)?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        if source_path.is_dir() {
-            copy_directory(&source_path, &destination_path)?;
-        } else {
-            if let Some(parent) = destination_path.parent() {
-                fs::create_dir_all(parent).map_err(KainError::Io)?;
-            }
-            fs::copy(&source_path, &destination_path)
-                .map(|_| ())
-                .map_err(KainError::Io)?;
-        }
-    }
-    Ok(())
-}
-
 fn scan_path_inner(
     root: &Path,
     path: &Path,
@@ -921,26 +879,19 @@ fn scan_path_inner(
     if entries.len() >= limit {
         return Ok(());
     }
-    for entry in fs::read_dir(path).map_err(KainError::Io)? {
-        let entry = entry.map_err(KainError::Io)?;
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().to_string();
+    for entry in kfs::read_dir_entries(path).map_err(fs_to_kain_error)? {
+        let path = entry.path;
+        let name = entry.file_name;
         if DEFAULT_SCAN_IGNORES.iter().any(|ignored| *ignored == name) {
             continue;
         }
-        let metadata = entry.metadata().map_err(KainError::Io)?;
         let relative_path = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
         entries.push(CodebaseFileEntry {
             path: path.clone(),
             relative_path,
-            kind: if metadata.is_dir() {
-                "directory"
-            } else {
-                "file"
-            }
-            .to_string(),
-            byte_len: if metadata.is_file() {
-                metadata.len()
+            kind: entry.file_type.as_str().to_string(),
+            byte_len: if entry.file_type == FsFileType::File {
+                entry.metadata.len
             } else {
                 0
             },
@@ -949,7 +900,7 @@ fn scan_path_inner(
                 .and_then(|value| value.to_str())
                 .map(ToString::to_string),
         });
-        if metadata.is_dir() {
+        if entry.file_type == FsFileType::Directory {
             scan_path_inner(root, &path, entries, limit)?;
         }
         if entries.len() >= limit {
@@ -982,6 +933,10 @@ fn c_symbol_error(err: libloading::Error) -> KainError {
     KainError::runtime(format!("Failed to resolve C symbol: {err}"))
 }
 
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
+}
+
 fn json_i64_arg(args: &[JsonValue], index: usize, name: &str) -> KainResult<i64> {
     args.get(index)
         .and_then(JsonValue::as_i64)
@@ -996,7 +951,9 @@ fn json_f64_arg(args: &[JsonValue], index: usize, name: &str) -> KainResult<f64>
 
 fn normalize_path_for_display(path: &Path) -> KainResult<PathBuf> {
     if path.exists() {
-        fs::canonicalize(path).map_err(KainError::Io)
+        kfs::canonicalize_path(path)
+            .map(PathBuf::from)
+            .map_err(fs_to_kain_error)
     } else if let Some(parent) = path.parent() {
         Ok(existing_directory_anchor(parent)?.join(
             path.file_name()
@@ -1016,12 +973,16 @@ fn existing_directory_anchor(path: &Path) -> KainResult<PathBuf> {
         path.to_path_buf()
     };
     if candidate.exists() {
-        return fs::canonicalize(candidate).map_err(KainError::Io);
+        return kfs::canonicalize_path(candidate)
+            .map(PathBuf::from)
+            .map_err(fs_to_kain_error);
     }
     let mut current = candidate.as_path();
     loop {
         if current.exists() {
-            return fs::canonicalize(current).map_err(KainError::Io);
+            return kfs::canonicalize_path(current)
+                .map(PathBuf::from)
+                .map_err(fs_to_kain_error);
         }
         let Some(parent) = current.parent() else {
             return std::env::current_dir().map_err(KainError::Io);
@@ -1159,7 +1120,7 @@ mod tests {
 
         assert_eq!(
             discover_workspace_root(root.join("src/main.kn")).unwrap(),
-            fs::canonicalize(root).unwrap()
+            PathBuf::from(kfs::canonicalize_path(root).unwrap())
         );
         assert!(read_text(root.join("src/main.kn"))
             .unwrap()

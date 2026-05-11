@@ -6,7 +6,7 @@ use crate::model::{
 };
 use heck::ToSnakeCase;
 use kain_core::error::KainError;
-use std::fs;
+use kain_fs as kfs;
 use std::path::{Path, PathBuf};
 
 pub const BRIDGE_FORMAT_VERSION: &str = "c-ffi-v1";
@@ -23,9 +23,9 @@ pub fn write_generated_artifacts(
     let generated_dir = output_dir_override
         .map(Path::to_path_buf)
         .unwrap_or_else(|| cache_dir.to_path_buf());
-    fs::create_dir_all(&generated_dir).map_err(KainError::Io)?;
+    kfs::create_dir_all(&generated_dir).map_err(fs_to_kain_error)?;
     let bridge_dir = cache_dir.join("bridge");
-    fs::create_dir_all(bridge_dir.join("src")).map_err(KainError::Io)?;
+    kfs::create_dir_all(bridge_dir.join("src")).map_err(fs_to_kain_error)?;
 
     let canonical_module_source = render_canonical_module_source(resolved, bundle);
     let prelude_source = render_prelude_source(resolved, bundle);
@@ -105,18 +105,20 @@ pub fn write_generated_artifacts(
             ))
         })?;
 
-    fs::write(&canonical_module_path, &canonical_module_source).map_err(KainError::Io)?;
-    fs::write(&prelude_path, &prelude_source).map_err(KainError::Io)?;
-    fs::write(&report_json_path, report_json).map_err(KainError::Io)?;
-    fs::write(&report_text_path, &report_text).map_err(KainError::Io)?;
-    fs::write(&manifest_json_path, &manifest_json).map_err(KainError::Io)?;
-    fs::write(
+    kfs::atomic_write_text(&canonical_module_path, &canonical_module_source)
+        .map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&prelude_path, &prelude_source).map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&report_json_path, &report_json).map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&report_text_path, &report_text).map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&manifest_json_path, &manifest_json).map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(
         &packaged_bridge_manifest_path,
         &packaged_bridge_manifest_json,
     )
-    .map_err(KainError::Io)?;
-    fs::write(&bridge_manifest_path, render_bridge_manifest(resolved)).map_err(KainError::Io)?;
-    fs::write(&bridge_source_path, &bridge_source).map_err(KainError::Io)?;
+    .map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&bridge_manifest_path, &render_bridge_manifest(resolved))
+        .map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(&bridge_source_path, &bridge_source).map_err(fs_to_kain_error)?;
 
     let artifacts = GeneratedArtifacts {
         canonical_module_source: canonical_module_source.clone(),
@@ -149,6 +151,10 @@ pub fn write_generated_artifacts(
     };
 
     Ok((artifacts, output))
+}
+
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
 }
 
 fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> String {

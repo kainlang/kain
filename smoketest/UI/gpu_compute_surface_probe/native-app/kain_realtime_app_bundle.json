@@ -6,8 +6,8 @@
       {
         "viewport_node": "surface.node.6",
         "viewport_kind": "viewport3d",
-        "scene": "tensor_stream_probe",
-        "title": "Tensor Stream Viewport",
+        "scene": "geometry_fixture",
+        "title": "Generic Viewport",
         "material_refs": [],
         "shader_bundle_ref_keys": [
           "shader::StreamPulse::compute"

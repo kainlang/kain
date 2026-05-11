@@ -510,7 +510,7 @@ struct NativeAppRuntimeBridgeCommandRecord {
 
 pub const KAIN_UI_NATIVE_DEMO_SOURCE: &str = r#"
 component App():
-    render <panel title="Kain UI Retirement Demo" layout="dock" gap={12} padding={12}>
+    render <panel title="Kain UI Generic Workbench" layout="dock" gap={12} padding={12}>
         <panel title="Workspace Shell" layout="row" gap={12}>
             <inspector title="Selection">
                 Active document: kain-ui
@@ -524,7 +524,7 @@ component App():
         </panel>
         <graph title="Material Graph" />
         <timeline title="Sequencer" />
-        <viewport3d title="Luminous Port Viewport" scene="luminous_port" />
+        <viewport3d title="Generic Viewport" scene="geometry_fixture" />
     </panel>
 "#;
 
@@ -3300,7 +3300,7 @@ impl KainUiNativeApp {
             app_manifest_path,
             command_bridge_path,
             app_runtime_snapshot: runtime_snapshot.map(|(snapshot, _)| snapshot),
-            scene_catalog: SceneCatalog::default(),
+            scene_catalog: SceneCatalog::empty(),
             realtime_catalog,
             shader_bundle: shader_bundle.map(|(bundle, _)| bundle),
             renderer,

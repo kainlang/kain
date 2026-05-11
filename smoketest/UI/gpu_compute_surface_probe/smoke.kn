@@ -7,7 +7,7 @@ component App():
         <graph title="Dispatch Plan">
             <text role="caption">dispatch 32x1x1 | local 1x1x1 | storage buffers src,dst | execution_domain tensor_stream</text>
         </graph>
-        <viewport3d title="Tensor Stream Viewport" scene="tensor_stream_probe" />
+        <viewport3d title="Generic Viewport" scene="geometry_fixture" />
     </slot>
 
 shader compute StreamPulse(id: UVec3) -> Vec4:

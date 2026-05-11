@@ -284,7 +284,7 @@ ApplicationWindow {
     readonly property string browserUrl: __KAIN_BROWSER_URL__
     readonly property string viewportImagePath: __KAIN_VIEWPORT_IMAGE_PATH__
     property bool browserReady: false
-    readonly property bool atriumShowcaseMode: kainSession.app_name === "material-atrium-showcase"
+    readonly property bool atriumShowcaseMode: kainSession.app_name === "generic-scene-smoke"
     readonly property var atriumRendererModes: [
         {
             id: "bgfx",
@@ -1421,7 +1421,7 @@ ApplicationWindow {
                                                 }
 
                                                 Label {
-                                                    text: "material_atrium / primitive-backed scene"
+                                                    text: "geometry_fixture / primitive-backed scene"
                                                     color: "#d8e8ff"
                                                     font.pixelSize: 12
                                                 }
@@ -2129,8 +2129,8 @@ mod tests {
     fn generated_qml_contains_atrium_renderer_switchboard() {
         let bundle = ui_runtime_bundle_from_output(
             UiRuntimeMetadata {
-                app_name: Some("material-atrium-showcase".to_string()),
-                window_title: "Kain Material Atrium Showcase".to_string(),
+                app_name: Some("generic-scene-smoke".to_string()),
+                window_title: "Kain Generic Scene Smoke".to_string(),
                 root_component: "App".to_string(),
                 ..UiRuntimeMetadata::default()
             },
@@ -2147,7 +2147,7 @@ mod tests {
         assert!(qml.contains("Renderer Switchboard"));
         assert!(qml.contains("Atrium Preview"));
         assert!(qml.contains("Backend Matrix"));
-        assert!(qml.contains("material_atrium / primitive-backed scene"));
+        assert!(qml.contains("geometry_fixture / primitive-backed scene"));
     }
 
     #[test]

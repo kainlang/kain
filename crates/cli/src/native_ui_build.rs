@@ -382,14 +382,14 @@ fn resolve_native_ui_host_sidecars(
     };
 
     let preview_image_path =
-        absolute_path(&input_directory.join("material_atrium_visual_example.png"))?;
+        absolute_path(&input_directory.join("generic_scene_visual_reference.png"))?;
     if !preview_image_path.exists() {
         return Ok(Vec::new());
     }
 
     Ok(vec![NativeAppHostSidecarBinding {
         source_path: preview_image_path,
-        packaged_file_name: Some("material_atrium_visual_example.png".to_string()),
+        packaged_file_name: Some("generic_scene_visual_reference.png".to_string()),
         env_var: Some("KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH".to_string()),
     }])
 }
@@ -670,10 +670,10 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
     }
 
     #[test]
-    fn native_ui_build_packages_material_atrium_preview_sidecar_when_present() {
+    fn native_ui_build_packages_geometry_fixture_preview_sidecar_when_present() {
         let temp = TempDir::new().expect("temp dir");
         let input = temp.path().join("app.kn");
-        let preview_path = temp.path().join("material_atrium_visual_example.png");
+        let preview_path = temp.path().join("generic_scene_visual_reference.png");
         fs::write(
             &input,
             r#"
@@ -700,7 +700,7 @@ component App():
         assert!(result.generated.artifact_paths.iter().any(|path| {
             path.file_name()
                 .and_then(|value| value.to_str())
-                .is_some_and(|value| value == "material_atrium_visual_example.png")
+                .is_some_and(|value| value == "generic_scene_visual_reference.png")
         }));
     }
 

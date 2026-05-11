@@ -46,7 +46,7 @@ component App():
             <panel scope="studio" variant="hud" layout="row" gap={18}>
                 <panel scope="studio" variant="hud" layout="column" gap={2}>
                     <text role="eyebrow">FABRIC GPU PROOF</text>
-                    <text role="title">magma_terraces</text>
+                    <text role="title">geometry_fixture</text>
                     <text role="caption">__HERO_SUBTITLE__</text>
                 </panel>
                 <panel scope="studio" variant="hud" layout="column" gap={2}>
@@ -61,10 +61,10 @@ component App():
                 </panel>
             </panel>
 
-            <viewport3d title="Fabric Studio Viewport" scene="magma_terraces" />
+            <viewport3d title="Fabric Studio Viewport" scene="geometry_fixture" />
 
             <panel scope="studio" variant="status" layout="row" gap={16}>
-                <text role="caption">scene magma_terraces</text>
+                <text role="caption">scene geometry_fixture</text>
                 <text role="caption">summary __SUMMARY_INLINE__</text>
                 <text role="caption">gpu signature __GPU_SIGNATURE__</text>
                 <text role="caption">artifact __EXECUTABLE_HINT__</text>

@@ -15,8 +15,8 @@ The folder is split on purpose:
 | `theme_authoring_shell` | Theme tokens, variants, widget defaults, and text roles stay compiler-owned | foundation |
 | `dock_layout_workbench` | Semantic layout lowering and resizable dock structure remain explicit | foundation |
 | `surface_modes_gallery` | Surface-mode mappings vary by widget family without host-local hacks | foundation |
-| `spv_ui_surface_probe` | Shader-canvas, packed font, and SPIR-V proof paths stay opt-in and inspectable | devtools / probe |
-| `gpu_compute_surface_probe` | Compute residency and native packaging are materialized as real proof artifacts | probe |
+| `geometry_fixture` | Shader-canvas, packed font, and SPIR-V proof paths stay opt-in and inspectable | devtools / probe |
+| `geometry_fixture` | Compute residency and native packaging are materialized as real proof artifacts | probe |
 | `kinetic_ui_atlas` | Distinct product shells and hot-reload state preservation stay believable in practice | showcase / reload |
 | `website_clone_signalcraft` | The native lane can ship a product-like editorial page instead of a debug shell | showcase |
 

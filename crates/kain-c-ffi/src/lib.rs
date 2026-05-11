@@ -17,12 +17,12 @@ use generate::write_generated_artifacts;
 use kain_core::error::KainError;
 use kain_core::runtime::{register_env_extension, Env};
 use kain_core::CompileTarget;
+use kain_fs as kfs;
 use libloading::{Library, Symbol};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Once, RwLock};
@@ -76,7 +76,7 @@ pub fn shared_library_env_var(import_name: &str) -> String {
 
 pub fn load_packaged_bridges_from_manifest(manifest_path: &Path) -> Result<usize, KainError> {
     register();
-    let manifest_source = fs::read_to_string(manifest_path).map_err(|err| {
+    let manifest_source = kfs::read_text(manifest_path).map_err(|err| {
         KainError::runtime(format!(
             "Failed to read packaged C FFI manifest '{}': {err}",
             manifest_path.display()
@@ -132,7 +132,7 @@ pub fn import_library(
         BRIDGE_FORMAT_VERSION,
     );
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
-    fs::create_dir_all(&cache_dir).map_err(KainError::Io)?;
+    kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
     let (artifacts, mut output) = write_generated_artifacts(
         &resolved,
@@ -145,12 +145,12 @@ pub fn import_library(
 
     if let Some(report_json_path) = options.report_json.as_ref() {
         if let Some(parent) = report_json_path.parent() {
-            fs::create_dir_all(parent).map_err(KainError::Io)?;
+            kfs::create_dir_all(parent).map_err(fs_to_kain_error)?;
         }
         let report_json = serde_json::to_string_pretty(&artifacts.report).map_err(|err| {
             KainError::runtime(format!("Failed to serialize C FFI report override: {err}"))
         })?;
-        fs::write(report_json_path, report_json).map_err(KainError::Io)?;
+        kfs::atomic_write_text(report_json_path, &report_json).map_err(fs_to_kain_error)?;
     }
 
     if options.mode.wants_live() {
@@ -256,7 +256,9 @@ fn artifact_mode_for_target(target: CompileTarget) -> Option<ArtifactMode> {
 
 fn ensure_bridge_loaded(dylib_path: &Path) -> Result<(), KainError> {
     register();
-    let canonical_path = fs::canonicalize(dylib_path).unwrap_or_else(|_| dylib_path.to_path_buf());
+    let canonical_path = kfs::canonicalize_path(dylib_path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| dylib_path.to_path_buf());
     if LOADED_BRIDGES
         .read()
         .expect("c ffi bridge registry read")
@@ -414,7 +416,7 @@ fn load_c_ffi_config(root: &Path) -> Result<Option<config::CFfiConfig>, KainErro
         if !manifest_path.exists() {
             continue;
         }
-        let source = fs::read_to_string(&manifest_path).map_err(KainError::Io)?;
+        let source = kfs::read_text(&manifest_path).map_err(fs_to_kain_error)?;
         let value: toml::Value = toml::from_str(&source).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to parse '{}': {err}",
@@ -535,6 +537,10 @@ fn lib_filename(crate_name: &str) -> String {
     }
 }
 
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -543,7 +549,6 @@ mod tests {
     use kain_core::parser::Parser;
     use kain_core::runtime::{interpret, Value};
     use kain_core::types;
-    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -573,15 +578,15 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
-        fs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
 
         let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
         )
@@ -608,15 +613,15 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
-        fs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
 
         let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\nBEACON_EXPORT const char* beacon_label(int id);\nBEACON_EXPORT int beacon_ping(void);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"beacon_math.h\"\n#include <stdio.h>\nstatic char G_BUFFER[64];\nint beacon_add(int a, int b) { return a + b; }\nconst char* beacon_label(int id) { snprintf(G_BUFFER, sizeof(G_BUFFER), \"beacon-%d\", id); return G_BUFFER; }\nint beacon_ping(void) { return 1; }\n",
         )
@@ -645,16 +650,16 @@ mod tests {
         let root = temp.path();
         let native_dir = root.join("native");
         let package_dir = root.join("package");
-        fs::create_dir_all(&native_dir).expect("native dir");
-        fs::create_dir_all(&package_dir).expect("package dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&package_dir).expect("package dir");
 
         let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
         )
@@ -694,8 +699,8 @@ mod tests {
                 .file_name
                 .as_str(),
         );
-        fs::copy(bridge_dylib_path, &copied_bridge_path).expect("copy bridge dylib");
-        fs::copy(&dll_path, &copied_shared_path).expect("copy shared dll");
+        kfs::copy_file(bridge_dylib_path, &copied_bridge_path).expect("copy bridge dylib");
+        kfs::copy_file(&dll_path, &copied_shared_path).expect("copy shared dll");
 
         let packaged_manifest = PackagedBridgeManifest {
             schema_version: "kain-c-ffi-runtime-v1".to_string(),
@@ -703,9 +708,9 @@ mod tests {
             imports: vec![output.packaged_bridge_manifest.clone()],
         };
         let packaged_manifest_path = package_dir.join("kain_c_host_bridges.json");
-        fs::write(
+        kfs::write_text(
             &packaged_manifest_path,
-            serde_json::to_string_pretty(&packaged_manifest).expect("serialize manifest"),
+            &serde_json::to_string_pretty(&packaged_manifest).expect("serialize manifest"),
         )
         .expect("write manifest");
 
@@ -730,23 +735,23 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
-        fs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
 
         let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\n\nBEACON_EXPORT int beacon_add(int a, int b);\nBEACON_EXPORT _Bool beacon_is_even(int value);\nBEACON_EXPORT double beacon_scale(double value, double factor);\nBEACON_EXPORT const char* beacon_label(int id);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"beacon_math.h\"\n#include <stdio.h>\nstatic char G_BUFFER[64];\nint beacon_add(int a, int b) { return a + b; }\n_Bool beacon_is_even(int value) { return (value % 2) == 0; }\ndouble beacon_scale(double value, double factor) { return value * factor; }\nconst char* beacon_label(int id) { snprintf(G_BUFFER, sizeof(G_BUFFER), \"beacon-%d\", id); return G_BUFFER; }\n",
         )
         .expect("source");
         compile_shared_library(&source_path, &dll_path);
-        fs::write(
+        kfs::write_text(
             root.join("KAIN.toml"),
-            format!(
+            &format!(
                 "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
                 header_path
                     .strip_prefix(root)
@@ -796,23 +801,23 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
-        fs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
 
         let (header_path, source_path, dll_path) = image_fx_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define IMAGEFX_EXPORT __declspec(dllexport)\n#else\n#define IMAGEFX_EXPORT\n#endif\n#include <stddef.h>\n#include <stdint.h>\ntypedef struct ImageWorkspace ImageWorkspace;\nIMAGEFX_EXPORT uint64_t imagefx_checksum(const uint8_t* pixels, size_t len);\nIMAGEFX_EXPORT void imagefx_invert_rgba(uint8_t* pixels, size_t len);\nIMAGEFX_EXPORT const char* imagefx_signature(int width, int height, uint64_t checksum);\nIMAGEFX_EXPORT ImageWorkspace* imagefx_workspace_create(int width, int height);\nIMAGEFX_EXPORT int imagefx_workspace_area(ImageWorkspace* workspace);\nIMAGEFX_EXPORT void imagefx_workspace_destroy(ImageWorkspace* workspace);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"image_fx.h\"\n#include <stdio.h>\n#include <stdlib.h>\nstruct ImageWorkspace { int width; int height; };\nstatic char G_SIGNATURE[96];\nuint64_t imagefx_checksum(const uint8_t* pixels, size_t len) { uint64_t checksum = 1469598103934665603ull; size_t index = 0; while (index < len) { checksum ^= (uint64_t)pixels[index]; checksum *= 1099511628211ull; index += 1; } return checksum; }\nvoid imagefx_invert_rgba(uint8_t* pixels, size_t len) { size_t index = 0; while (index + 3 < len) { pixels[index] = (uint8_t)(255 - pixels[index]); pixels[index + 1] = (uint8_t)(255 - pixels[index + 1]); pixels[index + 2] = (uint8_t)(255 - pixels[index + 2]); index += 4; } }\nconst char* imagefx_signature(int width, int height, uint64_t checksum) { snprintf(G_SIGNATURE, sizeof(G_SIGNATURE), \"imagefx:%dx%d:%llu\", width, height, (unsigned long long)checksum); return G_SIGNATURE; }\nImageWorkspace* imagefx_workspace_create(int width, int height) { ImageWorkspace* workspace = (ImageWorkspace*)malloc(sizeof(ImageWorkspace)); if (!workspace) { return NULL; } workspace->width = width; workspace->height = height; return workspace; }\nint imagefx_workspace_area(ImageWorkspace* workspace) { if (!workspace) { return 0; } return workspace->width * workspace->height; }\nvoid imagefx_workspace_destroy(ImageWorkspace* workspace) { if (workspace) { free(workspace); } }\n",
         )
         .expect("source");
         compile_shared_library(&source_path, &dll_path);
-        fs::write(
+        kfs::write_text(
             root.join("KAIN.toml"),
-            format!(
+            &format!(
                 "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"image_fx\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
                 header_path
                     .strip_prefix(root)
@@ -863,23 +868,23 @@ mod tests {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
-        fs::create_dir_all(&native_dir).expect("native dir");
+        kfs::create_dir_all(&native_dir).expect("native dir");
 
         let (header_path, source_path, dylib_path) = c_fixture_paths(&native_dir);
-        fs::write(
+        kfs::write_text(
             &header_path,
             "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
         )
         .expect("header");
-        fs::write(
+        kfs::write_text(
             &source_path,
             "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
         )
         .expect("source");
         compile_shared_library(&source_path, &dylib_path);
-        fs::write(
+        kfs::write_text(
             root.join("KAIN.toml"),
-            format!(
+            &format!(
                 "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\nheader = \"{}\"\nshared_lib = \"native/${{kain_dynlib:beacon_math}}\"\n",
                 header_path
                     .strip_prefix(root)
@@ -949,9 +954,9 @@ mod tests {
     }
 
     fn write_c_manifest(root: &Path, import_name: &str, header_path: &Path, dll_path: &Path) {
-        fs::write(
+        kfs::write_text(
             root.join("KAIN.toml"),
-            format!(
+            &format!(
                 "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"{import_name}\"\nheader = \"{}\"\nshared_lib = \"{}\"\n",
                 header_path
                     .strip_prefix(root)

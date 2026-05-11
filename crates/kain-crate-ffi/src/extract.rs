@@ -5,8 +5,8 @@ use crate::model::{
 use crate::resolve::simple_file_sha256;
 use heck::ToSnakeCase;
 use kain_core::error::KainError;
+use kain_fs as kfs;
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 use syn::spanned::Spanned;
 use syn::{
@@ -49,12 +49,14 @@ impl<'a> ExtractionState<'a> {
         file_path: &Path,
         module_path: &[String],
     ) -> Result<(), KainError> {
-        let canonical = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
+        let canonical = kfs::canonicalize_path(file_path)
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| file_path.to_path_buf());
         if !self.parsed_files.insert(canonical.clone()) {
             return Ok(());
         }
 
-        let source = fs::read_to_string(&canonical).map_err(KainError::Io)?;
+        let source = kfs::read_text(&canonical).map_err(fs_to_kain_error)?;
         self.source_fingerprints.push(FileFingerprint {
             path: canonical.display().to_string(),
             sha256: simple_file_sha256(&canonical)?,
@@ -713,6 +715,10 @@ fn join_symbol_path(module_path: &[String], symbol_name: &str) -> String {
     } else {
         format!("{}::{}", module_path.join("::"), symbol_name)
     }
+}
+
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
 }
 
 fn is_public(visibility: &Visibility) -> bool {

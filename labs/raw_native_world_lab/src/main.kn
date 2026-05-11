@@ -2,12 +2,7 @@ fn lab_path(name: String) -> String:
     return "M:/Code/Kain/labs/raw_native_world_lab/" + name
 
 fn pick_profile(city_extent: Float, wants_neon: Bool) -> String:
-    if wants_neon && city_extent >= 120.0:
-        return "luminous_port"
-    elif city_extent >= 92.0:
-        return "starforge"
-    else:
-        return "emberfall"
+    return "default_viewport"
 
 fn particle_budget(city_blocks: Int, speed_rank: Int) -> Int:
     let budget = 72 + city_blocks + (speed_rank * 3)

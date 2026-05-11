@@ -2235,7 +2235,7 @@ mod tests {
         let source = r#"
 component App():
     render <panel>
-        <viewport3d title="Hero" scene="magma_terraces" material="terrain" />
+        <viewport3d title="Hero" scene="geometry_fixture" material="terrain" />
     </panel>
 "#;
         let tokens = Lexer::new(source).tokenize().expect("tokens");
@@ -2249,7 +2249,7 @@ component App():
         let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Rust);
         assert_eq!(bundle.target, "rust");
         assert_eq!(bundle.render.scenes.len(), 1);
-        assert_eq!(bundle.render.scenes[0].scene, "magma_terraces");
+        assert_eq!(bundle.render.scenes[0].scene, "geometry_fixture");
         assert_eq!(
             bundle.render.scenes[0].material_refs,
             vec!["terrain".to_string()]
@@ -2274,7 +2274,7 @@ component App():
       {
         "viewport_node": "surface.node.6",
         "viewport_kind": "viewport3d",
-        "scene": "magma_terraces",
+        "scene": "geometry_fixture",
         "title": "Viewport",
         "material_refs": ["terrain"],
         "shader_bundle_ref_keys": ["shader::terrain::fragment"],
@@ -2286,7 +2286,7 @@ component App():
           "far_plane": 220.0
         },
         "presentation": {
-          "profile": "tensor_stream_probe",
+          "profile": "geometry_fixture",
           "fog_density": 0.018,
           "particle_budget": 192,
           "gizmo": {
@@ -2325,7 +2325,7 @@ component App():
 
         let bundle =
             realtime_app_bundle_from_json(json).expect("realtime bundle should deserialize");
-        assert_eq!(bundle.render.scenes[0].scene, "magma_terraces");
+        assert_eq!(bundle.render.scenes[0].scene, "geometry_fixture");
         assert_eq!(
             bundle.render.scenes[0]
                 .camera
@@ -2338,7 +2338,7 @@ component App():
                 .presentation
                 .as_ref()
                 .and_then(|presentation| presentation.profile.as_deref()),
-            Some("tensor_stream_probe")
+            Some("geometry_fixture")
         );
         assert_eq!(
             bundle.render.scenes[0]
@@ -2358,7 +2358,7 @@ component App():
     render <panel>
         <viewport3d
             title="Tensor Probe"
-            scene="tensor_stream_probe"
+            scene="geometry_fixture"
             camera.position.x={12.0}
             camera.position.y={6.0}
             camera.position.z={18.0}
@@ -2368,7 +2368,7 @@ component App():
             camera.fov_y={48.0}
             camera.near_plane={0.05}
             camera.far_plane={320.0}
-            viewport.profile="kerr_black_hole"
+            viewport.profile="geometry_fixture"
             viewport.fog_density={0.012}
             viewport.particle_budget={288}
             gizmo.profile="dcc_transform_universal"
@@ -2399,7 +2399,7 @@ component App():
 
         let bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Llvm);
         let scene = &bundle.render.scenes[0];
-        assert_eq!(scene.scene, "tensor_stream_probe");
+        assert_eq!(scene.scene, "geometry_fixture");
         assert_eq!(
             scene.camera.as_ref().and_then(|camera| camera.position),
             Some([12.0, 6.0, 18.0])
@@ -2420,7 +2420,7 @@ component App():
                 .presentation
                 .as_ref()
                 .and_then(|presentation| presentation.profile.as_deref()),
-            Some("kerr_black_hole")
+            Some("geometry_fixture")
         );
         assert_eq!(
             scene

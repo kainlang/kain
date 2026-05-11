@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    BlackHole, CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit,
-    SceneCatalog, SceneDescription, SceneResolution, Transform, Vec3,
+    CameraPose, ColorRgb, ManipulatorMode, Mat4, ParticleEmitter, PickingHit, SceneCatalog,
+    SceneDescription, SceneResolution, Transform, Vec3,
 };
 use crate::{DirectionalLight, LightingRig, Material, PointLight};
 
@@ -60,12 +60,6 @@ pub struct FrameDiagnostics {
     pub composition_summary: Option<String>,
     pub framing_hint: Option<String>,
     pub camera_fit_ratio: Option<String>,
-    pub scene_role: Option<String>,
-    pub scene_scale: Option<String>,
-    pub scene_profile: Option<String>,
-    pub scene_focus: Option<String>,
-    pub scene_density: Option<String>,
-    pub composition_stage: Option<String>,
     pub visible_instances: Vec<String>,
     pub culled_instances: Vec<String>,
 }
@@ -385,9 +379,6 @@ impl SoftwareRenderer {
             camera,
             view_projection,
         );
-        if let Some(black_hole) = scene.black_hole.as_ref() {
-            render_black_hole_overlay(rgba, resolution, camera, black_hole, view_projection);
-        }
 
         Ok(RenderFrame {
             width: resolution.width,
@@ -644,52 +635,6 @@ fn render_particles(
     }
 }
 
-fn render_black_hole_overlay(
-    rgba: &mut [u8],
-    resolution: RenderResolution,
-    camera: &CameraPose,
-    black_hole: &BlackHole,
-    view_projection: Mat4,
-) {
-    let clip_position = view_projection.transform_point(black_hole.center);
-    if clip_position[3] <= 0.001 {
-        return;
-    }
-    let screen = project_vertex(clip_position, resolution);
-    let distance = (black_hole.center - camera.position).length().max(0.001);
-    let horizon_radius =
-        (black_hole.radius * resolution.height as f32 / distance * 0.34).clamp(6.0, 96.0);
-    let lens_radius = (black_hole.lens_radius * resolution.height as f32 / distance * 0.34)
-        .clamp(horizon_radius + 4.0, 132.0);
-
-    draw_glow_ring(
-        rgba,
-        resolution,
-        screen.x,
-        screen.y,
-        lens_radius,
-        black_hole.lens_color,
-        0.32,
-    );
-    draw_glow_ring(
-        rgba,
-        resolution,
-        screen.x,
-        screen.y,
-        lens_radius * 0.82,
-        black_hole.disk_color,
-        0.18,
-    );
-    draw_solid_disc(
-        rgba,
-        resolution,
-        screen.x,
-        screen.y,
-        horizon_radius,
-        black_hole.inner_color,
-    );
-}
-
 fn sample_particle(
     emitter: &ParticleEmitter,
     index: usize,
@@ -793,84 +738,6 @@ fn draw_particle(
 
             blend_additive(rgba, pixel_index, particle.color * intensity);
             stats.particles_shaded += 1;
-        }
-    }
-}
-
-fn draw_solid_disc(
-    rgba: &mut [u8],
-    resolution: RenderResolution,
-    center_x: f32,
-    center_y: f32,
-    radius: f32,
-    color: ColorRgb,
-) {
-    let min_x = (center_x - radius)
-        .floor()
-        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
-    let max_x = (center_x + radius)
-        .ceil()
-        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
-    let min_y = (center_y - radius)
-        .floor()
-        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
-    let max_y = (center_y + radius)
-        .ceil()
-        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
-    let radius_sq = radius * radius;
-    let pixel = color.to_rgba8();
-
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
-            let dx = x as f32 + 0.5 - center_x;
-            let dy = y as f32 + 0.5 - center_y;
-            if dx * dx + dy * dy > radius_sq {
-                continue;
-            }
-            let rgba_index = (y * resolution.width + x) * 4;
-            rgba[rgba_index..rgba_index + 4].copy_from_slice(&pixel);
-        }
-    }
-}
-
-fn draw_glow_ring(
-    rgba: &mut [u8],
-    resolution: RenderResolution,
-    center_x: f32,
-    center_y: f32,
-    radius: f32,
-    color: ColorRgb,
-    intensity: f32,
-) {
-    let ring_width = (radius * 0.22).max(3.0);
-    let outer = radius + ring_width;
-    let min_x = (center_x - outer)
-        .floor()
-        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
-    let max_x = (center_x + outer)
-        .ceil()
-        .clamp(0.0, resolution.width as f32 - 1.0) as usize;
-    let min_y = (center_y - outer)
-        .floor()
-        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
-    let max_y = (center_y + outer)
-        .ceil()
-        .clamp(0.0, resolution.height as f32 - 1.0) as usize;
-
-    for y in min_y..=max_y {
-        for x in min_x..=max_x {
-            let dx = x as f32 + 0.5 - center_x;
-            let dy = y as f32 + 0.5 - center_y;
-            let distance = (dx * dx + dy * dy).sqrt();
-            let falloff = 1.0 - ((distance - radius).abs() / ring_width);
-            if falloff <= 0.0 {
-                continue;
-            }
-            blend_additive(
-                rgba,
-                y * resolution.width + x,
-                color * (falloff * falloff * intensity),
-            );
         }
     }
 }
@@ -1101,7 +968,7 @@ mod tests {
                         normal: Vec3::UP,
                     },
                 ],
-                triangles: vec![[0, 1, 2]],
+                triangles: vec![[0, 2, 1]],
             },
         );
 
@@ -1151,8 +1018,6 @@ mod tests {
             }],
             animations: vec![],
             particle_emitters: vec![],
-            black_hole: None,
-            terrain_surfaces: vec![],
         }
     }
 
@@ -1180,18 +1045,8 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .contains("meshes"));
-        assert_eq!(frame.diagnostics.scene_role.as_deref(), Some("study"));
-        assert_eq!(frame.diagnostics.scene_scale.as_deref(), Some("room-scale"));
-        assert_eq!(
-            frame.diagnostics.scene_profile.as_deref(),
-            Some("volumetric")
-        );
-        assert_eq!(frame.diagnostics.scene_density.as_deref(), Some("balanced"));
-        assert_eq!(
-            frame.diagnostics.framing_hint.as_deref(),
-            Some("balanced-fit")
-        );
-        assert_eq!(frame.diagnostics.camera_fit_ratio.as_deref(), Some("3.69"));
+        assert_eq!(frame.diagnostics.framing_hint.as_deref(), Some("tight-fit"));
+        assert_eq!(frame.diagnostics.camera_fit_ratio.as_deref(), Some("2.35"));
         assert!(frame.diagnostics.scene_resolution.is_none());
         assert_eq!(frame.diagnostics.visible_instances, vec!["triangle"]);
         assert!(frame.diagnostics.culled_instances.is_empty());
@@ -1204,8 +1059,19 @@ mod tests {
             Transform::identity().with_translation(Vec3::new(0.0, 0.0, 8.0));
 
         let mut renderer = SoftwareRenderer::default();
+        let view = RenderViewSettings {
+            camera: Some(CameraPose {
+                position: Vec3::new(0.0, 0.0, 4.0),
+                target: Vec3::ZERO,
+                up: Vec3::UP,
+                fov_y_degrees: 60.0,
+                near_plane: 0.1,
+                far_plane: 100.0,
+            }),
+            ..RenderViewSettings::default()
+        };
         let frame = renderer
-            .render_scene(&scene, 0.0, RenderResolution::new(128, 128))
+            .render_scene_with_view(&scene, 0.0, RenderResolution::new(128, 128), &view)
             .expect("scene should render even when the only instance is culled");
 
         assert_eq!(frame.stats.triangles_rasterized, 0);
@@ -1214,17 +1080,18 @@ mod tests {
     }
 
     #[test]
-    fn retirement_demo_renders_non_empty_frame() {
-        let catalog = SceneCatalog::default();
+    fn explicit_catalog_scene_renders_non_empty_frame() {
+        let scene = framed_camera_scene();
+        let catalog = SceneCatalog::single(scene);
         let mut renderer = SoftwareRenderer::default();
         let frame = renderer
             .render_catalog_scene(
                 &catalog,
-                "retirement_demo",
+                "framed_camera_scene",
                 1.25,
                 RenderResolution::new(192, 128),
             )
-            .expect("demo scene should render");
+            .expect("catalog scene should render");
 
         assert_eq!(frame.rgba.len(), 192 * 128 * 4);
         assert!(frame.stats.triangles_submitted > 0);
@@ -1236,46 +1103,30 @@ mod tests {
                 .scene_resolution
                 .as_ref()
                 .map(|resolution| resolution.resolved_name.as_str()),
-            Some("retirement_demo")
+            Some("framed_camera_scene")
         );
     }
 
     #[test]
-    fn black_hole_scene_renders_particles() {
-        let catalog = SceneCatalog::default();
-        let mut renderer = SoftwareRenderer::default();
-        let frame = renderer
-            .render_catalog_scene(
-                &catalog,
-                "kerr_black_hole",
-                2.0,
-                RenderResolution::new(256, 160),
-            )
-            .expect("black hole scene should render");
-
-        assert!(frame.stats.particles_submitted > 0);
-        assert!(frame.stats.particles_shaded > 0);
-    }
-
-    #[test]
     fn catalog_scene_render_diagnostics_include_resolution_context() {
-        let catalog = SceneCatalog::default();
+        let scene = framed_camera_scene();
+        let catalog = SceneCatalog::new(
+            "framed_camera_scene",
+            BTreeMap::from([("framed_camera_scene".to_string(), scene)]),
+            BTreeMap::from([("preview".to_string(), "framed_camera_scene".to_string())]),
+        )
+        .expect("catalog should validate");
         let mut renderer = SoftwareRenderer::default();
         let frame = renderer
-            .render_catalog_scene(
-                &catalog,
-                "renderer_atrium",
-                0.0,
-                RenderResolution::new(160, 120),
-            )
+            .render_catalog_scene(&catalog, "preview", 0.0, RenderResolution::new(160, 120))
             .expect("alias scene should render");
 
         let resolution = frame
             .diagnostics
             .scene_resolution
             .expect("catalog scene renders should carry resolution metadata");
-        assert_eq!(resolution.requested_name, "renderer_atrium");
-        assert_eq!(resolution.resolved_name, "material_atrium");
+        assert_eq!(resolution.requested_name, "preview");
+        assert_eq!(resolution.resolved_name, "framed_camera_scene");
         assert!(matches!(resolution.kind, SceneResolutionKind::Alias { .. }));
     }
 }

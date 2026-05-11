@@ -89,7 +89,7 @@ component App():
                     <text role="caption">This section is intended to read like a marketing hero instead of a tool inspector.</text>
                 </panel>
             </slot>
-            <viewport3d title="Studio Preview" scene="luminous_port" />
+            <viewport3d title="Studio Preview" scene="geometry_fixture" />
         </panel>
 
         <panel title="Feature Reel" scope="site" variant="section" layout="column" gap={12}>

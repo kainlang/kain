@@ -4,12 +4,12 @@ world SceneConsole:
     state focus_count: Int = 3
     state score: Int = 0
     surface native_ui => App
-    surface viewport3d => "magma_terraces"
+    surface viewport3d => "geometry_fixture"
 
 component App():
     render <panel title="Scene Console">
         <text>{"Scene Console"}</text>
-        <viewport3d title="Magma Terrace" scene="magma_terraces" />
+        <viewport3d title="Generic Scene" scene="geometry_fixture" />
     </panel>
 
 fn clamp_int(value: Int, floor: Int, ceiling: Int) -> Int:

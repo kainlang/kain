@@ -1,5 +1,50 @@
 # Kain Memory
 
+# 2026-05-11 - LLVM native semantic handles and intent runtime hooks landed
+
+Kain's LLVM native lane now preserves the core semantic shapes that were previously erased for smoke-test convenience.
+
+What changed:
+
+- LLVM maps `Option<T>`, `Result<Ok, Err>`, and `Future<T>` to native tagged `i8*` handles instead of lowering them as plain payload types.
+- Added native C facade constructors, tag checks, payload-copy helpers, ready-future creation, await payload extraction, async sleep future creation, and stdlib wrappers for runtime visibility.
+- Wired `runtime/native/src/core/kain_runtime_async.c` into `runtime/native_core_runtime.toml` so lean LLVM file builds have the async substrate available.
+- Added LLVM lowering for `Some`, `None`, `Ok`, `Err`, `is_some`, `is_none`, `is_ok`, `is_err`, `ok`, `unwrap`, `expect`, `unwrap_or`, `await`, `async`, and `?` for the native tagged path.
+- Added native runtime hooks for patch begin/record/commit/undo visibility, entangle propagation records, converge mismatch recording, and orchestrate stage begin/end counters.
+- Strengthened `converge` LLVM lowering so a fast lane emits alongside the spec lane, records verification status, returns the fast result on match, and falls back to spec on mismatch.
+- Tightened frontend scalar compatibility so TypeScript-import scalar comparison leniency no longer makes ordinary return values, match arms, lets, or arguments type-compatible.
+- Added `runtime/fixtures/native_option_result_future/main.kn` and expanded `runtime/fixtures/native_world_actor_intent/main.kn` to prove the native semantic/runtime counters through real LLVM builds.
+
+Design decisions:
+
+- The tagged C ABI is a pragmatic bridge: semantic handles stay visible across LLVM/native boundaries while payload extraction matures beyond scalar-heavy paths.
+- `?` residual propagation in LLVM currently returns the existing native `Option`/`Result` handle from functions whose native return ABI is `i8*`.
+- Intent runtime hooks are process-local observability and parity helpers, not durable crash-safe journals yet.
+- Direct C was intentionally not expanded in this pass; it still trails LLVM for arrays, tuples, match, closures, ranges, fstrings, payload enums, generics, semantic options/results/futures, and typed actor lowering.
+
+Validation:
+
+- `cargo test -p kain-core --test semantic_typecheck_test --target-dir target\\codex-actor-runtime-cli -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test --target-dir target\\codex-actor-runtime-cli -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-actor-runtime-cli`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe check runtime\\fixtures\\native_option_result_future\\main.kn --target llvm`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe build runtime\\fixtures\\native_option_result_future\\main.kn -t llvm -o target\\codex-native-runtime-proofs\\native_option_result_future.ll`
+- `target\\codex-native-runtime-proofs\\native_option_result_future.exe`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe check runtime\\fixtures\\native_world_actor_intent\\main.kn --target llvm`
+- `target\\codex-actor-runtime-cli\\debug\\kain.exe build runtime\\fixtures\\native_world_actor_intent\\main.kn -t llvm -o target\\codex-native-runtime-proofs\\native_world_actor_intent.ll`
+- `target\\codex-native-runtime-proofs\\native_world_actor_intent.exe`
+
+Current risks:
+
+- Tagged payload ownership is conservative and can leak nested RC-managed payloads; the next native ABI pass should add payload destructors or type-aware retain/release callbacks.
+- Pattern payload binding and `unwrap` extraction in LLVM currently target scalar payloads first. Struct, tuple, slice, array, and nested semantic payloads need targeted fixtures before calling the lane complete.
+- Ready futures are enough for `async { value }` and await payload proof, but a full scheduler/poll/waker/timer model still needs end-to-end Kain syntax and stdlib coverage.
+- Patch undo/replay is a visibility hook, not semantic transaction rollback parity with the interpreter.
+
+Recommended next step:
+
+- Add a table-driven native semantic conformance suite that cross-runs interpreter and LLVM cases for every `Option`/`Result`/`Future` payload class, then deepen the C facade lifecycle model before broadening actor/future scheduling semantics.
+
 # 2026-05-11 - Native actor ABI contract and C runtime hardening landed
 
 Kain's native actor lane now has an executable ABI contract instead of relying on matching comments between Rust, LLVM IR, and C headers.
@@ -999,3 +1044,17 @@ Current risks:
 
 - Full `cargo test -p kain-3d -- --nocapture` now compiles but still has 13 stale assertion failures around primitive counts and scene/camera composition expectations. The live build and targeted smoke surfaces are healthy; the broader 3D test suite needs a focused expectation refresh.
 - Root `cargo fmt` is still blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`; format only touched files or clean that file first before expecting repo-wide fmt to run.
+
+# 2026-05-11 - Kain 3D hardcoded demo cleanup
+
+`crates/kain-3D` no longer owns built-in showcase/demo scenes. `SceneCatalog` is now explicit data: callers construct it with authored `SceneDescription` values and optional aliases, while `SceneCatalog::empty()` is the honest no-scene host fallback. The old embedded catalog, terrain/black-hole special cases, and demo-specific frame diagnostics were removed so Kain source, realtime bundles, or assets own scene identity.
+
+The Win32 native viewport now carries one neutral `default_viewport` fallback profile and a generic fallback draw path. Raw native labs that need a fallback profile should set `KAIN_NATIVE_SCENE_PROFILE=default_viewport`; authored viewport scenes should still travel through Kain UI/runtime bundle data such as `geometry_fixture`.
+
+The 3D smoke binary is now `generic_scene_smoke` and the package disables Cargo auto-bin discovery so the legacy demo-named local file is not part of the crate surface. The local filesystem ACL prevented deleting/renaming that old file in place, so future cleanup may need an elevated shell to physically remove it from this checkout; the intended repo path is `crates/kain-3D/src/bin/generic_scene_smoke.rs`.
+
+Validation:
+
+- `cargo check -p kain-3d --bins --lib --target-dir target\codex-kain-3d-clean-check` passes.
+- `cargo test -p kain-3d --target-dir target\codex-kain-3d-clean-test` passes: 27 lib tests, 2 smoke-bin tests, 0 doc tests.
+- `cargo check --bins` exposed a separate `kain-fs::canonicalize_path` return-type drift; `kain-c-ffi`, `kain-crate-ffi`, and `kain-codebase` now convert the returned `String` into `PathBuf` at PathBuf-owning call sites.

@@ -4,11 +4,7 @@ fn bool_word(flag: Bool) -> String:
     return "disabled"
 
 fn mode_scene(mode: String) -> String:
-    if mode == "atelier":
-        return "luminous_port"
-    elif mode == "forge":
-        return "magma_terraces"
-    return "tensor_stream_probe"
+    return "geometry_fixture"
 
 fn mode_profile(mode: String, cinematic: Bool) -> String:
     if mode == "atelier":
@@ -62,7 +58,7 @@ world KainTasteLab:
     state metric: String = "balanced orbital workspace for runtime diagnostics | solar orange signal | cinematic=disabled"
     state score: Int = 64
     surface native_ui => App
-    surface viewport3d => "tensor_stream_probe"
+    surface viewport3d => "geometry_fixture"
 
 patch sync_lab(lab: KainTasteLab) -> String:
     lab.status = f"mode={lab.mode} | accent={lab.accent} | cinematic={bool_word(lab.cinematic)}"

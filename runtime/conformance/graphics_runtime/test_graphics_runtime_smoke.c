@@ -13,8 +13,8 @@ static const char* kGraphicsBundleJson =
     "      {\n"
     "        \"viewport_node\": \"surface.node.9\",\n"
     "        \"viewport_kind\": \"viewport3d\",\n"
-    "        \"scene\": \"magma_terraces\",\n"
-    "        \"title\": \"Magma Terraces\",\n"
+    "        \"scene\": \"geometry_fixture\",\n"
+    "        \"title\": \"Generic Scene\",\n"
     "        \"material_refs\": [\"terrain\"],\n"
     "        \"shader_bundle_ref_keys\": [\n"
     "          \"shader::terrain::vertex\",\n"
@@ -104,8 +104,8 @@ static const char* kRustGraphicsBundleJson =
     "      {\n"
     "        \"viewport_node\": \"surface.node.9\",\n"
     "        \"viewport_kind\": \"viewport3d\",\n"
-    "        \"scene\": \"magma_terraces\",\n"
-    "        \"title\": \"Magma Terraces\",\n"
+    "        \"scene\": \"geometry_fixture\",\n"
+    "        \"title\": \"Generic Scene\",\n"
     "        \"material_refs\": [\"terrain\"],\n"
     "        \"shader_bundle_ref_keys\": [\"shader::terrain::vertex\"]\n"
     "      }\n"
@@ -127,8 +127,8 @@ static const char* kInvalidMaterialGraphicsBundleJson =
     "      {\n"
     "        \"viewport_node\": \"surface.node.9\",\n"
     "        \"viewport_kind\": \"viewport3d\",\n"
-    "        \"scene\": \"magma_terraces\",\n"
-    "        \"title\": \"Magma Terraces\",\n"
+    "        \"scene\": \"geometry_fixture\",\n"
+    "        \"title\": \"Generic Scene\",\n"
     "        \"material_refs\": [\"terrain\"],\n"
     "        \"shader_bundle_ref_keys\": [\n"
     "          \"shader::terrain::vertex\",\n"
@@ -218,8 +218,8 @@ static const char* kInvalidComputeGraphicsBundleJson =
     "      {\n"
     "        \"viewport_node\": \"surface.node.9\",\n"
     "        \"viewport_kind\": \"viewport3d\",\n"
-    "        \"scene\": \"magma_terraces\",\n"
-    "        \"title\": \"Magma Terraces\",\n"
+    "        \"scene\": \"geometry_fixture\",\n"
+    "        \"title\": \"Generic Scene\",\n"
     "        \"material_refs\": [\"terrain\"],\n"
     "        \"shader_bundle_ref_keys\": [\n"
     "          \"shader::terrain::vertex\",\n"
@@ -393,8 +393,8 @@ static int test_graphics_bundle_from_json(void) {
     if (!check_str_eq(bundle.primary_compute.resource_bindings[0].resource_type, "storage_buffer", "bundle.primary_compute.resource_bindings[0].resource_type")) return 0;
     if (!check_str_eq(bundle.primary_compute.resource_bindings[1].access, "write", "bundle.primary_compute.resource_bindings[1].access")) return 0;
     if (!check_str_eq(bundle.primary_viewport_kind, "viewport3d", "bundle.primary_viewport_kind")) return 0;
-    if (!check_str_eq(bundle.primary_scene, "magma_terraces", "bundle.primary_scene")) return 0;
-    if (!check_str_eq(bundle.primary_title, "Magma Terraces", "bundle.primary_title")) return 0;
+    if (!check_str_eq(bundle.primary_scene, "geometry_fixture", "bundle.primary_scene")) return 0;
+    if (!check_str_eq(bundle.primary_title, "Generic Scene", "bundle.primary_title")) return 0;
     if (!check_str_eq(bundle.primary_material_refs, "terrain", "bundle.primary_material_refs")) return 0;
     if (!check_contains(bundle.primary_shader_ref_keys, "shader::terrain::compute", "bundle.primary_shader_ref_keys")) return 0;
 

@@ -3,11 +3,11 @@ use crate::model::{
     DependencySpec, ImportCrateOptions, PrepareContext, ResolutionKind, ResolvedCrate,
 };
 use kain_core::error::KainError;
+use kain_fs as kfs;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashSet};
 use std::ffi::OsStr;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -375,7 +375,7 @@ fn resolve_registry_crate(
             crate_name,
             sanitize_for_filename(&entry.version)
         ));
-    fs::create_dir_all(&resolution_root).map_err(KainError::Io)?;
+    kfs::create_dir_all(&resolution_root).map_err(fs_to_kain_error)?;
     let dependency_key = crate_name.replace('-', "_");
     let package_name = entry
         .package
@@ -400,7 +400,7 @@ fn resolve_registry_crate(
         "[package]\nname = \"kain-crate-ffi-resolve-{dependency_key}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n{}\n",
         dependency_lines.join("")
     );
-    fs::write(&manifest_path, manifest).map_err(KainError::Io)?;
+    kfs::atomic_write_text(&manifest_path, &manifest).map_err(fs_to_kain_error)?;
     let metadata = load_metadata(&manifest_path, options)?;
     let package = metadata
         .packages
@@ -575,7 +575,7 @@ fn load_rust_ffi_config(root: &Path) -> Result<Option<RustFfiConfig>, KainError>
     let Some(manifest_path) = manifest_path else {
         return Ok(None);
     };
-    let source = fs::read_to_string(&manifest_path).map_err(KainError::Io)?;
+    let source = kfs::read_text(&manifest_path).map_err(fs_to_kain_error)?;
     let value = source.parse::<toml::Value>().map_err(|err| {
         KainError::runtime(format!(
             "Failed to parse KAIN manifest '{}': {err}",
@@ -633,13 +633,13 @@ fn sanitize_for_filename(value: &str) -> String {
 }
 
 fn canonicalize_lossy(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    kfs::canonicalize_path(path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| path.to_path_buf())
 }
 
 pub fn simple_file_sha256(path: &Path) -> Result<String, KainError> {
-    let bytes = fs::read(path).map_err(KainError::Io)?;
-    let digest = Sha256::digest(bytes);
-    Ok(format!("{:x}", digest))
+    kfs::hash_file(path).map_err(fs_to_kain_error)
 }
 
 pub fn lib_filename(stem: &str) -> String {
@@ -654,6 +654,10 @@ pub fn lib_filename(stem: &str) -> String {
 
 pub fn target_directory_name() -> &'static str {
     "debug"
+}
+
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
 }
 
 pub fn build_cache_inputs(files: &[PathBuf]) -> Result<CacheInputs, KainError> {

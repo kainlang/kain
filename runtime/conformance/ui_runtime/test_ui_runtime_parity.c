@@ -65,7 +65,7 @@ static int test_root_and_nodes_are_canonical(
     if (!test_true(strcmp(compiled_bundle->nodes[0].title, "Root Panel") == 0, "canonical root node should keep its authored title")) {
         return 0;
     }
-    if (!test_true(strcmp(compiled_bundle->nodes[2].scene, "magma_terraces") == 0, "canonical viewport node should keep its authored scene")) {
+    if (!test_true(strcmp(compiled_bundle->nodes[2].scene, "geometry_fixture") == 0, "canonical viewport node should keep its authored scene")) {
         return 0;
     }
     return 1;

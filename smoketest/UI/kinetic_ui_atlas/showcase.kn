@@ -244,7 +244,7 @@ component App():
                     </panel>
 
                     <panel title="Foundry Stage" dock="center" layout="column" gap={12}>
-                        <viewport3d title="Foundry Viewport" scene="magma_terraces" />
+                        <viewport3d title="Foundry Viewport" scene="geometry_fixture" />
                         <panel title="Telemetry Deck" layout="row" gap={12}>
                             <graph title="Heat Lattice" />
                             <timeline title="Shift Windows" />
@@ -253,7 +253,7 @@ component App():
 
                     <panel title="Review Rail" dock="right" split_ratio={0.25} min_width={300} max_width={400} resizable={true} layout="column" gap={12}>
                         <inspector title="Scene Readout">
-                            <text role="metric">magma_terraces</text>
+                            <text role="metric">geometry_fixture</text>
                             <text role="caption">scene binding</text>
                             <text role="caption">WASD + QE move, drag mouse to look</text>
                             <text role="caption">T / R / Y gizmo controls</text>

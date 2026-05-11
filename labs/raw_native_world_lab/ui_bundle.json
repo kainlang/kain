@@ -19,7 +19,7 @@
           "kind": "Text",
           "props": {
             "text": {
-              "String": "Luminous port viewport Native Kain bundle boot "
+              "String": "Generic viewport Native Kain bundle boot "
             }
           },
           "children": [],
@@ -68,7 +68,7 @@
           "kind": "Text",
           "props": {
             "text": {
-              "String": "scenes/ luminous_port.scene particles/lantern_dust.sim "
+              "String": "scenes/ geometry_fixture.scene particles/lantern_dust.sim "
             }
           },
           "children": [],
@@ -176,7 +176,7 @@
           "kind": "Viewport3D",
           "props": {
             "scene": {
-              "String": "luminous_port"
+              "String": "geometry_fixture"
             },
             "tag": {
               "String": "viewport3d"
@@ -269,7 +269,7 @@
             "kind": "Text",
             "props": {
               "text": {
-                "String": "Luminous port viewport Native Kain bundle boot "
+                "String": "Generic viewport Native Kain bundle boot "
               }
             },
             "children": [],
@@ -334,7 +334,7 @@
             "kind": "Text",
             "props": {
               "text": {
-                "String": "scenes/ luminous_port.scene particles/lantern_dust.sim "
+                "String": "scenes/ geometry_fixture.scene particles/lantern_dust.sim "
               }
             },
             "children": [],
@@ -475,7 +475,7 @@
             "kind": "Viewport3D",
             "props": {
               "scene": {
-                "String": "luminous_port"
+                "String": "geometry_fixture"
               },
               "tag": {
                 "String": "viewport3d"

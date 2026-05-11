@@ -36,5 +36,5 @@ component App():
         <timeline title="Timeline" scope="gallery">
             <text role="caption">Accent strip</text>
         </timeline>
-        <viewport3d title="Viewport" scope="gallery" scene="luminous_port" />
+        <viewport3d title="Viewport" scope="gallery" scene="geometry_fixture" />
     </slot>

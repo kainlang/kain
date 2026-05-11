@@ -16,13 +16,13 @@ use generate::write_generated_artifacts;
 use kain_core::error::KainError;
 use kain_core::runtime::{register_env_extension, Env};
 use kain_core::CompileTarget;
+use kain_fs as kfs;
 use libloading::{Library, Symbol};
 use once_cell::sync::Lazy;
 use resolve::{
     build_cache_hash, build_cache_inputs, lib_filename, resolve_crate, target_directory_name,
 };
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Once, RwLock};
@@ -67,7 +67,7 @@ pub fn import_crate(
         BRIDGE_FORMAT_VERSION,
     );
     let cache_dir = default_cache_root(prepare).join("crate_ffi").join(hash);
-    fs::create_dir_all(&cache_dir).map_err(KainError::Io)?;
+    kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
     let (artifacts, mut output) = write_generated_artifacts(
         &resolved,
@@ -80,14 +80,14 @@ pub fn import_crate(
 
     if let Some(report_json_path) = options.report_json.as_ref() {
         if let Some(parent) = report_json_path.parent() {
-            fs::create_dir_all(parent).map_err(KainError::Io)?;
+            kfs::create_dir_all(parent).map_err(fs_to_kain_error)?;
         }
         let report_json = serde_json::to_string_pretty(&artifacts.report).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to serialize crate FFI report override: {err}"
             ))
         })?;
-        fs::write(report_json_path, report_json).map_err(KainError::Io)?;
+        kfs::atomic_write_text(report_json_path, &report_json).map_err(fs_to_kain_error)?;
     }
 
     if options.mode.wants_live() {
@@ -160,7 +160,9 @@ fn apply_loaded_bridges(env: &mut Env) {
 
 fn ensure_bridge_loaded(dylib_path: &Path) -> Result<(), KainError> {
     register();
-    let canonical_path = fs::canonicalize(dylib_path).unwrap_or_else(|_| dylib_path.to_path_buf());
+    let canonical_path = kfs::canonicalize_path(dylib_path)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| dylib_path.to_path_buf());
     if LOADED_BRIDGES
         .read()
         .expect("crate ffi bridge registry read")
@@ -248,6 +250,10 @@ fn default_cache_root(prepare: &PrepareContext) -> PathBuf {
         .join("cache")
 }
 
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,13 +272,13 @@ mod tests {
     fn imports_local_crate_path_and_generates_bindings() {
         let temp = TempDir::new().expect("temp dir");
         let crate_dir = temp.path().join("sample_ffi");
-        fs::create_dir_all(crate_dir.join("src")).expect("create crate");
-        fs::write(
+        kfs::create_dir_all(crate_dir.join("src")).expect("create crate");
+        kfs::write_text(
             crate_dir.join("Cargo.toml"),
             "[package]\nname = \"sample_ffi\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )
         .expect("write Cargo.toml");
-        fs::write(
+        kfs::write_text(
             crate_dir.join("src").join("lib.rs"),
             "pub fn add(a: i64, b: i64) -> i64 { a + b }\npub fn label() -> &'static str { \"sample\" }\n",
         )
@@ -309,13 +315,13 @@ mod tests {
     fn live_import_reuses_cached_bridge_for_local_crate_path() {
         let temp = TempDir::new().expect("temp dir");
         let crate_dir = temp.path().join("sample_live_ffi");
-        fs::create_dir_all(crate_dir.join("src")).expect("create crate");
-        fs::write(
+        kfs::create_dir_all(crate_dir.join("src")).expect("create crate");
+        kfs::write_text(
             crate_dir.join("Cargo.toml"),
             "[package]\nname = \"sample_live_ffi\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )
         .expect("write Cargo.toml");
-        fs::write(
+        kfs::write_text(
             crate_dir.join("src").join("lib.rs"),
             "pub fn add(a: i64, b: i64) -> i64 { a + b }\n",
         )

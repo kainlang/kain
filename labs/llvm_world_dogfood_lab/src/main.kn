@@ -9,7 +9,7 @@ world ArcologyLab:
     state score_line: String = "score=0 | resonance=0"
     state actor_status: String = "actor lane idle"
     surface native_ui => App
-    surface viewport3d => "magma_terraces"
+    surface viewport3d => "geometry_fixture"
 
 component App():
     render <slot layout="column" gap={12} padding={12}>
@@ -40,7 +40,7 @@ component App():
         </panel>
 
         <panel title="Stage" layout="row" gap={12}>
-            <viewport3d title="Arcology Stage" scene="magma_terraces" />
+            <viewport3d title="Arcology Stage" scene="geometry_fixture" />
             <panel title="Signal Racks" layout="column" gap={8}>
                 <graph title="Heat Drift" />
                 <timeline title="Pulse Chronicle" />

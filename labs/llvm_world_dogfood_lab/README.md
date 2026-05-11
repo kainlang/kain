@@ -33,7 +33,7 @@ the linked binary from `generated/`.
 
 Notes:
 
-- The viewport uses the existing `magma_terraces` scene so the lab has a real
+- The viewport uses the existing `geometry_fixture` scene so the lab has a real
   native 3D surface without needing an extra asset bundle.
 - The lab keeps to current LLVM-safe source shapes: named actor payloads,
   compiler-owned world patches, converge/orchestrate stages, arrays, loops, and

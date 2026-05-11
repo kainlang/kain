@@ -3841,7 +3841,7 @@ mod tests {
             .insert("title".to_string(), UiValue::from("Hero View"));
         viewport
             .props
-            .insert("scene".to_string(), UiValue::from("luminous_port"));
+            .insert("scene".to_string(), UiValue::from("geometry_fixture"));
         builder.add_node(viewport);
         builder.replace_children(root_id, vec![viewport_id]);
         builder.set_root(root_id);
@@ -3860,7 +3860,7 @@ mod tests {
         );
         assert_eq!(
             projection.primary_viewport_scene.as_deref(),
-            Some("luminous_port")
+            Some("geometry_fixture")
         );
         assert_eq!(projection.nodes.len(), 2);
         assert!(projection

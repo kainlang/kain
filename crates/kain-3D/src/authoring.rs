@@ -1147,10 +1147,8 @@ impl Scene {
                 .count()
                 .to_string(),
         );
-        self.metadata.insert(
-            "primitive_library.summary".to_string(),
-            library.summary(),
-        );
+        self.metadata
+            .insert("primitive_library.summary".to_string(), library.summary());
         self.metadata.insert(
             "primitive_library.definition_ids".to_string(),
             library
@@ -1235,8 +1233,6 @@ impl Scene {
             instances: Vec::new(),
             animations: Vec::new(),
             particle_emitters: Vec::new(),
-            black_hole: None,
-            terrain_surfaces: Vec::new(),
         };
 
         for root in &self.root_nodes {

@@ -564,7 +564,7 @@ mod tests {
             .insert("title".to_string(), UiValue::String("Caldera".to_string()));
         viewport.props.insert(
             "scene".to_string(),
-            UiValue::String("magma_terraces".to_string()),
+            UiValue::String("geometry_fixture".to_string()),
         );
 
         let mut output = UiBuildOutput::default();

@@ -19,7 +19,7 @@ static void kain_ui_runtime_test_fill_bundle(KainUiCompiledBundle* bundle) {
     snprintf(bundle->nodes[0].title, sizeof(bundle->nodes[0].title), "%s", "Root Panel");
     snprintf(bundle->nodes[0].text, sizeof(bundle->nodes[0].text), "%s", "compiled overlay");
     snprintf(bundle->nodes[0].tag, sizeof(bundle->nodes[0].tag), "%s", "panel");
-    snprintf(bundle->nodes[0].scene, sizeof(bundle->nodes[0].scene), "%s", "magma_terraces");
+    snprintf(bundle->nodes[0].scene, sizeof(bundle->nodes[0].scene), "%s", "geometry_fixture");
     snprintf(bundle->nodes[0].layout_kind, sizeof(bundle->nodes[0].layout_kind), "%s", "stack");
     bundle->nodes[0].child_count = 2;
 
@@ -31,7 +31,7 @@ static void kain_ui_runtime_test_fill_bundle(KainUiCompiledBundle* bundle) {
     snprintf(bundle->nodes[1].title, sizeof(bundle->nodes[1].title), "%s", "Name Field");
     snprintf(bundle->nodes[1].text, sizeof(bundle->nodes[1].text), "%s", "Ada");
     snprintf(bundle->nodes[1].tag, sizeof(bundle->nodes[1].tag), "%s", "input");
-    snprintf(bundle->nodes[1].scene, sizeof(bundle->nodes[1].scene), "%s", "magma_terraces");
+    snprintf(bundle->nodes[1].scene, sizeof(bundle->nodes[1].scene), "%s", "geometry_fixture");
     snprintf(bundle->nodes[1].layout_kind, sizeof(bundle->nodes[1].layout_kind), "%s", "text-entry");
     bundle->nodes[1].child_count = 0;
 
@@ -43,7 +43,7 @@ static void kain_ui_runtime_test_fill_bundle(KainUiCompiledBundle* bundle) {
     snprintf(bundle->nodes[2].title, sizeof(bundle->nodes[2].title), "%s", "Viewport");
     snprintf(bundle->nodes[2].text, sizeof(bundle->nodes[2].text), "%s", "");
     snprintf(bundle->nodes[2].tag, sizeof(bundle->nodes[2].tag), "%s", "viewport");
-    snprintf(bundle->nodes[2].scene, sizeof(bundle->nodes[2].scene), "%s", "magma_terraces");
+    snprintf(bundle->nodes[2].scene, sizeof(bundle->nodes[2].scene), "%s", "geometry_fixture");
     snprintf(bundle->nodes[2].layout_kind, sizeof(bundle->nodes[2].layout_kind), "%s", "surface");
     bundle->nodes[2].child_count = 0;
 }

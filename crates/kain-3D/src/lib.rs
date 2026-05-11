@@ -29,10 +29,10 @@ pub use renderer::{
     RenderStats, RenderViewSettings, SoftwareRenderer, SoftwareRendererConfig,
 };
 pub use scene::{
-    BackgroundGradient, BlackHole, Camera, CameraPose, DirectionalLight, LightingRig, Material,
-    Mesh, ParticleEmitter, PointLight, SceneAnimation, SceneBounds, SceneCatalog,
-    SceneCatalogEntry, SceneCatalogSummary, SceneCompositionSummary, SceneDescription,
-    SceneInstance, SceneResolution, SceneResolutionKind, TerrainSurface, Vertex,
+    BackgroundGradient, Camera, CameraPose, DirectionalLight, LightingRig, Material, Mesh,
+    ParticleEmitter, PointLight, SceneAnimation, SceneBounds, SceneCatalog, SceneCatalogEntry,
+    SceneCatalogError, SceneCatalogSummary, SceneCompositionSummary, SceneDescription,
+    SceneInstance, SceneResolution, SceneResolutionKind, Vertex,
 };
 pub use shader_bundle::{
     default_viewport_shader_bundle, wgsl_module_source, VIEWPORT_SHADER_MODULE_NAME,

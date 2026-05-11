@@ -654,8 +654,6 @@ mod tests {
             }],
             animations: vec![],
             particle_emitters: vec![],
-            black_hole: None,
-            terrain_surfaces: vec![],
         }
     }
 

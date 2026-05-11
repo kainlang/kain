@@ -2,6 +2,11 @@
 name = "kain-3d"
 version = "0.1.0"
 edition = "2021"
+autobins = false
+
+[[bin]]
+name = "generic_scene_smoke"
+path = "src/bin/generic_scene_smoke.rs"
 
 [dependencies]
 bytemuck = { workspace = true }

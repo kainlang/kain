@@ -9,11 +9,9 @@ fn fidelity_label(high_fidelity: Bool) -> String:
     return "preview"
 
 fn scene_caption(scene_name: String) -> String:
-    if scene_name == "tensor_stream_probe":
-        return "tensor stream particle cloud"
-    elif scene_name == "magma_terraces":
-        return "thermal canyon turbulence"
-    return "luminous harbor feedback"
+    if scene_name == "geometry_fixture":
+        return "generic particle field"
+    return "external scene"
 
 fn color_caption(color_mode: String) -> String:
     if color_mode == "spectral":
@@ -23,45 +21,37 @@ fn color_caption(color_mode: String) -> String:
     return "silver-white diagnostics"
 
 fn camera_x(camera_label: String) -> Float:
-    if camera_label == "canyon sweep":
+    if camera_label == "wide sweep":
         return 18.0
-    elif camera_label == "harbor hover":
+    elif camera_label == "low hover":
         return 9.0
     return 12.0
 
 fn camera_y(camera_label: String) -> Float:
-    if camera_label == "canyon sweep":
+    if camera_label == "wide sweep":
         return 7.0
-    elif camera_label == "harbor hover":
+    elif camera_label == "low hover":
         return 4.0
     return 6.0
 
 fn camera_z(camera_label: String) -> Float:
-    if camera_label == "canyon sweep":
+    if camera_label == "wide sweep":
         return 28.0
-    elif camera_label == "harbor hover":
+    elif camera_label == "low hover":
         return 16.0
     return 18.0
 
 fn target_y(camera_label: String) -> Float:
-    if camera_label == "canyon sweep":
+    if camera_label == "wide sweep":
         return 4.0
-    elif camera_label == "harbor hover":
+    elif camera_label == "low hover":
         return 1.6
     return 2.0
 
 fn fog_density(scene_name: String, high_fidelity: Bool) -> Float:
-    if scene_name == "magma_terraces":
-        if high_fidelity:
-            return 0.022
-        return 0.015
-    elif scene_name == "luminous_port":
-        if high_fidelity:
-            return 0.011
-        return 0.007
     if high_fidelity:
-        return 0.013
-    return 0.009
+        return 0.018
+    return 0.010
 
 fn viewport_profile(color_mode: String, high_fidelity: Bool) -> String:
     if color_mode == "spectral":
@@ -90,7 +80,7 @@ fn chronos_detail_line(scene_name: String, color_mode: String, camera_label: Str
     return f"{scene_caption(scene_name)} | {color_caption(color_mode)} | camera={camera_label}"
 
 law chronos_scene_is_supported(scene_name: String) -> Bool:
-    return scene_name == "tensor_stream_probe" || scene_name == "magma_terraces" || scene_name == "luminous_port"
+    return scene_name == "geometry_fixture"
 
 converge resolve_particle_budget(high_fidelity: Bool) -> Int:
     spec reference:
@@ -108,7 +98,7 @@ converge resolve_particle_budget(high_fidelity: Bool) -> Int:
 
 world ChronosLab:
     state preset_label: String = "Nebula Swarm"
-    state scene_name: String = "tensor_stream_probe"
+    state scene_name: String = "geometry_fixture"
     state camera_label: String = "orbital drift"
     state color_mode: String = "spectral"
     state bloom_enabled: Bool = true
@@ -116,17 +106,17 @@ world ChronosLab:
     state particle_budget: Int = 360
     state particle_budget_text: String = "360 particles | preview"
     state status_line: String = "Chronos native authoring proof booted in preview fidelity."
-    state detail_line: String = "tensor stream particle cloud | cyan, amber, and ultraviolet trails | camera=orbital drift"
-    state stage_line: String = "Preset=Nebula Swarm | Scene=tensor_stream_probe | Bloom=enabled"
+    state detail_line: String = "generic particle field | cyan, amber, and ultraviolet trails | camera=orbital drift"
+    state stage_line: String = "Preset=Nebula Swarm | Scene=geometry_fixture | Bloom=enabled"
     state preset_score: Int = 100
     state hot_reload_note: String = "Hot reload should preserve the chosen preset, dock layout, and current tab."
     surface native_ui => App
-    surface viewport3d => "tensor_stream_probe"
+    surface viewport3d => "geometry_fixture"
 
 patch sync_manifest(lab: ChronosLab) -> String:
     let supported = chronos_scene_is_supported(lab.scene_name)
     if !supported:
-        lab.scene_name = "tensor_stream_probe"
+        lab.scene_name = "geometry_fixture"
         lab.preset_label = "Nebula Swarm"
         lab.camera_label = "orbital drift"
     lab.particle_budget = resolve_particle_budget(lab.high_fidelity)
@@ -165,13 +155,13 @@ patch toggle_high_fidelity(lab: ChronosLab) -> Bool:
     return lab.high_fidelity
 
 fn select_nebula_swarm():
-    apply_preset(ChronosLab, "Nebula Swarm", "tensor_stream_probe", "orbital drift", 88)
+    apply_preset(ChronosLab, "Nebula Swarm", "geometry_fixture", "orbital drift", 88)
 
-fn select_magma_forge():
-    apply_preset(ChronosLab, "Magma Forge", "magma_terraces", "canyon sweep", 94)
+fn select_generic_scene():
+    apply_preset(ChronosLab, "Generic Scene", "geometry_fixture", "wide sweep", 94)
 
 fn select_harbor_pulse():
-    apply_preset(ChronosLab, "Harbor Pulse", "luminous_port", "harbor hover", 90)
+    apply_preset(ChronosLab, "Harbor Pulse", "geometry_fixture", "low hover", 90)
 
 fn choose_spectral():
     set_color_mode(ChronosLab, "spectral")
@@ -185,11 +175,11 @@ fn choose_monochrome():
 fn choose_orbital_drift():
     set_camera_mode(ChronosLab, "orbital drift")
 
-fn choose_canyon_sweep():
-    set_camera_mode(ChronosLab, "canyon sweep")
+fn choose_wide_sweep():
+    set_camera_mode(ChronosLab, "wide sweep")
 
-fn choose_harbor_hover():
-    set_camera_mode(ChronosLab, "harbor hover")
+fn choose_low_hover():
+    set_camera_mode(ChronosLab, "low hover")
 
 fn toggle_bloom_mode():
     toggle_bloom(ChronosLab)
@@ -263,7 +253,7 @@ component App():
 
                 <panel title="Preset Packets" scope="chronos" variant="rail" layout="column" gap={8}>
                     <button variant="command_button" onclick={select_nebula_swarm}>Nebula Swarm</button>
-                    <button variant="command_button" onclick={select_magma_forge}>Magma Forge</button>
+                    <button variant="command_button" onclick={select_generic_scene}>Generic Scene</button>
                     <button variant="command_button" onclick={select_harbor_pulse}>Harbor Pulse</button>
                 </panel>
 
@@ -275,8 +265,8 @@ component App():
 
                 <panel title="Camera Modes" scope="chronos" variant="rail" layout="column" gap={8}>
                     <button variant="command_button" onclick={choose_orbital_drift}>Orbital Drift</button>
-                    <button variant="command_button" onclick={choose_canyon_sweep}>Canyon Sweep</button>
-                    <button variant="command_button" onclick={choose_harbor_hover}>Harbor Hover</button>
+                    <button variant="command_button" onclick={choose_wide_sweep}>Wide Sweep</button>
+                    <button variant="command_button" onclick={choose_low_hover}>Low Hover</button>
                 </panel>
 
                 <panel title="Runtime Toggles" scope="chronos" variant="rail" layout="column" gap={8}>

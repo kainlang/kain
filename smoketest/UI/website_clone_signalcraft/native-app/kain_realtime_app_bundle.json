@@ -6,7 +6,7 @@
       {
         "viewport_node": "surface.node.28",
         "viewport_kind": "viewport3d",
-        "scene": "luminous_port",
+        "scene": "geometry_fixture",
         "title": "Studio Preview",
         "material_refs": [],
         "shader_bundle_ref_keys": []

@@ -116,7 +116,7 @@
               "String": "viewport"
             },
             "scene": {
-              "String": "magma_terraces"
+              "String": "geometry_fixture"
             }
           },
           "children": [],

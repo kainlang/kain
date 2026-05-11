@@ -104,10 +104,7 @@ fn smoke_tree() -> UiTree {
         UiNodeId(50),
         node(50, UiWidgetKind::Timeline, "transport-timeline"),
     );
-    nodes.insert(
-        UiNodeId(60),
-        node(60, UiWidgetKind::Panel, "browser-panel"),
-    );
+    nodes.insert(UiNodeId(60), node(60, UiWidgetKind::Panel, "browser-panel"));
     nodes.insert(
         UiNodeId(70),
         node(
@@ -246,7 +243,7 @@ fn write_viewport_preview(path: &Path) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(parent)?;
     }
 
-    let catalog = SceneCatalog::default();
+    let catalog = SceneCatalog::empty();
     let mut renderer = SoftwareRenderer::default();
     renderer.config = SoftwareRendererConfig {
         wireframe_overlay: false,
@@ -254,7 +251,7 @@ fn write_viewport_preview(path: &Path) -> Result<(), Box<dyn Error>> {
     };
     let frame = renderer.render_catalog_scene(
         &catalog,
-        "material_atrium",
+        "geometry_fixture",
         1.45,
         RenderResolution::new(1440, 810),
     )?;
@@ -641,10 +638,7 @@ fn write_browser_surface_html(path: &Path, bundle: &UiRuntimeBundle) -> Result<(
 
 fn render_surface_card(surface: &UiSurface) -> String {
     let role = surface_role(surface);
-    let title = surface
-        .title
-        .as_deref()
-        .unwrap_or(surface.id.as_str());
+    let title = surface.title.as_deref().unwrap_or(surface.id.as_str());
     let shader_ref = surface
         .shader
         .as_ref()
@@ -653,7 +647,10 @@ fn render_surface_card(surface: &UiSurface) -> String {
     let shader_line = if shader_ref.is_empty() {
         String::new()
     } else {
-        format!("<div class=\"shader-ref\">shader {}</div>", escape_html(shader_ref))
+        format!(
+            "<div class=\"shader-ref\">shader {}</div>",
+            escape_html(shader_ref)
+        )
     };
 
     format!(
@@ -679,13 +676,18 @@ fn render_surface_card(surface: &UiSurface) -> String {
         escape_html(host_backend_label(surface.preferred_host_backend)),
         escape_html(render_engine_label(surface.preferred_render_engine)),
         escape_html(composition_label(surface.composition_mode)),
-        if surface.gpu_backing_required { "required" } else { "optional" },
+        if surface.gpu_backing_required {
+            "required"
+        } else {
+            "optional"
+        },
         shader_line,
     )
 }
 
 fn surface_role(surface: &UiSurface) -> &'static str {
-    if surface.shader.is_some() || surface.composition_mode == UiSurfaceCompositionMode::ShaderCanvas
+    if surface.shader.is_some()
+        || surface.composition_mode == UiSurfaceCompositionMode::ShaderCanvas
     {
         return "shader";
     }

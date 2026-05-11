@@ -345,7 +345,7 @@ try {
     foreach ($RealtimeBundlePath in $RealtimeBundleCandidates) {
         Update-RealtimeViewportPresentation `
             -BundlePath $RealtimeBundlePath `
-            -SceneName "magma_terraces" `
+            -SceneName "geometry_fixture" `
             -Profile "graphics_max" `
             -FogDensity 0.022 `
             -ParticleBudget 1024

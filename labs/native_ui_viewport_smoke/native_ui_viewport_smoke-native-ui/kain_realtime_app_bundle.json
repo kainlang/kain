@@ -6,8 +6,8 @@
       {
         "viewport_node": "surface.node.6",
         "viewport_kind": "viewport3d",
-        "scene": "magma_terraces",
-        "title": "Magma Terraces",
+        "scene": "geometry_fixture",
+        "title": "Generic Scene",
         "material_refs": [],
         "shader_bundle_ref_keys": []
       }

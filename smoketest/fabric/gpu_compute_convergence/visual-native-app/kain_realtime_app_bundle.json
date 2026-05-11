@@ -6,8 +6,8 @@
       {
         "viewport_node": "surface.node.26",
         "viewport_kind": "viewport3d",
-        "scene": "luminous_port",
-        "title": "Luminous Port",
+        "scene": "geometry_fixture",
+        "title": "Generic Scene",
         "material_refs": [],
         "shader_bundle_ref_keys": []
       }

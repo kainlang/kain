@@ -38,6 +38,6 @@ if (Test-Path $runtimeContractPath) {
 $env:KAIN_RUNTIME_CONTRACT_STRICT = if ($CompatContract) { "0" } else { "1" }
 Remove-Item Env:KAIN_NATIVE_WORLD_ASSET -ErrorAction SilentlyContinue
 Write-Host ("Runtime contract mode: " + $(if ($CompatContract) { "compat" } else { "strict" }))
-Write-Host "Launching magma forge fallback world with no external GLB asset."
+Write-Host "Launching generic viewport fallback world with no external GLB asset."
 Write-Host "Launching: $exePath"
 Start-Process -FilePath $exePath | Out-Null

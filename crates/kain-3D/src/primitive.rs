@@ -951,7 +951,7 @@ mod tests {
             .is_some_and(|definition| definition.subdivision_ready));
         assert_eq!(
             library.summary(),
-            "authored catalog: 6 primitives, 4 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports"
+            "authored catalog: 8 primitives, 6 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports"
         );
     }
 
@@ -1022,12 +1022,14 @@ mod tests {
             Some(&library.definitions.len().to_string())
         );
         assert_eq!(
-            scene.metadata.get("primitive_library.subdivision_ready_count"),
-            Some(&"4".to_string())
+            scene
+                .metadata
+                .get("primitive_library.subdivision_ready_count"),
+            Some(&"6".to_string())
         );
         assert_eq!(
             scene.metadata.get("primitive_library.summary"),
-            Some(&"authored catalog: 6 primitives, 4 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports".to_string())
+            Some(&"authored catalog: 8 primitives, 6 subdivision-ready, startup Startup Cube (startup-cube), policy primitives_first_then_imports".to_string())
         );
         assert_eq!(
             scene

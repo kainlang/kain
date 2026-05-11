@@ -3,17 +3,17 @@ use crate::model::{
     ItemKind, ItemStatus, ResolvedCLibrary,
 };
 use kain_core::error::KainError;
+use kain_fs as kfs;
 use kain_import::c::{parse_c_file_ast_with_options, CImportOptions};
 use lang_c::ast as c_ast;
 use lang_c::span::Node;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
-use std::fs;
 
 pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBundle, KainError> {
     let options = build_import_options(resolved);
-    let source = fs::read_to_string(&resolved.header_path).map_err(KainError::Io)?;
+    let source = kfs::read_text(&resolved.header_path).map_err(fs_to_kain_error)?;
     let fingerprint = FileFingerprint {
         path: resolved.header_path.display().to_string(),
         sha256: hex_sha256(source.as_bytes()),
@@ -25,6 +25,10 @@ pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBund
     };
     bundle.source_fingerprints = vec![fingerprint];
     Ok(bundle)
+}
+
+fn fs_to_kain_error(error: kain_fs::FsError) -> KainError {
+    KainError::runtime(format!("Filesystem error: {error}"))
 }
 
 fn build_import_options(resolved: &ResolvedCLibrary) -> CImportOptions {

@@ -141,9 +141,9 @@ pub fn build_demo_output(config: &KainUiNativeDemoConfig) -> Result<UiBuildOutpu
     build_output(config)
 }
 
-pub fn run_material_atrium_showcase(source: impl Into<String>) -> Result<(), Box<dyn Error>> {
+pub fn run_generic_scene_smoke(source: impl Into<String>) -> Result<(), Box<dyn Error>> {
     run_app(KainUiNativeAppConfig {
-        window_title: "Kain Material Atrium Showcase".to_string(),
+        window_title: "Kain Generic Scene Smoke".to_string(),
         root_component: "App".to_string(),
         source: source.into(),
         initial_window_size: [1728.0, 1080.0],
