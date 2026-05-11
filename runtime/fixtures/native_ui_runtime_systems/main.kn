@@ -1,0 +1,54 @@
+fn authored_node(session: Int, parent: Int, kind: String, key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
+    return ui_node_from_stable_key(session, parent, kind, key, text, x, y, width, height)
+
+fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("kain-authored-ui-systems", 900, 540)
+    let _window = native_ui_window_open(session, "Kain Authored UI Systems", 900, 540)
+    let _host = native_ui_host_attach(session, "software")
+    let reload_generation = native_ui_hot_reload_begin(session, "rev-a")
+    let _frame = native_ui_begin_frame(session, 16.0)
+
+    let font = native_ui_font_create(session, "font.body", "Inter", 14.0)
+    let label_width = native_ui_text_measure_width(session, font, "Launch")
+    let texture = native_ui_texture_create(session, "texture.command.icon", 32, 32, "rgba8", 4096)
+    let canvas = native_ui_canvas_create(session, "canvas.viewport", 900, 540)
+    let shader_resource = native_ui_shader_create(session, "shader.command.fill", "fragment", 128)
+
+    let root = authored_node(session, 0, "app.root", "root", "root", 0.0, 0.0, 900.0, 540.0)
+    let row_y = ui_layout_column_y(1.0, 16.0, 36.0, 8.0)
+    let command_width = label_width + 52.0
+    let command = authored_node(session, root, "author.command", "command.launch", "Launch", 16.0, row_y, command_width, 36.0)
+    let viewport = authored_node(session, root, "author.viewport", "viewport.main", "Viewport", 16.0, 96.0, 620.0, 360.0)
+
+    let _role = native_ui_accessibility_set_role(session, command, "action")
+    let _label = native_ui_accessibility_set_label(session, command, "Launch command")
+    let _clip = native_ui_clipboard_set_text(session, "Launch")
+    let _ime_begin = native_ui_ime_begin(session, command)
+    let _ime_text = native_ui_ime_commit_text(session, "typed")
+    let _drag = native_ui_drag_begin(session, command, "payload.launch", 24.0, row_y)
+    let _drag_update = native_ui_drag_update(session, 40.0, row_y + 8.0, viewport)
+
+    let menu = native_ui_menu_create(session, "menu.command")
+    let _menu_item = native_ui_menu_add_item(session, menu, "launch", "Launch", 101)
+    let _menu_open = native_ui_menu_open(session, menu, 16.0, row_y + 40.0)
+
+    let dialog = native_ui_dialog_request(session, "confirm", "Launch", "Proceed")
+    let _dialog_response = native_ui_dialog_respond(session, dialog, 7, "ok")
+    let response = native_ui_dialog_poll_response(session)
+
+    let _root_draw = native_ui_draw_rect(session, root, 0.0, 0.0, 900.0, 540.0, "root.bg")
+    let _viewport_draw = native_ui_draw_resource(session, viewport, canvas, 16.0, 96.0, 620.0, 360.0, "viewport.canvas")
+    let _command_draw = native_ui_draw_rect(session, command, 16.0, row_y, command_width, 36.0, "command.fill")
+    let _icon_draw = native_ui_draw_resource(session, command, texture, command_width - 24.0, row_y + 2.0, 32.0, 32.0, "command.icon")
+    let _text_draw = native_ui_draw_text(session, command, 28.0, row_y + 24.0, native_ui_node_text(session, command), "command.label")
+
+    let draw_count = ui_present_to_attached_host(session)
+    let found_command = native_ui_node_find_by_stable_key(session, "command.launch")
+    let _reload_commit = native_ui_hot_reload_commit(session)
+    let hash = native_ui_host_frame_hash(session)
+
+    if found_command == command and draw_count >= 5 and hash > 0 and native_ui_resource_count(session) == 4 and native_ui_drag_drop_target(session) == viewport and native_ui_menu_active(session) == menu and response == 7 and shader_resource > 0 and reload_generation == 1:
+        return 0
+
+    return 1

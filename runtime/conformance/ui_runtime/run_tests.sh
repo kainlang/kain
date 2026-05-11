@@ -67,6 +67,7 @@ TEST_BINARIES=(
     "test_ui_runtime_focus.exe"
     "test_ui_runtime_parity.exe"
     "test_native_ui_system_kernel.exe"
+    "test_native_ui_system_host_services.exe"
 )
 
 TOTAL_TESTS=0

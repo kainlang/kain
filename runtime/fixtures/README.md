@@ -182,6 +182,19 @@ cd runtime/fixtures/llvm_heap_memory
 
 ---
 
+### 9. Native UI Runtime Systems (`native_ui_runtime_systems/`)
+
+**Purpose:** Validates Kain-authored native UI systems through the raw native UI stdlib without a host-owned component catalog.
+
+**What it tests:**
+- Stable keyed nodes for hot reload identity
+- Host presentation metadata
+- Generic font, texture, canvas, and shader resource handles
+- Text measurement, accessibility metadata, clipboard, IME, drag/drop, menus, and dialogs
+- Draw rect, draw text, and draw resource submission
+
+---
+
 ## Design Principles
 
 ### Minimal by Design

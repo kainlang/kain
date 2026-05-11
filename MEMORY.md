@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-05-11 - Raw native UI ABI gained host services for Kain-authored UI systems
+
+The raw native UI kernel now covers the first real "Kain can author the UI system" layer without introducing a host-side widget catalog. `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c` now expose generic host frame presentation metadata, stable node keys for hot reload, accessibility labels/roles, font/texture/canvas/shader resource handles, text measurement, draw-resource commands, clipboard, IME, drag/drop, menu, dialog, and hot reload generation APIs. `stdlib/native/ui.kn` wraps those APIs and adds only generic layout/stable-node helpers; it does not define buttons, panels, or product components.
+
+Design decisions:
+
+- Keep the runtime capability-shaped. The runtime owns handles, buffers, metadata, event/system services, and host presentation; Kain source or Kain stdlib code owns layout systems, style cascades, reconciliation, controls, and app-specific components.
+- Stable keys are the reload bridge. Kain-authored code can rebuild one file, call `native_ui_node_find_by_stable_key`, and preserve/reuse existing nodes without the C runtime knowing what a "button" or "panel" means.
+- `runtime/fixtures/native_ui_runtime_systems/main.kn` is the focused proof shape: one Kain file creates authored nodes/resources, drives host services, presents draw commands, and exits successfully through the LLVM native path.
+
+Validation:
+
+- `bash runtime/conformance/ui_runtime/run_tests.sh --verbose`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_ui_host_services_without_component_catalog --target-dir target\\codex-native-ui-host-services -- --nocapture`
+- `cargo build -p cli --target-dir target\\codex-native-ui-host-services-cli`
+- `target\\codex-native-ui-host-services-cli\\debug\\kain.exe check runtime\\fixtures\\native_ui_runtime_systems\\main.kn --target llvm`
+- `target\\codex-native-ui-host-services-cli\\debug\\kain.exe build runtime\\fixtures\\native_ui_runtime_systems\\main.kn --target llvm --output target\\codex-native-ui-host-services\\native_ui_runtime_systems.exe`
+- `target\\codex-native-ui-host-services\\native_ui_runtime_systems.exe`
+
+Recommended next step:
+
+- Attach `kain_native_ui_host_present` to a live pixel backend (Win32/Direct2D, Skia, wgpu, Qt, or another host) that consumes the existing draw/resource buffers, then build Kain-authored layout/style/reconciliation in stdlib above this ABI rather than widening the C layer into widgets.
+
 # 2026-05-11 - Raw native graphics kernel exposes engine-building primitives to Kain
 
 Kain now has a generic native graphics system kernel at the C ABI floor instead of relying on runtime-authored scenes or host-side primitive/default-scene behavior. `runtime/native/include/kain_native_graphics_system.h` and `runtime/native/src/core/kain_native_graphics_system.c` expose low-level sessions, backend target selection, truthful backend availability/status probes, SPIR-V shader module registration, authored buffer handles, mesh handles, pipeline handles, draw command recording, frame present bookkeeping, and diagnostics. `stdlib/native/graphics.kn` exposes thin `native_graphics_*` wrappers for LLVM/direct-C Kain source.

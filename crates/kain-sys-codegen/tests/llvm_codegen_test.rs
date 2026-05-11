@@ -137,6 +137,81 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_native_ui_host_services_without_component_catalog() {
+    let source = r#"
+@extern
+fn kain_native_ui_session_create(app_name: String, width: Int, height: Int) -> Int
+
+@extern
+fn kain_native_ui_node_create(session_id: Int, kind: String) -> Int
+
+@extern
+fn kain_native_ui_node_set_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float) -> Int
+
+@extern
+fn kain_native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key: String) -> Int
+
+@extern
+fn kain_native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
+
+@extern
+fn kain_native_ui_host_attach(session_id: Int, backend_id: String) -> Int
+
+@extern
+fn kain_native_ui_host_present(session_id: Int) -> Int
+
+@extern
+fn kain_native_ui_hot_reload_begin(session_id: Int, revision_key: String) -> Int
+
+@extern
+fn kain_native_ui_font_create(session_id: Int, key: String, family: String, size: Float) -> Int
+
+@extern
+fn kain_native_ui_texture_create(session_id: Int, key: String, width: Int, height: Int, format: String, byte_length: Int) -> Int
+
+@extern
+fn kain_native_ui_text_measure_width(session_id: Int, font_resource_id: Int, text: String) -> Float
+
+@extern
+fn kain_native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
+
+@extern
+fn kain_native_ui_clipboard_set_text(session_id: Int, text: String) -> Int
+
+fn main() -> Int:
+    let session = kain_native_ui_session_create("single-file-host-authoring", 960, 540)
+    let _backend = kain_native_ui_host_attach(session, "software")
+    let _reload = kain_native_ui_hot_reload_begin(session, "rev-a")
+    let root = kain_native_ui_node_create(session, "app.root")
+    let command = kain_native_ui_node_create(session, "author.command")
+    let _root_key = kain_native_ui_node_set_stable_key(session, root, "root")
+    let _command_key = kain_native_ui_node_set_stable_key(session, command, "command.launch")
+    let _command_rect = kain_native_ui_node_set_rect(session, command, 16.0, 16.0, 180.0, 36.0)
+    let font = kain_native_ui_font_create(session, "font.body", "Inter", 14.0)
+    let width = kain_native_ui_text_measure_width(session, font, "Launch")
+    let texture = kain_native_ui_texture_create(session, "texture.icon", 32, 32, "rgba8", 4096)
+    let _draw = kain_native_ui_draw_resource(session, command, texture, 164.0, 18.0, 32.0, 32.0, "icon")
+    let _clipboard = kain_native_ui_clipboard_set_text(session, "Launch")
+    if kain_native_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0:
+        return kain_native_ui_host_present(session)
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("declare i64 @kain_native_ui_host_attach(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_font_create"));
+    assert!(llvm.contains("declare double @kain_native_ui_text_measure_width"));
+    assert!(llvm.contains("call i64 @kain_native_ui_draw_resource"));
+    assert!(llvm.contains("call i64 @kain_native_ui_host_present"));
+    assert!(llvm.contains("command.launch"));
+    assert!(!llvm.contains("button"));
+    assert!(!llvm.contains("panel"));
+}
+
+#[test]
 fn llvm_lowers_native_graphics_engine_primitives_without_scene_catalog() {
     let source = r#"
 @extern

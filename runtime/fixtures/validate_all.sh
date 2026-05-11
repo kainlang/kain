@@ -30,6 +30,7 @@ FIXTURE_NAMES=(
     llvm_actor_message
     llvm_world_pipeline
     native_graphics_engine
+    native_ui_runtime_systems
 )
 
 resolve_kain_bin() {
@@ -53,7 +54,7 @@ resolve_kain_bin() {
 
 build_target_for_fixture() {
     case "$1" in
-        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine)
+        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_ui_runtime_systems)
             printf '%s\n' "llvm"
             ;;
         *)
@@ -149,6 +150,16 @@ call i64 @kain_native_graphics_buffer_create_from_hex(
 call i64 @kain_native_graphics_mesh_create(
 call i64 @kain_native_graphics_pipeline_create(
 call i64 @kain_native_graphics_draw_mesh(
+EOF
+            ;;
+        native_ui_runtime_systems)
+            cat <<'EOF'
+call i64 @kain_native_ui_host_attach(
+call i64 @kain_native_ui_hot_reload_begin(
+call i64 @kain_native_ui_font_create(
+call double @kain_native_ui_text_measure_width(
+call i64 @kain_native_ui_draw_resource(
+call i64 @kain_native_ui_host_present(
 EOF
             ;;
     esac

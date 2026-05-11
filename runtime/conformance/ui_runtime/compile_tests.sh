@@ -68,6 +68,9 @@ echo "Compiling test_ui_runtime_parity..."
 echo "Compiling test_native_ui_system_kernel..."
 "$C_COMPILER" $CFLAGS test_native_ui_system_kernel.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_kernel.exe" $LDFLAGS
 
+echo "Compiling test_native_ui_system_host_services..."
+"$C_COMPILER" $CFLAGS test_native_ui_system_host_services.c "$BIN_DIR/kain_native_ui_system.o" "$BIN_DIR/kain_runtime_core.o" "$BIN_DIR/kain_runtime_version.o" "$BIN_DIR/kain_runtime_diagnostics.o" -o "$BIN_DIR/test_native_ui_system_host_services.exe" $LDFLAGS
+
 echo ""
 echo "=== Compilation Complete ==="
 
