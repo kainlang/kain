@@ -112,7 +112,7 @@ fn append_blade_module_candidates(candidates: &mut Vec<PathBuf>, path_segments: 
     let Ok(current_dir) = std::env::current_dir() else {
         return;
     };
-    let Ok(module_roots) = kain_blades::discover_blade_module_roots_from(current_dir) else {
+    let Ok(module_roots) = blade::discover_blade_module_roots_from(current_dir) else {
         return;
     };
     append_blade_module_candidates_for_roots(candidates, path_segments, &module_roots);

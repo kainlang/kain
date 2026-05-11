@@ -17,7 +17,7 @@ once_cell = { workspace = true }
 flume = { workspace = true }
 reqwest = { workspace = true }
 kain-actor = { path = "../kain-actor" }
-kain-blades = { path = "../kain-blades" }
+blade = { path = "../kain-blades" }
 kain-entangle = { path = "../kain-entangle" }
 kain-fs = { path = "../kain-fs" }
 kain-ui = { path = "../kain-ui" }

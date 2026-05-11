@@ -1,5 +1,5 @@
 [package]
-name = "kain-blades"
+name = "blade"
 version = "0.1.0"
 edition = "2021"
 description = "Local-first Kain blade workspace discovery and build graph planning"

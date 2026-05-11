@@ -1,5 +1,19 @@
 # Kain Memory
 
+# 2026-05-11 - Blade resolver crate import surface renamed to `blade`
+
+The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/kain-blades`, the workspace member path remains `crates/kain-blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.
+
+Design decision:
+
+- Treat `blade` as the public Rust crate identity for Blade discovery/resolution APIs. Treat `crates/kain-blades` as only the repository folder name.
+- Do not rename workspace folder conventions from `blades/*`; only the Rust crate/package identity changed.
+
+Validation:
+
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo check --locked -p blade -p kain-build -p kain-core -p kain-c-ffi -p kain-crate-ffi -p kain-host -p kain-omni -p cli --target-dir target\codex-blade-singular`
+- `cargo test -p blade --target-dir target\codex-blade-singular`
+- `cargo check --locked --manifest-path labs\blades_workspace_smoke\crates\synthetic_reporter\Cargo.toml --target-dir target\codex-blade-singular-lab`
 # 2026-05-11 - kain-ui-native became an authored UI host instead of a demo catalog
 
 `crates/kain-ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith are preserved under `src/archive` and are not part of the default host path.
@@ -28,7 +42,7 @@ Recommended next step:
 What changed:
 
 - The `gpu-compute` blade emits three Kain-authored shader artifacts: `gpu_step`, `nebula_field`, and `spectral_lattice`, with SPIR-V, HLSL, reflection JSON, and shader bundle outputs validated by the smoke runner.
-- The synthetic Cargo blade now depends on `kain-blades` and `kain-fs`, builds `blade_singularity_atlas`, discovers the Blade workspace graph, reads GPU artifacts through `kain-fs`, and renders an atlas report as SVG, PPM, JSON, and HTML under `outputs/singularity-atlas`.
+- The synthetic Cargo blade now depends on `blade` and `kain-fs`, builds `blade_singularity_atlas`, discovers the Blade workspace graph, reads GPU artifacts through `kain-fs`, and renders an atlas report as SVG, PPM, JSON, and HTML under `outputs/singularity-atlas`.
 - `scripts/run_blades_smoke.py` now executes the built binary from `.kain/build`, validates the atlas output, checks the expected compute keys, and still proves cache reuse and clean lab cache rebuilds.
 
 Design decisions:

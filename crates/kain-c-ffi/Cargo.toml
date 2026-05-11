@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kain-blades = { path = "../kain-blades" }
+blade = { path = "../kain-blades" }
 kain-core = { path = "../kain-core" }
 kain-fs = { path = "../kain-fs" }
 kain-import = { path = "../kain-import", default-features = false, features = ["c"] }

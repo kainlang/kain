@@ -349,8 +349,8 @@ fn resolve_library(
         }
     }
 
-    if let Some((blade, _library)) =
-        kain_blades::resolve_c_ffi_library_blade(&start_dir, import_name).map_err(|err| {
+    if let Some((blade, _library)) = blade::resolve_c_ffi_library_blade(&start_dir, import_name)
+        .map_err(|err| {
             KainError::runtime(format!(
                 "C FFI blade discovery failed while resolving '{import_name}': {err}"
             ))
