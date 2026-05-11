@@ -6,7 +6,7 @@ description = "Live + generated Rust crate FFI bindings for KAIN"
 license = "MIT"
 
 [dependencies]
-kain-blades = { path = "../kain-blades" }
+blade = { path = "../kain-blades" }
 kain-core = { path = "../kain-core" }
 kain-fs = { path = "../kain-fs" }
 serde = { workspace = true, features = ["derive"] }

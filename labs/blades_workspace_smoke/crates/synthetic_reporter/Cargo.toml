@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kain-blades = { path = "../../../../crates/kain-blades" }
+blade = { path = "../../../../crates/kain-blades" }
 kain-fs = { path = "../../../../crates/kain-fs" }
 serde_json = "1"
 

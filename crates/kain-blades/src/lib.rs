@@ -430,7 +430,10 @@ pub fn load_kain_manifest(path: &Path) -> BladeResult<KainManifest> {
 
 fn resolve_blade_directory(candidate: &Path) -> BladeResult<Option<ResolvedBlade>> {
     if let Some(manifest_path) = find_kain_manifest_in(candidate) {
-        return Ok(Some(resolve_kain_blade(candidate, &manifest_path)?));
+        return Ok(Some(resolve_explicit_blade_manifest(
+            candidate,
+            &manifest_path,
+        )?));
     }
 
     let cargo_manifest = candidate.join(CARGO_MANIFEST_NAME);
@@ -444,7 +447,10 @@ fn resolve_blade_directory(candidate: &Path) -> BladeResult<Option<ResolvedBlade
     Ok(None)
 }
 
-fn resolve_kain_blade(root: &Path, manifest_path: &Path) -> BladeResult<ResolvedBlade> {
+fn resolve_explicit_blade_manifest(
+    root: &Path,
+    manifest_path: &Path,
+) -> BladeResult<ResolvedBlade> {
     let manifest = load_kain_manifest(manifest_path)?;
     let name = manifest
         .blade
@@ -892,7 +898,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn discovers_kain_blade_from_default_blades_root() {
+    fn discovers_explicit_blade_from_default_blades_root() {
         let tmp = tempfile::tempdir().unwrap();
         kfs::write_text(tmp.path().join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
         let blade_root = tmp.path().join("blades").join("fabric");

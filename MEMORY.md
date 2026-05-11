@@ -1,5 +1,19 @@
 # Kain Memory
 
+# 2026-05-11 - Blade resolver crate import surface renamed to `blade`
+
+The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/kain-blades`, the workspace member path remains `crates/kain-blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.
+
+Design decision:
+
+- Treat `blade` as the public Rust crate identity for Blade discovery/resolution APIs. Treat `crates/kain-blades` as only the repository folder name.
+- Do not rename workspace folder conventions from `blades/*`; only the Rust crate/package identity changed.
+
+Validation:
+
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo check --locked -p blade -p kain-build -p kain-core -p kain-c-ffi -p kain-crate-ffi -p kain-host -p kain-omni -p cli --target-dir target\codex-blade-singular`
+- `cargo test -p blade --target-dir target\codex-blade-singular`
+- `cargo check --locked --manifest-path labs\blades_workspace_smoke\crates\synthetic_reporter\Cargo.toml --target-dir target\codex-blade-singular-lab`
 # 2026-05-11 - kain-ui-native archive and legacy feature were removed
 
 Follow-up cleanup removed the `crates/kain-ui-native/src/archive` museum, the `legacy-egui` Cargo feature, and the optional egui/wgpu/font/image/nalgebra/kain-3D dependencies from `kain-ui-native`. The active crate should only carry `app.rs`, `session.rs`, `qt_host.rs`, `lib.rs`, and `main.rs`; old host implementations should be deleted, not archived in this crate.

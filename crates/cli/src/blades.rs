@@ -1,5 +1,5 @@
+use blade::{discover_workspace, resolve_blade, BladeWorkspace, ResolvedBlade};
 use clap::Subcommand;
-use kain_blades::{discover_workspace, resolve_blade, BladeWorkspace, ResolvedBlade};
 use serde::Serialize;
 use std::path::PathBuf;
 
