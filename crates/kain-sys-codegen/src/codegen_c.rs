@@ -71,6 +71,7 @@ impl CGen {
         self.write_line("#include <stddef.h>");
         self.write_line("#include <stdint.h>");
         self.write_line("#include <stdio.h>");
+        self.write_line("#include <string.h>");
         self.write_blank();
         self.write_line("typedef void* Any;");
         self.write_blank();
@@ -719,12 +720,33 @@ impl CGen {
             Expr::None(_) => Ok("NULL".to_string()),
             Expr::Binary {
                 left, op, right, ..
-            } => Ok(format!(
-                "({} {} {})",
-                self.gen_expr(left)?,
-                self.map_binop(op)?,
-                self.gen_expr(right)?
-            )),
+            } => {
+                if matches!(op, BinaryOp::Eq | BinaryOp::Ne) {
+                    let left_ty = self.infer_expr_type(left).ok();
+                    let right_ty = self.infer_expr_type(right).ok();
+                    if left_ty.as_deref() == Some("const char *")
+                        || right_ty.as_deref() == Some("const char *")
+                    {
+                        let comparison = if matches!(op, BinaryOp::Eq) {
+                            "== 0"
+                        } else {
+                            "!= 0"
+                        };
+                        return Ok(format!(
+                            "(strcmp({}, {}) {})",
+                            self.gen_expr(left)?,
+                            self.gen_expr(right)?,
+                            comparison
+                        ));
+                    }
+                }
+                Ok(format!(
+                    "({} {} {})",
+                    self.gen_expr(left)?,
+                    self.map_binop(op)?,
+                    self.gen_expr(right)?
+                ))
+            }
             Expr::Unary { op, operand, .. } => Ok(format!(
                 "({}{})",
                 self.map_unaryop(op),
@@ -970,6 +992,37 @@ impl CGen {
                     Span::default(),
                 ))
             }
+            Expr::Binary { left, op, .. } => match op {
+                BinaryOp::And
+                | BinaryOp::Or
+                | BinaryOp::Eq
+                | BinaryOp::Ne
+                | BinaryOp::Lt
+                | BinaryOp::Le
+                | BinaryOp::Gt
+                | BinaryOp::Ge => Ok("bool".to_string()),
+                BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
+                | BinaryOp::BitAnd
+                | BinaryOp::BitOr
+                | BinaryOp::BitXor
+                | BinaryOp::Shl
+                | BinaryOp::Shr => self.infer_expr_type(left),
+                BinaryOp::Assign
+                | BinaryOp::AddAssign
+                | BinaryOp::SubAssign
+                | BinaryOp::MulAssign
+                | BinaryOp::DivAssign
+                | BinaryOp::Pow
+                | BinaryOp::Range
+                | BinaryOp::RangeInclusive => Err(self.unsupported(
+                    format!("C backend cannot infer the local type for binary op '{op:?}'"),
+                    Span::default(),
+                )),
+            },
             Expr::StageCall { function, .. } => self
                 .function_return_types
                 .get(function)

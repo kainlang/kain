@@ -1,0 +1,13 @@
+[package]
+name = "kain-fs"
+version = "0.1.0"
+edition = "2021"
+description = "First-class filesystem primitives for Kain"
+license = "MIT"
+
+[dependencies]
+glob = "0.3"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3.8"

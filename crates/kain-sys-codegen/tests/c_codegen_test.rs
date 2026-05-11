@@ -113,6 +113,26 @@ fn main() -> Int:
 }
 
 #[test]
+fn c_backend_lowers_string_equality_to_strcmp() {
+    let source = r#"
+fn main() -> Int:
+    let value = "hello"
+    if value == "hello":
+        return 0
+    if value != "world":
+        return 1
+    return 2
+"#;
+
+    let program = typed_program_from_source(source);
+    let c = generate_c(&program).expect("C generation should succeed");
+
+    assert!(c.contains("#include <string.h>"));
+    assert!(c.contains("(strcmp(value, \"hello\") == 0)"));
+    assert!(c.contains("(strcmp(value, \"world\") != 0)"));
+}
+
+#[test]
 fn c_backend_lowers_actor_spawn_and_send_to_native_runtime_facade() {
     let source = r#"
 @extern

@@ -243,6 +243,270 @@ impl StdLib {
             "Bool",
             "Check whether a path is a directory",
         );
+        for (name, return_type, doc) in [
+            ("fs_read_text", "String", "Read UTF-8 text from a file"),
+            (
+                "fs_try_read_text",
+                "Any",
+                "Read UTF-8 text from a file as Result<String, FsError>",
+            ),
+            ("fs_read_bytes", "Array<Int>", "Read raw bytes from a file"),
+            (
+                "fs_try_read_bytes",
+                "Any",
+                "Read raw bytes from a file as Result<Array<Int>, FsError>",
+            ),
+            ("fs_exists", "Bool", "Check whether a path exists"),
+            ("fs_is_file", "Bool", "Check whether a path is a file"),
+            ("fs_is_dir", "Bool", "Check whether a path is a directory"),
+            ("fs_is_symlink", "Bool", "Check whether a path is a symlink"),
+            (
+                "fs_metadata",
+                "FsMetadata",
+                "Read typed metadata for a path",
+            ),
+            (
+                "fs_try_metadata",
+                "Any",
+                "Read typed metadata as Result<FsMetadata, FsError>",
+            ),
+            (
+                "fs_symlink_metadata",
+                "FsMetadata",
+                "Read symlink-aware metadata for a path",
+            ),
+            (
+                "fs_try_symlink_metadata",
+                "Any",
+                "Read symlink-aware metadata as Result<FsMetadata, FsError>",
+            ),
+            (
+                "fs_read_dir",
+                "Array<FsDirEntry>",
+                "Read direct directory entries as FsDirEntry values",
+            ),
+            (
+                "fs_try_read_dir",
+                "Any",
+                "Read direct directory entries as Result<Array<FsDirEntry>, FsError>",
+            ),
+            (
+                "fs_read_dir_paths",
+                "Array<String>",
+                "Read direct directory entries as sorted paths",
+            ),
+            (
+                "fs_try_read_dir_paths",
+                "Any",
+                "Read direct directory paths as Result<Array<String>, FsError>",
+            ),
+            (
+                "fs_walk",
+                "Array<FsDirEntry>",
+                "Recursively walk a directory as FsDirEntry values",
+            ),
+            (
+                "fs_try_walk",
+                "Any",
+                "Recursively walk a directory as Result<Array<FsDirEntry>, FsError>",
+            ),
+            (
+                "fs_glob",
+                "Array<String>",
+                "Expand a glob pattern into sorted paths",
+            ),
+            (
+                "fs_try_glob",
+                "Any",
+                "Expand a glob pattern as Result<Array<String>, FsError>",
+            ),
+            (
+                "fs_temp_file",
+                "String",
+                "Create a temp file and return its path",
+            ),
+            (
+                "fs_temp_dir",
+                "String",
+                "Create a temp directory and return its path",
+            ),
+            (
+                "fs_hash_file",
+                "String",
+                "Compute a SHA-256 hash for a file",
+            ),
+            (
+                "fs_try_hash_file",
+                "Any",
+                "Compute a SHA-256 hash as Result<String, FsError>",
+            ),
+            (
+                "fs_path_parent",
+                "String",
+                "Return the parent directory path or empty string",
+            ),
+            (
+                "fs_path_file_name",
+                "String",
+                "Return the final path component or empty string",
+            ),
+            (
+                "fs_path_extension",
+                "String",
+                "Return the path extension or empty string",
+            ),
+            (
+                "fs_path_stem",
+                "String",
+                "Return the path stem or empty string",
+            ),
+            ("fs_path_normalize", "String", "Normalize a path lexically"),
+            (
+                "fs_path_absolute",
+                "String",
+                "Return an absolute normalized path",
+            ),
+            (
+                "fs_path_canonicalize",
+                "String",
+                "Return the filesystem canonical path",
+            ),
+        ] {
+            lib.add_fn(name, &[("path", "String")], return_type, doc);
+        }
+        for (name, return_type, doc) in [
+            ("fs_write_text", "Unit", "Write UTF-8 text to a file"),
+            (
+                "fs_try_write_text",
+                "Any",
+                "Write UTF-8 text as Result<Unit, FsError>",
+            ),
+            ("fs_append_text", "Unit", "Append UTF-8 text to a file"),
+            (
+                "fs_try_append_text",
+                "Any",
+                "Append UTF-8 text as Result<Unit, FsError>",
+            ),
+            (
+                "fs_atomic_write_text",
+                "Unit",
+                "Write UTF-8 text through an atomic sibling temp path",
+            ),
+            (
+                "fs_try_atomic_write_text",
+                "Any",
+                "Atomic text write as Result<Unit, FsError>",
+            ),
+        ] {
+            lib.add_fn(
+                name,
+                &[("path", "String"), ("content", "String")],
+                return_type,
+                doc,
+            );
+        }
+        for (name, return_type, doc) in [
+            ("fs_write_bytes", "Unit", "Write raw bytes to a file"),
+            (
+                "fs_try_write_bytes",
+                "Any",
+                "Write raw bytes as Result<Unit, FsError>",
+            ),
+            ("fs_append_bytes", "Unit", "Append raw bytes to a file"),
+            (
+                "fs_try_append_bytes",
+                "Any",
+                "Append raw bytes as Result<Unit, FsError>",
+            ),
+            (
+                "fs_atomic_write_bytes",
+                "Unit",
+                "Write raw bytes through an atomic sibling temp path",
+            ),
+        ] {
+            lib.add_fn(
+                name,
+                &[("path", "String"), ("bytes", "Array<Int>")],
+                return_type,
+                doc,
+            );
+        }
+        for (name, return_type, doc) in [
+            ("fs_create_dir", "Unit", "Create one directory"),
+            (
+                "fs_try_create_dir",
+                "Any",
+                "Create one directory as Result<Unit, FsError>",
+            ),
+            (
+                "fs_create_dir_all",
+                "Unit",
+                "Create a directory and any missing parents",
+            ),
+            (
+                "fs_try_create_dir_all",
+                "Any",
+                "Create missing parent directories as Result<Unit, FsError>",
+            ),
+            ("fs_remove_file", "Unit", "Remove a file"),
+            (
+                "fs_try_remove_file",
+                "Any",
+                "Remove a file as Result<Unit, FsError>",
+            ),
+            ("fs_remove_dir", "Unit", "Remove an empty directory"),
+            (
+                "fs_try_remove_dir",
+                "Any",
+                "Remove an empty directory as Result<Unit, FsError>",
+            ),
+            ("fs_remove_dir_all", "Unit", "Remove a directory tree"),
+            (
+                "fs_try_remove_dir_all",
+                "Any",
+                "Remove a directory tree as Result<Unit, FsError>",
+            ),
+            (
+                "fs_remove_path",
+                "Unit",
+                "Remove a file or directory tree if it exists",
+            ),
+            (
+                "fs_try_remove_path",
+                "Any",
+                "Remove a path as Result<Unit, FsError>",
+            ),
+        ] {
+            lib.add_fn(name, &[("path", "String")], return_type, doc);
+        }
+        for (name, return_type, doc) in [
+            ("fs_copy_file", "Int", "Copy one file"),
+            (
+                "fs_try_copy_file",
+                "Any",
+                "Copy one file as Result<Int, FsError>",
+            ),
+            ("fs_copy_path", "Unit", "Copy a file or directory tree"),
+            (
+                "fs_try_copy_path",
+                "Any",
+                "Copy a path as Result<Unit, FsError>",
+            ),
+            ("fs_move_path", "Unit", "Move or rename a path"),
+            (
+                "fs_try_move_path",
+                "Any",
+                "Move or rename a path as Result<Unit, FsError>",
+            ),
+            ("fs_path_join", "String", "Join two path segments"),
+        ] {
+            lib.add_fn(
+                name,
+                &[("src", "String"), ("dest", "String")],
+                return_type,
+                doc,
+            );
+        }
 
         // Math
         lib.add_fn("abs", &[("x", "Int")], "Int", "Absolute value");

@@ -5,7 +5,7 @@
 //! reliability without requiring local LLVM library linking during the build.
 
 use kain_core::ast::{
-    BinaryOp, Block, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt, UnaryOp,
+    BinaryOp, Block, ElseBranch, Expr, JSXAttrValue, JSXNode, Pattern, Stmt, Type, UnaryOp,
     VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
@@ -117,6 +117,8 @@ struct LlvmGenerator {
     function_params: HashMap<String, Vec<String>>,
     /// Functions that were emitted as extern declarations.
     extern_functions: HashSet<String>,
+    /// Callable names defined by the lowered program itself, including target stdlib wrappers.
+    defined_functions: HashSet<String>,
     /// Maps string content to global variable name
     strings: HashMap<String, String>,
     string_counter: usize,
@@ -148,6 +150,7 @@ impl LlvmGenerator {
             functions: HashMap::new(),
             function_params: HashMap::new(),
             extern_functions: HashSet::new(),
+            defined_functions: HashSet::new(),
             strings: HashMap::new(),
             string_counter: 0,
             loop_stack: Vec::new(),
@@ -2011,6 +2014,44 @@ impl LlvmGenerator {
         Ok((params.clone(), self.map_type(ret)))
     }
 
+    fn ast_param_codegen_types(
+        &self,
+        params: &[kain_core::ast::Param],
+        resolved_params: &[ResolvedType],
+    ) -> KainResult<Vec<String>> {
+        params
+            .iter()
+            .enumerate()
+            .map(|(index, param)| {
+                if matches!(param.ty, Type::Infer(_)) {
+                    Ok(resolved_params
+                        .get(index)
+                        .map(|ty| self.map_type(ty))
+                        .unwrap_or_else(|| "i64".to_string()))
+                } else {
+                    Ok(self.map_type_from_ast(&param.ty))
+                }
+            })
+            .collect()
+    }
+
+    fn function_codegen_signature(
+        &self,
+        func: &TypedFunction,
+    ) -> KainResult<(Vec<String>, String)> {
+        let is_extern = Self::function_is_extern(func);
+        let (resolved_params, mut ret_ty) = if is_extern {
+            self.extern_callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
+        } else {
+            self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
+        };
+        let param_tys = self.ast_param_codegen_types(&func.ast.params, &resolved_params)?;
+        if let Some(return_type) = &func.ast.return_type {
+            ret_ty = self.map_type_from_ast(return_type);
+        }
+        Ok((param_tys, ret_ty))
+    }
+
     fn function_is_extern(func: &TypedFunction) -> bool {
         func.ast.attributes.iter().any(|attr| attr.name == "extern")
     }
@@ -2213,35 +2254,13 @@ impl LlvmGenerator {
         // 2b. Pre-scan functions to register return types
         for item in &program.items {
             if let TypedItem::Function(func) = item {
+                let (params, ret_ty) = self.function_codegen_signature(func)?;
+                self.functions.insert(func.ast.name.clone(), ret_ty);
+                self.function_params.insert(func.ast.name.clone(), params);
                 if Self::function_is_extern(func) {
-                    let (params, ret_ty) = self.extern_callable_signature(
-                        &func.resolved_type,
-                        &func.ast.name,
-                        func.ast.span,
-                    )?;
-                    self.functions.insert(func.ast.name.clone(), ret_ty.clone());
-                    self.function_params.insert(
-                        func.ast.name.clone(),
-                        params
-                            .into_iter()
-                            .map(|param| self.map_type(&param))
-                            .collect(),
-                    );
                     self.extern_functions.insert(func.ast.name.clone());
                 } else {
-                    let (params, ret_ty) = self.callable_signature(
-                        &func.resolved_type,
-                        &func.ast.name,
-                        func.ast.span,
-                    )?;
-                    self.functions.insert(func.ast.name.clone(), ret_ty.clone());
-                    self.function_params.insert(
-                        func.ast.name.clone(),
-                        params
-                            .into_iter()
-                            .map(|param| self.map_type(&param))
-                            .collect(),
-                    );
+                    self.defined_functions.insert(func.ast.name.clone());
                 }
             } else if let TypedItem::Patch(patch) = item {
                 self.register_callable_signature(
@@ -2603,6 +2622,9 @@ impl LlvmGenerator {
             if skip_list.contains(&name.as_str()) {
                 continue;
             }
+            if self.defined_functions.contains(&name) {
+                continue;
+            }
 
             let ret_ty = self.map_type_from_str(func.return_type);
             let mut param_tys = Vec::new();
@@ -2866,6 +2888,7 @@ impl LlvmGenerator {
         &mut self,
         callable_name: &str,
         params: &[kain_core::ast::Param],
+        explicit_return_type: Option<&Type>,
         body: &Block,
         resolved_type: &ResolvedType,
         span: Span,
@@ -2878,6 +2901,10 @@ impl LlvmGenerator {
 
         let (param_types, mut ret_type) =
             self.callable_signature(resolved_type, callable_name, span)?;
+        if let Some(return_type) = explicit_return_type {
+            ret_type = self.map_type_from_ast(return_type);
+        }
+        let param_type_strings = self.ast_param_codegen_types(params, &param_types)?;
         self.current_return_type = Some(ret_type.clone());
 
         let (llvm_name, is_main) = if callable_name == "main" {
@@ -2894,7 +2921,7 @@ impl LlvmGenerator {
             if index > 0 {
                 param_str.push_str(", ");
             }
-            let param_ty = self.map_type(&param_types[index]);
+            let param_ty = &param_type_strings[index];
             param_str.push_str(&format!("{} %arg{}", param_ty, index));
         }
 
@@ -2909,7 +2936,7 @@ impl LlvmGenerator {
         }
 
         for (index, param) in params.iter().enumerate() {
-            let param_ty = self.map_type(&param_types[index]);
+            let param_ty = param_type_strings[index].clone();
             let addr_reg = format!("%{}.addr", param.name);
             self.emit(&format!("  {} = alloca {}", addr_reg, param_ty));
             self.emit(&format!(
@@ -2922,7 +2949,15 @@ impl LlvmGenerator {
             }
         }
 
-        self.compile_block(body)?;
+        if let Err(error) = self.compile_block(body) {
+            return Err(match error {
+                KainError::Codegen { message, span } => KainError::codegen(
+                    format!("while compiling '{}': {}", callable_name, message),
+                    span,
+                ),
+                other => other,
+            });
+        }
         self.emit_scope_exit();
 
         if ret_type == "void" {
@@ -2943,6 +2978,7 @@ impl LlvmGenerator {
         self.compile_named_callable(
             &patch.ast.name,
             &patch.ast.params,
+            patch.ast.return_type.as_ref(),
             &patch.ast.body,
             &patch.resolved_type,
             patch.ast.span,
@@ -2953,6 +2989,7 @@ impl LlvmGenerator {
         self.compile_named_callable(
             &law.ast.name,
             &law.ast.params,
+            Some(&law.ast.return_type),
             &law.ast.body,
             &law.resolved_type,
             law.ast.span,
@@ -2963,6 +3000,7 @@ impl LlvmGenerator {
         self.compile_named_callable(
             &converge.ast.name,
             &converge.ast.params,
+            converge.ast.return_type.as_ref(),
             &converge.ast.spec_lane.body,
             &converge.resolved_type,
             converge.ast.span,
@@ -3039,6 +3077,7 @@ impl LlvmGenerator {
         self.compile_named_callable(
             &orchestrate.ast.name,
             &orchestrate.ast.params,
+            orchestrate.ast.return_type.as_ref(),
             &orchestrate.ast.body,
             &orchestrate.resolved_type,
             orchestrate.ast.span,
@@ -3052,6 +3091,7 @@ impl LlvmGenerator {
         self.compile_named_callable(
             &func.ast.name,
             &func.ast.params,
+            func.ast.return_type.as_ref(),
             &func.ast.body,
             &func.resolved_type,
             func.ast.span,
@@ -3059,13 +3099,12 @@ impl LlvmGenerator {
     }
 
     fn compile_extern_function(&mut self, func: &TypedFunction) -> KainResult<()> {
-        let (param_types, ret_type) =
-            self.extern_callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?;
+        let (param_types, ret_type) = self.function_codegen_signature(func)?;
 
         let mut param_str = String::new();
         let mut emitted_index = 0usize;
         for (index, _) in func.ast.params.iter().enumerate() {
-            let param_ty = self.map_type(&param_types[index]);
+            let param_ty = &param_types[index];
             if param_ty == "void" {
                 continue;
             }

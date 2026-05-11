@@ -367,6 +367,9 @@ impl<'a> TypeEnv<'a> {
                 ]),
             ),
         );
+        env.types.insert("FsError".into(), fs_error_type());
+        env.types.insert("FsMetadata".into(), fs_metadata_type());
+        env.types.insert("FsDirEntry".into(), fs_dir_entry_type());
         env.types.insert(
             "Vec2".into(),
             ResolvedType::Tuple(vec![
@@ -585,6 +588,63 @@ fn selfhost_path_type() -> ResolvedType {
 
 fn selfhost_dir_entry_type() -> ResolvedType {
     ResolvedType::Struct("DirEntry".to_string(), HashMap::new())
+}
+
+fn fs_error_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsError".to_string(),
+        HashMap::from([
+            ("kind".to_string(), ResolvedType::String),
+            ("operation".to_string(), ResolvedType::String),
+            ("path".to_string(), ResolvedType::String),
+            ("other_path".to_string(), ResolvedType::String),
+            ("message".to_string(), ResolvedType::String),
+            ("raw_code".to_string(), ResolvedType::Int(IntSize::I64)),
+        ]),
+    )
+}
+
+fn fs_metadata_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsMetadata".to_string(),
+        HashMap::from([
+            ("file_type".to_string(), ResolvedType::String),
+            ("len".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("readonly".to_string(), ResolvedType::Bool),
+            (
+                "created_millis".to_string(),
+                ResolvedType::Int(IntSize::I64),
+            ),
+            (
+                "modified_millis".to_string(),
+                ResolvedType::Int(IntSize::I64),
+            ),
+            (
+                "accessed_millis".to_string(),
+                ResolvedType::Int(IntSize::I64),
+            ),
+        ]),
+    )
+}
+
+fn fs_dir_entry_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsDirEntry".to_string(),
+        HashMap::from([
+            ("path".to_string(), ResolvedType::String),
+            ("file_name".to_string(), ResolvedType::String),
+            ("file_type".to_string(), ResolvedType::String),
+            ("metadata".to_string(), fs_metadata_type()),
+        ]),
+    )
+}
+
+fn fs_byte_array_type() -> ResolvedType {
+    dynamic_array_type(ResolvedType::Int(IntSize::I64))
+}
+
+fn fs_result_type(ok: ResolvedType) -> ResolvedType {
+    ResolvedType::Result(Box::new(ok), Box::new(fs_error_type()))
 }
 
 fn selfhost_duration_type() -> ResolvedType {
@@ -1126,6 +1186,7 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         "path_is_dir".into(),
         builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
     );
+    register_filesystem_global_functions(env);
     env.define_global(
         "len".into(),
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
@@ -1223,6 +1284,210 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         builtin_function_type(
             vec![ResolvedType::Unknown],
             ResolvedType::Float(FloatSize::F64),
+        ),
+    );
+}
+
+fn register_filesystem_global_functions(env: &mut TypeEnv<'_>) {
+    for name in [
+        "fs_read_text",
+        "fs_temp_file",
+        "fs_temp_dir",
+        "fs_hash_file",
+        "fs_path_parent",
+        "fs_path_file_name",
+        "fs_path_extension",
+        "fs_path_stem",
+        "fs_path_normalize",
+        "fs_path_absolute",
+        "fs_path_canonicalize",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+        );
+    }
+
+    for name in ["fs_exists", "fs_is_file", "fs_is_dir", "fs_is_symlink"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+        );
+    }
+
+    for name in ["fs_write_text", "fs_append_text", "fs_atomic_write_text"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, ResolvedType::String],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+
+    env.define_global(
+        "fs_read_bytes".into(),
+        builtin_function_type(vec![ResolvedType::String], fs_byte_array_type()),
+    );
+
+    for name in ["fs_write_bytes", "fs_append_bytes", "fs_atomic_write_bytes"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, fs_byte_array_type()],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+
+    for name in [
+        "fs_create_dir",
+        "fs_create_dir_all",
+        "fs_remove_file",
+        "fs_remove_dir",
+        "fs_remove_dir_all",
+        "fs_remove_path",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+        );
+    }
+
+    for name in ["fs_copy_file", "fs_copy_path", "fs_move_path"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, ResolvedType::String],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+    env.define_global(
+        "fs_path_join".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::String,
+        ),
+    );
+
+    for name in ["fs_metadata", "fs_symlink_metadata"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], fs_metadata_type()),
+        );
+    }
+
+    for name in ["fs_read_dir", "fs_walk"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String],
+                dynamic_array_type(fs_dir_entry_type()),
+            ),
+        );
+    }
+
+    for name in ["fs_read_dir_paths", "fs_glob"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String],
+                dynamic_array_type(ResolvedType::String),
+            ),
+        );
+    }
+
+    env.define_global(
+        "fs_try_read_text".into(),
+        builtin_function_type(
+            vec![ResolvedType::String],
+            fs_result_type(ResolvedType::String),
+        ),
+    );
+    env.define_global(
+        "fs_try_read_bytes".into(),
+        builtin_function_type(
+            vec![ResolvedType::String],
+            fs_result_type(fs_byte_array_type()),
+        ),
+    );
+
+    for name in [
+        "fs_try_write_text",
+        "fs_try_append_text",
+        "fs_try_create_dir",
+        "fs_try_create_dir_all",
+        "fs_try_remove_file",
+        "fs_try_remove_dir",
+        "fs_try_remove_dir_all",
+        "fs_try_remove_path",
+        "fs_try_copy_path",
+        "fs_try_move_path",
+        "fs_try_atomic_write_text",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::Unknown, ResolvedType::Unknown],
+                fs_result_type(ResolvedType::Unit),
+            ),
+        );
+    }
+
+    for name in ["fs_try_write_bytes", "fs_try_append_bytes"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String, fs_byte_array_type()],
+                fs_result_type(ResolvedType::Unit),
+            ),
+        );
+    }
+
+    env.define_global(
+        "fs_try_copy_file".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            fs_result_type(ResolvedType::Int(IntSize::I64)),
+        ),
+    );
+
+    for name in ["fs_try_metadata", "fs_try_symlink_metadata"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String],
+                fs_result_type(fs_metadata_type()),
+            ),
+        );
+    }
+
+    for name in ["fs_try_read_dir", "fs_try_walk"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String],
+                fs_result_type(dynamic_array_type(fs_dir_entry_type())),
+            ),
+        );
+    }
+
+    for name in ["fs_try_read_dir_paths", "fs_try_glob"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::String],
+                fs_result_type(dynamic_array_type(ResolvedType::String)),
+            ),
+        );
+    }
+
+    env.define_global(
+        "fs_try_hash_file".into(),
+        builtin_function_type(
+            vec![ResolvedType::String],
+            fs_result_type(ResolvedType::String),
         ),
     );
 }
@@ -2926,15 +3191,17 @@ fn resolve_entangle_endpoint_type(
                     )
                 })?
             }
-            other => return Err(env.type_error(
-                format!(
+            other => {
+                return Err(env.type_error(
+                    format!(
                     "entangle endpoint '{}' is not an assignable struct path; '{}' resolves to {}",
                     endpoint.authored_path(),
                     segment,
                     describe_type(other)
                 ),
-                endpoint.span,
-            )),
+                    endpoint.span,
+                ))
+            }
         };
     }
 
@@ -10171,6 +10438,39 @@ mod tests {
             (
                 "path_is_dir",
                 builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+            ),
+            (
+                "fs_read_text",
+                builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+            ),
+            (
+                "fs_try_read_text",
+                builtin_function_type(
+                    vec![ResolvedType::String],
+                    fs_result_type(ResolvedType::String),
+                ),
+            ),
+            (
+                "fs_read_bytes",
+                builtin_function_type(vec![ResolvedType::String], fs_byte_array_type()),
+            ),
+            (
+                "fs_metadata",
+                builtin_function_type(vec![ResolvedType::String], fs_metadata_type()),
+            ),
+            (
+                "fs_read_dir",
+                builtin_function_type(
+                    vec![ResolvedType::String],
+                    dynamic_array_type(fs_dir_entry_type()),
+                ),
+            ),
+            (
+                "fs_path_join",
+                builtin_function_type(
+                    vec![ResolvedType::String, ResolvedType::String],
+                    ResolvedType::String,
+                ),
             ),
         ] {
             assert_eq!(

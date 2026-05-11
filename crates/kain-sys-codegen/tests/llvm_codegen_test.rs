@@ -10,8 +10,8 @@ use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::types;
 use kain_core::types::{
-    IntSize, ResolvedType, TypedActor, TypedComponent, TypedFunction, TypedImpl, TypedItem,
-    TypedProgram, TypedStruct,
+    IntSize, ResolvedType, TypedComponent, TypedFunction, TypedImpl, TypedItem, TypedProgram,
+    TypedStruct,
 };
 use kain_core::Span;
 use kain_sys_codegen::generate_llvm;
@@ -51,6 +51,32 @@ fn typed_program_from_source(source: &str) -> TypedProgram {
         .parse()
         .expect("parser should succeed");
     types::check(&program, &mapper, "<llvm-test>").expect("typecheck should succeed")
+}
+
+#[test]
+fn llvm_uses_explicit_native_stdlib_wrapper_string_signatures() {
+    let source = r#"
+@extern
+fn kain_native_fs_read_text(path: String) -> String
+
+pub fn fs_read_text(path: String) -> String:
+    return kain_native_fs_read_text(path)
+
+fn main() -> Int:
+    let value = fs_read_text("note.txt")
+    if value == "hello":
+        return 1
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("declare i8* @kain_native_fs_read_text(i8* %arg0)"));
+    assert!(llvm.contains("define i8* @fs_read_text(i8* %arg0)"));
+    assert!(!llvm.contains("declare i8* @fs_read_text(i8*"));
+    assert!(llvm.contains("call i1 @deep_eq(i8*"));
 }
 
 #[test]
@@ -519,87 +545,20 @@ fn llvm_consumes_lowered_alloc_and_realloc_helpers() {
 
 #[test]
 fn llvm_generates_actor_spawn_and_send_message_paths() {
-    let printer = TypedItem::Actor(TypedActor {
-        ast: kain_core::ast::Actor {
-            name: "Printer".to_string(),
-            state: vec![kain_core::ast::StateDecl {
-                name: "count".to_string(),
-                ty: int_type(),
-                initial: Expr::Int(0, span()),
-                weak: false,
-                attributes: vec![],
-                span: span(),
-            }],
-            handlers: vec![kain_core::ast::MessageHandler {
-                message_type: "Print".to_string(),
-                params: vec![Param {
-                    name: "value".to_string(),
-                    ty: int_type(),
-                    mutable: false,
-                    default: None,
-                    span: span(),
-                }],
-                body: Block {
-                    stmts: vec![Stmt::Return(None, span())],
-                    span: span(),
-                },
-                span: span(),
-            }],
-            methods: vec![],
-            attributes: vec![],
-            span: span(),
-        },
-        state_types: HashMap::from([("count".to_string(), ResolvedType::Int(IntSize::I64))]),
-    });
+    let program = typed_program_from_source(
+        r#"
+actor Printer:
+    state count: Int = 0
 
-    let drive = TypedItem::Function(TypedFunction {
-        ast: Function {
-            name: "drive".to_string(),
-            generics: vec![],
-            params: vec![],
-            return_type: Some(int_type()),
-            effects: vec![],
-            body: Block {
-                stmts: vec![
-                    Stmt::Let {
-                        pattern: Pattern::Binding {
-                            name: "actor".to_string(),
-                            mutable: false,
-                            span: span(),
-                        },
-                        ty: None,
-                        value: Some(Expr::Spawn {
-                            actor: "Printer".to_string(),
-                            init: vec![("count".to_string(), Expr::Int(1, span()))],
-                            span: span(),
-                        }),
-                        span: span(),
-                    },
-                    Stmt::Expr(Expr::SendMsg {
-                        target: Box::new(Expr::Ident("actor".to_string(), span())),
-                        message: "Print".to_string(),
-                        data: vec![("value".to_string(), Expr::Int(7, span()))],
-                        span: span(),
-                    }),
-                    Stmt::Return(Some(Expr::Int(0, span())), span()),
-                ],
-                span: span(),
-            },
-            visibility: Visibility::Public,
-            attributes: vec![],
-            span: span(),
-        },
-        resolved_type: ResolvedType::Function {
-            params: vec![],
-            ret: Box::new(ResolvedType::Int(IntSize::I64)),
-            effects: EffectSet::default(),
-        },
-        effects: EffectSet::default(),
-    });
+    on Print(value: Int):
+        return
 
-    let program = TypedProgram {
-        items: vec![printer, drive],
-    };
+fn drive() -> Int:
+    let printer = spawn Printer(count = 1)
+    send printer.Print(value = 7)
+    return 0
+"#,
+    );
 
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");

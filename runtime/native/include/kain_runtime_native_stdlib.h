@@ -55,6 +55,26 @@ const char* kain_native_entangle_get_type_name(int64_t index);
 int64_t kain_native_now_millis(void);
 int64_t kain_native_sleep_millis(int64_t milliseconds);
 
+const char* kain_native_fs_read_text(const char* path);
+int64_t kain_native_fs_write_text(const char* path, const char* content);
+int64_t kain_native_fs_append_text(const char* path, const char* content);
+int64_t kain_native_fs_atomic_write_text(const char* path, const char* content);
+int kain_native_fs_exists(const char* path);
+int kain_native_fs_is_file(const char* path);
+int kain_native_fs_is_dir(const char* path);
+int64_t kain_native_fs_create_dir_all(const char* path);
+int64_t kain_native_fs_copy_file(const char* src, const char* dest);
+int64_t kain_native_fs_move_path(const char* src, const char* dest);
+int64_t kain_native_fs_remove_file(const char* path);
+int64_t kain_native_fs_remove_dir_all(const char* path);
+const char* kain_native_fs_temp_file(const char* prefix);
+const char* kain_native_fs_temp_dir(const char* prefix);
+const char* kain_native_fs_hash_file(const char* path);
+const char* kain_native_fs_path_join(const char* base, const char* child);
+int64_t kain_native_fs_last_status(void);
+const char* kain_native_fs_last_error_kind(void);
+const char* kain_native_fs_last_error_message(void);
+
 #ifdef __cplusplus
 }
 #endif

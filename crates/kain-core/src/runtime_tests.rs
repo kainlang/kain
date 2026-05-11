@@ -111,6 +111,10 @@ fn stdlib_registry_exposes_ord_and_chr() {
     assert!(stdlib.functions.contains_key("stdout_write"));
     assert!(stdlib.functions.contains_key("stdin_read_exact"));
     assert!(stdlib.functions.contains_key("to_int"));
+    assert!(stdlib.functions.contains_key("fs_read_text"));
+    assert!(stdlib.functions.contains_key("fs_try_read_text"));
+    assert!(stdlib.functions.contains_key("fs_metadata"));
+    assert!(stdlib.functions.contains_key("fs_path_join"));
 }
 
 #[test]
@@ -148,6 +152,36 @@ fn command_run_builtin_captures_stdout_and_status() {
 fn main() -> Int:
     let result = command_run("bash", ["-lc", "printf hello"], "")
     if result.success && result.status == 0 && result.stdout == "hello":
+        return 1
+    return 0
+"#,
+    );
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 1),
+        other => panic!("expected Int(1), got {:?}", other),
+    }
+}
+
+#[test]
+fn filesystem_builtins_round_trip_text_metadata_walk_and_hash() {
+    let value = interpret_test_source(
+        r#"
+fn main() -> Int:
+    let dir = fs_temp_dir("kain-runtime-fs")
+    let path = fs_path_join(dir, "note.txt")
+    fs_write_text(path, "hello")
+    fs_append_text(path, " fs")
+
+    let text = fs_read_text(path)
+    let bytes = fs_read_bytes(path)
+    let metadata = fs_metadata(path)
+    let entries = fs_read_dir(dir)
+    let digest = fs_hash_file(path)
+
+    fs_remove_dir_all(dir)
+
+    if text == "hello fs" && len(bytes) == 8 && metadata.file_type == "file" && metadata.len == 8 && len(entries) == 1 && len(digest) == 64:
         return 1
     return 0
 "#,

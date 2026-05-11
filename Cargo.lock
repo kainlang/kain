@@ -2002,6 +2002,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
 
 [[package]]
+name = "glob"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
 name = "glow"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2912,6 +2918,7 @@ dependencies = [
  "kain-actor",
  "kain-blades",
  "kain-entangle",
+ "kain-fs",
  "kain-ui",
  "logos",
  "once_cell",
@@ -2987,6 +2994,15 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "kain-fs"
+version = "0.1.0"
+dependencies = [
+ "glob",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]

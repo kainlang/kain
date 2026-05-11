@@ -21,7 +21,7 @@ When the docs and code disagree, treat the mismatch as a signal to update the ca
 
 Kain is a compiled multi-target language toolchain, an executable semantic runtime, and an embeddable host stack.
 
-It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor runtime execution, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, `entangle`, and `orchestrate`. Shared actor vocabulary now lives in `crates/kain-actor` so supervision, mailboxes, scheduler policy, behavior contracts, native ABI descriptors, and typed actor contracts have a dedicated crate instead of hiding only inside `kain-core`.
+It is not only a `KAIN.toml`/materialization language or an orchestration shell over Rust, C, Python, Node, and GPU targets. `crates/kain-core` already owns real language execution for substantial parts of Kain itself: parsing, `comptime`, executable-body typechecking, direct interpretation of functions and blocks, closures, control flow, `match`, async/await, actor runtime execution, JSX/UI expression evaluation, and runtime execution of compiler-owned declarations such as `patch`, `converge`, `world`, `entangle`, and `orchestrate`. Shared actor vocabulary now lives in `crates/kain-actor` so supervision, mailboxes, scheduler policy, behavior contracts, native ABI descriptors, and typed actor contracts have a dedicated crate instead of hiding only inside `kain-core`. Portable filesystem semantics now live in `crates/kain-fs`, with `kain-core`, `stdlib/native`, LLVM, and direct C consuming the same typed file/path contract instead of each lane inventing its own ad hoc file helpers.
 
 The build, packaging, and adapter crates matter because Kain is meant to ship into multiple targets, not because the language is limited to manifests and glue. The durable architecture rule is: keep authored logic in Kain when it belongs to Kain semantics, and use host bridges when the capability is genuinely platform-, ABI-, or ecosystem-owned.
 
@@ -46,6 +46,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 - `crates/kain-core` owns language meaning, typed metadata, executable semantics, capability requirements, and shader/compute-plan semantics.
 - `crates/kain-actor` owns reusable actor-system model types: actor IDs, addresses, message contracts, mailbox policy, lifecycle/supervision metadata, scheduler policy, behavior contracts, native ABI descriptors, registry snapshots, actor-system validation, and the typed actor contract consumed by `kain-core`.
+- `crates/kain-fs` owns portable filesystem semantics: path normalization, text/byte file operations, metadata and directory-entry shapes, temp paths, atomic writes, copy/move/remove behavior, and typed filesystem errors shared by interpreter and native-facing stdlib code.
 - `crates/kain-driver` owns emitted bundle truth and app/runtime materialization.
 - `runtime/native` owns the stable ABI floor, startup, service contracts, and low-level host/runtime substrate.
 - Host bridges and adapters extend Kain into external ecosystems; they do not downgrade Kain source into "configuration only."
@@ -80,7 +81,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [docs/reference/dcc-parity-matrix.md](/M:/Code/Kain/docs/reference/dcc-parity-matrix.md): flagship KSculpt and KPainter parity inventory, baseline rules, and validation entrypoint
 - [scripts/python/validate_dcc_parity_matrix.py](/M:/Code/Kain/scripts/python/validate_dcc_parity_matrix.py): strict validator for the machine-readable parity inventory owned by `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`
 - [scripts/python/run_dcc_parity_harness.py](/M:/Code/Kain/scripts/python/run_dcc_parity_harness.py): executable scenario harness for the highest-priority shared, sculpt, and painter parity hooks
-- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data. The root profile holds general helpers; `stdlib/native` is the LLVM/direct-C native profile for actor, entangle, runtime, diagnostics, time, and intent helpers; `stdlib/c` is the direct C bridge overlay; and the root `gen_server.kn` helper layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives. `start_link` is currently naming-only until real link semantics land
+- [stdlib](/M:/Code/Kain/stdlib): runtime support and standard library data. The root profile holds general helpers; `stdlib/native` is the LLVM/direct-C native profile for actor, entangle, filesystem, runtime, diagnostics, time, and intent helpers; `stdlib/c` is the direct C bridge overlay; and the root `gen_server.kn` helper layers `gen_server_start`, `gen_server_call`, `gen_server_cast`, and `gen_server_info` on top of raw actor primitives. `start_link` is currently naming-only until real link semantics land
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
 - [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
@@ -104,8 +105,9 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 
 ## Key Crates
 
-- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
+- [kain-core](/M:/Code/Kain/crates/kain-core): parser, AST, executable-body semantic typechecker, shared filesystem module resolution (`module_resolution.rs`), first-class `fs_*` interpreter globals, compiler-owned source formatter, `comptime`, interpreter/runtime execution for real Kain logic, runtime contract emission, realtime bundle metadata, and the compiler-owned intent suite (`law`, `patch`, `converge`, `world`, `entangle`, `orchestrate`)
 - [kain-actor](/M:/Code/Kain/crates/kain-actor): actor-system foundation for reusable Rust/native model types. `lib.rs` is only the public index; extend focused files such as `id.rs`, `message.rs`, `definition.rs`, `mailbox.rs`, `lifecycle.rs`, `supervision.rs`, `scheduler.rs`, `behavior.rs`, `registry.rs`, `system.rs`, and `native.rs`. `kain-core` consumes this crate for validated typed actor contracts and runtime actor IDs/messages while keeping AST ownership local to the compiler frontend.
+- [kain-fs](/M:/Code/Kain/crates/kain-fs): portable filesystem crate for Kain-owned file operations. It exposes path helpers, text/byte reads and writes, append, atomic write, metadata, deterministic directory entries/walks, temp file/dir creation, copy/move/remove operations, SHA-256 hashing, and typed `FsError` values for strict or result-returning caller flows.
 - [kain-blades](/M:/Code/Kain/crates/kain-blades): crate-like local workspace discovery for Kain blades. It treats `blades/*`, `apps/*`, and `crates/*` as interchangeable blade roots, resolves explicit `KAIN.toml` blade metadata plus synthetic `Cargo.toml` Rust blades, and feeds `kain equip`, Fabric steps, Kain module lookup, Rust crate FFI, C ABI FFI, and the blade build graph.
 - [kain-build](/M:/Code/Kain/crates/kain-build): workspace build orchestration for blades plus the older Cargo `build.rs` helper surface. `src/workspace.rs` plans and executes C shared libraries, Cargo crates, GPU artifacts, Kain checks, Fabric validation/runs, and explicit Node/Bun/custom tasks from one DAG with artifact roots under `.kain/build`, stamps under `.kain/cache/build`, and JSON/JSONL reports under `.kain/reports/build`.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
@@ -158,19 +160,26 @@ That same frontend lane now owns six compiler-owned intent declarations:
 
 The runtime-contract and realtime-bundle families now both carry these explicit sections, and downstream adapters should consume them directly instead of reverse-engineering equivalent intent from local conventions.
 
-Native target codegen for compiler-owned intents is intentionally explicit:
-`crates/kain-sys-codegen/src/codegen_llvm/mod.rs` owns LLVM lowering for `patch`, `law`, `converge`, `world`, `entangle`, and `orchestrate`; `crates/kain-sys-codegen/src/codegen_c.rs` owns the experimental direct C source lane; `runtime/native/include/kain_runtime_entangle.h` plus `runtime/native/src/core/kain_runtime_entangle.c` provide the low-level C ABI registry; and `runtime/native/include/kain_runtime_native_stdlib.h` plus `runtime/native/src/core/kain_runtime_native_stdlib.c` provide the stdlib-facing C ABI facade consumed by LLVM/direct-C native builds.
+Native target codegen for compiler-owned intents and filesystem calls is intentionally explicit:
+`crates/kain-sys-codegen/src/codegen_llvm/mod.rs` owns LLVM lowering for `patch`, `law`, `converge`, `world`, `entangle`, `orchestrate`, and native stdlib wrapper signatures; `crates/kain-sys-codegen/src/codegen_c.rs` owns the experimental direct C source lane including string equality lowering for stdlib helper checks; `runtime/native/include/kain_runtime_entangle.h` plus `runtime/native/src/core/kain_runtime_entangle.c` provide the low-level C ABI registry; and `runtime/native/include/kain_runtime_native_stdlib.h` plus `runtime/native/src/core/kain_runtime_native_stdlib.c` provide the stdlib-facing C ABI facade consumed by LLVM/direct-C native builds.
 
 ### Native Stdlib And Runtime Facade
 
 Native Kain builds use explicit stdlib/runtime profiles instead of the generic root stdlib:
 
-- `stdlib/native` is loaded for `CompileTarget::Llvm` and `CompileTarget::C`. It exposes runtime init/shutdown, actor, entangle, diagnostics, time, collections, result/status, and intent helpers as Kain-callable declarations/wrappers.
+- `stdlib/native` is loaded for `CompileTarget::Llvm` and `CompileTarget::C`. It exposes runtime init/shutdown, actor, entangle, filesystem, diagnostics, time, collections, result/status, and intent helpers as Kain-callable declarations/wrappers.
 - `stdlib/c` is loaded after `stdlib/native` only for direct C output and keeps C bridge helpers as `@extern` declarations.
-- `runtime/native_core_runtime.toml` is the default lean manifest for normal file builds. It links the owned C core, diagnostics, actor, entangle, and native stdlib facade sources.
+- `runtime/native_core_runtime.toml` is the default lean manifest for normal file builds. It links the owned C core, diagnostics, actor, entangle, filesystem-capable native stdlib facade, and related sources.
 - `runtime/native_runtime.toml` remains the broad app/vendor manifest. Use it when the task needs the larger native app/UI/vendor surface instead of the core language proof runtime.
 - `runtime/fixtures/native_world_actor_intent/main.kn` is the current all-in-one fixture proving `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and stdlib facade calls through both `-t llvm` and `-t c`.
+- `runtime/fixtures/native_fs/main.kn` is the focused filesystem fixture proving text writes/appends/reads, temp directories, path joins, existence/type checks, SHA-256 hashing, recursive removal, and native stdlib status plumbing through both `-t llvm` and `-t c`.
 - `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` is the direct C conformance entrypoint for the facade itself.
+
+### Filesystem Flow
+
+`Kain fs_* calls -> kain-core runtime globals -> kain-fs portable crate -> stdlib/native wrappers -> runtime/native C facade -> LLVM/direct-C executables`
+
+Interpreter-side file APIs delegate to `crates/kain-fs`, so strict globals can raise typed `FsError` values and `fs_try_*` globals can return structured result values. Native LLVM/direct-C builds load `stdlib/native/fs.kn`, which wraps the C facade in `runtime/native/src/core/kain_runtime_native_stdlib.c`. Keep the Rust and C lanes behaviorally aligned: `fs_hash_file` is SHA-256 in both lanes, directory entry shape should remain stable, and new native-callable `fs_*` globals need precise `StdLib::new` return types so LLVM call lowering does not infer the wrong ABI.
 
 ### LLVM Native Actor ABI
 
@@ -479,6 +488,7 @@ If the debug CLI is missing:
 - The PATH `kain` launcher can drift from the repo-local binary. Before trusting the docs example suite, run `./target/debug/kain doctor` or call `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`.
 - `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Filesystem imports now share lookup through `crates/kain-core/src/module_resolution.rs`. `use module::item` can fall back from `module/item.kn` to `module.kn` or `src/module.kn` and register the requested top-level item, while `use module::*` exposes top-level module items to best-effort typechecking. Lookup is still rooted in the process current directory, so launch nested scripts from the intended project/runtime root until source-file-relative module roots are added.
+- Filesystem stdlib globals are ABI-sensitive now. When adding new native-callable `fs_*` helpers, update `crates/kain-core/src/stdlib.rs` with precise return types, keep `stdlib/native/fs.kn` wrapper signatures explicit, and ensure LLVM skips declaring stdlib functions that the target stdlib defines in Kain source.
 - Fresh Linux and macOS clones should start with the root `install_kain.py` bootstrapper. It is now the cross-platform entrypoint that resolves or installs LLVM, repopulates `toolchain/llvm/bin`, builds `kain`, installs `kain` and `kn`, and emits shell activation scripts under `generated/`.
 - Fresh clones may not include a populated `toolchain/llvm/bin/clang.exe` even though older docs and helper scripts reference it. When that happens, install LLVM separately and point `KAIN_CLANG_PATH` at the external `clang.exe`; `scripts/windows/sync-kain-source-of-truth.ps1` now falls back to PATH and `C:\Program Files\LLVM\bin\clang.exe` before assuming the vendored drop exists.
 - The `cli` suite no longer depends on the external self-hosting fixture under `M:\Code\Other\kainselfhosting\...`; the repo-local import-c fixture under `crates/cli/tests/fixtures/import_c` is the durable regression source now.

@@ -1,5 +1,50 @@
 # Kain Memory
 
+# 2026-05-11 - Dedicated kain-fs crate and native filesystem pipeline landed
+
+Kain now has a real filesystem substrate instead of scattered file/path helpers.
+
+What changed:
+
+- Added `crates/kain-fs` as a workspace crate for portable file operations, path helpers, metadata, directory entries, directory walks, temp paths, atomic writes, copy/move/remove operations, SHA-256 file hashes, and typed `FsError` values.
+- Wired `crates/kain-core` to depend on `kain-fs` and expose first-class `fs_*` runtime globals. Strict variants raise runtime errors, while `fs_try_*` variants return structured `Result` values.
+- Added typed filesystem registry data in `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs` so interpreter, type metadata, and native codegen see the same global function surface.
+- Added `stdlib/native/fs.kn` plus native C facade functions in `runtime/native/include/kain_runtime_native_stdlib.h` and `runtime/native/src/core/kain_runtime_native_stdlib.c` so LLVM and direct C builds can perform real file operations without depending on the generic root stdlib.
+- Extended `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` and added `runtime/fixtures/native_fs/main.kn` to prove temp directories, path joins, text writes/appends/reads, copy/move/atomic write, SHA-256 hashing, and recursive removal through native C and generated LLVM/direct-C executables.
+- Tightened `crates/kain-sys-codegen` so the C backend lowers string equality through `strcmp`, and LLVM trusts explicit target-stdlib wrapper signatures instead of inferring wrong ABIs for Kain-defined native wrappers.
+
+Design decisions:
+
+- `kain-fs` owns portable semantics; `kain-core` owns how those semantics appear as Kain runtime globals; `stdlib/native` and the C facade own native target exposure.
+- `fs_hash_file` is SHA-256 in both Rust and native C lanes. Do not replace one side with a faster non-cryptographic hash unless the API name and docs change together.
+- Native target stdlib wrappers are ordinary Kain functions over a C ABI facade. LLVM must skip external declarations for stdlib functions that are defined by loaded target stdlib source, or native builds can produce duplicate declarations/definitions.
+- `StdLib::new` return types matter for LLVM lowering. New native-callable filesystem helpers should not be left as `Any` when they return strings, integers, booleans, or units.
+
+Validation:
+
+- `cargo test -p kain-fs --target-dir target\\codex-kain-fs`
+- `cargo test -p kain-core filesystem --target-dir target\\codex-kain-fs-core`
+- `cargo test -p kain-sys-codegen --test c_codegen_test --target-dir target\\codex-kain-fs-codegen-c -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test --target-dir target\\codex-kain-fs-codegen-llvm -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-kain-fs-cli`
+- `toolchain\\llvm\\bin\\clang.exe runtime\\conformance\\native_stdlib_bridge\\test_native_stdlib_bridge.c runtime\\native\\src\\core\\kain_runtime_core.c runtime\\native\\src\\core\\kain_runtime_version.c runtime\\native\\src\\core\\kain_runtime_diagnostics.c runtime\\native\\src\\core\\kain_runtime_actor.c runtime\\native\\src\\core\\kain_runtime_entangle.c runtime\\native\\src\\core\\kain_runtime_native_stdlib.c -Iruntime\\native\\include -o target\\codex-kain-fs-native\\native_stdlib_bridge.exe -lws2_32 -luser32 -lgdi32 -lopengl32`
+- `target\\codex-kain-fs-native\\native_stdlib_bridge.exe`
+- `target\\codex-kain-fs-cli\\debug\\kain.exe check runtime\\fixtures\\native_fs\\main.kn --target c`
+- `target\\codex-kain-fs-cli\\debug\\kain.exe build runtime\\fixtures\\native_fs\\main.kn -t c -o target\\codex-kain-fs-native\\native_fs_c.c`
+- `target\\codex-kain-fs-native\\native_fs_c.exe`
+- `target\\codex-kain-fs-cli\\debug\\kain.exe build runtime\\fixtures\\native_fs\\main.kn -t llvm -o target\\codex-kain-fs-native\\native_fs.ll`
+- `target\\codex-kain-fs-native\\native_fs.exe`
+
+Current risks:
+
+- The native facade currently exposes a useful v1 subset: text/path/temp/hash/copy/move/remove/status. The Rust crate already has richer metadata and directory-walk APIs that need native wrappers if Kain code should call them from LLVM/direct-C.
+- Several complex filesystem values still flow as `Any` in the stdlib registry until Kain's typed record/result story is strengthened.
+- The direct C backend still emits harmless extra-parentheses comparison warnings in generated C.
+
+Recommended next step:
+
+- Add a manifest-driven filesystem smoke under `smoketest/` or `runtime/fixtures` that runs the Rust interpreter, direct C, and LLVM filesystem lanes from one command, then expand native wrappers for directory listing and structured metadata.
+
 # 2026-05-11 - Blade build system v1 landed in kain-build
 
 Kain now has a real blade workspace build orchestrator instead of lab-local build scripts.

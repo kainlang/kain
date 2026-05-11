@@ -1,0 +1,31 @@
+fn main() -> Int:
+    let init_status = native_runtime_init()
+    if init_status != 0:
+        return init_status
+
+    let dir = fs_temp_dir("kain-native-fs-fixture")
+    let file = fs_path_join(dir, "main.txt")
+
+    fs_write_text(file, "hello")
+    fs_append_text(file, " native")
+
+    let text = fs_read_text(file)
+    let digest = fs_hash_file(file)
+    let status = 0
+    if fs_exists(file) == false:
+        status = 1
+    if fs_is_file(file) == false:
+        status = 1
+    if text != "hello native":
+        status = 1
+    if digest != "c732d558c5379548b0fc3d9d16d5afaaecc160958361e85def310f93499503d7":
+        status = 1
+
+    fs_remove_dir_all(dir)
+    let shutdown_status = native_runtime_shutdown()
+    if shutdown_status != 0:
+        return shutdown_status
+
+    if status == 0:
+        return 0
+    return 1

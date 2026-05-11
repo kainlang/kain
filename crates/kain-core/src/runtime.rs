@@ -13,11 +13,11 @@ use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
 use kain_actor::{ActorId, ActorIdAllocator, MessageEnvelope, DEFAULT_ASK_TIMEOUT_MS};
 use kain_entangle::{EntangleBindingDescriptor, EntangleEndpointId, EntangleGraph};
+use kain_fs::{DirectoryEntry, FsError, FsMetadata};
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, RwLock};
 
@@ -1600,51 +1600,87 @@ impl Env {
 
         // === File I/O ===
         self.define_native("read_file", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("read_file: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(s) => s,
-                _ => return Err(KainError::runtime("read_file: argument must be string")),
-            };
-
-            match std::fs::read_to_string(path) {
-                Ok(s) => Ok(Value::String(s)),
-                Err(e) => Err(KainError::runtime(format!(
-                    "read_file: failed to read '{}': {}",
-                    path, e
-                ))),
-            }
+            let path = runtime_expect_string_arg(&args, 0, "read_file", "path")?;
+            runtime_fs_strict("read_file", kain_fs::read_text(path).map(Value::String))
         });
 
         self.define_native("write_file", |_env, args| {
-            if args.len() != 2 {
-                return Err(KainError::runtime("write_file: expected 2 arguments"));
-            }
-            let path = match &args[0] {
-                Value::String(s) => s,
-                _ => {
-                    return Err(KainError::runtime(
-                        "write_file: first argument must be string",
-                    ))
-                }
-            };
-            let content = match &args[1] {
-                Value::String(s) => s,
-                _ => {
-                    return Err(KainError::runtime(
-                        "write_file: second argument must be string",
-                    ))
-                }
-            };
+            let path = runtime_expect_string_arg(&args, 0, "write_file", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "write_file", "content")?;
+            runtime_fs_strict_unit("write_file", kain_fs::write_text(path, content))
+        });
 
-            match std::fs::write(path, content) {
-                Ok(_) => Ok(Value::Unit),
-                Err(e) => Err(KainError::runtime(format!(
-                    "write_file: failed to write '{}': {}",
-                    path, e
-                ))),
-            }
+        self.define_native("fs_read_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_read_text", "path")?;
+            runtime_fs_strict("fs_read_text", kain_fs::read_text(path).map(Value::String))
+        });
+
+        self.define_native("fs_try_read_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_read_text", "path")?;
+            runtime_fs_result(kain_fs::read_text(path).map(Value::String))
+        });
+
+        self.define_native("fs_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_write_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "fs_write_text", "content")?;
+            runtime_fs_strict_unit("fs_write_text", kain_fs::write_text(path, content))
+        });
+
+        self.define_native("fs_try_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_write_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "fs_try_write_text", "content")?;
+            runtime_fs_result(kain_fs::write_text(path, content).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_append_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_append_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "fs_append_text", "content")?;
+            runtime_fs_strict_unit("fs_append_text", kain_fs::append_text(path, content))
+        });
+
+        self.define_native("fs_try_append_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_append_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "fs_try_append_text", "content")?;
+            runtime_fs_result(kain_fs::append_text(path, content).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_read_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_read_bytes", "path")?;
+            runtime_fs_strict(
+                "fs_read_bytes",
+                kain_fs::read_bytes(path).map(|bytes| runtime_byte_array_value(&bytes)),
+            )
+        });
+
+        self.define_native("fs_try_read_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_read_bytes", "path")?;
+            runtime_fs_result(
+                kain_fs::read_bytes(path).map(|bytes| runtime_byte_array_value(&bytes)),
+            )
+        });
+
+        self.define_native("fs_write_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_write_bytes", "path")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 1, "fs_write_bytes", "bytes")?;
+            runtime_fs_strict_unit("fs_write_bytes", kain_fs::write_bytes(path, &bytes))
+        });
+
+        self.define_native("fs_try_write_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_write_bytes", "path")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 1, "fs_try_write_bytes", "bytes")?;
+            runtime_fs_result(kain_fs::write_bytes(path, &bytes).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_append_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_append_bytes", "path")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 1, "fs_append_bytes", "bytes")?;
+            runtime_fs_strict_unit("fs_append_bytes", kain_fs::append_bytes(path, &bytes))
+        });
+
+        self.define_native("fs_try_append_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_append_bytes", "path")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 1, "fs_try_append_bytes", "bytes")?;
+            runtime_fs_result(kain_fs::append_bytes(path, &bytes).map(|_| Value::Unit))
         });
 
         // === String Functions ===
@@ -2413,187 +2449,368 @@ impl Env {
         });
 
         self.define_native("file_exists", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("file_exists: expected 1 argument"));
-            }
-            match &args[0] {
-                Value::String(path) => Ok(Value::Bool(Path::new(path).exists())),
-                _ => Err(KainError::runtime("file_exists: path must be string")),
-            }
+            let path = runtime_expect_string_arg(&args, 0, "file_exists", "path")?;
+            Ok(Value::Bool(kain_fs::exists(path)))
+        });
+
+        self.define_native("fs_exists", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_exists", "path")?;
+            Ok(Value::Bool(kain_fs::exists(path)))
+        });
+
+        self.define_native("fs_is_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_is_file", "path")?;
+            Ok(Value::Bool(kain_fs::is_file(path)))
+        });
+
+        self.define_native("fs_is_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_is_dir", "path")?;
+            Ok(Value::Bool(kain_fs::is_dir(path)))
+        });
+
+        self.define_native("fs_is_symlink", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_is_symlink", "path")?;
+            Ok(Value::Bool(kain_fs::is_symlink(path)))
+        });
+
+        self.define_native("fs_metadata", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_metadata", "path")?;
+            runtime_fs_strict(
+                "fs_metadata",
+                kain_fs::metadata(path).map(runtime_fs_metadata_value),
+            )
+        });
+
+        self.define_native("fs_try_metadata", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_metadata", "path")?;
+            runtime_fs_result(kain_fs::metadata(path).map(runtime_fs_metadata_value))
+        });
+
+        self.define_native("fs_symlink_metadata", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_symlink_metadata", "path")?;
+            runtime_fs_strict(
+                "fs_symlink_metadata",
+                kain_fs::symlink_metadata(path).map(runtime_fs_metadata_value),
+            )
+        });
+
+        self.define_native("fs_try_symlink_metadata", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_symlink_metadata", "path")?;
+            runtime_fs_result(kain_fs::symlink_metadata(path).map(runtime_fs_metadata_value))
         });
 
         self.define_native("create_dir_all", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("create_dir_all: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("create_dir_all: path must be string")),
-            };
-            std::fs::create_dir_all(path).map_err(|err| {
-                KainError::runtime(format!("create_dir_all: failed for '{}': {}", path, err))
-            })?;
-            Ok(Value::Unit)
+            let path = runtime_expect_string_arg(&args, 0, "create_dir_all", "path")?;
+            runtime_fs_strict_unit("create_dir_all", kain_fs::create_dir_all(path))
+        });
+
+        self.define_native("fs_create_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_create_dir", "path")?;
+            runtime_fs_strict_unit("fs_create_dir", kain_fs::create_dir(path))
+        });
+
+        self.define_native("fs_try_create_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_create_dir", "path")?;
+            runtime_fs_result(kain_fs::create_dir(path).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_create_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_create_dir_all", "path")?;
+            runtime_fs_strict_unit("fs_create_dir_all", kain_fs::create_dir_all(path))
+        });
+
+        self.define_native("fs_try_create_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_create_dir_all", "path")?;
+            runtime_fs_result(kain_fs::create_dir_all(path).map(|_| Value::Unit))
         });
 
         self.define_native("copy_file", |_env, args| {
-            if args.len() != 2 {
-                return Err(KainError::runtime("copy_file: expected 2 arguments"));
-            }
-            let src = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("copy_file: source must be string")),
-            };
-            let dest = match &args[1] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("copy_file: destination must be string")),
-            };
-            std::fs::copy(src, dest).map_err(|err| {
-                KainError::runtime(format!(
-                    "copy_file: failed from '{}' to '{}': {}",
-                    src, dest, err
-                ))
-            })?;
-            Ok(Value::Unit)
+            let src = runtime_expect_string_arg(&args, 0, "copy_file", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "copy_file", "dest")?;
+            runtime_fs_strict_unit("copy_file", kain_fs::copy_file(src, dest).map(|_| ()))
+        });
+
+        self.define_native("fs_copy_file", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_copy_file", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_copy_file", "dest")?;
+            runtime_fs_strict_unit("fs_copy_file", kain_fs::copy_file(src, dest).map(|_| ()))
+        });
+
+        self.define_native("fs_try_copy_file", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_try_copy_file", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_try_copy_file", "dest")?;
+            runtime_fs_result(kain_fs::copy_file(src, dest).map(|bytes| Value::Int(bytes as i64)))
+        });
+
+        self.define_native("fs_copy_path", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_copy_path", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_copy_path", "dest")?;
+            runtime_fs_strict_unit("fs_copy_path", kain_fs::copy_path(src, dest))
+        });
+
+        self.define_native("fs_try_copy_path", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_try_copy_path", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_try_copy_path", "dest")?;
+            runtime_fs_result(kain_fs::copy_path(src, dest).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_move_path", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_move_path", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_move_path", "dest")?;
+            runtime_fs_strict_unit("fs_move_path", kain_fs::move_path(src, dest))
+        });
+
+        self.define_native("fs_try_move_path", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "fs_try_move_path", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "fs_try_move_path", "dest")?;
+            runtime_fs_result(kain_fs::move_path(src, dest).map(|_| Value::Unit))
         });
 
         self.define_native("remove_file", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("remove_file: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("remove_file: path must be string")),
-            };
-            std::fs::remove_file(path).map_err(|err| {
-                KainError::runtime(format!("remove_file: failed for '{}': {}", path, err))
-            })?;
-            Ok(Value::Unit)
+            let path = runtime_expect_string_arg(&args, 0, "remove_file", "path")?;
+            runtime_fs_strict_unit("remove_file", kain_fs::remove_file(path))
+        });
+
+        self.define_native("fs_remove_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_remove_file", "path")?;
+            runtime_fs_strict_unit("fs_remove_file", kain_fs::remove_file(path))
+        });
+
+        self.define_native("fs_try_remove_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_remove_file", "path")?;
+            runtime_fs_result(kain_fs::remove_file(path).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_remove_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_remove_dir", "path")?;
+            runtime_fs_strict_unit("fs_remove_dir", kain_fs::remove_dir(path))
+        });
+
+        self.define_native("fs_try_remove_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_remove_dir", "path")?;
+            runtime_fs_result(kain_fs::remove_dir(path).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_remove_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_remove_dir_all", "path")?;
+            runtime_fs_strict_unit("fs_remove_dir_all", kain_fs::remove_dir_all(path))
+        });
+
+        self.define_native("fs_try_remove_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_remove_dir_all", "path")?;
+            runtime_fs_result(kain_fs::remove_dir_all(path).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_remove_path", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_remove_path", "path")?;
+            runtime_fs_strict_unit("fs_remove_path", kain_fs::remove_path(path))
+        });
+
+        self.define_native("fs_try_remove_path", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_remove_path", "path")?;
+            runtime_fs_result(kain_fs::remove_path(path).map(|_| Value::Unit))
         });
 
         self.define_native("read_dir", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("read_dir: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("read_dir: path must be string")),
-            };
-            let mut entries = Vec::new();
-            let read_dir = std::fs::read_dir(path).map_err(|err| {
-                KainError::runtime(format!("read_dir: failed for '{}': {}", path, err))
-            })?;
-            for entry in read_dir {
-                let entry = entry.map_err(|err| {
-                    KainError::runtime(format!("read_dir: failed reading '{}': {}", path, err))
-                })?;
-                entries.push(entry.path().to_string_lossy().into_owned());
-            }
-            entries.sort();
-            Ok(runtime_string_array_value(&entries))
+            let path = runtime_expect_string_arg(&args, 0, "read_dir", "path")?;
+            runtime_fs_strict(
+                "read_dir",
+                kain_fs::read_dir_paths(path).map(|entries| runtime_string_array_value(&entries)),
+            )
+        });
+
+        self.define_native("fs_read_dir_paths", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_read_dir_paths", "path")?;
+            runtime_fs_strict(
+                "fs_read_dir_paths",
+                kain_fs::read_dir_paths(path).map(|entries| runtime_string_array_value(&entries)),
+            )
+        });
+
+        self.define_native("fs_try_read_dir_paths", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_read_dir_paths", "path")?;
+            runtime_fs_result(
+                kain_fs::read_dir_paths(path).map(|entries| runtime_string_array_value(&entries)),
+            )
+        });
+
+        self.define_native("fs_read_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_read_dir", "path")?;
+            runtime_fs_strict(
+                "fs_read_dir",
+                kain_fs::read_dir_entries(path).map(runtime_fs_dir_entry_array_value),
+            )
+        });
+
+        self.define_native("fs_try_read_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_read_dir", "path")?;
+            runtime_fs_result(kain_fs::read_dir_entries(path).map(runtime_fs_dir_entry_array_value))
+        });
+
+        self.define_native("fs_walk", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_walk", "path")?;
+            runtime_fs_strict(
+                "fs_walk",
+                kain_fs::walk_dir_entries(path, kain_fs::WalkOptions::default())
+                    .map(runtime_fs_dir_entry_array_value),
+            )
+        });
+
+        self.define_native("fs_try_walk", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_walk", "path")?;
+            runtime_fs_result(
+                kain_fs::walk_dir_entries(path, kain_fs::WalkOptions::default())
+                    .map(runtime_fs_dir_entry_array_value),
+            )
+        });
+
+        self.define_native("fs_glob", |_env, args| {
+            let pattern = runtime_expect_string_arg(&args, 0, "fs_glob", "pattern")?;
+            runtime_fs_strict(
+                "fs_glob",
+                kain_fs::glob_paths(pattern).map(|entries| runtime_string_array_value(&entries)),
+            )
+        });
+
+        self.define_native("fs_try_glob", |_env, args| {
+            let pattern = runtime_expect_string_arg(&args, 0, "fs_try_glob", "pattern")?;
+            runtime_fs_result(
+                kain_fs::glob_paths(pattern).map(|entries| runtime_string_array_value(&entries)),
+            )
+        });
+
+        self.define_native("fs_atomic_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_atomic_write_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "fs_atomic_write_text", "content")?;
+            runtime_fs_strict_unit(
+                "fs_atomic_write_text",
+                kain_fs::atomic_write_text(path, content),
+            )
+        });
+
+        self.define_native("fs_try_atomic_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_atomic_write_text", "path")?;
+            let content =
+                runtime_expect_string_arg(&args, 1, "fs_try_atomic_write_text", "content")?;
+            runtime_fs_result(kain_fs::atomic_write_text(path, content).map(|_| Value::Unit))
+        });
+
+        self.define_native("fs_atomic_write_bytes", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_atomic_write_bytes", "path")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 1, "fs_atomic_write_bytes", "bytes")?;
+            runtime_fs_strict_unit(
+                "fs_atomic_write_bytes",
+                kain_fs::atomic_write_bytes(path, &bytes),
+            )
+        });
+
+        self.define_native("fs_temp_file", |_env, args| {
+            let prefix = runtime_expect_string_arg(&args, 0, "fs_temp_file", "prefix")?;
+            runtime_fs_strict(
+                "fs_temp_file",
+                kain_fs::create_temp_file(prefix).map(Value::String),
+            )
+        });
+
+        self.define_native("fs_temp_dir", |_env, args| {
+            let prefix = runtime_expect_string_arg(&args, 0, "fs_temp_dir", "prefix")?;
+            runtime_fs_strict(
+                "fs_temp_dir",
+                kain_fs::create_temp_dir(prefix).map(Value::String),
+            )
+        });
+
+        self.define_native("fs_hash_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_hash_file", "path")?;
+            runtime_fs_strict("fs_hash_file", kain_fs::hash_file(path).map(Value::String))
+        });
+
+        self.define_native("fs_try_hash_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_try_hash_file", "path")?;
+            runtime_fs_result(kain_fs::hash_file(path).map(Value::String))
         });
 
         self.define_native("path_join", |_env, args| {
-            if args.len() != 2 {
-                return Err(KainError::runtime("path_join: expected 2 arguments"));
-            }
-            let base = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_join: base must be string")),
-            };
-            let child = match &args[1] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_join: child must be string")),
-            };
-            Ok(Value::String(
-                Path::new(base).join(child).to_string_lossy().into_owned(),
-            ))
+            let base = runtime_expect_string_arg(&args, 0, "path_join", "base")?;
+            let child = runtime_expect_string_arg(&args, 1, "path_join", "child")?;
+            Ok(Value::String(kain_fs::path_join(base, child)))
+        });
+
+        self.define_native("fs_path_join", |_env, args| {
+            let base = runtime_expect_string_arg(&args, 0, "fs_path_join", "base")?;
+            let child = runtime_expect_string_arg(&args, 1, "fs_path_join", "child")?;
+            Ok(Value::String(kain_fs::path_join(base, child)))
         });
 
         self.define_native("path_parent", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_parent: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_parent: path must be string")),
-            };
-            Ok(Value::String(
-                Path::new(path)
-                    .parent()
-                    .map(|parent| parent.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-            ))
+            let path = runtime_expect_string_arg(&args, 0, "path_parent", "path")?;
+            Ok(Value::String(kain_fs::path_parent(path)))
+        });
+
+        self.define_native("fs_path_parent", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_parent", "path")?;
+            Ok(Value::String(kain_fs::path_parent(path)))
         });
 
         self.define_native("path_file_name", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_file_name: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_file_name: path must be string")),
-            };
-            Ok(Value::String(
-                Path::new(path)
-                    .file_name()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-            ))
+            let path = runtime_expect_string_arg(&args, 0, "path_file_name", "path")?;
+            Ok(Value::String(kain_fs::path_file_name(path)))
+        });
+
+        self.define_native("fs_path_file_name", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_file_name", "path")?;
+            Ok(Value::String(kain_fs::path_file_name(path)))
         });
 
         self.define_native("path_extension", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_extension: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_extension: path must be string")),
-            };
-            Ok(Value::String(
-                Path::new(path)
-                    .extension()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-            ))
+            let path = runtime_expect_string_arg(&args, 0, "path_extension", "path")?;
+            Ok(Value::String(kain_fs::path_extension(path)))
+        });
+
+        self.define_native("fs_path_extension", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_extension", "path")?;
+            Ok(Value::String(kain_fs::path_extension(path)))
         });
 
         self.define_native("path_stem", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_stem: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_stem: path must be string")),
-            };
-            Ok(Value::String(
-                Path::new(path)
-                    .file_stem()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_default(),
-            ))
+            let path = runtime_expect_string_arg(&args, 0, "path_stem", "path")?;
+            Ok(Value::String(kain_fs::path_stem(path)))
+        });
+
+        self.define_native("fs_path_stem", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_stem", "path")?;
+            Ok(Value::String(kain_fs::path_stem(path)))
         });
 
         self.define_native("path_is_file", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_is_file: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_is_file: path must be string")),
-            };
-            Ok(Value::Bool(Path::new(path).is_file()))
+            let path = runtime_expect_string_arg(&args, 0, "path_is_file", "path")?;
+            Ok(Value::Bool(kain_fs::is_file(path)))
         });
 
         self.define_native("path_is_dir", |_env, args| {
-            if args.len() != 1 {
-                return Err(KainError::runtime("path_is_dir: expected 1 argument"));
-            }
-            let path = match &args[0] {
-                Value::String(path) => path,
-                _ => return Err(KainError::runtime("path_is_dir: path must be string")),
-            };
-            Ok(Value::Bool(Path::new(path).is_dir()))
+            let path = runtime_expect_string_arg(&args, 0, "path_is_dir", "path")?;
+            Ok(Value::Bool(kain_fs::is_dir(path)))
+        });
+
+        self.define_native("fs_path_normalize", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_normalize", "path")?;
+            Ok(Value::String(kain_fs::normalize_path(path)))
+        });
+
+        self.define_native("fs_path_absolute", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_absolute", "path")?;
+            runtime_fs_strict(
+                "fs_path_absolute",
+                kain_fs::absolute_path(path).map(Value::String),
+            )
+        });
+
+        self.define_native("fs_path_canonicalize", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_path_canonicalize", "path")?;
+            runtime_fs_strict(
+                "fs_path_canonicalize",
+                kain_fs::canonicalize_path(path).map(Value::String),
+            )
         });
 
         self.define_native("patch_history", |env, _args| {
@@ -6177,6 +6394,177 @@ fn runtime_struct_value(name: &str, fields: Vec<(String, Value)>) -> Value {
         values.insert(field, value);
     }
     Value::Struct(name.to_string(), Arc::new(RwLock::new(values)))
+}
+
+fn runtime_expect_string_arg<'a>(
+    args: &'a [Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<&'a str> {
+    match args.get(index) {
+        Some(Value::String(value)) => Ok(value),
+        Some(_) => Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be string"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "{function_name}: missing argument {argument_name}"
+        ))),
+    }
+}
+
+fn runtime_expect_byte_array_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<Vec<u8>> {
+    let Some(Value::Array(values)) = args.get(index) else {
+        return Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be Array<Int>"
+        )));
+    };
+    values
+        .read()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(byte_index, value)| match value {
+            Value::Int(value) if (0..=255).contains(value) => Ok(*value as u8),
+            Value::Int(_) => Err(KainError::runtime(format!(
+                "{function_name}: byte at index {byte_index} is outside 0..255"
+            ))),
+            _ => Err(KainError::runtime(format!(
+                "{function_name}: byte at index {byte_index} must be Int"
+            ))),
+        })
+        .collect()
+}
+
+fn runtime_byte_array_value(bytes: &[u8]) -> Value {
+    runtime_array_value(
+        bytes
+            .iter()
+            .map(|byte| Value::Int(i64::from(*byte)))
+            .collect(),
+    )
+}
+
+fn runtime_fs_strict(function_name: &str, result: Result<Value, FsError>) -> KainResult<Value> {
+    result.map_err(|error| KainError::runtime(format!("{function_name}: {error}")))
+}
+
+fn runtime_fs_strict_unit(function_name: &str, result: Result<(), FsError>) -> KainResult<Value> {
+    runtime_fs_strict(function_name, result.map(|_| Value::Unit))
+}
+
+fn runtime_fs_result(result: Result<Value, FsError>) -> KainResult<Value> {
+    Ok(match result {
+        Ok(value) => Value::Result(true, Box::new(value)),
+        Err(error) => Value::Result(false, Box::new(runtime_fs_error_value(&error))),
+    })
+}
+
+fn runtime_fs_error_value(error: &FsError) -> Value {
+    runtime_struct_value(
+        "FsError",
+        vec![
+            (
+                "kind".to_string(),
+                Value::String(error.kind.as_str().to_string()),
+            ),
+            (
+                "operation".to_string(),
+                Value::String(error.operation.clone()),
+            ),
+            (
+                "path".to_string(),
+                Value::String(error.path.to_string_lossy().into_owned()),
+            ),
+            (
+                "other_path".to_string(),
+                Value::String(
+                    error
+                        .other_path
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                ),
+            ),
+            ("message".to_string(), Value::String(error.message.clone())),
+            (
+                "raw_code".to_string(),
+                Value::Int(error.raw_code.map(i64::from).unwrap_or(-1)),
+            ),
+        ],
+    )
+}
+
+fn runtime_fs_metadata_value(metadata: FsMetadata) -> Value {
+    runtime_struct_value(
+        "FsMetadata",
+        vec![
+            (
+                "file_type".to_string(),
+                Value::String(metadata.file_type.as_str().to_string()),
+            ),
+            (
+                "len".to_string(),
+                Value::Int(metadata.len.min(i64::MAX as u64) as i64),
+            ),
+            ("readonly".to_string(), Value::Bool(metadata.readonly)),
+            (
+                "created_millis".to_string(),
+                runtime_optional_millis_value(metadata.created_millis),
+            ),
+            (
+                "modified_millis".to_string(),
+                runtime_optional_millis_value(metadata.modified_millis),
+            ),
+            (
+                "accessed_millis".to_string(),
+                runtime_optional_millis_value(metadata.accessed_millis),
+            ),
+        ],
+    )
+}
+
+fn runtime_fs_dir_entry_value(entry: DirectoryEntry) -> Value {
+    runtime_struct_value(
+        "FsDirEntry",
+        vec![
+            (
+                "path".to_string(),
+                Value::String(entry.path.to_string_lossy().into_owned()),
+            ),
+            ("file_name".to_string(), Value::String(entry.file_name)),
+            (
+                "file_type".to_string(),
+                Value::String(entry.file_type.as_str().to_string()),
+            ),
+            (
+                "metadata".to_string(),
+                runtime_fs_metadata_value(entry.metadata),
+            ),
+        ],
+    )
+}
+
+fn runtime_fs_dir_entry_array_value(entries: Vec<DirectoryEntry>) -> Value {
+    runtime_array_value(
+        entries
+            .into_iter()
+            .map(runtime_fs_dir_entry_value)
+            .collect(),
+    )
+}
+
+fn runtime_optional_millis_value(value: Option<u128>) -> Value {
+    Value::Int(
+        value
+            .and_then(|millis| i64::try_from(millis).ok())
+            .unwrap_or(-1),
+    )
 }
 
 fn runtime_patch_mutation_record_value(change: &PatchMutationRecord) -> Value {
