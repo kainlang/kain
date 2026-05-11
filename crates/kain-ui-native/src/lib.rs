@@ -1,13 +1,17 @@
-#[cfg(feature = "legacy-egui")]
-mod legacy_egui;
 #[cfg(not(feature = "legacy-egui"))]
-mod no_egui;
+mod app;
 #[cfg(not(feature = "legacy-egui"))]
-mod no_egui_qt_host;
+mod qt_host;
 #[cfg(not(feature = "legacy-egui"))]
-mod no_egui_session;
+mod session;
 
+#[cfg(feature = "legacy-egui")]
+#[path = "archive/legacy_egui.rs"]
+mod legacy_egui;
+
+#[cfg(not(feature = "legacy-egui"))]
+pub use app::*;
 #[cfg(feature = "legacy-egui")]
 pub use legacy_egui::*;
 #[cfg(not(feature = "legacy-egui"))]
-pub use no_egui::*;
+pub use session::*;

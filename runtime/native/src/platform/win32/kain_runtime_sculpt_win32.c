@@ -596,13 +596,13 @@ static void kain_sculpt_render_overlay(KainNativeSculptApp* app) {
     overlay_spec.panel_alpha = 0.84f;
     overlay_spec.show_help = app->settings.show_help;
     overlay_spec.draw_crosshair = 0;
-    overlay_spec.fallback_title = "KAIN SCULPT LAB";
-    overlay_spec.fallback_subtitle = subtitle_line;
+    overlay_spec.diagnostic_title = profile ? profile->label : NULL;
+    overlay_spec.diagnostic_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
     overlay_spec.live_line_count = 4;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 2;
-    overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
+    overlay_spec.diagnostic_hint = app->contract_validation.warning_count > 0
         ? app->contract_validation.warnings[0]
         : (app->runtime_contract.loaded
             ? "Runtime contract validated. This sculpt lab is running on the raw Kain native lane."

@@ -123,7 +123,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-interop](/M:/Code/Kain/crates/kain-interop): shared buffer/image payload contracts
 - [kain-gpu-runtime](/M:/Code/Kain/crates/kain-gpu-runtime): Vulkan compute executor consuming emitted shader bundles and residency metadata
 - [kain-ui](/M:/Code/Kain/crates/kain-ui): semantic UI graph and patch-oriented UI meaning
-- [kain-ui-native](/M:/Code/Kain/crates/kain-ui-native): native desktop host/runtime lane
+- [kain-ui-native](/M:/Code/Kain/crates/kain-ui-native): authored native desktop host/runtime lane. Default non-egui flow is `app.rs` -> `session.rs` -> `qt_host.rs`: compile Kain source into `UiBuildOutput`, project authored surfaces/nodes into `KainUiNativeSessionManifest`, and launch a thin Qt shell that renders only authored projection data. Do not add Rust-side UI catalogs, placeholder pane lanes, renderer switchboards, sample dashboards, or default widget layouts here; archived polluted/legacy hosts live under `src/archive`.
 - [kain-ui-tauri](/M:/Code/Kain/crates/kain-ui-tauri): Tauri 2 desktop adapter generator, reflective bridge manifest builder, capability/permission preset catalog, and generated host/frontend scaffold for the webview desktop lane
 - [kain-3D](/M:/Code/Kain/crates/kain-3D): native 3D renderer and viewport runtime
 

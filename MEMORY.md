@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-05-11 - kain-ui-native became an authored UI host instead of a demo catalog
+
+`crates/kain-ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith are preserved under `src/archive` and are not part of the default host path.
+
+Design decisions:
+
+- Do not synthesize document/viewport/browser/shader/devtools placeholder panes when a bundle emits no authored UI.
+- Do not add Rust-side UI catalogs, renderer switchboards, sample dashboards, or default widget layouts to `kain-ui-native`.
+- `KainUiNativeSessionManifest` should carry authored surfaces plus the native projection generated from `UiBuildOutput`; the Qt host may render that projection generically, but it must not invent app content.
+- Native C overlay fields are diagnostic-only (`diagnostic_title`, `diagnostic_subtitle`, `diagnostic_hint`) and compiled UI bundles take precedence over diagnostic labels.
+
+Validation:
+
+- `cargo fmt -p kain-ui-native`
+- `cargo test -p kain-ui-native --target-dir target\\codex-kain-ui-native`
+- `cargo check -p kain-ui-native --target-dir target\\codex-kain-ui-native-check`
+- `cargo check -p kain-ui-native --features legacy-egui --target-dir target\\codex-kain-ui-native-legacy-check`
+
+Recommended next step:
+
+- Move richer native UI rendering behind authored Kain primitives and bundle metadata, then add a smoke that renders two visually different Kain-authored UIs through the same host to prove Rust is no longer deciding the layout.
 # 2026-05-11 - Blade smoke workspace became the Singularity Atlas executable proof
 
 `labs/blades_workspace_smoke` is now a full Blade workspace proof instead of a lightweight demo. The lab still exercises root workspace discovery, `apps/*`, `blades/*`, `crates/*`, C ABI, Rust crate, Kain, Fabric, GPU, and synthetic Cargo blades, but it now also builds and runs a real executable named `blade_singularity_atlas`.

@@ -1,10 +1,6 @@
 #include "../../include/kain_runtime_ui.h"
 
 #ifdef _WIN32
-static const char* kain_ui_overlay_value_or_default(const char* value, const char* fallback) {
-    return (value && value[0]) ? value : fallback;
-}
-
 static const KainUiCompiledNode* kain_ui_overlay_find_root_node(const KainUiCompiledBundle* bundle) {
     int index;
 
@@ -61,27 +57,27 @@ static const KainUiCompiledNode* kain_ui_overlay_find_primary_viewport_node(cons
     return kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_VIEWPORT2D);
 }
 
-static const char* kain_ui_overlay_resolve_panel_title(const KainUiCompiledBundle* bundle, const char* fallback_title) {
+static const char* kain_ui_overlay_resolve_panel_title(const KainUiCompiledBundle* bundle, const char* diagnostic_title) {
     const KainUiCompiledNode* panel_node = kain_ui_overlay_find_primary_panel_node(bundle);
 
     if (panel_node && panel_node->title[0]) {
         return panel_node->title;
     }
 
-    return fallback_title;
+    return diagnostic_title;
 }
 
-static const char* kain_ui_overlay_resolve_viewport_title(const KainUiCompiledBundle* bundle, const char* fallback_title) {
+static const char* kain_ui_overlay_resolve_viewport_title(const KainUiCompiledBundle* bundle, const char* diagnostic_title) {
     const KainUiCompiledNode* viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
 
     if (viewport_node && viewport_node->title[0]) {
         return viewport_node->title;
     }
 
-    return fallback_title;
+    return diagnostic_title;
 }
 
-static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle* bundle, const char* fallback_scene) {
+static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle* bundle, const char* optional_scene) {
     const KainUiCompiledNode* viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
     const KainUiCompiledNode* root_node = kain_ui_overlay_find_root_node(bundle);
 
@@ -92,7 +88,7 @@ static const char* kain_ui_overlay_resolve_scene_name(const KainUiCompiledBundle
         return root_node->scene;
     }
 
-    return fallback_scene;
+    return optional_scene;
 }
 
 static void kain_ui_overlay_push_line(
@@ -114,7 +110,7 @@ static void kain_ui_overlay_format_node_line(
     char* out,
     size_t out_cap,
     const KainUiCompiledNode* node,
-    const char* fallback_label,
+    const char* optional_label,
     const char* suffix
 ) {
     const char* label;
@@ -127,13 +123,17 @@ static void kain_ui_overlay_format_node_line(
         return;
     }
 
-    label = node->title[0] ? node->title : fallback_label;
-    if (node->text[0]) {
+    label = node->title[0] ? node->title : optional_label;
+    if (label && label[0] && node->text[0]) {
         snprintf(out, out_cap, "%s | %s%s%s", label, node->text, suffix ? " | " : "", suffix ? suffix : "");
-    } else if (suffix && suffix[0]) {
+    } else if (node->text[0]) {
+        snprintf(out, out_cap, "%s%s%s", node->text, suffix ? " | " : "", suffix ? suffix : "");
+    } else if (label && label[0] && suffix && suffix[0]) {
         snprintf(out, out_cap, "%s | %s", label, suffix);
-    } else {
+    } else if (label && label[0]) {
         snprintf(out, out_cap, "%s", label);
+    } else if (suffix && suffix[0]) {
+        snprintf(out, out_cap, "%s", suffix);
     }
 }
 
@@ -200,17 +200,19 @@ void kain_ui_compiled_overlay_render(
     const KainUiCompiledNode* inspector = NULL;
     const KainUiCompiledNode* tree = NULL;
     const KainUiCompiledNode* timeline = NULL;
+    int has_authored_bundle;
 
     if (!surface || !spec || viewport_width <= 0 || viewport_height <= 0) {
         return;
     }
 
-    panel_title = kain_ui_overlay_value_or_default(spec->fallback_title, "KAIN");
-    subtitle_line = spec->fallback_subtitle;
-    viewport_title = spec->profile ? spec->profile->label : NULL;
-    scene_name = spec->profile ? spec->profile->id : NULL;
+    has_authored_bundle = bundle && bundle->loaded && bundle->node_count > 0;
+    panel_title = spec->diagnostic_title;
+    subtitle_line = spec->diagnostic_subtitle;
+    viewport_title = NULL;
+    scene_name = NULL;
 
-    if (bundle && bundle->loaded) {
+    if (has_authored_bundle) {
         panel_node = kain_ui_overlay_find_primary_panel_node(bundle);
         viewport_node = kain_ui_overlay_find_primary_viewport_node(bundle);
         inspector = kain_ui_compiled_bundle_find_first_kind(bundle, KAIN_UI_COMPILED_NODE_INSPECTOR);
@@ -251,13 +253,13 @@ void kain_ui_compiled_overlay_render(
             }
         }
 
-        if (bundle && bundle->loaded) {
+        if (has_authored_bundle) {
             if (inspector && generated_count < 4 && line_count < KAIN_UI_COMPILED_OVERLAY_MAX_LINES) {
                 kain_ui_overlay_format_node_line(
                     generated_lines[generated_count],
                     sizeof(generated_lines[generated_count]),
                     inspector,
-                    "compiled inspector",
+                    NULL,
                     NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
@@ -269,7 +271,7 @@ void kain_ui_compiled_overlay_render(
                     generated_lines[generated_count],
                     sizeof(generated_lines[generated_count]),
                     timeline,
-                    "timeline",
+                    NULL,
                     NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
@@ -279,15 +281,25 @@ void kain_ui_compiled_overlay_render(
                     generated_lines[generated_count],
                     sizeof(generated_lines[generated_count]),
                     viewport_node,
-                    "viewport",
+                    NULL,
                     NULL
                 );
                 kain_ui_overlay_push_line(lines, &line_count, generated_lines[generated_count]);
                 generated_count += 1;
             }
-        } else if (spec->fallback_hint && spec->fallback_hint[0]) {
-            kain_ui_overlay_push_line(lines, &line_count, spec->fallback_hint);
+        } else if (spec->diagnostic_hint && spec->diagnostic_hint[0]) {
+            kain_ui_overlay_push_line(lines, &line_count, spec->diagnostic_hint);
         }
+    }
+
+    if ((!panel_title || !panel_title[0]) && line_count <= 0) {
+        if (spec->draw_crosshair) {
+            kain_ui_overlay_make_default_theme(spec->profile, spec->panel_alpha, &theme);
+            kain_ui_overlay_begin(viewport_width, viewport_height);
+            kain_ui_overlay_draw_crosshair(viewport_width, viewport_height, theme.crosshair_color);
+            kain_ui_overlay_end();
+        }
+        return;
     }
 
     kain_ui_overlay_make_default_theme(spec->profile, spec->panel_alpha, &theme);

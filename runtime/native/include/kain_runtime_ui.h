@@ -105,13 +105,13 @@ typedef struct {
     float panel_alpha;
     int show_help;
     int draw_crosshair;
-    const char* fallback_title;
-    const char* fallback_subtitle;
+    const char* diagnostic_title;
+    const char* diagnostic_subtitle;
     const char** live_lines;
     int live_line_count;
     const char** help_lines;
     int help_line_count;
-    const char* fallback_hint;
+    const char* diagnostic_hint;
 } KainUiCompiledOverlaySpec;
 
 void kain_ui_overlay_begin(int viewport_width, int viewport_height);

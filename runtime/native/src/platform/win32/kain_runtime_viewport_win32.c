@@ -1010,13 +1010,13 @@ static void kain_gl_render_overlay(KainNativeViewportApp* app) {
     overlay_spec.panel_alpha = 0.78f;
     overlay_spec.show_help = app->settings.show_help;
     overlay_spec.draw_crosshair = 1;
-    overlay_spec.fallback_title = "KAIN NATIVE VIEWPORT";
-    overlay_spec.fallback_subtitle = subtitle_line;
+    overlay_spec.diagnostic_title = profile ? profile->label : NULL;
+    overlay_spec.diagnostic_subtitle = subtitle_line;
     overlay_spec.live_lines = live_lines;
     overlay_spec.live_line_count = 9;
     overlay_spec.help_lines = help_lines;
     overlay_spec.help_line_count = 1;
-    overlay_spec.fallback_hint = app->contract_validation.warning_count > 0
+    overlay_spec.diagnostic_hint = app->contract_validation.warning_count > 0
         ? app->contract_validation.warnings[0]
         : (app->runtime_contract.loaded
             ? (app->world_asset.loaded
