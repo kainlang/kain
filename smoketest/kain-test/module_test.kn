@@ -1,0 +1,3 @@
+mod tests:
+    test nested_assertion:
+        assert(1 + 1 == 2, "nested module tests should execute")

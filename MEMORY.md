@@ -1,5 +1,47 @@
 # Kain Memory
 
+# 2026-05-11 - Kain check/test pipeline hardened into a Rust-inspired v1
+
+The reusable source validation pipeline now has a sturdier first-class shape instead of being only a thin CLI addition.
+
+What changed:
+
+- `crates/kain-core/src/runtime.rs` now recursively executes `test` items nested inside typed modules, so module-scoped tests are not merely counted and silently skipped.
+- `crates/kain-test` now reports `skipped` cases separately from `passed` and `failed`, parses `//@ ignore`, `//@ skip`, and `//@ known-bug` directives, and supports `run_ignored` so CLI `--ignored` can burn down known-bug inventory.
+- `crates/kain-test` now reports the real execution lane for run/test modes (`run` for run-pass/run-fail, `test` for Kain test items) even when a target directive exists for check modes.
+- `kain check -` now honors the documented stdin path and emits the same structured report shape as file/directory checks.
+- `kain test` now exposes `--ignored`, prints skipped reasons, and keeps JSON reports explicit through `skipped` and `skip_reason`.
+- Added `smoketest/kain-test` as a tiny directive suite covering check-pass, check-fail, run-fail, nested module tests, and ignored cases.
+- Added `docs/cli/check-and-test.md` and refreshed the CLI, crate, feature, command-matrix, architecture docs around `kain-check` and `kain-test`.
+
+Design decisions:
+
+- Kain should borrow Rust compiletest's proven directive ideas, not its whole architecture. The source-of-truth crates are `kain-check` and `kain-test`; CLI remains a shell.
+- Ignored/known-bug cases are success-neutral by default and only execute with `--ignored`, matching the workflow of keeping known gaps visible without breaking every local suite.
+- Future snapshot, revision, target-conditional, and bless/update semantics should land inside `kain-test` before any ad hoc script gets to invent parallel suite semantics.
+
+Validation:
+
+- `rustfmt --edition 2021 crates\\kain-test\\src\\lib.rs crates\\kain-core\\src\\runtime.rs crates\\cli\\src\\main.rs`
+- `cargo test -p kain-test -p kain-check --target-dir target\\codex-check-test`
+- `cargo test -p kain-core run_tests --target-dir target\\codex-check-test`
+- `cargo test -p kain-test --target-dir target\\codex-check-test`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-check-test`
+- `target\\codex-check-test\\debug\\kain.exe check smoketest\\kain-test\\check_pass.kn`
+- `"fn main() -> Int:`n    return 0`n" | target\\codex-check-test\\debug\\kain.exe check -`
+- `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --json target\\codex-check-test\\kain-test-report.json`
+- `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --ignored` was expected to fail because the ignored parser-bad fixture is intentionally executed under `--ignored`.
+
+Current risks:
+
+- There is still no snapshot comparison, revision matrix, target-conditional directive family, bless/update flow, or parallel scheduling. The crate boundary is ready for those, but v1 only proves directive modes and structured reports.
+- Runtime test output is printed directly by `runtime::run_tests`; the harness does not capture stdout/stderr for snapshot-style assertions yet.
+- Existing workspace warnings remain noisy during `cargo build -p cli`; they are pre-existing and not part of this pipeline pass.
+
+Recommended next step:
+
+- Add snapshot support to `kain-test`: normalized stdout/stderr/diagnostic artifacts, `--bless`, and sidecar `.stderr` / `.stdout` files, using Rust compiletest as the behavior reference while keeping the Kain-owned report schema.
+
 # 2026-05-11 - Kain blades landed as the local crate-like workspace system
 
 Kain now has a first-class `kain-blades` crate that makes the "blades" idea real across CLI, Fabric, module lookup, Rust crate FFI, and C ABI FFI.

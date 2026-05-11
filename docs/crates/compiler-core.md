@@ -10,6 +10,8 @@ lanes, and repair/bootstrap tooling.
   bundles.
 - `kain-driver` turns compiler-owned truth into emitted artifacts and
   cross-target materialization.
+- `kain-check` and `kain-test` own reusable validation and source-suite harness
+  semantics for `kain check`, `kain test`, IDEs, CI, and future agents.
 
 ## Import And Bootstrap
 
@@ -27,6 +29,8 @@ lanes, and repair/bootstrap tooling.
 
 - use `kain-core` when the question is “what does Kain mean?”
 - use `kain-driver` when the question is “what artifact do we emit?”
+- use `kain-check` / `kain-test` when the question is “how do we prove this
+  source or suite still behaves?”
 - use the importer crates when the question is “how does this foreign source
   become Kain?”
 - read `guides/syntax-and-semantics/low-level-memory.md` and

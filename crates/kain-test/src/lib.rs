@@ -50,6 +50,7 @@ pub struct KainTestOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode_override: Option<KainTestMode>,
     pub fail_fast: bool,
+    pub run_ignored: bool,
 }
 
 impl KainTestOptions {
@@ -58,6 +59,7 @@ impl KainTestOptions {
             default_target: compile_target_name(default_target).to_string(),
             mode_override: None,
             fail_fast: false,
+            run_ignored: false,
         }
     }
 
@@ -71,6 +73,7 @@ impl KainTestOptions {
 pub enum KainTestStatus {
     Passed,
     Failed,
+    Skipped,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -82,6 +85,8 @@ pub struct KainTestCaseReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
@@ -89,12 +94,17 @@ impl KainTestCaseReport {
     pub fn passed(&self) -> bool {
         matches!(self.status, KainTestStatus::Passed)
     }
+
+    pub fn skipped(&self) -> bool {
+        matches!(self.status, KainTestStatus::Skipped)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KainTestSuiteReport {
     pub total: usize,
     pub passed: usize,
+    pub skipped: usize,
     pub failed: usize,
     pub cases: Vec<KainTestCaseReport>,
 }
@@ -110,6 +120,7 @@ struct TestDirectives {
     mode: Option<KainTestMode>,
     target: Option<CompileTarget>,
     expected_error: Option<String>,
+    skip_reason: Option<String>,
 }
 
 pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
@@ -119,6 +130,7 @@ pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
             return KainTestSuiteReport {
                 total: 1,
                 passed: 0,
+                skipped: 0,
                 failed: 1,
                 cases: vec![KainTestCaseReport {
                     path: path.display().to_string(),
@@ -130,6 +142,7 @@ pub fn run_path(path: &Path, options: &KainTestOptions) -> KainTestSuiteReport {
                     target: compile_target_name(options.default_target()).to_string(),
                     status: KainTestStatus::Failed,
                     expected_error: None,
+                    skip_reason: None,
                     error: Some(error),
                 }],
             };
@@ -162,6 +175,7 @@ pub fn run_file(path: &Path, options: &KainTestOptions) -> KainTestCaseReport {
             target: compile_target_name(options.default_target()).to_string(),
             status: KainTestStatus::Failed,
             expected_error: None,
+            skip_reason: None,
             error: Some(format!("failed to read source: {error}")),
         },
     }
@@ -180,7 +194,22 @@ pub fn run_source(
     let target = directives
         .target
         .unwrap_or_else(|| options.default_target());
+    let report_target = report_target_for_mode(mode, target);
     let expected_error = directives.expected_error.clone();
+
+    if let Some(skip_reason) = directives.skip_reason.clone() {
+        if !options.run_ignored {
+            return KainTestCaseReport {
+                path: source_name.to_string(),
+                mode: mode.as_str().to_string(),
+                target: compile_target_name(report_target).to_string(),
+                status: KainTestStatus::Skipped,
+                expected_error,
+                skip_reason: Some(skip_reason),
+                error: None,
+            };
+        }
+    }
 
     let result = match mode {
         KainTestMode::CheckPass => run_check_pass(source_name, source, target),
@@ -195,14 +224,23 @@ pub fn run_source(
     KainTestCaseReport {
         path: source_name.to_string(),
         mode: mode.as_str().to_string(),
-        target: compile_target_name(target).to_string(),
+        target: compile_target_name(report_target).to_string(),
         status: if result.is_ok() {
             KainTestStatus::Passed
         } else {
             KainTestStatus::Failed
         },
         expected_error,
+        skip_reason: None,
         error: result.err(),
+    }
+}
+
+fn report_target_for_mode(mode: KainTestMode, directive_target: CompileTarget) -> CompileTarget {
+    match mode {
+        KainTestMode::RunPass | KainTestMode::RunFail => CompileTarget::Interpret,
+        KainTestMode::KainTest => CompileTarget::Test,
+        KainTestMode::CheckPass | KainTestMode::CheckFail => directive_target,
     }
 }
 
@@ -278,6 +316,16 @@ fn parse_directives(source: &str) -> TestDirectives {
             continue;
         }
 
+        if matches!(value, "ignore" | "skip") {
+            directives.skip_reason = Some("ignored by directive".to_string());
+            continue;
+        }
+
+        if value == "known-bug" {
+            directives.skip_reason = Some("known bug".to_string());
+            continue;
+        }
+
         if let Some((key, raw_value)) = value.split_once(':') {
             let key = key.trim();
             let raw_value = raw_value.trim();
@@ -286,6 +334,20 @@ fn parse_directives(source: &str) -> TestDirectives {
                 "target" => directives.target = kain_driver::parse_compile_target(raw_value),
                 "error" | "expect-error" => {
                     directives.expected_error = Some(raw_value.to_string());
+                }
+                "ignore" | "skip" => {
+                    directives.skip_reason = Some(if raw_value.is_empty() {
+                        "ignored by directive".to_string()
+                    } else {
+                        raw_value.to_string()
+                    });
+                }
+                "known-bug" => {
+                    directives.skip_reason = Some(if raw_value.is_empty() {
+                        "known bug".to_string()
+                    } else {
+                        format!("known bug: {raw_value}")
+                    });
                 }
                 _ => {}
             }
@@ -315,10 +377,12 @@ fn infer_default_mode(source: &str) -> KainTestMode {
 
 fn summarize_cases(cases: Vec<KainTestCaseReport>) -> KainTestSuiteReport {
     let passed = cases.iter().filter(|case| case.passed()).count();
-    let failed = cases.len().saturating_sub(passed);
+    let skipped = cases.iter().filter(|case| case.skipped()).count();
+    let failed = cases.len().saturating_sub(passed + skipped);
     KainTestSuiteReport {
         total: cases.len(),
         passed,
+        skipped,
         failed,
         cases,
     }
@@ -365,6 +429,22 @@ mod tests {
     }
 
     #[test]
+    fn kain_test_mode_executes_nested_module_tests() {
+        let report = run_source(
+            "<test>",
+            "mod nested:\n    test failure_is_observed:\n        assert(1 == 2, \"nested tests must execute\")\n",
+            &KainTestOptions::new(CompileTarget::Interpret),
+        );
+
+        assert!(!report.passed());
+        assert!(report
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("nested tests must execute"));
+    }
+
+    #[test]
     fn run_fail_directive_passes_when_interpreter_fails() {
         let report = run_source(
             "<test>",
@@ -374,5 +454,30 @@ mod tests {
 
         assert!(report.passed(), "{:?}", report.error);
         assert_eq!(report.mode, "run-fail");
+    }
+
+    #[test]
+    fn ignore_directive_marks_case_skipped_without_failing_suite() {
+        let report = run_path_for_sources(&[
+            (
+                "ignored.kn",
+                "//@ ignore: waiting on parser edge\nfn main( -> Int:\n",
+            ),
+            ("passing.kn", "fn main() -> Int:\n    return 0\n"),
+        ]);
+
+        assert_eq!(report.total, 2);
+        assert_eq!(report.passed, 1);
+        assert_eq!(report.skipped, 1);
+        assert_eq!(report.failed, 0);
+        assert!(report.is_success());
+    }
+
+    fn run_path_for_sources(sources: &[(&str, &str)]) -> KainTestSuiteReport {
+        let temp = tempfile::tempdir().expect("temp dir");
+        for (path, source) in sources {
+            fs::write(temp.path().join(path), source).expect("write source");
+        }
+        run_path(temp.path(), &KainTestOptions::new(CompileTarget::Interpret))
     }
 }

@@ -6422,6 +6422,7 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
     let mut passed = 0;
     let mut failed = 0;
     let mut failure_messages = Vec::new();
+    let mut tests = Vec::new();
 
     // Initialize env
     let mut env = Env::new();
@@ -6429,30 +6430,29 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
 
     env.register_typed_program(program)?;
     env.apply_registered_extensions();
+    collect_runtime_tests(&program.items, &mut Vec::new(), &mut tests);
 
     // Run tests
-    for item in &program.items {
-        if let crate::types::TypedItem::Test(test) = item {
-            print!("test {} ... ", test.ast.name);
+    for (test_name, test) in tests {
+        print!("test {} ... ", test_name);
 
-            // Isolate test scope
-            env.push_scope();
+        // Isolate test scope
+        env.push_scope();
 
-            match eval_block(&mut env, &test.ast.body) {
-                Ok(_) => {
-                    println!("ok");
-                    passed += 1;
-                }
-                Err(e) => {
-                    println!("FAILED");
-                    println!("  Error: {}", e);
-                    failed += 1;
-                    failure_messages.push(format!("{}: {}", test.ast.name, e));
-                }
+        match eval_block(&mut env, &test.ast.body) {
+            Ok(_) => {
+                println!("ok");
+                passed += 1;
             }
-
-            env.pop_scope();
+            Err(e) => {
+                println!("FAILED");
+                println!("  Error: {}", e);
+                failed += 1;
+                failure_messages.push(format!("{}: {}", test_name, e));
+            }
         }
+
+        env.pop_scope();
     }
 
     println!(
@@ -6469,6 +6469,31 @@ pub fn run_tests(program: &TypedProgram) -> KainResult<()> {
         )))
     } else {
         Ok(())
+    }
+}
+
+fn collect_runtime_tests<'a>(
+    items: &'a [crate::types::TypedItem],
+    module_path: &mut Vec<String>,
+    output: &mut Vec<(String, &'a crate::types::TypedTest)>,
+) {
+    for item in items {
+        match item {
+            crate::types::TypedItem::Test(test) => {
+                let mut name = module_path.join("::");
+                if !name.is_empty() {
+                    name.push_str("::");
+                }
+                name.push_str(&test.ast.name);
+                output.push((name, test));
+            }
+            crate::types::TypedItem::Mod(module) => {
+                module_path.push(module.ast.name.clone());
+                collect_runtime_tests(&module.items, module_path, output);
+                module_path.pop();
+            }
+            _ => {}
+        }
     }
 }
 

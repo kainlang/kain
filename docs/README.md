@@ -32,6 +32,8 @@ These files define the truth that the guides are derived from:
 - `crates/kain-core/src/language_features.rs`
 - `crates/kain-core/src/low_level_memory.rs`
 - `crates/kain-core/src/low_level_abi.rs`
+- `crates/kain-check/src/lib.rs`
+- `crates/kain-test/src/lib.rs`
 - `crates/cli/src/main.rs`
 - `crates/cli/src/packager/`
 - `src/.rustimport/reference/cli/`
@@ -85,6 +87,7 @@ These files define the truth that the guides are derived from:
 | `native-c-runtime/actor-lifecycle.md` | Actor ownership, lifecycle, mailbox, and supervision |
 | `cli/cli-overview.md` | CLI shape, launcher behavior, and command families |
 | `cli/build-run-init.md` | `init`, `build`, `run`, and the build/materialization lanes |
+| `cli/check-and-test.md` | `kain check`, `kain test`, directives, ignored cases, and JSON reports |
 | `cli/targets-and-codegen.md` | Target alias families, KainScript, and codegen output rules |
 | `cli/importers.md` | `import-asm`, `import-c`, `import-rust`, `import-crate`, `import-ts` |
 | `cli/doctor-and-repair.md` | `doctor` diagnostics plus repair modes |

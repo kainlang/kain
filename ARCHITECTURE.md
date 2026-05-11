@@ -172,6 +172,16 @@ Native target codegen for compiler-owned intents is intentionally explicit:
 
 The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentionally compiler-owned. The rule is the same as the rest of the toolchain: editors, CLIs, and future LLM workflows should reuse the compiler printer instead of growing lane-local pretty-printers that drift from the actual grammar.
 
+### Checking and source test flow
+
+`Kain source tree -> kain-check discovery/frontend validation -> kain-test directive runner/runtime test lane -> cli check/test summaries and JSON reports`
+
+`crates/kain-check` is the reusable typecheck-only pipeline. It discovers `.kn` / `.ks` files, skips build/generated folders, validates through `kain-driver::DriverSession`, and reports typed item counts, typed test counts, required runtime capabilities, and frontend errors without emitting backend artifacts.
+
+`crates/kain-test` is the Rust-inspired compiletest-style harness. It parses `//@` and `#@` directives such as `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `target`, `error`, `ignore`, `skip`, and `known-bug`. It should own future snapshot, revision, bless/update, and target-conditional behavior rather than letting one-off scripts duplicate suite semantics.
+
+The runtime test lane now recursively executes `test` items nested inside typed modules. `kain test` reports skipped cases separately from failed cases, and `--ignored` reruns ignored cases when the operator wants to burn down known-bug inventory.
+
 ### Host bridge flow
 
 `.kn source -> compiler/runtime contracts -> host bridge crates (Python, Node, C ABI, Rust crate FFI, codebase control) -> shared payload contracts via kain-interop`

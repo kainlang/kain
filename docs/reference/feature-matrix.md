@@ -1,6 +1,6 @@
 # Feature Matrix
 
-Snapshot: April 12, 2026.
+Snapshot: May 11, 2026.
 
 This page is the coverage index for the live Kain language and runtime surface.
 It maps each feature family to the source file that defines it and the guide that
@@ -21,6 +21,8 @@ For the flagship DCC parity inventory, use
 - `crates/kain-core/src/runtime_contract.rs`
 - `crates/kain-core/src/realtime_app_bundle.rs`
 - `crates/kain-entangle/src/lib.rs`
+- `crates/kain-check/src/lib.rs`
+- `crates/kain-test/src/lib.rs`
 - `runtime/native/include/*.h`
 - `src/.rustimport/reference/kain-omni/lib.kn`
 - `src/.rustimport/reference/kain-omni/fabric.kn`
@@ -176,6 +178,7 @@ Statement forms are:
 | Effects | `crates/kain-core/src/effects.rs` | `runtime/effects-io-async-and-patching.md` |
 | Low-level memory and provenance | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/low_level_memory.rs`, `crates/kain-core/src/low_level_abi.rs` | `syntax-and-semantics/low-level-memory.md`, `native-c-runtime/helper-abi.md` |
 | Compiler-owned intents | `crates/kain-core/src/ast.rs`, `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/compiler-owned-intents.md` |
+| Checking and source tests | `crates/kain-check/src/lib.rs`, `crates/kain-test/src/lib.rs`, `crates/cli/src/main.rs` | `cli/check-and-test.md` |
 | Runtime contracts and realtime bundles | `crates/kain-core/src/runtime_contract.rs`, `crates/kain-core/src/realtime_app_bundle.rs` | `runtime/runtime-model.md`, `native-c-runtime/abi-contract.md` |
 | Native C ABI | `runtime/native/include/*.h` | `native-c-runtime/*.md` |
 | Omni orchestration | `src/.rustimport/reference/kain-omni/lib.kn` | `pipelines/omni.md`, `cli/selfhost-omni-fabric-lsp.md` |

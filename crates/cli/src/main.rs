@@ -404,6 +404,10 @@ enum Commands {
         #[arg(long)]
         fail_fast: bool,
 
+        /// Run cases marked with //@ ignore instead of skipping them
+        #[arg(long)]
+        ignored: bool,
+
         /// Write a structured JSON test report
         #[arg(long)]
         json: Option<PathBuf>,
@@ -1713,7 +1717,38 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
     let mut options = kain_check::CheckOptions::new(target);
     options.fail_fast = fail_fast;
 
-    let report = kain_check::check_path(input, &options);
+    let report = if input == Path::new("-") {
+        match read_source_from_path(input) {
+            Ok(source) => {
+                let file_report = kain_check::check_source("<stdin>", &source, &options);
+                let passed = if file_report.passed() { 1 } else { 0 };
+                kain_check::CheckReport {
+                    target: kain_check::compile_target_name(target).to_string(),
+                    total: 1,
+                    passed,
+                    failed: 1usize.saturating_sub(passed),
+                    files: vec![file_report],
+                }
+            }
+            Err(error) => kain_check::CheckReport {
+                target: kain_check::compile_target_name(target).to_string(),
+                total: 1,
+                passed: 0,
+                failed: 1,
+                files: vec![kain_check::CheckFileReport {
+                    path: "<stdin>".to_string(),
+                    target: kain_check::compile_target_name(target).to_string(),
+                    status: kain_check::CheckStatus::Failed,
+                    item_count: 0,
+                    test_count: 0,
+                    required_capabilities: Vec::new(),
+                    error: Some(error),
+                }],
+            },
+        }
+    } else {
+        kain_check::check_path(input, &options)
+    };
     if let Some(path) = json {
         if !write_structured_report(path, &report, "check") {
             return false;
@@ -1743,6 +1778,7 @@ fn run_test_command(
     mode: Option<&str>,
     target: &str,
     fail_fast: bool,
+    ignored: bool,
     json: Option<&Path>,
 ) -> bool {
     let Some(default_target) = parse_compile_target(target) else {
@@ -1765,6 +1801,7 @@ fn run_test_command(
     let mut options = kain_test::KainTestOptions::new(default_target);
     options.mode_override = mode_override;
     options.fail_fast = fail_fast;
+    options.run_ignored = ignored;
 
     let report = kain_test::run_path(input, &options);
     if let Some(path) = json {
@@ -1774,16 +1811,25 @@ fn run_test_command(
     }
 
     println!(
-        " Test {}: {}/{} passed",
+        " Test {}: {}/{} passed; {} skipped",
         if report.is_success() {
             "passed"
         } else {
             "failed"
         },
         report.passed,
-        report.total
+        report.total,
+        report.skipped
     );
+    for case in report.cases.iter().filter(|case| case.skipped()) {
+        if let Some(reason) = &case.skip_reason {
+            println!("  skipped {} [{}]: {}", case.path, case.mode, reason);
+        }
+    }
     for case in report.cases.iter().filter(|case| !case.passed()) {
+        if case.skipped() {
+            continue;
+        }
         if let Some(error) = &case.error {
             eprintln!("  {} [{}]: {}", case.path, case.mode, error);
         }
@@ -2061,6 +2107,7 @@ fn main() {
                     mode,
                     target,
                     fail_fast,
+                    ignored,
                     json,
                 }) => {
                     if !run_test_command(
@@ -2068,6 +2115,7 @@ fn main() {
                         mode.as_deref(),
                         &target,
                         fail_fast,
+                        ignored,
                         json.as_deref(),
                     ) {
                         std::process::exit(1);

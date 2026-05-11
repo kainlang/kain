@@ -1,6 +1,6 @@
 # Command Matrix
 
-Snapshot: April 12, 2026.
+Snapshot: May 11, 2026.
 
 This page is the canonical command inventory for `crates/cli/src/main.rs` and
 its subcommand modules.
@@ -44,6 +44,8 @@ These flags live at the top level of `kain` / `kn`:
 | `init` | create a new KAIN project with `KAIN.toml`, `src/main.kn`, and `.gitignore` | `cli/build-run-init.md` |
 | `lsp` | start the language server | `cli/cli-overview.md` |
 | `doctor` | print diagnostics and expose the repair lane | `cli/doctor-and-repair.md` |
+| `check` | typecheck `.kn` / `.ks` source without emitting artifacts | `cli/check-and-test.md` |
+| `test` | run compiletest-style Kain source suites and `test` items | `cli/check-and-test.md` |
 | `selfhost` | run the self-host bootstrap pipeline | `cli/selfhost-omni-fabric-lsp.md` |
 | `omni` | build mixed-language omni manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
@@ -86,6 +88,28 @@ These flags live at the top level of `kain` / `kn`:
 | `--runtime-crate` | native UI runtime crate name, default `kain-ui-native` |
 | `--runtime-path` | explicit path dependency for the runtime crate |
 | `--runtime-version` | published version dependency for the runtime crate |
+
+## Check And Test
+
+### `check`
+
+| Flag | Meaning |
+| --- | --- |
+| `input` | Kain source file, directory, or `-` for stdin |
+| `-t`, `--target` | target profile to validate against, default `run` |
+| `--fail-fast` | stop after the first failed file |
+| `--json` | write a structured check report |
+
+### `test`
+
+| Flag | Meaning |
+| --- | --- |
+| `input` | Kain source file or directory |
+| `--mode` | override source directives with `check-pass`, `check-fail`, `run-pass`, `run-fail`, or `kain-test` |
+| `-t`, `--target` | default target profile for check modes, default `run` |
+| `--fail-fast` | stop after the first failed case |
+| `--ignored` | run cases marked with `//@ ignore` instead of skipping them |
+| `--json` | write a structured test report |
 
 ## Importer Flags
 

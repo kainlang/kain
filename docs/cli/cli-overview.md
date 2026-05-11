@@ -17,6 +17,8 @@ snippets when the binary help output disagrees.
 - `init`
 - `lsp`
 - `doctor`
+- `check`
+- `test`
 - `selfhost`
 - `omni`
 - `fabric`
@@ -65,6 +67,8 @@ The CLI surface is defined in:
 
 - `crates/cli/src/main.rs`
 - `crates/cli/src/lib.rs`
+- `crates/kain-check/src/lib.rs`
+- `crates/kain-test/src/lib.rs`
 - `crates/cli/src/packager/`
 - `crates/cli/src/import_*.rs`
 - `crates/cli/src/selfhost.rs`
