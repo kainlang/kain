@@ -1,5 +1,14 @@
 # Kain Memory
 
+# 2026-05-11 - kain-ui-native archive and legacy feature were removed
+
+Follow-up cleanup removed the `crates/kain-ui-native/src/archive` museum, the `legacy-egui` Cargo feature, and the optional egui/wgpu/font/image/nalgebra/kain-3D dependencies from `kain-ui-native`. The active crate should only carry `app.rs`, `session.rs`, `qt_host.rs`, `lib.rs`, and `main.rs`; old host implementations should be deleted, not archived in this crate.
+
+Validation:
+
+- `cargo fmt -p kain-ui-native`
+- `cargo test -p kain-ui-native --target-dir target\\codex-kain-ui-native-slim`
+- `cargo check -p kain-ui-native --target-dir target\\codex-kain-ui-native-slim-check`
 # 2026-05-11 - Blade resolver crate import surface renamed to `blade`
 
 The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/kain-blades`, the workspace member path remains `crates/kain-blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.
@@ -16,7 +25,7 @@ Validation:
 - `cargo check --locked --manifest-path labs\blades_workspace_smoke\crates\synthetic_reporter\Cargo.toml --target-dir target\codex-blade-singular-lab`
 # 2026-05-11 - kain-ui-native became an authored UI host instead of a demo catalog
 
-`crates/kain-ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith are preserved under `src/archive` and are not part of the default host path.
+`crates/kain-ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith were deleted from the crate after the follow-up cleanup.
 
 Design decisions:
 

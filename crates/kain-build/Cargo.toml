@@ -6,7 +6,7 @@ description = "KAIN build orchestration and Cargo build.rs helpers"
 license = "MIT"
 
 [dependencies]
-blade = { path = "../kain-blades" }
+kain-blades = { path = "../kain-blades" }
 kain-check = { path = "../kain-check" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver" }

@@ -1,7 +1,7 @@
 mod atlas;
 
 use atlas::{collect_shader_artifacts, render_html, render_ppm, render_report, render_svg};
-use blade::discover_workspace;
+use kain_blades::discover_workspace;
 use kain_fs as kfs;
 use std::env;
 use std::error::Error;

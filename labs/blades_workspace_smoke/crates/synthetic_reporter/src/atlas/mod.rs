@@ -1,4 +1,4 @@
-use blade::{BladeWorkspace, ResolvedBlade};
+use kain_blades::{BladeWorkspace, ResolvedBlade};
 use kain_fs::{self as kfs, FsFileType, WalkOptions};
 use serde_json::json;
 use std::error::Error;

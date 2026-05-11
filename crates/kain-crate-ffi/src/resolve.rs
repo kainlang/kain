@@ -147,11 +147,12 @@ fn resolve_blade_crate(
     start_dir: &Path,
     options: &ImportCrateOptions,
 ) -> Result<Option<ResolvedCrate>, KainError> {
-    let Some(blade) = blade::resolve_rust_crate_blade(start_dir, crate_name).map_err(|err| {
-        KainError::runtime(format!(
-            "Rust crate FFI blade discovery failed while resolving '{crate_name}': {err}"
-        ))
-    })?
+    let Some(blade) =
+        kain_blades::resolve_rust_crate_blade(start_dir, crate_name).map_err(|err| {
+            KainError::runtime(format!(
+                "Rust crate FFI blade discovery failed while resolving '{crate_name}': {err}"
+            ))
+        })?
     else {
         return Ok(None);
     };

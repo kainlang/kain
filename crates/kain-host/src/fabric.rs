@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::bridge::struct_value;
-use blade::ResolvedBlade;
+use kain_blades::ResolvedBlade;
 use kain_c_ffi::{
     import_library, ArtifactMode as CArtifactMode, ImportCOptions,
     PrepareContext as CPrepareContext,
@@ -2131,7 +2131,7 @@ fn resolve_step_blade(
         return Ok(None);
     };
 
-    blade::resolve_blade(context.workspace_root, blade_name)
+    kain_blades::resolve_blade(context.workspace_root, blade_name)
         .map(Some)
         .map_err(|err| {
             fabric_failure(

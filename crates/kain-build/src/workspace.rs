@@ -1,4 +1,4 @@
-use blade::{
+use kain_blades::{
     discover_workspace, load_kain_manifest, BladeError, BladeWorkspace, KainBuildTaskSection,
     KainManifest, ResolvedBlade, ResolvedCffiLibrary, FABRIC_MANIFEST_NAME,
 };
