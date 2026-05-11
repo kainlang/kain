@@ -18,6 +18,36 @@ int main(void) {
         return status;
     }
 
+    status = expect_int(kain_native_actor_abi_version() == 1, 41);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(kain_native_actor_default_mailbox_capacity() == 1024, 42);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(kain_native_actor_default_ask_timeout_ms() == 30000, 43);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(kain_native_actor_default_shutdown_grace_ms() == 5000, 44);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(kain_native_actor_supervision_max_restarts() == 5, 45);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(kain_native_actor_supervision_restart_window_millis() == 60000, 46);
+    if (status != 0) {
+        return status;
+    }
+
     status = expect_int(kain_native_actor_registry_lookup("missing-service") == 0, 12);
     if (status != 0) {
         return status;
@@ -129,6 +159,42 @@ int main(void) {
         return status;
     }
 
+    status = expect_int(strcmp(kain_native_fs_read_text_range(fs_file, 1, 4), "ello") == 0, 41);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(strcmp(kain_native_fs_read_byte_range_hex(fs_file, 0, 5), "68656c6c6f") == 0, 42);
+    if (status != 0) {
+        return status;
+    }
+
+    const char* fs_bytes = kain_native_fs_path_join(fs_dir, "bytes.bin");
+    status = expect_int(kain_native_fs_write_bytes_hex(fs_bytes, "000102ff") == 0, 43);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(strcmp(kain_native_fs_read_bytes_hex(fs_bytes), "000102ff") == 0, 44);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(strstr(kain_native_fs_metadata_text(fs_file), "file_type=file") != 0, 45);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(strstr(kain_native_fs_read_dir_paths_text(fs_dir), "bridge.txt") != 0, 46);
+    if (status != 0) {
+        return status;
+    }
+
+    status = expect_int(strstr(kain_native_fs_walk_paths_text(fs_dir), "bytes.bin") != 0, 47);
+    if (status != 0) {
+        return status;
+    }
+
     status = expect_int(strcmp(
         kain_native_fs_hash_file(fs_file),
         "52c69d2e3b3ec3cf129ec23ff5775dba3f016b4c1b18b1168fdb0ff7f1775a1f"
@@ -138,7 +204,7 @@ int main(void) {
     }
 
     const char* fs_copy = kain_native_fs_path_join(fs_dir, "copy.txt");
-    status = expect_int(kain_native_fs_copy_file(fs_file, fs_copy) == 0, 35);
+    status = expect_int(kain_native_fs_copy_file_streaming(fs_file, fs_copy, 2) == 8, 35);
     if (status != 0) {
         return status;
     }

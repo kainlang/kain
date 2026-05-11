@@ -507,6 +507,179 @@ impl StdLib {
                 doc,
             );
         }
+        lib.add_fn(
+            "fs_capability_describe",
+            &[],
+            "String",
+            "Describe current filesystem sandbox mounts and grants",
+        );
+        lib.add_fn(
+            "fs_capability_has",
+            &[("capability", "String")],
+            "Bool",
+            "Check whether a filesystem capability is granted",
+        );
+        for name in ["fs_capability_grant", "fs_capability_revoke"] {
+            lib.add_fn(
+                name,
+                &[("capability", "String")],
+                "Unit",
+                "Mutate the current filesystem capability set",
+            );
+        }
+        lib.add_fn(
+            "fs_sandbox_allow_host_paths",
+            &[("allow", "Bool")],
+            "Unit",
+            "Allow or deny direct host paths outside virtual roots",
+        );
+        lib.add_fn(
+            "fs_mount",
+            &[("key", "String"), ("root", "String"), ("mode", "String")],
+            "Unit",
+            "Mount a host path under an fs:// virtual root",
+        );
+        lib.add_fn(
+            "fs_unmount",
+            &[("key", "String")],
+            "Bool",
+            "Unmount an fs:// virtual root",
+        );
+        lib.add_fn(
+            "fs_resolve",
+            &[("path", "String")],
+            "String",
+            "Resolve a virtual or host path through the filesystem sandbox",
+        );
+        lib.add_fn(
+            "fs_read_text_range",
+            &[("path", "String"), ("offset", "Int"), ("length", "Int")],
+            "String",
+            "Read a UTF-8 byte range from a file",
+        );
+        lib.add_fn(
+            "fs_read_bytes_range",
+            &[("path", "String"), ("offset", "Int"), ("length", "Int")],
+            "Array<Int>",
+            "Read a byte range from a file",
+        );
+        lib.add_fn(
+            "fs_write_text_at",
+            &[("path", "String"), ("offset", "Int"), ("content", "String")],
+            "Unit",
+            "Write UTF-8 text at a byte offset",
+        );
+        lib.add_fn(
+            "fs_write_bytes_at",
+            &[
+                ("path", "String"),
+                ("offset", "Int"),
+                ("bytes", "Array<Int>"),
+            ],
+            "Unit",
+            "Write bytes at a byte offset",
+        );
+        lib.add_fn(
+            "fs_stream_chunks",
+            &[("path", "String"), ("chunk_size", "Int")],
+            "Array<FsChunk>",
+            "Read a file as deterministic byte chunks",
+        );
+        lib.add_fn(
+            "fs_copy_file_streaming",
+            &[("src", "String"), ("dest", "String"), ("chunk_size", "Int")],
+            "Int",
+            "Copy a file through a bounded streaming buffer",
+        );
+        for (name, doc) in [
+            (
+                "fs_read_bytes_hex",
+                "Read raw file bytes as a lowercase hex string",
+            ),
+            (
+                "fs_metadata_text",
+                "Read native metadata as stable key-value text",
+            ),
+            (
+                "fs_read_dir_paths_text",
+                "Read direct directory paths as newline-delimited text",
+            ),
+            (
+                "fs_walk_paths_text",
+                "Walk directory paths as newline-delimited text",
+            ),
+        ] {
+            lib.add_fn(name, &[("path", "String")], "String", doc);
+        }
+        lib.add_fn(
+            "fs_read_byte_range_hex",
+            &[("path", "String"), ("offset", "Int"), ("length", "Int")],
+            "String",
+            "Read a file byte range as lowercase hex",
+        );
+        lib.add_fn(
+            "fs_write_bytes_hex",
+            &[("path", "String"), ("hex", "String")],
+            "Unit",
+            "Write lowercase hex-encoded bytes to a file",
+        );
+        lib.add_fn(
+            "fs_watch",
+            &[("path", "String"), ("recursive", "Bool")],
+            "Int",
+            "Create a polling filesystem watcher and return its ID",
+        );
+        lib.add_fn(
+            "fs_watch_poll",
+            &[("watcher_id", "Int")],
+            "Array<FsWatchEvent>",
+            "Poll a filesystem watcher for create/modify/delete events",
+        );
+        lib.add_fn(
+            "fs_watch_close",
+            &[("watcher_id", "Int")],
+            "Bool",
+            "Close a filesystem watcher",
+        );
+        lib.add_fn("fs_tx_begin", &[], "Int", "Begin a filesystem transaction");
+        for name in ["fs_tx_write_text", "fs_tx_append_text"] {
+            lib.add_fn(
+                name,
+                &[
+                    ("transaction_id", "Int"),
+                    ("path", "String"),
+                    ("content", "String"),
+                ],
+                "Unit",
+                "Queue a transactional text operation",
+            );
+        }
+        lib.add_fn(
+            "fs_tx_remove_path",
+            &[("transaction_id", "Int"), ("path", "String")],
+            "Unit",
+            "Queue a transactional path removal",
+        );
+        for name in ["fs_tx_copy_path", "fs_tx_move_path"] {
+            lib.add_fn(
+                name,
+                &[
+                    ("transaction_id", "Int"),
+                    ("src", "String"),
+                    ("dest", "String"),
+                ],
+                "Unit",
+                "Queue a transactional two-path operation",
+            );
+        }
+        for name in ["fs_tx_commit", "fs_tx_rollback"] {
+            lib.add_fn(
+                name,
+                &[("transaction_id", "Int")],
+                "Array<FsJournalEntry>",
+                "Finish a filesystem transaction and return its journal",
+            );
+        }
 
         // Math
         lib.add_fn("abs", &[("x", "Int")], "Int", "Absolute value");

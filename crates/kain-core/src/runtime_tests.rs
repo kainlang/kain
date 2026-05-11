@@ -194,6 +194,46 @@ fn main() -> Int:
 }
 
 #[test]
+fn filesystem_v2_virtual_stream_watch_and_transaction_flow() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let root = temp.path().to_string_lossy().replace('\\', "/");
+    let source = format!(
+        r#"
+fn main() -> Int:
+    fs_mount("v2test", "{root}", "read_write")
+    let path = "fs://v2test/main.txt"
+    fs_write_text_at(path, 0, "abcdef")
+    let slice = fs_read_text_range(path, 1, 3)
+    fs_write_text_at(path, 3, "XYZ")
+    let rewritten = fs_read_text_range(path, 0, 6)
+    let chunks = fs_stream_chunks(path, 2)
+    let copied = fs_copy_file_streaming(path, "fs://v2test/copy.txt", 2)
+
+    let watcher = fs_watch("fs://v2test", false)
+    fs_write_text_at("fs://v2test/watched.txt", 0, "watch")
+    let events = fs_watch_poll(watcher)
+    let closed = fs_watch_close(watcher)
+
+    let tx = fs_tx_begin()
+    fs_tx_write_text(tx, "fs://v2test/tx.txt", "one")
+    fs_tx_append_text(tx, "fs://v2test/tx.txt", " two")
+    let journal = fs_tx_commit(tx)
+    let tx_text = fs_read_text_range("fs://v2test/tx.txt", 0, 7)
+
+    if slice == "bcd" && rewritten == "abcXYZ" && len(chunks) == 3 && copied == 6 && len(events) == 1 && closed && len(journal) == 2 && tx_text == "one two" && fs_capability_has("fs.read"):
+        return 1
+    return 0
+"#
+    );
+    let value = interpret_test_source(&source);
+
+    match value {
+        Value::Int(result) => assert_eq!(result, 1),
+        other => panic!("expected Int(1), got {:?}", other),
+    }
+}
+
+#[test]
 fn json_helpers_extract_nested_fields() {
     let value = interpret_test_source(
         r#"

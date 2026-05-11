@@ -6,12 +6,17 @@
 //! errors, deterministic directory output, byte/text helpers, temp paths,
 //! atomic writes, globbing, hashing, and recursive operations.
 
+mod capabilities;
 mod error;
 mod metadata;
 mod ops;
 mod path;
 pub mod raw;
+mod streaming;
+mod transaction;
+mod watch;
 
+pub use capabilities::{FsCapability, FsMount, FsSandbox};
 pub use error::{FsError, FsErrorKind, FsResult};
 pub use metadata::{DirectoryEntry, FsFileType, FsMetadata};
 pub use ops::{
@@ -25,3 +30,9 @@ pub use path::{
     absolute_path, canonicalize_path, normalize_path, path_extension, path_file_name, path_join,
     path_parent, path_stem,
 };
+pub use streaming::{
+    copy_file_streaming, read_byte_range, read_text_range, stream_file_chunks, write_bytes_at,
+    write_text_at, FsChunk,
+};
+pub use transaction::{transaction_missing, FsJournalEntry, FsTransaction, FsTransactionOp};
+pub use watch::{FsWatchEvent, FsWatchEventKind, FsWatchSnapshot, FsWatcher};

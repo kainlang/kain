@@ -2,6 +2,9 @@
 fn kain_native_fs_read_text(path: String) -> String
 
 @extern
+fn kain_native_fs_read_text_range(path: String, offset: Int, length: Int) -> String
+
+@extern
 fn kain_native_fs_write_text(path: String, content: String) -> Int
 
 @extern
@@ -9,6 +12,15 @@ fn kain_native_fs_append_text(path: String, content: String) -> Int
 
 @extern
 fn kain_native_fs_atomic_write_text(path: String, content: String) -> Int
+
+@extern
+fn kain_native_fs_read_bytes_hex(path: String) -> String
+
+@extern
+fn kain_native_fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String
+
+@extern
+fn kain_native_fs_write_bytes_hex(path: String, hex: String) -> Int
 
 @extern
 fn kain_native_fs_exists(path: String) -> Bool
@@ -20,10 +32,22 @@ fn kain_native_fs_is_file(path: String) -> Bool
 fn kain_native_fs_is_dir(path: String) -> Bool
 
 @extern
+fn kain_native_fs_metadata_text(path: String) -> String
+
+@extern
+fn kain_native_fs_read_dir_paths_text(path: String) -> String
+
+@extern
+fn kain_native_fs_walk_paths_text(path: String) -> String
+
+@extern
 fn kain_native_fs_create_dir_all(path: String) -> Int
 
 @extern
 fn kain_native_fs_copy_file(src: String, dest: String) -> Int
+
+@extern
+fn kain_native_fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int
 
 @extern
 fn kain_native_fs_move_path(src: String, dest: String) -> Int
@@ -67,6 +91,9 @@ pub fn native_fs_last_error_message() -> String:
 pub fn fs_read_text(path: String) -> String:
     return kain_native_fs_read_text(path)
 
+pub fn fs_read_text_range(path: String, offset: Int, length: Int) -> String:
+    return kain_native_fs_read_text_range(path, offset, length)
+
 pub fn fs_write_text(path: String, content: String) -> Unit:
     let _status = kain_native_fs_write_text(path, content)
 
@@ -75,6 +102,15 @@ pub fn fs_append_text(path: String, content: String) -> Unit:
 
 pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
     let _status = kain_native_fs_atomic_write_text(path, content)
+
+pub fn fs_read_bytes_hex(path: String) -> String:
+    return kain_native_fs_read_bytes_hex(path)
+
+pub fn fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String:
+    return kain_native_fs_read_byte_range_hex(path, offset, length)
+
+pub fn fs_write_bytes_hex(path: String, hex: String) -> Unit:
+    let _status = kain_native_fs_write_bytes_hex(path, hex)
 
 pub fn fs_exists(path: String) -> Bool:
     return kain_native_fs_exists(path)
@@ -85,11 +121,23 @@ pub fn fs_is_file(path: String) -> Bool:
 pub fn fs_is_dir(path: String) -> Bool:
     return kain_native_fs_is_dir(path)
 
+pub fn fs_metadata_text(path: String) -> String:
+    return kain_native_fs_metadata_text(path)
+
+pub fn fs_read_dir_paths_text(path: String) -> String:
+    return kain_native_fs_read_dir_paths_text(path)
+
+pub fn fs_walk_paths_text(path: String) -> String:
+    return kain_native_fs_walk_paths_text(path)
+
 pub fn fs_create_dir_all(path: String) -> Unit:
     let _status = kain_native_fs_create_dir_all(path)
 
 pub fn fs_copy_file(src: String, dest: String) -> Unit:
     let _status = kain_native_fs_copy_file(src, dest)
+
+pub fn fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int:
+    return kain_native_fs_copy_file_streaming(src, dest, chunk_size)
 
 pub fn fs_move_path(src: String, dest: String) -> Unit:
     let _status = kain_native_fs_move_path(src, dest)

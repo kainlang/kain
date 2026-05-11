@@ -370,6 +370,11 @@ impl<'a> TypeEnv<'a> {
         env.types.insert("FsError".into(), fs_error_type());
         env.types.insert("FsMetadata".into(), fs_metadata_type());
         env.types.insert("FsDirEntry".into(), fs_dir_entry_type());
+        env.types.insert("FsChunk".into(), fs_chunk_type());
+        env.types
+            .insert("FsWatchEvent".into(), fs_watch_event_type());
+        env.types
+            .insert("FsJournalEntry".into(), fs_journal_entry_type());
         env.types.insert(
             "Vec2".into(),
             ResolvedType::Tuple(vec![
@@ -635,6 +640,43 @@ fn fs_dir_entry_type() -> ResolvedType {
             ("file_name".to_string(), ResolvedType::String),
             ("file_type".to_string(), ResolvedType::String),
             ("metadata".to_string(), fs_metadata_type()),
+        ]),
+    )
+}
+
+fn fs_chunk_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsChunk".to_string(),
+        HashMap::from([
+            ("index".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("offset".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("len".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("bytes".to_string(), fs_byte_array_type()),
+        ]),
+    )
+}
+
+fn fs_watch_event_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsWatchEvent".to_string(),
+        HashMap::from([
+            ("kind".to_string(), ResolvedType::String),
+            ("path".to_string(), ResolvedType::String),
+            ("before_len".to_string(), ResolvedType::Int(IntSize::I64)),
+            ("after_len".to_string(), ResolvedType::Int(IntSize::I64)),
+        ]),
+    )
+}
+
+fn fs_journal_entry_type() -> ResolvedType {
+    ResolvedType::Struct(
+        "FsJournalEntry".to_string(),
+        HashMap::from([
+            ("operation".to_string(), ResolvedType::String),
+            ("path".to_string(), ResolvedType::String),
+            ("other_path".to_string(), ResolvedType::String),
+            ("status".to_string(), ResolvedType::String),
+            ("message".to_string(), ResolvedType::String),
         ]),
     )
 }
@@ -1490,6 +1532,190 @@ fn register_filesystem_global_functions(env: &mut TypeEnv<'_>) {
             fs_result_type(ResolvedType::String),
         ),
     );
+
+    env.define_global(
+        "fs_capability_describe".into(),
+        builtin_function_type(vec![], ResolvedType::String),
+    );
+    env.define_global(
+        "fs_capability_has".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+    );
+    for name in ["fs_capability_grant", "fs_capability_revoke"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::Unit),
+        );
+    }
+    env.define_global(
+        "fs_sandbox_allow_host_paths".into(),
+        builtin_function_type(vec![ResolvedType::Bool], ResolvedType::Unit),
+    );
+    env.define_global(
+        "fs_mount".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::String,
+            ],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "fs_unmount".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::Bool),
+    );
+    env.define_global(
+        "fs_resolve".into(),
+        builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+    );
+
+    for name in ["fs_read_text_range", "fs_read_bytes_range"] {
+        let return_type = if name == "fs_read_text_range" {
+            ResolvedType::String
+        } else {
+            fs_byte_array_type()
+        };
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![
+                    ResolvedType::String,
+                    ResolvedType::Int(IntSize::I64),
+                    ResolvedType::Int(IntSize::I64),
+                ],
+                return_type,
+            ),
+        );
+    }
+    env.define_global(
+        "fs_write_text_at".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::String,
+            ],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "fs_write_bytes_at".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+                fs_byte_array_type(),
+            ],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "fs_stream_chunks".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::Int(IntSize::I64)],
+            dynamic_array_type(fs_chunk_type()),
+        ),
+    );
+    env.define_global(
+        "fs_copy_file_streaming".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    for name in [
+        "fs_read_bytes_hex",
+        "fs_metadata_text",
+        "fs_read_dir_paths_text",
+        "fs_walk_paths_text",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::String], ResolvedType::String),
+        );
+    }
+    env.define_global(
+        "fs_read_byte_range_hex".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::String,
+        ),
+    );
+    env.define_global(
+        "fs_write_bytes_hex".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+
+    env.define_global(
+        "fs_watch".into(),
+        builtin_function_type(
+            vec![ResolvedType::String, ResolvedType::Bool],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
+        "fs_watch_poll".into(),
+        builtin_function_type(
+            vec![ResolvedType::Int(IntSize::I64)],
+            dynamic_array_type(fs_watch_event_type()),
+        ),
+    );
+    env.define_global(
+        "fs_watch_close".into(),
+        builtin_function_type(vec![ResolvedType::Int(IntSize::I64)], ResolvedType::Bool),
+    );
+
+    env.define_global(
+        "fs_tx_begin".into(),
+        builtin_function_type(vec![], ResolvedType::Int(IntSize::I64)),
+    );
+    for name in [
+        "fs_tx_write_text",
+        "fs_tx_append_text",
+        "fs_tx_copy_path",
+        "fs_tx_move_path",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![
+                    ResolvedType::Int(IntSize::I64),
+                    ResolvedType::String,
+                    ResolvedType::String,
+                ],
+                ResolvedType::Unit,
+            ),
+        );
+    }
+    env.define_global(
+        "fs_tx_remove_path".into(),
+        builtin_function_type(
+            vec![ResolvedType::Int(IntSize::I64), ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+    for name in ["fs_tx_commit", "fs_tx_rollback"] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(
+                vec![ResolvedType::Int(IntSize::I64)],
+                dynamic_array_type(fs_journal_entry_type()),
+            ),
+        );
+    }
 }
 
 fn method_has_receiver_param(method: &Function) -> bool {

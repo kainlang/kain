@@ -13,18 +13,30 @@ use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
 use kain_actor::{ActorId, ActorIdAllocator, MessageEnvelope, DEFAULT_ASK_TIMEOUT_MS};
 use kain_entangle::{EntangleBindingDescriptor, EntangleEndpointId, EntangleGraph};
-use kain_fs::{DirectoryEntry, FsError, FsMetadata};
+use kain_fs::{
+    DirectoryEntry, FsCapability, FsChunk, FsError, FsJournalEntry, FsMetadata, FsSandbox,
+    FsWatchEvent, FsWatcher,
+};
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::process::Command;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, RwLock};
 
 pub type EnvExtensionRegistrar = fn(&mut Env);
 
 static ENV_EXTENSION_REGISTRARS: Lazy<RwLock<BTreeMap<String, EnvExtensionRegistrar>>> =
     Lazy::new(|| RwLock::new(BTreeMap::new()));
+static RUNTIME_FS_SANDBOX: Lazy<RwLock<FsSandbox>> =
+    Lazy::new(|| RwLock::new(FsSandbox::unrestricted_project()));
+static RUNTIME_FS_WATCHERS: Lazy<RwLock<HashMap<i64, FsWatcher>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+static RUNTIME_FS_TRANSACTIONS: Lazy<RwLock<HashMap<i64, kain_fs::FsTransaction>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
+static RUNTIME_FS_NEXT_WATCHER_ID: AtomicI64 = AtomicI64::new(1);
+static RUNTIME_FS_NEXT_TRANSACTION_ID: AtomicI64 = AtomicI64::new(1);
 
 fn lowered_impl_function_names(type_name: &str, method_name: &str) -> [String; 2] {
     [
@@ -2811,6 +2823,350 @@ impl Env {
                 "fs_path_canonicalize",
                 kain_fs::canonicalize_path(path).map(Value::String),
             )
+        });
+
+        self.define_native("fs_capability_describe", |_env, _args| {
+            Ok(Value::String(RUNTIME_FS_SANDBOX.read().unwrap().describe()))
+        });
+
+        self.define_native("fs_capability_has", |_env, args| {
+            let capability = runtime_expect_capability_arg(&args, 0, "fs_capability_has")?;
+            Ok(Value::Bool(
+                RUNTIME_FS_SANDBOX
+                    .read()
+                    .unwrap()
+                    .has_capability(capability),
+            ))
+        });
+
+        self.define_native("fs_capability_grant", |_env, args| {
+            let capability = runtime_expect_capability_arg(&args, 0, "fs_capability_grant")?;
+            RUNTIME_FS_SANDBOX.write().unwrap().grant(capability);
+            Ok(Value::Unit)
+        });
+
+        self.define_native("fs_capability_revoke", |_env, args| {
+            let capability = runtime_expect_capability_arg(&args, 0, "fs_capability_revoke")?;
+            RUNTIME_FS_SANDBOX.write().unwrap().revoke(capability);
+            Ok(Value::Unit)
+        });
+
+        self.define_native("fs_sandbox_allow_host_paths", |_env, args| {
+            let allow = runtime_expect_bool_arg(&args, 0, "fs_sandbox_allow_host_paths", "allow")?;
+            RUNTIME_FS_SANDBOX.write().unwrap().allow_host_paths(allow);
+            Ok(Value::Unit)
+        });
+
+        self.define_native("fs_mount", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "fs_mount", "key")?;
+            let root = runtime_expect_string_arg(&args, 1, "fs_mount", "root")?;
+            let mode = runtime_expect_string_arg(&args, 2, "fs_mount", "mode")?;
+            let read_only = matches!(mode, "read_only" | "readonly" | "ro");
+            RUNTIME_FS_SANDBOX
+                .write()
+                .unwrap()
+                .mount(key, root, read_only);
+            Ok(Value::Unit)
+        });
+
+        self.define_native("fs_unmount", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "fs_unmount", "key")?;
+            Ok(Value::Bool(
+                RUNTIME_FS_SANDBOX.write().unwrap().unmount(key),
+            ))
+        });
+
+        self.define_native("fs_resolve", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "fs_resolve", "path")?;
+            runtime_fs_strict(
+                "fs_resolve",
+                RUNTIME_FS_SANDBOX
+                    .read()
+                    .unwrap()
+                    .resolve(path)
+                    .map(|path| Value::String(path.to_string_lossy().into_owned())),
+            )
+        });
+
+        self.define_native("fs_read_text_range", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_read_text_range", FsCapability::Read)?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_read_text_range", "offset")?;
+            let length =
+                runtime_expect_non_negative_int_arg(&args, 2, "fs_read_text_range", "length")?;
+            runtime_fs_strict(
+                "fs_read_text_range",
+                kain_fs::read_text_range(path, offset as u64, length as usize).map(Value::String),
+            )
+        });
+
+        self.define_native("fs_read_bytes_range", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_read_bytes_range", FsCapability::Read)?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_read_bytes_range", "offset")?;
+            let length =
+                runtime_expect_non_negative_int_arg(&args, 2, "fs_read_bytes_range", "length")?;
+            runtime_fs_strict(
+                "fs_read_bytes_range",
+                kain_fs::read_byte_range(path, offset as u64, length as usize)
+                    .map(|bytes| runtime_byte_array_value(&bytes)),
+            )
+        });
+
+        self.define_native("fs_write_text_at", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_write_text_at", FsCapability::Write)?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_write_text_at", "offset")?;
+            let content = runtime_expect_string_arg(&args, 2, "fs_write_text_at", "content")?;
+            runtime_fs_strict_unit(
+                "fs_write_text_at",
+                kain_fs::write_text_at(path, offset as u64, content),
+            )
+        });
+
+        self.define_native("fs_write_bytes_at", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_write_bytes_at", FsCapability::Write)?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_write_bytes_at", "offset")?;
+            let bytes = runtime_expect_byte_array_arg(&args, 2, "fs_write_bytes_at", "bytes")?;
+            runtime_fs_strict_unit(
+                "fs_write_bytes_at",
+                kain_fs::write_bytes_at(path, offset as u64, &bytes),
+            )
+        });
+
+        self.define_native("fs_stream_chunks", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_stream_chunks", FsCapability::Read)?;
+            let chunk_size =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_stream_chunks", "chunk_size")?;
+            runtime_fs_strict(
+                "fs_stream_chunks",
+                kain_fs::stream_file_chunks(path, chunk_size.max(1) as usize)
+                    .map(runtime_fs_chunk_array_value),
+            )
+        });
+
+        self.define_native("fs_copy_file_streaming", |_env, args| {
+            let src =
+                runtime_expect_scoped_path(&args, 0, "fs_copy_file_streaming", FsCapability::Read)?;
+            let dest = runtime_expect_scoped_path(
+                &args,
+                1,
+                "fs_copy_file_streaming",
+                FsCapability::Write,
+            )?;
+            let chunk_size = runtime_expect_non_negative_int_arg(
+                &args,
+                2,
+                "fs_copy_file_streaming",
+                "chunk_size",
+            )?;
+            runtime_fs_strict(
+                "fs_copy_file_streaming",
+                kain_fs::copy_file_streaming(src, dest, chunk_size.max(1) as usize)
+                    .map(|bytes| Value::Int(bytes.min(i64::MAX as u64) as i64)),
+            )
+        });
+
+        self.define_native("fs_read_bytes_hex", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_read_bytes_hex", FsCapability::Read)?;
+            runtime_fs_strict(
+                "fs_read_bytes_hex",
+                kain_fs::read_bytes(path).map(|bytes| Value::String(runtime_hex_encode(&bytes))),
+            )
+        });
+
+        self.define_native("fs_read_byte_range_hex", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_read_byte_range_hex", FsCapability::Read)?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_read_byte_range_hex", "offset")?;
+            let length =
+                runtime_expect_non_negative_int_arg(&args, 2, "fs_read_byte_range_hex", "length")?;
+            runtime_fs_strict(
+                "fs_read_byte_range_hex",
+                kain_fs::read_byte_range(path, offset as u64, length as usize)
+                    .map(|bytes| Value::String(runtime_hex_encode(&bytes))),
+            )
+        });
+
+        self.define_native("fs_write_bytes_hex", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_write_bytes_hex", FsCapability::Write)?;
+            let hex = runtime_expect_string_arg(&args, 1, "fs_write_bytes_hex", "hex")?;
+            let bytes = runtime_hex_decode(hex)?;
+            runtime_fs_strict_unit("fs_write_bytes_hex", kain_fs::write_bytes(path, &bytes))
+        });
+
+        self.define_native("fs_metadata_text", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_metadata_text", FsCapability::Metadata)?;
+            runtime_fs_strict(
+                "fs_metadata_text",
+                kain_fs::metadata(path)
+                    .map(|metadata| Value::String(runtime_fs_metadata_text(metadata))),
+            )
+        });
+
+        self.define_native("fs_read_dir_paths_text", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_read_dir_paths_text", FsCapability::List)?;
+            runtime_fs_strict(
+                "fs_read_dir_paths_text",
+                kain_fs::read_dir_paths(path)
+                    .map(|paths| Value::String(runtime_join_lines(&paths))),
+            )
+        });
+
+        self.define_native("fs_walk_paths_text", |_env, args| {
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_walk_paths_text", FsCapability::List)?;
+            runtime_fs_strict(
+                "fs_walk_paths_text",
+                kain_fs::walk_dir_entries(path, kain_fs::WalkOptions::default()).map(|entries| {
+                    let paths = entries
+                        .into_iter()
+                        .map(|entry| entry.path.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>();
+                    Value::String(runtime_join_lines(&paths))
+                }),
+            )
+        });
+
+        self.define_native("fs_watch", |_env, args| {
+            let path = runtime_expect_scoped_path(&args, 0, "fs_watch", FsCapability::Watch)?;
+            let recursive = runtime_expect_bool_arg(&args, 1, "fs_watch", "recursive")?;
+            let watcher = kain_fs::FsWatcher::new(path, recursive)
+                .map_err(|error| KainError::runtime(format!("fs_watch: {error}")))?;
+            let id = RUNTIME_FS_NEXT_WATCHER_ID.fetch_add(1, Ordering::Relaxed);
+            RUNTIME_FS_WATCHERS.write().unwrap().insert(id, watcher);
+            Ok(Value::Int(id))
+        });
+
+        self.define_native("fs_watch_poll", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_watch_poll", "watcher_id")?;
+            let mut watchers = RUNTIME_FS_WATCHERS.write().unwrap();
+            let Some(watcher) = watchers.get_mut(&id) else {
+                return Err(KainError::runtime(format!(
+                    "fs_watch_poll: watcher {id} does not exist"
+                )));
+            };
+            runtime_fs_strict(
+                "fs_watch_poll",
+                watcher.poll().map(runtime_fs_watch_event_array_value),
+            )
+        });
+
+        self.define_native("fs_watch_close", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_watch_close", "watcher_id")?;
+            Ok(Value::Bool(
+                RUNTIME_FS_WATCHERS.write().unwrap().remove(&id).is_some(),
+            ))
+        });
+
+        self.define_native("fs_tx_begin", |_env, _args| {
+            let id = RUNTIME_FS_NEXT_TRANSACTION_ID.fetch_add(1, Ordering::Relaxed);
+            RUNTIME_FS_TRANSACTIONS
+                .write()
+                .unwrap()
+                .insert(id, kain_fs::FsTransaction::new());
+            Ok(Value::Int(id))
+        });
+
+        self.define_native("fs_tx_write_text", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_write_text", "transaction_id")?;
+            let path = runtime_expect_scoped_path(
+                &args,
+                1,
+                "fs_tx_write_text",
+                FsCapability::Transaction,
+            )?;
+            let content = runtime_expect_string_arg(&args, 2, "fs_tx_write_text", "content")?;
+            runtime_with_transaction(id, "fs_tx_write_text", |transaction| {
+                transaction.write_text(path, content);
+                Ok(Value::Unit)
+            })
+        });
+
+        self.define_native("fs_tx_append_text", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_append_text", "transaction_id")?;
+            let path = runtime_expect_scoped_path(
+                &args,
+                1,
+                "fs_tx_append_text",
+                FsCapability::Transaction,
+            )?;
+            let content = runtime_expect_string_arg(&args, 2, "fs_tx_append_text", "content")?;
+            runtime_with_transaction(id, "fs_tx_append_text", |transaction| {
+                transaction.append_text(path, content);
+                Ok(Value::Unit)
+            })
+        });
+
+        self.define_native("fs_tx_remove_path", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_remove_path", "transaction_id")?;
+            let path = runtime_expect_scoped_path(
+                &args,
+                1,
+                "fs_tx_remove_path",
+                FsCapability::Transaction,
+            )?;
+            runtime_with_transaction(id, "fs_tx_remove_path", |transaction| {
+                transaction.remove_path(path);
+                Ok(Value::Unit)
+            })
+        });
+
+        self.define_native("fs_tx_copy_path", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_copy_path", "transaction_id")?;
+            let src = runtime_expect_scoped_path(&args, 1, "fs_tx_copy_path", FsCapability::Read)?;
+            let dest =
+                runtime_expect_scoped_path(&args, 2, "fs_tx_copy_path", FsCapability::Transaction)?;
+            runtime_with_transaction(id, "fs_tx_copy_path", |transaction| {
+                transaction.copy_path(src, dest);
+                Ok(Value::Unit)
+            })
+        });
+
+        self.define_native("fs_tx_move_path", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_move_path", "transaction_id")?;
+            let src =
+                runtime_expect_scoped_path(&args, 1, "fs_tx_move_path", FsCapability::Transaction)?;
+            let dest =
+                runtime_expect_scoped_path(&args, 2, "fs_tx_move_path", FsCapability::Transaction)?;
+            runtime_with_transaction(id, "fs_tx_move_path", |transaction| {
+                transaction.move_path(src, dest);
+                Ok(Value::Unit)
+            })
+        });
+
+        self.define_native("fs_tx_commit", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_commit", "transaction_id")?;
+            let Some(mut transaction) = RUNTIME_FS_TRANSACTIONS.write().unwrap().remove(&id) else {
+                return Err(KainError::runtime(format!(
+                    "fs_tx_commit: transaction {id} does not exist"
+                )));
+            };
+            runtime_fs_strict(
+                "fs_tx_commit",
+                transaction.commit().map(runtime_fs_journal_array_value),
+            )
+        });
+
+        self.define_native("fs_tx_rollback", |_env, args| {
+            let id = runtime_expect_int_arg(&args, 0, "fs_tx_rollback", "transaction_id")?;
+            let Some(mut transaction) = RUNTIME_FS_TRANSACTIONS.write().unwrap().remove(&id) else {
+                return Err(KainError::runtime(format!(
+                    "fs_tx_rollback: transaction {id} does not exist"
+                )));
+            };
+            Ok(runtime_fs_journal_array_value(transaction.rollback_only()))
         });
 
         self.define_native("patch_history", |env, _args| {
@@ -6413,6 +6769,83 @@ fn runtime_expect_string_arg<'a>(
     }
 }
 
+fn runtime_expect_int_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<i64> {
+    match args.get(index) {
+        Some(Value::Int(value)) => Ok(*value),
+        Some(_) => Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be int"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "{function_name}: missing argument {argument_name}"
+        ))),
+    }
+}
+
+fn runtime_expect_non_negative_int_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<i64> {
+    let value = runtime_expect_int_arg(args, index, function_name, argument_name)?;
+    if value < 0 {
+        return Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be non-negative"
+        )));
+    }
+    Ok(value)
+}
+
+fn runtime_expect_bool_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<bool> {
+    match args.get(index) {
+        Some(Value::Bool(value)) => Ok(*value),
+        Some(_) => Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be bool"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "{function_name}: missing argument {argument_name}"
+        ))),
+    }
+}
+
+fn runtime_expect_capability_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+) -> KainResult<FsCapability> {
+    let capability = runtime_expect_string_arg(args, index, function_name, "capability")?;
+    FsCapability::from_str(capability).ok_or_else(|| {
+        KainError::runtime(format!(
+            "{function_name}: unknown filesystem capability '{capability}'"
+        ))
+    })
+}
+
+fn runtime_expect_scoped_path(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    capability: FsCapability,
+) -> KainResult<String> {
+    let path = runtime_expect_string_arg(args, index, function_name, "path")?;
+    RUNTIME_FS_SANDBOX
+        .read()
+        .unwrap()
+        .authorize(capability, path)
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|error| KainError::runtime(format!("{function_name}: {error}")))
+}
+
 fn runtime_expect_byte_array_arg(
     args: &[Value],
     index: usize,
@@ -6448,6 +6881,53 @@ fn runtime_byte_array_value(bytes: &[u8]) -> Value {
             .map(|byte| Value::Int(i64::from(*byte)))
             .collect(),
     )
+}
+
+fn runtime_hex_encode(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(DIGITS[(byte >> 4) as usize] as char);
+        output.push(DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
+fn runtime_hex_decode(hex: &str) -> KainResult<Vec<u8>> {
+    if hex.len() % 2 != 0 {
+        return Err(KainError::runtime(
+            "fs_write_bytes_hex: hex string must have an even length",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    let chars = hex.as_bytes();
+    let mut index = 0;
+    while index < chars.len() {
+        let hi = runtime_hex_digit(chars[index])?;
+        let lo = runtime_hex_digit(chars[index + 1])?;
+        bytes.push((hi << 4) | lo);
+        index += 2;
+    }
+    Ok(bytes)
+}
+
+fn runtime_hex_digit(byte: u8) -> KainResult<u8> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err(KainError::runtime(
+            "fs_write_bytes_hex: hex string contains a non-hex character",
+        )),
+    }
+}
+
+fn runtime_join_lines(lines: &[String]) -> String {
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", lines.join("\n"))
+    }
 }
 
 fn runtime_fs_strict(function_name: &str, result: Result<Value, FsError>) -> KainResult<Value> {
@@ -6529,6 +7009,18 @@ fn runtime_fs_metadata_value(metadata: FsMetadata) -> Value {
     )
 }
 
+fn runtime_fs_metadata_text(metadata: FsMetadata) -> String {
+    format!(
+        "file_type={}\nlen={}\nreadonly={}\ncreated_millis={}\nmodified_millis={}\naccessed_millis={}\n",
+        metadata.file_type.as_str(),
+        metadata.len,
+        if metadata.readonly { 1 } else { 0 },
+        metadata.created_millis.unwrap_or(0),
+        metadata.modified_millis.unwrap_or(0),
+        metadata.accessed_millis.unwrap_or(0)
+    )
+}
+
 fn runtime_fs_dir_entry_value(entry: DirectoryEntry) -> Value {
     runtime_struct_value(
         "FsDirEntry",
@@ -6557,6 +7049,124 @@ fn runtime_fs_dir_entry_array_value(entries: Vec<DirectoryEntry>) -> Value {
             .map(runtime_fs_dir_entry_value)
             .collect(),
     )
+}
+
+fn runtime_fs_chunk_value(chunk: FsChunk) -> Value {
+    runtime_struct_value(
+        "FsChunk",
+        vec![
+            (
+                "index".to_string(),
+                Value::Int(chunk.index.min(i64::MAX as u64) as i64),
+            ),
+            (
+                "offset".to_string(),
+                Value::Int(chunk.offset.min(i64::MAX as u64) as i64),
+            ),
+            (
+                "len".to_string(),
+                Value::Int(chunk.len().min(i64::MAX as u64) as i64),
+            ),
+            ("bytes".to_string(), runtime_byte_array_value(&chunk.bytes)),
+        ],
+    )
+}
+
+fn runtime_fs_chunk_array_value(chunks: Vec<FsChunk>) -> Value {
+    runtime_array_value(chunks.into_iter().map(runtime_fs_chunk_value).collect())
+}
+
+fn runtime_fs_watch_event_value(event: FsWatchEvent) -> Value {
+    runtime_struct_value(
+        "FsWatchEvent",
+        vec![
+            (
+                "kind".to_string(),
+                Value::String(event.kind.as_str().to_string()),
+            ),
+            (
+                "path".to_string(),
+                Value::String(event.path.to_string_lossy().into_owned()),
+            ),
+            (
+                "before_len".to_string(),
+                Value::Int(
+                    event
+                        .before
+                        .as_ref()
+                        .map(|snapshot| snapshot.len.min(i64::MAX as u64) as i64)
+                        .unwrap_or(-1),
+                ),
+            ),
+            (
+                "after_len".to_string(),
+                Value::Int(
+                    event
+                        .after
+                        .as_ref()
+                        .map(|snapshot| snapshot.len.min(i64::MAX as u64) as i64)
+                        .unwrap_or(-1),
+                ),
+            ),
+        ],
+    )
+}
+
+fn runtime_fs_watch_event_array_value(events: Vec<FsWatchEvent>) -> Value {
+    runtime_array_value(
+        events
+            .into_iter()
+            .map(runtime_fs_watch_event_value)
+            .collect(),
+    )
+}
+
+fn runtime_fs_journal_entry_value(entry: FsJournalEntry) -> Value {
+    runtime_struct_value(
+        "FsJournalEntry",
+        vec![
+            ("operation".to_string(), Value::String(entry.operation)),
+            (
+                "path".to_string(),
+                Value::String(entry.path.to_string_lossy().into_owned()),
+            ),
+            (
+                "other_path".to_string(),
+                Value::String(
+                    entry
+                        .other_path
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                ),
+            ),
+            ("status".to_string(), Value::String(entry.status)),
+            ("message".to_string(), Value::String(entry.message)),
+        ],
+    )
+}
+
+fn runtime_fs_journal_array_value(entries: Vec<FsJournalEntry>) -> Value {
+    runtime_array_value(
+        entries
+            .into_iter()
+            .map(runtime_fs_journal_entry_value)
+            .collect(),
+    )
+}
+
+fn runtime_with_transaction(
+    id: i64,
+    function_name: &str,
+    operation: impl FnOnce(&mut kain_fs::FsTransaction) -> KainResult<Value>,
+) -> KainResult<Value> {
+    let mut transactions = RUNTIME_FS_TRANSACTIONS.write().unwrap();
+    let Some(transaction) = transactions.get_mut(&id) else {
+        return Err(KainError::runtime(format!(
+            "{function_name}: transaction {id} does not exist"
+        )));
+    };
+    operation(transaction)
 }
 
 fn runtime_optional_millis_value(value: Option<u128>) -> Value {

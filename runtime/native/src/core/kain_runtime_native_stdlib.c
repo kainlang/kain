@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -41,6 +42,10 @@ int64_t kain_native_runtime_shutdown(void) {
     return 0;
 }
 
+int64_t kain_native_actor_abi_version(void) {
+    return (int64_t)KAIN_ACTOR_ABI_VERSION;
+}
+
 int64_t kain_native_actor_invalid_id(void) {
     return (int64_t)KAIN_ACTOR_ID_INVALID;
 }
@@ -51,6 +56,22 @@ int64_t kain_native_actor_default_mailbox_capacity(void) {
 
 int64_t kain_native_actor_unbounded_mailbox_capacity(void) {
     return (int64_t)KAIN_MAILBOX_UNBOUNDED_CAPACITY;
+}
+
+int64_t kain_native_actor_default_ask_timeout_ms(void) {
+    return (int64_t)KAIN_ACTOR_DEFAULT_ASK_TIMEOUT_MS;
+}
+
+int64_t kain_native_actor_default_shutdown_grace_ms(void) {
+    return (int64_t)KAIN_ACTOR_DEFAULT_SHUTDOWN_GRACE_MS;
+}
+
+int64_t kain_native_actor_supervision_max_restarts(void) {
+    return (int64_t)KAIN_SUPERVISION_MAX_RESTARTS;
+}
+
+int64_t kain_native_actor_supervision_restart_window_millis(void) {
+    return (int64_t)KAIN_SUPERVISION_RESTART_WINDOW_MILLIS;
 }
 
 static unsigned long long kain_native_hash_message_name(const char* value) {
@@ -427,6 +448,100 @@ static int64_t kain_native_fs_ok(void) {
     return 0;
 }
 
+typedef struct KainNativeFsTextBuilder {
+    char* data;
+    size_t length;
+    size_t capacity;
+} KainNativeFsTextBuilder;
+
+static int kain_native_fs_builder_init(KainNativeFsTextBuilder* builder) {
+    builder->capacity = 1024;
+    builder->length = 0;
+    builder->data = (char*)malloc(builder->capacity);
+    if (builder->data == 0) {
+        errno = ENOMEM;
+        return -1;
+    }
+    builder->data[0] = '\0';
+    return 0;
+}
+
+static void kain_native_fs_builder_free(KainNativeFsTextBuilder* builder) {
+    if (builder->data != 0) {
+        free(builder->data);
+    }
+    builder->data = 0;
+    builder->length = 0;
+    builder->capacity = 0;
+}
+
+static int kain_native_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t additional) {
+    size_t needed = builder->length + additional + 1;
+    if (needed <= builder->capacity) {
+        return 0;
+    }
+    while (builder->capacity < needed) {
+        builder->capacity *= 2;
+    }
+    {
+        char* grown = (char*)realloc(builder->data, builder->capacity);
+        if (grown == 0) {
+            errno = ENOMEM;
+            return -1;
+        }
+        builder->data = grown;
+    }
+    return 0;
+}
+
+static int kain_native_fs_builder_append(KainNativeFsTextBuilder* builder, const char* text) {
+    size_t length;
+    if (text == 0) {
+        text = "";
+    }
+    length = strlen(text);
+    if (kain_native_fs_builder_reserve(builder, length) != 0) {
+        return -1;
+    }
+    memcpy(builder->data + builder->length, text, length + 1);
+    builder->length += length;
+    return 0;
+}
+
+static int kain_native_fs_builder_appendf(KainNativeFsTextBuilder* builder, const char* format, ...) {
+    char stack_buffer[1024];
+    va_list args;
+    int written;
+    va_start(args, format);
+#ifdef _WIN32
+    written = vsnprintf(stack_buffer, sizeof(stack_buffer), format, args);
+#else
+    written = vsnprintf(stack_buffer, sizeof(stack_buffer), format, args);
+#endif
+    va_end(args);
+    if (written < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if ((size_t)written < sizeof(stack_buffer)) {
+        return kain_native_fs_builder_append(builder, stack_buffer);
+    }
+    if (kain_native_fs_builder_reserve(builder, (size_t)written) != 0) {
+        return -1;
+    }
+    va_start(args, format);
+    vsnprintf(builder->data + builder->length, (size_t)written + 1, format, args);
+    va_end(args);
+    builder->length += (size_t)written;
+    return 0;
+}
+
+static const char* kain_native_fs_builder_finish(KainNativeFsTextBuilder* builder) {
+    const char* result = kain_native_fs_string_with_len(builder->data, builder->length);
+    kain_native_fs_builder_free(builder);
+    return result != 0 ? result : string_new("");
+}
+
 static int kain_native_fs_path_is_absolute(const char* path) {
     if (path == 0 || path[0] == '\0') {
         return 0;
@@ -567,12 +682,183 @@ const char* kain_native_fs_read_text(const char* path) {
     return buffer;
 }
 
+const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length) {
+    FILE* file = 0;
+    char* buffer;
+    size_t read_count;
+    if (path == 0 || path[0] == '\0' || offset < 0 || length < 0) {
+        errno = EINVAL;
+        kain_native_fs_fail("read_text_range", path);
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (fopen_s(&file, path, "rb") != 0) file = 0;
+#else
+    file = fopen(path, "rb");
+#endif
+    if (file == 0) {
+        kain_native_fs_fail("read_text_range", path);
+        return string_new("");
+    }
+    if (fseek(file, (long)offset, SEEK_SET) != 0) {
+        fclose(file);
+        kain_native_fs_fail("read_text_range", path);
+        return string_new("");
+    }
+    buffer = kain_native_fs_string_with_len(0, (size_t)length);
+    if (buffer == 0) {
+        fclose(file);
+        errno = ENOMEM;
+        kain_native_fs_fail("read_text_range", path);
+        return string_new("");
+    }
+    read_count = fread(buffer, 1, (size_t)length, file);
+    buffer[read_count] = '\0';
+    fclose(file);
+    kain_native_fs_ok();
+    return buffer;
+}
+
 int64_t kain_native_fs_write_text(const char* path, const char* content) {
     return kain_native_fs_write_mode(path, content, "wb");
 }
 
 int64_t kain_native_fs_append_text(const char* path, const char* content) {
     return kain_native_fs_write_mode(path, content, "ab");
+}
+
+static int kain_native_fs_hex_value(char ch) {
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+    if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+    return -1;
+}
+
+const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length) {
+    FILE* file = 0;
+    unsigned char buffer[4096];
+    KainNativeFsTextBuilder builder;
+    int64_t remaining = length;
+    static const char* digits = "0123456789abcdef";
+    if (path == 0 || path[0] == '\0' || offset < 0 || length < 0) {
+        errno = EINVAL;
+        kain_native_fs_fail("read_byte_range_hex", path);
+        return string_new("");
+    }
+    if (kain_native_fs_builder_init(&builder) != 0) {
+        kain_native_fs_fail("read_byte_range_hex", path);
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (fopen_s(&file, path, "rb") != 0) file = 0;
+#else
+    file = fopen(path, "rb");
+#endif
+    if (file == 0) {
+        kain_native_fs_builder_free(&builder);
+        kain_native_fs_fail("read_byte_range_hex", path);
+        return string_new("");
+    }
+    if (fseek(file, (long)offset, SEEK_SET) != 0) {
+        fclose(file);
+        kain_native_fs_builder_free(&builder);
+        kain_native_fs_fail("read_byte_range_hex", path);
+        return string_new("");
+    }
+    while (remaining > 0) {
+        size_t want = remaining > (int64_t)sizeof(buffer) ? sizeof(buffer) : (size_t)remaining;
+        size_t read_count = fread(buffer, 1, want, file);
+        size_t index;
+        if (read_count == 0) {
+            break;
+        }
+        if (kain_native_fs_builder_reserve(&builder, read_count * 2) != 0) {
+            fclose(file);
+            kain_native_fs_builder_free(&builder);
+            kain_native_fs_fail("read_byte_range_hex", path);
+            return string_new("");
+        }
+        for (index = 0; index < read_count; index++) {
+            builder.data[builder.length++] = digits[(buffer[index] >> 4) & 0xF];
+            builder.data[builder.length++] = digits[buffer[index] & 0xF];
+        }
+        builder.data[builder.length] = '\0';
+        remaining -= (int64_t)read_count;
+    }
+    fclose(file);
+    kain_native_fs_ok();
+    return kain_native_fs_builder_finish(&builder);
+}
+
+const char* kain_native_fs_read_bytes_hex(const char* path) {
+    long size;
+    FILE* file = 0;
+    if (path == 0 || path[0] == '\0') {
+        errno = EINVAL;
+        kain_native_fs_fail("read_bytes_hex", path);
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (fopen_s(&file, path, "rb") != 0) file = 0;
+#else
+    file = fopen(path, "rb");
+#endif
+    if (file == 0) {
+        kain_native_fs_fail("read_bytes_hex", path);
+        return string_new("");
+    }
+    if (fseek(file, 0, SEEK_END) != 0) {
+        fclose(file);
+        kain_native_fs_fail("read_bytes_hex", path);
+        return string_new("");
+    }
+    size = ftell(file);
+    fclose(file);
+    if (size < 0) {
+        kain_native_fs_fail("read_bytes_hex", path);
+        return string_new("");
+    }
+    return kain_native_fs_read_byte_range_hex(path, 0, (int64_t)size);
+}
+
+int64_t kain_native_fs_write_bytes_hex(const char* path, const char* hex) {
+    FILE* file = 0;
+    size_t length;
+    size_t index;
+    if (path == 0 || path[0] == '\0' || hex == 0) {
+        errno = EINVAL;
+        return kain_native_fs_fail("write_bytes_hex", path);
+    }
+    length = strlen(hex);
+    if ((length % 2) != 0 || kain_native_fs_create_parent_dirs(path) != 0) {
+        errno = EINVAL;
+        return kain_native_fs_fail("write_bytes_hex", path);
+    }
+#ifdef _WIN32
+    if (fopen_s(&file, path, "wb") != 0) file = 0;
+#else
+    file = fopen(path, "wb");
+#endif
+    if (file == 0) {
+        return kain_native_fs_fail("write_bytes_hex", path);
+    }
+    for (index = 0; index < length; index += 2) {
+        int hi = kain_native_fs_hex_value(hex[index]);
+        int lo = kain_native_fs_hex_value(hex[index + 1]);
+        unsigned char byte;
+        if (hi < 0 || lo < 0) {
+            fclose(file);
+            errno = EINVAL;
+            return kain_native_fs_fail("write_bytes_hex", path);
+        }
+        byte = (unsigned char)((hi << 4) | lo);
+        if (fwrite(&byte, 1, 1, file) != 1) {
+            fclose(file);
+            return kain_native_fs_fail("write_bytes_hex", path);
+        }
+    }
+    fclose(file);
+    return kain_native_fs_ok();
 }
 
 int kain_native_fs_exists(const char* path) {
@@ -610,6 +896,216 @@ int kain_native_fs_is_dir(const char* path) {
     if (path == 0 || stat(path, &info) != 0) return 0;
     return S_ISDIR(info.st_mode);
 #endif
+}
+
+static const char* kain_native_fs_file_type_text(const char* path, const struct stat* info) {
+#ifdef _WIN32
+    DWORD attrs = GetFileAttributesA(path);
+    (void)info;
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+        return "directory";
+    }
+    return "file";
+#else
+    (void)path;
+    if (S_ISDIR(info->st_mode)) return "directory";
+    if (S_ISREG(info->st_mode)) return "file";
+#ifdef S_ISLNK
+    if (S_ISLNK(info->st_mode)) return "symlink";
+#endif
+    return "other";
+#endif
+}
+
+const char* kain_native_fs_metadata_text(const char* path) {
+    struct stat info;
+    KainNativeFsTextBuilder builder;
+    if (path == 0 || path[0] == '\0') {
+        errno = EINVAL;
+        kain_native_fs_fail("metadata_text", path);
+        return string_new("");
+    }
+    if (stat(path, &info) != 0) {
+        kain_native_fs_fail("metadata_text", path);
+        return string_new("");
+    }
+    if (kain_native_fs_builder_init(&builder) != 0) {
+        kain_native_fs_fail("metadata_text", path);
+        return string_new("");
+    }
+    if (kain_native_fs_builder_appendf(&builder, "file_type=%s\n", kain_native_fs_file_type_text(path, &info)) != 0
+        || kain_native_fs_builder_appendf(&builder, "len=%lld\n", (long long)info.st_size) != 0
+#ifdef _WIN32
+        || kain_native_fs_builder_appendf(&builder, "readonly=%d\n", (GetFileAttributesA(path) & FILE_ATTRIBUTE_READONLY) ? 1 : 0) != 0
+#else
+        || kain_native_fs_builder_appendf(&builder, "readonly=%d\n", (info.st_mode & S_IWUSR) ? 0 : 1) != 0
+#endif
+        || kain_native_fs_builder_appendf(&builder, "modified_seconds=%lld\n", (long long)info.st_mtime) != 0) {
+        kain_native_fs_builder_free(&builder);
+        kain_native_fs_fail("metadata_text", path);
+        return string_new("");
+    }
+    kain_native_fs_ok();
+    return kain_native_fs_builder_finish(&builder);
+}
+
+#ifdef _WIN32
+static int kain_native_fs_read_dir_append(KainNativeFsTextBuilder* builder, const char* path) {
+    char pattern[4096];
+    WIN32_FIND_DATAA data;
+    HANDLE handle;
+    if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, "%s\\*", path) < 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    handle = FindFirstFileA(pattern, &data);
+    if (handle == INVALID_HANDLE_VALUE) {
+        errno = ENOENT;
+        return -1;
+    }
+    do {
+        char child[4096];
+        if (strcmp(data.cFileName, ".") == 0 || strcmp(data.cFileName, "..") == 0) {
+            continue;
+        }
+        if (_snprintf_s(child, sizeof(child), _TRUNCATE, "%s\\%s", path, data.cFileName) < 0) {
+            FindClose(handle);
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        if (kain_native_fs_builder_append(builder, child) != 0 || kain_native_fs_builder_append(builder, "\n") != 0) {
+            FindClose(handle);
+            return -1;
+        }
+    } while (FindNextFileA(handle, &data) != 0);
+    FindClose(handle);
+    return 0;
+}
+
+static int kain_native_fs_walk_append(KainNativeFsTextBuilder* builder, const char* path) {
+    char pattern[4096];
+    WIN32_FIND_DATAA data;
+    HANDLE handle;
+    if (_snprintf_s(pattern, sizeof(pattern), _TRUNCATE, "%s\\*", path) < 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    handle = FindFirstFileA(pattern, &data);
+    if (handle == INVALID_HANDLE_VALUE) {
+        errno = ENOENT;
+        return -1;
+    }
+    do {
+        char child[4096];
+        if (strcmp(data.cFileName, ".") == 0 || strcmp(data.cFileName, "..") == 0) {
+            continue;
+        }
+        if (_snprintf_s(child, sizeof(child), _TRUNCATE, "%s\\%s", path, data.cFileName) < 0) {
+            FindClose(handle);
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        if (kain_native_fs_builder_append(builder, child) != 0 || kain_native_fs_builder_append(builder, "\n") != 0) {
+            FindClose(handle);
+            return -1;
+        }
+        if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            if (kain_native_fs_walk_append(builder, child) != 0) {
+                FindClose(handle);
+                return -1;
+            }
+        }
+    } while (FindNextFileA(handle, &data) != 0);
+    FindClose(handle);
+    return 0;
+}
+#else
+static int kain_native_fs_read_dir_append(KainNativeFsTextBuilder* builder, const char* path) {
+    DIR* dir = opendir(path);
+    struct dirent* entry;
+    if (dir == 0) {
+        return -1;
+    }
+    while ((entry = readdir(dir)) != 0) {
+        char child[4096];
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) < 0) {
+            closedir(dir);
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        if (kain_native_fs_builder_append(builder, child) != 0 || kain_native_fs_builder_append(builder, "\n") != 0) {
+            closedir(dir);
+            return -1;
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
+static int kain_native_fs_walk_append(KainNativeFsTextBuilder* builder, const char* path) {
+    DIR* dir = opendir(path);
+    struct dirent* entry;
+    if (dir == 0) {
+        return -1;
+    }
+    while ((entry = readdir(dir)) != 0) {
+        char child[4096];
+        struct stat child_info;
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) < 0) {
+            closedir(dir);
+            errno = ENAMETOOLONG;
+            return -1;
+        }
+        if (kain_native_fs_builder_append(builder, child) != 0 || kain_native_fs_builder_append(builder, "\n") != 0) {
+            closedir(dir);
+            return -1;
+        }
+        if (stat(child, &child_info) == 0 && S_ISDIR(child_info.st_mode)) {
+            if (kain_native_fs_walk_append(builder, child) != 0) {
+                closedir(dir);
+                return -1;
+            }
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+#endif
+
+const char* kain_native_fs_read_dir_paths_text(const char* path) {
+    KainNativeFsTextBuilder builder;
+    if (kain_native_fs_builder_init(&builder) != 0) {
+        kain_native_fs_fail("read_dir_paths_text", path);
+        return string_new("");
+    }
+    if (path == 0 || path[0] == '\0' || kain_native_fs_read_dir_append(&builder, path) != 0) {
+        kain_native_fs_builder_free(&builder);
+        kain_native_fs_fail("read_dir_paths_text", path);
+        return string_new("");
+    }
+    kain_native_fs_ok();
+    return kain_native_fs_builder_finish(&builder);
+}
+
+const char* kain_native_fs_walk_paths_text(const char* path) {
+    KainNativeFsTextBuilder builder;
+    if (kain_native_fs_builder_init(&builder) != 0) {
+        kain_native_fs_fail("walk_paths_text", path);
+        return string_new("");
+    }
+    if (path == 0 || path[0] == '\0' || kain_native_fs_walk_append(&builder, path) != 0) {
+        kain_native_fs_builder_free(&builder);
+        kain_native_fs_fail("walk_paths_text", path);
+        return string_new("");
+    }
+    kain_native_fs_ok();
+    return kain_native_fs_builder_finish(&builder);
 }
 
 int64_t kain_native_fs_create_dir_all(const char* path) {
@@ -690,6 +1186,66 @@ int64_t kain_native_fs_copy_file(const char* src, const char* dest) {
     fclose(input);
     fclose(output);
     return kain_native_fs_ok();
+}
+
+int64_t kain_native_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size) {
+    FILE* input = 0;
+    FILE* output = 0;
+    char* buffer;
+    size_t buffer_size;
+    size_t read_count;
+    int64_t copied = 0;
+    if (src == 0 || dest == 0 || chunk_size < 1) {
+        errno = EINVAL;
+        return kain_native_fs_fail("copy_file_streaming", src ? src : dest);
+    }
+    buffer_size = (size_t)chunk_size;
+    if (buffer_size > 1024 * 1024) {
+        buffer_size = 1024 * 1024;
+    }
+    buffer = (char*)malloc(buffer_size);
+    if (buffer == 0) {
+        errno = ENOMEM;
+        return kain_native_fs_fail("copy_file_streaming", dest);
+    }
+#ifdef _WIN32
+    if (fopen_s(&input, src, "rb") != 0) input = 0;
+#else
+    input = fopen(src, "rb");
+#endif
+    if (input == 0) {
+        free(buffer);
+        return kain_native_fs_fail("copy_file_streaming", src);
+    }
+    if (kain_native_fs_create_parent_dirs(dest) != 0) {
+        fclose(input);
+        free(buffer);
+        return kain_native_fs_fail("copy_file_streaming", dest);
+    }
+#ifdef _WIN32
+    if (fopen_s(&output, dest, "wb") != 0) output = 0;
+#else
+    output = fopen(dest, "wb");
+#endif
+    if (output == 0) {
+        fclose(input);
+        free(buffer);
+        return kain_native_fs_fail("copy_file_streaming", dest);
+    }
+    while ((read_count = fread(buffer, 1, buffer_size, input)) > 0) {
+        if (fwrite(buffer, 1, read_count, output) != read_count) {
+            fclose(input);
+            fclose(output);
+            free(buffer);
+            return kain_native_fs_fail("copy_file_streaming", dest);
+        }
+        copied += (int64_t)read_count;
+    }
+    fclose(input);
+    fclose(output);
+    free(buffer);
+    kain_native_fs_ok();
+    return copied;
 }
 
 int64_t kain_native_fs_move_path(const char* src, const char* dest) {

@@ -10,9 +10,14 @@ extern "C" {
 int64_t kain_native_runtime_init(void);
 int64_t kain_native_runtime_shutdown(void);
 
+int64_t kain_native_actor_abi_version(void);
 int64_t kain_native_actor_invalid_id(void);
 int64_t kain_native_actor_default_mailbox_capacity(void);
 int64_t kain_native_actor_unbounded_mailbox_capacity(void);
+int64_t kain_native_actor_default_ask_timeout_ms(void);
+int64_t kain_native_actor_default_shutdown_grace_ms(void);
+int64_t kain_native_actor_supervision_max_restarts(void);
+int64_t kain_native_actor_supervision_restart_window_millis(void);
 int64_t kain_native_actor_spawn(const char* actor_name, const char* init_payload);
 int64_t kain_native_actor_send(int64_t actor_id, const char* message_name, const char* data_payload);
 int kain_native_actor_state_invalid(int64_t actor_id);
@@ -56,14 +61,22 @@ int64_t kain_native_now_millis(void);
 int64_t kain_native_sleep_millis(int64_t milliseconds);
 
 const char* kain_native_fs_read_text(const char* path);
+const char* kain_native_fs_read_text_range(const char* path, int64_t offset, int64_t length);
 int64_t kain_native_fs_write_text(const char* path, const char* content);
 int64_t kain_native_fs_append_text(const char* path, const char* content);
 int64_t kain_native_fs_atomic_write_text(const char* path, const char* content);
+const char* kain_native_fs_read_bytes_hex(const char* path);
+const char* kain_native_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length);
+int64_t kain_native_fs_write_bytes_hex(const char* path, const char* hex);
 int kain_native_fs_exists(const char* path);
 int kain_native_fs_is_file(const char* path);
 int kain_native_fs_is_dir(const char* path);
+const char* kain_native_fs_metadata_text(const char* path);
+const char* kain_native_fs_read_dir_paths_text(const char* path);
+const char* kain_native_fs_walk_paths_text(const char* path);
 int64_t kain_native_fs_create_dir_all(const char* path);
 int64_t kain_native_fs_copy_file(const char* src, const char* dest);
+int64_t kain_native_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size);
 int64_t kain_native_fs_move_path(const char* src, const char* dest);
 int64_t kain_native_fs_remove_file(const char* path);
 int64_t kain_native_fs_remove_dir_all(const char* path);

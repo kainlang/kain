@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-11 - Kain FS v2 added sandboxed virtual roots, streaming, watchers, and transactions
+
+Kain's filesystem lane now has a real v2 substrate on top of the initial `kain-fs` crate work.
+
+What changed:
+
+- Added focused `crates/kain-fs` modules for scoped capabilities and virtual mounts (`capabilities.rs`), range/chunk streaming IO (`streaming.rs`), portable polling watchers (`watch.rs`), and best-effort transactional journals with rollback (`transaction.rs`).
+- Extended `crates/kain-core/src/runtime.rs` with runtime-owned `FsSandbox`, watcher, and transaction registries plus globals for capability grants/revokes, `fs://` mount resolution, ranged text/byte IO, hex-encoded byte helpers, streaming copy, watcher polling/close, and transaction begin/write/append/remove/copy/move/commit/rollback.
+- Registered the new filesystem-facing types and globals in `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs`, including `FsChunk`, `FsWatchEvent`, and `FsJournalEntry`.
+- Expanded `stdlib/native/fs.kn` and the native C facade in `runtime/native/include/kain_runtime_native_stdlib.h` / `runtime/native/src/core/kain_runtime_native_stdlib.c` with ranged text reads, byte hex reads/writes, metadata text, newline-delimited directory/walk path listings, and streaming copy.
+- Updated `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` and `runtime/fixtures/native_fs/main.kn` so direct C, LLVM, and the raw C facade prove the richer filesystem surface.
+- Updated the local `kain-fs-pipeline` skill so future agents know the v2 source files, validation commands, and native ABI caveats.
+
+Design decisions:
+
+- `kain-fs` stays the semantic owner. `kain-core` owns process-local runtime handles and Kain-visible globals; `stdlib/native` and the C facade expose ABI-compatible native target wrappers.
+- Scoped v2 interpreter helpers resolve through `FsSandbox` before touching the host filesystem. Existing v1 helpers are intentionally not all retrofitted yet, so future work should migrate old `fs_*` calls through the same resolver if virtual roots need universal coverage.
+- Native byte arrays and rich records are encoded as lowercase hex, key-value metadata text, and newline-delimited path lists for now because the C ABI does not yet have a clean typed array/record/result story for these values.
+- Watchers are portable polling watchers rather than OS notification backends. Transactions are process-local and best-effort rollback journals, not durable crash-safe multi-file commits yet.
+
+Validation:
+
+- `cargo test -p kain-fs --target-dir target\\codex-kain-fs-v2`
+- `cargo test -p kain-core filesystem --target-dir target\\codex-kain-fs-v2-core`
+- `cargo test -p kain-sys-codegen --test c_codegen_test --target-dir target\\codex-kain-fs-v2-codegen-c -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test --target-dir target\\codex-kain-fs-v2-codegen-llvm -- --nocapture`
+- `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-kain-fs-v2-cli`
+- `toolchain\\llvm\\bin\\clang.exe runtime\\conformance\\native_stdlib_bridge\\test_native_stdlib_bridge.c runtime\\native\\src\\core\\kain_runtime_core.c runtime\\native\\src\\core\\kain_runtime_version.c runtime\\native\\src\\core\\kain_runtime_diagnostics.c runtime\\native\\src\\core\\kain_runtime_actor.c runtime\\native\\src\\core\\kain_runtime_entangle.c runtime\\native\\src\\core\\kain_runtime_native_stdlib.c -Iruntime\\native\\include -o target\\codex-kain-fs-v2-native\\native_stdlib_bridge.exe -lws2_32 -luser32 -lgdi32 -lopengl32`
+- `target\\codex-kain-fs-v2-native\\native_stdlib_bridge.exe`
+- `target\\codex-kain-fs-v2-cli\\debug\\kain.exe check runtime\\fixtures\\native_fs\\main.kn --target c`
+- `target\\codex-kain-fs-v2-cli\\debug\\kain.exe build runtime\\fixtures\\native_fs\\main.kn -t c -o target\\codex-kain-fs-v2-native\\native_fs_c.c`
+- `target\\codex-kain-fs-v2-native\\native_fs_c.exe`
+- `target\\codex-kain-fs-v2-cli\\debug\\kain.exe build runtime\\fixtures\\native_fs\\main.kn -t llvm -o target\\codex-kain-fs-v2-native\\native_fs.ll`
+- `target\\codex-kain-fs-v2-native\\native_fs.exe`
+
+Current risks:
+
+- The v2 sandbox resolver is not yet universal across every older v1 interpreter `fs_*` helper.
+- The native parity wrappers intentionally use text/hex encodings until native typed records/results/arrays mature.
+- Watchers should eventually gain platform-native backends, and transactions should eventually gain durable crash-safe journaling if they become part of `patch` / `law` / `converge` workflows.
+- The direct C backend still emits harmless extra-parentheses comparison warnings in generated C.
+
+Recommended next step:
+
+- Retrofit the older v1 interpreter `fs_*` helpers through `FsSandbox`, then add an explicit capability manifest model (`fs.read`, `fs.write`, `fs.project`, `fs.temp`, `fs.watch`, `fs.transaction`) so Kain programs can declare filesystem access instead of inheriting the runtime default.
+
 # 2026-05-11 - Dedicated kain-fs crate and native filesystem pipeline landed
 
 Kain now has a real filesystem substrate instead of scattered file/path helpers.

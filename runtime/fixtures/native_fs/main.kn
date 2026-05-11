@@ -10,13 +10,29 @@ fn main() -> Int:
     fs_append_text(file, " native")
 
     let text = fs_read_text(file)
+    let range = fs_read_text_range(file, 1, 4)
+    let hex = fs_read_byte_range_hex(file, 0, 5)
+    let metadata_text = fs_metadata_text(file)
+    let dir_paths = fs_read_dir_paths_text(dir)
     let digest = fs_hash_file(file)
+    let streamed_copy = fs_path_join(dir, "streamed.txt")
+    let copied = fs_copy_file_streaming(file, streamed_copy, 2)
     let status = 0
     if fs_exists(file) == false:
         status = 1
     if fs_is_file(file) == false:
         status = 1
     if text != "hello native":
+        status = 1
+    if range != "ello":
+        status = 1
+    if hex != "68656c6c6f":
+        status = 1
+    if metadata_text == "":
+        status = 1
+    if dir_paths == "":
+        status = 1
+    if copied != 12:
         status = 1
     if digest != "c732d558c5379548b0fc3d9d16d5afaaecc160958361e85def310f93499503d7":
         status = 1
