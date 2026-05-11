@@ -1,0 +1,10 @@
+[package]
+name = "kain-repl"
+version = "0.1.0"
+edition = "2021"
+description = "Modular interactive REPL runtime for the KAIN toolchain"
+license = "MIT"
+
+[dependencies]
+kain-core = { path = "../kain-core" }
+kain-driver = { path = "../kain-driver", default-features = false }

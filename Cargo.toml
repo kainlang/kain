@@ -6,6 +6,7 @@ members = [
     "crates/kain-blades",
     "crates/kain-entangle",
     "crates/kain-fs",
+    "crates/kain-repl",
     "crates/kain-check",
     "crates/kain-test",
     "crates/kain-interop",

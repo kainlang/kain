@@ -30,10 +30,13 @@ use kain_c_ffi::{
     PrepareContext as CPrepareContext,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
+use kain_repl::{
+    normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -502,6 +505,9 @@ enum Commands {
         command: codebase::CodebaseCommand,
     },
 
+    /// Start the interactive Kain REPL
+    Repl,
+
     /// Run a file (explicit command)
     Run { input: PathBuf },
 
@@ -705,19 +711,6 @@ enum Commands {
         #[arg(long)]
         report_json: Option<PathBuf>,
     },
-}
-
-fn normalize_script_source(source: String) -> String {
-    let source = source.trim_start_matches('\u{feff}').to_string();
-    if let Some(rest) = source.strip_prefix("#!") {
-        if let Some(newline_index) = rest.find('\n') {
-            rest[(newline_index + 1)..].to_string()
-        } else {
-            String::new()
-        }
-    } else {
-        source
-    }
 }
 
 fn read_source_from_path(input: &Path) -> Result<String, String> {
@@ -1586,122 +1579,12 @@ fn run_compile(
 }
 
 fn run_kn_repl() -> bool {
-    println!(
-        "Kain {} (build {}) [{}]",
-        VERSION, BUILD_NUMBER, BUILD_TARGET_TRIPLE
-    );
-
-    let stdin = io::stdin();
-    let mut stdin = stdin.lock();
-    let mut stdout = io::stdout();
-    let mut buffer = String::new();
-    let mut line = String::new();
-
-    loop {
-        let prompt = if buffer.trim().is_empty() {
-            ">>> "
-        } else {
-            "... "
-        };
-        if write!(stdout, "{}", prompt)
-            .and_then(|_| stdout.flush())
-            .is_err()
-        {
-            eprintln!(" Failed to write REPL prompt.");
-            return false;
-        }
-
-        line.clear();
-        let bytes_read = match stdin.read_line(&mut line) {
-            Ok(value) => value,
-            Err(err) => {
-                eprintln!(" Failed to read REPL input: {}", err);
-                return false;
-            }
-        };
-
-        if bytes_read == 0 {
-            if buffer.trim().is_empty() {
-                println!();
-                return true;
-            }
-            let source = normalize_script_source(std::mem::take(&mut buffer));
-            if !run_source(
-                "<repl>",
-                None,
-                &source,
-                CompileTarget::Interpret,
-                None,
-                false,
-                false,
-                false,
-                false,
-                None,
-            ) {
-                return false;
-            }
-            println!();
-            return true;
-        }
-
-        let trimmed = line.trim_end_matches(['\r', '\n']);
-        match trimmed {
-            ".quit" | ".exit" => {
-                println!();
-                return true;
-            }
-            ".clear" => {
-                buffer.clear();
-                continue;
-            }
-            ".run" => {
-                if buffer.trim().is_empty() {
-                    continue;
-                }
-                let source = normalize_script_source(std::mem::take(&mut buffer));
-                if !run_source(
-                    "<repl>",
-                    None,
-                    &source,
-                    CompileTarget::Interpret,
-                    None,
-                    false,
-                    false,
-                    false,
-                    false,
-                    None,
-                ) {
-                    return false;
-                }
-                continue;
-            }
-            _ => {}
-        }
-
-        if trimmed.is_empty() {
-            if buffer.trim().is_empty() {
-                continue;
-            }
-            let source = normalize_script_source(std::mem::take(&mut buffer));
-            if !run_source(
-                "<repl>",
-                None,
-                &source,
-                CompileTarget::Interpret,
-                None,
-                false,
-                false,
-                false,
-                false,
-                None,
-            ) {
-                return false;
-            }
-            continue;
-        }
-
-        buffer.push_str(&line);
-    }
+    run_terminal_repl(ReplTerminalConfig::new(ReplBuildMetadata::new(
+        "Kain",
+        VERSION,
+        BUILD_NUMBER,
+        BUILD_TARGET_TRIPLE,
+    )))
 }
 
 fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
@@ -2377,6 +2260,11 @@ fn main() {
                 Some(Commands::Codebase { command }) => {
                     if let Err(err) = codebase::run(command) {
                         eprintln!(" Codebase command failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Repl) => {
+                    if !run_kn_repl() {
                         std::process::exit(1);
                     }
                 }

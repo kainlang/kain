@@ -113,6 +113,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-build](/M:/Code/Kain/crates/kain-build): workspace build orchestration for blades plus the older Cargo `build.rs` helper surface. `src/workspace.rs` plans and executes C shared libraries, Cargo crates, GPU artifacts, Kain checks, Fabric validation/runs, and explicit Node/Bun/custom tasks from one DAG with artifact roots under `.kain/build`, stamps under `.kain/cache/build`, and JSON/JSONL reports under `.kain/reports/build`. Its artifact, cache, report, clean, fingerprint, and discovery IO is routed through `kain-fs`.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
+- [kain-repl](/M:/Code/Kain/crates/kain-repl): interactive REPL ownership point for line buffering, dot directives, source normalization, interpret-target evaluation, terminal IO, and REPL build metadata. `lib.rs` is only the public index; extend focused files such as `command.rs`, `session.rs`, `evaluation.rs`, `terminal.rs`, `source.rs`, and `metadata.rs`. The CLI should call this crate through `kain repl` / `kn repl` or the `kn` no-args launcher path instead of growing another interactive loop in `crates/cli/src/main.rs`.
 - [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
 - [kain-check](/M:/Code/Kain/crates/kain-check) and [kain-test](/M:/Code/Kain/crates/kain-test): reusable source checking and compiletest-style suite harnesses behind `kain check` and `kain test`, kept separate from the CLI so IDE, CI, and future agents can reuse structured reports without shelling through command output.
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`. The direct C backend emits extern declarations for `@extern`, lowers actor `spawn`/`send` to the native stdlib facade, and registers entangle metadata at generated `main` entry.
@@ -215,6 +216,14 @@ Keep new actor-system capabilities in focused `kain-actor/src/*.rs` modules, not
 `Kain source -> kain-core lexer/parser -> compiler-owned AST printer -> kain-driver helper -> cli format command`
 
 The formatter now lives in `crates/kain-core/src/formatter.rs` and is intentionally compiler-owned. The rule is the same as the rest of the toolchain: editors, CLIs, and future LLM workflows should reuse the compiler printer instead of growing lane-local pretty-printers that drift from the actual grammar.
+
+### REPL flow
+
+`terminal input -> kain-repl session/directives -> ReplEvaluator -> kain-driver CompileTarget::Interpret -> kain-core runtime/interpreter`
+
+`crates/kain-repl` owns the REPL's interactive mechanics. `session.rs` owns buffered multiline source and prompt state, `command.rs` owns dot directives such as `.run`, `.clear`, `.exit`, and `.help`, `source.rs` owns BOM/shebang normalization shared with CLI source reads, `evaluation.rs` owns diagnostics-formatted interpret-target evaluation through `kain-driver`, and `terminal.rs` owns process IO.
+
+The CLI exposes this through explicit `kain repl` / `kn repl` commands and preserves the `kn` no-args terminal launcher behavior. Future REPL overhaul work should extend `kain-repl` first, then keep `crates/cli/src/main.rs` as the thin command host.
 
 ### Checking and source test flow
 
@@ -497,6 +506,7 @@ If the debug CLI is missing:
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
 - The PATH `kain` launcher can drift from the repo-local binary. Before trusting the docs example suite, run `./target/debug/kain doctor` or call `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`.
+- The REPL is crate-owned now. Use `kain repl` / `kn repl` or test `crates/kain-repl` directly; do not patch a second interactive loop into `crates/cli/src/main.rs`.
 - `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Filesystem imports now share lookup through `crates/kain-core/src/module_resolution.rs`. `use module::item` can fall back from `module/item.kn` to `module.kn` or `src/module.kn` and register the requested top-level item, while `use module::*` exposes top-level module items to best-effort typechecking. Lookup is still rooted in the process current directory, so launch nested scripts from the intended project/runtime root until source-file-relative module roots are added.
 - Filesystem stdlib globals are ABI-sensitive now. When adding new native-callable `fs_*` helpers, update `crates/kain-core/src/stdlib.rs` with precise return types, keep `stdlib/native/fs.kn` wrapper signatures explicit, and ensure LLVM skips declaring stdlib functions that the target stdlib defines in Kain source.

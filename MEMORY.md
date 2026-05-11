@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-05-11 - REPL moved into a dedicated kain-repl crate
+
+Kain's interactive REPL is now owned by `crates/kain-repl` instead of living as a hidden loop in `crates/cli/src/main.rs`. The new crate follows the focused-module shape used by `kain-actor`: `lib.rs` is only the public index, while `command.rs`, `session.rs`, `evaluation.rs`, `terminal.rs`, `source.rs`, and `metadata.rs` own dot directives, multiline buffering, interpret-target evaluation, terminal IO, script normalization, and build-banner metadata.
+
+Design decisions:
+
+- Keep `crates/cli` as the command host. It now depends on `kain-repl`, exposes explicit `kain repl` / `kn repl`, and preserves the old `kn` no-args terminal behavior through the same crate entrypoint.
+- `kain-repl` currently evaluates buffered source through `kain-driver::DriverSession` with `CompileTarget::Interpret`, so it shares the same frontend/runtime truth as `kain run`.
+- Source BOM/shebang normalization moved to `kain-repl::normalize_script_source` so CLI file/stdin reads and REPL buffered snippets do not drift.
+- The current REPL is still batch-buffered source evaluation, not a persistent lexical/semantic environment. Treat that as the next overhaul target rather than recreating CLI-local state.
+
+Validation:
+
+- `cargo fmt -p kain-repl -p cli`
+- `cargo test -p kain-repl --target-dir target\codex-kain-repl -- --nocapture`
+- `cargo build -p cli --target-dir target\codex-kain-repl-cli`
+- `$inputText = "fn main() -> Int:`r`n    return 42`r`n`r`n.exit`r`n"; $inputText | target\codex-kain-repl-cli\debug\kain.exe repl`
+- `$inputText = ".help`r`n.exit`r`n"; $inputText | target\codex-kain-repl-cli\debug\kn.exe repl`
+
+Recommended next step:
+
+- Turn `kain-repl` into a true stateful semantic session: persistent bindings, history/editing adapter, structured evaluation events, and a future UI/API host surface should land in the crate modules first, with CLI remaining a thin caller.
+
 # 2026-05-11 - Raw native UI C ABI makes single-file LLVM UI authoring possible
 
 Kain now has a generic native UI system kernel at the C ABI floor instead of another host-authored component catalog. `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c` expose low-level sessions, arbitrary node kind strings, parent/rect/text/style/flag mutation, focus, hit testing, dirty tracking, event polling, and draw-command buffers. The source is included in both `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml`, and `stdlib/native/ui.kn` exposes thin `native_ui_*` wrappers for LLVM/direct-C Kain source.

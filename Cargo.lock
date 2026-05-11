@@ -942,6 +942,7 @@ dependencies = [
  "kain-import",
  "kain-omni",
  "kain-repair",
+ "kain-repl",
  "kain-sys-codegen",
  "kain-test",
  "minijinja",
@@ -3015,6 +3016,14 @@ dependencies = [
 [[package]]
 name = "kain-repair"
 version = "0.1.0"
+
+[[package]]
+name = "kain-repl"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-driver",
+]
 
 [[package]]
 name = "kain-runtime-parallel"

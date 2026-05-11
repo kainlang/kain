@@ -31,6 +31,7 @@ kain-host = { path = "../kain-host" }
 kain-import = { path = "../kain-import" }
 kain-omni = { path = "../kain-omni" }
 kain-repair = { path = "../kain-repair" }
+kain-repl = { path = "../kain-repl" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }
