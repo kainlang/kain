@@ -48,7 +48,6 @@ graphics_runtime_smoke_env_bundle.realtime_app.json
 *.pyc
 
 # Z3 proof-pack reports and caches
-/z3/reports/*.json
 /z3/cache/
 /z3/generated/
 
