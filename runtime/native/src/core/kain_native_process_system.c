@@ -1,0 +1,2735 @@
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#include "../../include/kain_native_process_system.h"
+#include "../../include/kain_runtime_base.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef _WIN32
+#include <wchar.h>
+#else
+#include <strings.h>
+#endif
+
+void* kain_alloc_rc(size_t size, long long type_tag);
+
+typedef enum KainNativeProcessStdioMode {
+    KAIN_NATIVE_PROCESS_STDIO_INHERIT = 0,
+    KAIN_NATIVE_PROCESS_STDIO_PIPE = 1,
+    KAIN_NATIVE_PROCESS_STDIO_NULL = 2
+} KainNativeProcessStdioMode;
+
+typedef struct KainNativeProcessEnvironmentEntry {
+    int in_use;
+    char key[KAIN_NATIVE_PROCESS_MAX_KEY];
+    char value[KAIN_NATIVE_PROCESS_MAX_VALUE];
+} KainNativeProcessEnvironmentEntry;
+
+typedef struct KainNativeProcessSpec {
+    int in_use;
+    int64_t id;
+    int64_t inherit_environment;
+    char executable[KAIN_NATIVE_PROCESS_MAX_PATH];
+    char current_working_directory[KAIN_NATIVE_PROCESS_MAX_PATH];
+    char arguments[KAIN_NATIVE_PROCESS_MAX_ARGUMENTS][KAIN_NATIVE_PROCESS_MAX_VALUE];
+    int64_t argument_count;
+    KainNativeProcessEnvironmentEntry environment[KAIN_NATIVE_PROCESS_MAX_ENVIRONMENT_ENTRIES];
+    int64_t environment_count;
+    KainNativeProcessStdioMode stdin_mode;
+    KainNativeProcessStdioMode stdout_mode;
+    KainNativeProcessStdioMode stderr_mode;
+} KainNativeProcessSpec;
+
+typedef struct KainNativeProcessCapture {
+    unsigned char* bytes;
+    size_t length;
+    size_t capacity;
+} KainNativeProcessCapture;
+
+typedef struct KainNativeProcessHandle {
+    int in_use;
+    int is_pty;
+    int exited;
+    int64_t id;
+    int64_t exit_code;
+    int64_t operating_system_process_id;
+    KainNativeProcessCapture stdout_capture;
+    KainNativeProcessCapture stderr_capture;
+    KainNativeProcessCapture pty_capture;
+#ifdef _WIN32
+    HANDLE process_handle;
+    HANDLE thread_handle;
+    HANDLE stdin_write_handle;
+    HANDLE stdout_read_handle;
+    HANDLE stderr_read_handle;
+    HANDLE pty_console_handle;
+    HANDLE pty_input_write_handle;
+    HANDLE pty_output_read_handle;
+#endif
+} KainNativeProcessHandle;
+
+static KainNativeProcessSpec g_specs[KAIN_NATIVE_PROCESS_MAX_SPECS];
+static KainNativeProcessHandle g_processes[KAIN_NATIVE_PROCESS_MAX_PROCESSES];
+static int64_t g_next_spec_id = 1;
+static int64_t g_next_process_id = 1;
+static int64_t g_last_status = KAIN_NATIVE_PROCESS_OK;
+static char g_last_error_kind[KAIN_NATIVE_PROCESS_MAX_KEY] = "ok";
+static char g_last_error_message[KAIN_NATIVE_PROCESS_MAX_ERROR_TEXT] = "";
+static const char g_empty_string[] = "";
+static const char g_stdio_inherit[] = "inherit";
+static const char g_stdio_pipe[] = "pipe";
+static const char g_stdio_null[] = "null";
+
+#ifdef _WIN32
+#ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
+#define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE 0x00020016
+#endif
+
+typedef HRESULT (WINAPI *KainCreatePseudoConsoleFn)(
+    COORD size,
+    HANDLE input_read_side,
+    HANDLE output_write_side,
+    DWORD flags,
+    HANDLE* pseudo_console
+);
+typedef void (WINAPI *KainClosePseudoConsoleFn)(HANDLE pseudo_console);
+typedef HRESULT (WINAPI *KainResizePseudoConsoleFn)(HANDLE pseudo_console, COORD size);
+#endif
+
+static void kain_native_process_copy(char* destination, size_t destination_capacity, const char* source) {
+    if (destination == 0 || destination_capacity == 0u) {
+        return;
+    }
+    if (source == 0) {
+        destination[0] = '\0';
+        return;
+    }
+    snprintf(destination, destination_capacity, "%s", source);
+}
+
+static int kain_native_process_text_empty(const char* text) {
+    return text == 0 || text[0] == '\0';
+}
+
+static int kain_native_process_text_equal_ci(const char* left, const char* right) {
+    if (left == 0 || right == 0) {
+        return 0;
+    }
+#ifdef _WIN32
+    return _stricmp(left, right) == 0;
+#else
+    return strcasecmp(left, right) == 0;
+#endif
+}
+
+static const char* kain_native_process_string(const char* source) {
+    return string_new((char*)(source ? source : g_empty_string));
+}
+
+static const char* kain_native_process_string_from_bytes(const unsigned char* bytes, size_t length) {
+    char* output;
+    if (bytes == 0 || length == 0u) {
+        return string_new("");
+    }
+    output = (char*)kain_alloc_rc(length + 1u, 1);
+    if (output == 0) {
+        return string_new("");
+    }
+    memcpy(output, bytes, length);
+    output[length] = '\0';
+    return output;
+}
+
+static int64_t kain_native_process_ok(void) {
+    g_last_status = KAIN_NATIVE_PROCESS_OK;
+    kain_native_process_copy(g_last_error_kind, sizeof(g_last_error_kind), "ok");
+    g_last_error_message[0] = '\0';
+    return KAIN_NATIVE_PROCESS_OK;
+}
+
+static int64_t kain_native_process_fail(int64_t status, const char* kind, const char* message) {
+    g_last_status = status;
+    kain_native_process_copy(g_last_error_kind, sizeof(g_last_error_kind), kind ? kind : "error");
+    kain_native_process_copy(
+        g_last_error_message,
+        sizeof(g_last_error_message),
+        message ? message : ""
+    );
+    return status;
+}
+
+static int kain_native_process_mode_from_text(
+    const char* mode_text,
+    KainNativeProcessStdioMode* out_mode
+) {
+    if (out_mode == 0) {
+        return 0;
+    }
+    if (kain_native_process_text_empty(mode_text) || kain_native_process_text_equal_ci(mode_text, g_stdio_inherit)) {
+        *out_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
+        return 1;
+    }
+    if (kain_native_process_text_equal_ci(mode_text, g_stdio_pipe)) {
+        *out_mode = KAIN_NATIVE_PROCESS_STDIO_PIPE;
+        return 1;
+    }
+    if (kain_native_process_text_equal_ci(mode_text, g_stdio_null)) {
+        *out_mode = KAIN_NATIVE_PROCESS_STDIO_NULL;
+        return 1;
+    }
+    return 0;
+}
+
+static KainNativeProcessSpec* kain_native_process_spec_lookup(int64_t spec_id) {
+    int index;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
+        if (g_specs[index].in_use && g_specs[index].id == spec_id) {
+            return &g_specs[index];
+        }
+    }
+    return 0;
+}
+
+static KainNativeProcessHandle* kain_native_process_lookup(int64_t process_id) {
+    int index;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
+        if (g_processes[index].in_use && g_processes[index].id == process_id) {
+            return &g_processes[index];
+        }
+    }
+    return 0;
+}
+
+static int kain_native_process_capture_reserve(KainNativeProcessCapture* capture, size_t required) {
+    unsigned char* resized;
+    size_t next_capacity;
+    if (capture == 0) {
+        return 0;
+    }
+    if (required <= capture->capacity) {
+        return 1;
+    }
+    next_capacity = capture->capacity == 0u ? 1024u : capture->capacity;
+    while (next_capacity < required) {
+        next_capacity *= 2u;
+    }
+    if (next_capacity > KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES) {
+        next_capacity = KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES;
+    }
+    if (next_capacity < required) {
+        return 0;
+    }
+    resized = (unsigned char*)realloc(capture->bytes, next_capacity);
+    if (resized == 0) {
+        return 0;
+    }
+    capture->bytes = resized;
+    capture->capacity = next_capacity;
+    return 1;
+}
+
+static int kain_native_process_capture_append(
+    KainNativeProcessCapture* capture,
+    const unsigned char* bytes,
+    size_t byte_length
+) {
+    size_t remaining_capacity;
+    size_t to_copy;
+    if (capture == 0 || bytes == 0 || byte_length == 0u) {
+        return 1;
+    }
+    if (capture->length >= KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES) {
+        return 1;
+    }
+    remaining_capacity = KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES - capture->length;
+    to_copy = byte_length < remaining_capacity ? byte_length : remaining_capacity;
+    if (!kain_native_process_capture_reserve(capture, capture->length + to_copy)) {
+        return 0;
+    }
+    memcpy(capture->bytes + capture->length, bytes, to_copy);
+    capture->length += to_copy;
+    return 1;
+}
+
+static void kain_native_process_capture_free(KainNativeProcessCapture* capture) {
+    if (capture == 0) {
+        return;
+    }
+    free(capture->bytes);
+    capture->bytes = 0;
+    capture->length = 0u;
+    capture->capacity = 0u;
+}
+
+static int kain_native_process_hex_value(char character) {
+    if (character >= '0' && character <= '9') {
+        return character - '0';
+    }
+    if (character >= 'a' && character <= 'f') {
+        return character - 'a' + 10;
+    }
+    if (character >= 'A' && character <= 'F') {
+        return character - 'A' + 10;
+    }
+    return -1;
+}
+
+static int kain_native_process_decode_hex(
+    const char* bytes_hex,
+    unsigned char** out_bytes,
+    size_t* out_length
+) {
+    size_t hex_length;
+    size_t index;
+    unsigned char* decoded;
+    if (out_bytes == 0 || out_length == 0) {
+        return 0;
+    }
+    *out_bytes = 0;
+    *out_length = 0u;
+    if (bytes_hex == 0 || bytes_hex[0] == '\0') {
+        return 1;
+    }
+    hex_length = strlen(bytes_hex);
+    if ((hex_length % 2u) != 0u) {
+        return 0;
+    }
+    decoded = (unsigned char*)malloc(hex_length / 2u);
+    if (decoded == 0) {
+        return 0;
+    }
+    for (index = 0u; index < hex_length / 2u; index++) {
+        int high = kain_native_process_hex_value(bytes_hex[index * 2u]);
+        int low = kain_native_process_hex_value(bytes_hex[index * 2u + 1u]);
+        if (high < 0 || low < 0) {
+            free(decoded);
+            return 0;
+        }
+        decoded[index] = (unsigned char)((high << 4) | low);
+    }
+    *out_bytes = decoded;
+    *out_length = hex_length / 2u;
+    return 1;
+}
+
+static const char* kain_native_process_encode_hex(const unsigned char* bytes, size_t byte_length) {
+    static const char alphabet[] = "0123456789abcdef";
+    char* encoded;
+    size_t index;
+    if (bytes == 0 || byte_length == 0u) {
+        return string_new("");
+    }
+    encoded = (char*)kain_alloc_rc(byte_length * 2u + 1u, 1);
+    if (encoded == 0) {
+        return string_new("");
+    }
+    for (index = 0u; index < byte_length; index++) {
+        encoded[index * 2u] = alphabet[(bytes[index] >> 4) & 0x0f];
+        encoded[index * 2u + 1u] = alphabet[bytes[index] & 0x0f];
+    }
+    encoded[byte_length * 2u] = '\0';
+    return encoded;
+}
+
+static void kain_native_process_release_handle(KainNativeProcessHandle* process, int terminate_running_process) {
+    if (process == 0 || !process->in_use) {
+        return;
+    }
+#ifdef _WIN32
+    if (terminate_running_process && process->process_handle != 0 && !process->exited) {
+        TerminateProcess(process->process_handle, 1u);
+        WaitForSingleObject(process->process_handle, 250u);
+    }
+    if (process->stdin_write_handle != 0) {
+        CloseHandle(process->stdin_write_handle);
+        process->stdin_write_handle = 0;
+    }
+    if (process->stdout_read_handle != 0) {
+        CloseHandle(process->stdout_read_handle);
+        process->stdout_read_handle = 0;
+    }
+    if (process->stderr_read_handle != 0) {
+        CloseHandle(process->stderr_read_handle);
+        process->stderr_read_handle = 0;
+    }
+    if (process->pty_input_write_handle != 0) {
+        CloseHandle(process->pty_input_write_handle);
+        process->pty_input_write_handle = 0;
+    }
+    if (process->pty_output_read_handle != 0) {
+        CloseHandle(process->pty_output_read_handle);
+        process->pty_output_read_handle = 0;
+    }
+    if (process->pty_console_handle != 0) {
+        HMODULE kernel_module = GetModuleHandleW(L"kernel32.dll");
+        KainClosePseudoConsoleFn close_pseudo_console = 0;
+        if (kernel_module != 0) {
+            close_pseudo_console = (KainClosePseudoConsoleFn)GetProcAddress(kernel_module, "ClosePseudoConsole");
+        }
+        if (close_pseudo_console != 0) {
+            close_pseudo_console(process->pty_console_handle);
+        } else {
+            CloseHandle(process->pty_console_handle);
+        }
+        process->pty_console_handle = 0;
+    }
+    if (process->thread_handle != 0) {
+        CloseHandle(process->thread_handle);
+        process->thread_handle = 0;
+    }
+    if (process->process_handle != 0) {
+        CloseHandle(process->process_handle);
+        process->process_handle = 0;
+    }
+#else
+    (void)terminate_running_process;
+#endif
+    kain_native_process_capture_free(&process->stdout_capture);
+    kain_native_process_capture_free(&process->stderr_capture);
+    kain_native_process_capture_free(&process->pty_capture);
+    memset(process, 0, sizeof(*process));
+}
+
+#ifdef _WIN32
+typedef struct KainNativeProcessWideBuffer {
+    wchar_t* text;
+    size_t length;
+    size_t capacity;
+} KainNativeProcessWideBuffer;
+
+typedef struct KainNativeProcessUtf8Buffer {
+    char* text;
+    size_t length;
+    size_t capacity;
+} KainNativeProcessUtf8Buffer;
+
+typedef struct KainNativeProcessWideEntryList {
+    wchar_t** entries;
+    size_t count;
+    size_t capacity;
+} KainNativeProcessWideEntryList;
+
+static wchar_t* kain_native_process_utf8_to_wide(const char* utf8_text) {
+    int required_length;
+    wchar_t* wide_text;
+    if (utf8_text == 0) {
+        wide_text = (wchar_t*)malloc(sizeof(wchar_t));
+        if (wide_text != 0) {
+            wide_text[0] = L'\0';
+        }
+        return wide_text;
+    }
+    required_length = MultiByteToWideChar(CP_UTF8, 0, utf8_text, -1, 0, 0);
+    if (required_length <= 0) {
+        return 0;
+    }
+    wide_text = (wchar_t*)malloc((size_t)required_length * sizeof(wchar_t));
+    if (wide_text == 0) {
+        return 0;
+    }
+    if (MultiByteToWideChar(CP_UTF8, 0, utf8_text, -1, wide_text, required_length) <= 0) {
+        free(wide_text);
+        return 0;
+    }
+    return wide_text;
+}
+
+static int kain_native_process_wide_buffer_reserve(
+    KainNativeProcessWideBuffer* buffer,
+    size_t required
+) {
+    wchar_t* resized;
+    size_t next_capacity;
+    if (buffer == 0) {
+        return 0;
+    }
+    if (required <= buffer->capacity) {
+        return 1;
+    }
+    next_capacity = buffer->capacity == 0u ? 64u : buffer->capacity;
+    while (next_capacity < required) {
+        next_capacity *= 2u;
+    }
+    resized = (wchar_t*)realloc(buffer->text, next_capacity * sizeof(wchar_t));
+    if (resized == 0) {
+        return 0;
+    }
+    buffer->text = resized;
+    buffer->capacity = next_capacity;
+    return 1;
+}
+
+static int kain_native_process_wide_buffer_append_char(
+    KainNativeProcessWideBuffer* buffer,
+    wchar_t character
+) {
+    if (!kain_native_process_wide_buffer_reserve(buffer, buffer->length + 2u)) {
+        return 0;
+    }
+    buffer->text[buffer->length] = character;
+    buffer->length += 1u;
+    buffer->text[buffer->length] = L'\0';
+    return 1;
+}
+
+static int kain_native_process_wide_buffer_append_text(
+    KainNativeProcessWideBuffer* buffer,
+    const wchar_t* text
+) {
+    size_t text_length;
+    if (buffer == 0 || text == 0) {
+        return 0;
+    }
+    text_length = wcslen(text);
+    if (!kain_native_process_wide_buffer_reserve(buffer, buffer->length + text_length + 1u)) {
+        return 0;
+    }
+    memcpy(buffer->text + buffer->length, text, text_length * sizeof(wchar_t));
+    buffer->length += text_length;
+    buffer->text[buffer->length] = L'\0';
+    return 1;
+}
+
+static void kain_native_process_wide_buffer_free(KainNativeProcessWideBuffer* buffer) {
+    if (buffer == 0) {
+        return;
+    }
+    free(buffer->text);
+    buffer->text = 0;
+    buffer->length = 0u;
+    buffer->capacity = 0u;
+}
+
+static int kain_native_process_utf8_buffer_reserve(
+    KainNativeProcessUtf8Buffer* buffer,
+    size_t required
+) {
+    char* resized;
+    size_t next_capacity;
+    if (buffer == 0) {
+        return 0;
+    }
+    if (required <= buffer->capacity) {
+        return 1;
+    }
+    next_capacity = buffer->capacity == 0u ? 64u : buffer->capacity;
+    while (next_capacity < required) {
+        next_capacity *= 2u;
+    }
+    resized = (char*)realloc(buffer->text, next_capacity);
+    if (resized == 0) {
+        return 0;
+    }
+    buffer->text = resized;
+    buffer->capacity = next_capacity;
+    return 1;
+}
+
+static int kain_native_process_utf8_buffer_append_char(
+    KainNativeProcessUtf8Buffer* buffer,
+    char character
+) {
+    if (!kain_native_process_utf8_buffer_reserve(buffer, buffer->length + 2u)) {
+        return 0;
+    }
+    buffer->text[buffer->length] = character;
+    buffer->length += 1u;
+    buffer->text[buffer->length] = '\0';
+    return 1;
+}
+
+static int kain_native_process_utf8_buffer_append_chars(
+    KainNativeProcessUtf8Buffer* buffer,
+    char character,
+    size_t count
+) {
+    size_t index;
+    for (index = 0u; index < count; index++) {
+        if (!kain_native_process_utf8_buffer_append_char(buffer, character)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int kain_native_process_utf8_buffer_append_text(
+    KainNativeProcessUtf8Buffer* buffer,
+    const char* text
+) {
+    size_t text_length;
+    if (buffer == 0 || text == 0) {
+        return 0;
+    }
+    text_length = strlen(text);
+    if (!kain_native_process_utf8_buffer_reserve(buffer, buffer->length + text_length + 1u)) {
+        return 0;
+    }
+    memcpy(buffer->text + buffer->length, text, text_length);
+    buffer->length += text_length;
+    buffer->text[buffer->length] = '\0';
+    return 1;
+}
+
+static void kain_native_process_utf8_buffer_free(KainNativeProcessUtf8Buffer* buffer) {
+    if (buffer == 0) {
+        return;
+    }
+    free(buffer->text);
+    buffer->text = 0;
+    buffer->length = 0u;
+    buffer->capacity = 0u;
+}
+
+static int kain_native_process_utf8_buffer_append_quoted_argument(
+    KainNativeProcessUtf8Buffer* buffer,
+    const char* argument
+) {
+    size_t index;
+    size_t backslash_count = 0u;
+    int needs_quotes = 0;
+    if (buffer == 0 || argument == 0) {
+        return 0;
+    }
+    if (argument[0] == '\0') {
+        needs_quotes = 1;
+    } else {
+        for (index = 0u; argument[index] != '\0'; index++) {
+            char character = argument[index];
+            if (character == ' ' || character == '\t' || character == '\n' || character == '"') {
+                needs_quotes = 1;
+                break;
+            }
+        }
+    }
+    if (!needs_quotes) {
+        return kain_native_process_utf8_buffer_append_text(buffer, argument);
+    }
+    if (!kain_native_process_utf8_buffer_append_char(buffer, '"')) {
+        return 0;
+    }
+    for (index = 0u; argument[index] != '\0'; index++) {
+        char character = argument[index];
+        if (character == '\\') {
+            backslash_count += 1u;
+            continue;
+        }
+        if (character == '"') {
+            if (!kain_native_process_utf8_buffer_append_chars(buffer, '\\', backslash_count * 2u + 1u)) {
+                return 0;
+            }
+            if (!kain_native_process_utf8_buffer_append_char(buffer, '"')) {
+                return 0;
+            }
+            backslash_count = 0u;
+            continue;
+        }
+        if (backslash_count > 0u) {
+            if (!kain_native_process_utf8_buffer_append_chars(buffer, '\\', backslash_count)) {
+                return 0;
+            }
+            backslash_count = 0u;
+        }
+        if (!kain_native_process_utf8_buffer_append_char(buffer, character)) {
+            return 0;
+        }
+    }
+    if (backslash_count > 0u) {
+        if (!kain_native_process_utf8_buffer_append_chars(buffer, '\\', backslash_count * 2u)) {
+            return 0;
+        }
+    }
+    return kain_native_process_utf8_buffer_append_char(buffer, '"');
+}
+
+static wchar_t* kain_native_process_build_command_line_w(const KainNativeProcessSpec* spec) {
+    KainNativeProcessUtf8Buffer utf8_command_line = {0};
+    wchar_t* wide_command_line = 0;
+    int64_t index;
+    if (spec == 0) {
+        return 0;
+    }
+    if (!kain_native_process_utf8_buffer_append_quoted_argument(&utf8_command_line, spec->executable)) {
+        goto cleanup;
+    }
+    for (index = 0; index < spec->argument_count; index++) {
+        if (!kain_native_process_utf8_buffer_append_char(&utf8_command_line, ' ')) {
+            goto cleanup;
+        }
+        if (!kain_native_process_utf8_buffer_append_quoted_argument(
+                &utf8_command_line,
+                spec->arguments[index]
+            )) {
+            goto cleanup;
+        }
+    }
+    wide_command_line = kain_native_process_utf8_to_wide(
+        utf8_command_line.text ? utf8_command_line.text : ""
+    );
+cleanup:
+    kain_native_process_utf8_buffer_free(&utf8_command_line);
+    return wide_command_line;
+}
+
+static wchar_t* kain_native_process_wide_duplicate(const wchar_t* text) {
+    size_t length;
+    wchar_t* copy;
+    if (text == 0) {
+        return 0;
+    }
+    length = wcslen(text);
+    copy = (wchar_t*)malloc((length + 1u) * sizeof(wchar_t));
+    if (copy == 0) {
+        return 0;
+    }
+    memcpy(copy, text, (length + 1u) * sizeof(wchar_t));
+    return copy;
+}
+
+static int kain_native_process_wide_entry_list_push(
+    KainNativeProcessWideEntryList* list,
+    wchar_t* entry
+) {
+    wchar_t** resized;
+    size_t next_capacity;
+    if (list == 0 || entry == 0) {
+        free(entry);
+        return 0;
+    }
+    if (list->count == list->capacity) {
+        next_capacity = list->capacity == 0u ? 16u : list->capacity * 2u;
+        resized = (wchar_t**)realloc(list->entries, next_capacity * sizeof(wchar_t*));
+        if (resized == 0) {
+            free(entry);
+            return 0;
+        }
+        list->entries = resized;
+        list->capacity = next_capacity;
+    }
+    list->entries[list->count] = entry;
+    list->count += 1u;
+    return 1;
+}
+
+static void kain_native_process_wide_entry_list_free(KainNativeProcessWideEntryList* list) {
+    size_t index;
+    if (list == 0) {
+        return;
+    }
+    for (index = 0u; index < list->count; index++) {
+        free(list->entries[index]);
+    }
+    free(list->entries);
+    list->entries = 0;
+    list->count = 0u;
+    list->capacity = 0u;
+}
+
+static size_t kain_native_process_wide_entry_key_length(const wchar_t* entry) {
+    size_t index = 0u;
+    if (entry == 0) {
+        return 0u;
+    }
+    while (entry[index] != L'\0' && entry[index] != L'=') {
+        index += 1u;
+    }
+    return index;
+}
+
+static int kain_native_process_wide_entry_key_equals(
+    const wchar_t* entry,
+    const wchar_t* key
+) {
+    size_t entry_key_length;
+    size_t key_length;
+    if (entry == 0 || key == 0) {
+        return 0;
+    }
+    entry_key_length = kain_native_process_wide_entry_key_length(entry);
+    key_length = wcslen(key);
+    if (entry_key_length != key_length) {
+        return 0;
+    }
+    return _wcsnicmp(entry, key, key_length) == 0;
+}
+
+static wchar_t* kain_native_process_build_env_entry_w(
+    const char* key_utf8,
+    const char* value_utf8
+) {
+    wchar_t* key_wide = 0;
+    wchar_t* value_wide = 0;
+    KainNativeProcessWideBuffer buffer = {0};
+    wchar_t* entry = 0;
+    key_wide = kain_native_process_utf8_to_wide(key_utf8);
+    value_wide = kain_native_process_utf8_to_wide(value_utf8 ? value_utf8 : "");
+    if (key_wide == 0 || value_wide == 0) {
+        goto cleanup;
+    }
+    if (!kain_native_process_wide_buffer_append_text(&buffer, key_wide)) {
+        goto cleanup;
+    }
+    if (!kain_native_process_wide_buffer_append_char(&buffer, L'=')) {
+        goto cleanup;
+    }
+    if (!kain_native_process_wide_buffer_append_text(&buffer, value_wide)) {
+        goto cleanup;
+    }
+    entry = buffer.text;
+    buffer.text = 0;
+cleanup:
+    free(key_wide);
+    free(value_wide);
+    kain_native_process_wide_buffer_free(&buffer);
+    return entry;
+}
+
+static wchar_t* kain_native_process_build_environment_block_w(const KainNativeProcessSpec* spec) {
+    KainNativeProcessWideEntryList entries = {0};
+    LPWCH environment_block = 0;
+    const wchar_t* cursor;
+    size_t total_length = 1u;
+    size_t index;
+    wchar_t* flattened = 0;
+    if (spec == 0) {
+        return 0;
+    }
+    if (spec->inherit_environment) {
+        environment_block = GetEnvironmentStringsW();
+        if (environment_block == 0) {
+            return 0;
+        }
+        cursor = environment_block;
+        while (*cursor != L'\0') {
+            wchar_t* copy = kain_native_process_wide_duplicate(cursor);
+            if (copy == 0 || !kain_native_process_wide_entry_list_push(&entries, copy)) {
+                FreeEnvironmentStringsW(environment_block);
+                kain_native_process_wide_entry_list_free(&entries);
+                return 0;
+            }
+            cursor += wcslen(cursor) + 1u;
+        }
+        FreeEnvironmentStringsW(environment_block);
+    }
+
+    for (index = 0u; index < (size_t)spec->environment_count; index++) {
+        const KainNativeProcessEnvironmentEntry* override = &spec->environment[index];
+        wchar_t* key_wide = 0;
+        wchar_t* replacement = 0;
+        size_t entry_index;
+        if (!override->in_use) {
+            continue;
+        }
+        key_wide = kain_native_process_utf8_to_wide(override->key);
+        replacement = kain_native_process_build_env_entry_w(override->key, override->value);
+        if (key_wide == 0 || replacement == 0) {
+            free(key_wide);
+            free(replacement);
+            kain_native_process_wide_entry_list_free(&entries);
+            return 0;
+        }
+        for (entry_index = 0u; entry_index < entries.count; entry_index++) {
+            if (kain_native_process_wide_entry_key_equals(entries.entries[entry_index], key_wide)) {
+                free(entries.entries[entry_index]);
+                entries.entries[entry_index] = replacement;
+                replacement = 0;
+                break;
+            }
+        }
+        if (replacement != 0 && !kain_native_process_wide_entry_list_push(&entries, replacement)) {
+            free(key_wide);
+            free(replacement);
+            kain_native_process_wide_entry_list_free(&entries);
+            return 0;
+        }
+        free(key_wide);
+    }
+
+    for (index = 0u; index < entries.count; index++) {
+        total_length += wcslen(entries.entries[index]) + 1u;
+    }
+    flattened = (wchar_t*)malloc(total_length * sizeof(wchar_t));
+    if (flattened == 0) {
+        kain_native_process_wide_entry_list_free(&entries);
+        return 0;
+    }
+    {
+        wchar_t* output_cursor = flattened;
+        for (index = 0u; index < entries.count; index++) {
+            size_t entry_length = wcslen(entries.entries[index]);
+            memcpy(output_cursor, entries.entries[index], entry_length * sizeof(wchar_t));
+            output_cursor += entry_length;
+            *output_cursor = L'\0';
+            output_cursor += 1;
+        }
+        *output_cursor = L'\0';
+    }
+    kain_native_process_wide_entry_list_free(&entries);
+    return flattened;
+}
+
+static int kain_native_process_create_pipe_pair(
+    HANDLE* child_handle,
+    HANDLE* parent_handle,
+    int parent_writes
+) {
+    SECURITY_ATTRIBUTES security_attributes;
+    HANDLE read_handle = 0;
+    HANDLE write_handle = 0;
+    memset(&security_attributes, 0, sizeof(security_attributes));
+    security_attributes.nLength = sizeof(security_attributes);
+    security_attributes.bInheritHandle = TRUE;
+    if (!CreatePipe(&read_handle, &write_handle, &security_attributes, 0u)) {
+        return 0;
+    }
+    if (parent_writes) {
+        if (!SetHandleInformation(write_handle, HANDLE_FLAG_INHERIT, 0u)) {
+            CloseHandle(read_handle);
+            CloseHandle(write_handle);
+            return 0;
+        }
+        *child_handle = read_handle;
+        *parent_handle = write_handle;
+        return 1;
+    }
+    if (!SetHandleInformation(read_handle, HANDLE_FLAG_INHERIT, 0u)) {
+        CloseHandle(read_handle);
+        CloseHandle(write_handle);
+        return 0;
+    }
+    *child_handle = write_handle;
+    *parent_handle = read_handle;
+    return 1;
+}
+
+static HANDLE kain_native_process_open_null_device(DWORD access_mask) {
+    return CreateFileW(
+        L"NUL",
+        access_mask,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        0,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        0
+    );
+}
+
+static int kain_native_process_refresh_exit_state(KainNativeProcessHandle* process) {
+    DWORD exit_code;
+    if (process == 0 || !process->in_use || process->process_handle == 0) {
+        return 0;
+    }
+    if (process->exited) {
+        return 1;
+    }
+    if (!GetExitCodeProcess(process->process_handle, &exit_code)) {
+        return 0;
+    }
+    if (exit_code == STILL_ACTIVE) {
+        return 0;
+    }
+    process->exited = 1;
+    process->exit_code = (int64_t)exit_code;
+    return 1;
+}
+
+static int kain_native_process_drain_stream_handle(
+    HANDLE stream_handle,
+    KainNativeProcessCapture* capture,
+    unsigned char** out_chunk,
+    size_t* out_chunk_length
+) {
+    unsigned char* chunk = 0;
+    size_t chunk_length = 0u;
+    size_t chunk_capacity = 0u;
+    for (;;) {
+        DWORD available = 0u;
+        DWORD bytes_read = 0u;
+        unsigned char buffer[4096];
+        if (stream_handle == 0) {
+            break;
+        }
+        if (!PeekNamedPipe(stream_handle, 0, 0u, 0, &available, 0)) {
+            DWORD last_error = GetLastError();
+            if (last_error == ERROR_BROKEN_PIPE || last_error == ERROR_HANDLE_EOF) {
+                break;
+            }
+            free(chunk);
+            return 0;
+        }
+        if (available == 0u) {
+            break;
+        }
+        if (!ReadFile(
+                stream_handle,
+                buffer,
+                available < sizeof(buffer) ? available : (DWORD)sizeof(buffer),
+                &bytes_read,
+                0
+            )) {
+            DWORD last_error = GetLastError();
+            if (last_error == ERROR_BROKEN_PIPE || last_error == ERROR_HANDLE_EOF) {
+                break;
+            }
+            free(chunk);
+            return 0;
+        }
+        if (bytes_read == 0u) {
+            break;
+        }
+        if (!kain_native_process_capture_append(capture, buffer, bytes_read)) {
+            free(chunk);
+            return 0;
+        }
+        if (chunk_length + bytes_read > chunk_capacity) {
+            size_t next_capacity = chunk_capacity == 0u ? 4096u : chunk_capacity;
+            while (next_capacity < chunk_length + bytes_read) {
+                next_capacity *= 2u;
+            }
+            chunk = (unsigned char*)realloc(chunk, next_capacity);
+            if (chunk == 0) {
+                return 0;
+            }
+            chunk_capacity = next_capacity;
+        }
+        memcpy(chunk + chunk_length, buffer, bytes_read);
+        chunk_length += bytes_read;
+    }
+    if (out_chunk != 0) {
+        *out_chunk = chunk;
+    } else {
+        free(chunk);
+    }
+    if (out_chunk_length != 0) {
+        *out_chunk_length = chunk_length;
+    }
+    return 1;
+}
+
+static int kain_native_process_pump_output(
+    KainNativeProcessHandle* process,
+    unsigned char** out_primary_chunk,
+    size_t* out_primary_chunk_length,
+    unsigned char** out_secondary_chunk,
+    size_t* out_secondary_chunk_length
+) {
+    if (process == 0 || !process->in_use) {
+        return 0;
+    }
+    if (process->is_pty) {
+        if (!kain_native_process_drain_stream_handle(
+                process->pty_output_read_handle,
+                &process->pty_capture,
+                out_primary_chunk,
+                out_primary_chunk_length
+            )) {
+            return 0;
+        }
+        if (out_secondary_chunk != 0) {
+            *out_secondary_chunk = 0;
+        }
+        if (out_secondary_chunk_length != 0) {
+            *out_secondary_chunk_length = 0u;
+        }
+        return 1;
+    }
+    if (!kain_native_process_drain_stream_handle(
+            process->stdout_read_handle,
+            &process->stdout_capture,
+            out_primary_chunk,
+            out_primary_chunk_length
+        )) {
+        return 0;
+    }
+    if (!kain_native_process_drain_stream_handle(
+            process->stderr_read_handle,
+            &process->stderr_capture,
+            out_secondary_chunk,
+            out_secondary_chunk_length
+        )) {
+        free(out_primary_chunk != 0 ? *out_primary_chunk : 0);
+        if (out_primary_chunk != 0) {
+            *out_primary_chunk = 0;
+        }
+        if (out_primary_chunk_length != 0) {
+            *out_primary_chunk_length = 0u;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+static int kain_native_process_wait_internal(
+    KainNativeProcessHandle* process,
+    int64_t timeout_ms,
+    int* out_exited
+) {
+    DWORD wait_timeout = INFINITE;
+    DWORD wait_result;
+    if (process == 0 || !process->in_use || process->process_handle == 0) {
+        return 0;
+    }
+    if (timeout_ms >= 0) {
+        wait_timeout = (DWORD)timeout_ms;
+    }
+    wait_result = WaitForSingleObject(process->process_handle, wait_timeout);
+    if (wait_result == WAIT_OBJECT_0) {
+        kain_native_process_refresh_exit_state(process);
+        if (out_exited != 0) {
+            *out_exited = 1;
+        }
+        return 1;
+    }
+    if (wait_result == WAIT_TIMEOUT) {
+        if (out_exited != 0) {
+            *out_exited = 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void kain_native_process_flush_exited_output(KainNativeProcessHandle* process) {
+    int attempt;
+    for (attempt = 0; attempt < 8; attempt++) {
+        unsigned char* primary_chunk = 0;
+        unsigned char* secondary_chunk = 0;
+        size_t primary_length = 0u;
+        size_t secondary_length = 0u;
+        int had_data = 0;
+        if (process == 0 || !process->in_use) {
+            return;
+        }
+        if (!kain_native_process_pump_output(
+                process,
+                &primary_chunk,
+                &primary_length,
+                &secondary_chunk,
+                &secondary_length
+            )) {
+            free(primary_chunk);
+            free(secondary_chunk);
+            return;
+        }
+        had_data = primary_length > 0u || secondary_length > 0u;
+        free(primary_chunk);
+        free(secondary_chunk);
+        if (!had_data && attempt >= 2) {
+            break;
+        }
+        Sleep(15u);
+    }
+}
+
+static int64_t kain_native_process_write_handle_bytes(
+    HANDLE write_handle,
+    const unsigned char* bytes,
+    size_t byte_length
+) {
+    DWORD total_written = 0u;
+    while (total_written < byte_length) {
+        DWORD bytes_written = 0u;
+        DWORD request = (DWORD)((byte_length - total_written) > 32768u ? 32768u : (byte_length - total_written));
+        if (!WriteFile(write_handle, bytes + total_written, request, &bytes_written, 0)) {
+            return -1;
+        }
+        if (bytes_written == 0u) {
+            break;
+        }
+        total_written += bytes_written;
+    }
+    return (int64_t)total_written;
+}
+
+static int64_t kain_native_process_launch_standard_process(
+    const KainNativeProcessSpec* spec,
+    KainNativeProcessHandle* process
+) {
+    HANDLE child_stdin = 0;
+    HANDLE child_stdout = 0;
+    HANDLE child_stderr = 0;
+    HANDLE parent_stdin = 0;
+    HANDLE parent_stdout = 0;
+    HANDLE parent_stderr = 0;
+    HANDLE null_stdin = 0;
+    HANDLE null_stdout = 0;
+    HANDLE null_stderr = 0;
+    STARTUPINFOW startup_info;
+    PROCESS_INFORMATION process_information;
+    wchar_t* command_line = 0;
+    wchar_t* cwd_wide = 0;
+    wchar_t* environment_block = 0;
+    DWORD creation_flags = CREATE_UNICODE_ENVIRONMENT;
+    memset(&startup_info, 0, sizeof(startup_info));
+    memset(&process_information, 0, sizeof(process_information));
+
+    command_line = kain_native_process_build_command_line_w(spec);
+    if (command_line == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "command-line",
+            "failed to build child process command line"
+        );
+    }
+    if (!kain_native_process_text_empty(spec->current_working_directory)) {
+        cwd_wide = kain_native_process_utf8_to_wide(spec->current_working_directory);
+        if (cwd_wide == 0) {
+            free(command_line);
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+                "cwd",
+                "failed to convert child current working directory"
+            );
+        }
+    }
+    if (!spec->inherit_environment || spec->environment_count > 0) {
+        environment_block = kain_native_process_build_environment_block_w(spec);
+        if (environment_block == 0) {
+            free(command_line);
+            free(cwd_wide);
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+                "environment",
+                "failed to build child environment block"
+            );
+        }
+    }
+
+    if (spec->stdin_mode == KAIN_NATIVE_PROCESS_STDIO_PIPE) {
+        if (!kain_native_process_create_pipe_pair(&child_stdin, &parent_stdin, 1)) {
+            goto pipe_error;
+        }
+    } else if (spec->stdin_mode == KAIN_NATIVE_PROCESS_STDIO_NULL) {
+        null_stdin = kain_native_process_open_null_device(GENERIC_READ);
+        child_stdin = null_stdin;
+    } else {
+        child_stdin = GetStdHandle(STD_INPUT_HANDLE);
+    }
+
+    if (spec->stdout_mode == KAIN_NATIVE_PROCESS_STDIO_PIPE) {
+        if (!kain_native_process_create_pipe_pair(&child_stdout, &parent_stdout, 0)) {
+            goto pipe_error;
+        }
+    } else if (spec->stdout_mode == KAIN_NATIVE_PROCESS_STDIO_NULL) {
+        null_stdout = kain_native_process_open_null_device(GENERIC_WRITE);
+        child_stdout = null_stdout;
+    } else {
+        child_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+    }
+
+    if (spec->stderr_mode == KAIN_NATIVE_PROCESS_STDIO_PIPE) {
+        if (!kain_native_process_create_pipe_pair(&child_stderr, &parent_stderr, 0)) {
+            goto pipe_error;
+        }
+    } else if (spec->stderr_mode == KAIN_NATIVE_PROCESS_STDIO_NULL) {
+        null_stderr = kain_native_process_open_null_device(GENERIC_WRITE);
+        child_stderr = null_stderr;
+    } else {
+        child_stderr = GetStdHandle(STD_ERROR_HANDLE);
+    }
+
+    startup_info.cb = sizeof(startup_info);
+    startup_info.dwFlags = STARTF_USESTDHANDLES;
+    startup_info.hStdInput = child_stdin;
+    startup_info.hStdOutput = child_stdout;
+    startup_info.hStdError = child_stderr;
+
+    if (!CreateProcessW(
+            0,
+            command_line,
+            0,
+            0,
+            TRUE,
+            creation_flags,
+            environment_block,
+            cwd_wide,
+            &startup_info,
+            &process_information
+        )) {
+        goto spawn_error;
+    }
+
+    if (parent_stdin != 0) {
+        process->stdin_write_handle = parent_stdin;
+    }
+    if (parent_stdout != 0) {
+        process->stdout_read_handle = parent_stdout;
+    }
+    if (parent_stderr != 0) {
+        process->stderr_read_handle = parent_stderr;
+    }
+    process->process_handle = process_information.hProcess;
+    process->thread_handle = process_information.hThread;
+    process->operating_system_process_id = (int64_t)process_information.dwProcessId;
+
+    if (child_stdin != 0 && child_stdin != GetStdHandle(STD_INPUT_HANDLE)) {
+        CloseHandle(child_stdin);
+    }
+    if (child_stdout != 0 && child_stdout != GetStdHandle(STD_OUTPUT_HANDLE)) {
+        CloseHandle(child_stdout);
+    }
+    if (child_stderr != 0 && child_stderr != GetStdHandle(STD_ERROR_HANDLE)) {
+        CloseHandle(child_stderr);
+    }
+    free(command_line);
+    free(cwd_wide);
+    free(environment_block);
+    return kain_native_process_ok();
+
+pipe_error:
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_IO_ERROR,
+        "pipe",
+        "failed to create child stdio pipe"
+    );
+    goto cleanup_failure;
+spawn_error:
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+        "spawn",
+        "CreateProcessW failed for child process"
+    );
+cleanup_failure:
+    if (parent_stdin != 0) {
+        CloseHandle(parent_stdin);
+    }
+    if (parent_stdout != 0) {
+        CloseHandle(parent_stdout);
+    }
+    if (parent_stderr != 0) {
+        CloseHandle(parent_stderr);
+    }
+    if (child_stdin != 0 && child_stdin != GetStdHandle(STD_INPUT_HANDLE)) {
+        CloseHandle(child_stdin);
+    }
+    if (child_stdout != 0 && child_stdout != GetStdHandle(STD_OUTPUT_HANDLE)) {
+        CloseHandle(child_stdout);
+    }
+    if (child_stderr != 0 && child_stderr != GetStdHandle(STD_ERROR_HANDLE)) {
+        CloseHandle(child_stderr);
+    }
+    if (null_stdin != 0) {
+        CloseHandle(null_stdin);
+    }
+    if (null_stdout != 0) {
+        CloseHandle(null_stdout);
+    }
+    if (null_stderr != 0) {
+        CloseHandle(null_stderr);
+    }
+    free(command_line);
+    free(cwd_wide);
+    free(environment_block);
+    return g_last_status;
+}
+
+static int64_t kain_native_process_launch_pty_process(
+    const KainNativeProcessSpec* spec,
+    KainNativeProcessHandle* process,
+    int64_t columns,
+    int64_t rows
+) {
+    HMODULE kernel_module = GetModuleHandleW(L"kernel32.dll");
+    KainCreatePseudoConsoleFn create_pseudo_console = 0;
+    KainClosePseudoConsoleFn close_pseudo_console = 0;
+    KainResizePseudoConsoleFn resize_pseudo_console = 0;
+    HANDLE console_input_read = 0;
+    HANDLE console_output_write = 0;
+    HANDLE parent_input_write = 0;
+    HANDLE parent_output_read = 0;
+    SIZE_T attribute_list_bytes = 0u;
+    STARTUPINFOEXW startup_info_ex;
+    PROCESS_INFORMATION process_information;
+    wchar_t* command_line = 0;
+    wchar_t* cwd_wide = 0;
+    wchar_t* environment_block = 0;
+    HANDLE pseudo_console = 0;
+    HRESULT console_result;
+    memset(&startup_info_ex, 0, sizeof(startup_info_ex));
+    memset(&process_information, 0, sizeof(process_information));
+
+    if (kernel_module != 0) {
+        create_pseudo_console = (KainCreatePseudoConsoleFn)GetProcAddress(kernel_module, "CreatePseudoConsole");
+        close_pseudo_console = (KainClosePseudoConsoleFn)GetProcAddress(kernel_module, "ClosePseudoConsole");
+        resize_pseudo_console = (KainResizePseudoConsoleFn)GetProcAddress(kernel_module, "ResizePseudoConsole");
+    }
+    if (create_pseudo_console == 0 || close_pseudo_console == 0 || resize_pseudo_console == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "Windows ConPTY entry points are not available on this host"
+        );
+    }
+
+    command_line = kain_native_process_build_command_line_w(spec);
+    if (command_line == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "command-line",
+            "failed to build PTY command line"
+        );
+    }
+    if (!kain_native_process_text_empty(spec->current_working_directory)) {
+        cwd_wide = kain_native_process_utf8_to_wide(spec->current_working_directory);
+        if (cwd_wide == 0) {
+            free(command_line);
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+                "cwd",
+                "failed to convert PTY current working directory"
+            );
+        }
+    }
+    if (!spec->inherit_environment || spec->environment_count > 0) {
+        environment_block = kain_native_process_build_environment_block_w(spec);
+        if (environment_block == 0) {
+            free(command_line);
+            free(cwd_wide);
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+                "environment",
+                "failed to build PTY environment block"
+            );
+        }
+    }
+
+    if (!kain_native_process_create_pipe_pair(&console_input_read, &parent_input_write, 1)) {
+        goto pty_io_error;
+    }
+    if (!kain_native_process_create_pipe_pair(&console_output_write, &parent_output_read, 0)) {
+        goto pty_io_error;
+    }
+
+    console_result = create_pseudo_console(
+        (COORD){(SHORT)columns, (SHORT)rows},
+        console_input_read,
+        console_output_write,
+        0u,
+        &pseudo_console
+    );
+    if (FAILED(console_result) || pseudo_console == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "CreatePseudoConsole failed"
+        );
+        goto pty_cleanup_error;
+    }
+
+    startup_info_ex.StartupInfo.cb = sizeof(startup_info_ex);
+    InitializeProcThreadAttributeList(0, 1u, 0u, &attribute_list_bytes);
+    startup_info_ex.lpAttributeList = (PPROC_THREAD_ATTRIBUTE_LIST)malloc(attribute_list_bytes);
+    if (startup_info_ex.lpAttributeList == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "pty",
+            "failed to allocate PTY attribute list"
+        );
+        goto pty_cleanup_error;
+    }
+    if (!InitializeProcThreadAttributeList(
+            startup_info_ex.lpAttributeList,
+            1u,
+            0u,
+            &attribute_list_bytes
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "pty",
+            "failed to initialize PTY attribute list"
+        );
+        goto pty_cleanup_error;
+    }
+    if (!UpdateProcThreadAttribute(
+            startup_info_ex.lpAttributeList,
+            0u,
+            PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+            pseudo_console,
+            sizeof(pseudo_console),
+            0,
+            0
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "pty",
+            "failed to bind pseudo console attribute"
+        );
+        goto pty_cleanup_error;
+    }
+
+    startup_info_ex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    startup_info_ex.StartupInfo.hStdInput = console_input_read;
+    startup_info_ex.StartupInfo.hStdOutput = console_output_write;
+    startup_info_ex.StartupInfo.hStdError = console_output_write;
+
+    if (!CreateProcessW(
+            0,
+            command_line,
+            0,
+            0,
+            TRUE,
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+            environment_block,
+            cwd_wide,
+            &startup_info_ex.StartupInfo,
+            &process_information
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_SPAWN_FAILED,
+            "spawn",
+            "CreateProcessW failed for PTY child process"
+        );
+        goto pty_cleanup_error;
+    }
+
+    CloseHandle(console_input_read);
+    CloseHandle(console_output_write);
+    DeleteProcThreadAttributeList(startup_info_ex.lpAttributeList);
+    free(startup_info_ex.lpAttributeList);
+    startup_info_ex.lpAttributeList = 0;
+    process->is_pty = 1;
+    process->pty_console_handle = pseudo_console;
+    process->pty_input_write_handle = parent_input_write;
+    process->pty_output_read_handle = parent_output_read;
+    process->process_handle = process_information.hProcess;
+    process->thread_handle = process_information.hThread;
+    process->operating_system_process_id = (int64_t)process_information.dwProcessId;
+    free(command_line);
+    free(cwd_wide);
+    free(environment_block);
+    return kain_native_process_ok();
+
+pty_io_error:
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_IO_ERROR,
+        "pty",
+        "failed to create PTY transport pipes"
+    );
+pty_cleanup_error:
+    if (console_input_read != 0) {
+        CloseHandle(console_input_read);
+    }
+    if (console_output_write != 0) {
+        CloseHandle(console_output_write);
+    }
+    if (parent_input_write != 0) {
+        CloseHandle(parent_input_write);
+    }
+    if (parent_output_read != 0) {
+        CloseHandle(parent_output_read);
+    }
+    if (startup_info_ex.lpAttributeList != 0) {
+        DeleteProcThreadAttributeList(startup_info_ex.lpAttributeList);
+        free(startup_info_ex.lpAttributeList);
+    }
+    if (pseudo_console != 0 && close_pseudo_console != 0) {
+        close_pseudo_console(pseudo_console);
+    }
+    free(command_line);
+    free(cwd_wide);
+    free(environment_block);
+    return g_last_status;
+}
+#endif
+
+int64_t kain_native_process_reset(void) {
+    int index;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
+        if (g_processes[index].in_use) {
+            kain_native_process_release_handle(&g_processes[index], 1);
+        }
+    }
+    memset(g_specs, 0, sizeof(g_specs));
+    memset(g_processes, 0, sizeof(g_processes));
+    g_next_spec_id = 1;
+    g_next_process_id = 1;
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_platform_available(void) {
+#ifdef _WIN32
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+int64_t kain_native_process_spec_create(const char* executable) {
+    int index;
+    KainNativeProcessSpec* spec = 0;
+    if (kain_native_process_text_empty(executable)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "process executable cannot be empty"
+        );
+    }
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
+        if (!g_specs[index].in_use) {
+            spec = &g_specs[index];
+            break;
+        }
+    }
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process specification registry is full"
+        );
+    }
+    memset(spec, 0, sizeof(*spec));
+    spec->in_use = 1;
+    spec->id = g_next_spec_id++;
+    spec->inherit_environment = 1;
+    spec->stdin_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
+    spec->stdout_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
+    spec->stderr_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
+    kain_native_process_copy(spec->executable, sizeof(spec->executable), executable);
+    kain_native_process_ok();
+    return spec->id;
+}
+
+int64_t kain_native_process_spec_destroy(int64_t spec_id) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "process specification id is not active"
+        );
+    }
+    memset(spec, 0, sizeof(*spec));
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_spec_count(void) {
+    int index;
+    int64_t count = 0;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
+        if (g_specs[index].in_use) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+int64_t kain_native_process_spec_add_arg(int64_t spec_id, const char* argument) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot add argument to a missing process specification"
+        );
+    }
+    if (argument == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "process argument cannot be null"
+        );
+    }
+    if (spec->argument_count >= KAIN_NATIVE_PROCESS_MAX_ARGUMENTS) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process specification argument capacity exceeded"
+        );
+    }
+    kain_native_process_copy(
+        spec->arguments[spec->argument_count],
+        sizeof(spec->arguments[spec->argument_count]),
+        argument
+    );
+    spec->argument_count += 1;
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_spec_set_cwd(int64_t spec_id, const char* cwd_path) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set cwd on a missing process specification"
+        );
+    }
+    kain_native_process_copy(
+        spec->current_working_directory,
+        sizeof(spec->current_working_directory),
+        cwd_path ? cwd_path : ""
+    );
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_spec_set_env(int64_t spec_id, const char* key, const char* value) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    int64_t index;
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set environment on a missing process specification"
+        );
+    }
+    if (kain_native_process_text_empty(key)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "process environment key cannot be empty"
+        );
+    }
+    for (index = 0; index < spec->environment_count; index++) {
+        if (spec->environment[index].in_use
+            && kain_native_process_text_equal_ci(spec->environment[index].key, key)) {
+            kain_native_process_copy(spec->environment[index].value, sizeof(spec->environment[index].value), value ? value : "");
+            return kain_native_process_ok();
+        }
+    }
+    if (spec->environment_count >= KAIN_NATIVE_PROCESS_MAX_ENVIRONMENT_ENTRIES) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process environment override capacity exceeded"
+        );
+    }
+    spec->environment[spec->environment_count].in_use = 1;
+    kain_native_process_copy(
+        spec->environment[spec->environment_count].key,
+        sizeof(spec->environment[spec->environment_count].key),
+        key
+    );
+    kain_native_process_copy(
+        spec->environment[spec->environment_count].value,
+        sizeof(spec->environment[spec->environment_count].value),
+        value ? value : ""
+    );
+    spec->environment_count += 1;
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_spec_set_inherit_environment(int64_t spec_id, int64_t enabled) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set inherit_environment on a missing process specification"
+        );
+    }
+    spec->inherit_environment = enabled != 0;
+    return kain_native_process_ok();
+}
+
+static int64_t kain_native_process_spec_set_mode(
+    int64_t spec_id,
+    const char* mode_text,
+    KainNativeProcessStdioMode* target_mode
+) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    KainNativeProcessStdioMode mode;
+    (void)spec;
+    if (spec == 0 || target_mode == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set stdio mode on a missing process specification"
+        );
+    }
+    if (!kain_native_process_mode_from_text(mode_text, &mode)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-mode",
+            "stdio mode must be inherit, pipe, or null"
+        );
+    }
+    *target_mode = mode;
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_spec_set_stdin_mode(int64_t spec_id, const char* mode) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set stdin mode on a missing process specification"
+        );
+    }
+    return kain_native_process_spec_set_mode(spec_id, mode, &spec->stdin_mode);
+}
+
+int64_t kain_native_process_spec_set_stdout_mode(int64_t spec_id, const char* mode) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set stdout mode on a missing process specification"
+        );
+    }
+    return kain_native_process_spec_set_mode(spec_id, mode, &spec->stdout_mode);
+}
+
+int64_t kain_native_process_spec_set_stderr_mode(int64_t spec_id, const char* mode) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot set stderr mode on a missing process specification"
+        );
+    }
+    return kain_native_process_spec_set_mode(spec_id, mode, &spec->stderr_mode);
+}
+
+static KainNativeProcessHandle* kain_native_process_allocate_slot(void) {
+    int index;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
+        if (!g_processes[index].in_use) {
+            memset(&g_processes[index], 0, sizeof(g_processes[index]));
+            g_processes[index].in_use = 1;
+            g_processes[index].id = g_next_process_id++;
+            return &g_processes[index];
+        }
+    }
+    return 0;
+}
+
+int64_t kain_native_process_spawn(int64_t spec_id) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    KainNativeProcessHandle* process;
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot spawn a missing process specification"
+        );
+    }
+    process = kain_native_process_allocate_slot();
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process handle registry is full"
+        );
+    }
+#ifdef _WIN32
+    if (kain_native_process_launch_standard_process(spec, process) != KAIN_NATIVE_PROCESS_OK) {
+        kain_native_process_release_handle(process, 0);
+        return g_last_status;
+    }
+    return process->id;
+#else
+    kain_native_process_release_handle(process, 0);
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process spawning is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_spawn_pty(int64_t spec_id, int64_t columns, int64_t rows) {
+    KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    KainNativeProcessHandle* process;
+    if (spec == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_SPEC,
+            "invalid-spec",
+            "cannot spawn a PTY from a missing process specification"
+        );
+    }
+    if (columns <= 0 || rows <= 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "PTY size must use positive column and row counts"
+        );
+    }
+    process = kain_native_process_allocate_slot();
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process handle registry is full"
+        );
+    }
+#ifdef _WIN32
+    if (kain_native_process_launch_pty_process(spec, process, columns, rows) != KAIN_NATIVE_PROCESS_OK) {
+        kain_native_process_release_handle(process, 0);
+        return g_last_status;
+    }
+    return process->id;
+#else
+    kain_native_process_release_handle(process, 0);
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native PTY spawning is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_count(void) {
+    int index;
+    int64_t count = 0;
+    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
+        if (g_processes[index].in_use) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+int64_t kain_native_process_close(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot close a missing process handle"
+        );
+    }
+    kain_native_process_release_handle(process, 0);
+    return kain_native_process_ok();
+}
+
+int64_t kain_native_process_poll(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    int exited = 0;
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot poll a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    if (!kain_native_process_wait_internal(process, 0, &exited)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "wait",
+            "failed to poll child process state"
+        );
+    }
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to drain child process output"
+        );
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    kain_native_process_ok();
+    return exited ? 1 : 0;
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process polling is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_wait(int64_t process_id, int64_t timeout_ms) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    int exited = 0;
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot wait on a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    if (!kain_native_process_wait_internal(process, timeout_ms, &exited)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "wait",
+            "failed to wait on child process"
+        );
+    }
+    if (exited) {
+        kain_native_process_flush_exited_output(process);
+    }
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to drain child process output while waiting"
+        );
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    kain_native_process_ok();
+    return exited ? 1 : 0;
+#else
+    (void)timeout_ms;
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process waiting is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_is_running(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    kain_native_process_refresh_exit_state(process);
+    kain_native_process_ok();
+    return process->exited ? 0 : 1;
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process status is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_exit_code(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query exit code for a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    kain_native_process_refresh_exit_state(process);
+    if (!process->exited) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_STILL_RUNNING,
+            "still-running",
+            "child process has not exited yet"
+        );
+    }
+    kain_native_process_ok();
+    return process->exit_code;
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process exit codes are not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_os_pid(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query pid for a missing process handle"
+        );
+    }
+    kain_native_process_ok();
+    return process->operating_system_process_id;
+}
+
+int64_t kain_native_process_terminate(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot terminate a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    if (process->process_handle == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "process handle is missing an operating system child handle"
+        );
+    }
+    if (!TerminateProcess(process->process_handle, 1u)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "terminate",
+            "TerminateProcess failed"
+        );
+    }
+    WaitForSingleObject(process->process_handle, 250u);
+    kain_native_process_refresh_exit_state(process);
+    return kain_native_process_ok();
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process termination is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_kill(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot kill a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    if (process->process_handle == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "process handle is missing an operating system child handle"
+        );
+    }
+    if (!TerminateProcess(process->process_handle, 137u)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "kill",
+            "TerminateProcess failed"
+        );
+    }
+    WaitForSingleObject(process->process_handle, 250u);
+    kain_native_process_refresh_exit_state(process);
+    return kain_native_process_ok();
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process killing is not implemented for this host yet"
+    );
+#endif
+}
+
+static int64_t kain_native_process_write_plain_text(
+    int64_t process_id,
+    const char* text,
+    int use_pty_channel
+) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    HANDLE target_handle = 0;
+    int64_t written;
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot write to a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    if (target_handle == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PIPE_NOT_AVAILABLE,
+            "missing-pipe",
+            use_pty_channel ? "PTY input pipe is not available" : "stdin pipe is not available"
+        );
+    }
+    written = kain_native_process_write_handle_bytes(
+        target_handle,
+        (const unsigned char*)(text ? text : ""),
+        text ? strlen(text) : 0u
+    );
+    if (written < 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "write",
+            "failed to write child process input"
+        );
+    }
+    kain_native_process_ok();
+    return written;
+#else
+    (void)text;
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process input is not implemented for this host yet"
+    );
+#endif
+}
+
+static int64_t kain_native_process_write_hex(
+    int64_t process_id,
+    const char* bytes_hex,
+    int use_pty_channel
+) {
+    unsigned char* decoded = 0;
+    size_t decoded_length = 0u;
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    HANDLE target_handle = 0;
+    int64_t written;
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot write bytes to a missing process handle"
+        );
+    }
+    if (!kain_native_process_decode_hex(bytes_hex, &decoded, &decoded_length)) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-hex",
+            "hex byte payload must contain complete hexadecimal bytes"
+        );
+    }
+#ifdef _WIN32
+    target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    if (target_handle == 0) {
+        free(decoded);
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PIPE_NOT_AVAILABLE,
+            "missing-pipe",
+            use_pty_channel ? "PTY input pipe is not available" : "stdin pipe is not available"
+        );
+    }
+    written = kain_native_process_write_handle_bytes(target_handle, decoded, decoded_length);
+    free(decoded);
+    if (written < 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "write",
+            "failed to write child process input bytes"
+        );
+    }
+    kain_native_process_ok();
+    return written;
+#else
+    free(decoded);
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process byte input is not implemented for this host yet"
+    );
+#endif
+}
+
+int64_t kain_native_process_stdin_write_text(int64_t process_id, const char* text) {
+    return kain_native_process_write_plain_text(process_id, text, 0);
+}
+
+int64_t kain_native_process_stdin_write_hex(int64_t process_id, const char* bytes_hex) {
+    return kain_native_process_write_hex(process_id, bytes_hex, 0);
+}
+
+int64_t kain_native_process_stdin_close(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot close stdin on a missing process handle"
+        );
+    }
+#ifdef _WIN32
+    if (process->stdin_write_handle == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PIPE_NOT_AVAILABLE,
+            "missing-pipe",
+            "stdin pipe is not available"
+        );
+    }
+    CloseHandle(process->stdin_write_handle);
+    process->stdin_write_handle = 0;
+    return kain_native_process_ok();
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process stdin closing is not implemented for this host yet"
+    );
+#endif
+}
+
+static const char* kain_native_process_read_stream_text(
+    int64_t process_id,
+    int stream_kind
+) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    const char* output;
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot read output from a missing process handle"
+        );
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to read child process output"
+        );
+        return string_new("");
+    }
+    if (stream_kind == 0) {
+        output = process->is_pty
+            ? kain_native_process_string_from_bytes(primary_chunk, primary_length)
+            : kain_native_process_string_from_bytes(primary_chunk, primary_length);
+    } else {
+        output = process->is_pty
+            ? string_new("")
+            : kain_native_process_string_from_bytes(secondary_chunk, secondary_length);
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    kain_native_process_ok();
+    return output;
+#else
+    (void)stream_kind;
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process output is not implemented for this host yet"
+    );
+    return string_new("");
+#endif
+}
+
+static const char* kain_native_process_read_stream_hex(
+    int64_t process_id,
+    int stream_kind
+) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    const char* output;
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot read output bytes from a missing process handle"
+        );
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to read child process output bytes"
+        );
+        return string_new("");
+    }
+    if (stream_kind == 0) {
+        output = kain_native_process_encode_hex(primary_chunk, primary_length);
+    } else {
+        output = process->is_pty ? string_new("") : kain_native_process_encode_hex(secondary_chunk, secondary_length);
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    kain_native_process_ok();
+    return output;
+#else
+    (void)stream_kind;
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process output bytes are not implemented for this host yet"
+    );
+    return string_new("");
+#endif
+}
+
+static const char* kain_native_process_capture_text_internal(
+    int64_t process_id,
+    int capture_kind
+) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    const KainNativeProcessCapture* capture = 0;
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query output capture for a missing process handle"
+        );
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to refresh output capture"
+        );
+        return string_new("");
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    if (capture_kind == 0) {
+        capture = process->is_pty ? &process->pty_capture : &process->stdout_capture;
+    } else {
+        capture = &process->stderr_capture;
+    }
+    kain_native_process_ok();
+    return kain_native_process_string_from_bytes(capture->bytes, capture->length);
+#else
+    (void)capture_kind;
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process output capture is not implemented for this host yet"
+    );
+    return string_new("");
+#endif
+}
+
+static const char* kain_native_process_capture_hex_internal(
+    int64_t process_id,
+    int capture_kind
+) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    unsigned char* primary_chunk = 0;
+    unsigned char* secondary_chunk = 0;
+    size_t primary_length = 0u;
+    size_t secondary_length = 0u;
+    const KainNativeProcessCapture* capture = 0;
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query output hex capture for a missing process handle"
+        );
+        return string_new("");
+    }
+#ifdef _WIN32
+    if (!kain_native_process_pump_output(
+            process,
+            &primary_chunk,
+            &primary_length,
+            &secondary_chunk,
+            &secondary_length
+        )) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_IO_ERROR,
+            "read",
+            "failed to refresh output hex capture"
+        );
+        return string_new("");
+    }
+    free(primary_chunk);
+    free(secondary_chunk);
+    if (capture_kind == 0) {
+        capture = process->is_pty ? &process->pty_capture : &process->stdout_capture;
+    } else {
+        capture = &process->stderr_capture;
+    }
+    kain_native_process_ok();
+    return kain_native_process_encode_hex(capture->bytes, capture->length);
+#else
+    (void)capture_kind;
+    kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "native process output hex capture is not implemented for this host yet"
+    );
+    return string_new("");
+#endif
+}
+
+const char* kain_native_process_stdout_read_text(int64_t process_id) {
+    return kain_native_process_read_stream_text(process_id, 0);
+}
+
+const char* kain_native_process_stdout_read_hex(int64_t process_id) {
+    return kain_native_process_read_stream_hex(process_id, 0);
+}
+
+const char* kain_native_process_stderr_read_text(int64_t process_id) {
+    return kain_native_process_read_stream_text(process_id, 1);
+}
+
+const char* kain_native_process_stderr_read_hex(int64_t process_id) {
+    return kain_native_process_read_stream_hex(process_id, 1);
+}
+
+const char* kain_native_process_stdout_capture_text(int64_t process_id) {
+    return kain_native_process_capture_text_internal(process_id, 0);
+}
+
+const char* kain_native_process_stdout_capture_hex(int64_t process_id) {
+    return kain_native_process_capture_hex_internal(process_id, 0);
+}
+
+const char* kain_native_process_stderr_capture_text(int64_t process_id) {
+    return kain_native_process_capture_text_internal(process_id, 1);
+}
+
+const char* kain_native_process_stderr_capture_hex(int64_t process_id) {
+    return kain_native_process_capture_hex_internal(process_id, 1);
+}
+
+int64_t kain_native_process_pty_write_text(int64_t process_id, const char* text) {
+    return kain_native_process_write_plain_text(process_id, text, 1);
+}
+
+int64_t kain_native_process_pty_write_hex(int64_t process_id, const char* bytes_hex) {
+    return kain_native_process_write_hex(process_id, bytes_hex, 1);
+}
+
+int64_t kain_native_process_pty_resize(int64_t process_id, int64_t columns, int64_t rows) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot resize a missing PTY process handle"
+        );
+    }
+    if (!process->is_pty) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "process handle does not own a PTY session"
+        );
+    }
+    if (columns <= 0 || rows <= 0) {
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
+            "invalid-argument",
+            "PTY resize requires positive column and row counts"
+        );
+    }
+#ifdef _WIN32
+    {
+        HMODULE kernel_module = GetModuleHandleW(L"kernel32.dll");
+        KainResizePseudoConsoleFn resize_pseudo_console = 0;
+        if (kernel_module != 0) {
+            resize_pseudo_console = (KainResizePseudoConsoleFn)GetProcAddress(
+                kernel_module,
+                "ResizePseudoConsole"
+            );
+        }
+        if (resize_pseudo_console == 0 || process->pty_console_handle == 0) {
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+                "pty",
+                "ResizePseudoConsole is not available on this host"
+            );
+        }
+        if (FAILED(resize_pseudo_console(
+                process->pty_console_handle,
+                (COORD){(SHORT)columns, (SHORT)rows}
+            ))) {
+            return kain_native_process_fail(
+                KAIN_NATIVE_PROCESS_IO_ERROR,
+                "pty",
+                "ResizePseudoConsole failed"
+            );
+        }
+    }
+    return kain_native_process_ok();
+#else
+    return kain_native_process_fail(
+        KAIN_NATIVE_PROCESS_UNSUPPORTED_PLATFORM,
+        "unsupported-platform",
+        "PTY resize is not implemented for this host yet"
+    );
+#endif
+}
+
+const char* kain_native_process_pty_read_text(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot read PTY output from a missing process handle"
+        );
+        return string_new("");
+    }
+    if (!process->is_pty) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "process handle does not own a PTY session"
+        );
+        return string_new("");
+    }
+    return kain_native_process_read_stream_text(process_id, 0);
+}
+
+const char* kain_native_process_pty_read_hex(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot read PTY output bytes from a missing process handle"
+        );
+        return string_new("");
+    }
+    if (!process->is_pty) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "process handle does not own a PTY session"
+        );
+        return string_new("");
+    }
+    return kain_native_process_read_stream_hex(process_id, 0);
+}
+
+const char* kain_native_process_pty_capture_text(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query PTY capture from a missing process handle"
+        );
+        return string_new("");
+    }
+    if (!process->is_pty) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "process handle does not own a PTY session"
+        );
+        return string_new("");
+    }
+    return kain_native_process_capture_text_internal(process_id, 0);
+}
+
+const char* kain_native_process_pty_capture_hex(int64_t process_id) {
+    KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
+    if (process == 0) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_INVALID_PROCESS,
+            "invalid-process",
+            "cannot query PTY hex capture from a missing process handle"
+        );
+        return string_new("");
+    }
+    if (!process->is_pty) {
+        kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_PTY_UNAVAILABLE,
+            "pty",
+            "process handle does not own a PTY session"
+        );
+        return string_new("");
+    }
+    return kain_native_process_capture_hex_internal(process_id, 0);
+}
+
+int64_t kain_native_process_last_status(void) {
+    return g_last_status;
+}
+
+const char* kain_native_process_last_error_kind(void) {
+    return kain_native_process_string(g_last_error_kind);
+}
+
+const char* kain_native_process_last_error_message(void) {
+    return kain_native_process_string(g_last_error_message);
+}
+
+const KainNativeProcessFunctionTable g_kain_native_process_function_table = {
+    kain_native_process_reset,
+    kain_native_process_platform_available,
+    kain_native_process_spec_create,
+    kain_native_process_spec_destroy,
+    kain_native_process_spec_count,
+    kain_native_process_spec_add_arg,
+    kain_native_process_spec_set_cwd,
+    kain_native_process_spec_set_env,
+    kain_native_process_spec_set_inherit_environment,
+    kain_native_process_spec_set_stdin_mode,
+    kain_native_process_spec_set_stdout_mode,
+    kain_native_process_spec_set_stderr_mode,
+    kain_native_process_spawn,
+    kain_native_process_spawn_pty,
+    kain_native_process_count,
+    kain_native_process_close,
+    kain_native_process_poll,
+    kain_native_process_wait,
+    kain_native_process_is_running,
+    kain_native_process_exit_code,
+    kain_native_process_os_pid,
+    kain_native_process_terminate,
+    kain_native_process_kill,
+    kain_native_process_stdin_write_text,
+    kain_native_process_stdin_write_hex,
+    kain_native_process_stdin_close,
+    kain_native_process_pty_write_text,
+    kain_native_process_pty_write_hex,
+    kain_native_process_pty_resize,
+    kain_native_process_stdout_read_text,
+    kain_native_process_stdout_read_hex,
+    kain_native_process_stderr_read_text,
+    kain_native_process_stderr_read_hex,
+    kain_native_process_stdout_capture_text,
+    kain_native_process_stdout_capture_hex,
+    kain_native_process_stderr_capture_text,
+    kain_native_process_stderr_capture_hex,
+    kain_native_process_pty_read_text,
+    kain_native_process_pty_read_hex,
+    kain_native_process_pty_capture_text,
+    kain_native_process_pty_capture_hex,
+    kain_native_process_last_status,
+    kain_native_process_last_error_kind,
+    kain_native_process_last_error_message
+};

@@ -1,11 +1,18 @@
 #include "../../include/kain_runtime_services.h"
 #include "../../include/kain_runtime_base.h"
+#include "../../include/kain_native_process_system.h"
 #include "../../include/kain_runtime_vendor_lane.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 #ifndef _WIN32
 #include <strings.h>
+#endif
+
+#ifdef _WIN32
+#define KAIN_NATIVE_PROCESS_SERVICE_STATUS KAIN_SERVICE_STATUS_AVAILABLE
+#else
+#define KAIN_NATIVE_PROCESS_SERVICE_STATUS KAIN_SERVICE_STATUS_DEGRADED
 #endif
 
 typedef struct {
@@ -422,12 +429,12 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_IO_PROCESS,
         "IO Process",
-        "Vendor-backed process spawning, pipes, and child lifecycle management",
+        "Native child-process, pipe, and PTY session management",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_NATIVE_PROCESS_SERVICE_STATUS,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_io_process_service
+        (void*)&g_kain_native_process_function_table
     },
     {
         KAIN_SERVICE_KEY_IO_TIMERS,

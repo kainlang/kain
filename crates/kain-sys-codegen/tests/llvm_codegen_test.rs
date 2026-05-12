@@ -118,6 +118,70 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_native_process_and_pty_primitives() {
+    let source = r#"
+@extern
+fn kain_native_process_spec_create(executable: String) -> Int
+
+@extern
+fn kain_native_process_spec_add_arg(spec_id: Int, argument: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_stdout_mode(spec_id: Int, mode: String) -> Int
+
+@extern
+fn kain_native_process_spawn(spec_id: Int) -> Int
+
+@extern
+fn kain_native_process_wait(process_id: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_process_stdout_capture_text(process_id: Int) -> String
+
+@extern
+fn kain_native_process_spawn_pty(spec_id: Int, columns: Int, rows: Int) -> Int
+
+@extern
+fn kain_native_process_pty_write_text(process_id: Int, text: String) -> Int
+
+@extern
+fn kain_native_process_pty_capture_text(process_id: Int) -> String
+
+fn main() -> Int:
+    let echo = kain_native_process_spec_create("cmd.exe")
+    let _arg_a = kain_native_process_spec_add_arg(echo, "/d")
+    let _arg_b = kain_native_process_spec_add_arg(echo, "/c")
+    let _arg_c = kain_native_process_spec_add_arg(echo, "echo process-proof")
+    let _stdout = kain_native_process_spec_set_stdout_mode(echo, "pipe")
+    let child = kain_native_process_spawn(echo)
+    let _wait = kain_native_process_wait(child, 5000)
+    let captured = kain_native_process_stdout_capture_text(child)
+
+    let shell = kain_native_process_spec_create("cmd.exe")
+    let pty = kain_native_process_spawn_pty(shell, 120, 40)
+    let _write = kain_native_process_pty_write_text(pty, "echo pty-proof\r\nexit\r\n")
+    let interactive = kain_native_process_pty_capture_text(pty)
+
+    if captured != "" and interactive != "":
+        return child + pty
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("declare i64 @kain_native_process_spec_create(i8* %arg0)"));
+    assert!(llvm.contains("declare i64 @kain_native_process_spec_add_arg(i64 %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @kain_native_process_spawn(i64 %arg0)"));
+    assert!(llvm.contains("declare i64 @kain_native_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i8* @kain_native_process_stdout_capture_text(i64 %arg0)"));
+    assert!(llvm.contains("call i64 @kain_native_process_pty_write_text"));
+    assert!(llvm.contains("echo process-proof"));
+    assert!(llvm.contains("echo pty-proof"));
+}
+
+#[test]
 fn llvm_lowers_single_file_native_ui_primitives_without_component_catalog() {
     let source = r#"
 @extern

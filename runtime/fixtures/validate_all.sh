@@ -30,6 +30,7 @@ FIXTURE_NAMES=(
     llvm_actor_message
     llvm_world_pipeline
     native_graphics_engine
+    native_process_stdio
     native_ui_runtime_systems
 )
 
@@ -54,7 +55,7 @@ resolve_kain_bin() {
 
 build_target_for_fixture() {
     case "$1" in
-        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_ui_runtime_systems)
+        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_process_stdio|native_ui_runtime_systems)
             printf '%s\n' "llvm"
             ;;
         *)
@@ -150,6 +151,16 @@ call i64 @kain_native_graphics_buffer_create_from_hex(
 call i64 @kain_native_graphics_mesh_create(
 call i64 @kain_native_graphics_pipeline_create(
 call i64 @kain_native_graphics_draw_mesh(
+EOF
+            ;;
+        native_process_stdio)
+            cat <<'EOF'
+call i64 @kain_native_process_spec_create(
+call i64 @kain_native_process_spawn(
+call i64 @kain_native_process_stdin_write_text(
+call i64 @kain_native_process_spawn_pty(
+call i8* @kain_native_process_stdout_capture_text(
+call i8* @kain_native_process_pty_capture_text(
 EOF
             ;;
         native_ui_runtime_systems)
@@ -254,6 +265,14 @@ validate_fixture() {
     if [ "$fixture_name" = "viewport_startup" ]; then
         if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "msys2" && "$OSTYPE" != "win32" && "$OSTYPE" != "cygwin" ]]; then
             echo -e "${YELLOW}SKIPPED${NC}: viewport_startup requires Windows (Win32)"
+            SKIPPED=$((SKIPPED + 1))
+            return 0
+        fi
+    fi
+
+    if [ "$fixture_name" = "native_process_stdio" ]; then
+        if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "msys2" && "$OSTYPE" != "win32" && "$OSTYPE" != "cygwin" ]]; then
+            echo -e "${YELLOW}SKIPPED${NC}: native_process_stdio currently requires Windows child-process runtime support"
             SKIPPED=$((SKIPPED + 1))
             return 0
         fi

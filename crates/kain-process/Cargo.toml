@@ -1,0 +1,11 @@
+[package]
+name = "kain-process"
+version = "0.1.0"
+edition = "2021"
+description = "Portable child-process and PTY contracts for Kain"
+license = "MIT"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

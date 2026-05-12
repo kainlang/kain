@@ -26,6 +26,12 @@ The stdlib loader searches in this order:
 It also respects `KAIN_STDLIB_PROFILE`, and otherwise uses target profiles
 defined in `crates/kain-core/src/stdlib.rs`.
 
+For `CompileTarget::Llvm` and `CompileTarget::C`, the practical surface is the
+native profile in `stdlib/native/*`, not only the generic root registry.
+Families such as `input_*`, `native_ui_*`, `native_graphics_*`, and now
+`process_*` are source-loaded from that native profile and backed by
+`runtime/native` ABI symbols.
+
 ## Source-Loaded Stdlib Functions
 
 The base stdlib registry includes functions in these groups:

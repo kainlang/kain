@@ -40,6 +40,12 @@ The runtime uses the table to decide:
 That is why the table is more than a list of names. It is the decision point
 between declared capability and live capability.
 
+`io.process` now points at the owned `kain_native_process_*` function table on
+the native core lane instead of the older vendor/libuv stub table. On Windows
+that means the service reports a real child-process and PTY substrate; on
+unsupported hosts the ABI still exists, but the status stays degraded and the
+functions return explicit unsupported diagnostics.
+
 ## Service Families
 
 ### Base

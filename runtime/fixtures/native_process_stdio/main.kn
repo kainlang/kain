@@ -1,0 +1,57 @@
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _reset = process_reset()
+
+    if process_platform_available() != 1:
+        let _shutdown_unavailable = native_runtime_shutdown()
+        return 0
+
+    let echo_spec = process_spec_create_piped("cmd.exe")
+    let _echo_d = process_spec_add_arg(echo_spec, "/d")
+    let _echo_c = process_spec_add_arg(echo_spec, "/c")
+    let _echo_payload = process_spec_add_arg(echo_spec, "echo process-proof")
+    let echo_child = process_spawn(echo_spec)
+    if process_wait(echo_child, 5000) != 1:
+        return 1
+    if process_exit_code(echo_child) != 0:
+        return 2
+    let echo_text = process_stdout_capture_text(echo_child)
+    if echo_text != "process-proof\r\n":
+        return 3
+
+    let mirror_spec = process_spec_create_piped("cmd.exe")
+    let _mirror_v = process_spec_add_arg(mirror_spec, "/v:on")
+    let _mirror_d = process_spec_add_arg(mirror_spec, "/d")
+    let _mirror_c = process_spec_add_arg(mirror_spec, "/c")
+    let _mirror_payload = process_spec_add_arg(mirror_spec, "set /p value= & echo !value!")
+    let mirror_child = process_spawn(mirror_spec)
+    let _mirror_write = process_stdin_write_text(mirror_child, "alpha\r\n")
+    let _mirror_close = process_stdin_close(mirror_child)
+    if process_wait(mirror_child, 5000) != 1:
+        return 4
+    let mirror_text = process_stdout_capture_text(mirror_child)
+    if mirror_text == "":
+        return 5
+
+    let pty_spec = process_spec_create("cmd.exe")
+    let _pty_d = process_spec_add_arg(pty_spec, "/d")
+    let _pty_c = process_spec_add_arg(pty_spec, "/c")
+    let _pty_payload = process_spec_add_arg(pty_spec, "echo pty-proof")
+    let pty_child = process_spawn_pty(pty_spec, 100, 30)
+    if process_wait(pty_child, 5000) != 1:
+        return 6
+    let pty_text = process_pty_capture_text(pty_child)
+    if pty_text == "":
+        return 7
+
+    let interactive_pty_spec = process_spec_create("cmd.exe")
+    let _interactive_pty_q = process_spec_add_arg(interactive_pty_spec, "/q")
+    let interactive_pty_child = process_spawn_pty(interactive_pty_spec, 100, 30)
+    let _interactive_boot = native_sleep_millis(100)
+    let _interactive_resize = process_pty_resize(interactive_pty_child, 120, 40)
+    if process_pty_write_text(interactive_pty_child, "exit\r\n") <= 0:
+        return 8
+    let _interactive_kill = process_kill(interactive_pty_child)
+
+    let _shutdown = native_runtime_shutdown()
+    return 0

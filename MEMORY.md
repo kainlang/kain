@@ -1,5 +1,45 @@
 # Kain Memory
 
+# 2026-05-12 - Native child-process and PTY substrate landed
+
+Kain now has a first-class process lane instead of only ad hoc host-side command helpers. `crates/kain-process` owns the portable contract for process specs, stdio modes, cwd/env overrides, process/PTY handles, lifecycle state, and captured output. LLVM/direct-C builds load `stdlib/native/process.kn`, backed by `runtime/native/include/kain_native_process_system.h` and `runtime/native/src/core/kain_native_process_system.c`.
+
+The native ABI is intentionally handle-driven and primitive-friendly so current LLVM/direct-C lowering can use it without aggregate ABI tricks. The flow is:
+
+- create a process spec
+- add argv entries
+- set cwd/env/stdin/stdout/stderr policy
+- spawn a normal child or PTY child
+- poll/wait for exit
+- write stdin or PTY input
+- read/capture stdout, stderr, or PTY output
+- inspect last-status diagnostics
+
+Windows is the first real implementation. Normal child-process spawn uses explicit `CreateProcessW` plus inherit/pipe/null stdio wiring, cwd overrides, merged environment blocks, capture buffers, and output draining. PTY spawn uses ConPTY through `STARTUPINFOEX` plus inherited std handles so console APIs and standard-stream writes both route into the same transport. Non-Windows hosts keep the ABI surface but return explicit unsupported diagnostics instead of pretending parity exists.
+
+The core runtime/profile updates in this pass:
+
+- `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml` now include `kain_native_process_system.c`.
+- `runtime/native/include/kain_runtime_native_stdlib.h` now exports the process ABI header.
+- `kain_native_runtime_init/shutdown` reset the process registry so native fixtures start clean and shutdown kills live children before teardown.
+- `io.process` in the service table now points at the owned native process function table instead of the older vendor/libuv stub.
+
+Validation targets added for this lane:
+
+- `cargo test -p kain-process`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_process_and_pty_primitives -- --exact`
+- `cargo test -p kain-sys-codegen --test c_codegen_test c_backend_keeps_native_process_symbols_as_declarations -- --exact`
+- `bash runtime/conformance/process_runtime/run_tests.sh --verbose`
+- `target/debug/kain.exe build runtime/fixtures/native_process_stdio/main.kn --target llvm --output runtime/fixtures/native_process_stdio/generated/native_process_stdio.ll` then run the generated `.exe`
+
+Current known limit:
+
+- The ConPTY lane now proves PTY spawn/capture/resize and can write into an interactive PTY session, but the strongest deterministic proof today is still PTY capture from a self-contained command plus explicit API exercise for interactive writes. If future work needs richer terminal semantics, keep it in this substrate or a dedicated terminal layer above it; do not fall back to shell-specific host helpers.
+
+Recommended next step:
+
+- Add a first-class `kain-net` contract/subsystem using the same pattern: portable crate, `stdlib/native/*.kn` wrapper, native C ABI floor, codegen proof, conformance runner, and one focused LLVM fixture that proves a real TCP or HTTP roundtrip.
+
 # 2026-05-12 - Native UI gained generic authored state cells
 
 The raw native UI ABI now has generic per-node state cells: `kain_native_ui_node_set_state_i64/f64/string`, `kain_native_ui_node_state_i64/f64/string`, and `kain_native_ui_state_count`. This is deliberately substrate, not a component system. The runtime stores keyed values for authored nodes and marks nodes dirty, but it does not know what a button, tetrahedron, Kerr-field hit tester, shader surface, or product control means.

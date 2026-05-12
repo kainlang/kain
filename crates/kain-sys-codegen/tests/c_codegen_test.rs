@@ -145,6 +145,47 @@ fn main() -> Int:
 }
 
 #[test]
+fn c_backend_keeps_native_process_symbols_as_declarations() {
+    let source = r#"
+@extern
+fn kain_native_process_spec_create(executable: String) -> Int
+
+@extern
+fn kain_native_process_spec_set_stdout_mode(spec_id: Int, mode: String) -> Int
+
+@extern
+fn kain_native_process_spawn(spec_id: Int) -> Int
+
+@extern
+fn kain_native_process_wait(process_id: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_process_stdout_capture_text(process_id: Int) -> String
+
+fn main() -> Int:
+    let spec = kain_native_process_spec_create("cmd.exe")
+    let _stdout = kain_native_process_spec_set_stdout_mode(spec, "pipe")
+    let child = kain_native_process_spawn(spec)
+    let _wait = kain_native_process_wait(child, 5000)
+    let _capture = kain_native_process_stdout_capture_text(child)
+    return child
+"#;
+
+    let program = typed_program_from_source(source);
+    let c = generate_c(&program).expect("C generation should succeed");
+
+    assert!(c.contains("int64_t kain_native_process_spec_create(const char * executable);"));
+    assert!(c.contains(
+        "int64_t kain_native_process_spec_set_stdout_mode(int64_t spec_id, const char * mode);"
+    ));
+    assert!(c.contains("int64_t kain_native_process_spawn(int64_t spec_id);"));
+    assert!(c.contains("int64_t kain_native_process_wait(int64_t process_id, int64_t timeout_ms);"));
+    assert!(c.contains("const char * kain_native_process_stdout_capture_text(int64_t process_id);"));
+    assert!(!c.contains("int64_t kain_native_process_spawn(int64_t spec_id) {"));
+    assert!(c.contains("int64_t child = kain_native_process_spawn(spec);"));
+}
+
+#[test]
 fn c_backend_lowers_string_equality_to_strcmp() {
     let source = r#"
 fn main() -> Int:
