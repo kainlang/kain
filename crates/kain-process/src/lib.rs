@@ -156,7 +156,10 @@ mod tests {
             .with_argument("stdio")
             .with_environment("KAIN_MODE", "native")
             .with_current_working_directory("D:/Kain-Lang");
-        assert_eq!(spec.arguments, vec!["--serve".to_string(), "stdio".to_string()]);
+        assert_eq!(
+            spec.arguments,
+            vec!["--serve".to_string(), "stdio".to_string()]
+        );
         assert_eq!(spec.environment.len(), 1);
         assert_eq!(spec.environment[0].key, "KAIN_MODE");
         assert_eq!(spec.environment[0].value, "native");

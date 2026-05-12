@@ -2140,8 +2140,6 @@ static int64_t kain_native_process_write_plain_text(
     int use_pty_channel
 ) {
     KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
-    HANDLE target_handle = 0;
-    int64_t written;
     if (process == 0) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_INVALID_PROCESS,
@@ -2150,7 +2148,8 @@ static int64_t kain_native_process_write_plain_text(
         );
     }
 #ifdef _WIN32
-    target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    HANDLE target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    int64_t written;
     if (target_handle == 0) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_PIPE_NOT_AVAILABLE,
@@ -2190,8 +2189,6 @@ static int64_t kain_native_process_write_hex(
     unsigned char* decoded = 0;
     size_t decoded_length = 0u;
     KainNativeProcessHandle* process = kain_native_process_lookup(process_id);
-    HANDLE target_handle = 0;
-    int64_t written;
     if (process == 0) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_INVALID_PROCESS,
@@ -2207,7 +2204,8 @@ static int64_t kain_native_process_write_hex(
         );
     }
 #ifdef _WIN32
-    target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    HANDLE target_handle = use_pty_channel ? process->pty_input_write_handle : process->stdin_write_handle;
+    int64_t written;
     if (target_handle == 0) {
         free(decoded);
         return kain_native_process_fail(
