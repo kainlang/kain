@@ -22,6 +22,7 @@ snippets when the binary help output disagrees.
 - `selfhost`
 - `omni`
 - `fabric`
+- `commands`
 - `build`
 - `run`
 - `gpu-artifacts`
@@ -32,6 +33,12 @@ snippets when the binary help output disagrees.
 - `import-crate`
 - `import-ts`
 - `help`
+
+## Command Registry
+
+Use `kain commands list --bin kain|kn|blade` to inspect the command registry and
+`kain commands export --bin kain|kn|blade` for JSON. Add `--runtime` to include
+`[[commands]]` contributions discovered from the current blade workspace.
 
 ## Global Flags
 
@@ -65,10 +72,14 @@ table and `reference/target-matrix.md` when you need the target aliases.
 
 The CLI surface is defined in:
 
-- `crates/cli/src/main.rs`
-- `crates/cli/src/lib.rs`
+- `crates/kain-commands/commands/kain.toml`
+- `crates/kain-commands/commands/blade.toml`
+- `crates/kain-commands/src/kain.rs`
+- `crates/kain-commands/src/blade.rs`
+- `crates/kain-commands/src/registry.rs`
+- `crates/kain-commands/src/runtime.rs`
+- `crates/cli/src/main.rs` for host dispatch and handler execution
 - `crates/kain-check/src/lib.rs`
 - `crates/kain-test/src/lib.rs`
 - `crates/cli/src/packager/`
 - `crates/cli/src/import_*.rs`
-- `crates/cli/src/selfhost.rs`

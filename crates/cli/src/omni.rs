@@ -1,20 +1,6 @@
-use std::path::PathBuf;
-
-use clap::Subcommand;
+pub use kain_commands::omni::OmniCommand;
 
 use crate::error::{KainError, KainResult};
-
-#[derive(Subcommand, Debug)]
-pub enum OmniCommand {
-    Init {
-        #[arg(default_value = ".")]
-        path: PathBuf,
-    },
-    Build {
-        #[arg(short, long, default_value = "KAIN.omni.toml")]
-        manifest: PathBuf,
-    },
-}
 
 pub fn run(command: OmniCommand) -> KainResult<()> {
     match command {
@@ -51,6 +37,7 @@ pub fn run(command: OmniCommand) -> KainResult<()> {
 mod tests {
     use super::*;
     use clap::Parser;
+    use std::path::PathBuf;
 
     #[derive(Parser, Debug)]
     struct TestCli {

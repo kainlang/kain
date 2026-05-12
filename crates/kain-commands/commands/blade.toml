@@ -1,0 +1,34 @@
+[[commands]]
+id = "blade.build"
+bins = ["blade"]
+path = ["build"]
+about = "Build the full local blade workspace"
+handler = "builtin:blade.build"
+
+[[commands]]
+id = "blade.list"
+bins = ["blade"]
+path = ["list"]
+about = "List blades discovered from the current workspace"
+handler = "builtin:blade.list"
+
+[[commands]]
+id = "blade.graph"
+bins = ["blade"]
+path = ["graph"]
+about = "Print the local blade dependency graph"
+handler = "builtin:blade.graph"
+
+[[commands]]
+id = "blade.check"
+bins = ["blade"]
+path = ["check"]
+about = "Validate blade manifests and referenced local artifacts"
+handler = "builtin:blade.check"
+
+[[commands]]
+id = "blade.equip"
+bins = ["blade"]
+path = ["equip"]
+about = "Equip a local blade by name"
+handler = "builtin:blade.equip"

@@ -1,74 +1,7 @@
 use blade::{discover_workspace, resolve_blade, BladeWorkspace, ResolvedBlade};
-use clap::Subcommand;
+pub use kain_commands::blade::BladesCommand;
 use serde::Serialize;
 use std::path::PathBuf;
-
-#[derive(Subcommand, Debug)]
-pub enum BladesCommand {
-    /// List blades discovered from the current workspace
-    List {
-        /// Path inside the workspace to inspect
-        #[arg(default_value = ".")]
-        path: PathBuf,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Print the local blade dependency graph
-    Graph {
-        /// Path inside the workspace to inspect
-        #[arg(default_value = ".")]
-        path: PathBuf,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Validate blade manifests and referenced local artifacts
-    Check {
-        /// Path inside the workspace to inspect
-        #[arg(default_value = ".")]
-        path: PathBuf,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Build the full local blade workspace through the Kain build orchestrator
-    Build {
-        /// Path inside the workspace to build
-        #[arg(default_value = ".")]
-        path: PathBuf,
-
-        /// Build profile used for artifact layout and tool adapters
-        #[arg(long)]
-        profile: Option<String>,
-
-        /// Target lane label used for artifact layout
-        #[arg(long)]
-        target: Option<String>,
-
-        /// Print the resolved task graph without executing it
-        #[arg(long)]
-        dry_run: bool,
-
-        /// Clean .kain build/cache/report roots before executing
-        #[arg(long)]
-        clean: bool,
-
-        /// Also run GPU Fabric manifests that dispatch Vulkan compute
-        #[arg(long)]
-        include_vulkan: bool,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-}
 
 #[derive(Debug, Serialize)]
 struct BladeCheckReport {

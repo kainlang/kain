@@ -1,4 +1,4 @@
-use clap::{Args as ClapArgs, ValueEnum};
+pub use kain_commands::repair::{DoctorRepairArgs, DoctorRepairProfile};
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,33 +11,6 @@ fn validate_parser_conformance(source: &str) -> Result<(), String> {
         .parse()
         .map_err(|err| format!("parser error after repair: {}", err))?;
     Ok(())
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-pub enum DoctorRepairProfile {
-    /// Conservative profile: only low-risk normalization steps.
-    Safe,
-    /// Full profile: include aggressive parser-recovery repairs.
-    Aggressive,
-}
-
-impl Default for DoctorRepairProfile {
-    fn default() -> Self {
-        Self::Safe
-    }
-}
-
-impl DoctorRepairProfile {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Safe => "safe",
-            Self::Aggressive => "aggressive",
-        }
-    }
-
-    pub fn is_aggressive(self) -> bool {
-        matches!(self, Self::Aggressive)
-    }
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -61,61 +34,32 @@ pub struct DoctorRepairBatchReport {
     pub outcomes: Vec<DoctorRepairOutcome>,
 }
 
-#[derive(ClapArgs, Debug, Default, Clone)]
-pub struct DoctorRepairArgs {
-    /// Repair a Kain source file before printing doctor output
-    #[arg(long = "repair", value_name = "FILE", conflicts_with = "repair_tree")]
-    pub repair: Option<PathBuf>,
-
-    /// Repair every .kn file under a directory tree
-    #[arg(long = "repair-tree", value_name = "DIR")]
-    pub repair_tree: Option<PathBuf>,
-
-    /// Select the repair profile (safe, aggressive)
-    #[arg(long, value_enum, default_value_t = DoctorRepairProfile::Safe)]
-    pub profile: DoctorRepairProfile,
-
-    /// Show suggested repairs without writing them
-    #[arg(long)]
-    pub suggest: bool,
-
-    /// Preview the repair run without writing changes
-    #[arg(long)]
-    pub dry_run: bool,
-
-    /// Write the repaired file back to disk
-    #[arg(long)]
-    pub write: bool,
+pub fn selected_mode(args: &DoctorRepairArgs) -> Option<kain_repair::RepairMode> {
+    if args.repair.is_none() && args.repair_tree.is_none() {
+        return None;
+    }
+    Some(if args.suggest {
+        kain_repair::RepairMode::Suggest
+    } else if args.dry_run {
+        kain_repair::RepairMode::Check
+    } else if args.profile.is_aggressive() {
+        kain_repair::RepairMode::ApplyAggressive
+    } else {
+        kain_repair::RepairMode::ApplySafe
+    })
 }
 
-impl DoctorRepairArgs {
-    pub fn selected_mode(&self) -> Option<kain_repair::RepairMode> {
-        if self.repair.is_none() && self.repair_tree.is_none() {
-            return None;
-        }
-        Some(if self.suggest {
-            kain_repair::RepairMode::Suggest
-        } else if self.dry_run {
-            kain_repair::RepairMode::Check
-        } else if self.profile.is_aggressive() {
-            kain_repair::RepairMode::ApplyAggressive
-        } else {
-            kain_repair::RepairMode::ApplySafe
-        })
-    }
+pub fn selected_profile_label(args: &DoctorRepairArgs) -> &'static str {
+    args.profile.label()
+}
 
-    pub fn selected_profile_label(&self) -> &'static str {
-        self.profile.label()
-    }
-
-    pub fn target_kind(&self) -> Option<DoctorRepairTargetKind> {
-        if self.repair_tree.is_some() {
-            Some(DoctorRepairTargetKind::Tree)
-        } else if self.repair.is_some() {
-            Some(DoctorRepairTargetKind::File)
-        } else {
-            None
-        }
+pub fn target_kind(args: &DoctorRepairArgs) -> Option<DoctorRepairTargetKind> {
+    if args.repair_tree.is_some() {
+        Some(DoctorRepairTargetKind::Tree)
+    } else if args.repair.is_some() {
+        Some(DoctorRepairTargetKind::File)
+    } else {
+        None
     }
 }
 

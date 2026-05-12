@@ -1,0 +1,252 @@
+[[commands]]
+id = "init"
+bins = ["kain", "kn"]
+path = ["init"]
+about = "Initialize a new Kain project"
+handler = "builtin:init"
+
+[[commands]]
+id = "lsp"
+bins = ["kain", "kn"]
+path = ["lsp"]
+about = "Start the Kain language server"
+handler = "builtin:lsp"
+
+[[commands]]
+id = "doctor"
+bins = ["kain", "kn"]
+path = ["doctor"]
+about = "Show binary diagnostics and optional repair workflows"
+handler = "builtin:doctor"
+
+[[commands]]
+id = "format"
+bins = ["kain", "kn"]
+path = ["format"]
+alias_paths = [["fmt"]]
+about = "Format Kain source using the compiler-owned printer"
+handler = "builtin:format"
+
+[[commands]]
+id = "check"
+bins = ["kain", "kn"]
+path = ["check"]
+about = "Check Kain source without emitting backend artifacts"
+handler = "builtin:check"
+
+[[commands]]
+id = "test"
+bins = ["kain", "kn"]
+path = ["test"]
+about = "Run Kain source tests"
+handler = "builtin:test"
+
+[[commands]]
+id = "selfhost.bootstrap"
+bins = ["kain"]
+path = ["selfhost", "bootstrap"]
+about = "Run the owned self-host bootstrap lane"
+handler = "builtin:selfhost.bootstrap"
+
+[[commands]]
+id = "selfhost.phase1"
+bins = ["kain"]
+path = ["selfhost", "phase1"]
+about = "Run self-host phase 1 source inventory and bundles"
+handler = "builtin:selfhost.phase1"
+
+[[commands]]
+id = "selfhost.phase2"
+bins = ["kain"]
+path = ["selfhost", "phase2"]
+about = "Run self-host phase 2 roundtrip and stage assembly"
+handler = "builtin:selfhost.phase2"
+
+[[commands]]
+id = "omni.init"
+bins = ["kain"]
+path = ["omni", "init"]
+about = "Create an omni manifest"
+handler = "builtin:omni.init"
+
+[[commands]]
+id = "omni.build"
+bins = ["kain"]
+path = ["omni", "build"]
+about = "Build an omni manifest"
+handler = "builtin:omni.build"
+
+[[commands]]
+id = "fabric.init"
+bins = ["kain"]
+path = ["fabric", "init"]
+about = "Create a Fabric manifest"
+handler = "builtin:fabric.init"
+
+[[commands]]
+id = "fabric.validate"
+bins = ["kain"]
+path = ["fabric", "validate"]
+about = "Validate a Fabric manifest"
+handler = "builtin:fabric.validate"
+
+[[commands]]
+id = "fabric.run"
+bins = ["kain"]
+path = ["fabric", "run"]
+about = "Run a Fabric manifest"
+handler = "builtin:fabric.run"
+
+[[commands]]
+id = "blades.list"
+bins = ["kain"]
+path = ["blades", "list"]
+about = "List discovered blades"
+handler = "builtin:blades.list"
+
+[[commands]]
+id = "blades.graph"
+bins = ["kain"]
+path = ["blades", "graph"]
+about = "Print the local blade dependency graph"
+handler = "builtin:blades.graph"
+
+[[commands]]
+id = "blades.check"
+bins = ["kain"]
+path = ["blades", "check"]
+about = "Validate blade manifests and referenced local artifacts"
+handler = "builtin:blades.check"
+
+[[commands]]
+id = "blades.build"
+bins = ["kain"]
+path = ["blades", "build"]
+about = "Build the full local blade workspace"
+handler = "builtin:blades.build"
+
+[[commands]]
+id = "equip"
+bins = ["kain"]
+path = ["equip"]
+about = "Resolve a local blade by name"
+handler = "builtin:equip"
+
+[[commands]]
+id = "build"
+bins = ["kain", "kn"]
+path = ["build"]
+about = "Build a file or KAIN.toml project"
+handler = "builtin:build"
+
+[[commands]]
+id = "build.native-ui"
+bins = ["kain", "kn"]
+path = ["build", "native-ui"]
+about = "Build a standalone native UI app"
+handler = "builtin:build.native-ui"
+
+[[commands]]
+id = "native-ui.dev"
+bins = ["kain", "kn"]
+path = ["native-ui", "dev"]
+about = "Launch a native desktop Kain app with watch and hot reload"
+handler = "builtin:native-ui.dev"
+
+[[commands]]
+id = "bridge.serve"
+bins = ["kain"]
+path = ["bridge", "serve"]
+about = "Run a resident JSON-lines Kain bridge process"
+handler = "builtin:bridge.serve"
+
+[[commands]]
+id = "codebase.inspect"
+bins = ["kain"]
+path = ["codebase", "inspect"]
+about = "Inspect a trusted workspace"
+handler = "builtin:codebase.inspect"
+
+[[commands]]
+id = "codebase.run"
+bins = ["kain"]
+path = ["codebase", "run"]
+about = "Run a local command inside a trusted workspace"
+handler = "builtin:codebase.run"
+
+[[commands]]
+id = "repl"
+bins = ["kain", "kn"]
+path = ["repl"]
+about = "Start the interactive Kain REPL"
+handler = "builtin:repl"
+
+[[commands]]
+id = "run"
+bins = ["kain", "kn"]
+path = ["run"]
+about = "Run a Kain file in interpret mode"
+handler = "builtin:run"
+
+[[commands]]
+id = "gpu-artifacts"
+bins = ["kain"]
+path = ["gpu-artifacts"]
+about = "Generate paired GPU artifacts"
+handler = "builtin:gpu-artifacts"
+
+[[commands]]
+id = "inject"
+bins = ["kain"]
+path = ["inject"]
+about = "Inject Kain output into an existing plugin"
+handler = "builtin:inject"
+
+[[commands]]
+id = "import-asm"
+bins = ["kain"]
+path = ["import-asm"]
+about = "Import assembly source into Kain"
+handler = "builtin:import-asm"
+
+[[commands]]
+id = "import-c"
+bins = ["kain"]
+path = ["import-c"]
+about = "Import C source into Kain"
+handler = "builtin:import-c"
+
+[[commands]]
+id = "import-rust"
+bins = ["kain"]
+path = ["import-rust"]
+about = "Import Rust source into Kain"
+handler = "builtin:import-rust"
+
+[[commands]]
+id = "import-crate"
+bins = ["kain"]
+path = ["import-crate"]
+about = "Import a Rust crate through the crate FFI layer"
+handler = "builtin:import-crate"
+
+[[commands]]
+id = "import-ts"
+bins = ["kain"]
+path = ["import-ts"]
+about = "Import TypeScript source into Kain"
+handler = "builtin:import-ts"
+
+[[commands]]
+id = "commands.list"
+bins = ["kain", "kn"]
+path = ["commands", "list"]
+about = "List command registry entries"
+handler = "builtin:commands.list"
+
+[[commands]]
+id = "commands.export"
+bins = ["kain", "kn"]
+path = ["commands", "export"]
+about = "Export command registry metadata"
+handler = "builtin:commands.export"

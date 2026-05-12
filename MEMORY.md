@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-12 - Kain command platform crate landed
+
+Kain now has `crates/kain-commands` as the command brain for `kain`, `kn`, and standalone `blade`. The crate owns built-in command manifests under `crates/kain-commands/commands/`, typed Clap routers under `crates/kain-commands/src/`, shared argument structs, launcher helpers, registry serialization, conflict detection, and a first runtime `[[commands]]` contribution loader/fallback. The workspace `Cargo.toml` now includes the crate and `crates/cli` depends on it.
+
+The ownership split is now deliberate:
+
+- `crates/kain-commands` owns command shape, metadata, aliases, bin exposure, registry views, and runtime contribution resolution.
+- `crates/cli` is the host binary/execution shell: parse, dispatch, print, set exit codes, and call domain crates.
+- Domain crates such as `kain-driver`, `kain-build`, `blade`, `kain-check`, `kain-test`, `kain-repair`, `kain-repl`, `kain-omni`, and `kain-codebase` still own actual behavior.
+
+`kain commands list/export` now exposes the registry for `kain`, `kn`, and `blade`, with `--runtime` merging workspace-discovered runtime command manifests through the blade resolver. Runtime command fallback can recognize contributed paths, but dynamic handler execution is intentionally not implemented yet; matched runtime commands fail clearly until a real handler bridge is added. Built-ins win conflicts and duplicate runtime paths are rejected.
+
+Validation for this pass:
+
+- `cargo fmt -p kain-commands -p cli`
+- `cargo test -p kain-commands --target-dir target\codex-kain-commands -- --nocapture`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p cli --target-dir target\codex-kain-commands-cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build -p cli --target-dir target\codex-kain-commands-cli`
+- `target\codex-kain-commands-cli\debug\kain.exe --help`
+- `target\codex-kain-commands-cli\debug\kn.exe --help`
+- `target\codex-kain-commands-cli\debug\blade.exe --help`
+- `target\codex-kain-commands-cli\debug\kain.exe commands list --bin kain`
+- `target\codex-kain-commands-cli\debug\kain.exe commands list --bin kn`
+- `target\codex-kain-commands-cli\debug\kain.exe commands list --bin blade`
+- `target\codex-kain-commands-cli\debug\kain.exe commands list --bin kain --runtime`
+- `target\codex-kain-commands-cli\debug\kain.exe commands export --bin blade`
+- `python C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\Admin\.agents\skills\kain-command-platform`
+
+Broader `cargo test -p cli --target-dir target\codex-kain-commands-cli -- --nocapture` now compiles the moved-router modules, but still fails in runtime-heavy pre-existing lanes: several tests hit `Unknown identifier 'kain_input_reset'`, and `selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout` still fails its indentation assertion. The router-specific compile issue found during that run was fixed by moving `PathBuf` imports into the affected test modules.
+
+Recommended next step:
+
+- Decide whether phase 2 should generate more of the Clap shape from the TOML manifests or keep typed Clap as the ergonomic parser layer, then add the dynamic runtime handler bridge for `handler = "blade:<id>:<command>"` contributions.
+
 # 2026-05-12 - Native TCP and HTTP substrate landed
 
 Kain now has a first-class network lane instead of relying on tiny interpreter-only `http_get`/`http_post_json` helpers or raw legacy `socket_*` functions. `crates/kain-net` owns the portable contract for TCP endpoints, HTTP request/response specs, headers, route specs, handles, lifecycle state, and typed errors. LLVM/direct-C builds load `stdlib/native/net.kn`, backed by `runtime/native/include/kain_native_net_system.h` and `runtime/native/src/core/kain_native_net_system.c`.

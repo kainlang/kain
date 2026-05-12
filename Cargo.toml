@@ -30,6 +30,7 @@ members = [
     "crates/kain-host-derive",
     "crates/kain-reflect",
     "crates/kain-build",
+    "crates/kain-commands",
     "crates/kain-repair",
     "crates/kain-sdk",
     "crates/ue5",

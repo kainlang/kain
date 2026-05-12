@@ -123,7 +123,8 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [kain-build](/M:/Code/Kain/crates/kain-build): workspace build orchestration for blades plus the older Cargo `build.rs` helper surface. `src/workspace.rs` plans and executes C shared libraries, Cargo crates, GPU artifacts, Kain checks, Fabric validation/runs, and explicit Node/Bun/custom tasks from one DAG with artifact roots under `.kain/build`, stamps under `.kain/cache/build`, and JSON/JSONL reports under `.kain/reports/build`. Its artifact, cache, report, clean, fingerprint, and discovery IO is routed through `kain-fs`.
 - [kain-entangle](/M:/Code/Kain/crates/kain-entangle): deterministic state-coupling primitives for compiler-owned `entangle` metadata and interpreter/runtime graph policy
 - [kain-driver](/M:/Code/Kain/crates/kain-driver): target orchestration, shader bundles, hybrid JS/WASM artifact emission, native app materialization, packaged launcher snapshots, compute residency sidecars, and thin embeddable frontend helpers such as `format_source`
-- [cli](/M:/Code/Kain/crates/cli): `kain` command surface, including `kain format` / `kain fmt` for canonical source formatting plus multi-file target writers such as real hybrid `.hybrid` + `.js` + `.ts` + `.wasm` bundle emission
+- [kain-commands](/M:/Code/Kain/crates/kain-commands): command brain for `kain`, `kn`, and standalone `blade`. It owns built-in TOML command manifests, typed Clap routers, shared argument structs, command registry metadata, conflict detection, launcher selection helpers, and the first runtime `[[commands]]` contribution loader/fallback. It must not own command implementation logic.
+- [cli](/M:/Code/Kain/crates/cli): host binary and execution shell for `kain`, `kn`, and `blade`. It parses through `kain-commands`, dispatches handlers, prints results, sets exit codes, and calls domain crates such as `kain-driver`, `kain-build`, `kain-check`, `kain-test`, and `kain-repair`.
 - [kain-check](/M:/Code/Kain/crates/kain-check) and [kain-test](/M:/Code/Kain/crates/kain-test): reusable source checking and compiletest-style suite harnesses behind `kain check` and `kain test`, kept separate from the CLI so IDE, CI, and future agents can reuse structured reports without shelling through command output.
 - [kain-sys-codegen](/M:/Code/Kain/crates/kain-sys-codegen): native backend emitters, now including LLVM, Rust, C++, and an experimental direct C backend under `src/codegen_c.rs`. The direct C backend emits extern declarations for `@extern`, lowers actor `spawn`/`send` to the native stdlib facade, and registers entangle metadata at generated `main` entry.
 - [kain-repair](/M:/Code/Kain/crates/kain-repair): profile-driven deterministic source repair engine consumed by the doctor/CLI repair lane; now split into a declarative rule registry plus a per-rule execution engine so repair policy stays visible and mode-aware; includes header normalization for parser-hostile `enum_` / `struct_` / `trait_` / `impl_` declaration forms
@@ -457,6 +458,7 @@ Typical commands:
 - `kain run <file.kn>`
 - `kain format <file.kn>`
 - `kain fmt --check <file.kn>`
+- `kain commands list --bin kain`, `kain commands list --bin kain --runtime`, and `kain commands export --bin blade` for command registry inspection
 - `kain gpu-artifacts <file.kn> --output <dir>`
 - `kain selfhost phase1`
 - `kain selfhost phase2` for the bounded self-host repair lane

@@ -25,6 +25,7 @@ kain-test = { path = "../kain-test" }
 kain-driver = { path = "../kain-driver", default-features = false }
 kain-c-ffi = { path = "../kain-c-ffi" }
 kain-codebase = { path = "../kain-codebase" }
+kain-commands = { path = "../kain-commands" }
 kain-crate-ffi = { path = "../kain-crate-ffi" }
 kain-asm = { path = "../kain-asm" }
 kain-host = { path = "../kain-host" }

@@ -1,0 +1,656 @@
+use clap::{Parser as ClapParser, Subcommand};
+use std::path::PathBuf;
+
+use crate::blade::BladesCommand;
+use crate::codebase::CodebaseCommand;
+use crate::fabric::FabricCommand;
+use crate::omni::OmniCommand;
+use crate::repair::DoctorRepairArgs;
+use crate::selfhost::SelfHostCommand;
+
+#[derive(ClapParser, Debug)]
+#[command(name = "kain")]
+#[command(author = "Kipp")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(about = "The Ultimate Programming Language Compiler", long_about = None)]
+pub struct KainCli {
+    #[command(subcommand)]
+    pub command: Option<KainCommand>,
+
+    /// Source file to compile (legacy positional argument)
+    pub input: Option<PathBuf>,
+
+    /// Inline Kain source, similar to `python -c`
+    #[arg(short = 'c', long, conflicts_with = "input")]
+    pub code: Option<String>,
+
+    /// Output file
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Compilation target
+    #[arg(short, long, default_value = "wasm")]
+    pub target: String,
+
+    /// Run immediately after compilation
+    #[arg(short, long)]
+    pub run: bool,
+
+    /// Watch for file changes and recompile
+    #[arg(short, long)]
+    pub watch: bool,
+
+    /// Emit AST for debugging
+    #[arg(long)]
+    pub emit_ast: bool,
+
+    /// Emit typed AST
+    #[arg(long)]
+    pub emit_typed: bool,
+
+    /// Verbose output
+    #[arg(short, long)]
+    pub verbose: bool,
+
+    /// Target plugin name for UE5 shader copy
+    #[arg(long)]
+    pub plugin: Option<String>,
+
+    /// Base plugins directory (defaults to u:\ue_factory\src-plugins)
+    #[arg(long)]
+    pub plugins_dir: Option<PathBuf>,
+
+    /// Print planned actions without executing
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Treat transpiler warnings as errors when supported
+    #[arg(long)]
+    pub strict: bool,
+
+    /// Analyze shader complexity (USF target only)
+    #[arg(long)]
+    pub analyze: bool,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum BuildCommand {
+    /// Build a standalone native UI app and optionally a desktop executable
+    #[command(name = "native-ui")]
+    NativeUi {
+        /// Input Kain UI source file
+        input: PathBuf,
+
+        /// Root component override
+        #[arg(long = "root")]
+        root_component: Option<String>,
+
+        /// Native app name / Cargo package name
+        #[arg(long)]
+        app_name: Option<String>,
+
+        /// Window title for the native host
+        #[arg(long)]
+        window_title: Option<String>,
+
+        /// Materialized project output directory
+        #[arg(short = 'o', long = "out")]
+        project_dir: Option<PathBuf>,
+
+        /// Relative or absolute artifact directory inside the materialized project
+        #[arg(long)]
+        artifact_dir: Option<PathBuf>,
+
+        /// Generate the native app project but skip cargo build
+        #[arg(long)]
+        bundle_only: bool,
+
+        /// Build the generated app in release mode
+        #[arg(long)]
+        release: bool,
+
+        /// Override the native runtime crate name
+        #[arg(long, default_value = "kain-ui-native")]
+        runtime_crate: String,
+
+        /// Use an explicit path dependency for the native runtime crate
+        #[arg(long, conflicts_with = "runtime_version")]
+        runtime_path: Option<PathBuf>,
+
+        /// Use a published version dependency for the native runtime crate
+        #[arg(long, conflicts_with = "runtime_path")]
+        runtime_version: Option<String>,
+
+        /// Native desktop host backend
+        #[arg(long, default_value = "qt")]
+        host: String,
+
+        /// Tauri bundle identifier override
+        #[arg(long = "tauri-bundle-id")]
+        tauri_bundle_id: Option<String>,
+
+        /// Tauri window label override
+        #[arg(long = "tauri-window-label")]
+        tauri_window_label: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum NativeUiCommand {
+    /// Launch a native desktop Kain app with watch + hot reload
+    Dev {
+        /// Input Kain UI source file
+        input: PathBuf,
+
+        /// Root component override
+        #[arg(long = "root")]
+        root_component: Option<String>,
+
+        /// Native app name / Cargo package name
+        #[arg(long)]
+        app_name: Option<String>,
+
+        /// Window title for the native host
+        #[arg(long)]
+        window_title: Option<String>,
+
+        /// Materialized project output directory
+        #[arg(long = "project-dir")]
+        project_dir: Option<PathBuf>,
+
+        /// Relative or absolute artifact directory inside the materialized project
+        #[arg(long = "artifact-dir")]
+        artifact_dir: Option<PathBuf>,
+
+        /// Build the generated app in release mode
+        #[arg(long)]
+        release: bool,
+
+        /// Native desktop host backend
+        #[arg(long, default_value = "qt")]
+        host: String,
+
+        /// Tauri bundle identifier override
+        #[arg(long = "tauri-bundle-id")]
+        tauri_bundle_id: Option<String>,
+
+        /// Tauri window label override
+        #[arg(long = "tauri-window-label")]
+        tauri_window_label: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum BridgeCommand {
+    /// Run a resident JSON-lines Kain bridge process.
+    Serve {
+        /// Entry .kn file that defines the dispatch function.
+        #[arg(long)]
+        entry: PathBuf,
+
+        /// Function called for each request. It receives one JSON string.
+        #[arg(long, default_value = "kain_bridge_dispatch")]
+        dispatch_function: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum RegistryCommand {
+    /// List command registry entries
+    List {
+        /// Filter to one executable view
+        #[arg(long)]
+        bin: Option<String>,
+
+        /// Include runtime command contributions from the current workspace
+        #[arg(long)]
+        runtime: bool,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Export command registry metadata as JSON
+    Export {
+        /// Filter to one executable view
+        #[arg(long)]
+        bin: Option<String>,
+
+        /// Include runtime command contributions from the current workspace
+        #[arg(long)]
+        runtime: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum KainCommand {
+    /// Initialize a new KAIN project
+    Init {
+        /// Project name
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Explicit project name
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// Start the Language Server
+    Lsp,
+
+    /// Show binary/build diagnostics and resolved compiler capabilities
+    Doctor {
+        #[command(flatten)]
+        repair: DoctorRepairArgs,
+    },
+
+    /// Format Kain source using the compiler-owned canonical printer
+    #[command(visible_alias = "fmt")]
+    Format {
+        /// Input Kain source file. Use '-' to read from stdin.
+        input: Option<PathBuf>,
+
+        /// Check whether the source is already formatted
+        #[arg(long, conflicts_with = "write")]
+        check: bool,
+
+        /// Rewrite the input file in place
+        #[arg(short = 'w', long, conflicts_with = "check")]
+        write: bool,
+    },
+
+    /// Check Kain source without emitting backend artifacts
+    Check {
+        /// Input Kain source file or directory. Use '-' to read from stdin.
+        input: PathBuf,
+
+        /// Target profile to typecheck against
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed file
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write a structured JSON check report
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
+
+    /// Run Kain source tests using Rust-style pass/fail directives
+    Test {
+        /// Input Kain source file or directory
+        input: PathBuf,
+
+        /// Override test mode: check-pass, check-fail, run-pass, run-fail, kain-test
+        #[arg(long)]
+        mode: Option<String>,
+
+        /// Default target profile for check modes
+        #[arg(short, long, default_value = "run")]
+        target: String,
+
+        /// Stop after the first failed case
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Run cases marked with //@ ignore instead of skipping them
+        #[arg(long)]
+        ignored: bool,
+
+        /// Write a structured JSON test report
+        #[arg(long)]
+        json: Option<PathBuf>,
+    },
+
+    /// Run self-host bootstrap workflows
+    Selfhost {
+        #[command(subcommand)]
+        command: SelfHostCommand,
+    },
+
+    /// Build mixed-language omni manifests through the dedicated orchestration layer
+    Omni {
+        #[command(subcommand)]
+        command: OmniCommand,
+    },
+
+    /// Validate and scaffold local-first Fabric manifests for polyglot execution
+    Fabric {
+        #[command(subcommand)]
+        command: FabricCommand,
+    },
+
+    /// Resolve and inspect local Kain blade workspaces
+    Blades {
+        #[command(subcommand)]
+        command: BladesCommand,
+    },
+
+    /// Equip a local blade by name and print its resolved build/import plan
+    Equip {
+        /// Blade name to resolve
+        blade: String,
+
+        /// Path inside the workspace to inspect
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Build project or file. Without input, reads KAIN.toml for multi-target build.
+    Build {
+        #[command(subcommand)]
+        command: Option<BuildCommand>,
+
+        /// Optional input file. If omitted, builds all targets from KAIN.toml
+        input: Option<PathBuf>,
+
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Single target override for file builds (e.g. ts, rust, wasm)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Override targets (comma-separated: wasm,js,rust)
+        #[arg(long, value_delimiter = ',')]
+        targets: Option<Vec<String>>,
+
+        /// Build UE5 plugin from KAIN.toml [ue5] config
+        #[arg(long)]
+        ue5: bool,
+
+        #[arg(long)]
+        r#rust: bool,
+
+        /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
+        #[arg(long)]
+        embed: bool,
+    },
+
+    /// Native desktop app workflows
+    #[command(name = "native-ui")]
+    NativeUi {
+        #[command(subcommand)]
+        command: NativeUiCommand,
+    },
+
+    /// Resident Kain host bridge workflows
+    Bridge {
+        #[command(subcommand)]
+        command: BridgeCommand,
+    },
+
+    /// Trusted local codebase control and package/runtime operators
+    Codebase {
+        #[command(subcommand)]
+        command: CodebaseCommand,
+    },
+
+    /// Start the interactive Kain REPL
+    Repl,
+
+    /// Run a file (explicit command)
+    Run { input: PathBuf },
+
+    /// Generate paired GPU artifacts (SPIR-V, Rust host wrappers, reflection JSON)
+    GpuArtifacts {
+        input: PathBuf,
+
+        /// Output base path for generated GPU artifacts
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Inject KAIN file into existing plugin (non-destructive)
+    Inject {
+        /// Input .kn file(s)
+        inputs: Vec<PathBuf>,
+
+        /// Target plugin directory (auto-detected if omitted)
+        #[arg(long)]
+        plugin_dir: Option<PathBuf>,
+
+        /// Plugin name (auto-detected if omitted)
+        #[arg(long)]
+        plugin: Option<String>,
+
+        /// Force overwrite existing files
+        #[arg(long)]
+        force: bool,
+
+        /// Dry run (show what would be generated)
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Use UE5 codegen
+        #[arg(long)]
+        ue5: bool,
+    },
+
+    /// Import legacy assembly and transliterate into KAIN firmware scaffolding
+    ImportAsm {
+        /// Input assembly source file
+        input: PathBuf,
+
+        /// Input dialect format
+        #[arg(long, default_value = "6502-furby")]
+        format: String,
+
+        /// Output .kn file (default: Kain/generated/furby_firmware.kn)
+        #[arg(long)]
+        out: Option<PathBuf>,
+
+        /// Parse/canonicalize and report only, without writing generated .kn and map
+        #[arg(long)]
+        validate_only: bool,
+    },
+
+    /// Import C source code into KAIN
+    ImportC {
+        /// Input C source file or directory
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Include paths for C preprocessor (-I flags)
+        #[arg(short = 'I', long)]
+        include_paths: Vec<String>,
+
+        /// Preprocessor defines (-D flags)
+        #[arg(short = 'D', long)]
+        defines: Vec<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+    },
+
+    /// Import Rust source code into KAIN (Project Ouroboros)
+    ImportRust {
+        /// Input Rust source file or directory
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+    },
+
+    /// Import a Rust crate into KAIN through the crate FFI layer
+    ImportCrate {
+        /// Crate import name used by `use rust::<crate_name>`
+        crate_name: String,
+
+        /// Cargo manifest used for workspace/dependency resolution
+        #[arg(long)]
+        manifest_path: Option<PathBuf>,
+
+        /// Explicit local crate folder or Cargo.toml for standalone crates
+        #[arg(long)]
+        crate_path: Option<PathBuf>,
+
+        /// Generated artifact mode: live, generate, or both
+        #[arg(long, default_value = "both")]
+        mode: String,
+
+        /// Output directory for generated KAIN files and reports
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Override report JSON path
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+
+        /// Cargo feature list for the resolved crate
+        #[arg(long, value_delimiter = ',')]
+        features: Vec<String>,
+
+        /// Enable all crate features
+        #[arg(long)]
+        all_features: bool,
+
+        /// Disable default crate features
+        #[arg(long)]
+        no_default_features: bool,
+    },
+
+    /// Import TypeScript source code into KAIN
+    ImportTs {
+        /// Input TypeScript source file or directory
+        input: PathBuf,
+
+        /// Output .kn file (optional - if omitted, only compiles if --target specified)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Compilation target (optional - compile directly without writing .kn)
+        #[arg(short, long)]
+        target: Option<String>,
+
+        /// Flatten all imported symbols into one global scope (disables per-file modules)
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+
+        /// Write import failure/report JSON (defaults automatically for directory imports with failures)
+        #[arg(long)]
+        report_json: Option<PathBuf>,
+    },
+
+    /// Inspect and export the command registry.
+    Commands {
+        #[command(subcommand)]
+        command: RegistryCommand,
+    },
+
+    /// Runtime-contributed command fallback.
+    #[command(external_subcommand)]
+    External(Vec<String>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parses_build_native_ui_command() {
+        let cli = KainCli::parse_from(["kain", "build", "native-ui", "app.kn", "--host", "tauri"]);
+        match cli.command {
+            Some(KainCommand::Build {
+                command: Some(BuildCommand::NativeUi { input, host, .. }),
+                ..
+            }) => {
+                assert_eq!(input, PathBuf::from("app.kn"));
+                assert_eq!(host, "tauri");
+            }
+            other => panic!("expected build native-ui command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_format_alias() {
+        let cli = KainCli::parse_from(["kn", "fmt", "main.kn", "--check"]);
+        match cli.command {
+            Some(KainCommand::Format { input, check, .. }) => {
+                assert_eq!(input, Some(PathBuf::from("main.kn")));
+                assert!(check);
+            }
+            other => panic!("expected format command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn captures_external_runtime_command() {
+        let cli = KainCli::parse_from(["kain", "sharpen", "tool", "--fast"]);
+        match cli.command {
+            Some(KainCommand::External(argv)) => {
+                assert_eq!(argv, ["tool", "--fast"]);
+            }
+            other => panic!("expected external command, got {other:?}"),
+        }
+    }
+}

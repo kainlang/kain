@@ -1,9 +1,11 @@
 # Command Matrix
 
-Snapshot: May 11, 2026.
+Snapshot: May 12, 2026.
 
-This page is the canonical command inventory for `crates/cli/src/main.rs` and
-its subcommand modules.
+This page is the canonical command inventory for the built-in command
+manifests in `crates/kain-commands/commands/*.toml` and the typed Clap routers
+in `crates/kain-commands/src/*.rs`. `crates/cli` is the host binary and
+execution shell.
 
 ## Launcher Behavior
 
@@ -13,6 +15,8 @@ its subcommand modules.
 - `kn` treats a bare `--target wasm` request with no output as `run`.
 - The CLI prints the supported target aliases from the live target registry, not
   from a hardcoded doc list.
+- Unknown `kain` / `kn` commands pass through the runtime command resolver
+  before returning an unsupported-command error.
 
 ## Global Flags
 
@@ -49,6 +53,7 @@ These flags live at the top level of `kain` / `kn`:
 | `selfhost` | run the self-host bootstrap pipeline | `cli/selfhost-omni-fabric-lsp.md` |
 | `omni` | build mixed-language omni manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
+| `commands` | list or export command registry metadata | `cli/cli-overview.md` |
 | `build` | build a file or a `KAIN.toml` project | `cli/build-run-init.md` |
 | `run` | explicit interpret-mode execution | `cli/build-run-init.md` |
 | `gpu-artifacts` | emit SPIR-V, Rust host wrappers, and reflection JSON | `cli/native-ui-and-packaging.md` |
@@ -59,6 +64,17 @@ These flags live at the top level of `kain` / `kn`:
 | `import-crate` | import a Rust crate through the crate FFI layer | `cli/importers.md` |
 | `import-ts` | import TypeScript source | `cli/importers.md` |
 | `help` | print help for the root command or a subcommand | `cli/cli-overview.md` |
+
+## Command Registry
+
+- Built-in command metadata lives in `crates/kain-commands/commands/kain.toml`
+  and `crates/kain-commands/commands/blade.toml`.
+- Typed command parsers live in `crates/kain-commands/src/kain.rs` and
+  `crates/kain-commands/src/blade.rs`; shared argument structs live beside them.
+- `kain commands list --bin kain|kn|blade` prints the registered command view.
+- `kain commands export --bin kain|kn|blade` emits the same registry as JSON.
+- `--runtime` includes `[[commands]]` contributions loaded from the current
+  blade workspace manifests. Built-ins win conflicts in this first runtime pass.
 
 ## Build Command
 

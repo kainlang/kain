@@ -1,46 +1,18 @@
-use std::path::PathBuf;
-
-use clap::{Subcommand, ValueEnum};
+pub use kain_commands::fabric::{FabricCommand, FabricTemplateArg};
 
 use crate::error::{KainError, KainResult};
 
-#[derive(Subcommand, Debug)]
-pub enum FabricCommand {
-    Init {
-        #[arg(default_value = ".")]
-        path: PathBuf,
-        #[arg(long, value_enum, default_value_t = FabricTemplateArg::Polyglot)]
-        template: FabricTemplateArg,
-    },
-    Validate {
-        #[arg(short, long, default_value = "KAIN.fabric.toml")]
-        manifest: PathBuf,
-    },
-    Run {
-        #[arg(short, long, default_value = "KAIN.fabric.toml")]
-        manifest: PathBuf,
-    },
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum)]
-pub enum FabricTemplateArg {
-    Local,
-    Polyglot,
-}
-
-impl From<FabricTemplateArg> for kain_omni::FabricTemplateKind {
-    fn from(value: FabricTemplateArg) -> Self {
-        match value {
-            FabricTemplateArg::Local => kain_omni::FabricTemplateKind::Local,
-            FabricTemplateArg::Polyglot => kain_omni::FabricTemplateKind::Polyglot,
-        }
+fn fabric_template_kind(value: FabricTemplateArg) -> kain_omni::FabricTemplateKind {
+    match value {
+        FabricTemplateArg::Local => kain_omni::FabricTemplateKind::Local,
+        FabricTemplateArg::Polyglot => kain_omni::FabricTemplateKind::Polyglot,
     }
 }
 
 pub fn run(command: FabricCommand) -> KainResult<()> {
     match command {
         FabricCommand::Init { path, template } => {
-            let result = kain_omni::init_fabric_manifest(&path, template.into())
+            let result = kain_omni::init_fabric_manifest(&path, fabric_template_kind(template))
                 .map_err(|err| KainError::runtime(format!("Fabric init failed: {err}")))?;
             println!(
                 "Created Fabric manifest: {}",
@@ -130,6 +102,7 @@ fn print_execution_summary(result: &kain_omni::FabricExecutionResult) {
 mod tests {
     use super::*;
     use clap::Parser;
+    use std::path::PathBuf;
 
     #[derive(Parser, Debug)]
     struct TestCli {

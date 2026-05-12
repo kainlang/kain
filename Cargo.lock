@@ -935,6 +935,7 @@ dependencies = [
  "kain-c-ffi",
  "kain-check",
  "kain-codebase",
+ "kain-commands",
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
@@ -2788,6 +2789,17 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "toml",
+]
+
+[[package]]
+name = "kain-commands"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "toml",
 ]
 
