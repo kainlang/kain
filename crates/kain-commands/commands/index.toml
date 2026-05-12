@@ -1,0 +1,47 @@
+[[packs]]
+id = "core"
+path = "core.toml"
+
+[[packs]]
+id = "build"
+path = "build.toml"
+
+[[packs]]
+id = "run"
+path = "run.toml"
+
+[[packs]]
+id = "blade"
+path = "blade.toml"
+
+[[packs]]
+id = "import"
+path = "import.toml"
+
+[[packs]]
+id = "unreal"
+path = "unreal.toml"
+
+[[packs]]
+id = "selfhost"
+path = "selfhost.toml"
+
+[[packs]]
+id = "omni"
+path = "omni.toml"
+
+[[packs]]
+id = "fabric"
+path = "fabric.toml"
+
+[[packs]]
+id = "bridge"
+path = "bridge.toml"
+
+[[packs]]
+id = "codebase"
+path = "codebase.toml"
+
+[[packs]]
+id = "registry"
+path = "registry.toml"

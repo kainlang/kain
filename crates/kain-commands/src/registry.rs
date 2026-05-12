@@ -1,10 +1,19 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::generated::BUILTIN_COMMANDS;
+use crate::generated::{BUILTIN_COMMANDS, BUILTIN_COMMAND_PACKS};
+
+#[derive(Debug, Clone, Copy)]
+pub struct BuiltinCommandPackDefinition {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub owner: Option<&'static str>,
+    pub about: Option<&'static str>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuiltinCommandDefinition {
+    pub pack_id: &'static str,
     pub id: &'static str,
     pub bins: &'static [&'static str],
     pub path: &'static [&'static str],
@@ -13,6 +22,7 @@ pub struct BuiltinCommandDefinition {
     pub handler: &'static str,
     pub hidden: bool,
     pub deprecated: Option<&'static str>,
+    pub tags: &'static [&'static str],
     pub args: &'static [BuiltinCommandArgDefinition],
 }
 
@@ -27,7 +37,18 @@ pub struct BuiltinCommandArgDefinition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CommandPackDefinition {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub about: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandDefinition {
+    pub pack_id: String,
     pub id: String,
     pub bins: Vec<String>,
     pub path: Vec<String>,
@@ -39,6 +60,8 @@ pub struct CommandDefinition {
     pub hidden: bool,
     #[serde(default)]
     pub deprecated: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     #[serde(default)]
     pub args: Vec<CommandArgDefinition>,
     pub source: CommandDefinitionSource,
@@ -66,6 +89,8 @@ pub struct CommandDefinitionSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandRegistry {
+    #[serde(default)]
+    pub packs: Vec<CommandPackDefinition>,
     pub commands: Vec<CommandDefinition>,
 }
 
@@ -77,9 +102,21 @@ pub struct CommandConflict {
     pub second_id: String,
 }
 
+impl BuiltinCommandPackDefinition {
+    pub fn to_owned_definition(self) -> CommandPackDefinition {
+        CommandPackDefinition {
+            id: self.id.to_string(),
+            title: self.title.to_string(),
+            owner: self.owner.map(str::to_string),
+            about: self.about.map(str::to_string),
+        }
+    }
+}
+
 impl BuiltinCommandDefinition {
     pub fn to_owned_definition(self) -> CommandDefinition {
         CommandDefinition {
+            pack_id: self.pack_id.to_string(),
             id: self.id.to_string(),
             bins: self.bins.iter().map(|value| (*value).to_string()).collect(),
             path: self.path.iter().map(|value| (*value).to_string()).collect(),
@@ -92,6 +129,7 @@ impl BuiltinCommandDefinition {
             handler: self.handler.to_string(),
             hidden: self.hidden,
             deprecated: self.deprecated.map(str::to_string),
+            tags: self.tags.iter().map(|value| (*value).to_string()).collect(),
             args: self
                 .args
                 .iter()
@@ -128,18 +166,30 @@ impl CommandDefinition {
 impl CommandRegistry {
     pub fn builtins() -> Self {
         Self {
+            packs: builtin_command_packs(),
             commands: builtin_command_definitions(),
         }
     }
 
     pub fn for_bin(&self, bin: &str) -> Self {
+        let commands: Vec<_> = self
+            .commands
+            .iter()
+            .filter(|command| command.is_exposed_to_bin(bin))
+            .cloned()
+            .collect();
+        let used_packs: BTreeSet<_> = commands
+            .iter()
+            .map(|command| command.pack_id.as_str())
+            .collect();
         Self {
-            commands: self
-                .commands
+            packs: self
+                .packs
                 .iter()
-                .filter(|command| command.is_exposed_to_bin(bin))
+                .filter(|pack| used_packs.contains(pack.id.as_str()))
                 .cloned()
                 .collect(),
+            commands,
         }
     }
 
@@ -173,6 +223,13 @@ impl CommandRegistry {
             .flat_map(CommandDefinition::paths_for_matching)
             .collect()
     }
+}
+
+pub fn builtin_command_packs() -> Vec<CommandPackDefinition> {
+    BUILTIN_COMMAND_PACKS
+        .iter()
+        .map(|pack| pack.to_owned_definition())
+        .collect()
 }
 
 pub fn builtin_command_definitions() -> Vec<CommandDefinition> {
@@ -214,5 +271,17 @@ mod tests {
             .commands
             .iter()
             .any(|command| command.path == ["build"]));
+    }
+
+    #[test]
+    fn builtin_registry_preserves_command_packs() {
+        let registry = builtin_registry();
+        assert!(registry.packs.iter().any(|pack| pack.id == "core"));
+        assert!(registry.packs.iter().any(|pack| pack.id == "unreal"));
+        assert!(registry.commands.iter().any(|command| {
+            command.id == "inject"
+                && command.pack_id == "unreal"
+                && command.tags.iter().any(|tag| tag == "ue5")
+        }));
     }
 }

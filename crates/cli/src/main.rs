@@ -1209,6 +1209,21 @@ fn run_registry_command(command: RegistryCommand) -> Result<(), String> {
             let registry = command_registry_for_display(bin.as_deref(), runtime)?;
             print_command_registry_json(&registry)
         }
+        RegistryCommand::Packs { json } => {
+            let registry = command_registry_for_display(None, false)?;
+            if json {
+                print_command_packs_json(&registry)
+            } else {
+                print_command_packs_text(&registry);
+                Ok(())
+            }
+        }
+        RegistryCommand::Help { bin, runtime } => {
+            let registry = command_registry_for_display(None, runtime)?;
+            let help = kain_commands::dynamic_clap::dynamic_help_for_bin(&registry, &bin)?;
+            print!("{help}");
+            Ok(())
+        }
     }
 }
 
@@ -1237,6 +1252,26 @@ fn print_command_registry_json(
     Ok(())
 }
 
+fn print_command_packs_json(
+    registry: &kain_commands::registry::CommandRegistry,
+) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(&registry.packs)
+        .map_err(|err| format!("failed to serialize command packs: {err}"))?;
+    println!("{text}");
+    Ok(())
+}
+
+fn print_command_packs_text(registry: &kain_commands::registry::CommandRegistry) {
+    for pack in &registry.packs {
+        let owner = pack.owner.as_deref().unwrap_or("unknown");
+        let about = pack.about.as_deref().unwrap_or("");
+        println!(
+            "{}  owner={}  title={}  {}",
+            pack.id, owner, pack.title, about
+        );
+    }
+}
+
 fn print_command_registry_text(registry: &kain_commands::registry::CommandRegistry) {
     for command in &registry.commands {
         if command.hidden {
@@ -1245,9 +1280,14 @@ fn print_command_registry_text(registry: &kain_commands::registry::CommandRegist
         let bins = command.bins.join(",");
         let path = command.path.join(" ");
         let about = command.about.as_deref().unwrap_or("");
+        let tags = if command.tags.is_empty() {
+            String::new()
+        } else {
+            format!(" tags={}", command.tags.join(","))
+        };
         println!(
-            "{}  [{}]  handler={}  source={}  {}",
-            path, bins, command.handler, command.source.kind, about
+            "{}  [{}]  pack={}  handler={}  source={}{}  {}",
+            path, bins, command.pack_id, command.handler, command.source.kind, tags, about
         );
     }
 }

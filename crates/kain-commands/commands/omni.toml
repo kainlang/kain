@@ -1,0 +1,21 @@
+[pack]
+id = "omni"
+title = "Omni Commands"
+owner = "crates/kain-omni"
+about = "Omni project initialization and build lanes."
+
+[[commands]]
+id = "omni.init"
+bins = ["kain", "kn"]
+path = ["omni", "init"]
+about = "Initialize an Omni project"
+handler = "builtin:omni-init"
+tags = ["omni", "project"]
+
+[[commands]]
+id = "omni.build"
+bins = ["kain", "kn"]
+path = ["omni", "build"]
+about = "Build an Omni project"
+handler = "builtin:omni-build"
+tags = ["omni", "build"]

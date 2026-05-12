@@ -40,6 +40,9 @@ snippets when the binary help output disagrees.
 Use `kain commands list --bin kain|kn|blade` to inspect the command registry and
 `kain commands export --bin kain|kn|blade` for JSON. Add `--runtime` to include
 `[[commands]]` contributions discovered from the current blade workspace.
+Use `kain commands packs` to inspect the top-level manifest packs and
+`kain commands help --bin kain|kn|blade` to render the registry-backed dynamic
+Clap view.
 
 ## Global Flags
 
@@ -78,10 +81,11 @@ workspace `[run]` metadata.
 
 The CLI surface is defined in:
 
-- `crates/kain-commands/commands/kain.toml`
-- `crates/kain-commands/commands/blade.toml`
+- `crates/kain-commands/commands/index.toml`
+- `crates/kain-commands/commands/*.toml`
 - `crates/kain-commands/src/kain.rs`
 - `crates/kain-commands/src/blade.rs`
+- `crates/kain-commands/src/dynamic_clap.rs`
 - `crates/kain-commands/src/registry.rs`
 - `crates/kain-commands/src/runtime.rs`
 - `crates/kain-run/src/lib.rs`

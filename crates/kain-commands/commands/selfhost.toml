@@ -1,0 +1,29 @@
+[pack]
+id = "selfhost"
+title = "Selfhost Commands"
+owner = "crates/kain-selfhost"
+about = "Compiler self-hosting bootstrap and staged validation entrypoints."
+
+[[commands]]
+id = "selfhost.bootstrap"
+bins = ["kain", "kn"]
+path = ["selfhost", "bootstrap"]
+about = "Bootstrap the self-hosted compiler pipeline"
+handler = "builtin:selfhost-bootstrap"
+tags = ["selfhost", "compiler"]
+
+[[commands]]
+id = "selfhost.phase1"
+bins = ["kain", "kn"]
+path = ["selfhost", "phase1"]
+about = "Run self-host phase 1"
+handler = "builtin:selfhost-phase1"
+tags = ["selfhost", "compiler"]
+
+[[commands]]
+id = "selfhost.phase2"
+bins = ["kain", "kn"]
+path = ["selfhost", "phase2"]
+about = "Run self-host phase 2"
+handler = "builtin:selfhost-phase2"
+tags = ["selfhost", "compiler"]

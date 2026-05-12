@@ -1,0 +1,29 @@
+[pack]
+id = "fabric"
+title = "Fabric Commands"
+owner = "crates/kain-omni"
+about = "Fabric initialization, validation, and run commands."
+
+[[commands]]
+id = "fabric.init"
+bins = ["kain", "kn"]
+path = ["fabric", "init"]
+about = "Initialize a Fabric workspace"
+handler = "builtin:fabric-init"
+tags = ["fabric", "project"]
+
+[[commands]]
+id = "fabric.validate"
+bins = ["kain", "kn"]
+path = ["fabric", "validate"]
+about = "Validate a Fabric workspace"
+handler = "builtin:fabric-validate"
+tags = ["fabric", "diagnostics"]
+
+[[commands]]
+id = "fabric.run"
+bins = ["kain", "kn"]
+path = ["fabric", "run"]
+about = "Run a Fabric target"
+handler = "builtin:fabric-run"
+tags = ["fabric", "execute"]

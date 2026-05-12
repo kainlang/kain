@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::registry::{
-    builtin_registry, CommandDefinition, CommandDefinitionSource, CommandRegistry,
+    builtin_registry, CommandArgDefinition, CommandDefinition, CommandDefinitionSource,
+    CommandRegistry,
 };
 
 #[derive(Debug, Clone)]
@@ -55,6 +56,10 @@ struct RuntimeCommandRecord {
     hidden: bool,
     #[serde(default)]
     deprecated: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    args: Vec<CommandArgDefinition>,
 }
 
 pub type RuntimeCommandResult<T> = Result<T, RuntimeCommandError>;
@@ -84,6 +89,7 @@ pub fn load_runtime_commands(
                 continue;
             }
             commands.push(CommandDefinition {
+                pack_id: "runtime".to_string(),
                 id: command.id,
                 bins: command.bins,
                 path: command.path,
@@ -92,7 +98,8 @@ pub fn load_runtime_commands(
                 handler: command.handler,
                 hidden: command.hidden,
                 deprecated: command.deprecated,
-                args: Vec::new(),
+                tags: command.tags,
+                args: command.args,
                 source: CommandDefinitionSource {
                     kind: "runtime".to_string(),
                     label: source.label.clone(),
@@ -106,6 +113,7 @@ pub fn load_runtime_commands(
 
 pub fn runtime_registry(sources: &[RuntimeCommandSource]) -> RuntimeCommandResult<CommandRegistry> {
     Ok(CommandRegistry {
+        packs: Vec::new(),
         commands: load_runtime_commands(sources)?,
     })
 }
@@ -113,9 +121,11 @@ pub fn runtime_registry(sources: &[RuntimeCommandSource]) -> RuntimeCommandResul
 pub fn combined_registry(
     sources: &[RuntimeCommandSource],
 ) -> RuntimeCommandResult<CommandRegistry> {
-    let mut commands = builtin_registry().commands;
+    let builtins = builtin_registry();
+    let packs = builtins.packs;
+    let mut commands = builtins.commands;
     commands.extend(load_runtime_commands(sources)?);
-    let registry = CommandRegistry { commands };
+    let registry = CommandRegistry { packs, commands };
     let conflicts = registry.detect_conflicts();
     if let Some(conflict) = conflicts.first() {
         return Err(RuntimeCommandError::Conflict(format!(

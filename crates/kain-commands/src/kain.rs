@@ -242,6 +242,7 @@ pub enum BridgeCommand {
 }
 
 #[derive(Subcommand, Debug)]
+#[command(disable_help_subcommand = true)]
 pub enum RegistryCommand {
     /// List command registry entries
     List {
@@ -263,6 +264,24 @@ pub enum RegistryCommand {
         /// Filter to one executable view
         #[arg(long)]
         bin: Option<String>,
+
+        /// Include runtime command contributions from the current workspace
+        #[arg(long)]
+        runtime: bool,
+    },
+
+    /// List command packs loaded into the built-in registry
+    Packs {
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Render help from the manifest-backed dynamic Clap builder
+    Help {
+        /// Executable view to render
+        #[arg(long, default_value = "kain")]
+        bin: String,
 
         /// Include runtime command contributions from the current workspace
         #[arg(long)]

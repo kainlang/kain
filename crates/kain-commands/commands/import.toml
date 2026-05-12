@@ -1,0 +1,45 @@
+[pack]
+id = "import"
+title = "Import Commands"
+owner = "crates/kain-import"
+about = "Native and source import pipelines for external code entering Kain."
+
+[[commands]]
+id = "import-asm"
+bins = ["kain", "kn"]
+path = ["import-asm"]
+about = "Import assembly into Kain"
+handler = "builtin:import-asm"
+tags = ["import", "native"]
+
+[[commands]]
+id = "import-c"
+bins = ["kain", "kn"]
+path = ["import-c"]
+about = "Import C headers or sources into Kain"
+handler = "builtin:import-c"
+tags = ["import", "native", "c"]
+
+[[commands]]
+id = "import-rust"
+bins = ["kain", "kn"]
+path = ["import-rust"]
+about = "Import Rust source into Kain"
+handler = "builtin:import-rust"
+tags = ["import", "rust"]
+
+[[commands]]
+id = "import-crate"
+bins = ["kain", "kn"]
+path = ["import-crate"]
+about = "Import a Rust crate into Kain"
+handler = "builtin:import-crate"
+tags = ["import", "rust"]
+
+[[commands]]
+id = "import-ts"
+bins = ["kain", "kn"]
+path = ["import-ts"]
+about = "Import TypeScript source into Kain"
+handler = "builtin:import-ts"
+tags = ["import", "typescript"]

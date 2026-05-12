@@ -1,0 +1,13 @@
+[pack]
+id = "bridge"
+title = "Bridge Commands"
+owner = "crates/kain-bridge"
+about = "Host bridge and transport commands."
+
+[[commands]]
+id = "bridge.serve"
+bins = ["kain", "kn"]
+path = ["bridge", "serve"]
+about = "Serve the Kain bridge endpoint"
+handler = "builtin:bridge-serve"
+tags = ["bridge", "host"]

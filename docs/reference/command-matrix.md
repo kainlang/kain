@@ -53,7 +53,7 @@ These flags live at the top level of `kain` / `kn`:
 | `selfhost` | run the self-host bootstrap pipeline | `cli/selfhost-omni-fabric-lsp.md` |
 | `omni` | build mixed-language omni manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
-| `commands` | list or export command registry metadata | `cli/cli-overview.md` |
+| `commands` | list/export registry metadata, list manifest packs, or render dynamic registry help | `cli/cli-overview.md` |
 | `build` | build a file or a `KAIN.toml` project | `cli/build-run-init.md` |
 | `run` | resolve and execute a Kain source, C file, blade, manifest, Cargo crate, Node/Bun entry, or workspace | `cli/build-run-init.md` |
 | `watch` | run the unified run plan in watcher mode | `cli/build-run-init.md` |
@@ -68,12 +68,19 @@ These flags live at the top level of `kain` / `kn`:
 
 ## Command Registry
 
-- Built-in command metadata lives in `crates/kain-commands/commands/kain.toml`
-  and `crates/kain-commands/commands/blade.toml`.
+- Built-in command metadata is indexed by
+  `crates/kain-commands/commands/index.toml`, with each top-level
+  `crates/kain-commands/commands/*.toml` file acting as a command pack.
+- `unreal.toml` intentionally preserves the UE5-facing command surface as a
+  visible pack. Current executable entries are `gpu-artifacts` and `inject`,
+  while `build` keeps UE5 build targeting through its existing flags and tags.
 - Typed command parsers live in `crates/kain-commands/src/kain.rs` and
   `crates/kain-commands/src/blade.rs`; shared argument structs live beside them.
 - `kain commands list --bin kain|kn|blade` prints the registered command view.
 - `kain commands export --bin kain|kn|blade` emits the same registry as JSON.
+- `kain commands packs` prints the built-in command packs.
+- `kain commands help --bin kain|kn|blade` renders the dynamic Clap tree built
+  from the registry.
 - `--runtime` includes `[[commands]]` contributions loaded from the current
   blade workspace manifests. Built-ins win conflicts in this first runtime pass.
 

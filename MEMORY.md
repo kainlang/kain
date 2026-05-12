@@ -1,5 +1,62 @@
 # Kain Memory
 
+# 2026-05-12 - Command manifests split into packs with dynamic registry help
+
+`crates/kain-commands` now uses an indexed command-pack layout instead of a
+mega `kain.toml` plus separate `blade.toml`. The build script reads
+`crates/kain-commands/commands/index.toml`, validates each top-level pack file,
+and generates built-in pack plus command definitions. The pack files stay flat
+under `crates/kain-commands/commands/` so a future agent can scan `core.toml`,
+`build.toml`, `run.toml`, `blade.toml`, `import.toml`, `unreal.toml`,
+`registry.toml`, and the smaller domain packs directly.
+
+The Unreal side is intentionally visible again: `unreal.toml` owns the current
+UE5-facing executable entries (`gpu-artifacts` and `inject`), while the build
+pack keeps UE5 build targeting tagged on `build` through the existing flags.
+
+New registry affordances:
+
+- `kain commands packs` / `--json` lists command packs.
+- `kain commands help --bin kain|kn|blade` renders a dynamic Clap help tree from
+  the registry.
+- Registry text output includes `pack=` and `tags=`.
+- Runtime command manifests may now provide `tags` and `args` for richer future
+  dynamic help.
+
+Validation for this pass:
+
+- `cargo fmt -p kain-commands -p cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test -p kain-commands --target-dir target\codex-kain-command-packs -- --nocapture`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p cli --target-dir target\codex-kain-command-packs-cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build -p cli --target-dir target\codex-kain-command-packs-cli`
+- `target\codex-kain-command-packs-cli\debug\kain.exe commands packs`
+- `target\codex-kain-command-packs-cli\debug\kain.exe commands packs --json`
+- `target\codex-kain-command-packs-cli\debug\kain.exe commands list --bin kain`
+- `target\codex-kain-command-packs-cli\debug\kain.exe commands help --bin kain`
+- `target\codex-kain-command-packs-cli\debug\kain.exe commands help --bin blade`
+- `target\codex-kain-command-packs-cli\debug\kn.exe commands list --bin kn`
+- `target\codex-kain-command-packs-cli\debug\blade.exe --help`
+- `python C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py C:\Users\Admin\.agents\skills\kain-command-platform`
+
+Additional broad validation attempted:
+
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test -p cli --target-dir target\codex-kain-command-packs-cli-test -- --nocapture`
+
+That broader CLI suite still fails outside the command-platform slice:
+`selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout` keeps
+the known indentation assertion failure, and
+`import_c::tests::test_import_with_target` currently returns an error while
+asserting `result.is_ok()`. Command-pack tests, CLI check/build, and executable
+registry smokes are green.
+
+Recommended next step:
+
+- Move execution from typed Clap-first toward the hybrid command host:
+  dynamic Clap can already render and resolve registry entries, but built-in
+  handler execution still flows through the typed routers. The next major step
+  is a handler dispatch table that can execute registry-resolved built-ins and
+  runtime blade handlers from one path.
+
 # 2026-05-12 - Unified kain-run pipeline landed
 
 Kain now has `crates/kain-run` as the explicit immediate-execution crate behind `kain run`, `kain run dev`, `kain run plan`, `kain watch`, `kain blades run`, and standalone `blade run`. This moved the old birth-era run behavior out of the CLI and into a reusable pipeline shaped like the other first-class Kain systems (`kain-fs`, `kain-process`, `kain-actor`, `kain-build`).
