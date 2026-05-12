@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.native_net_append_needed_size_does_not_wrap_after_guards
+id: kain.native.core.proofs.native_net_append_needed_size_does_not_wrap_after_guards
 kind: size_add_ok
 description: The append-byte helper's needed length calculation is safe when the implementation
   proves both addition steps before comparing against capacity.

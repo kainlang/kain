@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.actor_supervision_restart_count_stays_within_window_limit
+id: kain.native.core.proofs.actor_supervision_restart_count_stays_within_window_limit
 kind: find_counterexample
 description: A restart attempt taken only while restart_count < KAIN_SUPERVISION_MAX_RESTARTS
   remains within the configured restart limit after increment.

@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.actor_mailbox_receive_count_never_underflows
+id: kain.native.core.proofs.actor_mailbox_receive_count_never_underflows
 kind: range_check
 description: A receive or try_receive path only decrements a non-empty mailbox, so
   the next count remains non-negative.

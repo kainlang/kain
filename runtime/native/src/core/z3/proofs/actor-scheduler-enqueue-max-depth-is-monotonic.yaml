@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.actor_scheduler_enqueue_max_depth_is_monotonic
+id: kain.native.core.proofs.actor_scheduler_enqueue_max_depth_is_monotonic
 kind: find_counterexample
 description: Enqueue increments queue_depth and updates max_queue_depth to at least
   the new depth without lowering the previous maximum.

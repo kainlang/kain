@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.actor_scheduler_dequeue_preserves_depth_accounting
+id: kain.native.core.proofs.actor_scheduler_dequeue_preserves_depth_accounting
 kind: find_counterexample
 description: If the scheduler queue depth equals total_enqueued - total_dequeued and
   depth is positive, a dequeue preserves non-negative depth and cannot overtake total_enqueued.

@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-12 - Native core Z3 proof pack seeded
+
+The first durable repo-local Z3 proof pack now lives at `runtime/native/src/core/z3` and is named `kain.native.core.proofs`. This is the seed lane for solver-backed native runtime invariants, especially the Erlang-style actor substrate and low-level C arithmetic seams that are easy to regress by inspection alone.
+
+What the pack owns now:
+
+- Six actor proofs covering bounded mailbox send counts, receive-count underflow prevention, scheduler dequeue accounting, scheduler max-depth monotonicity, restart-limit arithmetic, and actor ID slot ranges that preserve `KAIN_ACTOR_ID_INVALID == 0`.
+- Two native net proofs preserving the recent hardening work: non-negative `Content-Length` parsing before `size_t` conversion and checked append-buffer size addition.
+- A local `templates/actor-runtime.yaml` matcher bundle that describes the first actor proof shapes for future source-to-proof extraction.
+- Manifest lanes in `z3.toml`: `smoke`, `actor`, `native`, and `full`.
+
+Validation:
+
+- `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke` proved 8/8 cases.
+- `run_proof_pack(path="D:\Kain-Lang\runtime\native\src\core", lane="actor")` proved 6/6 cases.
+- `run_proof_pack(path="D:\Kain-Lang\runtime\native\src\core", lane="native")` proved 2/2 cases.
+
+Design note:
+
+- Keep generated report JSON out of commits; it is local validation output. Commit durable proof cases, manifests, templates, fixtures, and generated tests only when they are intentionally part of the proof surface.
+- Next high-leverage step is to extend the template loader/source analyzer so pack-local `templates/*.yaml` can drive extraction automatically, then add deeper actor state-machine proofs for mailbox state transitions, supervisor restart windows, and scheduler fairness bounds.
+
 # 2026-05-12 - Native net runtime hardened against Content-Length and append-size wrap
 
 The native HTTP lane in `runtime/native/src/core/kain_native_net_system.c` now rejects malformed or negative `Content-Length` headers before they ever reach a `size_t` cast, and the shared byte-append helper now uses overflow-checked `size_t` growth instead of raw `length + byte_count + 1` arithmetic.

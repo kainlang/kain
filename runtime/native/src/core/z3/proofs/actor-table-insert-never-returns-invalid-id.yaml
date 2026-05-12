@@ -1,5 +1,5 @@
 version: 1
-id: kain.core.proofs.actor_table_insert_never_returns_invalid_id
+id: kain.native.core.proofs.actor_table_insert_never_returns_invalid_id
 kind: range_check
 description: The native actor table insert loop starts at slot 1, preserving actor
   id 0 as the invalid sentinel.

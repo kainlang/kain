@@ -1,5 +1,5 @@
 language: c
-description: Local Kain actor-runtime proof templates. These mirror the first durable proof cases in src/core/z3/proofs and are intended for future source-to-proof extraction.
+description: Local Kain actor-runtime proof templates. These mirror the first durable proof cases in runtime/native/src/core/z3/proofs and are intended for future source-to-proof extraction.
 matchers:
   - id: kain-actor-mailbox-send-count
     title: Actor mailbox bounded send count

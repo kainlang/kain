@@ -1,7 +1,7 @@
 [pack]
-name = "kain.core.proofs"
+name = "kain.native.core.proofs"
 scope = ".."
-languages = ["kain", "c"]
+languages = ["c"]
 
 [solver]
 timeout_ms = 5000
