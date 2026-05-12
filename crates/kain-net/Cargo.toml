@@ -1,0 +1,11 @@
+[package]
+name = "kain-net"
+version.workspace = true
+edition = "2021"
+license.workspace = true
+repository.workspace = true
+description = "Portable Kain networking contracts for TCP and HTTP runtime adapters"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }

@@ -13,6 +13,7 @@ sources = [
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",
     "native/src/core/kain_native_input_system.c",
+    "native/src/core/kain_native_net_system.c",
     "native/src/core/kain_native_process_system.c",
     "native/src/core/kain_native_graphics_system.c",
     "native/src/core/kain_runtime_renderer_backend.c",
@@ -843,6 +844,6 @@ description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
 
 # Platform-Specific Link Dependencies
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "ws2_32", "winhttp", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
 linux = ["pthread", "dl", "rt", "m", "GL", "EGL", "X11", "Xext"]
 macos = []

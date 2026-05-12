@@ -186,6 +186,47 @@ fn main() -> Int:
 }
 
 #[test]
+fn c_backend_keeps_native_net_symbols_as_declarations() {
+    let source = r#"
+@extern
+fn kain_native_http_server_create(host: String, port: Int) -> Int
+
+@extern
+fn kain_native_http_server_route_actor(server_id: Int, method: String, path: String, actor_id: Int, message_kind: String) -> Int
+
+@extern
+fn kain_native_http_request_create(method: String, url: String) -> Int
+
+@extern
+fn kain_native_http_client_send(request_id: Int) -> Int
+
+@extern
+fn kain_native_http_response_body_text(response_id: Int) -> String
+
+fn main() -> Int:
+    let server = kain_native_http_server_create("127.0.0.1", 0)
+    let _route = kain_native_http_server_route_actor(server, "GET", "/actor", 9, "HttpRequest")
+    let request = kain_native_http_request_create("GET", "http://127.0.0.1/")
+    let response = kain_native_http_client_send(request)
+    let _body = kain_native_http_response_body_text(response)
+    return response
+"#;
+
+    let program = typed_program_from_source(source);
+    let c = generate_c(&program).expect("C generation should succeed");
+
+    assert!(c.contains("int64_t kain_native_http_server_create(const char * host, int64_t port);"));
+    assert!(c.contains("int64_t kain_native_http_server_route_actor(int64_t server_id, const char * method, const char * path, int64_t actor_id, const char * message_kind);"));
+    assert!(c.contains(
+        "int64_t kain_native_http_request_create(const char * method, const char * url);"
+    ));
+    assert!(c.contains("int64_t kain_native_http_client_send(int64_t request_id);"));
+    assert!(c.contains("const char * kain_native_http_response_body_text(int64_t response_id);"));
+    assert!(!c.contains("int64_t kain_native_http_client_send(int64_t request_id) {"));
+    assert!(c.contains("int64_t response = kain_native_http_client_send(request);"));
+}
+
+#[test]
 fn c_backend_lowers_string_equality_to_strcmp() {
     let source = r#"
 fn main() -> Int:

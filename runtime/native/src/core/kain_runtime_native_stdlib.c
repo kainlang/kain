@@ -59,11 +59,13 @@ static KainDiagnostic kain_native_diag(void) {
 
 int64_t kain_native_runtime_init(void) {
     kain_actor_runtime_init();
+    kain_native_net_reset();
     kain_native_process_reset();
     return 0;
 }
 
 int64_t kain_native_runtime_shutdown(void) {
+    kain_native_net_reset();
     kain_native_process_reset();
     kain_actor_runtime_shutdown();
     return 0;

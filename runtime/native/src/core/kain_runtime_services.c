@@ -1,5 +1,6 @@
 #include "../../include/kain_runtime_services.h"
 #include "../../include/kain_runtime_base.h"
+#include "../../include/kain_native_net_system.h"
 #include "../../include/kain_native_process_system.h"
 #include "../../include/kain_runtime_vendor_lane.h"
 #include <stddef.h>
@@ -10,8 +11,10 @@
 #endif
 
 #ifdef _WIN32
+#define KAIN_NATIVE_NET_SERVICE_STATUS KAIN_SERVICE_STATUS_AVAILABLE
 #define KAIN_NATIVE_PROCESS_SERVICE_STATUS KAIN_SERVICE_STATUS_AVAILABLE
 #else
+#define KAIN_NATIVE_NET_SERVICE_STATUS KAIN_SERVICE_STATUS_DEGRADED
 #define KAIN_NATIVE_PROCESS_SERVICE_STATUS KAIN_SERVICE_STATUS_DEGRADED
 #endif
 
@@ -419,12 +422,12 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_IO_NET,
         "IO Network",
-        "Vendor-backed TCP, UDP, and name-resolution primitives",
+        "Native TCP and HTTP/1.1 networking primitives",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_NATIVE_NET_SERVICE_STATUS,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_io_net_service
+        (void*)&g_kain_native_net_function_table
     },
     {
         KAIN_SERVICE_KEY_IO_PROCESS,

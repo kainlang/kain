@@ -174,11 +174,69 @@ fn main() -> Int:
     assert!(llvm.contains("declare i64 @kain_native_process_spec_create(i8* %arg0)"));
     assert!(llvm.contains("declare i64 @kain_native_process_spec_add_arg(i64 %arg0, i8* %arg1)"));
     assert!(llvm.contains("declare i64 @kain_native_process_spawn(i64 %arg0)"));
-    assert!(llvm.contains("declare i64 @kain_native_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm
+        .contains("declare i64 @kain_native_process_spawn_pty(i64 %arg0, i64 %arg1, i64 %arg2)"));
     assert!(llvm.contains("declare i8* @kain_native_process_stdout_capture_text(i64 %arg0)"));
     assert!(llvm.contains("call i64 @kain_native_process_pty_write_text"));
     assert!(llvm.contains("echo process-proof"));
     assert!(llvm.contains("echo pty-proof"));
+}
+
+#[test]
+fn llvm_lowers_native_net_tcp_http_and_actor_route_primitives() {
+    let source = r#"
+@extern
+fn kain_native_tcp_connect(host: String, port: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_tcp_write_text(connection_id: Int, payload: String) -> Int
+
+@extern
+fn kain_native_http_request_create(method: String, url: String) -> Int
+
+@extern
+fn kain_native_http_client_send(request_id: Int) -> Int
+
+@extern
+fn kain_native_http_response_body_text(response_id: Int) -> String
+
+@extern
+fn kain_native_http_server_create(host: String, port: Int) -> Int
+
+@extern
+fn kain_native_http_server_route_actor(server_id: Int, method: String, path: String, actor_id: Int, message_kind: String) -> Int
+
+@extern
+fn kain_native_http_server_pump(server_id: Int, timeout_ms: Int) -> Int
+
+@extern
+fn kain_native_http_respond_text(incoming_request_id: Int, status_code: Int, payload: String) -> Int
+
+fn main() -> Int:
+    let tcp = kain_native_tcp_connect("127.0.0.1", 8080, 100)
+    let _write = kain_native_tcp_write_text(tcp, "ping")
+    let server = kain_native_http_server_create("127.0.0.1", 0)
+    let _route = kain_native_http_server_route_actor(server, "GET", "/actor", 7, "HttpRequest")
+    let incoming = kain_native_http_server_pump(server, 1)
+    let _respond = kain_native_http_respond_text(incoming, 200, "ok")
+    let request = kain_native_http_request_create("GET", "http://127.0.0.1/")
+    let response = kain_native_http_client_send(request)
+    let body = kain_native_http_response_body_text(response)
+    if body != "":
+        return response
+    return tcp
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("declare i64 @kain_native_tcp_connect(i8* %arg0, i64 %arg1, i64 %arg2)"));
+    assert!(llvm.contains("declare i64 @kain_native_http_request_create(i8* %arg0, i8* %arg1)"));
+    assert!(llvm.contains("declare i64 @kain_native_http_client_send(i64 %arg0)"));
+    assert!(llvm.contains("declare i64 @kain_native_http_server_route_actor(i64 %arg0, i8* %arg1, i8* %arg2, i64 %arg3, i8* %arg4)"));
+    assert!(llvm.contains("call i64 @kain_native_http_respond_text"));
+    assert!(llvm.contains("HttpRequest"));
 }
 
 #[test]

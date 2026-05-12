@@ -28,7 +28,7 @@ defined in `crates/kain-core/src/stdlib.rs`.
 
 For `CompileTarget::Llvm` and `CompileTarget::C`, the practical surface is the
 native profile in `stdlib/native/*`, not only the generic root registry.
-Families such as `input_*`, `native_ui_*`, `native_graphics_*`, and now
+Families such as `input_*`, `native_ui_*`, `native_graphics_*`, `net_*`, and
 `process_*` are source-loaded from that native profile and backed by
 `runtime/native` ABI symbols.
 

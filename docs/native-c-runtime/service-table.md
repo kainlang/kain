@@ -40,6 +40,11 @@ The runtime uses the table to decide:
 That is why the table is more than a list of names. It is the decision point
 between declared capability and live capability.
 
+`io.net` now points at the owned `kain_native_net_*` function table on the
+native core lane instead of the older vendor/libuv stub table. It currently
+provides TCP and HTTP/1.1 primitives, with Windows HTTPS client support through
+WinHTTP and higher protocols intentionally left to future adapters.
+
 `io.process` now points at the owned `kain_native_process_*` function table on
 the native core lane instead of the older vendor/libuv stub table. On Windows
 that means the service reports a real child-process and PTY substrate; on

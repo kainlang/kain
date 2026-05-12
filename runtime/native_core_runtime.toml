@@ -13,6 +13,7 @@ sources = [
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",
     "native/src/core/kain_native_input_system.c",
+    "native/src/core/kain_native_net_system.c",
     "native/src/core/kain_native_process_system.c",
     "native/src/core/kain_native_graphics_system.c",
     "native/src/ui/kain_native_ui_system.c",
@@ -30,6 +31,6 @@ include_dirs = [
 ]
 
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "shell32"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "shell32", "ws2_32", "winhttp"]
 linux = []
 macos = []

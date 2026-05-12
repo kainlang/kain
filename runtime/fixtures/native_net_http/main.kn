@@ -1,0 +1,60 @@
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _reset = net_reset()
+
+    if net_platform_available() != 1:
+        let _shutdown_unavailable = native_runtime_shutdown()
+        return 0
+
+    let server = http_server_create_localhost(0)
+    if server <= 0:
+        return 1
+    if http_server_listen(server) != 0:
+        return 2
+
+    let port = http_server_local_port(server)
+    if port <= 0:
+        return 3
+
+    let handler = native_actor_spawn("NetFixtureHandler", "requests=0")
+    let _route = http_route_actor(server, "POST", "/actor", handler, "HttpRequest")
+
+    let client = tcp_connect("127.0.0.1", port, 5000)
+    if client <= 0:
+        return 4
+
+    let _write = tcp_write_text(client, "POST /actor?proof=1 HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 11\r\n\r\nhello-actor")
+
+    let incoming = http_server_pump(server, 5000)
+    if incoming <= 0:
+        return 5
+
+    let next = http_server_next_request(server)
+    if next != incoming:
+        return 6
+
+    let method = http_request_method(incoming)
+    if method != "POST":
+        return 7
+
+    let path = http_request_path(incoming)
+    if path != "/actor":
+        return 8
+
+    let body = http_request_body_text(incoming)
+    if body != "hello-actor":
+        return 9
+
+    let _respond = http_respond_text(incoming, 201, "kain-net-ok")
+    let response_text = tcp_read_text(client)
+    if response_text == "":
+        return 10
+
+    let client_request = http_request_create("GET", http_local_url(port, "/client-symbol-proof"))
+    let _client_timeout = http_request_set_timeout(client_request, 1)
+    let _client_destroy = http_request_destroy(client_request)
+
+    let _client_close = tcp_close(client)
+    let _server_close = http_server_close(server)
+    let _shutdown = native_runtime_shutdown()
+    return 0

@@ -5,6 +5,7 @@
 
 #include "kain_native_graphics_system.h"
 #include "kain_native_input_system.h"
+#include "kain_native_net_system.h"
 #include "kain_native_process_system.h"
 #include "kain_native_ui_system.h"
 

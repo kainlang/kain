@@ -30,6 +30,7 @@ FIXTURE_NAMES=(
     llvm_actor_message
     llvm_world_pipeline
     native_graphics_engine
+    native_net_http
     native_process_stdio
     native_ui_runtime_systems
 )
@@ -55,7 +56,7 @@ resolve_kain_bin() {
 
 build_target_for_fixture() {
     case "$1" in
-        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_process_stdio|native_ui_runtime_systems)
+        contract_startup|realtime_startup|llvm_heap_memory|llvm_actor_message|llvm_world_pipeline|native_graphics_engine|native_net_http|native_process_stdio|native_ui_runtime_systems)
             printf '%s\n' "llvm"
             ;;
         *)
@@ -161,6 +162,16 @@ call i64 @kain_native_process_stdin_write_text(
 call i64 @kain_native_process_spawn_pty(
 call i8* @kain_native_process_stdout_capture_text(
 call i8* @kain_native_process_pty_capture_text(
+EOF
+            ;;
+        native_net_http)
+            cat <<'EOF'
+call i64 @kain_native_http_server_create(
+call i64 @kain_native_http_server_route_actor(
+call i64 @kain_native_http_server_pump(
+call i64 @kain_native_http_respond_text(
+call i64 @kain_native_tcp_connect(
+call i64 @kain_native_http_request_create(
 EOF
             ;;
         native_ui_runtime_systems)

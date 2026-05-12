@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-12 - Native TCP and HTTP substrate landed
+
+Kain now has a first-class network lane instead of relying on tiny interpreter-only `http_get`/`http_post_json` helpers or raw legacy `socket_*` functions. `crates/kain-net` owns the portable contract for TCP endpoints, HTTP request/response specs, headers, route specs, handles, lifecycle state, and typed errors. LLVM/direct-C builds load `stdlib/native/net.kn`, backed by `runtime/native/include/kain_native_net_system.h` and `runtime/native/src/core/kain_native_net_system.c`.
+
+The native ABI is handle-driven and primitive-friendly so current LLVM/direct-C lowering can use it without aggregate ABI work. The v1 flow is TCP connect/listen/accept/read/write plus HTTP request/response handles, HTTP client send, local HTTP server listen/pump, actor route registration, request inspection, response writes, local URL helpers, reset, and diagnostics.
+
+`io.net` in the service table now points at the owned native net function table instead of the older vendor/libuv placeholder. `kain_native_runtime_init/shutdown` reset the net registry so open sockets, listeners, request handles, and response handles are cleaned up between native runs. The lean and broad native runtime manifests both include the net source; Windows linking now includes `ws2_32` and `winhttp`.
+
+Validation targets added for this lane:
+
+- `cargo test -p kain-net`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_net_tcp_http_and_actor_route_primitives -- --exact`
+- `cargo test -p kain-sys-codegen --test c_codegen_test c_backend_keeps_native_net_symbols_as_declarations -- --exact`
+- `bash runtime/conformance/net_runtime/run_tests.sh --verbose`
+- `target/debug/kain.exe build runtime/fixtures/native_net_http/main.kn --target llvm --output runtime/fixtures/native_net_http/generated/native_net_http.ll` then run the generated executable
+
+Current known limits:
+
+- HTTP server support is HTTP/1.1 with request-line/header parsing and `Content-Length` bodies. Server TLS, chunked request bodies, WebSockets, HTTP/2, and HTTP/3 are out of v1.
+- HTTPS client support is Windows-first through WinHTTP. Plain HTTP client support uses the runtime TCP path.
+- Actor routes currently dispatch a native actor message payload containing the incoming request handle and request metadata, while manual polling/response remains the deterministic fixture path. Rich Kain actor handler ergonomics should be layered above this ABI rather than baked into the socket kernel.
+- Entangle is intentionally not part of the net ABI. Use it later for replicated state, distributed actor sessions, or cluster coordination above the transport.
+
+Recommended next step:
+
+- Add a Kain-authored HTTP server convenience layer above `stdlib/native/net.kn` that maps route patterns to actor handlers and response helpers, then add UDP/DNS only after the HTTP/TCP ergonomics are stable.
+
 # 2026-05-12 - Native child-process and PTY substrate landed
 
 Kain now has a first-class process lane instead of only ad hoc host-side command helpers. `crates/kain-process` owns the portable contract for process specs, stdio modes, cwd/env overrides, process/PTY handles, lifecycle state, and captured output. LLVM/direct-C builds load `stdlib/native/process.kn`, backed by `runtime/native/include/kain_native_process_system.h` and `runtime/native/src/core/kain_native_process_system.c`.
