@@ -944,6 +944,7 @@ dependencies = [
  "kain-omni",
  "kain-repair",
  "kain-repl",
+ "kain-run",
  "kain-sys-codegen",
  "kain-test",
  "minijinja",
@@ -3062,6 +3063,23 @@ version = "0.1.0"
 dependencies = [
  "kain-core",
  "kain-driver",
+]
+
+[[package]]
+name = "kain-run"
+version = "0.1.0"
+dependencies = [
+ "blade",
+ "kain-core",
+ "kain-driver",
+ "kain-fs",
+ "kain-host",
+ "kain-omni",
+ "kain-process",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

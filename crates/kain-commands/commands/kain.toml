@@ -126,6 +126,13 @@ about = "Build the full local blade workspace"
 handler = "builtin:blades.build"
 
 [[commands]]
+id = "blades.run"
+bins = ["kain"]
+path = ["blades", "run"]
+about = "Run a local blade through the Kain run pipeline"
+handler = "builtin:blades.run"
+
+[[commands]]
 id = "equip"
 bins = ["kain"]
 path = ["equip"]
@@ -185,8 +192,30 @@ handler = "builtin:repl"
 id = "run"
 bins = ["kain", "kn"]
 path = ["run"]
-about = "Run a Kain file in interpret mode"
+alias_paths = [["r"]]
+about = "Run a Kain file, C file, blade, manifest, or workspace"
 handler = "builtin:run"
+
+[[commands]]
+id = "run.dev"
+bins = ["kain", "kn"]
+path = ["run", "dev"]
+about = "Run and watch a Kain file, C file, blade, manifest, or workspace"
+handler = "builtin:run.dev"
+
+[[commands]]
+id = "run.plan"
+bins = ["kain", "kn"]
+path = ["run", "plan"]
+about = "Print the resolved run plan without executing it"
+handler = "builtin:run.plan"
+
+[[commands]]
+id = "watch"
+bins = ["kain", "kn"]
+path = ["watch"]
+about = "Watch a run plan and re-run it when inputs change"
+handler = "builtin:watch"
 
 [[commands]]
 id = "gpu-artifacts"

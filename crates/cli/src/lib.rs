@@ -26,6 +26,7 @@ pub mod native_ui_dev;
 pub mod omni;
 pub mod packager;
 pub mod repair;
+pub mod run;
 pub mod rust_build;
 pub mod selfhost;
 pub mod selfhost_bootstrap;

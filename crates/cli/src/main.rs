@@ -16,6 +16,7 @@ use cli::native_ui_dev;
 use cli::omni;
 use cli::packager;
 use cli::repair;
+use cli::run as run_cli;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
@@ -31,7 +32,7 @@ use kain_c_ffi::{
 };
 use kain_commands::kain::{
     BridgeCommand, BuildCommand, KainCli as Args, KainCommand as Commands, NativeUiCommand,
-    RegistryCommand,
+    RegistryCommand, RunCommand,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use kain_repl::{
@@ -1723,7 +1724,7 @@ fn main() {
                                     );
                                     std::process::exit(1);
                                 };
-                                run_compile(
+                                if !run_compile(
                                     &file,
                                     resolved_target,
                                     output.as_ref(),
@@ -1732,7 +1733,9 @@ fn main() {
                                     args.verbose,
                                     args.analyze,
                                     args.plugin.as_deref(),
-                                );
+                                ) {
+                                    std::process::exit(1);
+                                }
                             }
                             None => {
                                 // Project build from KAIN.toml
@@ -1828,17 +1831,101 @@ fn main() {
                         std::process::exit(1);
                     }
                 }
-                Some(Commands::Run { input }) => {
-                    run_compile(
-                        &input,
-                        CompileTarget::Interpret,
-                        None,
-                        args.emit_ast,
-                        args.emit_typed,
-                        args.verbose,
-                        args.analyze,
-                        args.plugin.as_deref(),
-                    );
+                Some(Commands::Run {
+                    command,
+                    input,
+                    target,
+                    json,
+                    trace,
+                    keep_artifacts,
+                    dry_run,
+                    args: run_args,
+                }) => {
+                    let request = match command {
+                        Some(RunCommand::Dev {
+                            input,
+                            target,
+                            json,
+                            trace,
+                            keep_artifacts,
+                            dry_run,
+                            args,
+                        }) => run_cli::make_request(
+                            input,
+                            kain_run::RunMode::Dev,
+                            target,
+                            args,
+                            json,
+                            trace,
+                            keep_artifacts,
+                            dry_run,
+                        ),
+                        Some(RunCommand::Plan {
+                            input,
+                            target,
+                            json,
+                        }) => run_cli::make_request(
+                            input,
+                            kain_run::RunMode::Plan,
+                            target,
+                            Vec::new(),
+                            json,
+                            false,
+                            false,
+                            true,
+                        ),
+                        None => run_cli::make_request(
+                            input,
+                            kain_run::RunMode::Once,
+                            target,
+                            run_args,
+                            json,
+                            trace,
+                            keep_artifacts,
+                            dry_run,
+                        ),
+                    };
+                    let request = match request {
+                        Ok(request) => request,
+                        Err(err) => {
+                            eprintln!(" Run failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    if let Err(err) = run_cli::execute(request) {
+                        eprintln!(" Run failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                Some(Commands::Watch {
+                    input,
+                    target,
+                    json,
+                    trace,
+                    keep_artifacts,
+                    dry_run,
+                    args: run_args,
+                }) => {
+                    let request = match run_cli::make_request(
+                        input,
+                        kain_run::RunMode::Dev,
+                        target,
+                        run_args,
+                        json,
+                        trace,
+                        keep_artifacts,
+                        dry_run,
+                    ) {
+                        Ok(request) => request,
+                        Err(err) => {
+                            eprintln!(" Watch failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
+                    if let Err(err) = run_cli::execute(request) {
+                        eprintln!(" Watch failed: {}", err);
+                        std::process::exit(1);
+                    }
                 }
                 Some(Commands::GpuArtifacts { input, output }) => {
                     let config = packager::RustBuildConfig {

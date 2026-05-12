@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-12 - Unified kain-run pipeline landed
+
+Kain now has `crates/kain-run` as the explicit immediate-execution crate behind `kain run`, `kain run dev`, `kain run plan`, `kain watch`, `kain blades run`, and standalone `blade run`. This moved the old birth-era run behavior out of the CLI and into a reusable pipeline shaped like the other first-class Kain systems (`kain-fs`, `kain-process`, `kain-actor`, `kain-build`).
+
+The new run crate owns:
+
+- `RunRequest`, `RunPlan`, `RunUnit`, `RunAdapter`, `RunReport`, and JSONL run events.
+- Target inference for Kain source, C, Cargo, Fabric, Node, and Bun.
+- Blade and workspace resolution through `crates/kain-blades`.
+- `[run]` manifest metadata: `entry`, `blade`, `target`, `args`, `env`, `cwd`, and `watch`.
+- Hidden cached C execution through Clang with outputs under `.kain/cache/run/c`.
+- Cargo run execution with isolated target dirs under `.kain/cache/run/cargo`.
+- Run reports under `.kain/reports/run` and watcher polling through `kain-fs`.
+- Process-backed report metadata using `kain-process::ProcessSpec`.
+
+`crates/kain-commands` now exposes the new command surface for `run`, `run dev`, `run plan`, `watch`, `blades run`, and standalone `blade run`; `crates/cli/src/run.rs` is only the CLI print/exit wrapper. `crates/kain-core/src/types.rs` also registers stdlib registry globals in the type environment so raw stdlib bridge names such as `kain_input_reset` are visible during source checking and runtime compilation.
+
+Validation for this pass:
+
+- `cargo fmt -p kain-run -p blade -p kain-commands -p cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test -p kain-run -p blade -p kain-commands --target-dir target\codex-kain-run -- --nocapture`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test -p kain-core type_env_registers_stdlib_registry_bridge_globals --target-dir target\codex-kain-run -- --nocapture`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p kain-run -p kain-commands -p cli --target-dir target\codex-kain-run`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build -p cli --target-dir target\codex-kain-run`
+- `target\codex-kain-run\debug\kain.exe run plan docs\examples\00_hello_and_cli.kn --json`
+- `target\codex-kain-run\debug\kain.exe run docs\examples\00_hello_and_cli.kn`
+- `target\codex-kain-run\debug\kain.exe run target\codex-kain-run-smoke\hello.c --target c -- smoke-arg`
+- `target\codex-kain-run\debug\kain.exe watch docs\examples\00_hello_and_cli.kn --dry-run`
+- `target\codex-kain-run\debug\blade.exe run --help`
+- `target\codex-kain-run\debug\kain.exe commands list --bin blade`
+
+Current limits and next recommended step:
+
+- Kain interpreter and Fabric adapters execute through their existing host functions; runtime args are meaningful for process-backed adapters first.
+- The dev watcher is intentionally polling-based through `kain-fs` v1. A future pass can add native notify acceleration behind the same run-plan contract.
+- `--trace` and `--keep-artifacts` are part of the request/report surface, but deeper adapter-specific trace payloads should be added as the native run pipeline grows.
+- The next high-leverage pass is to add richer adapter-specific run reports and native notify watching without changing the CLI surface again.
+
 # 2026-05-12 - Kain command platform crate landed
 
 Kain now has `crates/kain-commands` as the command brain for `kain`, `kn`, and standalone `blade`. The crate owns built-in command manifests under `crates/kain-commands/commands/`, typed Clap routers under `crates/kain-commands/src/`, shared argument structs, launcher helpers, registry serialization, conflict detection, and a first runtime `[[commands]]` contribution loader/fallback. The workspace `Cargo.toml` now includes the crate and `crates/cli` depends on it.

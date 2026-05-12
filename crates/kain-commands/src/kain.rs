@@ -8,11 +8,58 @@ use crate::omni::OmniCommand;
 use crate::repair::DoctorRepairArgs;
 use crate::selfhost::SelfHostCommand;
 
+#[derive(Subcommand, Debug)]
+pub enum RunCommand {
+    /// Launch a run plan and keep re-running when inputs change
+    Dev {
+        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit the run report JSON to stdout
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Plan the dev loop without executing the first run
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+
+    /// Print the resolved run plan without executing it
+    Plan {
+        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit the plan JSON to stdout
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 #[derive(ClapParser, Debug)]
 #[command(name = "kain")]
 #[command(author = "Kipp")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
-#[command(about = "The Ultimate Programming Language Compiler", long_about = None)]
+#[command(about = "Kernel Architecture for Interop and Native", long_about = None)]
 pub struct KainCli {
     #[command(subcommand)]
     pub command: Option<KainCommand>,
@@ -396,8 +443,68 @@ pub enum KainCommand {
     /// Start the interactive Kain REPL
     Repl,
 
-    /// Run a file (explicit command)
-    Run { input: PathBuf },
+    /// Run a file, blade, manifest, or workspace through the unified run pipeline
+    Run {
+        #[command(subcommand)]
+        command: Option<RunCommand>,
+
+        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit the run report JSON to stdout
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without executing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+
+    /// Watch a run plan and re-run it when inputs change
+    Watch {
+        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        input: Option<PathBuf>,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit the run report JSON to stdout
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without entering the watcher loop
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
 
     /// Generate paired GPU artifacts (SPIR-V, Rust host wrappers, reflection JSON)
     GpuArtifacts {
@@ -640,6 +747,51 @@ mod tests {
                 assert!(check);
             }
             other => panic!("expected format command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_unified_run_command() {
+        let cli = KainCli::parse_from(["kain", "run", "hello.c", "--target", "c", "--", "one"]);
+        match cli.command {
+            Some(KainCommand::Run {
+                input,
+                target,
+                args,
+                ..
+            }) => {
+                assert_eq!(input, Some(PathBuf::from("hello.c")));
+                assert_eq!(target, "c");
+                assert_eq!(args, ["one"]);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_run_dev_command() {
+        let cli = KainCli::parse_from(["kain", "run", "dev", "app.kn", "--trace"]);
+        match cli.command {
+            Some(KainCommand::Run {
+                command: Some(RunCommand::Dev { input, trace, .. }),
+                ..
+            }) => {
+                assert_eq!(input, Some(PathBuf::from("app.kn")));
+                assert!(trace);
+            }
+            other => panic!("expected run dev command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_watch_dry_run_command() {
+        let cli = KainCli::parse_from(["kain", "watch", "app.kn", "--dry-run"]);
+        match cli.command {
+            Some(KainCommand::Watch { input, dry_run, .. }) => {
+                assert_eq!(input, Some(PathBuf::from("app.kn")));
+                assert!(dry_run);
+            }
+            other => panic!("expected watch command, got {other:?}"),
         }
     }
 

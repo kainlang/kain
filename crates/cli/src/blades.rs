@@ -3,6 +3,8 @@ pub use kain_commands::blade::BladesCommand;
 use serde::Serialize;
 use std::path::PathBuf;
 
+use crate::run as run_cli;
+
 #[derive(Debug, Serialize)]
 struct BladeCheckReport {
     workspace: BladeWorkspace,
@@ -60,6 +62,25 @@ pub fn run(command: BladesCommand) -> Result<(), String> {
             include_vulkan,
             json,
         } => run_build(path, profile, target, dry_run, clean, include_vulkan, json),
+        BladesCommand::Run {
+            blade,
+            path,
+            target,
+            json,
+            trace,
+            keep_artifacts,
+            dry_run,
+            args,
+        } => run_blade(
+            blade,
+            path,
+            target,
+            json,
+            trace,
+            keep_artifacts,
+            dry_run,
+            args,
+        ),
     }
 }
 
@@ -71,6 +92,30 @@ pub fn run_equip(blade_name: String, path: PathBuf, json: bool) -> Result<(), St
         print_equipped_blade(&blade);
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_blade(
+    blade: Option<String>,
+    path: PathBuf,
+    target: String,
+    json: bool,
+    trace: bool,
+    keep_artifacts: bool,
+    dry_run: bool,
+    args: Vec<String>,
+) -> Result<(), String> {
+    let request = run_cli::make_blade_request(
+        blade,
+        path,
+        target,
+        args,
+        json,
+        trace,
+        keep_artifacts,
+        dry_run,
+    )?;
+    run_cli::execute(request)
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<(), String> {

@@ -8,6 +8,7 @@ use crate::lexer::Lexer;
 use crate::module_resolution::{resolve_filesystem_module_file, resolve_stdlib_module_file};
 use crate::parser::Parser;
 use crate::span::Span;
+use crate::stdlib::StdLib;
 use kain_actor::{
     validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
     ActorStateSlot, MessageParameter, MessageSignature,
@@ -462,6 +463,7 @@ impl<'a> TypeEnv<'a> {
             ),
         );
         register_builtin_global_functions(&mut env);
+        register_stdlib_registry_globals(&mut env);
         register_selfhost_constructor_globals(&mut env);
         register_selfhost_collection_methods(&mut env);
         register_selfhost_host_bridge(&mut env);
@@ -1328,6 +1330,38 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             ResolvedType::Float(FloatSize::F64),
         ),
     );
+}
+
+fn register_stdlib_registry_globals(env: &mut TypeEnv<'_>) {
+    let stdlib = StdLib::new();
+    for (name, function) in stdlib.functions {
+        if env.globals.contains_key(&name) {
+            continue;
+        }
+        let params = function
+            .params
+            .iter()
+            .map(|(_, ty)| stdlib_type_name_to_resolved(ty))
+            .collect();
+        let ret = stdlib_type_name_to_resolved(function.return_type);
+        env.define_global(name, builtin_function_type(params, ret));
+    }
+}
+
+fn stdlib_type_name_to_resolved(name: &str) -> ResolvedType {
+    match name.trim() {
+        "Unit" | "Void" => ResolvedType::Unit,
+        "Bool" => ResolvedType::Bool,
+        "Int" | "I64" => ResolvedType::Int(IntSize::I64),
+        "UInt" | "U64" => ResolvedType::Int(IntSize::U64),
+        "Float" | "F64" => ResolvedType::Float(FloatSize::F64),
+        "F32" => ResolvedType::Float(FloatSize::F32),
+        "String" => ResolvedType::String,
+        "Char" => ResolvedType::Char,
+        "Any" => ResolvedType::Unknown,
+        "Never" => ResolvedType::Never,
+        other => ResolvedType::Struct(other.to_string(), HashMap::new()),
+    }
 }
 
 fn register_filesystem_global_functions(env: &mut TypeEnv<'_>) {
@@ -8471,6 +8505,16 @@ mod tests {
     use crate::diagnostics::SpanMapper;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
+
+    #[test]
+    fn type_env_registers_stdlib_registry_bridge_globals() {
+        let span_mapper = SpanMapper::new("");
+        let env = TypeEnv::new(&span_mapper, "<test>");
+        assert!(
+            env.lookup("kain_input_reset").is_some(),
+            "stdlib registry globals should be visible to the typechecker"
+        );
+    }
 
     #[test]
     fn typecheck_resolves_forward_enum_references_in_struct_fields() {

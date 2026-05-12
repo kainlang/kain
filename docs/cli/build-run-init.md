@@ -1,6 +1,6 @@
 # Build, Run, And Init
 
-Snapshot: April 12, 2026.
+Snapshot: May 12, 2026.
 
 This page covers the everyday compiler-facing workflow.
 
@@ -75,11 +75,43 @@ that the native launcher consumes.
 
 ## `run`
 
-`kain run <input.kn>` executes the source in the interpreter/runtime lane.
+`kain run [input]` resolves an entry file, blade, manifest, or workspace through
+the `kain-run` crate and executes it through the right adapter.
+
+Current adapters:
+
+- `.kn` / `.god`: Kain interpreter lane through `kain-driver`
+- `.c`: hidden cached Clang compile, then execute
+- `Cargo.toml` or a Rust crate folder: `cargo run` with a run-cache target dir
+- `KAIN.fabric.toml`: Fabric manifest run
+- `.js` / `.mjs` / `.cjs`: Node
+- `.ts`: Bun
+
+Useful flags:
+
+- `--target auto|kain|c|cargo|fabric|node|bun`
+- `--json`
+- `--trace`
+- `--keep-artifacts`
+- `--dry-run`
+- trailing runtime args after `--`
+
+`kain run dev [input]` and `kain watch [input]` run the same plan in watcher
+mode and re-run when planned inputs change. Use `--dry-run` on either command
+to print the resolved plan without entering the resident loop.
+
+`kain run plan [input]` prints the resolved plan without executing it. This is
+the quickest way to debug target inference, blade selection, and manifest run
+metadata.
+
+Run artifacts are intentionally isolated from build artifacts:
+
+- `.kain/cache/run` stores cached executables and Cargo run target dirs
+- `.kain/reports/run` stores JSON session reports plus JSONL event streams
 
 The top-level `-r/--run` flag on the root parser is not the same thing as this
-subcommand. One is compile-then-run behavior, the other is explicit interpret
-mode.
+subcommand. One is compile-then-run behavior, the other is the explicit
+multi-adapter run pipeline.
 
 ## Legacy Root Invocation
 
@@ -96,10 +128,21 @@ The build path reads a `KAIN.toml` that typically includes:
 - optional `ue5`
 - optional `rust`
 - optional `rust_ffi`
+- optional `run`
+
+The `[run]` section is consumed by `kain-run` and may include:
+
+- `entry`
+- `blade`
+- `target`
+- `args`
+- `env`
+- `cwd`
+- `watch`
 
 ## Practical Rule
 
-Use `build` when you want artifacts, `run` when you want immediate execution,
-and `init` when you want a canonical project skeleton. If the question is
-"which target should I choose?", start with `cli/targets-and-codegen.md` and
-`reference/target-matrix.md`.
+Use `build` when you want durable artifacts, `run` when you want immediate
+execution, `watch` when you want a live local loop, and `init` when you want a
+canonical project skeleton. If the question is "which target should I choose?",
+start with `cli/targets-and-codegen.md` and `reference/target-matrix.md`.

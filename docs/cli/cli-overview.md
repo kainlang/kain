@@ -25,6 +25,7 @@ snippets when the binary help output disagrees.
 - `commands`
 - `build`
 - `run`
+- `watch`
 - `gpu-artifacts`
 - `inject`
 - `import-asm`
@@ -68,6 +69,11 @@ packaging, import, orchestration, or repair workflow, use the corresponding
 subcommand. Use `reference/command-matrix.md` when you need the exact flag
 table and `reference/target-matrix.md` when you need the target aliases.
 
+Use `kain run`, `kain run dev`, `kain run plan`, or `kain watch` for the
+unified runtime loop. That path is owned by `crates/kain-run` and supports Kain
+source, C files, Cargo crates, Fabric manifests, Node, Bun, blades, and
+workspace `[run]` metadata.
+
 ## Source Of Truth
 
 The CLI surface is defined in:
@@ -78,7 +84,10 @@ The CLI surface is defined in:
 - `crates/kain-commands/src/blade.rs`
 - `crates/kain-commands/src/registry.rs`
 - `crates/kain-commands/src/runtime.rs`
+- `crates/kain-run/src/lib.rs`
 - `crates/cli/src/main.rs` for host dispatch and handler execution
+- `crates/cli/src/run.rs` for CLI printing and exit-code handling around
+  `kain-run`
 - `crates/kain-check/src/lib.rs`
 - `crates/kain-test/src/lib.rs`
 - `crates/cli/src/packager/`

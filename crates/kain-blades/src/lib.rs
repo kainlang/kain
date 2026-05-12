@@ -29,6 +29,7 @@ pub struct KainManifest {
     pub package: KainPackageSection,
     pub workspace: KainWorkspaceSection,
     pub build: KainBuildSection,
+    pub run: KainRunSection,
     pub blade: BladeSection,
     pub manifests: BTreeMap<String, PathBuf>,
     #[serde(rename = "c_ffi")]
@@ -89,6 +90,18 @@ pub struct KainBuildTaskSection {
     pub inputs: Vec<PathBuf>,
     pub outputs: Vec<PathBuf>,
     pub depends_on: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct KainRunSection {
+    pub entry: Option<PathBuf>,
+    pub blade: Option<String>,
+    pub target: Option<String>,
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    pub cwd: Option<PathBuf>,
+    pub watch: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -968,6 +981,41 @@ depends_on = ["prepare"]
         assert_eq!(manifest.build.tasks.len(), 1);
         assert_eq!(manifest.build.tasks[0].kind, "c");
         assert_eq!(manifest.build.tasks[0].depends_on, vec!["prepare"]);
+    }
+
+    #[test]
+    fn manifest_parses_run_section() {
+        let tmp = tempfile::tempdir().unwrap();
+        let manifest_path = tmp.path().join("KAIN.toml");
+        kfs::write_text(
+            &manifest_path,
+            r#"
+[package]
+name = "runnable"
+
+[run]
+entry = "src/main.c"
+target = "c"
+args = ["--demo"]
+cwd = "src"
+watch = ["src/main.c", "assets"]
+
+[run.env]
+KAIN_RUN_MODE = "smoke"
+"#,
+        )
+        .unwrap();
+
+        let manifest = load_kain_manifest(&manifest_path).unwrap();
+        assert_eq!(manifest.run.entry, Some(PathBuf::from("src/main.c")));
+        assert_eq!(manifest.run.target.as_deref(), Some("c"));
+        assert_eq!(manifest.run.args, vec!["--demo"]);
+        assert_eq!(manifest.run.cwd, Some(PathBuf::from("src")));
+        assert_eq!(manifest.run.watch.len(), 2);
+        assert_eq!(
+            manifest.run.env.get("KAIN_RUN_MODE").map(String::as_str),
+            Some("smoke")
+        );
     }
 
     #[test]

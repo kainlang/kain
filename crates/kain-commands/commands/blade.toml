@@ -6,6 +6,13 @@ about = "Build the full local blade workspace"
 handler = "builtin:blade.build"
 
 [[commands]]
+id = "blade.run"
+bins = ["blade"]
+path = ["run"]
+about = "Run a local blade through the Kain run pipeline"
+handler = "builtin:blade.run"
+
+[[commands]]
 id = "blade.list"
 bins = ["blade"]
 path = ["list"]

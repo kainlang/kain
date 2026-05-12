@@ -55,7 +55,8 @@ These flags live at the top level of `kain` / `kn`:
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `commands` | list or export command registry metadata | `cli/cli-overview.md` |
 | `build` | build a file or a `KAIN.toml` project | `cli/build-run-init.md` |
-| `run` | explicit interpret-mode execution | `cli/build-run-init.md` |
+| `run` | resolve and execute a Kain source, C file, blade, manifest, Cargo crate, Node/Bun entry, or workspace | `cli/build-run-init.md` |
+| `watch` | run the unified run plan in watcher mode | `cli/build-run-init.md` |
 | `gpu-artifacts` | emit SPIR-V, Rust host wrappers, and reflection JSON | `cli/native-ui-and-packaging.md` |
 | `inject` | inject Kain output into an existing plugin | `cli/native-ui-and-packaging.md` |
 | `import-asm` | import assembly source | `cli/importers.md` |
@@ -104,6 +105,36 @@ These flags live at the top level of `kain` / `kn`:
 | `--runtime-crate` | native UI runtime crate name, default `kain-ui-native` |
 | `--runtime-path` | explicit path dependency for the runtime crate |
 | `--runtime-version` | published version dependency for the runtime crate |
+
+## Run And Watch
+
+`run` is the unified immediate-execution pipeline owned by `crates/kain-run`.
+The CLI host only parses, prints, and sets exit codes.
+
+| Command | Meaning |
+| --- | --- |
+| `kain run [input]` | resolve and execute once |
+| `kain run dev [input]` | execute and keep re-running when planned inputs change |
+| `kain run plan [input]` | print the resolved plan without executing |
+| `kain watch [input]` | alias-style top-level watcher for the same dev mode |
+| `kain blades run [blade]` | run a selected blade through the same pipeline |
+| `blade run [blade]` | standalone blade launcher for the same pipeline |
+
+Shared flags:
+
+| Flag | Meaning |
+| --- | --- |
+| `--target auto|kain|c|cargo|fabric|node|bun` | target override |
+| `--json` | emit JSON plan or report |
+| `--trace` | request trace-oriented report detail |
+| `--keep-artifacts` | keep cached/generated run artifacts |
+| `--dry-run` | plan without executing; on watch/dev this avoids entering the watcher loop |
+| `-- <ARGS>...` | pass runtime args to process-backed adapters |
+
+The `[run]` manifest section can provide `entry`, `blade`, `target`, `args`,
+`env`, `cwd`, and `watch`. Cached run executables and Cargo target dirs live
+under `.kain/cache/run`; JSON reports and JSONL event streams live under
+`.kain/reports/run`.
 
 ## Check And Test
 

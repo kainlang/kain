@@ -66,6 +66,40 @@ pub enum BladesCommand {
         #[arg(long)]
         json: bool,
     },
+
+    /// Run a local blade through the Kain run pipeline
+    Run {
+        /// Blade name or path inside the workspace
+        blade: Option<String>,
+
+        /// Path inside the workspace to inspect
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without executing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -108,6 +142,40 @@ pub enum BladeCommand {
         /// Emit JSON instead of text
         #[arg(long)]
         json: bool,
+    },
+
+    /// Run a local blade through the Kain run pipeline
+    Run {
+        /// Blade name or path inside the workspace
+        blade: Option<String>,
+
+        /// Path inside the workspace to inspect
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+
+        /// Run target override
+        #[arg(long, default_value = "auto")]
+        target: String,
+
+        /// Emit JSON instead of text
+        #[arg(long)]
+        json: bool,
+
+        /// Include trace-oriented report detail
+        #[arg(long)]
+        trace: bool,
+
+        /// Keep cached/generated run artifacts
+        #[arg(long = "keep-artifacts")]
+        keep_artifacts: bool,
+
+        /// Print the resolved run plan without executing
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Runtime args. Use `--` before this vector.
+        #[arg(last = true)]
+        args: Vec<String>,
     },
 
     /// List blades discovered from the current workspace
@@ -179,6 +247,24 @@ mod tests {
                 assert!(clean);
             }
             other => panic!("expected blade build, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_standalone_blade_run() {
+        let cli = BladeCli::parse_from(["blade", "run", "demo", "--target", "cargo", "--", "x"]);
+        match cli.command {
+            BladeCommand::Run {
+                blade,
+                target,
+                args,
+                ..
+            } => {
+                assert_eq!(blade.as_deref(), Some("demo"));
+                assert_eq!(target, "cargo");
+                assert_eq!(args, ["x"]);
+            }
+            other => panic!("expected blade run, got {other:?}"),
         }
     }
 }
