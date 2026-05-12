@@ -1,5 +1,19 @@
 # Kain Memory
 
+# 2026-05-12 - Native UI pilot smoke builds the first raw UI LLVM executable
+
+`smoketest/native-ui/pilot` is now the first focused smoke for the raw native UI ABI. It deliberately does not reuse the older `/smoketest` delegate pipelines. `main.kn` authors a compact UI system in one Kain file using `stdlib/native/ui.kn`: stable keyed nodes, host attach/present, font/texture/canvas/shader handles, text measurement, accessibility metadata, clipboard, IME, drag/drop, menu, dialog, event polling, and draw submission.
+
+`run.ps1` resolves a local `kain.exe`, runs `kain check`, builds LLVM to `outputs/pilot.exe`, scans the generated `pilot.ll` for native UI ABI calls, and executes the produced binary. Outputs are ignored under `outputs/`.
+
+Validation:
+
+- `.\smoketest\native-ui\pilot\run.ps1`
+
+Current limitation:
+
+- This smoke proves the raw host metadata path and executable link/run. The native UI host is still headless; add screenshot capture here after `kain_native_ui_host_present` is attached to a pixel backend.
+
 # 2026-05-12 - Canonical Kain input semantics landed
 
 Kain now has a first-class input semantics lane instead of treating input as scattered stdin/UI/native helper calls. `crates/kain-input` owns typed source provenance, events, data-driven action/axis bindings, frame reduction, text commits, first-class `agent.intent` events, and deterministic trace serialization/replay. `crates/kain-core` registers interpreter bridge builtins under `kain_input_*`, with root `stdlib/input.kn` exposing the public `input_*` helpers.

@@ -71,6 +71,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [crates](/M:/Code/Kain/crates): workspace crates
 - [runtime](/M:/Code/Kain/runtime): native runtime substrate, conformance, fixtures, and companion lanes
 - [smoketest](/M:/Code/Kain/smoketest): capability proof matrix for bridges, UI, 3D, and mixed runtimes
+- [smoketest/native-ui](/M:/Code/Kain/smoketest/native-ui): focused raw native UI proof lane. `pilot/` is the first isolated LLVM smoke for Kain-authored UI systems over `stdlib/native/ui.kn`; do not route this lane through the older smoketest delegate pipelines.
 - [smoketest/compiler_owned_intent](/M:/Code/Kain/smoketest/compiler_owned_intent): compiler-owned intent suite smoke covering `kain run` plus LLVM runtime-contract / realtime-bundle staging
 - [smoketest/UI](/M:/Code/Kain/smoketest/UI): UI proof surface for authored shells, dense operator layouts, shader-canvas proofs, and packaged native launches
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
