@@ -84,6 +84,30 @@ int main(void) {
     if (!test_true(kain_native_ui_node_style_f64(session, viewport, "density", 0.0) > 1.4, "f64 style should round trip")) {
         return 1;
     }
+    if (!test_true(kain_native_ui_node_set_state_i64(session, command, "counter", 3) == KAIN_NATIVE_UI_OK, "i64 state should write")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_set_state_f64(session, command, "spin", 1.25) == KAIN_NATIVE_UI_OK, "f64 state should write")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_set_state_string(session, command, "shape.kind", "tetra.surface") == KAIN_NATIVE_UI_OK, "string state should write")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_state_i64(session, command, "counter", 0) == 3, "i64 state should round trip")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_state_f64(session, command, "spin", 0.0) > 1.2, "f64 state should round trip")) {
+        return 1;
+    }
+    if (!test_true(strcmp(kain_native_ui_node_state_string(session, command, "shape.kind", "rect"), "tetra.surface") == 0, "string state should round trip")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_state_i64(session, command, "missing", 42) == 42, "missing state should return fallback")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_state_count(session) == 3, "state count should track generic authored cells")) {
+        return 1;
+    }
 
     hit = kain_native_ui_hit_test(session, 32.0, 32.0);
     if (!test_true(hit == command, "hit test should return topmost authored rect")) {

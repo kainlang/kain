@@ -205,6 +205,43 @@ static KainNativeUiStyleRecord* kain_native_ui_ensure_style(KainNativeUiSession*
     return NULL;
 }
 
+static KainNativeUiStateRecord* kain_native_ui_find_state(KainNativeUiSession* session, int64_t node_id, const char* key) {
+    int64_t index;
+    if (!session || !key) {
+        return NULL;
+    }
+    for (index = 0; index < KAIN_NATIVE_UI_MAX_STATE; index += 1) {
+        if (session->state[index].in_use &&
+            session->state[index].node_id == node_id &&
+            strcmp(session->state[index].key, key) == 0) {
+            return &session->state[index];
+        }
+    }
+    return NULL;
+}
+
+static KainNativeUiStateRecord* kain_native_ui_ensure_state(KainNativeUiSession* session, int64_t node_id, const char* key) {
+    int64_t index;
+    KainNativeUiStateRecord* existing = kain_native_ui_find_state(session, node_id, key);
+    if (existing) {
+        return existing;
+    }
+    if (!session || !key || session->state_count >= KAIN_NATIVE_UI_MAX_STATE) {
+        return NULL;
+    }
+    for (index = 0; index < KAIN_NATIVE_UI_MAX_STATE; index += 1) {
+        if (!session->state[index].in_use) {
+            memset(&session->state[index], 0, sizeof(session->state[index]));
+            session->state[index].in_use = 1;
+            session->state[index].node_id = node_id;
+            kain_native_ui_copy_text(session->state[index].key, sizeof(session->state[index].key), key);
+            session->state_count += 1;
+            return &session->state[index];
+        }
+    }
+    return NULL;
+}
+
 static KainNativeUiDrawCommand* kain_native_ui_append_draw_command(KainNativeUiSession* session, const char* kind) {
     KainNativeUiDrawCommand* command;
     if (!session || session->draw_command_count >= KAIN_NATIVE_UI_MAX_DRAW_COMMANDS) {
@@ -861,6 +898,89 @@ const char* kain_native_ui_node_style_string(int64_t session_id, int64_t node_id
         return kain_native_ui_return_string(record->string_value);
     }
     return kain_native_ui_return_string(fallback ? fallback : g_empty_string);
+}
+
+int64_t kain_native_ui_node_set_state_i64(int64_t session_id, int64_t node_id, const char* key, int64_t value) {
+    KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    KainNativeUiStateRecord* record;
+    KainNativeUiNode* node = kain_native_ui_find_node(session, node_id);
+    if (!session) {
+        return KAIN_NATIVE_UI_INVALID_SESSION;
+    }
+    if (!node) {
+        return KAIN_NATIVE_UI_INVALID_NODE;
+    }
+    record = kain_native_ui_ensure_state(session, node_id, key);
+    if (!record) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    record->value_kind = KAIN_NATIVE_UI_STYLE_I64;
+    record->i64_value = value;
+    kain_native_ui_touch_node(session, node, 12);
+    return KAIN_NATIVE_UI_OK;
+}
+
+int64_t kain_native_ui_node_set_state_f64(int64_t session_id, int64_t node_id, const char* key, double value) {
+    KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    KainNativeUiStateRecord* record;
+    KainNativeUiNode* node = kain_native_ui_find_node(session, node_id);
+    if (!session) {
+        return KAIN_NATIVE_UI_INVALID_SESSION;
+    }
+    if (!node) {
+        return KAIN_NATIVE_UI_INVALID_NODE;
+    }
+    record = kain_native_ui_ensure_state(session, node_id, key);
+    if (!record) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    record->value_kind = KAIN_NATIVE_UI_STYLE_F64;
+    record->f64_value = value;
+    kain_native_ui_touch_node(session, node, 12);
+    return KAIN_NATIVE_UI_OK;
+}
+
+int64_t kain_native_ui_node_set_state_string(int64_t session_id, int64_t node_id, const char* key, const char* value) {
+    KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    KainNativeUiStateRecord* record;
+    KainNativeUiNode* node = kain_native_ui_find_node(session, node_id);
+    if (!session) {
+        return KAIN_NATIVE_UI_INVALID_SESSION;
+    }
+    if (!node) {
+        return KAIN_NATIVE_UI_INVALID_NODE;
+    }
+    record = kain_native_ui_ensure_state(session, node_id, key);
+    if (!record) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    record->value_kind = KAIN_NATIVE_UI_STYLE_STRING;
+    kain_native_ui_copy_text(record->string_value, sizeof(record->string_value), value);
+    kain_native_ui_touch_node(session, node, 12);
+    return KAIN_NATIVE_UI_OK;
+}
+
+int64_t kain_native_ui_node_state_i64(int64_t session_id, int64_t node_id, const char* key, int64_t fallback) {
+    KainNativeUiStateRecord* record = kain_native_ui_find_state(kain_native_ui_find_session(session_id), node_id, key);
+    return (record && record->value_kind == KAIN_NATIVE_UI_STYLE_I64) ? record->i64_value : fallback;
+}
+
+double kain_native_ui_node_state_f64(int64_t session_id, int64_t node_id, const char* key, double fallback) {
+    KainNativeUiStateRecord* record = kain_native_ui_find_state(kain_native_ui_find_session(session_id), node_id, key);
+    return (record && record->value_kind == KAIN_NATIVE_UI_STYLE_F64) ? record->f64_value : fallback;
+}
+
+const char* kain_native_ui_node_state_string(int64_t session_id, int64_t node_id, const char* key, const char* fallback) {
+    KainNativeUiStateRecord* record = kain_native_ui_find_state(kain_native_ui_find_session(session_id), node_id, key);
+    if (record && record->value_kind == KAIN_NATIVE_UI_STYLE_STRING) {
+        return kain_native_ui_return_string(record->string_value);
+    }
+    return kain_native_ui_return_string(fallback ? fallback : g_empty_string);
+}
+
+int64_t kain_native_ui_state_count(int64_t session_id) {
+    KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    return session ? session->state_count : KAIN_NATIVE_UI_INVALID_SESSION;
 }
 
 int64_t kain_native_ui_focus(int64_t session_id, int64_t node_id) {

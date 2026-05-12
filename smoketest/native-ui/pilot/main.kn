@@ -39,6 +39,12 @@ fn main() -> Int:
     let _status_fill = ui_style_color_rgba(session, status, "pilot.status", 0.70, 0.78, 0.88, 1.0)
     let _command_spacing = ui_style_spacing(session, command, "pilot.layout", 10.0)
     let _command_padding = ui_style_padding(session, command, "pilot.layout", 12.0, 8.0, 12.0, 8.0)
+    let _command_shape = ui_state_shape(session, command, "capsule.command", "radius=20")
+    let _viewport_shape = ui_state_shape(session, viewport, "tetra.surface", "faces=4;kerr=0.42")
+    let _viewport_hit = ui_state_hit(session, viewport, "authored.math", "rect-prefilter;kerr-refine")
+    let _viewport_draw = ui_state_draw(session, viewport, "canvas.shader", "pilot.viewport")
+    let _viewport_resource = ui_state_resource(session, viewport, "canvas", "viewport", viewport_canvas)
+    let viewport_visits = ui_state_counter(session, viewport, "state.visits", 1)
     let hovered = ui_apply_hover_flag(session, command, 32.0, command_y + 8.0)
 
     let _clip = native_ui_clipboard_set_text(session, "pilot-ready")
@@ -72,7 +78,7 @@ fn main() -> Int:
     let frame_hash = native_ui_host_frame_hash(session)
     let committed_generation = native_ui_hot_reload_commit(session)
 
-    if stable_command == command and presented_count == draw_count and draw_count >= 6 and frame_hash > 0 and native_ui_resource_count(session) == 5 and native_ui_drag_drop_target(session) == viewport and native_ui_host_should_close(session) == 1 and fill_shader > 0 and generation == committed_generation and hovered == 1 and native_ui_node_has_flag(session, command, "focusable") == 1:
+    if stable_command == command and presented_count == draw_count and draw_count >= 6 and frame_hash > 0 and native_ui_resource_count(session) == 5 and native_ui_drag_drop_target(session) == viewport and native_ui_host_should_close(session) == 1 and fill_shader > 0 and generation == committed_generation and hovered == 1 and native_ui_node_has_flag(session, command, "focusable") == 1 and ui_state_string(session, viewport, "shape.kind", "") == "tetra.surface" and ui_state_i64(session, viewport, "resource.id", 0) == viewport_canvas and viewport_visits == 1 and native_ui_state_count(session) >= 12:
         return 0
 
     return 1

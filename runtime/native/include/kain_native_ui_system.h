@@ -10,6 +10,7 @@ extern "C" {
 #define KAIN_NATIVE_UI_MAX_SESSIONS 16
 #define KAIN_NATIVE_UI_MAX_NODES 4096
 #define KAIN_NATIVE_UI_MAX_STYLES 8192
+#define KAIN_NATIVE_UI_MAX_STATE 8192
 #define KAIN_NATIVE_UI_MAX_DRAW_COMMANDS 8192
 #define KAIN_NATIVE_UI_MAX_EVENTS 1024
 #define KAIN_NATIVE_UI_MAX_RESOURCES 2048
@@ -90,6 +91,13 @@ int64_t kain_native_ui_node_set_style_string(int64_t session_id, int64_t node_id
 int64_t kain_native_ui_node_style_i64(int64_t session_id, int64_t node_id, const char* key, int64_t fallback);
 double kain_native_ui_node_style_f64(int64_t session_id, int64_t node_id, const char* key, double fallback);
 const char* kain_native_ui_node_style_string(int64_t session_id, int64_t node_id, const char* key, const char* fallback);
+int64_t kain_native_ui_node_set_state_i64(int64_t session_id, int64_t node_id, const char* key, int64_t value);
+int64_t kain_native_ui_node_set_state_f64(int64_t session_id, int64_t node_id, const char* key, double value);
+int64_t kain_native_ui_node_set_state_string(int64_t session_id, int64_t node_id, const char* key, const char* value);
+int64_t kain_native_ui_node_state_i64(int64_t session_id, int64_t node_id, const char* key, int64_t fallback);
+double kain_native_ui_node_state_f64(int64_t session_id, int64_t node_id, const char* key, double fallback);
+const char* kain_native_ui_node_state_string(int64_t session_id, int64_t node_id, const char* key, const char* fallback);
+int64_t kain_native_ui_state_count(int64_t session_id);
 
 int64_t kain_native_ui_focus(int64_t session_id, int64_t node_id);
 int64_t kain_native_ui_focused_node(int64_t session_id);

@@ -193,6 +193,21 @@ fn kain_native_ui_node_set_stable_key(session_id: Int, node_id: Int, stable_key:
 fn kain_native_ui_node_find_by_stable_key(session_id: Int, stable_key: String) -> Int
 
 @extern
+fn kain_native_ui_node_set_state_i64(session_id: Int, node_id: Int, key: String, value: Int) -> Int
+
+@extern
+fn kain_native_ui_node_state_i64(session_id: Int, node_id: Int, key: String, fallback: Int) -> Int
+
+@extern
+fn kain_native_ui_node_set_state_string(session_id: Int, node_id: Int, key: String, value: String) -> Int
+
+@extern
+fn kain_native_ui_node_state_string(session_id: Int, node_id: Int, key: String, fallback: String) -> String
+
+@extern
+fn kain_native_ui_state_count(session_id: Int) -> Int
+
+@extern
 fn kain_native_ui_host_attach(session_id: Int, backend_id: String) -> Int
 
 @extern
@@ -235,10 +250,12 @@ fn main() -> Int:
     let width = kain_native_ui_text_measure_width(session, font, "Launch")
     let texture = kain_native_ui_texture_create(session, "texture.icon", 32, 32, "rgba8", 4096)
     let _upload = kain_native_ui_resource_set_bytes_hex(session, texture, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
+    let _shape = kain_native_ui_node_set_state_string(session, command, "shape.kind", "tetra.surface")
+    let _resource_state = kain_native_ui_node_set_state_i64(session, command, "resource.id", texture)
     let _draw = kain_native_ui_draw_resource(session, command, texture, 164.0, 18.0, 32.0, 32.0, "icon")
     let _text = kain_native_ui_draw_text(session, command, font, 28.0, 38.0, "Launch", "label")
     let _clipboard = kain_native_ui_clipboard_set_text(session, "Launch")
-    if kain_native_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0:
+    if kain_native_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0 and kain_native_ui_node_state_string(session, command, "shape.kind", "") == "tetra.surface" and kain_native_ui_node_state_i64(session, command, "resource.id", 0) == texture and kain_native_ui_state_count(session) == 2:
         return kain_native_ui_host_present(session)
     return 0
 "#;
@@ -252,9 +269,16 @@ fn main() -> Int:
     assert!(llvm.contains("declare double @kain_native_ui_text_measure_width"));
     assert!(llvm.contains("declare i64 @kain_native_ui_resource_set_bytes_hex"));
     assert!(llvm.contains("declare i64 @kain_native_ui_draw_text"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_state_string"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_node_set_state_i64"));
+    assert!(llvm.contains("declare i8* @kain_native_ui_node_state_string"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_state_count"));
     assert!(llvm.contains("call i64 @kain_native_ui_draw_resource"));
     assert!(llvm.contains("call i64 @kain_native_ui_draw_text"));
+    assert!(llvm.contains("call i64 @kain_native_ui_node_set_state_string"));
+    assert!(llvm.contains("call i64 @kain_native_ui_node_state_i64"));
     assert!(llvm.contains("call i64 @kain_native_ui_host_present"));
+    assert!(llvm.contains("tetra.surface"));
     assert!(llvm.contains("command.launch"));
     assert!(!llvm.contains("button"));
     assert!(!llvm.contains("panel"));

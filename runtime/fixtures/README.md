@@ -204,6 +204,7 @@ cd runtime/fixtures/llvm_heap_memory
 - Stable keyed node reconciliation
 - Layout split, inset, and text measurement helpers
 - Style color, padding, spacing, and inherited color resolution
+- Generic authored state cells for arbitrary shape, hit, draw, and resource payloads
 - Generic render helpers for boxes, text, and resources
 - Authored pointer-state handling through generic `hovered` and `pressed` node flags
 

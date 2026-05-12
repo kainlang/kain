@@ -51,6 +51,16 @@ typedef struct KainNativeUiStyleRecord {
     char string_value[KAIN_NATIVE_UI_MAX_TEXT];
 } KainNativeUiStyleRecord;
 
+typedef struct KainNativeUiStateRecord {
+    int in_use;
+    int64_t node_id;
+    KainNativeUiStyleValueKind value_kind;
+    int64_t i64_value;
+    double f64_value;
+    char key[KAIN_NATIVE_UI_MAX_KEY];
+    char string_value[KAIN_NATIVE_UI_MAX_TEXT];
+} KainNativeUiStateRecord;
+
 typedef struct KainNativeUiEvent {
     char kind[KAIN_NATIVE_UI_MAX_KEY];
     int64_t target_node_id;
@@ -162,6 +172,7 @@ typedef struct KainNativeUiSession {
     char dialog_response_text[KAIN_NATIVE_UI_MAX_TEXT];
     KainNativeUiNode nodes[KAIN_NATIVE_UI_MAX_NODES];
     KainNativeUiStyleRecord styles[KAIN_NATIVE_UI_MAX_STYLES];
+    KainNativeUiStateRecord state[KAIN_NATIVE_UI_MAX_STATE];
     KainNativeUiDrawCommand draw_commands[KAIN_NATIVE_UI_MAX_DRAW_COMMANDS];
     KainNativeUiEvent events[KAIN_NATIVE_UI_MAX_EVENTS];
     KainNativeUiResource resources[KAIN_NATIVE_UI_MAX_RESOURCES];
@@ -171,6 +182,7 @@ typedef struct KainNativeUiSession {
     KainNativeUiEvent active_event;
     int64_t node_count;
     int64_t style_count;
+    int64_t state_count;
     int64_t draw_command_count;
     int64_t event_head;
     int64_t event_tail;

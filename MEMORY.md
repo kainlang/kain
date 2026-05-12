@@ -1,5 +1,22 @@
 # Kain Memory
 
+# 2026-05-12 - Native UI gained generic authored state cells
+
+The raw native UI ABI now has generic per-node state cells: `kain_native_ui_node_set_state_i64/f64/string`, `kain_native_ui_node_state_i64/f64/string`, and `kain_native_ui_state_count`. This is deliberately substrate, not a component system. The runtime stores keyed values for authored nodes and marks nodes dirty, but it does not know what a button, tetrahedron, Kerr-field hit tester, shader surface, or product control means.
+
+`stdlib/native/ui.kn` exposes thin state wrappers plus system-shaped helpers for booleans, toggles, counters, references, and arbitrary `shape.*`, `hit.*`, `draw.*`, and `resource.*` payload conventions. The stdlib still does not define baked buttons, panels, or product UI. Apps and Kain libraries can build any catalog or stranger UI model they want on top of these cells.
+
+Validation targets updated for this pass:
+
+- `runtime/conformance/ui_runtime/test_native_ui_system_kernel.c` covers raw state set/get/fallback/count.
+- `runtime/conformance/ui_runtime/test_native_ui_system_host_services.c` covers state preservation through stable-key identity and live `win32-gl` acceptance.
+- `runtime/fixtures/native_ui_stdlib_layer/main.kn` proves Kain-authored state payload helpers through LLVM.
+- `smoketest/native-ui/pilot/main.kn` carries arbitrary command/viewport shape, hit, draw, and resource payloads into the live screenshot smoke.
+
+Recommended next step:
+
+- Build the real Kain-authored reconciler/state graph on top of these cells, including hot-reload retention policy and authored custom hit/layout callbacks. Keep rect hit testing as the v1 host prefilter only; do not make rects the semantic ceiling.
+
 # 2026-05-12 - Kain-authored native UI stdlib layer started
 
 `stdlib/native/ui.kn` now has a first real authored UI layer above the raw native UI ABI. The helpers are deliberately system-shaped rather than catalog-shaped: session/frame setup, stable keyed reconciliation, rect/layout math, split/inset/center helpers, style color/metric/padding/spacing helpers, inherited color resolution, texture hex upload convenience, render helpers for boxes/text/resources, and event helpers for authored pointer state. There are still no baked runtime buttons, panels, or product components.

@@ -9,6 +9,7 @@ It deliberately stays catalog-free. The fixture uses generic helpers from `stdli
 - layout math
 - style color, spacing, padding, and inherited color resolution
 - text measurement
+- generic state cells for arbitrary authored shape, hit, draw, and resource payloads
 - render submission helpers
 - generic pointer state flags driven by authored event handling
 

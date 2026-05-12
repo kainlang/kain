@@ -11,8 +11,14 @@ fn main() -> Int:
     let sidebar = ui_reconcile_text_node(session, root, "app.sidebar", "sidebar", "systems", 16.0, 16.0, sidebar_width, 300.0)
     let content = ui_reconcile_focusable_node(session, root, "app.surface", "surface.main", "authored surface", "region", "Authored surface", content_x, 16.0, content_width, 300.0)
     let label = ui_reconcile_text_node(session, content, "app.label", "surface.label", "Kain-authored stdlib UI", ui_layout_inset_x(content_x, 16.0), ui_layout_inset_y(16.0, 22.0), ui_text_width(session, body_font, "Kain-authored stdlib UI") + 8.0, 24.0)
+    let _content_shape = ui_state_shape(session, content, "tetra.surface", "faces=4;spin=0.125")
+    let _content_hit = ui_state_hit(session, content, "kain.authored", "rect-prefilter;tetra-refine")
+    let _content_draw = ui_state_draw(session, content, "shader.resource", "kerr-lens")
+    let content_expanded = ui_state_toggle(session, content, "state.expanded")
+    let content_visits = ui_state_counter(session, content, "state.visits", 2)
 
     let texture = ui_texture_rgba8_from_hex(session, "texture.stdlib.layer", 2, 2, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
+    let _content_resource = ui_state_resource(session, content, "texture", "icon", texture)
     let _root_bg = ui_style_color_rgba(session, root, "ui.bg", 0.07, 0.08, 0.10, 1.0)
     let _root_text = ui_style_color_rgba(session, root, "ui.text", 0.96, 0.97, 1.0, 1.0)
     let _sidebar = ui_style_color_rgba(session, sidebar, "ui.sidebar", 0.12, 0.15, 0.18, 1.0)
@@ -50,5 +56,19 @@ fn main() -> Int:
         return 16
     if native_ui_resource_count(session) != 2:
         return 17
+    if ui_state_string(session, content, "shape.kind", "") != "tetra.surface":
+        return 18
+    if ui_state_string(session, content, "hit.kind", "") != "kain.authored":
+        return 19
+    if ui_state_i64(session, content, "resource.id", 0) != texture:
+        return 20
+    if content_expanded != 1:
+        return 21
+    if content_visits != 2:
+        return 22
+    if native_ui_state_count(session) < 11:
+        return 23
+    if ui_custom_hit_targets(session, content, content_x + 10.0, 26.0) != content:
+        return 24
 
     return 0

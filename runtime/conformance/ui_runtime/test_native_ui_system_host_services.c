@@ -74,7 +74,15 @@ int main(void) {
     kain_native_ui_node_set_rect(session, root, 0.0, 0.0, 800.0, 480.0);
     kain_native_ui_node_set_rect(session, command, 16.0, 16.0, 180.0, 36.0);
     kain_native_ui_node_set_text(session, command, "Launch");
+    kain_native_ui_node_set_state_string(session, command, "shape.kind", "tetra.surface");
+    kain_native_ui_node_set_state_string(session, command, "hit.kind", "authored.math");
     if (!test_true(kain_native_ui_node_find_by_stable_key(session, "command.launch") == command, "stable key lookup should preserve hot reload identity")) {
+        return 1;
+    }
+    if (!test_true(strcmp(kain_native_ui_node_state_string(session, command, "shape.kind", "rect"), "tetra.surface") == 0, "state should survive stable-key reconciliation identity")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_state_count(session) == 2, "host services should track authored state cells")) {
         return 1;
     }
 
@@ -228,6 +236,8 @@ int main(void) {
         kain_native_ui_node_set_parent(live_session, live_command, live_root);
         kain_native_ui_node_set_rect(live_session, live_root, 0.0, 0.0, 640.0, 360.0);
         kain_native_ui_node_set_rect(live_session, live_command, 16.0, 16.0, 180.0, 36.0);
+        kain_native_ui_node_set_state_string(live_session, live_command, "shape.kind", "capsule.command");
+        kain_native_ui_node_set_state_string(live_session, live_command, "draw.kind", "shader.resource");
         kain_native_ui_resource_set_bytes_hex(live_session, live_texture, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF");
         kain_native_ui_node_set_style_f64(live_session, live_root, "live.bg.color.r", 0.08);
         kain_native_ui_node_set_style_f64(live_session, live_root, "live.bg.color.g", 0.09);
@@ -243,6 +253,9 @@ int main(void) {
         kain_native_ui_node_set_style_f64(live_session, live_command, "live.label.color.a", 1.0);
         kain_native_ui_clipboard_set_text(live_session, "win32-live");
         if (!test_true(strcmp(kain_native_ui_clipboard_text(live_session), "win32-live") == 0, "live clipboard bridge should round trip")) {
+            return 1;
+        }
+        if (!test_true(kain_native_ui_state_count(live_session) == 2, "live host should accept generic authored state cells")) {
             return 1;
         }
         kain_native_ui_menu_add_item(live_session, live_menu, "launch", "Launch", 101);
