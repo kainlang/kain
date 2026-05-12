@@ -214,7 +214,13 @@ fn kain_native_ui_text_measure_width(session_id: Int, font_resource_id: Int, tex
 fn kain_native_ui_draw_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
+fn kain_native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
+
+@extern
 fn kain_native_ui_clipboard_set_text(session_id: Int, text: String) -> Int
+
+@extern
+fn kain_native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
 
 fn main() -> Int:
     let session = kain_native_ui_session_create("single-file-host-authoring", 960, 540)
@@ -228,7 +234,9 @@ fn main() -> Int:
     let font = kain_native_ui_font_create(session, "font.body", "Inter", 14.0)
     let width = kain_native_ui_text_measure_width(session, font, "Launch")
     let texture = kain_native_ui_texture_create(session, "texture.icon", 32, 32, "rgba8", 4096)
+    let _upload = kain_native_ui_resource_set_bytes_hex(session, texture, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
     let _draw = kain_native_ui_draw_resource(session, command, texture, 164.0, 18.0, 32.0, 32.0, "icon")
+    let _text = kain_native_ui_draw_text(session, command, font, 28.0, 38.0, "Launch", "label")
     let _clipboard = kain_native_ui_clipboard_set_text(session, "Launch")
     if kain_native_ui_node_find_by_stable_key(session, "command.launch") == command and width > 10.0:
         return kain_native_ui_host_present(session)
@@ -242,7 +250,10 @@ fn main() -> Int:
     assert!(llvm.contains("declare i64 @kain_native_ui_host_attach(i64 %arg0, i8* %arg1)"));
     assert!(llvm.contains("declare i64 @kain_native_ui_font_create"));
     assert!(llvm.contains("declare double @kain_native_ui_text_measure_width"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_resource_set_bytes_hex"));
+    assert!(llvm.contains("declare i64 @kain_native_ui_draw_text"));
     assert!(llvm.contains("call i64 @kain_native_ui_draw_resource"));
+    assert!(llvm.contains("call i64 @kain_native_ui_draw_text"));
     assert!(llvm.contains("call i64 @kain_native_ui_host_present"));
     assert!(llvm.contains("command.launch"));
     assert!(!llvm.contains("button"));

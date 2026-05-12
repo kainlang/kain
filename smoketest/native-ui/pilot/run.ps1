@@ -11,6 +11,7 @@ $sourcePath = Join-Path $pilotDir "main.kn"
 $outputDir = Join-Path $pilotDir "outputs"
 $outputExe = Join-Path $outputDir "pilot.exe"
 $outputLl = Join-Path $outputDir "pilot.ll"
+$screenshotBmp = Join-Path $outputDir "pilot.bmp"
 
 function Resolve-KainBinary {
     param([string]$Requested)
@@ -20,6 +21,7 @@ function Resolve-KainBinary {
     }
 
     $candidatePaths = @(
+        (Join-Path $repoRoot "target\codex-native-ui-win32\debug\kain.exe"),
         (Join-Path $repoRoot "target\codex-native-ui-host-services-cli\debug\kain.exe"),
         (Join-Path $repoRoot "target\debug\kain.exe"),
         (Join-Path $repoRoot "target\release\kain.exe")
@@ -44,6 +46,10 @@ $resolvedKain = Resolve-KainBinary -Requested $KainBin
 
 Push-Location $repoRoot
 try {
+    if (Test-Path $screenshotBmp) {
+        Remove-Item -LiteralPath $screenshotBmp -Force
+    }
+
     & $resolvedKain check $sourcePath --target llvm
     if ($LASTEXITCODE -ne 0) {
         throw "kain check failed with exit code $LASTEXITCODE"
@@ -66,7 +72,8 @@ try {
         "call i64 @kain_native_ui_host_attach(",
         "call i64 @kain_native_ui_hot_reload_begin(",
         "call i64 @kain_native_ui_font_create(",
-        "call i64 @kain_native_ui_draw_resource(",
+        "call i64 @kain_native_ui_resource_set_bytes_hex(",
+        "call i64 @kain_native_ui_draw_text(",
         "call i64 @kain_native_ui_host_present("
     )
 
@@ -76,10 +83,25 @@ try {
         }
     }
 
-    & $outputExe
-    $runExitCode = $LASTEXITCODE
+    $runExitCode = 0
+    try {
+        $env:KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH = $screenshotBmp
+        $env:KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES = "3"
+        & $outputExe
+        $runExitCode = $LASTEXITCODE
+    }
+    finally {
+        Remove-Item Env:KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH -ErrorAction SilentlyContinue
+        Remove-Item Env:KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES -ErrorAction SilentlyContinue
+    }
     if ($runExitCode -ne 0) {
         throw "pilot.exe exited with code $runExitCode"
+    }
+    if (!(Test-Path $screenshotBmp)) {
+        throw "Expected screenshot was not created: $screenshotBmp"
+    }
+    if ((Get-Item $screenshotBmp).Length -le 0) {
+        throw "Screenshot was empty: $screenshotBmp"
     }
 
     Write-Host "[PASS] native-ui pilot built and executed: $outputExe"

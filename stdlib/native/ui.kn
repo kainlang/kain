@@ -143,7 +143,7 @@ fn kain_native_ui_event_text(session_id: Int) -> String
 fn kain_native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int
 
 @extern
-fn kain_native_ui_draw_text(session_id: Int, node_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
+fn kain_native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int
 
 @extern
 fn kain_native_ui_draw_command_count(session_id: Int) -> Int
@@ -218,6 +218,9 @@ fn kain_native_ui_draw_command_text(session_id: Int, command_index: Int) -> Stri
 fn kain_native_ui_draw_command_style(session_id: Int, command_index: Int) -> String
 
 @extern
+fn kain_native_ui_draw_command_font(session_id: Int, command_index: Int) -> Int
+
+@extern
 fn kain_native_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int
 
 @extern
@@ -231,6 +234,9 @@ fn kain_native_ui_canvas_create(session_id: Int, key: String, width: Int, height
 
 @extern
 fn kain_native_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int
+
+@extern
+fn kain_native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int
 
 @extern
 fn kain_native_ui_resource_count(session_id: Int) -> Int
@@ -508,8 +514,8 @@ pub fn native_ui_event_text(session_id: Int) -> String:
 pub fn native_ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
     return kain_native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
 
-pub fn native_ui_draw_text(session_id: Int, node_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
-    return kain_native_ui_draw_text(session_id, node_id, x, y, text, style_key)
+pub fn native_ui_draw_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, text: String, style_key: String) -> Int:
+    return kain_native_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
 
 pub fn native_ui_draw_command_count(session_id: Int) -> Int:
     return kain_native_ui_draw_command_count(session_id)
@@ -583,6 +589,9 @@ pub fn native_ui_draw_command_text(session_id: Int, command_index: Int) -> Strin
 pub fn native_ui_draw_command_style(session_id: Int, command_index: Int) -> String:
     return kain_native_ui_draw_command_style(session_id, command_index)
 
+pub fn native_ui_draw_command_font(session_id: Int, command_index: Int) -> Int:
+    return kain_native_ui_draw_command_font(session_id, command_index)
+
 pub fn native_ui_resource_create(session_id: Int, resource_type: String, key: String, width: Int, height: Int, byte_length: Int) -> Int:
     return kain_native_ui_resource_create(session_id, resource_type, key, width, height, byte_length)
 
@@ -597,6 +606,9 @@ pub fn native_ui_canvas_create(session_id: Int, key: String, width: Int, height:
 
 pub fn native_ui_shader_create(session_id: Int, key: String, stage: String, byte_length: Int) -> Int:
     return kain_native_ui_shader_create(session_id, key, stage, byte_length)
+
+pub fn native_ui_resource_set_bytes_hex(session_id: Int, resource_id: Int, bytes_hex: String) -> Int:
+    return kain_native_ui_resource_set_bytes_hex(session_id, resource_id, bytes_hex)
 
 pub fn native_ui_resource_count(session_id: Int) -> Int:
     return kain_native_ui_resource_count(session_id)
@@ -750,6 +762,17 @@ pub fn ui_node_from_stable_key(session_id: Int, parent_id: Int, kind: String, st
     let _rect = native_ui_node_set_rect(session_id, node, x, y, width, height)
     let _text = native_ui_node_set_text(session_id, node, text)
     return node
+
+pub fn ui_node_style_color_rgba(session_id: Int, node_id: Int, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
+    let _r = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.r", r)
+    let _g = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.g", g)
+    let _b = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.b", b)
+    return native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.a", a)
+
+pub fn native_ui_texture_create_from_hex(session_id: Int, key: String, width: Int, height: Int, format: String, bytes_hex: String) -> Int:
+    let texture = native_ui_texture_create(session_id, key, width, height, format, len(bytes_hex) / 2)
+    let _upload = native_ui_resource_set_bytes_hex(session_id, texture, bytes_hex)
+    return texture
 
 pub fn ui_present_to_attached_host(session_id: Int) -> Int:
     let _end = native_ui_end_frame(session_id)

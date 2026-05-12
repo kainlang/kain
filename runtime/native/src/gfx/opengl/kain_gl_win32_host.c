@@ -1,5 +1,4 @@
 #include "../../../include/kain_runtime_win32.h"
-#include "../../../include/kain_runtime_graphics.h"
 
 #ifdef _WIN32
 int kain_win32_gl_boot(HWND hwnd, HDC* dc, HGLRC* glrc) {
@@ -210,14 +209,4 @@ double kain_win32_frame_timer_step(LARGE_INTEGER* perf_freq, LARGE_INTEGER* prev
     return frame_delta;
 }
 
-int kain_win32_gl_surface_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle) {
-    KainRuntimeGraphicsValidation validation;
-    if (!bundle) {
-        return 0;
-    }
-    if (!kain_runtime_graphics_validate_bundle(bundle, &validation)) {
-        return 0;
-    }
-    return validation.gl_lane_ready;
-}
 #endif

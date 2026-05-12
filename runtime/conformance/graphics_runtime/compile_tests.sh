@@ -33,7 +33,7 @@ HOST_RUNTIME_OBJECTS=()
 
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
     PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c"
-    PLATFORM_GRAPHICS_SOURCE=""
+    PLATFORM_GRAPHICS_SOURCE="$NATIVE_SRC/platform/win32/kain_runtime_win32_graphics.c"
     BUILD_GL_HOST=1
     LDFLAGS="-lws2_32 -luser32 -lgdi32 -lopengl32"
 else

@@ -1,18 +1,29 @@
 # Kain Memory
 
-# 2026-05-12 - Native UI pilot smoke builds the first raw UI LLVM executable
+# 2026-05-12 - Raw native UI now has a live Win32/GL presenter and screenshotable LLVM smoke
 
-`smoketest/native-ui/pilot` is now the first focused smoke for the raw native UI ABI. It deliberately does not reuse the older `/smoketest` delegate pipelines. `main.kn` authors a compact UI system in one Kain file using `stdlib/native/ui.kn`: stable keyed nodes, host attach/present, font/texture/canvas/shader handles, text measurement, accessibility metadata, clipboard, IME, drag/drop, menu, dialog, event polling, and draw submission.
+The raw native UI ABI is no longer metadata-only on Windows. `runtime/native/src/ui/kain_native_ui_system.c` now delegates live presentation through an internal host adapter layer, with `runtime/native/src/ui/kain_native_ui_host_win32_gl.c` providing the first non-blocking `win32-gl` backend. The core session/node/resource/event kernel remains generic; the backend only owns window creation, GL presentation, Win32 message translation, clipboard/menu/dialog bridging, and screenshot capture. `software` remains the headless metadata backend.
 
-`run.ps1` resolves a local `kain.exe`, runs `kain check`, builds LLVM to `outputs/pilot.exe`, scans the generated `pilot.ll` for native UI ABI calls, and executes the produced binary. Outputs are ignored under `outputs/`.
+Two ABI upgrades landed with the presenter:
+
+- `draw_text` now requires an explicit font resource handle, so text rendering stays resource-shaped instead of depending on a hidden host default.
+- UI resources now support generic byte upload plus a Kain-friendly hex helper. `stdlib/native/ui.kn` exposes `native_ui_resource_set_bytes_hex(...)` and `native_ui_texture_create_from_hex(...)`, letting a single Kain file author texture-backed UI without a host-owned image catalog.
+
+`smoketest/native-ui/pilot` is now a real end-to-end proof, not just an LLVM link test. `main.kn` authors a compact UI system in one Kain file, attaches `win32-gl`, renders authored rect/text/resource commands, captures `outputs/pilot.bmp`, and exits `0`. `run.ps1` resolves a local `kain.exe`, runs `kain check`, builds LLVM to `outputs/pilot.exe`, scans `pilot.ll` for raw native UI ABI calls, runs the executable with screenshot env vars, and verifies the BMP artifact.
 
 Validation:
 
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_single_file_native_ui_primitives_without_component_catalog --target-dir target\codex-native-ui-win32 -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_ui_host_services_without_component_catalog --target-dir target\codex-native-ui-win32 -- --nocapture`
+- `bash runtime/conformance/ui_runtime/run_tests.sh --verbose`
+- `cargo build -p cli --target-dir target\codex-native-ui-win32`
+- `target\codex-native-ui-win32\debug\kain.exe check runtime\fixtures\native_ui_single_file\main.kn --target llvm`
+- `target\codex-native-ui-win32\debug\kain.exe check runtime\fixtures\native_ui_runtime_systems\main.kn --target llvm`
 - `.\smoketest\native-ui\pilot\run.ps1`
 
-Current limitation:
+Recommended next step:
 
-- This smoke proves the raw host metadata path and executable link/run. The native UI host is still headless; add screenshot capture here after `kain_native_ui_host_present` is attached to a pixel backend.
+- Keep the raw ABI generic and build the Kain-authored layout/style/reconciliation layer above it in stdlib. Future platform work should add more adapters behind the same host boundary rather than widening the C layer into baked widgets or a host-owned component catalog.
 
 # 2026-05-12 - Canonical Kain input semantics landed
 

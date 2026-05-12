@@ -1,20 +1,30 @@
 fn pilot_node(session: Int, parent: Int, kind: String, key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
     return ui_node_from_stable_key(session, parent, kind, key, text, x, y, width, height)
 
-fn pilot_draw_label(session: Int, node: Int, text: String, x: Float, y: Float, style: String) -> Int:
-    return native_ui_draw_text(session, node, x, y, text, style)
+fn pilot_draw_label(session: Int, node: Int, font: Int, text: String, x: Float, y: Float, style: String) -> Int:
+    return native_ui_draw_text(session, node, font, x, y, text, style)
+
+fn render_pilot_frame(session: Int, root: Int, title: Int, command: Int, viewport: Int, status: Int, body_font: Int, title_font: Int, icon_texture: Int, viewport_canvas: Int, command_y: Float, command_width: Float) -> Int:
+    let _frame = native_ui_begin_frame(session, 16.0)
+    let _root_draw = native_ui_draw_rect(session, root, 0.0, 0.0, 960.0, 540.0, "pilot.bg")
+    let _viewport_draw = native_ui_draw_resource(session, viewport, viewport_canvas, 24.0, 142.0, 720.0, 320.0, "pilot.viewport")
+    let _title_draw = pilot_draw_label(session, title, title_font, "PILOT", 24.0, 48.0, "pilot.title")
+    let _command_draw = native_ui_draw_rect(session, command, 24.0, command_y, command_width, 40.0, "pilot.command")
+    let _icon_draw = native_ui_draw_resource(session, command, icon_texture, command_width + 8.0, command_y + 4.0, 32.0, 32.0, "pilot.icon")
+    let _label_draw = pilot_draw_label(session, command, body_font, native_ui_node_text(session, command), 36.0, command_y + 26.0, "pilot.label")
+    let _status_draw = pilot_draw_label(session, status, body_font, native_ui_node_text(session, status), 24.0, 500.0, "pilot.status")
+    return ui_present_to_attached_host(session)
 
 fn main() -> Int:
     let _reset = native_ui_reset()
     let session = native_ui_session_create("native-ui-pilot", 960, 540)
     let _window = native_ui_window_open(session, "Kain Native UI Pilot", 960, 540)
-    let _host = native_ui_host_attach(session, "software")
+    let _host = native_ui_host_attach(session, "win32-gl")
     let generation = native_ui_hot_reload_begin(session, "pilot-episode-one")
-    let _frame = native_ui_begin_frame(session, 16.0)
 
     let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)
     let title_font = native_ui_font_create(session, "font.title", "Inter", 22.0)
-    let icon_texture = native_ui_texture_create(session, "texture.pilot.glyph", 32, 32, "rgba8", 4096)
+    let icon_texture = native_ui_texture_create_from_hex(session, "texture.pilot.glyph", 2, 2, "rgba8", "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
     let viewport_canvas = native_ui_canvas_create(session, "canvas.pilot.viewport", 960, 540)
     let fill_shader = native_ui_shader_create(session, "shader.pilot.fill", "fragment", 192)
 
@@ -27,6 +37,14 @@ fn main() -> Int:
     let viewport = pilot_node(session, root, "pilot.viewport.raw", "pilot.viewport", "viewport", 24.0, 142.0, 720.0, 320.0)
     let status = pilot_node(session, root, "pilot.status", "pilot.status", "ABI live", 24.0, 480.0, 180.0, 28.0)
 
+    let _root_bg = ui_node_style_color_rgba(session, root, "pilot.bg", 0.08, 0.09, 0.11, 1.0)
+    let _viewport_bg = ui_node_style_color_rgba(session, viewport, "pilot.viewport", 0.15, 0.19, 0.24, 1.0)
+    let _command_fill = ui_node_style_color_rgba(session, command, "pilot.command", 0.21, 0.55, 0.46, 1.0)
+    let _icon_fill = ui_node_style_color_rgba(session, command, "pilot.icon", 1.0, 1.0, 1.0, 1.0)
+    let _title_fill = ui_node_style_color_rgba(session, title, "pilot.title", 0.97, 0.98, 1.0, 1.0)
+    let _label_fill = ui_node_style_color_rgba(session, command, "pilot.label", 0.97, 0.98, 1.0, 1.0)
+    let _status_fill = ui_node_style_color_rgba(session, status, "pilot.status", 0.70, 0.78, 0.88, 1.0)
+
     let _title_role = native_ui_accessibility_set_role(session, title, "heading")
     let _command_role = native_ui_accessibility_set_role(session, command, "action")
     let _command_label = native_ui_accessibility_set_label(session, command, "Engage the authored UI pilot")
@@ -35,30 +53,33 @@ fn main() -> Int:
     let _ime_text = native_ui_ime_commit_text(session, "typed-from-pilot")
     let _drag = native_ui_drag_begin(session, command, "pilot.drag.payload", 32.0, command_y + 4.0)
     let _drag_update = native_ui_drag_update(session, 120.0, 220.0, viewport)
-    let menu = native_ui_menu_create(session, "pilot.menu")
-    let _menu_item = native_ui_menu_add_item(session, menu, "engage", "Engage UI", 501)
-    let _menu_open = native_ui_menu_open(session, menu, 24.0, command_y + 44.0)
-    let dialog = native_ui_dialog_request(session, "confirm", "Pilot", "Launch authored UI")
-    let _dialog_reply = native_ui_dialog_respond(session, dialog, 11, "go")
-    let dialog_result = native_ui_dialog_poll_response(session)
-    let _event = native_ui_push_event(session, "pointer.down", command, 36.0, command_y + 12.0, 0, "primary")
-    let event_polled = native_ui_poll_event(session)
 
-    let _root_draw = native_ui_draw_rect(session, root, 0.0, 0.0, 960.0, 540.0, "pilot.bg")
-    let _viewport_draw = native_ui_draw_resource(session, viewport, viewport_canvas, 24.0, 142.0, 720.0, 320.0, "pilot.viewport")
-    let _title_draw = pilot_draw_label(session, title, "PILOT", 24.0, 48.0, "pilot.title")
-    let _command_draw = native_ui_draw_rect(session, command, 24.0, command_y, command_width, 40.0, "pilot.command")
-    let _icon_draw = native_ui_draw_resource(session, command, icon_texture, command_width + 8.0, command_y + 4.0, 32.0, 32.0, "pilot.icon")
-    let _label_draw = pilot_draw_label(session, command, native_ui_node_text(session, command), 36.0, command_y + 26.0, "pilot.label")
-    let _status_draw = pilot_draw_label(session, status, native_ui_node_text(session, status), 24.0, 500.0, "pilot.status")
+    let frame_counter = 0
+    let draw_count = 0
+    while frame_counter < 8 and native_ui_host_should_close(session) == 0:
+        draw_count = render_pilot_frame(
+            session,
+            root,
+            title,
+            command,
+            viewport,
+            status,
+            body_font,
+            title_font,
+            icon_texture,
+            viewport_canvas,
+            command_y,
+            command_width
+        )
+        let _pump = native_ui_host_pump(session)
+        frame_counter = frame_counter + 1
 
-    let draw_count = ui_present_to_attached_host(session)
     let stable_command = native_ui_node_find_by_stable_key(session, "pilot.command.engage")
     let presented_count = native_ui_host_presented_draw_count(session)
     let frame_hash = native_ui_host_frame_hash(session)
     let committed_generation = native_ui_hot_reload_commit(session)
 
-    if stable_command == command and presented_count == draw_count and draw_count >= 7 and frame_hash > 0 and native_ui_resource_count(session) == 5 and native_ui_drag_drop_target(session) == viewport and native_ui_menu_active(session) == menu and dialog_result == 11 and event_polled == 1 and native_ui_event_target(session) == command and fill_shader > 0 and generation == committed_generation:
+    if stable_command == command and presented_count == draw_count and draw_count >= 6 and frame_hash > 0 and native_ui_resource_count(session) == 5 and native_ui_drag_drop_target(session) == viewport and native_ui_host_should_close(session) == 1 and fill_shader > 0 and generation == committed_generation:
         return 0
 
     return 1

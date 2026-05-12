@@ -126,6 +126,7 @@ int64_t kain_native_ui_draw_rect(
 int64_t kain_native_ui_draw_text(
     int64_t session_id,
     int64_t node_id,
+    int64_t font_resource_id,
     double x,
     double y,
     const char* text,
@@ -141,12 +142,15 @@ double kain_native_ui_draw_command_width(int64_t session_id, int64_t command_ind
 double kain_native_ui_draw_command_height(int64_t session_id, int64_t command_index);
 const char* kain_native_ui_draw_command_text(int64_t session_id, int64_t command_index);
 const char* kain_native_ui_draw_command_style(int64_t session_id, int64_t command_index);
+int64_t kain_native_ui_draw_command_font(int64_t session_id, int64_t command_index);
 
 int64_t kain_native_ui_resource_create(int64_t session_id, const char* resource_type, const char* key, int64_t width, int64_t height, int64_t byte_length);
 int64_t kain_native_ui_font_create(int64_t session_id, const char* key, const char* family, double size);
 int64_t kain_native_ui_texture_create(int64_t session_id, const char* key, int64_t width, int64_t height, const char* format, int64_t byte_length);
 int64_t kain_native_ui_canvas_create(int64_t session_id, const char* key, int64_t width, int64_t height);
 int64_t kain_native_ui_shader_create(int64_t session_id, const char* key, const char* stage, int64_t byte_length);
+int64_t kain_native_ui_resource_set_bytes(int64_t session_id, int64_t resource_id, const uint8_t* bytes, int64_t byte_length);
+int64_t kain_native_ui_resource_set_bytes_hex(int64_t session_id, int64_t resource_id, const char* bytes_hex);
 int64_t kain_native_ui_resource_count(int64_t session_id);
 int64_t kain_native_ui_resource_exists(int64_t session_id, int64_t resource_id);
 const char* kain_native_ui_resource_type(int64_t session_id, int64_t resource_id);

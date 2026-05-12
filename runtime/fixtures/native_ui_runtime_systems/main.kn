@@ -11,7 +11,7 @@ fn main() -> Int:
 
     let font = native_ui_font_create(session, "font.body", "Inter", 14.0)
     let label_width = native_ui_text_measure_width(session, font, "Launch")
-    let texture = native_ui_texture_create(session, "texture.command.icon", 32, 32, "rgba8", 4096)
+    let texture = native_ui_texture_create_from_hex(session, "texture.command.icon", 2, 2, "rgba8", "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
     let canvas = native_ui_canvas_create(session, "canvas.viewport", 900, 540)
     let shader_resource = native_ui_shader_create(session, "shader.command.fill", "fragment", 128)
 
@@ -41,7 +41,7 @@ fn main() -> Int:
     let _viewport_draw = native_ui_draw_resource(session, viewport, canvas, 16.0, 96.0, 620.0, 360.0, "viewport.canvas")
     let _command_draw = native_ui_draw_rect(session, command, 16.0, row_y, command_width, 36.0, "command.fill")
     let _icon_draw = native_ui_draw_resource(session, command, texture, command_width - 24.0, row_y + 2.0, 32.0, 32.0, "command.icon")
-    let _text_draw = native_ui_draw_text(session, command, 28.0, row_y + 24.0, native_ui_node_text(session, command), "command.label")
+    let _text_draw = native_ui_draw_text(session, command, font, 28.0, row_y + 24.0, native_ui_node_text(session, command), "command.label")
 
     let draw_count = ui_present_to_attached_host(session)
     let found_command = native_ui_node_find_by_stable_key(session, "command.launch")

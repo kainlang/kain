@@ -24,6 +24,7 @@ int main(void) {
     int64_t root;
     int64_t command;
     int64_t viewport;
+    int64_t font;
     int64_t draw_count;
     int64_t hit;
 
@@ -63,6 +64,7 @@ int main(void) {
     kain_native_ui_node_set_rect(session, command, 24.0, 24.0, 220.0, 48.0);
     kain_native_ui_node_set_rect(session, viewport, 24.0, 96.0, 900.0, 540.0);
     kain_native_ui_node_set_text(session, command, "Launch");
+    font = kain_native_ui_font_create(session, "font.body", "Inter", 14.0);
     kain_native_ui_node_set_style_string(session, command, "fill", "#21d4a1");
     kain_native_ui_node_set_style_i64(session, command, "layer", 7);
     kain_native_ui_node_set_style_f64(session, viewport, "density", 1.5);
@@ -96,7 +98,7 @@ int main(void) {
 
     kain_native_ui_begin_frame(session, 16.0);
     kain_native_ui_draw_rect(session, command, 24.0, 24.0, 220.0, 48.0, "fill");
-    kain_native_ui_draw_text(session, command, 36.0, 52.0, "Launch", "label");
+    kain_native_ui_draw_text(session, command, font, 36.0, 52.0, "Launch", "label");
     draw_count = kain_native_ui_draw_command_count(session);
     if (!test_true(draw_count == 2, "draw command buffer should collect authored commands")) {
         return 1;
@@ -105,6 +107,9 @@ int main(void) {
         return 1;
     }
     if (!test_true(kain_native_ui_draw_command_node(session, 1) == command, "second draw command should target command node")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_draw_command_font(session, 1) == font, "text draw command should keep authored font handle")) {
         return 1;
     }
 

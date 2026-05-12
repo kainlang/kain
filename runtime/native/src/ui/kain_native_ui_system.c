@@ -1,174 +1,10 @@
-#include "kain_runtime_base.h"
-#include "kain_native_ui_system.h"
+#include "kain_native_ui_system_internal.h"
+#include "kain_native_ui_host_adapter.h"
 
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-typedef enum KainNativeUiStyleValueKind {
-    KAIN_NATIVE_UI_STYLE_I64 = 1,
-    KAIN_NATIVE_UI_STYLE_F64 = 2,
-    KAIN_NATIVE_UI_STYLE_STRING = 3,
-} KainNativeUiStyleValueKind;
-
-enum KainNativeUiNodeFlags {
-    KAIN_NATIVE_UI_NODE_HIDDEN = 1 << 0,
-    KAIN_NATIVE_UI_NODE_FOCUSABLE = 1 << 1,
-    KAIN_NATIVE_UI_NODE_INTERACTIVE = 1 << 2,
-    KAIN_NATIVE_UI_NODE_DISABLED = 1 << 3,
-};
-
-typedef struct KainNativeUiNode {
-    int in_use;
-    int64_t id;
-    int64_t parent_id;
-    int64_t child_count;
-    int64_t flags;
-    int64_t dirty_reason;
-    uint64_t revision;
-    double x;
-    double y;
-    double width;
-    double height;
-    char kind[KAIN_NATIVE_UI_MAX_KEY];
-    char text[KAIN_NATIVE_UI_MAX_TEXT];
-    char stable_key[KAIN_NATIVE_UI_MAX_KEY];
-    char accessibility_role[KAIN_NATIVE_UI_MAX_KEY];
-    char accessibility_label[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiNode;
-
-typedef struct KainNativeUiStyleRecord {
-    int in_use;
-    int64_t node_id;
-    KainNativeUiStyleValueKind value_kind;
-    int64_t i64_value;
-    double f64_value;
-    char key[KAIN_NATIVE_UI_MAX_KEY];
-    char string_value[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiStyleRecord;
-
-typedef struct KainNativeUiEvent {
-    char kind[KAIN_NATIVE_UI_MAX_KEY];
-    int64_t target_node_id;
-    int64_t key_code;
-    double x;
-    double y;
-    char text[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiEvent;
-
-typedef struct KainNativeUiDrawCommand {
-    char kind[KAIN_NATIVE_UI_MAX_KEY];
-    int64_t node_id;
-    double x;
-    double y;
-    double width;
-    double height;
-    int64_t resource_id;
-    char text[KAIN_NATIVE_UI_MAX_TEXT];
-    char style_key[KAIN_NATIVE_UI_MAX_KEY];
-} KainNativeUiDrawCommand;
-
-typedef struct KainNativeUiResource {
-    int in_use;
-    int64_t id;
-    int64_t width;
-    int64_t height;
-    int64_t byte_length;
-    double scalar_value;
-    char resource_type[KAIN_NATIVE_UI_MAX_KEY];
-    char key[KAIN_NATIVE_UI_MAX_KEY];
-    char aux[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiResource;
-
-typedef struct KainNativeUiMenu {
-    int in_use;
-    int64_t id;
-    int64_t item_count;
-    int64_t open;
-    double x;
-    double y;
-    char key[KAIN_NATIVE_UI_MAX_KEY];
-} KainNativeUiMenu;
-
-typedef struct KainNativeUiMenuItem {
-    int in_use;
-    int64_t id;
-    int64_t menu_id;
-    int64_t command_id;
-    char key[KAIN_NATIVE_UI_MAX_KEY];
-    char label[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiMenuItem;
-
-typedef struct KainNativeUiDialog {
-    int in_use;
-    int64_t id;
-    int64_t result;
-    int64_t response_ready;
-    char kind[KAIN_NATIVE_UI_MAX_KEY];
-    char title[KAIN_NATIVE_UI_MAX_TEXT];
-    char message[KAIN_NATIVE_UI_MAX_TEXT];
-    char response_text[KAIN_NATIVE_UI_MAX_TEXT];
-} KainNativeUiDialog;
-
-typedef struct KainNativeUiSession {
-    int in_use;
-    int64_t id;
-    int64_t width;
-    int64_t height;
-    int64_t open;
-    int64_t frame_index;
-    int64_t last_presented_frame;
-    int64_t focused_node_id;
-    int64_t dirty_count;
-    int64_t next_node_id;
-    int64_t next_resource_id;
-    int64_t next_menu_id;
-    int64_t next_menu_item_id;
-    int64_t next_dialog_id;
-    int64_t host_attached;
-    int64_t host_pump_count;
-    int64_t host_should_close;
-    int64_t host_presented_draw_count;
-    int64_t host_frame_hash;
-    int64_t resource_count;
-    int64_t menu_count;
-    int64_t menu_item_count;
-    int64_t dialog_count;
-    int64_t active_menu_id;
-    int64_t active_dialog_id;
-    int64_t ime_active_node_id;
-    int64_t drag_active_node_id;
-    int64_t drag_drop_target_id;
-    int64_t hot_reload_generation;
-    int64_t dialog_response_ready;
-    int64_t dialog_response_result;
-    double drag_x;
-    double drag_y;
-    double last_delta_ms;
-    char app_name[KAIN_NATIVE_UI_MAX_KEY];
-    char window_title[KAIN_NATIVE_UI_MAX_TEXT];
-    char host_backend[KAIN_NATIVE_UI_MAX_KEY];
-    char clipboard_text[KAIN_NATIVE_UI_MAX_TEXT];
-    char ime_text[KAIN_NATIVE_UI_MAX_TEXT];
-    char drag_payload[KAIN_NATIVE_UI_MAX_TEXT];
-    char hot_reload_key[KAIN_NATIVE_UI_MAX_KEY];
-    char dialog_response_text[KAIN_NATIVE_UI_MAX_TEXT];
-    KainNativeUiNode nodes[KAIN_NATIVE_UI_MAX_NODES];
-    KainNativeUiStyleRecord styles[KAIN_NATIVE_UI_MAX_STYLES];
-    KainNativeUiDrawCommand draw_commands[KAIN_NATIVE_UI_MAX_DRAW_COMMANDS];
-    KainNativeUiEvent events[KAIN_NATIVE_UI_MAX_EVENTS];
-    KainNativeUiResource resources[KAIN_NATIVE_UI_MAX_RESOURCES];
-    KainNativeUiMenu menus[KAIN_NATIVE_UI_MAX_MENUS];
-    KainNativeUiMenuItem menu_items[KAIN_NATIVE_UI_MAX_MENU_ITEMS];
-    KainNativeUiDialog dialogs[KAIN_NATIVE_UI_MAX_DIALOGS];
-    KainNativeUiEvent active_event;
-    int64_t node_count;
-    int64_t style_count;
-    int64_t draw_command_count;
-    int64_t event_head;
-    int64_t event_tail;
-    int64_t event_count;
-} KainNativeUiSession;
 
 static KainNativeUiSession g_sessions[KAIN_NATIVE_UI_MAX_SESSIONS];
 static int64_t g_next_session_id = 1;
@@ -375,7 +211,98 @@ static KainNativeUiDrawCommand* kain_native_ui_append_draw_command(KainNativeUiS
     return command;
 }
 
+static int kain_native_ui_hex_value(char ch) {
+    if (ch >= '0' && ch <= '9') {
+        return ch - '0';
+    }
+    if (ch >= 'a' && ch <= 'f') {
+        return 10 + (ch - 'a');
+    }
+    if (ch >= 'A' && ch <= 'F') {
+        return 10 + (ch - 'A');
+    }
+    return -1;
+}
+
+static int64_t kain_native_ui_decode_hex(const char* bytes_hex, uint8_t** out_bytes) {
+    size_t index;
+    size_t length;
+    size_t byte_count;
+    uint8_t* bytes;
+    if (out_bytes) {
+        *out_bytes = NULL;
+    }
+    if (!bytes_hex) {
+        return -1;
+    }
+    length = strlen(bytes_hex);
+    if ((length % 2u) != 0u) {
+        return -1;
+    }
+    for (index = 0; index < length; index += 1) {
+        if (kain_native_ui_hex_value(bytes_hex[index]) < 0) {
+            return -1;
+        }
+    }
+    byte_count = length / 2u;
+    if (byte_count == 0u) {
+        return 0;
+    }
+    bytes = (uint8_t*)malloc(byte_count);
+    if (!bytes) {
+        return -1;
+    }
+    for (index = 0; index < byte_count; index += 1) {
+        int high = kain_native_ui_hex_value(bytes_hex[index * 2u]);
+        int low = kain_native_ui_hex_value(bytes_hex[index * 2u + 1u]);
+        bytes[index] = (uint8_t)((high << 4) | low);
+    }
+    if (out_bytes) {
+        *out_bytes = bytes;
+    } else {
+        free(bytes);
+    }
+    return (int64_t)byte_count;
+}
+
+static void kain_native_ui_release_resource_bytes(KainNativeUiResource* resource) {
+    if (!resource) {
+        return;
+    }
+    if (resource->bytes) {
+        free(resource->bytes);
+        resource->bytes = NULL;
+    }
+    resource->byte_length = 0;
+}
+
+static void kain_native_ui_release_session_resources(KainNativeUiSession* session) {
+    int64_t index;
+    if (!session) {
+        return;
+    }
+    for (index = 0; index < KAIN_NATIVE_UI_MAX_RESOURCES; index += 1) {
+        if (session->resources[index].in_use) {
+            kain_native_ui_release_resource_bytes(&session->resources[index]);
+        }
+    }
+}
+
+static void kain_native_ui_release_session(KainNativeUiSession* session) {
+    if (!session) {
+        return;
+    }
+    kain_native_ui_host_adapter_shutdown(session);
+    kain_native_ui_release_session_resources(session);
+}
+
 int64_t kain_native_ui_reset(void) {
+    int64_t index;
+    for (index = 0; index < KAIN_NATIVE_UI_MAX_SESSIONS; index += 1) {
+        if (g_sessions[index].in_use) {
+            kain_native_ui_release_session(&g_sessions[index]);
+        }
+    }
     memset(g_sessions, 0, sizeof(g_sessions));
     g_next_session_id = 1;
     return KAIN_NATIVE_UI_OK;
@@ -408,6 +335,7 @@ int64_t kain_native_ui_session_destroy(int64_t session_id) {
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
+    kain_native_ui_release_session(session);
     memset(session, 0, sizeof(*session));
     return KAIN_NATIVE_UI_OK;
 }
@@ -476,24 +404,36 @@ int64_t kain_native_ui_present(int64_t session_id) {
 
 int64_t kain_native_ui_host_attach(int64_t session_id, const char* backend_id) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    const char* requested_backend;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
+    requested_backend = (backend_id && backend_id[0]) ? backend_id : "software";
+    if (strcmp(requested_backend, "software") == 0) {
+        session->host_attached = 1;
+        kain_native_ui_copy_text(session->host_backend, sizeof(session->host_backend), "software");
+        return KAIN_NATIVE_UI_OK;
+    }
+    if (kain_native_ui_host_adapter_attach(session, requested_backend) != KAIN_NATIVE_UI_OK) {
+        return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+    }
     session->host_attached = 1;
-    kain_native_ui_copy_text(
-        session->host_backend,
-        sizeof(session->host_backend),
-        (backend_id && backend_id[0]) ? backend_id : "software"
-    );
     return KAIN_NATIVE_UI_OK;
 }
 
 int64_t kain_native_ui_host_pump(int64_t session_id) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    int64_t adapter_status;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     session->host_pump_count += 1;
+    if (kain_native_ui_host_adapter_is_live_backend(session->host_backend)) {
+        adapter_status = kain_native_ui_host_adapter_pump(session);
+        if (adapter_status != KAIN_NATIVE_UI_OK) {
+            return adapter_status;
+        }
+    }
     return session->event_count;
 }
 
@@ -509,6 +449,7 @@ int64_t kain_native_ui_host_present(int64_t session_id) {
         hash = kain_native_ui_hash_text(hash, command->kind);
         hash = kain_native_ui_hash_i64(hash, command->node_id);
         hash = kain_native_ui_hash_i64(hash, command->resource_id);
+        hash = kain_native_ui_hash_i64(hash, command->font_resource_id);
         hash = kain_native_ui_hash_f64(hash, command->x);
         hash = kain_native_ui_hash_f64(hash, command->y);
         hash = kain_native_ui_hash_f64(hash, command->width);
@@ -521,6 +462,12 @@ int64_t kain_native_ui_host_present(int64_t session_id) {
     session->host_frame_hash = kain_native_ui_positive_hash(hash);
     session->last_presented_frame = session->frame_index;
     session->dirty_count = 0;
+    if (kain_native_ui_host_adapter_is_live_backend(session->host_backend)) {
+        int64_t adapter_status = kain_native_ui_host_adapter_present(session);
+        if (adapter_status != KAIN_NATIVE_UI_OK) {
+            return adapter_status;
+        }
+    }
     return session->host_presented_draw_count;
 }
 
@@ -1128,6 +1075,57 @@ int64_t kain_native_ui_shader_create(int64_t session_id, const char* key, const 
     return resource_id;
 }
 
+int64_t kain_native_ui_resource_set_bytes(
+    int64_t session_id,
+    int64_t resource_id,
+    const uint8_t* bytes,
+    int64_t byte_length
+) {
+    KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    KainNativeUiResource* resource = kain_native_ui_find_resource(session, resource_id);
+    uint8_t* copy = NULL;
+    if (!session) {
+        return KAIN_NATIVE_UI_INVALID_SESSION;
+    }
+    if (!resource) {
+        return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+    }
+    if (byte_length < 0) {
+        return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+    }
+    if (byte_length > 0) {
+        if (!bytes) {
+            return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+        }
+        copy = (uint8_t*)malloc((size_t)byte_length);
+        if (!copy) {
+            return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+        }
+        memcpy(copy, bytes, (size_t)byte_length);
+    }
+    kain_native_ui_release_resource_bytes(resource);
+    resource->bytes = copy;
+    resource->byte_length = byte_length;
+    resource->bytes_revision += 1;
+    return KAIN_NATIVE_UI_OK;
+}
+
+int64_t kain_native_ui_resource_set_bytes_hex(
+    int64_t session_id,
+    int64_t resource_id,
+    const char* bytes_hex
+) {
+    uint8_t* decoded = NULL;
+    int64_t decoded_length = kain_native_ui_decode_hex(bytes_hex, &decoded);
+    int64_t status;
+    if (decoded_length < 0) {
+        return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+    }
+    status = kain_native_ui_resource_set_bytes(session_id, resource_id, decoded, decoded_length);
+    free(decoded);
+    return status;
+}
+
 int64_t kain_native_ui_resource_count(int64_t session_id) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     return session ? session->resource_count : KAIN_NATIVE_UI_INVALID_SESSION;
@@ -1209,6 +1207,7 @@ int64_t kain_native_ui_draw_rect(
 int64_t kain_native_ui_draw_text(
     int64_t session_id,
     int64_t node_id,
+    int64_t font_resource_id,
     double x,
     double y,
     const char* text,
@@ -1216,17 +1215,23 @@ int64_t kain_native_ui_draw_text(
 ) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     KainNativeUiDrawCommand* command;
+    KainNativeUiResource* font;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     if (!kain_native_ui_find_node(session, node_id)) {
         return KAIN_NATIVE_UI_INVALID_NODE;
     }
+    font = kain_native_ui_find_resource(session, font_resource_id);
+    if (!font || strcmp(font->resource_type, "font") != 0) {
+        return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+    }
     command = kain_native_ui_append_draw_command(session, "text");
     if (!command) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
     command->node_id = node_id;
+    command->font_resource_id = font_resource_id;
     command->x = x;
     command->y = y;
     kain_native_ui_copy_text(command->text, sizeof(command->text), text);
@@ -1326,17 +1331,39 @@ const char* kain_native_ui_draw_command_style(int64_t session_id, int64_t comman
     return kain_native_ui_return_string(command ? command->style_key : g_empty_string);
 }
 
+int64_t kain_native_ui_draw_command_font(int64_t session_id, int64_t command_index) {
+    KainNativeUiDrawCommand* command = kain_native_ui_find_draw_command(kain_native_ui_find_session(session_id), command_index);
+    return command ? command->font_resource_id : KAIN_NATIVE_UI_INVALID_ARGUMENT;
+}
+
 int64_t kain_native_ui_clipboard_set_text(int64_t session_id, const char* text) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     kain_native_ui_copy_text(session->clipboard_text, sizeof(session->clipboard_text), text);
+    if (kain_native_ui_host_adapter_is_live_backend(session->host_backend)) {
+        kain_native_ui_host_adapter_clipboard_set_text(session, session->clipboard_text);
+    }
     return KAIN_NATIVE_UI_OK;
 }
 
 const char* kain_native_ui_clipboard_text(int64_t session_id) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
+    if (session && kain_native_ui_host_adapter_is_live_backend(session->host_backend)) {
+        char clipboard_text[KAIN_NATIVE_UI_MAX_TEXT];
+        if (kain_native_ui_host_adapter_clipboard_get_text(
+                session,
+                clipboard_text,
+                sizeof(clipboard_text)
+            )) {
+            kain_native_ui_copy_text(
+                session->clipboard_text,
+                sizeof(session->clipboard_text),
+                clipboard_text
+            );
+        }
+    }
     return kain_native_ui_return_string(session ? session->clipboard_text : g_empty_string);
 }
 

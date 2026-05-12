@@ -13,6 +13,7 @@ fn main() -> Int:
     let session = native_ui_session_create("kain-single-file-native-ui", 960, 540)
     let _window = native_ui_window_open(session, "Kain Native UI From One File", 960, 540)
     let _frame = native_ui_begin_frame(session, 16.0)
+    let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)
 
     let root = authored_surface(session, "app.workspace.root", "root", 0.0, 0.0, 960.0, 540.0)
     let command_strip = authored_surface(session, "author.command-strip", "Run", 16.0, 16.0, 240.0, 44.0)
@@ -25,7 +26,7 @@ fn main() -> Int:
     let _focus = native_ui_focus(session, command_strip)
     let _command_draw = draw_authored_surface(session, command_strip, 16.0, 16.0, 240.0, 44.0, "fill")
     let _viewport_draw = draw_authored_surface(session, viewport, 16.0, 72.0, 720.0, 420.0, "viewport-bg")
-    let _text_draw = native_ui_draw_text(session, command_strip, 28.0, 42.0, native_ui_node_text(session, command_strip), "label")
+    let _text_draw = native_ui_draw_text(session, command_strip, body_font, 28.0, 42.0, native_ui_node_text(session, command_strip), "label")
     let _push_event = native_ui_push_event(session, "pointer.down", command_strip, 32.0, 32.0, 0, "primary")
     let _poll = native_ui_poll_event(session)
     let hit = native_ui_hit_test(session, 32.0, 32.0)
