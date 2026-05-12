@@ -1,0 +1,51 @@
+language: c
+description: Local Kain entangle-runtime proof templates for fixed-capacity registry growth and bounded text copy.
+matchers:
+  - id: kain-entangle-copy-text-fits-destination
+    title: Entangle text copy leaves room for the null terminator
+    helper: size_add_ok
+    regex_any:
+      - "len >= dst_cap"
+      - "memcpy\\(dst, src, len \\+ 1\\)"
+      - "kain_runtime_copy_entangle_text"
+    arguments:
+      declarations:
+        - name: len
+          sort: { kind: int }
+        - name: dst_cap
+          sort: { kind: int }
+        - name: size_max
+          sort: { kind: int }
+      constraints:
+        - { op: eq, args: [size_max, 18446744073709551615] }
+        - { op: ge, args: [len, 0] }
+        - { op: gt, args: [dst_cap, 0] }
+        - { op: le, args: [dst_cap, size_max] }
+        - { op: lt, args: [len, dst_cap] }
+      addends:
+        - len
+        - 1
+      size_bits: 64
+      limit: dst_cap
+  - id: kain-entangle-register-count-capacity
+    title: Entangle register count stays within fixed binding capacity
+    helper: find_counterexample
+    regex_any:
+      - "g_kain_entangle_binding_count >= KAIN_RUNTIME_ENTANGLE_MAX_BINDINGS"
+      - "g_kain_entangle_binding_count \\+= 1"
+      - "kain_runtime_entangle_register"
+    arguments:
+      declarations:
+        - name: binding_count
+          sort: { kind: int }
+        - name: max_bindings
+          sort: { kind: int }
+      constraints:
+        - { op: eq, args: [max_bindings, 128] }
+        - { op: ge, args: [binding_count, 0] }
+        - { op: lt, args: [binding_count, max_bindings] }
+      claim:
+        op: le
+        args:
+          - { op: add, args: [binding_count, 1] }
+          - max_bindings

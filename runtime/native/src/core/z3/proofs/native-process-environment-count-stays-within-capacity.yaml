@@ -1,0 +1,44 @@
+version: 1
+id: kain.native.core.proofs.native_process_environment_count_stays_within_capacity
+kind: find_counterexample
+description: A process spec only increments environment_count when it is still below
+  the fixed override capacity, so the next count cannot exceed that capacity.
+tags:
+- native-runtime
+- process
+- spec
+- environment
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
+  symbol: kain_native_process_spec_set_env
+  start_line: 1760
+  reason: environment_count increments only after the max-environment guard
+case:
+  declarations:
+  - name: environment_count
+    sort:
+      kind: int
+  - name: max_environment_entries
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_environment_entries
+    - 64
+  - op: ge
+    args:
+    - environment_count
+    - 0
+  - op: lt
+    args:
+    - environment_count
+    - max_environment_entries
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - environment_count
+      - 1
+    - max_environment_entries

@@ -1,0 +1,44 @@
+version: 1
+id: kain.native.core.proofs.native_process_argument_count_stays_within_capacity
+kind: find_counterexample
+description: A process spec only increments argument_count when it is still below the
+  fixed argument capacity, so the next count cannot exceed that capacity.
+tags:
+- native-runtime
+- process
+- spec
+- arguments
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
+  symbol: kain_native_process_spec_add_arg
+  start_line: 1711
+  reason: argument_count increments only after the max-arguments guard
+case:
+  declarations:
+  - name: argument_count
+    sort:
+      kind: int
+  - name: max_arguments
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_arguments
+    - 64
+  - op: ge
+    args:
+    - argument_count
+    - 0
+  - op: lt
+    args:
+    - argument_count
+    - max_arguments
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - argument_count
+      - 1
+    - max_arguments

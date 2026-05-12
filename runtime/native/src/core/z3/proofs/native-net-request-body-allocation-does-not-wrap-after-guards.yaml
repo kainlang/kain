@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_net_request_body_allocation_does_not_wrap_after_guards
+kind: size_add_ok
+description: The HTTP request parser only allocates body_length + 1 bytes after proving
+  the terminator slot fits into size_t arithmetic.
+tags:
+- native-runtime
+- net
+- http
+- request-body
+- size_t
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
+  symbol: kain_native_net_parse_http_request
+  start_line: 704
+  reason: body_length + 1 is checked before request->body allocation
+case:
+  declarations:
+  - name: body_length
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - body_length
+    - 0
+  - op: le
+    args:
+    - body_length
+    - op: sub
+      args:
+      - size_max
+      - 1
+  addends:
+  - body_length
+  - 1
+  size_bits: 64
+  limit: size_max

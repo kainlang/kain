@@ -1,0 +1,55 @@
+version: 1
+id: kain.native.core.proofs.native_process_capture_append_required_length_does_not_wrap_under_capture_limit
+kind: size_add_ok
+description: Process capture append computes the required buffer length from the current
+  length plus a bounded to_copy span that cannot exceed the fixed capture ceiling.
+tags:
+- native-runtime
+- process
+- capture
+- buffer-growth
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
+  symbol: kain_native_process_capture_append
+  start_line: 269
+  reason: capture->length + to_copy is checked before reserve and bounded by the capture limit
+case:
+  declarations:
+  - name: length
+    sort:
+      kind: int
+  - name: to_copy
+    sort:
+      kind: int
+  - name: max_capture
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_capture
+    - 1048576
+  - op: ge
+    args:
+    - length
+    - 0
+  - op: ge
+    args:
+    - to_copy
+    - 0
+  - op: le
+    args:
+    - length
+    - max_capture
+  - op: le
+    args:
+    - to_copy
+    - op: sub
+      args:
+      - max_capture
+      - length
+  addends:
+  - length
+  - to_copy
+  size_bits: 64
+  limit: max_capture

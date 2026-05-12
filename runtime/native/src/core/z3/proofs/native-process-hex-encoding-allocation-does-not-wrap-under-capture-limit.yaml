@@ -1,0 +1,54 @@
+version: 1
+id: kain.native.core.proofs.native_process_hex_encoding_allocation_does_not_wrap_under_capture_limit
+kind: find_counterexample
+description: Hex encoding a bounded capture buffer only needs byte_length * 2 + 1 bytes,
+  which stays well within size_t under the process capture ceiling.
+tags:
+- native-runtime
+- process
+- hex
+- allocation
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
+  symbol: kain_native_process_encode_hex
+  start_line: 355
+  reason: byte_length * 2 + 1 is checked before allocating the encoded buffer
+case:
+  declarations:
+  - name: byte_length
+    sort:
+      kind: int
+  - name: max_capture
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_capture
+    - 1048576
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - byte_length
+    - 0
+  - op: le
+    args:
+    - byte_length
+    - max_capture
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - op: mul
+        args:
+        - byte_length
+        - 2
+      - 1
+    - size_max

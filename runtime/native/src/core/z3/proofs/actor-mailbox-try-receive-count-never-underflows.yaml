@@ -1,0 +1,31 @@
+version: 1
+id: kain.native.core.proofs.actor_mailbox_try_receive_count_never_underflows
+kind: range_check
+description: A non-blocking mailbox receive only decrements count after confirming the
+  mailbox head is present, so the next count remains non-negative.
+tags:
+- actor
+- mailbox
+- try-receive
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_actor_try_receive
+  start_line: 839
+  reason: mailbox->count-- occurs after the empty-mailbox early return
+case:
+  declarations:
+  - name: count
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - count
+    - 1
+  expression:
+    op: sub
+    args:
+    - count
+    - 1
+  lower: 0

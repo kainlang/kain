@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-12 - Native core Z3 pack expanded across actor/net/process/entangle
+
+The repo-local native proof pack at `runtime/native/src/core/z3` is no longer just a seed lane. It now carries curated durable proofs across four low-level runtime seams and validates the upgraded Z3 workflow end to end.
+
+What changed:
+
+- Added actor coverage for `kain_actor_try_receive(...)` so the non-blocking mailbox receive path has its own explicit count-underflow proof.
+- Expanded native net coverage with request-body span arithmetic, request-body allocation arithmetic, and stored-response allocation arithmetic around `kain_native_net_parse_http_request(...)` and `kain_native_net_store_http_response(...)`.
+- Added first-class process proofs for argument/environment capacity guards, capture-append bounded growth, UTF-8/wide buffer append arithmetic, and hex-encoding allocation bounds in `kain_native_process_system.c`.
+- Added first-class entangle proofs for `kain_runtime_copy_entangle_text(...)` null-terminated copy sizing and `kain_runtime_entangle_register(...)` fixed-capacity registry growth.
+- Added local matcher bundles in `templates/process-runtime.yaml` and `templates/entangle-runtime.yaml`, and refined the entangle template so extraction constrains values to a real 64-bit `size_t` domain instead of proving against impossible widths.
+- Added focused manifest lanes in `z3.toml`: `net`, `process`, and `entangle`, while keeping `actor`, aggregate `native`, `full`, and workspace `smoke`.
+
+Runtime hardening in the same pass:
+
+- `runtime/native/src/core/kain_native_process_system.c` now uses explicit checked `size_t` helpers for buffer growth, allocation sizing, wide/UTF-8 append helpers, hex encoding, wide-string duplication, environment-block construction, and capture-length accumulation.
+
+Validation:
+
+- `run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="actor")` proved 7/7.
+- `run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="native")` proved 13/13.
+- `run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="process")` proved 6/6.
+- `run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="entangle")` proved 2/2.
+- `run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="full")` proved 20/20.
+- `run_workspace_proofs(project_root="D:\\Kain-Lang", lane="smoke")` proved discovery plus execution for 20/20 cases.
+- `extract_source_proof_cases(save=false)` confirmed pack-local template extraction for actor, process, and entangle sources.
+- `bash runtime/conformance/process_runtime/run_tests.sh --verbose`
+- `bash runtime/conformance/net_runtime/run_tests.sh --verbose`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_native_process_system.c`
+
+Durable workflow note:
+
+- When a proof fails on values larger than `18446744073709551615`, check the proof model before assuming the C path is wrong. Several seams here needed explicit `size_t` domain constraints so Z3 would stop inventing values that the ABI cannot represent.
+
 # 2026-05-12 - Native core Z3 proof pack seeded
 
 The first durable repo-local Z3 proof pack now lives at `runtime/native/src/core/z3` and is named `kain.native.core.proofs`. This is the seed lane for solver-backed native runtime invariants, especially the Erlang-style actor substrate and low-level C arithmetic seams that are easy to regress by inspection alone.

@@ -21,7 +21,10 @@ use = ["fixtures/**/*.*"]
 smoke = ["proofs/**/*.yaml"]
 full = ["proofs/**/*.*"]
 actor = ["proofs/actor-*.yaml"]
+net = ["proofs/native-net-*.yaml"]
 native = ["proofs/native-*.yaml"]
+process = ["proofs/native-process-*.yaml"]
+entangle = ["proofs/native-entangle-*.yaml"]
 
 [reports]
 path = "reports"

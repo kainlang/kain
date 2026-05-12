@@ -39,6 +39,22 @@ matchers:
         - { op: ge, args: [count, 1] }
       expression: { op: sub, args: [count, 1] }
       lower: 0
+  - id: kain-actor-mailbox-try-receive-count
+    title: Actor mailbox try_receive count underflow guard
+    helper: range_check
+    min_matches: 2
+    regex_any:
+      - "kain_actor_try_receive"
+      - "mailbox->head == NULL"
+      - "mailbox->count--"
+    arguments:
+      declarations:
+        - name: count
+          sort: { kind: int }
+      constraints:
+        - { op: ge, args: [count, 1] }
+      expression: { op: sub, args: [count, 1] }
+      lower: 0
   - id: kain-actor-scheduler-dequeue-accounting
     title: Actor scheduler dequeue accounting
     helper: find_counterexample

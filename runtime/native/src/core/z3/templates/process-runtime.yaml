@@ -1,0 +1,73 @@
+language: c
+description: Local Kain process-runtime proof templates for fixed-capacity spec counters and bounded capture growth.
+matchers:
+  - id: kain-process-argument-count-capacity
+    title: Process argument count stays within fixed spec capacity
+    helper: find_counterexample
+    regex_any:
+      - "argument_count >= KAIN_NATIVE_PROCESS_MAX_ARGUMENTS"
+      - "argument_count \\+= 1"
+      - "kain_native_process_spec_add_arg"
+    arguments:
+      declarations:
+        - name: argument_count
+          sort: { kind: int }
+        - name: max_arguments
+          sort: { kind: int }
+      constraints:
+        - { op: eq, args: [max_arguments, 64] }
+        - { op: ge, args: [argument_count, 0] }
+        - { op: lt, args: [argument_count, max_arguments] }
+      claim:
+        op: le
+        args:
+          - { op: add, args: [argument_count, 1] }
+          - max_arguments
+  - id: kain-process-environment-count-capacity
+    title: Process environment override count stays within fixed spec capacity
+    helper: find_counterexample
+    regex_any:
+      - "environment_count >= KAIN_NATIVE_PROCESS_MAX_ENVIRONMENT_ENTRIES"
+      - "environment_count \\+= 1"
+      - "kain_native_process_spec_set_env"
+    arguments:
+      declarations:
+        - name: environment_count
+          sort: { kind: int }
+        - name: max_environment_entries
+          sort: { kind: int }
+      constraints:
+        - { op: eq, args: [max_environment_entries, 64] }
+        - { op: ge, args: [environment_count, 0] }
+        - { op: lt, args: [environment_count, max_environment_entries] }
+      claim:
+        op: le
+        args:
+          - { op: add, args: [environment_count, 1] }
+          - max_environment_entries
+  - id: kain-process-capture-append-bounded-length
+    title: Process capture append required length stays within the capture ceiling
+    helper: size_add_ok
+    regex_any:
+      - "KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES - capture->length"
+      - "kain_native_process_capture_reserve"
+      - "capture->length \\+= to_copy"
+    arguments:
+      declarations:
+        - name: length
+          sort: { kind: int }
+        - name: to_copy
+          sort: { kind: int }
+        - name: max_capture
+          sort: { kind: int }
+      constraints:
+        - { op: eq, args: [max_capture, 1048576] }
+        - { op: ge, args: [length, 0] }
+        - { op: ge, args: [to_copy, 0] }
+        - { op: le, args: [length, max_capture] }
+        - { op: le, args: [to_copy, { op: sub, args: [max_capture, length] }] }
+      addends:
+        - length
+        - to_copy
+      size_bits: 64
+      limit: max_capture

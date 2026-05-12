@@ -1,0 +1,55 @@
+version: 1
+id: kain.native.core.proofs.native_process_wide_buffer_append_text_required_length_does_not_wrap
+kind: size_add_ok
+description: The wide-text append helper only reserves length + text_length + 1 when
+  the checked additions prove the null-terminated target length fits in size_t.
+tags:
+- native-runtime
+- process
+- wide-text
+- buffer-growth
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_process_system.c
+  symbol: kain_native_process_wide_buffer_append_text
+  start_line: 534
+  reason: buffer->length + text_length + 1 is checked before reserve
+case:
+  declarations:
+  - name: length
+    sort:
+      kind: int
+  - name: text_length
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - length
+    - 0
+  - op: ge
+    args:
+    - text_length
+    - 0
+  - op: le
+    args:
+    - text_length
+    - op: sub
+      args:
+      - op: sub
+        args:
+        - size_max
+        - length
+      - 1
+  addends:
+  - length
+  - text_length
+  - 1
+  size_bits: 64
+  limit: size_max

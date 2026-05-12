@@ -1,0 +1,52 @@
+version: 1
+id: kain.native.core.proofs.native_entangle_copy_text_fits_destination_before_null_copy
+kind: size_add_ok
+description: Entangle text copy only reaches memcpy(dst, src, len + 1) when the source
+  length is strictly smaller than the destination capacity, preserving room for the terminator.
+tags:
+- native-runtime
+- entangle
+- string-copy
+- bounds
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_entangle.c
+  symbol: kain_runtime_copy_entangle_text
+  start_line: 8
+  reason: len < dst_cap is enforced before copying len + 1 bytes
+case:
+  declarations:
+  - name: len
+    sort:
+      kind: int
+  - name: dst_cap
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - len
+    - 0
+  - op: gt
+    args:
+    - dst_cap
+    - 0
+  - op: le
+    args:
+    - dst_cap
+    - size_max
+  - op: lt
+    args:
+    - len
+    - dst_cap
+  addends:
+  - len
+  - 1
+  size_bits: 64
+  limit: dst_cap

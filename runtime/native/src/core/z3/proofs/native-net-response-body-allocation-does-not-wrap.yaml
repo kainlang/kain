@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_net_response_body_allocation_does_not_wrap
+kind: size_add_ok
+description: Stored HTTP responses only allocate body_length + 1 bytes after the implementation
+  proves the terminator slot cannot wrap size_t.
+tags:
+- native-runtime
+- net
+- http
+- response-body
+- size_t
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
+  symbol: kain_native_net_store_http_response
+  start_line: 797
+  reason: body_length + 1 is checked before response body allocation
+case:
+  declarations:
+  - name: body_length
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - body_length
+    - 0
+  - op: le
+    args:
+    - body_length
+    - op: sub
+      args:
+      - size_max
+      - 1
+  addends:
+  - body_length
+  - 1
+  size_bits: 64
+  limit: size_max

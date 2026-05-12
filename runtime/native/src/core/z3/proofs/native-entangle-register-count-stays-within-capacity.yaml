@@ -1,0 +1,44 @@
+version: 1
+id: kain.native.core.proofs.native_entangle_register_count_stays_within_capacity
+kind: find_counterexample
+description: Entangle registration only increments the binding count while it is still
+  below the fixed registry capacity, so the next count cannot exceed that capacity.
+tags:
+- native-runtime
+- entangle
+- registry
+- capacity
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_entangle.c
+  symbol: kain_runtime_entangle_register
+  start_line: 31
+  reason: binding_count increments only after the max-bindings guard
+case:
+  declarations:
+  - name: binding_count
+    sort:
+      kind: int
+  - name: max_bindings
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_bindings
+    - 128
+  - op: ge
+    args:
+    - binding_count
+    - 0
+  - op: lt
+    args:
+    - binding_count
+    - max_bindings
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - binding_count
+      - 1
+    - max_bindings

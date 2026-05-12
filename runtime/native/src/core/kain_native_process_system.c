@@ -132,10 +132,15 @@ static const char* kain_native_process_string(const char* source) {
 
 static const char* kain_native_process_string_from_bytes(const unsigned char* bytes, size_t length) {
     char* output;
+    size_t allocation_size;
     if (bytes == 0 || length == 0u) {
         return string_new("");
     }
-    output = (char*)kain_alloc_rc(length + 1u, 1);
+    if (length > (SIZE_MAX - 1u)) {
+        return string_new("");
+    }
+    allocation_size = length + 1u;
+    output = (char*)kain_alloc_rc(allocation_size, 1);
     if (output == 0) {
         return string_new("");
     }
@@ -160,6 +165,28 @@ static int64_t kain_native_process_fail(int64_t status, const char* kind, const 
         message ? message : ""
     );
     return status;
+}
+
+static int kain_native_process_size_add_overflow(size_t left, size_t right, size_t* out_value) {
+    if (out_value == 0) {
+        return 1;
+    }
+    if (left > (SIZE_MAX - right)) {
+        return 1;
+    }
+    *out_value = left + right;
+    return 0;
+}
+
+static int kain_native_process_size_mul_overflow(size_t left, size_t right, size_t* out_value) {
+    if (out_value == 0) {
+        return 1;
+    }
+    if (left != 0u && right > (SIZE_MAX / left)) {
+        return 1;
+    }
+    *out_value = left * right;
+    return 0;
 }
 
 static int kain_native_process_mode_from_text(
@@ -213,8 +240,15 @@ static int kain_native_process_capture_reserve(KainNativeProcessCapture* capture
     if (required <= capture->capacity) {
         return 1;
     }
+    if (required > KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES) {
+        return 0;
+    }
     next_capacity = capture->capacity == 0u ? 1024u : capture->capacity;
     while (next_capacity < required) {
+        if (next_capacity > (KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES / 2u)) {
+            next_capacity = required;
+            break;
+        }
         next_capacity *= 2u;
     }
     if (next_capacity > KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES) {
@@ -238,6 +272,7 @@ static int kain_native_process_capture_append(
     size_t byte_length
 ) {
     size_t remaining_capacity;
+    size_t required_length;
     size_t to_copy;
     if (capture == 0 || bytes == 0 || byte_length == 0u) {
         return 1;
@@ -247,7 +282,8 @@ static int kain_native_process_capture_append(
     }
     remaining_capacity = KAIN_NATIVE_PROCESS_MAX_CAPTURE_BYTES - capture->length;
     to_copy = byte_length < remaining_capacity ? byte_length : remaining_capacity;
-    if (!kain_native_process_capture_reserve(capture, capture->length + to_copy)) {
+    if (kain_native_process_size_add_overflow(capture->length, to_copy, &required_length) ||
+        !kain_native_process_capture_reserve(capture, required_length)) {
         return 0;
     }
     memcpy(capture->bytes + capture->length, bytes, to_copy);
@@ -318,12 +354,17 @@ static int kain_native_process_decode_hex(
 
 static const char* kain_native_process_encode_hex(const unsigned char* bytes, size_t byte_length) {
     static const char alphabet[] = "0123456789abcdef";
+    size_t allocation_size;
     char* encoded;
     size_t index;
     if (bytes == 0 || byte_length == 0u) {
         return string_new("");
     }
-    encoded = (char*)kain_alloc_rc(byte_length * 2u + 1u, 1);
+    if (kain_native_process_size_mul_overflow(byte_length, 2u, &allocation_size) ||
+        kain_native_process_size_add_overflow(allocation_size, 1u, &allocation_size)) {
+        return string_new("");
+    }
+    encoded = (char*)kain_alloc_rc(allocation_size, 1);
     if (encoded == 0) {
         return string_new("");
     }
@@ -415,6 +456,7 @@ typedef struct KainNativeProcessWideEntryList {
 
 static wchar_t* kain_native_process_utf8_to_wide(const char* utf8_text) {
     int required_length;
+    size_t allocation_size;
     wchar_t* wide_text;
     if (utf8_text == 0) {
         wide_text = (wchar_t*)malloc(sizeof(wchar_t));
@@ -427,7 +469,10 @@ static wchar_t* kain_native_process_utf8_to_wide(const char* utf8_text) {
     if (required_length <= 0) {
         return 0;
     }
-    wide_text = (wchar_t*)malloc((size_t)required_length * sizeof(wchar_t));
+    if (kain_native_process_size_mul_overflow((size_t)required_length, sizeof(wchar_t), &allocation_size)) {
+        return 0;
+    }
+    wide_text = (wchar_t*)malloc(allocation_size);
     if (wide_text == 0) {
         return 0;
     }
@@ -442,6 +487,7 @@ static int kain_native_process_wide_buffer_reserve(
     KainNativeProcessWideBuffer* buffer,
     size_t required
 ) {
+    size_t allocation_size;
     wchar_t* resized;
     size_t next_capacity;
     if (buffer == 0) {
@@ -452,9 +498,16 @@ static int kain_native_process_wide_buffer_reserve(
     }
     next_capacity = buffer->capacity == 0u ? 64u : buffer->capacity;
     while (next_capacity < required) {
+        if (next_capacity > (SIZE_MAX / 2u)) {
+            next_capacity = required;
+            break;
+        }
         next_capacity *= 2u;
     }
-    resized = (wchar_t*)realloc(buffer->text, next_capacity * sizeof(wchar_t));
+    if (kain_native_process_size_mul_overflow(next_capacity, sizeof(wchar_t), &allocation_size)) {
+        return 0;
+    }
+    resized = (wchar_t*)realloc(buffer->text, allocation_size);
     if (resized == 0) {
         return 0;
     }
@@ -467,7 +520,9 @@ static int kain_native_process_wide_buffer_append_char(
     KainNativeProcessWideBuffer* buffer,
     wchar_t character
 ) {
-    if (!kain_native_process_wide_buffer_reserve(buffer, buffer->length + 2u)) {
+    size_t required;
+    if (kain_native_process_size_add_overflow(buffer->length, 2u, &required) ||
+        !kain_native_process_wide_buffer_reserve(buffer, required)) {
         return 0;
     }
     buffer->text[buffer->length] = character;
@@ -480,12 +535,15 @@ static int kain_native_process_wide_buffer_append_text(
     KainNativeProcessWideBuffer* buffer,
     const wchar_t* text
 ) {
+    size_t required;
     size_t text_length;
     if (buffer == 0 || text == 0) {
         return 0;
     }
     text_length = wcslen(text);
-    if (!kain_native_process_wide_buffer_reserve(buffer, buffer->length + text_length + 1u)) {
+    if (kain_native_process_size_add_overflow(buffer->length, text_length, &required) ||
+        kain_native_process_size_add_overflow(required, 1u, &required) ||
+        !kain_native_process_wide_buffer_reserve(buffer, required)) {
         return 0;
     }
     memcpy(buffer->text + buffer->length, text, text_length * sizeof(wchar_t));
@@ -518,6 +576,10 @@ static int kain_native_process_utf8_buffer_reserve(
     }
     next_capacity = buffer->capacity == 0u ? 64u : buffer->capacity;
     while (next_capacity < required) {
+        if (next_capacity > (SIZE_MAX / 2u)) {
+            next_capacity = required;
+            break;
+        }
         next_capacity *= 2u;
     }
     resized = (char*)realloc(buffer->text, next_capacity);
@@ -533,7 +595,9 @@ static int kain_native_process_utf8_buffer_append_char(
     KainNativeProcessUtf8Buffer* buffer,
     char character
 ) {
-    if (!kain_native_process_utf8_buffer_reserve(buffer, buffer->length + 2u)) {
+    size_t required;
+    if (kain_native_process_size_add_overflow(buffer->length, 2u, &required) ||
+        !kain_native_process_utf8_buffer_reserve(buffer, required)) {
         return 0;
     }
     buffer->text[buffer->length] = character;
@@ -560,12 +624,15 @@ static int kain_native_process_utf8_buffer_append_text(
     KainNativeProcessUtf8Buffer* buffer,
     const char* text
 ) {
+    size_t required;
     size_t text_length;
     if (buffer == 0 || text == 0) {
         return 0;
     }
     text_length = strlen(text);
-    if (!kain_native_process_utf8_buffer_reserve(buffer, buffer->length + text_length + 1u)) {
+    if (kain_native_process_size_add_overflow(buffer->length, text_length, &required) ||
+        kain_native_process_size_add_overflow(required, 1u, &required) ||
+        !kain_native_process_utf8_buffer_reserve(buffer, required)) {
         return 0;
     }
     memcpy(buffer->text + buffer->length, text, text_length);
@@ -676,12 +743,17 @@ cleanup:
 
 static wchar_t* kain_native_process_wide_duplicate(const wchar_t* text) {
     size_t length;
+    size_t allocation_size;
     wchar_t* copy;
     if (text == 0) {
         return 0;
     }
     length = wcslen(text);
-    copy = (wchar_t*)malloc((length + 1u) * sizeof(wchar_t));
+    if (kain_native_process_size_add_overflow(length, 1u, &allocation_size) ||
+        kain_native_process_size_mul_overflow(allocation_size, sizeof(wchar_t), &allocation_size)) {
+        return 0;
+    }
+    copy = (wchar_t*)malloc(allocation_size);
     if (copy == 0) {
         return 0;
     }
@@ -693,6 +765,7 @@ static int kain_native_process_wide_entry_list_push(
     KainNativeProcessWideEntryList* list,
     wchar_t* entry
 ) {
+    size_t allocation_size;
     wchar_t** resized;
     size_t next_capacity;
     if (list == 0 || entry == 0) {
@@ -700,8 +773,17 @@ static int kain_native_process_wide_entry_list_push(
         return 0;
     }
     if (list->count == list->capacity) {
-        next_capacity = list->capacity == 0u ? 16u : list->capacity * 2u;
-        resized = (wchar_t**)realloc(list->entries, next_capacity * sizeof(wchar_t*));
+        next_capacity = list->capacity == 0u ? 16u : list->capacity;
+        if (next_capacity > (SIZE_MAX / 2u)) {
+            free(entry);
+            return 0;
+        }
+        next_capacity *= 2u;
+        if (kain_native_process_size_mul_overflow(next_capacity, sizeof(wchar_t*), &allocation_size)) {
+            free(entry);
+            return 0;
+        }
+        resized = (wchar_t**)realloc(list->entries, allocation_size);
         if (resized == 0) {
             free(entry);
             return 0;
@@ -791,6 +873,7 @@ static wchar_t* kain_native_process_build_environment_block_w(const KainNativePr
     KainNativeProcessWideEntryList entries = {0};
     LPWCH environment_block = 0;
     const wchar_t* cursor;
+    size_t allocation_size = 0u;
     size_t total_length = 1u;
     size_t index;
     wchar_t* flattened = 0;
@@ -849,9 +932,18 @@ static wchar_t* kain_native_process_build_environment_block_w(const KainNativePr
     }
 
     for (index = 0u; index < entries.count; index++) {
-        total_length += wcslen(entries.entries[index]) + 1u;
+        size_t entry_length = 0u;
+        if (kain_native_process_size_add_overflow(wcslen(entries.entries[index]), 1u, &entry_length) ||
+            kain_native_process_size_add_overflow(total_length, entry_length, &total_length)) {
+            kain_native_process_wide_entry_list_free(&entries);
+            return 0;
+        }
     }
-    flattened = (wchar_t*)malloc(total_length * sizeof(wchar_t));
+    if (kain_native_process_size_mul_overflow(total_length, sizeof(wchar_t), &allocation_size)) {
+        kain_native_process_wide_entry_list_free(&entries);
+        return 0;
+    }
+    flattened = (wchar_t*)malloc(allocation_size);
     if (flattened == 0) {
         kain_native_process_wide_entry_list_free(&entries);
         return 0;
