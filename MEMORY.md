@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-05-12 - Native net runtime hardened against Content-Length and append-size wrap
+
+The native HTTP lane in `runtime/native/src/core/kain_native_net_system.c` now rejects malformed or negative `Content-Length` headers before they ever reach a `size_t` cast, and the shared byte-append helper now uses overflow-checked `size_t` growth instead of raw `length + byte_count + 1` arithmetic.
+
+What changed:
+
+- Added `kain_native_net_size_add_overflow(...)` for local `size_t` addition checks and used it in request-body bounds checks, response-body allocation, and the shared append-buffer growth path.
+- Added `kain_native_net_parse_content_length_header(...)` so `Content-Length` parsing is strict: it skips leading whitespace, rejects signed values, rejects junk suffixes, and rejects values that exceed `SIZE_MAX`.
+- Hardened `kain_native_http_server_pump(...)` so malformed or overflowing `Content-Length` values fail with `KAIN_NATIVE_NET_PARSE_ERROR` instead of silently wrapping through request-length math.
+- Added a native conformance regression in `runtime/conformance/net_runtime/test_native_net_system_kernel.c` that sends `Content-Length: -1` and asserts the request is rejected with parse diagnostics.
+
+Why this matters:
+
+- Before this pass, a header like `Content-Length: -1` could flow through `atoll(...)` into an unsigned `size_t`, wrap to `SIZE_MAX`, and then bypass a `header_length + body_length <= length` guard because unsigned addition wrapped modulo `2^N`.
+- The same file also had a latent append-buffer overflow hazard in `needed = *length + byte_count + 1u`; the new helper makes that arithmetic explicit and checkable.
+
+Validation:
+
+- `cargo test -p kain-net --target-dir target\\codex-z3-net-fix`
+- `bash runtime/conformance/net_runtime/run_tests.sh --verbose`
+
 # 2026-05-12 - Command manifests split into packs with dynamic registry help
 
 `crates/kain-commands` now uses an indexed command-pack layout instead of a

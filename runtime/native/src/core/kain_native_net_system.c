@@ -6,6 +6,8 @@
 #include "../../include/kain_runtime_actor.h"
 #include "../../include/kain_runtime_base.h"
 
+#include <errno.h>
+#include <limits.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,6 +116,51 @@ static int64_t g_last_status = KAIN_NATIVE_NET_OK;
 static char g_last_error_kind[KAIN_NATIVE_NET_MAX_KEY] = "ok";
 static char g_last_error_message[KAIN_NATIVE_NET_MAX_TEXT] = "";
 static const char g_empty_string[] = "";
+
+static int kain_native_net_size_add_overflow(size_t left, size_t right, size_t* out) {
+    if (out == 0) {
+        return 1;
+    }
+    if (right > (SIZE_MAX - left)) {
+        return 1;
+    }
+    *out = left + right;
+    return 0;
+}
+
+static int kain_native_net_parse_content_length_header(const char* text, size_t* out_length) {
+    char* end = 0;
+    unsigned long long parsed = 0;
+
+    if (out_length == 0 || text == 0) {
+        return 0;
+    }
+
+    while (*text != '\0' && isspace((unsigned char)*text)) {
+        ++text;
+    }
+
+    if (*text == '\0' || *text == '-' || *text == '+') {
+        return 0;
+    }
+
+    errno = 0;
+    parsed = strtoull(text, &end, 10);
+    if (errno == ERANGE || end == text) {
+        return 0;
+    }
+
+    while (*end != '\0' && isspace((unsigned char)*end)) {
+        ++end;
+    }
+
+    if (*end != '\0' || parsed > (unsigned long long)SIZE_MAX) {
+        return 0;
+    }
+
+    *out_length = (size_t)parsed;
+    return 1;
+}
 
 #ifdef _WIN32
 static void kain_native_net_init_winsock(void) {
@@ -281,13 +328,24 @@ static const char* kain_native_net_encode_hex(const unsigned char* bytes, size_t
 static int kain_native_net_append_bytes(unsigned char** buffer, size_t* length, size_t* capacity, const unsigned char* bytes, size_t byte_count) {
     unsigned char* resized;
     size_t needed;
+    size_t next_capacity;
     if (byte_count == 0u) {
         return 1;
     }
-    needed = *length + byte_count + 1u;
+    if (buffer == 0 || length == 0 || capacity == 0 || bytes == 0) {
+        return 0;
+    }
+    if (kain_native_net_size_add_overflow(*length, byte_count, &needed) ||
+        kain_native_net_size_add_overflow(needed, 1u, &needed)) {
+        return 0;
+    }
     if (needed > *capacity) {
-        size_t next_capacity = *capacity == 0u ? 4096u : *capacity;
+        next_capacity = *capacity == 0u ? 4096u : *capacity;
         while (next_capacity < needed) {
+            if (next_capacity > (SIZE_MAX / 2u)) {
+                next_capacity = needed;
+                break;
+            }
             next_capacity *= 2u;
         }
         resized = (unsigned char*)realloc(*buffer, next_capacity);
@@ -652,6 +710,7 @@ static int kain_native_net_parse_http_request(KainNativeHttpRequest* request, un
     char* version;
     size_t header_length;
     size_t body_length = 0u;
+    size_t required_length = 0u;
     const char* content_length_text;
     if (request == 0 || bytes == 0 || length == 0u) {
         return 0;
@@ -710,10 +769,19 @@ static int kain_native_net_parse_http_request(KainNativeHttpRequest* request, un
     }
     content_length_text = kain_native_net_find_header(request->headers, request->header_count, "Content-Length");
     if (content_length_text && content_length_text[0]) {
-        body_length = (size_t)atoll(content_length_text);
+        if (!kain_native_net_parse_content_length_header(content_length_text, &body_length)) {
+            free(text);
+            return 0;
+        }
     }
-    if (body_length > 0u && header_length + body_length <= length) {
-        request->body = (unsigned char*)malloc(body_length + 1u);
+    if (body_length > 0u) {
+        if (kain_native_net_size_add_overflow(header_length, body_length, &required_length) ||
+            required_length > length ||
+            kain_native_net_size_add_overflow(body_length, 1u, &required_length)) {
+            free(text);
+            return 0;
+        }
+        request->body = (unsigned char*)malloc(required_length);
         if (request->body == 0) {
             free(text);
             return 0;
@@ -738,7 +806,11 @@ static int64_t kain_native_net_store_http_response(int64_t status_code, const Ka
         response->header_count++;
     }
     if (body_length > 0u) {
-        response->body = (unsigned char*)malloc(body_length + 1u);
+        size_t allocation_size = 0u;
+        if (kain_native_net_size_add_overflow(body_length, 1u, &allocation_size)) {
+            return kain_native_net_fail(KAIN_NATIVE_NET_IO_ERROR, "allocation", "HTTP response body length overflowed");
+        }
+        response->body = (unsigned char*)malloc(allocation_size);
         if (response->body == 0) {
             return kain_native_net_fail(KAIN_NATIVE_NET_IO_ERROR, "allocation", "could not allocate HTTP response body");
         }
@@ -1414,18 +1486,39 @@ int64_t kain_native_http_server_pump(int64_t server_id, int64_t timeout_ms) {
         }
         if (strstr((char*)request_bytes, "\r\n\r\n") != 0) {
             const char* content_length_text = 0;
+            size_t header_length = 0u;
+            size_t content_length = 0u;
+            size_t required_length = 0u;
             char* headers_copy = (char*)malloc(request_length + 1u);
             char* header_end;
             if (headers_copy != 0) {
                 memcpy(headers_copy, request_bytes, request_length + 1u);
                 header_end = strstr(headers_copy, "\r\n\r\n");
                 if (header_end != 0) {
+                    *header_end = '\0';
+                    header_length = (size_t)((header_end + 4) - headers_copy);
                     char* content_length = strstr(headers_copy, "Content-Length:");
                     if (content_length != 0 && content_length < header_end) {
                         content_length_text = content_length + strlen("Content-Length:");
                     }
                 }
-                if (content_length_text == 0 || (size_t)(strstr((char*)request_bytes, "\r\n\r\n") + 4 - (char*)request_bytes) + (size_t)atoll(content_length_text) <= request_length) {
+                if (content_length_text == 0) {
+                    free(headers_copy);
+                    break;
+                }
+                if (!kain_native_net_parse_content_length_header(content_length_text, &content_length)) {
+                    free(headers_copy);
+                    free(request_bytes);
+                    kain_native_net_socket_close(accepted);
+                    return kain_native_net_fail(KAIN_NATIVE_NET_PARSE_ERROR, "parse", "HTTP Content-Length header was invalid");
+                }
+                if (kain_native_net_size_add_overflow(header_length, content_length, &required_length)) {
+                    free(headers_copy);
+                    free(request_bytes);
+                    kain_native_net_socket_close(accepted);
+                    return kain_native_net_fail(KAIN_NATIVE_NET_PARSE_ERROR, "parse", "HTTP Content-Length header overflowed request size");
+                }
+                if (required_length <= request_length) {
                     free(headers_copy);
                     break;
                 }

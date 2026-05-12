@@ -159,6 +159,66 @@ static int run_http_server_roundtrip(void) {
 }
 
 #ifdef _WIN32
+static DWORD WINAPI http_invalid_content_length_thread(void* data)
+#else
+static void* http_invalid_content_length_thread(void* data)
+#endif
+{
+    HttpServerThreadArgs* args = (HttpServerThreadArgs*)data;
+    int64_t client;
+    sleep_millis(100);
+    client = kain_native_tcp_connect("127.0.0.1", args->port, 5000);
+    if (client > 0) {
+        kain_native_tcp_write_text(
+            client,
+            "POST /broken HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: -1\r\n\r\nboom"
+        );
+        kain_native_tcp_close(client);
+    }
+#ifdef _WIN32
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+static int run_http_invalid_content_length_rejected(void) {
+    HttpServerThreadArgs thread_args;
+    int64_t server = kain_native_http_server_create("127.0.0.1", 0);
+    int64_t port;
+    int64_t incoming;
+#ifdef _WIN32
+    HANDLE thread_handle;
+#else
+    pthread_t thread_handle;
+#endif
+    memset(&thread_args, 0, sizeof(thread_args));
+    if (expect_positive("invalid content-length server", server)) return 32;
+    if (expect_int("invalid content-length listen", kain_native_http_server_listen(server), 0)) return 33;
+    port = kain_native_http_server_local_port(server);
+    if (expect_positive("invalid content-length port", port)) return 34;
+    thread_args.port = port;
+#ifdef _WIN32
+    thread_handle = CreateThread(0, 0, http_invalid_content_length_thread, &thread_args, 0, 0);
+    if (thread_handle == 0) return 35;
+#else
+    if (pthread_create(&thread_handle, 0, http_invalid_content_length_thread, &thread_args) != 0) return 35;
+#endif
+    incoming = kain_native_http_server_pump(server, 5000);
+#ifdef _WIN32
+    WaitForSingleObject(thread_handle, 5000);
+    CloseHandle(thread_handle);
+#else
+    pthread_join(thread_handle, 0);
+#endif
+    if (expect_int("invalid content-length rejected", incoming, KAIN_NATIVE_NET_PARSE_ERROR)) return 36;
+    if (expect_text_contains("invalid content-length kind", kain_native_net_last_error_kind(), "parse")) return 37;
+    if (expect_text_contains("invalid content-length message", kain_native_net_last_error_message(), "Content-Length")) return 38;
+    kain_native_http_server_close(server);
+    return 0;
+}
+
+#ifdef _WIN32
 static DWORD WINAPI http_client_test_server_thread(void* data)
 #else
 static void* http_client_test_server_thread(void* data)
@@ -237,6 +297,8 @@ int main(void) {
     result = run_tcp_loopback();
     if (result != 0) return result;
     result = run_http_server_roundtrip();
+    if (result != 0) return result;
+    result = run_http_invalid_content_length_rejected();
     if (result != 0) return result;
     result = run_http_client_roundtrip();
     if (result != 0) return result;
