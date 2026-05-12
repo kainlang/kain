@@ -1,0 +1,66 @@
+version: 1
+id: kain.core.proofs.native_net_append_needed_size_does_not_wrap_after_guards
+kind: size_add_ok
+description: The append-byte helper's needed length calculation is safe when the implementation
+  proves both addition steps before comparing against capacity.
+tags:
+- native-runtime
+- net
+- buffer-growth
+- size_t
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
+  symbol: kain_native_net_append_bytes
+  start_line: 328
+  reason: length + byte_count + slack is now checked in two explicit additions
+case:
+  declarations:
+  - name: length
+    sort:
+      kind: int
+  - name: byte_count
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - length
+    - 0
+  - op: ge
+    args:
+    - byte_count
+    - 0
+  - op: le
+    args:
+    - length
+    - size_max
+  - op: le
+    args:
+    - byte_count
+    - op: sub
+      args:
+      - size_max
+      - length
+  - op: le
+    args:
+    - 1
+    - op: sub
+      args:
+      - size_max
+      - op: add
+        args:
+        - length
+        - byte_count
+  addends:
+  - length
+  - byte_count
+  - 1
+  size_bits: 64
+  limit: size_max

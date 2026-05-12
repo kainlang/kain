@@ -1,0 +1,44 @@
+version: 1
+id: kain.core.proofs.actor_supervision_restart_count_stays_within_window_limit
+kind: find_counterexample
+description: A restart attempt taken only while restart_count < KAIN_SUPERVISION_MAX_RESTARTS
+  remains within the configured restart limit after increment.
+tags:
+- actor
+- supervision
+- restart
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_actor_restart_child
+  start_line: 2010
+  reason: restart_count increments after should_restart accepts the limit
+case:
+  declarations:
+  - name: restart_count
+    sort:
+      kind: int
+  - name: max_restarts
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_restarts
+    - 5
+  - op: ge
+    args:
+    - restart_count
+    - 0
+  - op: lt
+    args:
+    - restart_count
+    - max_restarts
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - restart_count
+      - 1
+    - max_restarts

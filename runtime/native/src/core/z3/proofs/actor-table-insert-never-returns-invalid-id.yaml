@@ -1,0 +1,32 @@
+version: 1
+id: kain.core.proofs.actor_table_insert_never_returns_invalid_id
+kind: range_check
+description: The native actor table insert loop starts at slot 1, preserving actor
+  id 0 as the invalid sentinel.
+tags:
+- actor
+- identity
+- abi
+- sentinel
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_actor_table_insert
+  start_line: 345
+  reason: actor table slots start at 1 to reserve KAIN_ACTOR_ID_INVALID
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 1
+  - op: lt
+    args:
+    - slot
+    - 1024
+  expression: slot
+  lower: 1
+  upper: 1023

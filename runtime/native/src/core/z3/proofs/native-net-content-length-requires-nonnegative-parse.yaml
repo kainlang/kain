@@ -1,0 +1,43 @@
+version: 1
+id: kain.core.proofs.native_net_content_length_requires_nonnegative_parse
+kind: content_length_ok
+description: HTTP Content-Length values must be parsed and validated as non-negative
+  before conversion into size_t arithmetic.
+tags:
+- native-runtime
+- net
+- content-length
+- cast
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_net_system.c
+  symbol: kain_native_net_parse_content_length_header
+  start_line: 139
+  reason: strict parser rejects signed Content-Length text before size_t use
+case:
+  declarations:
+  - name: header_length
+    sort:
+      kind: int
+  - name: total_length
+    sort:
+      kind: int
+  - name: parsed_content_length
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - header_length
+    - 1
+  - op: ge
+    args:
+    - total_length
+    - header_length
+  - op: ge
+    args:
+    - parsed_content_length
+    - 0
+  size_bits: 64
+  header_length: header_length
+  total_length: total_length
+  parsed_content_length: parsed_content_length

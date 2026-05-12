@@ -1,0 +1,44 @@
+version: 1
+id: kain.core.proofs.actor_mailbox_bounded_send_count_stays_within_capacity
+kind: find_counterexample
+description: A bounded actor mailbox send may only increment count when count < capacity,
+  so the next count cannot exceed capacity.
+tags:
+- actor
+- mailbox
+- bounded-queue
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_actor_send
+  start_line: 688
+  reason: mailbox capacity check before mailbox->count++
+case:
+  declarations:
+  - name: count
+    sort:
+      kind: int
+  - name: capacity
+    sort:
+      kind: int
+  constraints:
+  - op: gt
+    args:
+    - capacity
+    - 0
+  - op: ge
+    args:
+    - count
+    - 0
+  - op: lt
+    args:
+    - count
+    - capacity
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - count
+      - 1
+    - capacity

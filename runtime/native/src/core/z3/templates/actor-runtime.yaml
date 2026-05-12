@@ -1,0 +1,83 @@
+language: c
+description: Local Kain actor-runtime proof templates. These mirror the first durable proof cases in src/core/z3/proofs and are intended for future source-to-proof extraction.
+matchers:
+  - id: kain-actor-mailbox-send-count
+    title: Actor mailbox bounded send count
+    helper: find_counterexample
+    min_matches: 2
+    regex_any:
+      - "mailbox->capacity"
+      - "mailbox->count >= mailbox->capacity"
+      - "mailbox->count\\+\\+"
+    arguments:
+      declarations:
+        - name: count
+          sort: { kind: int }
+        - name: capacity
+          sort: { kind: int }
+      constraints:
+        - { op: gt, args: [capacity, 0] }
+        - { op: ge, args: [count, 0] }
+        - { op: lt, args: [count, capacity] }
+      claim:
+        op: le
+        args:
+          - { op: add, args: [count, 1] }
+          - capacity
+  - id: kain-actor-mailbox-receive-count
+    title: Actor mailbox receive count underflow guard
+    helper: range_check
+    min_matches: 2
+    regex_any:
+      - "mailbox->head == NULL"
+      - "mailbox->count--"
+    arguments:
+      declarations:
+        - name: count
+          sort: { kind: int }
+      constraints:
+        - { op: ge, args: [count, 1] }
+      expression: { op: sub, args: [count, 1] }
+      lower: 0
+  - id: kain-actor-scheduler-dequeue-accounting
+    title: Actor scheduler dequeue accounting
+    helper: find_counterexample
+    min_matches: 2
+    regex_any:
+      - "queue_depth--"
+      - "total_dequeued\\+\\+"
+      - "kain_scheduler_dequeue"
+    arguments:
+      declarations:
+        - name: queue_depth
+          sort: { kind: int }
+        - name: total_enqueued
+          sort: { kind: int }
+        - name: total_dequeued
+          sort: { kind: int }
+      constraints:
+        - { op: ge, args: [queue_depth, 1] }
+        - { op: ge, args: [total_enqueued, 0] }
+        - { op: ge, args: [total_dequeued, 0] }
+        - { op: eq, args: [queue_depth, { op: sub, args: [total_enqueued, total_dequeued] }] }
+      claim:
+        op: and
+        args:
+          - { op: ge, args: [{ op: sub, args: [queue_depth, 1] }, 0] }
+          - { op: ge, args: [total_enqueued, { op: add, args: [total_dequeued, 1] }] }
+  - id: kain-actor-invalid-id-reserved
+    title: Actor table slot keeps invalid ID reserved
+    helper: range_check
+    regex_any:
+      - "KAIN_ACTOR_ID_INVALID"
+      - "for \\(size_t i = 1"
+    arguments:
+      declarations:
+        - name: slot
+          sort: { kind: int }
+      constraints:
+        - { op: ge, args: [slot, 1] }
+        - { op: lt, args: [slot, 1024] }
+      expression: slot
+      lower: 1
+      upper: 1023

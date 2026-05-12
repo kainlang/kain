@@ -1,0 +1,72 @@
+version: 1
+id: kain.core.proofs.actor_scheduler_enqueue_max_depth_is_monotonic
+kind: find_counterexample
+description: Enqueue increments queue_depth and updates max_queue_depth to at least
+  the new depth without lowering the previous maximum.
+tags:
+- actor
+- scheduler
+- queue-depth
+- monotonic
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_scheduler_enqueue
+  start_line: 1810
+  reason: queue_depth++ followed by max_queue_depth update
+case:
+  declarations:
+  - name: queue_depth
+    sort:
+      kind: int
+  - name: max_queue_depth
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - queue_depth
+    - 0
+  - op: ge
+    args:
+    - max_queue_depth
+    - queue_depth
+  claim:
+    op: and
+    args:
+    - op: ge
+      args:
+      - op: ite
+        args:
+        - op: gt
+          args:
+          - op: add
+            args:
+            - queue_depth
+            - 1
+          - max_queue_depth
+        - op: add
+          args:
+          - queue_depth
+          - 1
+        - max_queue_depth
+      - op: add
+        args:
+        - queue_depth
+        - 1
+    - op: ge
+      args:
+      - op: ite
+        args:
+        - op: gt
+          args:
+          - op: add
+            args:
+            - queue_depth
+            - 1
+          - max_queue_depth
+        - op: add
+          args:
+          - queue_depth
+          - 1
+        - max_queue_depth
+      - max_queue_depth

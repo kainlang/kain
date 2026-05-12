@@ -1,0 +1,76 @@
+version: 1
+id: kain.core.proofs.actor_scheduler_dequeue_preserves_depth_accounting
+kind: find_counterexample
+description: If the scheduler queue depth equals total_enqueued - total_dequeued and
+  depth is positive, a dequeue preserves non-negative depth and cannot overtake total_enqueued.
+tags:
+- actor
+- scheduler
+- queue-depth
+- invariant
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_actor.c
+  symbol: kain_scheduler_dequeue
+  start_line: 1897
+  reason: queue_depth-- and total_dequeued++ must remain coherent
+case:
+  declarations:
+  - name: queue_depth
+    sort:
+      kind: int
+  - name: total_enqueued
+    sort:
+      kind: int
+  - name: total_dequeued
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - queue_depth
+    - 1
+  - op: ge
+    args:
+    - total_enqueued
+    - 0
+  - op: ge
+    args:
+    - total_dequeued
+    - 0
+  - op: eq
+    args:
+    - queue_depth
+    - op: sub
+      args:
+      - total_enqueued
+      - total_dequeued
+  claim:
+    op: and
+    args:
+    - op: ge
+      args:
+      - op: sub
+        args:
+        - queue_depth
+        - 1
+      - 0
+    - op: ge
+      args:
+      - total_enqueued
+      - op: add
+        args:
+        - total_dequeued
+        - 1
+    - op: eq
+      args:
+      - op: sub
+        args:
+        - queue_depth
+        - 1
+      - op: sub
+        args:
+        - total_enqueued
+        - op: add
+          args:
+          - total_dequeued
+          - 1
