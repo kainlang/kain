@@ -1,0 +1,125 @@
+{
+  "all_cases_passed": true,
+  "counterexamples": 0,
+  "errors": 0,
+  "lane": "actor",
+  "pack_dir": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3",
+  "pack_name": "kain.native.core.proofs",
+  "pattern": "proofs/actor-*.yaml",
+  "proved": 6,
+  "results": [
+    {
+      "id": "kain.native.core.proofs.actor_mailbox_bounded_send_count_stays_within_capacity",
+      "kind": "find_counterexample",
+      "outcome": {
+        "claim_holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-mailbox-bounded-send-count-stays-within-capacity.json",
+        "solver_status": "unsat",
+        "status": "proved"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-mailbox-bounded-send-count-stays-within-capacity.yaml",
+      "relative_path": "proofs/actor-mailbox-bounded-send-count-stays-within-capacity.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "mailbox capacity check before mailbox->count++",
+        "start_line": 688,
+        "symbol": "kain_actor_send"
+      }
+    },
+    {
+      "id": "kain.native.core.proofs.actor_mailbox_receive_count_never_underflows",
+      "kind": "range_check",
+      "outcome": {
+        "holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-mailbox-receive-count-never-underflows.json",
+        "solver_status": "unsat",
+        "status": "in_range"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-mailbox-receive-count-never-underflows.yaml",
+      "relative_path": "proofs/actor-mailbox-receive-count-never-underflows.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "mailbox->count-- occurs after a non-empty head check",
+        "start_line": 807,
+        "symbol": "kain_actor_receive"
+      }
+    },
+    {
+      "id": "kain.native.core.proofs.actor_scheduler_dequeue_preserves_depth_accounting",
+      "kind": "find_counterexample",
+      "outcome": {
+        "claim_holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-scheduler-dequeue-preserves-depth-accounting.json",
+        "solver_status": "unsat",
+        "status": "proved"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-scheduler-dequeue-preserves-depth-accounting.yaml",
+      "relative_path": "proofs/actor-scheduler-dequeue-preserves-depth-accounting.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "queue_depth-- and total_dequeued++ must remain coherent",
+        "start_line": 1897,
+        "symbol": "kain_scheduler_dequeue"
+      }
+    },
+    {
+      "id": "kain.native.core.proofs.actor_scheduler_enqueue_max_depth_is_monotonic",
+      "kind": "find_counterexample",
+      "outcome": {
+        "claim_holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-scheduler-enqueue-max-depth-is-monotonic.json",
+        "solver_status": "unsat",
+        "status": "proved"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-scheduler-enqueue-max-depth-is-monotonic.yaml",
+      "relative_path": "proofs/actor-scheduler-enqueue-max-depth-is-monotonic.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "queue_depth++ followed by max_queue_depth update",
+        "start_line": 1810,
+        "symbol": "kain_scheduler_enqueue"
+      }
+    },
+    {
+      "id": "kain.native.core.proofs.actor_supervision_restart_count_stays_within_window_limit",
+      "kind": "find_counterexample",
+      "outcome": {
+        "claim_holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-supervision-restart-count-stays-within-window-limit.json",
+        "solver_status": "unsat",
+        "status": "proved"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-supervision-restart-count-stays-within-window-limit.yaml",
+      "relative_path": "proofs/actor-supervision-restart-count-stays-within-window-limit.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "restart_count increments after should_restart accepts the limit",
+        "start_line": 2010,
+        "symbol": "kain_actor_restart_child"
+      }
+    },
+    {
+      "id": "kain.native.core.proofs.actor_table_insert_never_returns_invalid_id",
+      "kind": "range_check",
+      "outcome": {
+        "holds": true,
+        "report_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260512T211503Z-actor-table-insert-never-returns-invalid-id.json",
+        "solver_status": "unsat",
+        "status": "in_range"
+      },
+      "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\proofs\\actor-table-insert-never-returns-invalid-id.yaml",
+      "relative_path": "proofs/actor-table-insert-never-returns-invalid-id.yaml",
+      "source": {
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "reason": "actor table slots start at 1 to reserve KAIN_ACTOR_ID_INVALID",
+        "start_line": 345,
+        "symbol": "kain_actor_table_insert"
+      }
+    }
+  ],
+  "scope_dir": "D:\\Kain-Lang\\runtime\\native\\src\\core",
+  "status": "completed",
+  "summary": "proof suite: 6 proved, 0 counterexamples, 0 unknown, 0 errors",
+  "total_cases": 6,
+  "unknown": 0
+}
