@@ -49,6 +49,8 @@ graphics_runtime_smoke_env_bundle.realtime_app.json
 
 # Z3 proof-pack reports and caches
 /z3/cache/
+/z3/generated/
+/z3/reports/
 
 # IDE
 .vscode/
