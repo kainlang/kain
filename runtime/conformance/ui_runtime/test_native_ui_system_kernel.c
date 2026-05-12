@@ -95,6 +95,14 @@ int main(void) {
     if (!test_true(kain_native_ui_focused_node(session) == command, "focused node should round trip")) {
         return 1;
     }
+    kain_native_ui_node_set_flag(session, command, "hovered", 1);
+    kain_native_ui_node_set_flag(session, command, "pressed", 1);
+    if (!test_true(kain_native_ui_node_has_flag(session, command, "hovered") == 1, "hovered flag should round trip")) {
+        return 1;
+    }
+    if (!test_true(kain_native_ui_node_has_flag(session, command, "pressed") == 1, "pressed flag should round trip")) {
+        return 1;
+    }
 
     kain_native_ui_begin_frame(session, 16.0);
     kain_native_ui_draw_rect(session, command, 24.0, 24.0, 220.0, 48.0, "fill");

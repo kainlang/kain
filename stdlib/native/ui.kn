@@ -748,6 +748,83 @@ pub fn ui_layout_column_y(index_offset: Float, start_y: Float, item_height: Floa
 pub fn ui_layout_row_x(index_offset: Float, start_x: Float, item_width: Float, gap: Float) -> Float:
     return start_x + ((item_width + gap) * index_offset)
 
+pub fn ui_float_min(left: Float, right: Float) -> Float:
+    if left < right:
+        return left
+    return right
+
+pub fn ui_float_max(left: Float, right: Float) -> Float:
+    if left > right:
+        return left
+    return right
+
+pub fn ui_float_clamp(value: Float, low: Float, high: Float) -> Float:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+pub fn ui_rect_right(x: Float, width: Float) -> Float:
+    return x + width
+
+pub fn ui_rect_bottom(y: Float, height: Float) -> Float:
+    return y + height
+
+pub fn ui_rect_contains(px: Float, py: Float, x: Float, y: Float, width: Float, height: Float) -> Int:
+    if px >= x and px <= x + width and py >= y and py <= y + height:
+        return 1
+    return 0
+
+pub fn ui_layout_inset_x(x: Float, inset: Float) -> Float:
+    return x + inset
+
+pub fn ui_layout_inset_y(y: Float, inset: Float) -> Float:
+    return y + inset
+
+pub fn ui_layout_inset_width(width: Float, left: Float, right: Float) -> Float:
+    return ui_float_max(0.0, width - left - right)
+
+pub fn ui_layout_inset_height(height: Float, top: Float, bottom: Float) -> Float:
+    return ui_float_max(0.0, height - top - bottom)
+
+pub fn ui_layout_center_x(x: Float, width: Float, child_width: Float) -> Float:
+    return x + ((width - child_width) * 0.5)
+
+pub fn ui_layout_center_y(y: Float, height: Float, child_height: Float) -> Float:
+    return y + ((height - child_height) * 0.5)
+
+pub fn ui_layout_column_height(item_count: Float, item_height: Float, gap: Float) -> Float:
+    if item_count <= 0.0:
+        return 0.0
+    return (item_count * item_height) + ((item_count - 1.0) * gap)
+
+pub fn ui_layout_row_width(item_count: Float, item_width: Float, gap: Float) -> Float:
+    if item_count <= 0.0:
+        return 0.0
+    return (item_count * item_width) + ((item_count - 1.0) * gap)
+
+pub fn ui_layout_split_left_width(width: Float, fraction: Float, gap: Float) -> Float:
+    return ui_float_max(0.0, (width - gap) * ui_float_clamp(fraction, 0.0, 1.0))
+
+pub fn ui_layout_split_right_x(x: Float, width: Float, fraction: Float, gap: Float) -> Float:
+    return x + ui_layout_split_left_width(width, fraction, gap) + gap
+
+pub fn ui_layout_split_right_width(width: Float, fraction: Float, gap: Float) -> Float:
+    return ui_float_max(0.0, width - ui_layout_split_left_width(width, fraction, gap) - gap)
+
+pub fn ui_host_session_create(app_name: String, window_title: String, width: Int, height: Int, backend_id: String) -> Int:
+    let session = native_ui_session_create(app_name, width, height)
+    let _window = native_ui_window_open(session, window_title, width, height)
+    let _host = native_ui_host_attach(session, backend_id)
+    return session
+
+pub fn ui_frame_begin(session_id: Int, delta_ms: Float) -> Int:
+    return native_ui_begin_frame(session_id, delta_ms)
+
+pub fn ui_frame_submit(session_id: Int) -> Int:
+    return ui_present_to_attached_host(session_id)
+
 pub fn ui_node_from_stable_key(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
     let existing = native_ui_node_find_by_stable_key(session_id, stable_key)
     if existing > 0:
@@ -763,16 +840,146 @@ pub fn ui_node_from_stable_key(session_id: Int, parent_id: Int, kind: String, st
     let _text = native_ui_node_set_text(session_id, node, text)
     return node
 
+pub fn ui_reconcile_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, x: Float, y: Float, width: Float, height: Float) -> Int:
+    return ui_node_from_stable_key(session_id, parent_id, kind, stable_key, "", x, y, width, height)
+
+pub fn ui_reconcile_text_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
+    return ui_node_from_stable_key(session_id, parent_id, kind, stable_key, text, x, y, width, height)
+
+pub fn ui_reconcile_labeled_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, role: String, label: String, x: Float, y: Float, width: Float, height: Float) -> Int:
+    let node = ui_node_from_stable_key(session_id, parent_id, kind, stable_key, text, x, y, width, height)
+    let _role = native_ui_accessibility_set_role(session_id, node, role)
+    let _label = native_ui_accessibility_set_label(session_id, node, label)
+    return node
+
+pub fn ui_reconcile_focusable_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, text: String, role: String, label: String, x: Float, y: Float, width: Float, height: Float) -> Int:
+    let node = ui_reconcile_labeled_node(session_id, parent_id, kind, stable_key, text, role, label, x, y, width, height)
+    let _focusable = native_ui_node_set_flag(session_id, node, "focusable", 1)
+    return node
+
 pub fn ui_node_style_color_rgba(session_id: Int, node_id: Int, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
     let _r = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.r", r)
     let _g = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.g", g)
     let _b = native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.b", b)
     return native_ui_node_set_style_f64(session_id, node_id, style_key + ".color.a", a)
 
+pub fn ui_style_color_rgba(session_id: Int, node_id: Int, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
+    return ui_node_style_color_rgba(session_id, node_id, style_key, r, g, b, a)
+
+pub fn ui_style_metric(session_id: Int, node_id: Int, style_key: String, metric: String, value: Float) -> Int:
+    return native_ui_node_set_style_f64(session_id, node_id, style_key + "." + metric, value)
+
+pub fn ui_style_metric_value(session_id: Int, node_id: Int, style_key: String, metric: String, fallback: Float) -> Float:
+    return native_ui_node_style_f64(session_id, node_id, style_key + "." + metric, fallback)
+
+pub fn ui_style_padding(session_id: Int, node_id: Int, style_key: String, left: Float, top: Float, right: Float, bottom: Float) -> Int:
+    let _left = ui_style_metric(session_id, node_id, style_key, "padding.left", left)
+    let _top = ui_style_metric(session_id, node_id, style_key, "padding.top", top)
+    let _right = ui_style_metric(session_id, node_id, style_key, "padding.right", right)
+    return ui_style_metric(session_id, node_id, style_key, "padding.bottom", bottom)
+
+pub fn ui_style_spacing(session_id: Int, node_id: Int, style_key: String, gap: Float) -> Int:
+    return ui_style_metric(session_id, node_id, style_key, "gap", gap)
+
+pub fn ui_style_inherit_color_rgba(session_id: Int, parent_id: Int, node_id: Int, parent_style_key: String, style_key: String, r: Float, g: Float, b: Float, a: Float) -> Int:
+    let inherited_r = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.r", r)
+    let inherited_g = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.g", g)
+    let inherited_b = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.b", b)
+    let inherited_a = native_ui_node_style_f64(session_id, parent_id, parent_style_key + ".color.a", a)
+    let resolved_r = native_ui_node_style_f64(session_id, node_id, style_key + ".color.r", inherited_r)
+    let resolved_g = native_ui_node_style_f64(session_id, node_id, style_key + ".color.g", inherited_g)
+    let resolved_b = native_ui_node_style_f64(session_id, node_id, style_key + ".color.b", inherited_b)
+    let resolved_a = native_ui_node_style_f64(session_id, node_id, style_key + ".color.a", inherited_a)
+    return ui_style_color_rgba(session_id, node_id, style_key, resolved_r, resolved_g, resolved_b, resolved_a)
+
+pub fn ui_style_copy_color_rgba(session_id: Int, source_node_id: Int, target_node_id: Int, source_style_key: String, target_style_key: String) -> Int:
+    let r = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.r", 1.0)
+    let g = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.g", 1.0)
+    let b = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.b", 1.0)
+    let a = native_ui_node_style_f64(session_id, source_node_id, source_style_key + ".color.a", 1.0)
+    return ui_style_color_rgba(session_id, target_node_id, target_style_key, r, g, b, a)
+
+pub fn ui_text_width(session_id: Int, font_resource_id: Int, text: String) -> Float:
+    return native_ui_text_measure_width(session_id, font_resource_id, text)
+
+pub fn ui_text_height(session_id: Int, font_resource_id: Int, text: String) -> Float:
+    return native_ui_text_measure_height(session_id, font_resource_id, text)
+
 pub fn native_ui_texture_create_from_hex(session_id: Int, key: String, width: Int, height: Int, format: String, bytes_hex: String) -> Int:
     let texture = native_ui_texture_create(session_id, key, width, height, format, len(bytes_hex) / 2)
     let _upload = native_ui_resource_set_bytes_hex(session_id, texture, bytes_hex)
     return texture
+
+pub fn ui_texture_rgba8_from_hex(session_id: Int, key: String, width: Int, height: Int, bytes_hex: String) -> Int:
+    return native_ui_texture_create_from_hex(session_id, key, width, height, "rgba8", bytes_hex)
+
+pub fn ui_render_box(session_id: Int, node_id: Int, style_key: String) -> Int:
+    return native_ui_draw_rect(session_id, node_id, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id), style_key)
+
+pub fn ui_render_box_at(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
+    return native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)
+
+pub fn ui_render_text(session_id: Int, node_id: Int, font_resource_id: Int, x: Float, y: Float, style_key: String) -> Int:
+    return native_ui_draw_text(session_id, node_id, font_resource_id, x, y, native_ui_node_text(session_id, node_id), style_key)
+
+pub fn ui_render_text_value(session_id: Int, node_id: Int, font_resource_id: Int, text: String, x: Float, y: Float, style_key: String) -> Int:
+    return native_ui_draw_text(session_id, node_id, font_resource_id, x, y, text, style_key)
+
+pub fn ui_render_resource(session_id: Int, node_id: Int, resource_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
+    return native_ui_draw_resource(session_id, node_id, resource_id, x, y, width, height, style_key)
+
+pub fn ui_render_resource_in_node(session_id: Int, node_id: Int, resource_id: Int, style_key: String) -> Int:
+    return native_ui_draw_resource(session_id, node_id, resource_id, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id), style_key)
+
+pub fn ui_render_text_in_box(session_id: Int, node_id: Int, font_resource_id: Int, inset_x: Float, baseline_y: Float, style_key: String) -> Int:
+    return native_ui_draw_text(session_id, node_id, font_resource_id, native_ui_node_x(session_id, node_id) + inset_x, native_ui_node_y(session_id, node_id) + baseline_y, native_ui_node_text(session_id, node_id), style_key)
+
+pub fn ui_event_kind_is(session_id: Int, expected_kind: String) -> Int:
+    if native_ui_event_kind(session_id) == expected_kind:
+        return 1
+    return 0
+
+pub fn ui_event_targets(session_id: Int, node_id: Int) -> Int:
+    if native_ui_event_target(session_id) == node_id:
+        return 1
+    return 0
+
+pub fn ui_focus_if_event_targets(session_id: Int, node_id: Int) -> Int:
+    if ui_event_targets(session_id, node_id) == 1:
+        return native_ui_focus(session_id, node_id)
+    return 0
+
+pub fn ui_node_contains_point(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
+    return ui_rect_contains(x, y, native_ui_node_x(session_id, node_id), native_ui_node_y(session_id, node_id), native_ui_node_width(session_id, node_id), native_ui_node_height(session_id, node_id))
+
+pub fn ui_node_is_hit(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
+    if native_ui_hit_test(session_id, x, y) == node_id:
+        return 1
+    return 0
+
+pub fn ui_apply_hover_flag(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
+    let hovered = ui_node_contains_point(session_id, node_id, x, y)
+    let _flag = native_ui_node_set_flag(session_id, node_id, "hovered", hovered)
+    return hovered
+
+pub fn ui_apply_pressed_flag_from_event(session_id: Int, node_id: Int) -> Int:
+    if ui_event_targets(session_id, node_id) == 1 and ui_event_kind_is(session_id, "pointer.down") == 1:
+        let _focus = native_ui_focus(session_id, node_id)
+        let _pressed = native_ui_node_set_flag(session_id, node_id, "pressed", 1)
+        return 1
+    if ui_event_targets(session_id, node_id) == 1 and ui_event_kind_is(session_id, "pointer.up") == 1:
+        let _released = native_ui_node_set_flag(session_id, node_id, "pressed", 0)
+        return 0
+    return native_ui_node_has_flag(session_id, node_id, "pressed")
+
+pub fn ui_drain_events_for_node(session_id: Int, node_id: Int) -> Int:
+    let handled = 0
+    while native_ui_poll_event(session_id) == 1:
+        if ui_event_targets(session_id, node_id) == 1:
+            let _hover = ui_apply_hover_flag(session_id, node_id, native_ui_event_x(session_id), native_ui_event_y(session_id))
+            let _pressed = ui_apply_pressed_flag_from_event(session_id, node_id)
+            handled = handled + 1
+    return handled
 
 pub fn ui_present_to_attached_host(session_id: Int) -> Int:
     let _end = native_ui_end_frame(session_id)

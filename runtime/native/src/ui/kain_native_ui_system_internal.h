@@ -18,6 +18,8 @@ enum KainNativeUiNodeFlags {
     KAIN_NATIVE_UI_NODE_FOCUSABLE = 1 << 1,
     KAIN_NATIVE_UI_NODE_INTERACTIVE = 1 << 2,
     KAIN_NATIVE_UI_NODE_DISABLED = 1 << 3,
+    KAIN_NATIVE_UI_NODE_HOVERED = 1 << 4,
+    KAIN_NATIVE_UI_NODE_PRESSED = 1 << 5,
 };
 
 typedef struct KainNativeUiNode {

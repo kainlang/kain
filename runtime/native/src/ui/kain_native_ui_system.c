@@ -146,6 +146,12 @@ static int64_t kain_native_ui_flag_bit(const char* flag) {
     if (strcmp(flag, "disabled") == 0) {
         return KAIN_NATIVE_UI_NODE_DISABLED;
     }
+    if (strcmp(flag, "hovered") == 0) {
+        return KAIN_NATIVE_UI_NODE_HOVERED;
+    }
+    if (strcmp(flag, "pressed") == 0) {
+        return KAIN_NATIVE_UI_NODE_PRESSED;
+    }
     return 0;
 }
 

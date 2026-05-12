@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-12 - Kain-authored native UI stdlib layer started
+
+`stdlib/native/ui.kn` now has a first real authored UI layer above the raw native UI ABI. The helpers are deliberately system-shaped rather than catalog-shaped: session/frame setup, stable keyed reconciliation, rect/layout math, split/inset/center helpers, style color/metric/padding/spacing helpers, inherited color resolution, texture hex upload convenience, render helpers for boxes/text/resources, and event helpers for authored pointer state. There are still no baked runtime buttons, panels, or product components.
+
+The raw C kernel gained two generic node-state flags, `hovered` and `pressed`, so Kain-authored interaction helpers can store common pointer state without turning the runtime into a widget system. `runtime/conformance/ui_runtime/test_native_ui_system_kernel.c` now covers those flags.
+
+`runtime/fixtures/native_ui_stdlib_layer/main.kn` is the new fast proof fixture. It runs on the headless `software` backend and validates stdlib reconciliation, layout, style inheritance, rendering metadata, event draining, focus, and pointer state. The live `smoketest/native-ui/pilot` now uses the stdlib layer for session setup, reconciliation, layout, styles, rendering, and authored hover state while still producing a Win32/GL screenshot.
+
+Validation:
+
+- `bash runtime/conformance/ui_runtime/run_tests.sh --verbose`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_single_file_native_ui_primitives_without_component_catalog --target-dir target\codex-native-ui-win32 -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_native_ui_host_services_without_component_catalog --target-dir target\codex-native-ui-win32 -- --nocapture`
+- `target\codex-native-ui-win32\debug\kain.exe check runtime\fixtures\native_ui_stdlib_layer\main.kn --target llvm`
+- `target\codex-native-ui-win32\debug\kain.exe build runtime\fixtures\native_ui_stdlib_layer\main.kn --target llvm --output target\codex-native-ui-stdlib-layer\native_ui_stdlib_layer.exe`
+- `target\codex-native-ui-stdlib-layer\native_ui_stdlib_layer.exe`
+- `.\smoketest\native-ui\pilot\run.ps1`
+
+Recommended next step:
+
+- Build a Kain-authored reconciler/state graph that can preserve authored node state across hot reload, then layer optional app-code controls above these generic helpers rather than adding a stdlib catalog of prewritten widgets.
+
 # 2026-05-12 - Raw native UI now has a live Win32/GL presenter and screenshotable LLVM smoke
 
 The raw native UI ABI is no longer metadata-only on Windows. `runtime/native/src/ui/kain_native_ui_system.c` now delegates live presentation through an internal host adapter layer, with `runtime/native/src/ui/kain_native_ui_host_win32_gl.c` providing the first non-blocking `win32-gl` backend. The core session/node/resource/event kernel remains generic; the backend only owns window creation, GL presentation, Win32 message translation, clipboard/menu/dialog bridging, and screenshot capture. `software` remains the headless metadata backend.

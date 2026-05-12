@@ -1,0 +1,54 @@
+fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = ui_host_session_create("native-ui-stdlib-layer", "Kain UI Stdlib Layer", 640, 360, "software")
+    let generation = native_ui_hot_reload_begin(session, "stdlib-layer-v1")
+
+    let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)
+    let root = ui_reconcile_node(session, 0, "app.root", "root", 0.0, 0.0, 640.0, 360.0)
+    let sidebar_width = ui_layout_split_left_width(608.0, 0.30, 16.0)
+    let content_x = ui_layout_split_right_x(16.0, 608.0, 0.30, 16.0)
+    let content_width = ui_layout_split_right_width(608.0, 0.30, 16.0)
+    let sidebar = ui_reconcile_text_node(session, root, "app.sidebar", "sidebar", "systems", 16.0, 16.0, sidebar_width, 300.0)
+    let content = ui_reconcile_focusable_node(session, root, "app.surface", "surface.main", "authored surface", "region", "Authored surface", content_x, 16.0, content_width, 300.0)
+    let label = ui_reconcile_text_node(session, content, "app.label", "surface.label", "Kain-authored stdlib UI", ui_layout_inset_x(content_x, 16.0), ui_layout_inset_y(16.0, 22.0), ui_text_width(session, body_font, "Kain-authored stdlib UI") + 8.0, 24.0)
+
+    let texture = ui_texture_rgba8_from_hex(session, "texture.stdlib.layer", 2, 2, "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF")
+    let _root_bg = ui_style_color_rgba(session, root, "ui.bg", 0.07, 0.08, 0.10, 1.0)
+    let _root_text = ui_style_color_rgba(session, root, "ui.text", 0.96, 0.97, 1.0, 1.0)
+    let _sidebar = ui_style_color_rgba(session, sidebar, "ui.sidebar", 0.12, 0.15, 0.18, 1.0)
+    let _content = ui_style_color_rgba(session, content, "ui.surface", 0.18, 0.24, 0.28, 1.0)
+    let _label = ui_style_inherit_color_rgba(session, root, label, "ui.text", "ui.label", 0.96, 0.97, 1.0, 1.0)
+    let _padding = ui_style_padding(session, content, "ui.layout", 16.0, 16.0, 16.0, 16.0)
+    let _gap = ui_style_spacing(session, content, "ui.layout", 8.0)
+
+    let _push_move = native_ui_push_event(session, "pointer.move", content, content_x + 10.0, 26.0, 0, "")
+    let _push_down = native_ui_push_event(session, "pointer.down", content, content_x + 10.0, 26.0, 0, "primary")
+    let handled = ui_drain_events_for_node(session, content)
+
+    let _begin = ui_frame_begin(session, 16.0)
+    let _draw_root = ui_render_box(session, root, "ui.bg")
+    let _draw_sidebar = ui_render_box(session, sidebar, "ui.sidebar")
+    let _draw_content = ui_render_box(session, content, "ui.surface")
+    let _draw_label = ui_render_text(session, label, body_font, native_ui_node_x(session, label), native_ui_node_y(session, label) + 18.0, "ui.label")
+    let _draw_icon = ui_render_resource(session, content, texture, content_x + content_width - 42.0, 24.0, 26.0, 26.0, "ui.icon")
+    let presented = ui_frame_submit(session)
+    let committed = native_ui_hot_reload_commit(session)
+
+    if generation != committed:
+        return 10
+    if handled != 2:
+        return 11
+    if native_ui_focused_node(session) != content:
+        return 12
+    if native_ui_node_has_flag(session, content, "hovered") != 1:
+        return 13
+    if native_ui_node_has_flag(session, content, "pressed") != 1:
+        return 14
+    if presented != 5:
+        return 15
+    if native_ui_host_frame_hash(session) <= 0:
+        return 16
+    if native_ui_resource_count(session) != 2:
+        return 17
+
+    return 0

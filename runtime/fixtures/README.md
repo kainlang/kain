@@ -195,6 +195,20 @@ cd runtime/fixtures/llvm_heap_memory
 
 ---
 
+### 10. Native UI Stdlib Layer (`native_ui_stdlib_layer/`)
+
+**Purpose:** Validates the Kain-authored stdlib UI layer that sits above the raw native UI ABI.
+
+**What it tests:**
+- Headless `software` host setup through the generic stdlib session helper
+- Stable keyed node reconciliation
+- Layout split, inset, and text measurement helpers
+- Style color, padding, spacing, and inherited color resolution
+- Generic render helpers for boxes, text, and resources
+- Authored pointer-state handling through generic `hovered` and `pressed` node flags
+
+---
+
 ## Design Principles
 
 ### Minimal by Design
