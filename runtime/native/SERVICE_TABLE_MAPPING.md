@@ -52,7 +52,7 @@ The canonical service table introduces additional service families for future ru
 
 #### Platform Services
 - `platform.app-host` - Application host (Win32, Linux, macOS)
-- `platform.input` - Input capture and event routing
+- `platform.input` - Canonical input sessions, semantic actions, replay traces, and platform event routing
 - `platform.window` - Window management
 
 #### Graphics Services

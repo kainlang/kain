@@ -65,6 +65,276 @@ impl StdLib {
             "Read an exact number of bytes from stdin",
         );
         lib.add_fn(
+            "input_reset",
+            &[],
+            "Int",
+            "Reset interpreter input sessions",
+        );
+        lib.add_fn(
+            "input_session_create",
+            &[("name", "String")],
+            "Int",
+            "Create a typed input session",
+        );
+        lib.add_fn(
+            "input_bind_action",
+            &[
+                ("session_id", "Int"),
+                ("source_kind", "String"),
+                ("event_kind", "String"),
+                ("code", "String"),
+                ("action", "String"),
+            ],
+            "Int",
+            "Bind a source event to a semantic action",
+        );
+        lib.add_fn(
+            "input_bind_axis",
+            &[
+                ("session_id", "Int"),
+                ("source_kind", "String"),
+                ("event_kind", "String"),
+                ("code", "String"),
+                ("axis", "String"),
+                ("scale", "Float"),
+            ],
+            "Int",
+            "Bind a source event to a semantic axis",
+        );
+        lib.add_fn(
+            "input_push_event",
+            &[
+                ("session_id", "Int"),
+                ("source_kind", "String"),
+                ("source_id", "String"),
+                ("event_kind", "String"),
+                ("code", "String"),
+                ("value", "Float"),
+                ("text", "String"),
+                ("confidence", "Float"),
+            ],
+            "Int",
+            "Push a typed input event into a session",
+        );
+        lib.add_fn(
+            "input_push_agent_intent",
+            &[
+                ("session_id", "Int"),
+                ("source_id", "String"),
+                ("action", "String"),
+                ("command_text", "String"),
+                ("confidence", "Float"),
+            ],
+            "Int",
+            "Push a first-class agent intent as a momentary action",
+        );
+        lib.add_fn(
+            "input_begin_frame",
+            &[("session_id", "Int"), ("delta_ms", "Float")],
+            "Int",
+            "Reduce queued input events into the next frame",
+        );
+        lib.add_fn(
+            "input_action_pressed",
+            &[("session_id", "Int"), ("action", "String")],
+            "Int",
+            "Return 1 when an action was pressed this frame",
+        );
+        lib.add_fn(
+            "input_action_down",
+            &[("session_id", "Int"), ("action", "String")],
+            "Int",
+            "Return 1 when an action is held after this frame",
+        );
+        lib.add_fn(
+            "input_action_released",
+            &[("session_id", "Int"), ("action", "String")],
+            "Int",
+            "Return 1 when an action was released this frame",
+        );
+        lib.add_fn(
+            "input_axis_value",
+            &[("session_id", "Int"), ("axis", "String")],
+            "Float",
+            "Read a reduced frame-local axis value",
+        );
+        lib.add_fn(
+            "input_trace_json",
+            &[("session_id", "Int")],
+            "String",
+            "Serialize the session input trace",
+        );
+        for (name, params, return_type, doc) in [
+            (
+                "kain_input_reset",
+                vec![],
+                "Int",
+                "Bridge: reset interpreter input sessions",
+            ),
+            (
+                "kain_input_session_create",
+                vec![("name", "String")],
+                "Int",
+                "Bridge: create an interpreter input session",
+            ),
+            (
+                "kain_input_session_destroy",
+                vec![("session_id", "Int")],
+                "Int",
+                "Bridge: destroy an interpreter input session",
+            ),
+            (
+                "kain_input_bind_action",
+                vec![
+                    ("session_id", "Int"),
+                    ("source_kind", "String"),
+                    ("event_kind", "String"),
+                    ("code", "String"),
+                    ("action", "String"),
+                ],
+                "Int",
+                "Bridge: bind input action",
+            ),
+            (
+                "kain_input_bind_axis",
+                vec![
+                    ("session_id", "Int"),
+                    ("source_kind", "String"),
+                    ("event_kind", "String"),
+                    ("code", "String"),
+                    ("axis", "String"),
+                    ("scale", "Float"),
+                ],
+                "Int",
+                "Bridge: bind input axis",
+            ),
+            (
+                "kain_input_push_event",
+                vec![
+                    ("session_id", "Int"),
+                    ("source_kind", "String"),
+                    ("source_id", "String"),
+                    ("event_kind", "String"),
+                    ("code", "String"),
+                    ("value", "Float"),
+                    ("text", "String"),
+                    ("confidence", "Float"),
+                ],
+                "Int",
+                "Bridge: push input event",
+            ),
+            (
+                "kain_input_push_agent_intent",
+                vec![
+                    ("session_id", "Int"),
+                    ("source_id", "String"),
+                    ("action", "String"),
+                    ("command_text", "String"),
+                    ("confidence", "Float"),
+                ],
+                "Int",
+                "Bridge: push agent intent",
+            ),
+            (
+                "kain_input_begin_frame",
+                vec![("session_id", "Int"), ("delta_ms", "Float")],
+                "Int",
+                "Bridge: reduce input frame",
+            ),
+            (
+                "kain_input_frame_index",
+                vec![("session_id", "Int")],
+                "Int",
+                "Bridge: query current input frame index",
+            ),
+            (
+                "kain_input_event_count",
+                vec![("session_id", "Int")],
+                "Int",
+                "Bridge: query current input event count",
+            ),
+            (
+                "kain_input_event_kind",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: inspect current input event kind",
+            ),
+            (
+                "kain_input_event_source_kind",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: inspect current input event source",
+            ),
+            (
+                "kain_input_event_code",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: inspect current input event code",
+            ),
+            (
+                "kain_input_event_action",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: inspect current input event action",
+            ),
+            (
+                "kain_input_event_text",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: inspect current input event text",
+            ),
+            (
+                "kain_input_action_pressed",
+                vec![("session_id", "Int"), ("action", "String")],
+                "Int",
+                "Bridge: query pressed action",
+            ),
+            (
+                "kain_input_action_down",
+                vec![("session_id", "Int"), ("action", "String")],
+                "Int",
+                "Bridge: query down action",
+            ),
+            (
+                "kain_input_action_released",
+                vec![("session_id", "Int"), ("action", "String")],
+                "Int",
+                "Bridge: query released action",
+            ),
+            (
+                "kain_input_axis_value",
+                vec![("session_id", "Int"), ("axis", "String")],
+                "Float",
+                "Bridge: query axis value",
+            ),
+            (
+                "kain_input_trace_json",
+                vec![("session_id", "Int")],
+                "String",
+                "Bridge: serialize input trace",
+            ),
+            (
+                "kain_input_text_commit_count",
+                vec![("session_id", "Int")],
+                "Int",
+                "Bridge: query text commit count",
+            ),
+            (
+                "kain_input_text_commit",
+                vec![("session_id", "Int"), ("index", "Int")],
+                "String",
+                "Bridge: query text commit",
+            ),
+            (
+                "kain_input_replay_trace_json",
+                vec![("session_id", "Int"), ("trace_json", "String")],
+                "Int",
+                "Bridge: replay input trace",
+            ),
+        ] {
+            lib.add_fn(name, &params, return_type, doc);
+        }
+        lib.add_fn(
             "json_parse",
             &[("text", "String")],
             "Any",

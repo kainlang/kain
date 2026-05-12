@@ -20,6 +20,7 @@ kain-actor = { path = "../kain-actor" }
 blade = { path = "../kain-blades" }
 kain-entangle = { path = "../kain-entangle" }
 kain-fs = { path = "../kain-fs" }
+kain-input = { path = "../kain-input" }
 kain-ui = { path = "../kain-ui" }
 
 [features]

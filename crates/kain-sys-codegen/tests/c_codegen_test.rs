@@ -113,6 +113,38 @@ fn main() -> Int:
 }
 
 #[test]
+fn c_backend_keeps_native_input_symbols_as_declarations() {
+    let source = r#"
+@extern
+fn kain_native_input_session_create(name: String) -> Int
+
+@extern
+fn kain_native_input_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_input_action_pressed(session_id: Int, action: String) -> Int
+
+fn main() -> Int:
+    let session = kain_native_input_session_create("input")
+    let _frame = kain_native_input_begin_frame(session, 16.0)
+    return kain_native_input_action_pressed(session, "confirm")
+"#;
+
+    let program = typed_program_from_source(source);
+    let c = generate_c(&program).expect("C generation should succeed");
+
+    assert!(c.contains("int64_t kain_native_input_session_create(const char * name);"));
+    assert!(
+        c.contains("int64_t kain_native_input_begin_frame(int64_t session_id, double delta_ms);")
+    );
+    assert!(c.contains(
+        "int64_t kain_native_input_action_pressed(int64_t session_id, const char * action);"
+    ));
+    assert!(!c.contains("int64_t kain_native_input_session_create(const char * name) {"));
+    assert!(c.contains("return kain_native_input_action_pressed(session, \"confirm\");"));
+}
+
+#[test]
 fn c_backend_lowers_string_equality_to_strcmp() {
     let source = r#"
 fn main() -> Int:

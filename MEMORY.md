@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-12 - Canonical Kain input semantics landed
+
+Kain now has a first-class input semantics lane instead of treating input as scattered stdin/UI/native helper calls. `crates/kain-input` owns typed source provenance, events, data-driven action/axis bindings, frame reduction, text commits, first-class `agent.intent` events, and deterministic trace serialization/replay. `crates/kain-core` registers interpreter bridge builtins under `kain_input_*`, with root `stdlib/input.kn` exposing the public `input_*` helpers.
+
+Native LLVM/direct-C builds now load `stdlib/native/input.kn`, backed by `runtime/native/include/kain_native_input_system.h` and `runtime/native/src/core/kain_native_input_system.c`. The native kernel exposes sessions, bindings, event injection, frame reduction, action/axis/text queries, agent intent injection, trace export/replay, and last-status diagnostics. `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml` include the input kernel, and `platform.input` service metadata now describes canonical Kain input sessions rather than only Win32 capture.
+
+Design decisions:
+
+- Keep input as stdlib/runtime capability, not parser syntax. No `input` keyword.
+- Public Kain code should consume frames/actions/axes/text commits, while raw events stay available for inspection.
+- `agent.intent` is first-class source provenance in v1, not a test-only synthetic event.
+- Target adapters should translate raw Win32/web/UE/UI/CLI/agent events into `kain-input`; they should not define app-facing input policy.
+
+Validation:
+
+- `cargo test -p kain-input --target-dir target\\codex-kain-input`
+- `cargo check -p kain-core --target-dir target\\codex-kain-input-core`
+- `cargo test -p kain-core test_stdlib_builtin_functions_exist --target-dir target\\codex-kain-input-core -- --nocapture`
+- `cargo test -p kain-sys-codegen native_input --target-dir target\\codex-kain-input-codegen -- --nocapture`
+- `bash runtime/conformance/input_runtime/run_tests.sh --verbose`
+- `cargo build -p cli --target-dir target\\codex-kain-input-cli`
+- `target\\codex-kain-input-cli\\debug\\kain.exe build runtime\\fixtures\\native_input_actions\\main.kn -t llvm` then run `runtime\\fixtures\\native_input_actions\\main.exe`
+- `target\\codex-kain-input-cli\\debug\\kain.exe build runtime\\fixtures\\native_input_actions\\main.kn -t c` then run `runtime\\fixtures\\native_input_actions\\main.exe`
+
+Recommended next step:
+
+- Add thin adapters for live Win32 window messages and UI runtime event handoff into `kain_native_input_*`, then add web DOM and UE5 Enhanced Input adapters that emit the same source/action schema.
+
 # 2026-05-11 - Raw native UI ABI gained host services for Kain-authored UI systems
 
 The raw native UI kernel now covers the first real "Kain can author the UI system" layer without introducing a host-side widget catalog. `runtime/native/include/kain_native_ui_system.h` and `runtime/native/src/ui/kain_native_ui_system.c` now expose generic host frame presentation metadata, stable node keys for hot reload, accessibility labels/roles, font/texture/canvas/shader resource handles, text measurement, draw-resource commands, clipboard, IME, drag/drop, menu, dialog, and hot reload generation APIs. `stdlib/native/ui.kn` wraps those APIs and adds only generic layout/stable-node helpers; it does not define buttons, panels, or product components.

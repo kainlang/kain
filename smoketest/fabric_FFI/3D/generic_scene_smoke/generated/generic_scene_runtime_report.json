@@ -1,0 +1,77 @@
+{
+  "canvas": {
+    "height": 1040,
+    "width": 1600
+  },
+  "date": "2026-04-11",
+  "output_image": "smoketest/3D/generic_scene_smoke/generic_scene_visual_reference.png",
+  "output_json": "smoketest/3D/generic_scene_smoke/generated/generic_scene_runtime_report.json",
+  "scene": "geometry_fixture",
+  "tiles": [
+    {
+      "backend_id": "bgfx",
+      "executor_summary": "native host currently renders via compatibility executor",
+      "frame": {
+        "height": 336,
+        "particles_shaded": 0,
+        "particles_submitted": 0,
+        "pixels_shaded": 246111,
+        "triangles_rasterized": 9133,
+        "triangles_submitted": 18264,
+        "width": 744
+      },
+      "note_line": "cross-platform baseline backend for viewport/device/swapchain work",
+      "runtime_status": "compile-backed runtime lane",
+      "time_seconds": 0.3499999940395355
+    },
+    {
+      "backend_id": "filament",
+      "executor_summary": "visual/material bridge still pending native viewport execution",
+      "frame": {
+        "height": 336,
+        "particles_shaded": 0,
+        "particles_submitted": 0,
+        "pixels_shaded": 262130,
+        "triangles_rasterized": 9148,
+        "triangles_submitted": 18264,
+        "width": 744
+      },
+      "note_line": "high-end material, lighting, and premium presentation target",
+      "runtime_status": "staged premium renderer lane",
+      "time_seconds": 1.100000023841858
+    },
+    {
+      "backend_id": "diligent",
+      "executor_summary": "render-graph and compute bridge remain ahead of viewport hookup",
+      "frame": {
+        "height": 336,
+        "particles_shaded": 0,
+        "particles_submitted": 0,
+        "pixels_shaded": 278890,
+        "triangles_rasterized": 9170,
+        "triangles_submitted": 18264,
+        "width": 744
+      },
+      "note_line": "future Kain-owned graph/pipeline/control depth lane",
+      "runtime_status": "staged explicit renderer lane",
+      "time_seconds": 1.850000023841858
+    },
+    {
+      "backend_id": "the-forge",
+      "executor_summary": "bridge-first backend identity is cataloged, viewport path still pending",
+      "frame": {
+        "height": 336,
+        "particles_shaded": 0,
+        "particles_submitted": 0,
+        "pixels_shaded": 290162,
+        "triangles_rasterized": 9123,
+        "triangles_submitted": 18264,
+        "width": 744
+      },
+      "note_line": "aggressive low-level GPU substrate for future Kain renderer expansion",
+      "runtime_status": "staged low-level renderer lane",
+      "time_seconds": 2.450000047683716
+    }
+  ],
+  "viewport_summary": "material atrium | authored-mesh renderer showcase | native runtime shell"
+}

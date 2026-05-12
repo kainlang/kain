@@ -1,0 +1,194 @@
+@extern
+fn kain_native_input_reset() -> Int
+
+@extern
+fn kain_native_input_session_create(name: String) -> Int
+
+@extern
+fn kain_native_input_session_destroy(session_id: Int) -> Int
+
+@extern
+fn kain_native_input_session_count() -> Int
+
+@extern
+fn kain_native_input_bind_action(session_id: Int, source_kind: String, event_kind: String, code: String, action: String) -> Int
+
+@extern
+fn kain_native_input_bind_axis(session_id: Int, source_kind: String, event_kind: String, code: String, axis: String, scale: Float) -> Int
+
+@extern
+fn kain_native_input_push_event(session_id: Int, source_kind: String, source_id: String, event_kind: String, code: String, value: Float, text: String, confidence: Float) -> Int
+
+@extern
+fn kain_native_input_push_agent_intent(session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int
+
+@extern
+fn kain_native_input_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_input_frame_index(session_id: Int) -> Int
+
+@extern
+fn kain_native_input_event_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_input_event_kind(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_event_source_kind(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_event_code(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_event_action(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_event_text(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_action_pressed(session_id: Int, action: String) -> Int
+
+@extern
+fn kain_native_input_action_down(session_id: Int, action: String) -> Int
+
+@extern
+fn kain_native_input_action_released(session_id: Int, action: String) -> Int
+
+@extern
+fn kain_native_input_axis_value(session_id: Int, axis: String) -> Float
+
+@extern
+fn kain_native_input_text_commit_count(session_id: Int) -> Int
+
+@extern
+fn kain_native_input_text_commit(session_id: Int, index: Int) -> String
+
+@extern
+fn kain_native_input_trace_text(session_id: Int) -> String
+
+@extern
+fn kain_native_input_replay_trace(session_id: Int, trace_text: String) -> Int
+
+@extern
+fn kain_native_input_last_status() -> Int
+
+@extern
+fn kain_native_input_last_error_kind() -> String
+
+@extern
+fn kain_native_input_last_error_message() -> String
+
+pub fn input_source_keyboard() -> String:
+    return "human.keyboard"
+
+pub fn input_source_pointer() -> String:
+    return "human.pointer"
+
+pub fn input_source_cli() -> String:
+    return "cli.stdin"
+
+pub fn input_source_ui_runtime() -> String:
+    return "ui.runtime"
+
+pub fn input_source_agent() -> String:
+    return "agent.intent"
+
+pub fn input_source_synthetic() -> String:
+    return "test.synthetic"
+
+pub fn input_source_native() -> String:
+    return "native.platform"
+
+pub fn input_reset() -> Int:
+    return kain_native_input_reset()
+
+pub fn input_session_create(name: String) -> Int:
+    return kain_native_input_session_create(name)
+
+pub fn input_session_destroy(session_id: Int) -> Int:
+    return kain_native_input_session_destroy(session_id)
+
+pub fn input_session_count() -> Int:
+    return kain_native_input_session_count()
+
+pub fn input_bind_action(session_id: Int, source_kind: String, event_kind: String, code: String, action: String) -> Int:
+    return kain_native_input_bind_action(session_id, source_kind, event_kind, code, action)
+
+pub fn input_bind_axis(session_id: Int, source_kind: String, event_kind: String, code: String, axis: String, scale: Float) -> Int:
+    return kain_native_input_bind_axis(session_id, source_kind, event_kind, code, axis, scale)
+
+pub fn input_push_event(session_id: Int, source_kind: String, source_id: String, event_kind: String, code: String, value: Float, text: String, confidence: Float) -> Int:
+    return kain_native_input_push_event(session_id, source_kind, source_id, event_kind, code, value, text, confidence)
+
+pub fn input_push_key_down(session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_event(session_id, "human.keyboard", source_id, "key_down", code, 1.0, "", 1.0)
+
+pub fn input_push_key_up(session_id: Int, source_id: String, code: String) -> Int:
+    return input_push_event(session_id, "human.keyboard", source_id, "key_up", code, 0.0, "", 1.0)
+
+pub fn input_push_text(session_id: Int, source_kind: String, source_id: String, code: String, text: String) -> Int:
+    return input_push_event(session_id, source_kind, source_id, "text", code, 1.0, text, 1.0)
+
+pub fn input_push_axis(session_id: Int, source_kind: String, source_id: String, code: String, value: Float) -> Int:
+    return input_push_event(session_id, source_kind, source_id, "axis", code, value, "", 1.0)
+
+pub fn input_push_agent_intent(session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int:
+    return kain_native_input_push_agent_intent(session_id, source_id, action, command_text, confidence)
+
+pub fn input_begin_frame(session_id: Int, delta_ms: Float) -> Int:
+    return kain_native_input_begin_frame(session_id, delta_ms)
+
+pub fn input_frame_index(session_id: Int) -> Int:
+    return kain_native_input_frame_index(session_id)
+
+pub fn input_event_count(session_id: Int) -> Int:
+    return kain_native_input_event_count(session_id)
+
+pub fn input_event_kind(session_id: Int, index: Int) -> String:
+    return kain_native_input_event_kind(session_id, index)
+
+pub fn input_event_source_kind(session_id: Int, index: Int) -> String:
+    return kain_native_input_event_source_kind(session_id, index)
+
+pub fn input_event_code(session_id: Int, index: Int) -> String:
+    return kain_native_input_event_code(session_id, index)
+
+pub fn input_event_action(session_id: Int, index: Int) -> String:
+    return kain_native_input_event_action(session_id, index)
+
+pub fn input_event_text(session_id: Int, index: Int) -> String:
+    return kain_native_input_event_text(session_id, index)
+
+pub fn input_action_pressed(session_id: Int, action: String) -> Int:
+    return kain_native_input_action_pressed(session_id, action)
+
+pub fn input_action_down(session_id: Int, action: String) -> Int:
+    return kain_native_input_action_down(session_id, action)
+
+pub fn input_action_released(session_id: Int, action: String) -> Int:
+    return kain_native_input_action_released(session_id, action)
+
+pub fn input_axis_value(session_id: Int, axis: String) -> Float:
+    return kain_native_input_axis_value(session_id, axis)
+
+pub fn input_text_commit_count(session_id: Int) -> Int:
+    return kain_native_input_text_commit_count(session_id)
+
+pub fn input_text_commit(session_id: Int, index: Int) -> String:
+    return kain_native_input_text_commit(session_id, index)
+
+pub fn input_trace_json(session_id: Int) -> String:
+    return kain_native_input_trace_text(session_id)
+
+pub fn input_replay_trace_json(session_id: Int, trace_json: String) -> Int:
+    return kain_native_input_replay_trace(session_id, trace_json)
+
+pub fn input_last_status() -> Int:
+    return kain_native_input_last_status()
+
+pub fn input_last_error_kind() -> String:
+    return kain_native_input_last_error_kind()
+
+pub fn input_last_error_message() -> String:
+    return kain_native_input_last_error_message()

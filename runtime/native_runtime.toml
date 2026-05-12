@@ -12,6 +12,7 @@ sources = [
     "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_entangle.c",
     "native/src/core/kain_runtime_native_stdlib.c",
+    "native/src/core/kain_native_input_system.c",
     "native/src/core/kain_native_graphics_system.c",
     "native/src/core/kain_runtime_renderer_backend.c",
     "native/src/core/kain_runtime_renderer_session.c",
@@ -360,7 +361,7 @@ provider = "platform-win32"
 requirement = "required"
 status = "available"
 platforms = ["windows"]
-description = "Win32 input capture and event handling"
+description = "Canonical Kain input sessions, semantic actions, replay traces, and native platform event handling"
 
 [[services]]
 key = "gfx.viewport"

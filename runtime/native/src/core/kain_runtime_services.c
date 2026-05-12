@@ -132,7 +132,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_PLATFORM_INPUT,
         "Native Input",
-        "Win32 input capture and event handling",
+        "Canonical Kain input sessions, semantic actions, replay traces, and native platform event handling",
         KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_REQUIRED,

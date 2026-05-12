@@ -2803,6 +2803,7 @@ dependencies = [
  "kain-actor",
  "kain-entangle",
  "kain-fs",
+ "kain-input",
  "kain-ui",
  "logos",
  "once_cell",
@@ -2952,6 +2953,15 @@ dependencies = [
  "thiserror 1.0.69",
  "tree-sitter",
  "tree-sitter-hlsl",
+]
+
+[[package]]
+name = "kain-input"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

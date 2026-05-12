@@ -17,6 +17,7 @@ use kain_fs::{
     DirectoryEntry, FsCapability, FsChunk, FsError, FsJournalEntry, FsMetadata, FsSandbox,
     FsWatchEvent, FsWatcher,
 };
+use kain_input::{InputEvent, InputSession, InputSource};
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -35,8 +36,11 @@ static RUNTIME_FS_WATCHERS: Lazy<RwLock<HashMap<i64, FsWatcher>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 static RUNTIME_FS_TRANSACTIONS: Lazy<RwLock<HashMap<i64, kain_fs::FsTransaction>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+static RUNTIME_INPUT_SESSIONS: Lazy<RwLock<HashMap<i64, InputSession>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 static RUNTIME_FS_NEXT_WATCHER_ID: AtomicI64 = AtomicI64::new(1);
 static RUNTIME_FS_NEXT_TRANSACTION_ID: AtomicI64 = AtomicI64::new(1);
+static RUNTIME_INPUT_NEXT_SESSION_ID: AtomicI64 = AtomicI64::new(1);
 
 fn lowered_impl_function_names(type_name: &str, method_name: &str) -> [String; 2] {
     [
@@ -2458,6 +2462,248 @@ impl Env {
                 KainError::runtime(format!("stdin_read_exact utf8 failed: {}", err))
             })?;
             Ok(Value::String(text))
+        });
+
+        self.define_native("kain_input_reset", |_env, _args| {
+            RUNTIME_INPUT_SESSIONS.write().unwrap().clear();
+            RUNTIME_INPUT_NEXT_SESSION_ID.store(1, Ordering::SeqCst);
+            Ok(Value::Int(0))
+        });
+
+        self.define_native("kain_input_session_create", |_env, args| {
+            let name = runtime_expect_string_arg(&args, 0, "kain_input_session_create", "name")?;
+            let id = RUNTIME_INPUT_NEXT_SESSION_ID.fetch_add(1, Ordering::SeqCst);
+            RUNTIME_INPUT_SESSIONS
+                .write()
+                .unwrap()
+                .insert(id, InputSession::new(id, name));
+            Ok(Value::Int(id))
+        });
+
+        self.define_native("kain_input_session_destroy", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_session_destroy", "session_id")?;
+            let removed = RUNTIME_INPUT_SESSIONS
+                .write()
+                .unwrap()
+                .remove(&session_id)
+                .is_some();
+            Ok(Value::Int(if removed { 0 } else { -1 }))
+        });
+
+        self.define_native("kain_input_bind_action", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_bind_action", "session_id")?;
+            let source_kind =
+                runtime_expect_string_arg(&args, 1, "kain_input_bind_action", "source_kind")?;
+            let event_kind =
+                runtime_expect_string_arg(&args, 2, "kain_input_bind_action", "event_kind")?;
+            let code = runtime_expect_string_arg(&args, 3, "kain_input_bind_action", "code")?;
+            let action = runtime_expect_string_arg(&args, 4, "kain_input_bind_action", "action")?;
+            runtime_input_with_session_mut(session_id, "kain_input_bind_action", |session| {
+                session.bind_action(source_kind, event_kind, code, action);
+                Ok(Value::Int(0))
+            })
+        });
+
+        self.define_native("kain_input_bind_axis", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_bind_axis", "session_id")?;
+            let source_kind =
+                runtime_expect_string_arg(&args, 1, "kain_input_bind_axis", "source_kind")?;
+            let event_kind =
+                runtime_expect_string_arg(&args, 2, "kain_input_bind_axis", "event_kind")?;
+            let code = runtime_expect_string_arg(&args, 3, "kain_input_bind_axis", "code")?;
+            let axis = runtime_expect_string_arg(&args, 4, "kain_input_bind_axis", "axis")?;
+            let scale = runtime_expect_number_arg(&args, 5, "kain_input_bind_axis", "scale")?;
+            runtime_input_with_session_mut(session_id, "kain_input_bind_axis", |session| {
+                session.bind_axis(source_kind, event_kind, code, axis, scale);
+                Ok(Value::Int(0))
+            })
+        });
+
+        self.define_native("kain_input_push_event", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_push_event", "session_id")?;
+            let source_kind =
+                runtime_expect_string_arg(&args, 1, "kain_input_push_event", "source_kind")?;
+            let source_id =
+                runtime_expect_string_arg(&args, 2, "kain_input_push_event", "source_id")?;
+            let event_kind =
+                runtime_expect_string_arg(&args, 3, "kain_input_push_event", "event_kind")?;
+            let code = runtime_expect_string_arg(&args, 4, "kain_input_push_event", "code")?;
+            let value = runtime_expect_number_arg(&args, 5, "kain_input_push_event", "value")?;
+            let text = runtime_expect_string_arg(&args, 6, "kain_input_push_event", "text")?;
+            let confidence =
+                runtime_expect_number_arg(&args, 7, "kain_input_push_event", "confidence")?;
+            let mut event = InputEvent::new(
+                InputSource::custom(source_kind, source_id),
+                runtime_input_kind(event_kind),
+            );
+            event.kind = event_kind.to_string();
+            event.code = code.to_string();
+            event.value = value;
+            event.text = text.to_string();
+            event.confidence = confidence;
+            runtime_input_with_session_mut(session_id, "kain_input_push_event", |session| {
+                Ok(Value::Int(session.push_event(event) as i64))
+            })
+        });
+
+        self.define_native("kain_input_push_agent_intent", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_push_agent_intent", "session_id")?;
+            let source_id =
+                runtime_expect_string_arg(&args, 1, "kain_input_push_agent_intent", "source_id")?;
+            let action =
+                runtime_expect_string_arg(&args, 2, "kain_input_push_agent_intent", "action")?;
+            let command_text = runtime_expect_string_arg(
+                &args,
+                3,
+                "kain_input_push_agent_intent",
+                "command_text",
+            )?;
+            let confidence =
+                runtime_expect_number_arg(&args, 4, "kain_input_push_agent_intent", "confidence")?;
+            let event = InputEvent::agent_intent(source_id, action, command_text, confidence);
+            runtime_input_with_session_mut(session_id, "kain_input_push_agent_intent", |session| {
+                Ok(Value::Int(session.push_event(event) as i64))
+            })
+        });
+
+        self.define_native("kain_input_begin_frame", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_begin_frame", "session_id")?;
+            let delta_ms =
+                runtime_expect_number_arg(&args, 1, "kain_input_begin_frame", "delta_ms")?;
+            runtime_input_with_session_mut(session_id, "kain_input_begin_frame", |session| {
+                Ok(Value::Int(session.begin_frame(delta_ms).frame_index as i64))
+            })
+        });
+
+        self.define_native("kain_input_frame_index", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_frame_index", "session_id")?;
+            runtime_input_with_session(session_id, "kain_input_frame_index", |session| {
+                Ok(Value::Int(session.current_frame().frame_index as i64))
+            })
+        });
+
+        self.define_native("kain_input_event_count", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_event_count", "session_id")?;
+            runtime_input_with_session(session_id, "kain_input_event_count", |session| {
+                Ok(Value::Int(session.current_frame().events.len() as i64))
+            })
+        });
+
+        self.define_native("kain_input_event_kind", |_env, args| {
+            runtime_input_frame_event_string(&args, "kain_input_event_kind", |event| {
+                event.kind.as_str()
+            })
+        });
+
+        self.define_native("kain_input_event_source_kind", |_env, args| {
+            runtime_input_frame_event_string(&args, "kain_input_event_source_kind", |event| {
+                event.source.kind.as_str()
+            })
+        });
+
+        self.define_native("kain_input_event_code", |_env, args| {
+            runtime_input_frame_event_string(&args, "kain_input_event_code", |event| {
+                event.code.as_str()
+            })
+        });
+
+        self.define_native("kain_input_event_action", |_env, args| {
+            runtime_input_frame_event_string(&args, "kain_input_event_action", |event| {
+                event.action.as_str()
+            })
+        });
+
+        self.define_native("kain_input_event_text", |_env, args| {
+            runtime_input_frame_event_string(&args, "kain_input_event_text", |event| {
+                event.text.as_str()
+            })
+        });
+
+        self.define_native("kain_input_action_pressed", |_env, args| {
+            runtime_input_action_query(&args, "kain_input_action_pressed", |frame, action| {
+                frame.action_pressed(action)
+            })
+        });
+
+        self.define_native("kain_input_action_down", |_env, args| {
+            runtime_input_action_query(&args, "kain_input_action_down", |frame, action| {
+                frame.action_down(action)
+            })
+        });
+
+        self.define_native("kain_input_action_released", |_env, args| {
+            runtime_input_action_query(&args, "kain_input_action_released", |frame, action| {
+                frame.action_released(action)
+            })
+        });
+
+        self.define_native("kain_input_axis_value", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_axis_value", "session_id")?;
+            let axis = runtime_expect_string_arg(&args, 1, "kain_input_axis_value", "axis")?;
+            runtime_input_with_session(session_id, "kain_input_axis_value", |session| {
+                Ok(Value::Float(session.current_frame().axis_value(axis)))
+            })
+        });
+
+        self.define_native("kain_input_text_commit_count", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_text_commit_count", "session_id")?;
+            runtime_input_with_session(session_id, "kain_input_text_commit_count", |session| {
+                Ok(Value::Int(session.current_frame().text_commits.len() as i64))
+            })
+        });
+
+        self.define_native("kain_input_text_commit", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_text_commit", "session_id")?;
+            let index =
+                runtime_expect_non_negative_int_arg(&args, 1, "kain_input_text_commit", "index")?
+                    as usize;
+            runtime_input_with_session(session_id, "kain_input_text_commit", |session| {
+                Ok(Value::String(
+                    session
+                        .current_frame()
+                        .text_commits
+                        .get(index)
+                        .cloned()
+                        .unwrap_or_default(),
+                ))
+            })
+        });
+
+        self.define_native("kain_input_trace_json", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_trace_json", "session_id")?;
+            runtime_input_with_session(session_id, "kain_input_trace_json", |session| {
+                session
+                    .trace()
+                    .to_json()
+                    .map(Value::String)
+                    .map_err(|err| KainError::runtime(format!("kain_input_trace_json: {err}")))
+            })
+        });
+
+        self.define_native("kain_input_replay_trace_json", |_env, args| {
+            let session_id =
+                runtime_expect_int_arg(&args, 0, "kain_input_replay_trace_json", "session_id")?;
+            let trace_json =
+                runtime_expect_string_arg(&args, 1, "kain_input_replay_trace_json", "trace_json")?;
+            let trace = kain_input::InputTrace::from_json(trace_json).map_err(|err| {
+                KainError::runtime(format!("kain_input_replay_trace_json: {err}"))
+            })?;
+            runtime_input_with_session_mut(session_id, "kain_input_replay_trace_json", |session| {
+                session.replay_trace(&trace);
+                Ok(Value::Int(0))
+            })
         });
 
         self.define_native("file_exists", |_env, args| {
@@ -6786,6 +7032,24 @@ fn runtime_expect_int_arg(
     }
 }
 
+fn runtime_expect_number_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    argument_name: &str,
+) -> KainResult<f64> {
+    match args.get(index) {
+        Some(Value::Int(value)) => Ok(*value as f64),
+        Some(Value::Float(value)) => Ok(*value),
+        Some(_) => Err(KainError::runtime(format!(
+            "{function_name}: {argument_name} must be number"
+        ))),
+        None => Err(KainError::runtime(format!(
+            "{function_name}: missing argument {argument_name}"
+        ))),
+    }
+}
+
 fn runtime_expect_non_negative_int_arg(
     args: &[Value],
     index: usize,
@@ -6799,6 +7063,90 @@ fn runtime_expect_non_negative_int_arg(
         )));
     }
     Ok(value)
+}
+
+fn runtime_input_kind(kind: &str) -> kain_input::InputEventKind {
+    match kind {
+        "key_down" => kain_input::InputEventKind::KeyDown,
+        "key_up" => kain_input::InputEventKind::KeyUp,
+        "text" => kain_input::InputEventKind::Text,
+        "pointer_down" => kain_input::InputEventKind::PointerDown,
+        "pointer_up" => kain_input::InputEventKind::PointerUp,
+        "pointer_move" => kain_input::InputEventKind::PointerMove,
+        "axis" => kain_input::InputEventKind::Axis,
+        "action" => kain_input::InputEventKind::Action,
+        "action_down" => kain_input::InputEventKind::ActionDown,
+        "action_up" => kain_input::InputEventKind::ActionUp,
+        _ => kain_input::InputEventKind::Lifecycle,
+    }
+}
+
+fn runtime_input_with_session<F>(session_id: i64, function_name: &str, op: F) -> KainResult<Value>
+where
+    F: FnOnce(&InputSession) -> KainResult<Value>,
+{
+    let sessions = RUNTIME_INPUT_SESSIONS.read().unwrap();
+    let Some(session) = sessions.get(&session_id) else {
+        return Err(KainError::runtime(format!(
+            "{function_name}: invalid input session {session_id}"
+        )));
+    };
+    op(session)
+}
+
+fn runtime_input_with_session_mut<F>(
+    session_id: i64,
+    function_name: &str,
+    op: F,
+) -> KainResult<Value>
+where
+    F: FnOnce(&mut InputSession) -> KainResult<Value>,
+{
+    let mut sessions = RUNTIME_INPUT_SESSIONS.write().unwrap();
+    let Some(session) = sessions.get_mut(&session_id) else {
+        return Err(KainError::runtime(format!(
+            "{function_name}: invalid input session {session_id}"
+        )));
+    };
+    op(session)
+}
+
+fn runtime_input_frame_event_string<F>(
+    args: &[Value],
+    function_name: &str,
+    select: F,
+) -> KainResult<Value>
+where
+    F: for<'a> Fn(&'a InputEvent) -> &'a str,
+{
+    let session_id = runtime_expect_int_arg(args, 0, function_name, "session_id")?;
+    let index = runtime_expect_non_negative_int_arg(args, 1, function_name, "index")? as usize;
+    runtime_input_with_session(session_id, function_name, |session| {
+        Ok(Value::String(
+            session
+                .current_frame()
+                .events
+                .get(index)
+                .map(&select)
+                .unwrap_or_default()
+                .to_string(),
+        ))
+    })
+}
+
+fn runtime_input_action_query<F>(args: &[Value], function_name: &str, query: F) -> KainResult<Value>
+where
+    F: Fn(&kain_input::InputFrame, &str) -> bool,
+{
+    let session_id = runtime_expect_int_arg(args, 0, function_name, "session_id")?;
+    let action = runtime_expect_string_arg(args, 1, function_name, "action")?;
+    runtime_input_with_session(session_id, function_name, |session| {
+        Ok(Value::Int(if query(session.current_frame(), action) {
+            1
+        } else {
+            0
+        }))
+    })
 }
 
 fn runtime_expect_bool_arg(

@@ -1,0 +1,49 @@
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _reset = input_reset()
+
+    let session = input_session_create("kain-native-input-actions")
+    let _bind_key_down = input_bind_action(session, "human.keyboard", "key_down", "Enter", "confirm")
+    let _bind_key_up = input_bind_action(session, "human.keyboard", "key_up", "Enter", "confirm")
+    let _bind_cli = input_bind_action(session, "cli.stdin", "text", "launch", "confirm")
+    let _bind_axis = input_bind_axis(session, "human.pointer", "axis", "look_x", "viewport.look_x", 0.5)
+
+    let _key_down = input_push_key_down(session, "keyboard.primary", "Enter")
+    let _frame_1 = input_begin_frame(session, 16.0)
+    if input_action_pressed(session, "confirm") != 1:
+        return 1
+    if input_action_down(session, "confirm") != 1:
+        return 2
+
+    let _key_up = input_push_key_up(session, "keyboard.primary", "Enter")
+    let _frame_2 = input_begin_frame(session, 16.0)
+    if input_action_released(session, "confirm") != 1:
+        return 3
+    if input_action_down(session, "confirm") != 0:
+        return 4
+
+    let _axis = input_push_axis(session, "human.pointer", "mouse.primary", "look_x", 4.0)
+    let _cli = input_push_text(session, "cli.stdin", "stdin", "launch", "launch")
+    let _frame_3 = input_begin_frame(session, 16.0)
+    if input_axis_value(session, "viewport.look_x") != 2.0:
+        return 5
+    if input_text_commit_count(session) != 1:
+        return 6
+    if input_text_commit(session, 0) != "launch":
+        return 7
+    if input_action_pressed(session, "confirm") != 1:
+        return 8
+
+    let _agent = input_push_agent_intent(session, "codex", "confirm", "activate focused command", 0.95)
+    let _frame_4 = input_begin_frame(session, 16.0)
+    if input_action_pressed(session, "confirm") != 1:
+        return 9
+    if input_event_source_kind(session, 0) != "agent.intent":
+        return 10
+    if input_event_text(session, 0) != "activate focused command":
+        return 11
+
+    let _trace = input_trace_json(session)
+    let _destroy = input_session_destroy(session)
+    let _shutdown = native_runtime_shutdown()
+    return 0

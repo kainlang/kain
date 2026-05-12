@@ -80,6 +80,44 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_native_input_action_primitives() {
+    let source = r#"
+@extern
+fn kain_native_input_session_create(name: String) -> Int
+
+@extern
+fn kain_native_input_bind_action(session_id: Int, source_kind: String, event_kind: String, code: String, action: String) -> Int
+
+@extern
+fn kain_native_input_push_agent_intent(session_id: Int, source_id: String, action: String, command_text: String, confidence: Float) -> Int
+
+@extern
+fn kain_native_input_begin_frame(session_id: Int, delta_ms: Float) -> Int
+
+@extern
+fn kain_native_input_action_pressed(session_id: Int, action: String) -> Int
+
+fn main() -> Int:
+    let session = kain_native_input_session_create("agent-input")
+    let _binding = kain_native_input_bind_action(session, "human.keyboard", "key_down", "Enter", "confirm")
+    let _event = kain_native_input_push_agent_intent(session, "codex", "confirm", "activate", 0.95)
+    let _frame = kain_native_input_begin_frame(session, 16.0)
+    return kain_native_input_action_pressed(session, "confirm")
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm should be utf8");
+
+    assert!(llvm.contains("declare i64 @kain_native_input_session_create(i8* %arg0)"));
+    assert!(llvm.contains("declare i64 @kain_native_input_bind_action(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, i8* %arg4)"));
+    assert!(llvm.contains("declare i64 @kain_native_input_push_agent_intent(i64 %arg0, i8* %arg1, i8* %arg2, i8* %arg3, double %arg4)"));
+    assert!(llvm.contains("call i64 @kain_native_input_action_pressed"));
+    assert!(llvm.contains("agent-input"));
+    assert!(llvm.contains("codex"));
+}
+
+#[test]
 fn llvm_lowers_single_file_native_ui_primitives_without_component_catalog() {
     let source = r#"
 @extern

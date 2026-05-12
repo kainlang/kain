@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "target": "rust",
+  "required_capabilities": [
+    {
+      "key": "compiler.typed-program",
+      "source": "kain-core",
+      "detail": "Typed frontend output is available for runtime packaging."
+    },
+    {
+      "key": "driver.native-app-bundle",
+      "source": "kain-driver",
+      "detail": "Rust-hosted native app materialization is available."
+    },
+    {
+      "key": "memory.raw-ops",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw memory operation lowering."
+    },
+    {
+      "key": "memory.raw-pointers",
+      "source": "kain-core.low_level_memory",
+      "detail": "Target accepts raw pointer lowering."
+    },
+    {
+      "key": "patch.transactions",
+      "source": "kain-core.runtime",
+      "detail": "Program declares compiler-owned transactional patch semantics."
+    },
+    {
+      "key": "runtime.contract.bundle",
+      "source": "kain-core",
+      "detail": "Compiler-owned runtime contract scaffolding emitted."
+    },
+    {
+      "key": "ui.components",
+      "source": "kain-core",
+      "detail": "Program contains declarative UI components."
+    },
+    {
+      "key": "ui.runtime-bundle",
+      "source": "kain-core.ui",
+      "detail": "Program can participate in compiled UI bundle materialization."
+    },
+    {
+      "key": "world.native-ui",
+      "source": "kain-core.runtime_contract",
+      "detail": "Program declares compiler-owned native UI world projections."
+    }
+  ],
+  "service_bindings": [
+    {
+      "service": "driver.bundle",
+      "provider": "kain-driver",
+      "lane": "rust-native"
+    },
+    {
+      "service": "host.ui-native",
+      "provider": "kain-ui-native",
+      "lane": "rust-native"
+    },
+    {
+      "service": "patch.transactions",
+      "provider": "kain-core",
+      "lane": "rust-native"
+    },
+    {
+      "service": "ui.runtime-bundle",
+      "provider": "kain-ui",
+      "lane": "rust-native"
+    },
+    {
+      "service": "world.native-ui",
+      "provider": "kain-ui",
+      "lane": "rust-native"
+    }
+  ],
+  "items": [
+    {
+      "id": "component:App",
+      "name": "App",
+      "kind": "component"
+    },
+    {
+      "id": "function:backend_focus",
+      "name": "backend_focus",
+      "kind": "function"
+    },
+    {
+      "id": "function:backend_mood",
+      "name": "backend_mood",
+      "kind": "function"
+    },
+    {
+      "id": "function:backend_state_label",
+      "name": "backend_state_label",
+      "kind": "function"
+    },
+    {
+      "id": "function:handle_bgfx",
+      "name": "handle_bgfx",
+      "kind": "function"
+    },
+    {
+      "id": "function:handle_diligent",
+      "name": "handle_diligent",
+      "kind": "function"
+    },
+    {
+      "id": "function:handle_filament",
+      "name": "handle_filament",
+      "kind": "function"
+    },
+    {
+      "id": "function:handle_forge",
+      "name": "handle_forge",
+      "kind": "function"
+    },
+    {
+      "id": "function:main",
+      "name": "main",
+      "kind": "function"
+    },
+    {
+      "id": "patch:choose_backend",
+      "name": "choose_backend",
+      "kind": "patch"
+    },
+    {
+      "id": "world:GenericSceneSmoke",
+      "name": "GenericSceneSmoke",
+      "kind": "world"
+    }
+  ],
+  "patches": [
+    {
+      "name": "choose_backend",
+      "mutation_paths": [
+        "showcase.active_backend",
+        "showcase.active_focus",
+        "showcase.active_mood",
+        "showcase.status_line"
+      ],
+      "replay_log_schema": [
+        "set:showcase.active_backend",
+        "set:showcase.active_focus",
+        "set:showcase.active_mood",
+        "set:showcase.status_line"
+      ],
+      "invalidation_keys": [
+        "showcase"
+      ],
+      "collaboration_event": "patch.choose_backend",
+      "undo_mode": "best_effort"
+    }
+  ],
+  "worlds": [
+    {
+      "name": "GenericSceneSmoke",
+      "state_slots": [
+        {
+          "name": "active_backend",
+          "type_name": "String",
+          "initial_expr": "\"bgfx\""
+        },
+        {
+          "name": "active_mood",
+          "type_name": "String",
+          "initial_expr": "backend_mood(\"bgfx\")"
+        },
+        {
+          "name": "active_focus",
+          "type_name": "String",
+          "initial_expr": "backend_focus(\"bgfx\")"
+        },
+        {
+          "name": "status_line",
+          "type_name": "String",
+          "initial_expr": "\"Kain owns the runtime contract. Qt is the presentation fallback.\""
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "App"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "GenericSceneSmoke",
+    "state_slots": [
+      {
+        "name": "active_backend",
+        "type_name": "String",
+        "initial_expr": "\"bgfx\""
+      },
+      {
+        "name": "active_mood",
+        "type_name": "String",
+        "initial_expr": "backend_mood(\"bgfx\")"
+      },
+      {
+        "name": "active_focus",
+        "type_name": "String",
+        "initial_expr": "backend_focus(\"bgfx\")"
+      },
+      {
+        "name": "status_line",
+        "type_name": "String",
+        "initial_expr": "\"Kain owns the runtime contract. Qt is the presentation fallback.\""
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "App"
+      }
+    ]
+  },
+  "reflection": {
+    "emitted": true,
+    "schema_names": [
+      "App",
+      "GenericSceneSmoke"
+    ],
+    "notes": [
+      "Full reflection payload emitted from kain-core.",
+      "Includes type schemas, item metadata, actors, components, and messages."
+    ]
+  },
+  "compatibility": {
+    "schema_version": 1,
+    "bundle_target": "rust",
+    "bundle_lane": "rust-native",
+    "runtime_lane": "raw-native",
+    "compatibility_class": "experimental",
+    "platform_availability": {
+      "schema_version": 1,
+      "target_platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ],
+      "active_platforms": [
+        "windows",
+        "linux"
+      ],
+      "runtime_platform": "linux",
+      "notes": [
+        "Runtime manifest declares target platforms: windows, linux, macos.",
+        "Runtime manifest declares active platforms: windows, linux.",
+        "Materialization occurred on host platform 'linux'."
+      ]
+    },
+    "runtime_version": {
+      "major": 0,
+      "minor": 1,
+      "patch": 0,
+      "string": "0.1.0"
+    },
+    "abi_version": {
+      "major": 0,
+      "minor": 1,
+      "patch": 0,
+      "string": "0.1.0"
+    },
+    "install": {
+      "supported": true,
+      "mode": "materialize",
+      "notes": [
+        "Bundle sidecars are emitted with the runtime contract.",
+        "Install can proceed once version and compatibility metadata are present."
+      ]
+    },
+    "update": {
+      "supported": true,
+      "mode": "compatible-replace",
+      "notes": [
+        "Update is expected to replace a bundle only after compatibility validation passes.",
+        "Migration data is still optional at the compiler layer."
+      ]
+    },
+    "uninstall": {
+      "supported": true,
+      "mode": "sidecar-remove",
+      "notes": [
+        "Uninstall removes emitted bundle artifacts together with compatibility metadata."
+      ]
+    },
+    "migration_hints": [
+      "Preserve the runtime contract and reflection payload together when updating.",
+      "Validate bundle and runtime version records before activating a replacement.",
+      "Runtime manifest metadata from rust should stay in sync with the emitted bundle."
+    ]
+  },
+  "reflection_payload": {
+    "schema_version": 1,
+    "types": [
+      {
+        "type_id": 1,
+        "name": "GenericSceneSmoke",
+        "kind": "world",
+        "size_hint": null,
+        "fields": [
+          {
+            "name": "active_backend",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "active_mood",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "active_focus",
+            "type_name": "String",
+            "offset_hint": null
+          },
+          {
+            "name": "status_line",
+            "type_name": "String",
+            "offset_hint": null
+          }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "item_id": 1,
+        "name": "backend_mood",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 2,
+        "name": "backend_focus",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 3,
+        "name": "backend_state_label",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 4,
+        "name": "GenericSceneSmoke",
+        "kind": "world",
+        "module_path": "",
+        "type_id": 1
+      },
+      {
+        "item_id": 5,
+        "name": "choose_backend",
+        "kind": "patch",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 6,
+        "name": "handle_bgfx",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 7,
+        "name": "handle_filament",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 8,
+        "name": "handle_diligent",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 9,
+        "name": "handle_forge",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 10,
+        "name": "App",
+        "kind": "component",
+        "module_path": "",
+        "type_id": null
+      },
+      {
+        "item_id": 11,
+        "name": "main",
+        "kind": "function",
+        "module_path": "",
+        "type_id": null
+      }
+    ],
+    "actors": [],
+    "components": [
+      {
+        "item_id": 10,
+        "name": "App",
+        "props": [],
+        "state_type": null
+      }
+    ],
+    "messages": []
+  }
+}

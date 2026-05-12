@@ -1,0 +1,114 @@
+{
+  "app_id": "material.atrium.showcase",
+  "name": "Kain Generic Scene Smoke",
+  "version": "0.1.0",
+  "window_title": "Kain Generic Scene Smoke",
+  "root_component": "App",
+  "active_world": "MaterialAtriumShowcase",
+  "layout_id": "generic_scene_smoke_shell",
+  "required_runtime_capabilities": [
+    "compiler.typed-program",
+    "driver.native-app-bundle",
+    "memory.raw-ops",
+    "memory.raw-pointers",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "ui.components",
+    "ui.runtime-bundle",
+    "world.native-ui"
+  ],
+  "target_outputs": [
+    "native-ui-bundle",
+    "native-exe"
+  ],
+  "manifests": {
+    "host_bridges": ""
+  },
+  "runtime_sidecars": {
+    "runtime_bundle": "native_app_bundle.json",
+    "runtime_contract": "kain_runtime_contract.json",
+    "runtime_compatibility": "kain_runtime_compatibility.json",
+    "realtime_bundle": "kain_realtime_app_bundle.json",
+    "shader_bundle": null,
+    "runtime_snapshot": "runtime_snapshot.json"
+  },
+  "launcher": {
+    "kind": "run_bundled_app_json",
+    "function_name": "run_bundled_app_json"
+  },
+  "hot_reload": {
+    "summary": "Product mode stays default and devtools stay opt-in. Changed artifacts: source_input, runtime_bundle, runtime_contract, realtime_bundle. State-preserving reload remains eligible when launcher and authored identity still match.",
+    "launcher": {
+      "kind": "run_bundled_app_json",
+      "function_name": "run_bundled_app_json"
+    },
+    "policy": {
+      "product_mode_default": true,
+      "devtools_opt_in": true,
+      "preserve_focus": true,
+      "preserve_selection": true,
+      "preserve_docking": true,
+      "preserve_overlays": true,
+      "preserve_motion_policy": true,
+      "preserve_animation_state": true,
+      "preserve_signal_values": true,
+      "preserve_session_state": true
+    },
+    "identity": {
+      "app_id": "material.atrium.showcase",
+      "name": "Kain Generic Scene Smoke",
+      "window_title": "Kain Generic Scene Smoke",
+      "root_component": "App",
+      "active_world": "MaterialAtriumShowcase",
+      "layout_id": "generic_scene_smoke_shell"
+    },
+    "artifact_fingerprints": [
+      {
+        "role": "source_input",
+        "path": "smoke.kn",
+        "fingerprint": "8dc493b4099bc272",
+        "byte_length": 11744
+      },
+      {
+        "role": "runtime_bundle",
+        "path": "generated/native_app_bundle.json",
+        "fingerprint": "e201f7a84593510a",
+        "byte_length": 284563
+      },
+      {
+        "role": "runtime_contract",
+        "path": "generated/kain_runtime_contract.json",
+        "fingerprint": "5439a5f8f332499b",
+        "byte_length": 10117
+      },
+      {
+        "role": "runtime_compatibility",
+        "path": "generated/kain_runtime_compatibility.json",
+        "fingerprint": "adae7d718d0ca0b0",
+        "byte_length": 1766
+      },
+      {
+        "role": "realtime_bundle",
+        "path": "generated/kain_realtime_app_bundle.json",
+        "fingerprint": "5b73bc90f3c56b65",
+        "byte_length": 19163
+      }
+    ],
+    "materialization_fingerprint": "f631f409f8aecdb0",
+    "previous_materialization_fingerprint": "ca41b98caa128077",
+    "changed_artifact_roles": [
+      "source_input",
+      "runtime_bundle",
+      "runtime_contract",
+      "realtime_bundle"
+    ],
+    "reload_compatible_with_previous": true
+  },
+  "host_bridges": [],
+  "host_sidecars": [
+    {
+      "packaged_file_name": "generic_scene_visual_reference.png",
+      "env_var": "KAIN_UI_NATIVE_QT_VIEWPORT_IMAGE_PATH"
+    }
+  ]
+}

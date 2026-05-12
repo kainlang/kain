@@ -62,6 +62,7 @@
       "native/src/core/kain_runtime_bitfield.c",
       "native/src/core/kain_runtime_union.c",
       "native/src/core/kain_runtime_actor.c",
+      "native/src/core/kain_native_input_system.c",
       "native/src/core/kain_native_graphics_system.c"
     ],
     "asset": [
@@ -413,7 +414,7 @@
       "provider": "platform-win32",
       "requirement": "required",
       "status": "available",
-      "description": "Win32 input capture and event handling",
+      "description": "Canonical Kain input sessions, semantic actions, replay traces, and native platform event handling",
       "platforms": [
         "windows"
       ]
