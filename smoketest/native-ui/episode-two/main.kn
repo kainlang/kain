@@ -1,0 +1,200 @@
+world Reactor:
+    state lens_energy: Int = 48
+    surface native_ui => App
+
+world Mirror:
+    state displayed_energy: Int = 48
+    surface web => App
+
+component App():
+    render <panel title="EpisodeTwo" />
+
+entangle Reactor.lens_energy <-> Mirror.displayed_energy with single_writer
+
+actor OrbitDaemon:
+    state total: Int = 0
+
+    on Pulse(value: Int):
+        self.total = self.total + value
+
+    on Stop():
+        return
+
+patch set_lens_energy(reactor: Reactor, value: Int) -> Int:
+    reactor.lens_energy = value
+    return reactor.lens_energy
+
+law lens_energy_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 512
+
+converge lens_instance_count(value: Int) -> Int:
+    spec reference:
+        return value + 4
+    fast native_lane when capability("native.actor"):
+        return value + 4
+    verify random(4)
+
+fn lens_bias(value: Int) -> Int:
+    return value + 9
+
+orchestrate episode_two_pipeline(value: Int) -> Int:
+    let instanced: Int = kain lens_instance_count(value)
+    let biased: Int = rust lens_bias(instanced)
+    return biased
+
+fn episode_two_texture_hex() -> String:
+    return "FF8F3FFF7DC9FFFF1F242EFFEEF2F8FF"
+
+fn create_episode_mesh(session: Int, label: String) -> Int:
+    let vertex_buffer = native_graphics_buffer_create_from_hex(session, "vertex", label, "00000000010000000200000003000000", 12)
+    let index_buffer = native_graphics_buffer_create_from_hex(session, "index", label, "000000000100000002000000000000000200000003000000", 4)
+    return native_graphics_mesh_create(session, label, vertex_buffer, index_buffer, 4, 6)
+
+fn create_episode_pipeline(session: Int, backend: String) -> Int:
+    let vertex_shader = native_graphics_shader_spirv_from_hex(session, "episode-two.vertex", "vertex", "main", "03022307")
+    let fragment_shader = native_graphics_shader_spirv_from_hex(session, "episode-two.fragment", "fragment", "main", "03022307")
+    return native_graphics_pipeline_create(session, "episode-two.kerr-tetra.pipeline", vertex_shader, fragment_shader, backend)
+
+fn submit_episode_graphics(session: Int, pipeline: Int, mesh: Int, instances: Int) -> Int:
+    let _frame = native_graphics_begin_frame(session, 16.0)
+    let _draw = native_graphics_draw_mesh(session, pipeline, mesh, instances)
+    let _end = native_graphics_end_frame(session)
+    return native_graphics_present(session)
+
+fn set_episode_palette(session: Int, root: Int, lens: Int, horizon: Int, ray_a: Int, ray_b: Int, ray_c: Int, ray_d: Int, shard_a: Int, shard_b: Int, shard_c: Int, status: Int, title: Int) -> Int:
+    let _root = ui_style_color_rgba(session, root, "ep2.bg", 0.02, 0.025, 0.04, 1.0)
+    let _lens = ui_style_color_rgba(session, lens, "ep2.lens", 0.08, 0.10, 0.16, 1.0)
+    let _horizon = ui_style_color_rgba(session, horizon, "ep2.horizon", 0.98, 0.68, 0.18, 0.82)
+    let _ray_a = ui_style_color_rgba(session, ray_a, "ep2.ray.a", 0.26, 0.72, 1.0, 0.78)
+    let _ray_b = ui_style_color_rgba(session, ray_b, "ep2.ray.b", 0.98, 0.24, 0.82, 0.72)
+    let _ray_c = ui_style_color_rgba(session, ray_c, "ep2.ray.c", 0.34, 1.0, 0.66, 0.64)
+    let _ray_d = ui_style_color_rgba(session, ray_d, "ep2.ray.d", 1.0, 0.83, 0.30, 0.70)
+    let _shard_a = ui_style_color_rgba(session, shard_a, "ep2.shard.a", 0.19, 0.95, 0.96, 0.86)
+    let _shard_b = ui_style_color_rgba(session, shard_b, "ep2.shard.b", 0.94, 0.22, 0.86, 0.82)
+    let _shard_c = ui_style_color_rgba(session, shard_c, "ep2.shard.c", 1.0, 0.92, 0.36, 0.84)
+    let _status = ui_style_color_rgba(session, status, "ep2.status", 0.79, 0.91, 1.0, 1.0)
+    return ui_style_color_rgba(session, title, "ep2.title", 1.0, 0.96, 0.82, 1.0)
+
+fn render_episode_two_frame(session: Int, root: Int, lens: Int, texture: Int, horizon: Int, ray_a: Int, ray_b: Int, ray_c: Int, ray_d: Int, shard_a: Int, shard_b: Int, shard_c: Int, title: Int, status: Int, body_font: Int, title_font: Int) -> Int:
+    let _begin = ui_frame_begin(session, 16.0)
+    let _root = ui_render_box(session, root, "ep2.bg")
+    let _lens = ui_render_box(session, lens, "ep2.lens")
+    let _texture = ui_render_resource_in_node(session, lens, texture, "ep2.texture")
+    let _horizon = ui_render_box(session, horizon, "ep2.horizon")
+    let _ray_a = ui_render_box(session, ray_a, "ep2.ray.a")
+    let _ray_b = ui_render_box(session, ray_b, "ep2.ray.b")
+    let _ray_c = ui_render_box(session, ray_c, "ep2.ray.c")
+    let _ray_d = ui_render_box(session, ray_d, "ep2.ray.d")
+    let _shard_a = ui_render_box(session, shard_a, "ep2.shard.a")
+    let _shard_b = ui_render_box(session, shard_b, "ep2.shard.b")
+    let _shard_c = ui_render_box(session, shard_c, "ep2.shard.c")
+    let _title = ui_render_text(session, title, title_font, native_ui_node_x(session, title), native_ui_node_y(session, title) + 28.0, "ep2.title")
+    let _status = ui_render_text(session, status, body_font, native_ui_node_x(session, status), native_ui_node_y(session, status) + 20.0, "ep2.status")
+    return ui_frame_submit(session)
+
+fn pump_episode_interaction(session: Int, input_session: Int, lens: Int) -> Int:
+    let handled = 0
+    while native_ui_poll_event(session) == 1:
+        if native_ui_event_target(session) == lens:
+            let _hover = ui_apply_hover_flag(session, lens, native_ui_event_x(session), native_ui_event_y(session))
+            if native_ui_event_kind(session) == "pointer.down":
+                let _input = input_push_agent_intent(input_session, "episode-two.window", "collapse.lens", "pointer selected kerr lens", 0.88)
+                let _state = ui_state_counter(session, lens, "interaction.pointer.down", 1)
+                handled = handled + 1
+    return handled
+
+fn main() -> Int:
+    let _runtime = native_runtime_init()
+    let _ui_reset = native_ui_reset()
+    let _input_reset = input_reset()
+    let _graphics_reset = native_graphics_reset()
+
+    let input_session = input_session_create("episode-two-input")
+    let _bind_action = input_bind_action(input_session, "human.keyboard", "key_down", "Space", "collapse.lens")
+    let _bind_axis = input_bind_axis(input_session, "human.pointer", "axis", "orbit_x", "lens.orbit", 0.25)
+    let _key = input_push_key_down(input_session, "keyboard.primary", "Space")
+    let _axis = input_push_axis(input_session, "human.pointer", "mouse.primary", "orbit_x", 8.0)
+    let _agent = input_push_agent_intent(input_session, "codex", "collapse.lens", "ignite episode two", 0.97)
+    let _input_frame = input_begin_frame(input_session, 16.0)
+
+    let graphics = native_graphics_session_create("episode-two-authored-graphics", 960, 540)
+    let _backend = native_graphics_backend_select(graphics, "vulkan")
+    let mesh = create_episode_mesh(graphics, "episode-two.tetra-projection.mesh")
+    let pipeline = create_episode_pipeline(graphics, "vulkan")
+    let graphics_present = submit_episode_graphics(graphics, pipeline, mesh, 4)
+
+    let daemon = spawn OrbitDaemon(total = 0)
+    send daemon.Pulse(value = 7)
+    send daemon.Stop()
+
+    let reactor = Reactor
+    let energy = set_lens_energy(reactor, 72)
+    let law_status = native_law_status(lens_energy_valid(energy))
+    let orchestration_status = native_orchestrate_merge_status(0, law_status)
+    let pipeline_result = episode_two_pipeline(energy)
+
+    let session = ui_host_session_create("native-ui-episode-two", "Kain Native UI Episode Two", 1040, 640, "win32-gl")
+    let generation = native_ui_hot_reload_begin(session, "episode-two-kerr-tetra")
+    let body_font = native_ui_font_create(session, "font.ep2.body", "Inter", 14.0)
+    let title_font = native_ui_font_create(session, "font.ep2.title", "Inter", 24.0)
+    let texture = ui_texture_rgba8_from_hex(session, "texture.ep2.kerr-atlas", 2, 2, episode_two_texture_hex())
+    let ui_shader_handle = native_ui_shader_create(session, "shader.ep2.kerr-fragment", "fragment", 4096)
+    let canvas = native_ui_canvas_create(session, "canvas.ep2.shader-field", 1040, 640)
+
+    let root = ui_reconcile_node(session, 0, "episode.root", "episode.root", 0.0, 0.0, 1040.0, 640.0)
+    let title = ui_reconcile_text_node(session, root, "episode.title", "episode.title", "EPISODE TWO / KERR TETRA UI", 26.0, 22.0, 420.0, 36.0)
+    let lens = ui_reconcile_focusable_node(session, root, "episode.kerr.lens", "episode.lens", "shader lens", "region", "Kerr lens authored by Kain", 206.0, 118.0, 628.0, 330.0)
+    let horizon = ui_reconcile_node(session, lens, "episode.event.horizon", "episode.horizon", 346.0, 218.0, 348.0, 112.0)
+    let ray_a = ui_reconcile_node(session, root, "episode.ray.blue", "episode.ray.blue", 48.0, 184.0, 944.0, 8.0)
+    let ray_b = ui_reconcile_node(session, root, "episode.ray.magenta", "episode.ray.magenta", 70.0, 344.0, 900.0, 7.0)
+    let ray_c = ui_reconcile_node(session, root, "episode.ray.green", "episode.ray.green", 154.0, 106.0, 8.0, 414.0)
+    let ray_d = ui_reconcile_node(session, root, "episode.ray.gold", "episode.ray.gold", 878.0, 92.0, 7.0, 436.0)
+    let shard_a = ui_reconcile_node(session, lens, "episode.tetra.shard.a", "episode.shard.a", 258.0, 156.0, 118.0, 42.0)
+    let shard_b = ui_reconcile_node(session, lens, "episode.tetra.shard.b", "episode.shard.b", 646.0, 348.0, 126.0, 44.0)
+    let shard_c = ui_reconcile_node(session, lens, "episode.tetra.shard.c", "episode.shard.c", 462.0, 404.0, 92.0, 34.0)
+    let status = ui_reconcile_text_node(session, root, "episode.status", "episode.status", "input + actors + entangle + graphics + native ui", 26.0, 574.0, 520.0, 28.0)
+
+    let _palette = set_episode_palette(session, root, lens, horizon, ray_a, ray_b, ray_c, ray_d, shard_a, shard_b, shard_c, status, title)
+    let _root_draw = ui_state_draw(session, root, "scene.compositor", "win32-gl")
+    let _lens_shape = ui_state_shape(session, lens, "implicit.kerr.event-horizon", "mass=72;spin=0.97;non-euclidean=true")
+    let _lens_hit = ui_state_hit(session, lens, "authored.math.sdf", "rect-prefilter;kerr-lens;pointer-warps-space")
+    let _lens_draw = ui_state_draw(session, lens, "canvas.shader", "shader.ep2.kerr-fragment")
+    let _lens_canvas = ui_state_resource(session, lens, "canvas", "shader-field", canvas)
+    let _lens_texture = ui_state_reference(session, lens, "texture.kerr-atlas", texture)
+    let _lens_shader = ui_state_reference(session, lens, "shader.fragment", ui_shader_handle)
+    let _graphics_session_state = ui_state_reference(session, lens, "graphics.session", graphics)
+    let _graphics_mesh_state = ui_state_reference(session, lens, "graphics.mesh", mesh)
+    let _graphics_pipeline_state = ui_state_reference(session, lens, "graphics.pipeline", pipeline)
+    let _input_axis_state = ui_state_set_f64(session, lens, "input.axis.orbit", input_axis_value(input_session, "lens.orbit"))
+    let _energy_state = ui_state_set_i64(session, lens, "entangle.energy", energy)
+    let _actor_state = ui_state_set_i64(session, lens, "actor.scheduler.enqueued", native_actor_scheduler_total_enqueued())
+    let _shard_a_shape = ui_state_shape(session, shard_a, "tetrahedron.face.a", "projected=3d;plane=near")
+    let _shard_b_shape = ui_state_shape(session, shard_b, "tetrahedron.face.b", "projected=3d;plane=far")
+    let _shard_c_shape = ui_state_shape(session, shard_c, "tetrahedron.face.c", "projected=3d;plane=singularity")
+
+    let frame_counter = 0
+    let draw_count = 0
+    let interaction_count = 0
+    while frame_counter < 30000 and native_ui_host_should_close(session) == 0:
+        draw_count = render_episode_two_frame(session, root, lens, texture, horizon, ray_a, ray_b, ray_c, ray_d, shard_a, shard_b, shard_c, title, status, body_font, title_font)
+        let _pump = native_ui_host_pump(session)
+        interaction_count = interaction_count + pump_episode_interaction(session, input_session, lens)
+        let _sleep = native_sleep_millis(16)
+        frame_counter = frame_counter + 1
+
+    let committed = native_ui_hot_reload_commit(session)
+    let frame_hash = native_ui_host_frame_hash(session)
+    let input_ok = input_action_pressed(input_session, "collapse.lens") == 1 and input_event_source_kind(input_session, 2) == "agent.intent"
+    let graphics_ok = graphics_present == 1 and native_graphics_draw_command_count(graphics) == 1 and native_graphics_draw_command_instances(graphics, 0) == 4
+    let actor_ok = native_actor_abi_version() == 1 and native_actor_default_mailbox_capacity() == 1024 and native_actor_scheduler_queue_depth() >= 0
+    let entangle_ok = native_entangle_registered_count() >= 1 and native_entangle_propagation_count() >= 1 and native_patch_journal_count() >= 1 and native_converge_mismatch_count() == 0 and native_orchestrate_stage_count() >= 1
+    let ui_ok = generation == committed and draw_count >= 13 and frame_hash > 0 and native_ui_state_count(session) >= 24 and ui_state_string(session, lens, "shape.kind", "") == "implicit.kerr.event-horizon" and ui_state_i64(session, lens, "graphics.mesh", 0) == mesh
+    let _destroy_input = input_session_destroy(input_session)
+    let _destroy_graphics = native_graphics_session_destroy(graphics)
+
+    if native_status_ok(orchestration_status) and input_ok and graphics_ok and actor_ok and entangle_ok and ui_ok and pipeline_result == 85 and interaction_count >= 0:
+        let _shutdown_ok = 0
+        return 0
+
+    let _shutdown_fail = 0
+    return 1
