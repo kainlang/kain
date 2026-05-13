@@ -71,6 +71,7 @@ pub enum CompileTarget {
     Usf,
     Spirv,
     Hlsl,
+    Cuda,
     Interpret,
     Test,
     /// KainScript — JS with embedded JSDoc types. Runs natively, fully typed.
@@ -93,6 +94,7 @@ impl CompileTarget {
             "usf" | "shader" => Some(Self::Usf),
             "spirv" | "spv" => Some(Self::Spirv),
             "hlsl" => Some(Self::Hlsl),
+            "cuda" | "ptx" | "nvptx" => Some(Self::Cuda),
             "interpret" | "run" => Some(Self::Interpret),
             "test" => Some(Self::Test),
             "ks" | "kainscript" | "kscript" => Some(Self::Ks),

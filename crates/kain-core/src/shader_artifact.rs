@@ -23,6 +23,7 @@ pub enum ShaderArtifactFormat {
     Wgsl,
     Hlsl,
     Usf,
+    Ptx,
 }
 
 impl ShaderArtifactFormat {
@@ -32,6 +33,7 @@ impl ShaderArtifactFormat {
             ShaderArtifactFormat::Wgsl => "wgsl",
             ShaderArtifactFormat::Hlsl => "hlsl",
             ShaderArtifactFormat::Usf => "usf",
+            ShaderArtifactFormat::Ptx => "ptx",
         }
     }
 }
@@ -212,17 +214,25 @@ mod tests {
                 }],
                 notes: vec!["No source map emitted yet.".to_string()],
             },
-            derived_outputs: vec![DerivedShaderArtifact {
-                format: ShaderArtifactFormat::Hlsl,
-                module_name: "viewport".to_string(),
-                contents: "// hlsl".to_string(),
-            }],
+            derived_outputs: vec![
+                DerivedShaderArtifact {
+                    format: ShaderArtifactFormat::Hlsl,
+                    module_name: "viewport".to_string(),
+                    contents: "// hlsl".to_string(),
+                },
+                DerivedShaderArtifact {
+                    format: ShaderArtifactFormat::Ptx,
+                    module_name: "viewport".to_string(),
+                    contents: "// ptx".to_string(),
+                },
+            ],
         };
 
         let json = shader_artifact_bundle_to_json(&bundle).expect("bundle should serialize");
         assert!(json.contains("\"canonical_native_payload\": \"spirv\""));
         assert!(json.contains("\"module_name\": \"viewport\""));
         assert!(json.contains("\"format\": \"hlsl\""));
+        assert!(json.contains("\"format\": \"ptx\""));
     }
 
     #[test]

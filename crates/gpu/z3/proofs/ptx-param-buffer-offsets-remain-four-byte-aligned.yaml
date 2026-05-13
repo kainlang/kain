@@ -1,0 +1,18 @@
+version: 1
+id: kain.gpu.proofs.ptx_param_buffer_offsets_remain_four_byte_aligned
+kind: check_smt2
+description: PTX scalar/vector kernel parameter packing keeps every 32-bit lane and 64-bit pointer offset four-byte aligned.
+tags:
+- gpu
+- ptx
+- cuda
+- params
+- alignment
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_ptx.rs
+  symbol: emit_uniform_params
+  reason: scalar/vector lanes are emitted as 32-bit params and storage buffers as 64-bit pointer params.
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const prior_lanes Int)\n(declare-const is_pointer Bool)\n(assert (>= prior_lanes 0))\n(define-fun offset () Int (* prior_lanes 4))\n(define-fun size () Int (ite is_pointer 8 4))\n(assert (or (not (= (mod offset 4) 0)) (not (= (mod size 4) 0))))\n(check-sat)"
+  include_model: false
+  include_stats: false

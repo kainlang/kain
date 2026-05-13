@@ -23,6 +23,7 @@ full = ["proofs/**/*.*"]
 layout = ["proofs/layout-*.yaml"]
 constructors = ["proofs/constructors-*.yaml"]
 control = ["proofs/control-*.yaml"]
+ptx = ["proofs/ptx-*.yaml"]
 
 [reports]
 path = "reports"

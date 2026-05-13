@@ -4928,6 +4928,11 @@ fn infer_expr_type(
         }
         Expr::Call { callee, args, span } => {
             if let Expr::Ident(callee_name, _) = callee.as_ref() {
+                if let Some(constructor_ty) =
+                    infer_scalar_type_constructor_call(env, ctx, callee_name, args, *span)
+                {
+                    return constructor_ty;
+                }
                 if let Some(host_call_ty) =
                     infer_selfhost_host_call_type(env, ctx, callee_name, args, *span)
                 {
@@ -5574,6 +5579,80 @@ fn infer_expr_type(
             Ok(ResolvedType::Never)
         }
         Expr::Break(_, _) | Expr::Continue(_) => Ok(ResolvedType::Never),
+    }
+}
+
+fn infer_scalar_type_constructor_call(
+    env: &mut TypeEnv,
+    ctx: Option<&SemanticContext>,
+    callee_name: &str,
+    args: &[CallArg],
+    span: Span,
+) -> Option<KainResult<ResolvedType>> {
+    if value_binding_exists(env, callee_name) {
+        return None;
+    }
+    let target_ty = env.lookup_type(callee_name).cloned()?;
+    if !is_scalar_constructor_target(&target_ty) {
+        return None;
+    }
+    if args.len() != 1 {
+        return Some(Err(env.type_error(
+            format!("{callee_name} constructor expects exactly one argument"),
+            span,
+        )));
+    }
+    Some(
+        infer_expr_type(env, &args[0].value, ctx)
+            .and_then(|source_ty| {
+                validate_scalar_constructor_input(env, &target_ty, &source_ty, span)
+            })
+            .map(|_| target_ty),
+    )
+}
+
+fn value_binding_exists(env: &TypeEnv<'_>, name: &str) -> bool {
+    env.scopes
+        .iter()
+        .rev()
+        .any(|scope| scope.contains_key(name))
+        || env.globals.contains_key(name)
+}
+
+fn is_scalar_constructor_target(ty: &ResolvedType) -> bool {
+    matches!(
+        ty,
+        ResolvedType::Int(_) | ResolvedType::Float(_) | ResolvedType::Bool | ResolvedType::Char
+    )
+}
+
+fn validate_scalar_constructor_input(
+    env: &TypeEnv<'_>,
+    target_ty: &ResolvedType,
+    source_ty: &ResolvedType,
+    span: Span,
+) -> KainResult<()> {
+    let source_ty = peel_shared_refs(source_ty);
+    if matches!(source_ty, ResolvedType::Unknown) {
+        return Ok(());
+    }
+    let allowed = match target_ty {
+        ResolvedType::Int(_) | ResolvedType::Float(_) => is_numeric_like(source_ty),
+        ResolvedType::Bool => matches!(source_ty, ResolvedType::Bool) || is_numeric_like(source_ty),
+        ResolvedType::Char => matches!(source_ty, ResolvedType::Char | ResolvedType::String),
+        _ => false,
+    };
+    if allowed {
+        Ok(())
+    } else {
+        Err(env.type_error(
+            format!(
+                "Cannot cast {} to {} with a scalar constructor",
+                describe_type(source_ty),
+                describe_type(target_ty)
+            ),
+            span,
+        ))
     }
 }
 

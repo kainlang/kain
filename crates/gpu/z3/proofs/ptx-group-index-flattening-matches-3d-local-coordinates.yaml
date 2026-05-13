@@ -1,0 +1,18 @@
+version: 1
+id: kain.gpu.proofs.ptx_group_index_flattening_matches_3d_local_coordinates
+kind: check_smt2
+description: PTX group_index flattening matches x + y * local_x + z * local_x * local_y for positive local sizes.
+tags:
+- gpu
+- ptx
+- cuda
+- compute
+- group-index
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_ptx.rs
+  symbol: emit_group_index
+  reason: group_index computes y offset, xy, z stride, then a final mad.lo.u32.
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const tx (_ BitVec 32))\n(declare-const ty (_ BitVec 32))\n(declare-const tz (_ BitVec 32))\n(declare-const local_x (_ BitVec 32))\n(declare-const local_y (_ BitVec 32))\n(assert (not (= local_x #x00000000)))\n(assert (not (= local_y #x00000000)))\n(define-fun expected () (_ BitVec 32)\n  (bvadd tx (bvadd (bvmul ty local_x) (bvmul tz (bvmul local_x local_y)))))\n(define-fun lowered () (_ BitVec 32)\n  (let ((y_offset (bvmul ty local_x)))\n    (let ((xy (bvadd tx y_offset)))\n      (let ((z_stride (bvmul local_x local_y)))\n        (bvadd (bvmul tz z_stride) xy)))))\n(assert (not (= lowered expected)))\n(check-sat)"
+  include_model: false
+  include_stats: false

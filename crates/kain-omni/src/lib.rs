@@ -854,12 +854,14 @@ fn write_gpu_artifacts_bundle(
     let json_path = with_file_name_suffix(output, ".reflect", "json");
     let bundle_path = with_file_name_suffix(output, ".shader_bundle", "json");
     let hlsl_path = with_file_name_suffix(output, ".derived", "hlsl");
+    let ptx_path = with_file_name_suffix(output, ".derived", "ptx");
     for path in [
         &spirv_path,
         &rust_path,
         &json_path,
         &bundle_path,
         &hlsl_path,
+        &ptx_path,
     ] {
         if let Some(parent) = path.parent() {
             kfs::create_dir_all(parent)?;
@@ -873,6 +875,10 @@ fn write_gpu_artifacts_bundle(
     if let Some(hlsl) = &artifacts.derived_hlsl {
         kfs::atomic_write_text(&hlsl_path, hlsl)?;
         written.push(hlsl_path);
+    }
+    if let Some(ptx) = &artifacts.derived_ptx {
+        kfs::atomic_write_text(&ptx_path, ptx)?;
+        written.push(ptx_path);
     }
     Ok(written)
 }

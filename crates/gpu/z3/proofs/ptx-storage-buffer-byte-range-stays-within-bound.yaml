@@ -1,0 +1,18 @@
+version: 1
+id: kain.gpu.proofs.ptx_storage_buffer_byte_range_stays_within_bound
+kind: check_smt2
+description: PTX storage-buffer element addressing stays inside the allocation when index and lane are range-checked by the caller/runtime contract.
+tags:
+- gpu
+- ptx
+- cuda
+- storage-buffer
+- bounds
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_ptx.rs
+  symbol: emit_storage_address
+  reason: address = base + index * stride + lane_offset with lane_offset bounded by the element shape.
+case:
+  smt2: "(set-logic QF_NIA)\n(declare-const index Int)\n(declare-const element_count Int)\n(declare-const stride Int)\n(declare-const lane_offset Int)\n(declare-const lane_width Int)\n(assert (> element_count 0))\n(assert (>= index 0))\n(assert (< index element_count))\n(assert (or (= stride 4) (= stride 8) (= stride 16)))\n(assert (= lane_width 4))\n(assert (>= lane_offset 0))\n(assert (< (+ lane_offset lane_width) (+ stride 1)))\n(define-fun byte_start () Int (+ (* index stride) lane_offset))\n(define-fun byte_end () Int (+ byte_start lane_width))\n(define-fun allocation_bytes () Int (* element_count stride))\n(assert (or (< byte_start 0) (> byte_end allocation_bytes)))\n(check-sat)"
+  include_model: false
+  include_stats: false

@@ -132,6 +132,10 @@ pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     kain_driver::compile_spirv_binary(source)
 }
 
+pub fn compile_ptx_source(source: &str) -> Result<String, KainError> {
+    kain_driver::compile_ptx_source(source)
+}
+
 pub fn compile_wasm_binary(source: &str) -> Result<Vec<u8>, KainError> {
     kain_driver::compile_wasm_binary(source)
 }
@@ -205,6 +209,18 @@ mod tests {
     #[test]
     fn extension_for_typescript_is_ts() {
         assert_eq!(target_extension(CompileTarget::Ts), "ts");
+    }
+
+    #[test]
+    fn parse_cuda_ptx_aliases() {
+        assert_eq!(parse_compile_target("cuda"), Some(CompileTarget::Cuda));
+        assert_eq!(parse_compile_target("ptx"), Some(CompileTarget::Cuda));
+        assert_eq!(parse_compile_target("nvptx"), Some(CompileTarget::Cuda));
+    }
+
+    #[test]
+    fn extension_for_cuda_target_is_ptx() {
+        assert_eq!(target_extension(CompileTarget::Cuda), "ptx");
     }
 
     #[test]

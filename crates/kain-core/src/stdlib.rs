@@ -1451,6 +1451,7 @@ const TARGET_PROFILE_ORDER: &[(CompileTarget, &[&str])] = &[
     (CompileTarget::Usf, &["ue5"]),
     (CompileTarget::Hlsl, &[""]),
     (CompileTarget::Spirv, &[""]),
+    (CompileTarget::Cuda, &[""]),
     (CompileTarget::Wasm, &[""]),
     (CompileTarget::Js, &[""]),
     (CompileTarget::Ts, &[""]),
@@ -1861,6 +1862,10 @@ mod tests {
             .iter()
             .map(|p| (*p).to_string())
             .collect::<Vec<_>>();
+        let cuda_profiles = target_profiles(CompileTarget::Cuda)
+            .iter()
+            .map(|p| (*p).to_string())
+            .collect::<Vec<_>>();
         let ue5_profiles = target_profiles(CompileTarget::Ue5)
             .iter()
             .map(|p| (*p).to_string())
@@ -1889,6 +1894,10 @@ mod tests {
         let hlsl_stdlib = load_stdlib_from_profiles(&roots, &hlsl_profiles);
         assert!(hlsl_stdlib.contains("// root stdlib"));
         assert!(!hlsl_stdlib.contains("// ue5 stdlib"));
+
+        let cuda_stdlib = load_stdlib_from_profiles(&roots, &cuda_profiles);
+        assert!(cuda_stdlib.contains("// root stdlib"));
+        assert!(!cuda_stdlib.contains("// ue5 stdlib"));
 
         let ue5_stdlib = load_stdlib_from_profiles(&roots, &ue5_profiles);
         assert!(ue5_stdlib.contains("// ue5 stdlib"));

@@ -1,5 +1,67 @@
 # Kain Memory
 
+# 2026-05-13 - raw PTX/CUDA compute backend added beside canonical SPIR-V
+
+Kain now has a first vertical CUDA backend slice without depending on `nvcc` or
+the CUDA Toolkit. The backend emits raw PTX text from typed compute shader ASTs
+and the runtime can load that PTX directly through the NVIDIA Driver API when an
+installed driver is available.
+
+What changed:
+
+- Added `crates/gpu/src/codegen_ptx.rs` and exported `gpu::generate_ptx`.
+  `CompileTarget::Cuda`, `ptx`, and `nvptx` now route to raw PTX output.
+- Kept SPIR-V as the canonical shader bundle payload while adding optional
+  derived PTX sidecars for compute-only shader bundles. HLSL remains a derived
+  output too.
+- Added `.ptx` artifact materialization in `crates/cli`, `crates/kain-build`,
+  and `crates/kain-omni` so GPU artifact flows can write PTX beside the existing
+  SPIR-V/HLSL bundle outputs.
+- Added `crates/kain-gpu-runtime/src/nvidia_ptx.rs`, which dynamically loads
+  `nvcuda.dll` on Windows, resolves CUDA Driver API symbols, loads PTX in
+  memory with `cuModuleLoadDataEx`, launches compute kernels, and copies
+  storage-buffer results back without external NVIDIA tooling.
+- Added scalar type-constructor handling in `crates/kain-core/src/types.rs` so
+  generated shader code such as `Float(i)` typechecks before backend lowering.
+
+Design decisions:
+
+- PTX is compute-only in this first slice. Non-compute shader bundles keep SPIR-V
+  canonical payloads and get a reflection note instead of failing the whole
+  bundle because PTX derivation is inapplicable.
+- The emitter currently writes conservative `.version 7.8` / `.target sm_50`
+  PTX for broad driver-JIT compatibility. NVIDIA's current CUDA docs are on PTX
+  ISA 9.2, but this backend should only raise the default when it starts
+  emitting instructions or targets that require a newer PTX ISA.
+- Runtime execution accepts existing compute residency sidecars when the shader
+  bundle contains derived PTX; the runtime does not invent a second compute-plan
+  schema for CUDA.
+
+Formal proof gathered with Z3:
+
+- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\gpu", lane="ptx")`
+  proved 5/5 PTX obligations: dispatch-thread-id lowering, group-index
+  flattening, parameter alignment, runtime/codegen parameter-order equivalence,
+  and storage-buffer byte-range safety.
+- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\gpu", lane="full")`
+  proved 11/11 combined SPIR-V/PTX GPU codegen obligations.
+
+Validation:
+
+- `cargo fmt -p kain-core -p gpu -p kain-driver -p cli -p kain-gpu-runtime -p kain-build -p kain-omni`
+- `cargo test -p gpu --test ptx_codegen --target-dir target\codex-ptx-tests -- --nocapture`
+- `cargo test -p cli cuda --target-dir target\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-driver compile_shader_artifact_bundle --target-dir target\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-gpu-runtime ptx_dispatch_group_count_rounds_up --target-dir target\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-gpu-runtime nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available --target-dir target\codex-ptx-tests -- --nocapture`
+- `cargo check -p gpu -p kain-driver -p cli -p kain-gpu-runtime --target-dir target\codex-ptx-check`
+
+Current hardware note:
+
+- The local Windows checkout had `nvcuda.dll` available and the hardware-optional
+  tiny-kernel smoke passed, proving the in-memory driver path on this machine.
+  Keep that test skip-friendly for machines without an NVIDIA driver/device.
+
 # 2026-05-13 - repo-local `kain_mcp` configs must use repo-relative paths, not `${KAIN_REPO_ROOT}`
 
 The lingering post-reboot `kain_mcp` timeout was not inside the blade runtime.

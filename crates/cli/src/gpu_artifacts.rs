@@ -34,6 +34,7 @@ pub fn write_gpu_artifacts_bundle(
     let json_path = with_file_name_suffix(&base_path, ".reflect", "json");
     let bundle_path = with_file_name_suffix(&base_path, ".shader_bundle", "json");
     let hlsl_path = with_file_name_suffix(&base_path, ".derived", "hlsl");
+    let ptx_path = with_file_name_suffix(&base_path, ".derived", "ptx");
 
     for path in [
         &spirv_path,
@@ -41,6 +42,7 @@ pub fn write_gpu_artifacts_bundle(
         &json_path,
         &bundle_path,
         &hlsl_path,
+        &ptx_path,
     ] {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| {
@@ -91,6 +93,16 @@ pub fn write_gpu_artifacts_bundle(
             ))
         })?;
         written.push(hlsl_path);
+    }
+    if let Some(ptx) = &artifacts.derived_ptx {
+        fs::write(&ptx_path, ptx.as_bytes()).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to write derived PTX output {}: {}",
+                ptx_path.display(),
+                err
+            ))
+        })?;
+        written.push(ptx_path);
     }
 
     Ok(written)

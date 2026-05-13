@@ -2437,6 +2437,9 @@ fn run_gpu_artifacts(source: &Path, output_base: &Path) -> BuildResult<String> {
     if let Some(hlsl) = artifacts.derived_hlsl {
         kfs::atomic_write_text(output_base.with_extension("hlsl"), &hlsl)?;
     }
+    if let Some(ptx) = artifacts.derived_ptx {
+        kfs::atomic_write_text(output_base.with_extension("ptx"), &ptx)?;
+    }
     Ok(format!("emitted GPU artifacts for {}", source.display()))
 }
 

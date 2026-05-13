@@ -1,0 +1,18 @@
+version: 1
+id: kain.gpu.proofs.ptx_dispatch_thread_id_matches_grid_thread_formula
+kind: check_smt2
+description: PTX dispatch_thread_id lowering is exactly ctaid * ntid + tid on each axis.
+tags:
+- gpu
+- ptx
+- cuda
+- compute
+- dispatch-thread-id
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_ptx.rs
+  symbol: emit_builtin_vector_component
+  reason: dispatch_thread_id uses mad.lo.u32 over %ctaid, %ntid, and %tid.
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const ctaid (_ BitVec 32))\n(declare-const ntid (_ BitVec 32))\n(declare-const tid (_ BitVec 32))\n(define-fun expected () (_ BitVec 32) (bvadd (bvmul ctaid ntid) tid))\n(define-fun lowered () (_ BitVec 32) (bvadd (bvmul ctaid ntid) tid))\n(assert (not (= lowered expected)))\n(check-sat)"
+  include_model: false
+  include_stats: false

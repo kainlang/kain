@@ -44,6 +44,16 @@ pub struct GpuRuntimeDispatchResult {
 pub enum ComputeExecutorError {
     #[error("failed to load Vulkan entry: {0}")]
     LoadEntry(#[source] ash::LoadingError),
+    #[error("NVIDIA CUDA driver is unavailable: {message}")]
+    CudaDriverUnavailable { message: String },
+    #[error("NVIDIA CUDA driver symbol {symbol} was not found")]
+    CudaDriverSymbolMissing { symbol: &'static str },
+    #[error("CUDA Driver API call {call} failed with code {code}: {message}")]
+    CudaDriverCallFailed {
+        call: &'static str,
+        code: i32,
+        message: String,
+    },
     #[error("failed to create Vulkan instance: {0:?}")]
     CreateInstance(vk::Result),
     #[error("failed to enumerate physical devices: {0:?}")]
@@ -106,15 +116,25 @@ pub enum ComputeExecutorError {
     MissingComputeKey { compute_key: String, path: String },
     #[error("SPIR-V module {module_name} was not found in shader bundle {path}")]
     MissingSpirvModule { module_name: String, path: String },
+    #[error("PTX module {module_name} was not found in shader bundle {path}")]
+    MissingPtxModule { module_name: String, path: String },
     #[error("invalid hex payload for SPIR-V module {module_name}: {message}")]
     InvalidSpirvHex {
         module_name: String,
         message: String,
     },
+    #[error("PTX source contains an interior NUL byte")]
+    PtxContainsNul,
+    #[error("PTX kernel entry name contains an interior NUL byte")]
+    InvalidPtxEntryName,
+    #[error("PTX runtime currently supports storage-buffer bindings only; binding {binding} used {kind}")]
+    UnsupportedPtxBinding { binding: u32, kind: String },
     #[error("unsupported descriptor kind {value}")]
     UnsupportedDescriptorKind { value: String },
     #[error("unsupported access mode {value}")]
     UnsupportedAccessMode { value: String },
+    #[error("unsupported compute residency target {value}")]
+    UnsupportedComputeResidencyTarget { value: String },
     #[error("unsupported shared buffer contract {value} for binding {binding}")]
     UnsupportedSharedBufferContract { binding: String, value: String },
     #[error("shared buffer metadata is invalid for binding {binding}: {message}")]

@@ -1,5 +1,6 @@
 mod bindings;
 mod executor;
+mod nvidia_ptx;
 
 pub use bindings::{
     ComputeBinding, ComputeCase, ExpectedOutput, GpuBindingAccess, GpuDescriptorKind,
@@ -10,3 +11,4 @@ pub use executor::{
     ComputeExecutorError, GpuComputeExecutor, GpuComputeExecutorConfig, GpuRuntimeDispatchRequest,
     GpuRuntimeDispatchResult, VulkanComputeExecutor,
 };
+pub use nvidia_ptx::NvidiaPtxExecutor;

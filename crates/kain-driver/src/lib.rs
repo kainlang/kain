@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
 
-use kain_core::ast::{Expr, Item, Program, Use, WorldSurfaceKind};
+use kain_core::ast::{Expr, Item, Program, ShaderStage, Use, WorldSurfaceKind};
 use kain_core::error::KainError;
 use kain_core::module_resolution::resolve_filesystem_module_file;
 use kain_core::monomorphize::MonomorphizedProgram;
@@ -111,6 +111,11 @@ const TARGET_SPECS: &[TargetSpec] = &[
         aliases: &["hlsl", "h"],
     },
     TargetSpec {
+        target: CompileTarget::Cuda,
+        extension: "ptx",
+        aliases: &["cuda", "ptx", "nvptx"],
+    },
+    TargetSpec {
         target: CompileTarget::Usf,
         extension: "usf",
         aliases: &["usf"],
@@ -180,6 +185,7 @@ pub struct ShaderArtifactBundleOutput {
     pub rust_host: String,
     pub reflection_json: String,
     pub derived_hlsl: Option<String>,
+    pub derived_ptx: Option<String>,
 }
 
 pub type GpuArtifactOutput = ShaderArtifactBundleOutput;
@@ -391,6 +397,9 @@ impl DriverSession {
                     #[cfg(feature = "gpu")]
                     CompileTarget::Hlsl => gpu::generate_hlsl(&typed_for_codegen),
 
+                    #[cfg(feature = "gpu")]
+                    CompileTarget::Cuda => gpu::generate_ptx(&typed_for_codegen),
+
                     #[cfg(feature = "web")]
                     CompileTarget::Wasm => web::generate_wasm(&typed_for_codegen)
                         .map(|bytes| format!("{} bytes", bytes.len())),
@@ -473,6 +482,17 @@ impl DriverSession {
         Err(KainError::runtime("SPIR-V target requires gpu feature"))
     }
 
+    #[cfg(feature = "gpu")]
+    pub fn compile_ptx_source(&self, source: &str) -> Result<String, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Cuda)?;
+        gpu::generate_ptx(&typed_for_codegen)
+    }
+
+    #[cfg(not(feature = "gpu"))]
+    pub fn compile_ptx_source(&self, _source: &str) -> Result<String, KainError> {
+        Err(KainError::runtime("CUDA/PTX target requires gpu feature"))
+    }
+
     #[cfg(feature = "web")]
     pub fn compile_wasm_binary(&self, source: &str) -> Result<Vec<u8>, KainError> {
         let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Wasm)?;
@@ -524,8 +544,31 @@ impl DriverSession {
             KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
         })?;
         let derived_hlsl = Some(gpu::generate_hlsl(&typed_program)?);
-        let bundle =
-            build_shader_artifact_bundle(&reflection, &spirv, derived_hlsl.as_deref(), "<input>");
+        let ptx_candidate = typed_program_ptx_eligible(&typed_program);
+        let (derived_ptx, ptx_note) = if ptx_candidate {
+            match gpu::generate_ptx(&typed_program) {
+                Ok(ptx) => (Some(ptx), None),
+                Err(err) => (None, Some(format!("PTX derived output skipped: {err}"))),
+            }
+        } else if typed_program_has_shader(&typed_program) {
+            (
+                None,
+                Some(
+                    "PTX derived output skipped because CUDA/PTX v1 supports compute-stage shader programs only."
+                        .to_string(),
+                ),
+            )
+        } else {
+            (None, None)
+        };
+        let bundle = build_shader_artifact_bundle(
+            &reflection,
+            &spirv,
+            derived_hlsl.as_deref(),
+            derived_ptx.as_deref(),
+            ptx_note.as_deref(),
+            "<input>",
+        );
         let bundle_json = shader_artifact_bundle_to_json(&bundle).map_err(|err| {
             KainError::runtime(format!(
                 "Failed to serialize shader artifact bundle JSON: {err}"
@@ -539,6 +582,7 @@ impl DriverSession {
             rust_host,
             reflection_json,
             derived_hlsl,
+            derived_ptx,
         })
     }
 
@@ -932,6 +976,10 @@ pub fn compile_spirv_binary(source: &str) -> Result<Vec<u8>, KainError> {
     DriverSession::default().compile_spirv_binary(source)
 }
 
+pub fn compile_ptx_source(source: &str) -> Result<String, KainError> {
+    DriverSession::default().compile_ptx_source(source)
+}
+
 pub fn compile_wasm_binary(source: &str) -> Result<Vec<u8>, KainError> {
     DriverSession::default().compile_wasm_binary(source)
 }
@@ -1264,10 +1312,34 @@ pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainErro
 }
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
+fn typed_program_has_shader(program: &TypedProgram) -> bool {
+    program
+        .items
+        .iter()
+        .any(|item| matches!(item, TypedItem::Shader(_)))
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn typed_program_ptx_eligible(program: &TypedProgram) -> bool {
+    let mut saw_shader = false;
+    for item in &program.items {
+        if let TypedItem::Shader(shader) = item {
+            saw_shader = true;
+            if shader.ast.stage != ShaderStage::Compute {
+                return false;
+            }
+        }
+    }
+    saw_shader
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
 fn build_shader_artifact_bundle(
     reflection: &sys::RustGpuArtifactOutput,
     spirv: &[u8],
     derived_hlsl: Option<&str>,
+    derived_ptx: Option<&str>,
+    ptx_note: Option<&str>,
     source_origin: &str,
 ) -> ShaderArtifactBundle {
     let module_name = if reflection.shaders.is_empty() {
@@ -1372,6 +1444,22 @@ fn build_shader_artifact_bundle(
             contents: hlsl.to_string(),
         });
     }
+    if let Some(ptx) = derived_ptx {
+        derived_outputs.push(DerivedShaderArtifact {
+            format: ShaderArtifactFormat::Ptx,
+            module_name: module_name.clone(),
+            contents: ptx.to_string(),
+        });
+    }
+
+    let mut reflection_notes = vec![
+        "Compiler-owned shader artifact bundle emitted from kain-driver.".to_string(),
+        "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs."
+            .to_string(),
+    ];
+    if let Some(note) = ptx_note {
+        reflection_notes.push(note.to_string());
+    }
 
     ShaderArtifactBundle {
         schema_version: SHADER_ARTIFACT_SCHEMA_VERSION,
@@ -1389,10 +1477,7 @@ fn build_shader_artifact_bundle(
         reflection: ShaderReflectionSummary {
             emitted: !reflection_shaders.is_empty(),
             shaders: reflection_shaders,
-            notes: vec![
-                "Compiler-owned shader artifact bundle emitted from kain-driver.".to_string(),
-                "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs.".to_string(),
-            ],
+            notes: reflection_notes,
         },
         resource_layouts,
         entry_points,
@@ -2186,7 +2271,7 @@ fn main() -> Int:
 shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
     uniform positions: StorageBuffer<Vec4> @0
     uniform center: Vec4 @1
-    uniform brush_alpha: Sampler2D @2
+    uniform count: UInt @2
     uniform LOCAL_SIZE_X: UInt @100
     uniform CFG_HIGH_QUALITY: UInt @101
 
@@ -2208,6 +2293,8 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
             .contains("\"canonical_native_payload\": \"spirv\""));
         assert!(output.bundle_json.contains("\"spirv_modules\""));
         assert!(output.derived_hlsl.is_some());
+        assert!(output.derived_ptx.is_some());
+        assert!(output.bundle_json.contains("\"format\": \"ptx\""));
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -2249,5 +2336,6 @@ shader compute stream_pulse(id: UVec3) -> Vec4:
         );
         assert_eq!(output.bundle.entry_points.len(), 1);
         assert_eq!(output.bundle.entry_points[0].stage, "compute");
+        assert!(output.derived_ptx.is_some());
     }
 }

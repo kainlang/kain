@@ -1,0 +1,91 @@
+use gpu::{generate_ptx, generate_spirv};
+use kain_core::comptime;
+use kain_core::diagnostics::SpanMapper;
+use kain_core::stdlib;
+use kain_core::types;
+use kain_core::{CompileTarget, Lexer, Parser, TypedProgram};
+
+fn typed_program_for_target(source: &str, target: CompileTarget) -> TypedProgram {
+    let stdlib_src = stdlib::load_stdlib_for_target(target);
+    let full_source = format!("{}\n{}", stdlib_src, source);
+    let span_mapper = SpanMapper::new(&full_source);
+    let tokens = Lexer::new(&full_source)
+        .tokenize()
+        .expect("tokenize failed");
+    let mut ast = Parser::new(&tokens, &span_mapper, "<ptx-codegen>")
+        .parse()
+        .expect("parse failed");
+    comptime::eval_program(&mut ast).expect("comptime failed");
+    types::check(&ast, &span_mapper, "<ptx-codegen>").expect("typecheck failed")
+}
+
+#[test]
+fn ptx_emits_raw_compute_kernel_for_storage_buffer_copy() {
+    let src = r#"
+shader compute copy_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform count: UInt @2
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = dispatch_thread_id.x
+    if idx >= count:
+        return
+
+    dst[idx] = src[idx]
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("ptx generation failed");
+
+    assert!(ptx.contains(".version 7.8"));
+    assert!(ptx.contains(".target sm_50"));
+    assert!(ptx.contains(".visible .entry copy_kernel"));
+    assert!(ptx.contains(".param .u64 _kain_param_src"));
+    assert!(ptx.contains(".param .u64 _kain_param_dst"));
+    assert!(ptx.contains(".param .u32 _kain_param_count"));
+    assert!(ptx.contains("mad.lo.u32"));
+    assert!(ptx.contains("ld.global.f32"));
+    assert!(ptx.contains("st.global.f32"));
+}
+
+#[test]
+fn same_compute_shader_can_emit_spirv_and_ptx() {
+    let src = r#"
+shader compute dual_backend(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = id.x
+    let value = src[idx]
+    dst[idx] = value + 1.0
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let spirv = generate_spirv(&typed).expect("spirv generation failed");
+    let ptx = generate_ptx(&typed).expect("ptx generation failed");
+
+    assert!(spirv.len() > 16);
+    assert_eq!(&spirv[0..4], [0x03, 0x02, 0x23, 0x07]);
+    assert!(ptx.contains(".visible .entry dual_backend"));
+    assert!(ptx.contains("add.f32"));
+}
+
+#[test]
+fn ptx_rejects_non_compute_shader_stage() {
+    let src = r#"
+shader fragment pixel(position: Vec4) -> Vec4:
+    return position
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let err = generate_ptx(&typed).expect_err("fragment shader should not lower to PTX");
+    assert!(err.to_string().contains("only supports compute shaders"));
+}
