@@ -1,8 +1,8 @@
 # Copy the block below into ~/.codex/config.toml and set KAIN_REPO_ROOT in your shell.
-# Cold managed-sync launches can rebuild `kain.exe`, so keep the startup timeout well above 30s.
+# The direct compiled `kain` path now speaks clean MCP stdio, so Codex no longer needs the Python shim.
 
 [mcp_servers.kain_mcp]
-startup_timeout_sec = 300
-command = "C:\\WINDOWS\\py.exe"
-args = ["-3", "${KAIN_REPO_ROOT}/scripts/python/launch_kain_mcp.py"]
+startup_timeout_sec = 60
+command = "kain"
+args = ["run", "${KAIN_REPO_ROOT}/blades/kain-mcp"]
 cwd = "${KAIN_REPO_ROOT}"

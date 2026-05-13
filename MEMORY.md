@@ -1,5 +1,52 @@
 # Kain Memory
 
+# 2026-05-13 - `kain_mcp` now boots directly from compiled `kain.exe` without the Python shim
+
+The `kain_mcp` boot lane no longer needs `py` in the default Codex path. The
+root cause of the lingering "Starting MCP servers" hang was that direct
+`kain.exe run blades/kain-mcp` boot still mixed human CLI output with machine
+stdio expectations, and the blade's runtime-policy lookup was brittle when the
+repo root was the current working directory.
+
+What changed:
+
+- Updated `blades/kain-mcp/src/runtime_settings.kn` so the blade can resolve
+  `blades/kain-mcp/config` correctly when launched from the repo root instead of
+  assuming a blade-local cwd.
+- Updated `crates/cli/src/main.rs` so the CLI suppresses the human banner on
+  non-terminal stdout and also honors `KAIN_NO_BANNER` /
+  `KAIN_ENGINE_NO_BANNER`. Machine-facing consumers like MCP and JSON pipes now
+  get protocol/data output first instead of a banner line.
+- Switched repo `codex.config.toml` and root `mcp.json` to launch
+  `kain run ${KAIN_REPO_ROOT}/blades/kain-mcp` directly instead of routing
+  through `scripts/python/launch_kain_mcp.py`.
+- Switched the live machine `C:\Users\Admin\.codex\config.toml` block to launch
+  `C:\Users\Admin\.cargo\bin\kain.exe` directly with
+  `run D:\Kain-Lang\blades\kain-mcp`.
+- Kept `scripts/python/launch_kain_mcp.py` as the managed-sync fallback and
+  launcher-trace path rather than deleting it. It still matters for explicit
+  sync/debug workflows, but it is no longer the default Codex boot contract.
+
+Formal proof gathered with Z3:
+
+- `kain_mcp_nonterminal_stdout_never_emits_cli_banner`
+
+That proof encodes the new banner gate and proves there is no model where
+stdout is non-terminal yet `suppress_banner` is false.
+
+Validation:
+
+- `cargo build -p cli --target-dir target/codex-kain-mcp-direct`
+- Direct stdio `initialize` smoke against
+  `target/codex-kain-mcp-direct/debug/kain.exe run D:\Kain-Lang\blades\kain-mcp`
+  returned `Content-Length` first and a valid MCP initialize body in about
+  `12588 ms`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -ManagedSync`
+- Direct stdio `initialize` smoke against
+  `C:\Users\Admin\.cargo\bin\kain.exe run D:\Kain-Lang\blades\kain-mcp`
+  returned `Content-Length` first and a valid MCP initialize body in about
+  `7631 ms`
+
 # 2026-05-13 - managed sync now keeps doctor metadata and build numbers in sync
 
 The repo-local `kain_mcp` lane now has coherent managed build metadata end to end:

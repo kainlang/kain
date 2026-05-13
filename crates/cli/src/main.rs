@@ -1075,6 +1075,28 @@ fn run_kn_repl() -> bool {
     )))
 }
 
+fn env_var_truthy(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
+}
+
+fn should_suppress_cli_banner(args: &Args) -> bool {
+    if matches!(&args.command, Some(Commands::Format { .. })) {
+        return true;
+    }
+
+    if env_var_truthy("KAIN_NO_BANNER") || env_var_truthy("KAIN_ENGINE_NO_BANNER") {
+        return true;
+    }
+
+    !io::stdout().is_terminal()
+}
+
 fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
     match value.trim().to_ascii_lowercase().as_str() {
         "live" => Ok(ArtifactMode::Live),
@@ -1506,7 +1528,7 @@ fn main() {
                 .bin_name(launcher.display_name())
                 .get_matches();
             let args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
-            let suppress_banner = matches!(&args.command, Some(Commands::Format { .. }));
+            let suppress_banner = should_suppress_cli_banner(&args);
             let mut stdin_source = None;
             if args.command.is_none()
                 && args.input.is_none()

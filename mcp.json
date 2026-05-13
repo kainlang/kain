@@ -1,10 +1,10 @@
 {
   "mcpServers": {
     "kain-mcp": {
-      "command": "py",
+      "command": "kain",
       "args": [
-        "-3",
-        "${KAIN_REPO_ROOT}/scripts/python/launch_kain_mcp.py"
+        "run",
+        "${KAIN_REPO_ROOT}/blades/kain-mcp"
       ],
       "cwd": "${KAIN_REPO_ROOT}",
       "env": {

@@ -83,7 +83,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): legacy doctrine, plans, pipeline notes, validation notes, and research
 - [docs/examples](/M:/Code/Kain/docs/examples): runnable example ladder built from real `.kn` files, with `examples_manifest.json` and `validate_examples.py` as the durable validation surface for future agents
-- [blades/kain-mcp](blades/kain-mcp): canonical Kain-authored MCP blade. `KAIN.toml` makes it a real runnable/buildable blade, `config/runtime_policy.json` and `config/tools.json` are the data-driven operator surface, and `src/*.kn` is the live MCP implementation. `scripts/python/launch_kain_mcp.py`, root `mcp.json`, and `codex.config.toml` all launch this blade now.
+- [blades/kain-mcp](blades/kain-mcp): canonical Kain-authored MCP blade. `KAIN.toml` makes it a real runnable/buildable blade, `config/runtime_policy.json` and `config/tools.json` are the data-driven operator surface, and `src/*.kn` is the live MCP implementation. Root `mcp.json` and `codex.config.toml` now launch this blade directly through `kain run ...`; `scripts/python/launch_kain_mcp.py` remains the managed-sync fallback/debug launcher.
 - [guides](/M:/Code/Kain/guides): canonical long-form language, runtime, CLI, and reference guides
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [website](/M:/Code/Kain/website): the official KAIN public site, data-driven launch surface, and browser playground; this is now the canonical website dogfood for the public-site archetype
@@ -498,13 +498,14 @@ Typical commands:
 - `kain run blades/kain-mcp`
 - `kain run plan blades/kain-mcp`
 - `kain blades build blades/kain-mcp --json`
+- `C:\Users\Admin\.cargo\bin\kain.exe run D:\Kain-Lang\blades\kain-mcp`
 - `./runtime/fixtures/validate_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\fixtures\validate_all.ps1`
 - `./runtime/conformance/run_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\conformance\run_all.ps1`
 - `./runtime/validate_native_runtime.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1`
-- `py -3 scripts/python/launch_kain_mcp.py`
+- `py -3 scripts/python/launch_kain_mcp.py` when you explicitly want the managed-sync wrapper or launcher trace breadcrumbs
 - `powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1`
 - `cd tools/kain-flight-control && go test ./...`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
@@ -552,7 +553,7 @@ If the debug CLI is missing:
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
 - The PATH `kain` launcher can drift from the repo-local binary. The managed sync lane now writes `~/.kain/state/kain_sync_stamp.json`, and `kain doctor` reports whether the current process matches that managed binary.
-- The canonical repo MCP lane is `blades/kain-mcp`, not `tools/kain-flight-control`. If an agent starts inventing `target/.../kain.exe` invocations or references the missing `tools/kain-flight-control/launcher.py`, point it back to `scripts/python/launch_kain_mcp.py` or `kain run blades/kain-mcp`.
+- The canonical repo MCP lane is `blades/kain-mcp`, not `tools/kain-flight-control`. If an agent starts inventing `target/.../kain.exe` invocations or references the missing `tools/kain-flight-control/launcher.py`, point it back to `kain run blades/kain-mcp`; keep `scripts/python/launch_kain_mcp.py` for managed-sync fallback/debugging instead of as the default Codex boot path.
 - `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Filesystem imports now share lookup through `crates/kain-core/src/module_resolution.rs`. `use module::item` can fall back from `module/item.kn` to `module.kn` or `src/module.kn` and register the requested top-level item, while `use module::*` exposes top-level module items to best-effort typechecking. Lookup is still rooted in the process current directory, so launch nested scripts from the intended project/runtime root until source-file-relative module roots are added.
 - Filesystem stdlib globals are ABI-sensitive now. When adding new native-callable `fs_*` helpers, update `crates/kain-core/src/stdlib.rs` with precise return types, keep `stdlib/native/fs.kn` wrapper signatures explicit, and ensure LLVM skips declaring stdlib functions that the target stdlib defines in Kain source.
@@ -580,8 +581,9 @@ If the debug CLI is missing:
 - The owned bootstrap lane should never report success just because an earlier artifact still exists on disk. If `kain selfhost bootstrap` emits compile, runtime, or link errors and the expected artifact set was not freshly produced, that is a hard failure even if stale `.ll`, `.json`, or native binary files remain under `src/.selfhost/`.
 - The aggregate bootstrap source under `src/.selfhost/phase0/combined/` is an explicit temporary bridge. Future work should widen `src/KAIN.toml` and the frontend toward a real multi-file module graph instead of treating the combined source file as the permanent compiler shape.
 - `blades/kain-mcp/config/runtime_policy.json` and `blades/kain-mcp/config/tools.json` are the deterministic registry for the canonical repo MCP lane. Add env keys, binary resolution order, limits, tool schemas, and handler ids there first; keep the Kain server generic and avoid smuggling repo paths into code.
+- `crates/cli/src/main.rs` now suppresses the human CLI banner whenever stdout is non-terminal and also honors `KAIN_NO_BANNER` / `KAIN_ENGINE_NO_BANNER`. Keep machine-facing stdout clean so MCP, JSON, and other pipe-driven consumers can launch `kain` directly without a banner-stripping shim.
 - `scripts/python/launch_kain_mcp.py` now runs a policy-driven stale check before server boot (`repo_sha` + runtime stamp + binary stamp), uses a global lock under `~/.kain/locks/sync.lock`, respects a cooldown window, and falls back to the current binary when another agent holds the lock. Keep this behavior data-driven through `blades/kain-mcp/config/runtime_policy.json` rather than hardcoding paths in the launcher.
-- Codex MCP config changes are session-scoped in practice on this machine. If `~/.codex/config.toml` changes after a Codex session starts, restart that session before blaming `kain-mcp`, and inspect `~/.kain/state/kain_mcp_launcher_trace.jsonl` to see whether the Python launcher was actually invoked.
+- Codex MCP config changes are session-scoped in practice on this machine. If `~/.codex/config.toml` changes after a Codex session starts, restart that session before blaming `kain-mcp`. The current Codex default launches `C:\Users\Admin\.cargo\bin\kain.exe` directly; inspect `~/.kain/state/kain_mcp_launcher_trace.jsonl` only when you are explicitly debugging the Python managed-sync fallback.
 - `scripts/windows/sync-kain-source-of-truth.ps1` now owns managed build sequencing and atomic install swaps. It increments the build counter at `~/.kain/state/build_counter.json`, injects `KAIN_BUILD_NUMBER`, atomically replaces `kain.exe` / `kn.exe`, and writes the sync stamp consumed by launcher + doctor.
 - The managed sync script is launched through Windows `powershell` on this machine, not `pwsh`. Keep its JSON parsing compatible with Windows PowerShell 5; relying on `ConvertFrom-Json -AsHashtable` silently breaks runtime-policy reads and can leave managed build numbers stuck at `1`.
 - Platform-specific vendor support should be expressed explicitly in the manifest rather than implied by global defines. The native runtime manifest now carries shared `defines` plus per-platform `windows_defines`, `linux_defines`, and `macos_defines`; prefer those over leaking POSIX-only flags into Windows builds.

@@ -24,11 +24,17 @@ fn resolve_blade_root() -> String:
     let override_root = env("KAIN_MCP_BLADE_ROOT").trim()
     if len(override_root) > 0:
         return resolve_from_base(current, override_root)
+    let repo_local_blade = path_join(current, "blades/kain-mcp")
+    if path_is_dir(path_join(repo_local_blade, "config")):
+        return repo_local_blade
     if path_is_dir(path_join(current, "config")):
         return current
     if path_file_name(current) == "src":
         return path_parent(current)
     let parent = path_parent(current)
+    let parent_repo_local_blade = path_join(parent, "blades/kain-mcp")
+    if path_is_dir(path_join(parent_repo_local_blade, "config")):
+        return parent_repo_local_blade
     if path_is_dir(path_join(parent, "config")):
         return parent
     return current
