@@ -1,0 +1,45 @@
+[package]
+name = "kain-mcp"
+version = "0.1.0"
+description = "Canonical Kain-authored MCP blade for repo-local tooling and authoring guidance."
+
+[blade]
+name = "kain-mcp"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["run"]
+
+[run]
+entry = "src/main.kn"
+target = "kain"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/build"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check"
+kind = "check"
+entry = "src/main.kn"
+inputs = [
+  "src/main.kn",
+  "src/common.kn",
+  "src/runtime_settings.kn",
+  "src/tool_registry.kn",
+  "src/protocol.kn",
+  "src/filesystem_tools.kn",
+  "src/kain_tools.kn",
+  "src/authoring_tools.kn",
+  "src/tool_dispatch.kn",
+  "config/tools.json",
+  "config/runtime_policy.json",
+]
+
+[manifests]
+tool_registry = "config/tools.json"
+runtime_policy = "config/runtime_policy.json"
+docs_examples = "../../docs/examples/examples_manifest.json"
+docs_examples_validator = "../../docs/examples/validate_examples.py"

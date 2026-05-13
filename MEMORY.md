@@ -1,5 +1,104 @@
 # Kain Memory
 
+# 2026-05-13 - `kain-mcp` launcher transport hardened and request loop de-actorized for stability
+
+The canonical `blades/kain-mcp` lane now survives real MCP stdio clients in this
+checkout, including multi-request `tools/call` sessions from outside the repo cwd.
+
+What changed:
+
+- Hardened `scripts/python/launch_kain_mcp.py` into a real transport shim instead
+  of a simple `subprocess.call(...)` wrapper.
+- Added managed Kain binary resolution order:
+  `KAIN_MCP_KAIN_BIN` -> `target/debug` -> `target/release` -> PATH.
+- Added managed Windows Python runtime path preloading so repo-built `kain.exe`
+  can resolve `pythonXY.dll` reliably without shell-local PATH surgery.
+- Added byte-stream stdin/stdout/stderr forwarding using `os.read/os.write` to
+  avoid buffered-pipe stalls in MCP sessions.
+- Added first-line stdout filtering for the CLI banner (`KAIN Compiler v...`) so
+  the MCP `Content-Length` stream starts cleanly.
+- Switched `blades/kain-mcp/src/main.kn` from actor-backed request dispatch to a
+  direct route loop after reproducing stack-overflow crashes during
+  `tools/call` filesystem handlers in the actor context.
+- Simplified `fs.list_directory` entry payloads by dropping raw `entry.metadata`
+  from MCP structured output.
+
+Durable design note:
+
+- Keep launcher behavior transport-safe first. If the host CLI emits non-protocol
+  stdout text, scrub it at the launcher boundary unless/until the CLI gains a
+  protocol-safe quiet mode for this lane.
+- The direct routing loop is the current stability baseline. Reintroduce actor
+  routing only after reproducing and fixing the actor-context stack overflow in
+  `kain-mcp` tool handlers.
+
+Validation:
+
+- `target/debug/kain.exe run plan .\\blades\\kain-mcp`
+- `target/debug/kain.exe blades build .\\blades\\kain-mcp --json`
+- End-to-end MCP stdio smoke via `py -3 scripts/python/launch_kain_mcp.py`:
+  `initialize`, `tools/list`, `fs.list_directory`, `fs.read_file`,
+  `kain.run.plan`, `authoring.example`, and `shutdown` all returned valid
+  JSON-RPC frames.
+
+# 2026-05-13 - `blades/kain-mcp` routing moved behind a dedicated dispatch module
+
+`blades/kain-mcp/src/main.kn` no longer imports every tool handler directly or
+owns the entire handler switch chain. Tool routing now goes through
+`src/tool_dispatch.kn`, and `main.kn` only asks the dispatcher for a handled
+result.
+
+What changed:
+
+- Added `blades/kain-mcp/src/tool_dispatch.kn` with `ToolDispatchResult` and
+  `dispatch_tool_handler(...)`.
+- Switched `blades/kain-mcp/src/main.kn` to import `dispatch_tool_handler`
+  instead of importing every handler function.
+- Updated `blades/kain-mcp/KAIN.toml` build task inputs to include
+  `src/tool_dispatch.kn`.
+
+Durable design note:
+
+- Adding a new MCP tool now requires updating `config/tools.json` plus
+  `src/tool_dispatch.kn`; `src/main.kn` should remain stable unless request
+  protocol routing changes.
+- `use module::*` is accepted in the `kain-mcp` blade context, but it is not a
+  universal drop-in for every lane. The `smoketest/native-ui/episode-two`
+  lane still fails `kain check` for unrelated native-ui stdlib resolution
+  (`native_ui_node_set_text`) and should be treated as a separate cleanup task.
+
+Validation:
+
+- `target/debug/kain.exe check blades/kain-mcp/src/main.kn`
+- `target/debug/kain.exe run plan blades/kain-mcp`
+
+# 2026-05-13 - `blades/kain-mcp` became the canonical repo MCP lane
+
+The repo no longer treats the Kain-authored MCP server as a loose `MCP/server.kn`
+experiment. The live MCP implementation now lives in the real blade
+`blades/kain-mcp`, which means future agents can discover, run, build, and inspect
+it through the same blade/run pipeline as the rest of the language examples.
+
+What changed:
+
+- Added `blades/kain-mcp/KAIN.toml` with real `[package]`, `[blade]`, `[run]`, `[build]`, and `[manifests]` sections so `kain run blades/kain-mcp` and `kain blades build blades/kain-mcp --json` become the canonical operator flow.
+- Split the server into blade-owned modules under `blades/kain-mcp/src/` for runtime settings, tool registry loading, MCP protocol framing, filesystem tools, Kain operator tools, authoring/example tools, and the entry router.
+- Moved tool metadata and runtime policy into `blades/kain-mcp/config/tools.json` and `blades/kain-mcp/config/runtime_policy.json` so the MCP surface is data-driven rather than hardcoded in one giant file.
+- Pointed authoring guidance at `docs/examples/examples_manifest.json` and `docs/examples/validate_examples.py` instead of duplicating example truth inside the blade.
+- Added `scripts/python/launch_kain_mcp.py` as the canonical repo launcher. It resolves `KAIN_MCP_KAIN_BIN`, falls back through repo debug/release builds and PATH, sets `KAIN_REPO_ROOT`, and prepends discovered Python install directories to PATH so repo-built `kain.exe` can find its matching `pythonXY.dll` on Windows.
+- Updated root `mcp.json`, `codex.config.toml`, and `MCP/README.md` so the repo now advertises the blade launcher instead of the missing `tools/kain-flight-control/launcher.py` sidecar path.
+
+Durable design note:
+
+- Keep `blades/kain-mcp` as the real source of truth for repo-local MCP behavior. Root `MCP/` is now redirect-only docs, not a second implementation surface.
+- Keep new MCP tools and runtime policy data-driven. Add schemas, handler ids, env keys, limits, and resolution order to the blade config JSON first instead of hardcoding new branches into the entrypoint.
+- The blade is also a teaching example. Favor simple Kain syntax patterns that survive the current frontend: single-line helper signatures where needed, no parser-hostile inline conditionals inside argument lists, and no unnecessary `return` statements inside `-> Unit` helpers.
+
+Validation:
+
+- `target/debug/kain.exe run plan .\\blades\\kain-mcp`
+- `target/debug/kain.exe check .\\blades\\kain-mcp\\src\\main.kn`
+
 # 2026-05-12 - Native runtime commands became first-class CLI entrypoints
 
 The runtime validation wrappers from the earlier pass are now exposed directly

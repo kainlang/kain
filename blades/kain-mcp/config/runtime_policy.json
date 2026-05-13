@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "repo_root_keys": ["KAIN_REPO_ROOT", "KAIN_MCP_REPO_ROOT"],
+    "kain_bin_override_key": "KAIN_MCP_KAIN_BIN",
+    "allow_writes_key": "KAIN_MCP_ALLOW_WRITES",
+    "include_hidden_key": "KAIN_MCP_INCLUDE_HIDDEN",
+    "skip_dirs_key": "KAIN_MCP_SKIP_DIRS"
+  },
+  "paths": {
+    "tools_manifest": "config/tools.json",
+    "examples_manifest": "../../docs/examples/examples_manifest.json",
+    "examples_validator": "../../docs/examples/validate_examples.py"
+  },
+  "python_runner": {
+    "program": "py",
+    "args": ["-3"]
+  },
+  "kain_binary_candidates": [
+    "target/debug/kain.exe",
+    "target/debug/kain",
+    "target/release/kain.exe",
+    "target/release/kain",
+    "PATH:kain"
+  ],
+  "defaults": {
+    "allow_writes": true,
+    "include_hidden": false,
+    "timeout_ms": 1800000,
+    "max_list_entries": 250,
+    "default_read_limit": 200000,
+    "skip_dirs": [
+      ".git",
+      "target",
+      "node_modules",
+      "dist",
+      "build",
+      "generated",
+      "out",
+      "coverage",
+      ".cache",
+      ".venv"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # Copy the block below into ~/.codex/config.toml and set KAIN_REPO_ROOT in your shell.
 
-[mcp_servers.kain_flight_control]
-command = "python3"
-args = ["${KAIN_REPO_ROOT}/tools/kain-flight-control/launcher.py"]
+[mcp_servers.kain_mcp]
+command = "py"
+args = ["-3", "${KAIN_REPO_ROOT}/scripts/python/launch_kain_mcp.py"]
 cwd = "${KAIN_REPO_ROOT}"

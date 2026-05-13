@@ -82,10 +82,11 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [smoketest/allinone](/M:/Code/Kain/smoketest/allinone): broad regression harness that replays importers, standalone FFI bridges, GPU artifacts, Omni, Fabric, and UE5 codegen into per-lane output folders
 - [docs](/M:/Code/Kain/docs): legacy doctrine, plans, pipeline notes, validation notes, and research
 - [docs/examples](/M:/Code/Kain/docs/examples): runnable example ladder built from real `.kn` files, with `examples_manifest.json` and `validate_examples.py` as the durable validation surface for future agents
+- [blades/kain-mcp](blades/kain-mcp): canonical Kain-authored MCP blade. `KAIN.toml` makes it a real runnable/buildable blade, `config/runtime_policy.json` and `config/tools.json` are the data-driven operator surface, and `src/*.kn` is the live MCP implementation. `scripts/python/launch_kain_mcp.py`, root `mcp.json`, and `codex.config.toml` all launch this blade now.
 - [guides](/M:/Code/Kain/guides): canonical long-form language, runtime, CLI, and reference guides
 - [apps](/M:/Code/Kain/apps): first-class applications and prototypes
 - [website](/M:/Code/Kain/website): the official KAIN public site, data-driven launch surface, and browser playground; this is now the canonical website dogfood for the public-site archetype
-- [tools/kain-flight-control](tools/kain-flight-control): repo-native Go MCP sidecar for lane resolution, context packing, validation planning, allowlisted command execution, artifact inspection, failure triage, and paired-surface drift checks; the root `mcp.json` and `codex.config.toml` templates both launch it through `KAIN_REPO_ROOT`
+- [tools/kain-flight-control](tools/kain-flight-control): older repo-native Go MCP sidecar and config corpus. Keep it for adjacent experiments and reference data, but the canonical repo MCP launch path is now the Kain-authored `blades/kain-mcp` blade.
 - [apps/kain-fabric-modeler](/M:/Code/Kain/apps/kain-fabric-modeler): Fabric-first native 3D modeling app scaffold that converges Python, Kain, C ABI, Rust crate, GPU compute, Node, and native-ui packaging
 - [apps/kain-fabric-dcc-suite](/M:/Code/Kain/apps/kain-fabric-dcc-suite): broader flagship Fabric-first DCC suite scaffold with scene, ingest, sculpt, material, rig, animation, sim, render, compositor, publish, automation, and tensor planning lanes
 - [apps/kain-canvas-forge](/M:/Code/Kain/apps/kain-canvas-forge): Node-first desktop-ready painting and Three.js composition studio prototype that proves a browser and `.exe` app lane can live under `apps/`
@@ -492,13 +493,16 @@ Typical commands:
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `kain runtime build`
 - `kain runtime validate`
+- `kain run blades/kain-mcp`
+- `kain run plan blades/kain-mcp`
+- `kain blades build blades/kain-mcp --json`
 - `./runtime/fixtures/validate_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\fixtures\validate_all.ps1`
 - `./runtime/conformance/run_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\conformance\run_all.ps1`
 - `./runtime/validate_native_runtime.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1`
-- `python3 tools/kain-flight-control/launcher.py`
+- `py -3 scripts/python/launch_kain_mcp.py`
 - `cd tools/kain-flight-control && go test ./...`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
 
@@ -545,6 +549,7 @@ If the debug CLI is missing:
 
 - The root `README.md` is useful, but live source and the built CLI are the real source of truth.
 - The PATH `kain` launcher can drift from the repo-local binary. Before trusting the docs example suite, run `./target/debug/kain doctor` or call `python3 docs/examples/validate_examples.py --kain ./target/debug/kain`.
+- The canonical repo MCP lane is `blades/kain-mcp`, not `tools/kain-flight-control`. If an agent starts inventing `target/.../kain.exe` invocations or references the missing `tools/kain-flight-control/launcher.py`, point it back to `scripts/python/launch_kain_mcp.py` or `kain run blades/kain-mcp`.
 - `docs/examples/09_ue5_authoring_gallery.kn` is intentionally validated on the Rust backend in this checkout. Direct `kain build -t ue5 ...` still fails during `stdlib/ue5` loading because `max` does not resolve there yet.
 - Filesystem imports now share lookup through `crates/kain-core/src/module_resolution.rs`. `use module::item` can fall back from `module/item.kn` to `module.kn` or `src/module.kn` and register the requested top-level item, while `use module::*` exposes top-level module items to best-effort typechecking. Lookup is still rooted in the process current directory, so launch nested scripts from the intended project/runtime root until source-file-relative module roots are added.
 - Filesystem stdlib globals are ABI-sensitive now. When adding new native-callable `fs_*` helpers, update `crates/kain-core/src/stdlib.rs` with precise return types, keep `stdlib/native/fs.kn` wrapper signatures explicit, and ensure LLVM skips declaring stdlib functions that the target stdlib defines in Kain source.
@@ -558,7 +563,7 @@ If the debug CLI is missing:
 - The workspace still pins `pyo3 0.20.x`, so a machine-default Python 3.13+ or 3.14 can break builds. Prefer Python 3.12, set `PYO3_PYTHON` explicitly when needed, and keep the Python 3.12 install directory on PATH so the built `kain.exe` can resolve `python312.dll` at runtime.
 - `generated/`, `target/`, `.kain`, runtime sidecars, and compiled smoke outputs are disposable unless explicitly archived in a repo-owned archive path and cross-linked from `guides/reference/troubleshooting.md`.
 - Some Windows environments in this checkout can fail the final `.git/index.lock -> .git/index` swap with `fatal: unable to write new index file` even after the command already staged content. When that happens, use [scripts/windows/git-safe-index.ps1](D:/Kain-Lang/scripts/windows/git-safe-index.ps1) to run the mutating git command through a temporary index and stream-copy the result back into the live index.
-- The root `mcp.json` and `codex.config.toml` templates are intentionally portable. They assume only `KAIN_REPO_ROOT`; do not replace that with checkout-specific absolute paths when updating the Flight Control MCP lane.
+- The root `mcp.json` and `codex.config.toml` templates are intentionally portable. They assume only `KAIN_REPO_ROOT`; do not replace that with checkout-specific absolute paths when updating the `kain-mcp` blade lane.
 - The live SM64 decomp root currently sits at `M:\Code\Other\Research\sm64-master\sm64-master`, not the outer `sm64-master` folder. The older stale import reports pointed at the outer folder, which hid a real pathing mistake.
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - Runtime conformance harnesses that compile `kain_runtime_services.c` or `kain_runtime_contract.c` in isolation must also compile `runtime/native/src/vendor/kain_runtime_vendor_lane.c` or define `KAIN_RUNTIME_VENDOR_STUBS_ONLY=1`; the service catalog now has real vendor-backed function-table references.
@@ -570,7 +575,7 @@ If the debug CLI is missing:
 - The owned selfhost lane has the same split-contract rule: `src/KAIN.toml` is the hand-written compiler manifest, and `runtime/native_runtime.toml` is the native runtime manifest. Do not hide compiler source ordering, artifact paths, or runtime linkage behind hardcoded CLI assumptions once the manifest exists.
 - The owned bootstrap lane should never report success just because an earlier artifact still exists on disk. If `kain selfhost bootstrap` emits compile, runtime, or link errors and the expected artifact set was not freshly produced, that is a hard failure even if stale `.ll`, `.json`, or native binary files remain under `src/.selfhost/`.
 - The aggregate bootstrap source under `src/.selfhost/phase0/combined/` is an explicit temporary bridge. Future work should widen `src/KAIN.toml` and the frontend toward a real multi-file module graph instead of treating the combined source file as the permanent compiler shape.
-- `tools/kain-flight-control/config/server.toml` is the deterministic registry for repo-aware MCP behavior. Add new lanes, commands, artifact families, and pairing rules there first; keep the Go server generic and avoid smuggling repo paths into code.
+- `blades/kain-mcp/config/runtime_policy.json` and `blades/kain-mcp/config/tools.json` are the deterministic registry for the canonical repo MCP lane. Add env keys, binary resolution order, limits, tool schemas, and handler ids there first; keep the Kain server generic and avoid smuggling repo paths into code.
 - Platform-specific vendor support should be expressed explicitly in the manifest rather than implied by global defines. The native runtime manifest now carries shared `defines` plus per-platform `windows_defines`, `linux_defines`, and `macos_defines`; prefer those over leaking POSIX-only flags into Windows builds.
 - The native runtime now supports mixed C/C++ source bundles in the manifest-driven build path. Use that for Kain-owned wrapper and bridge layers, but keep the public runtime/service surface C/Kain-owned even when vendor implementation lives in C++.
 - `kain build ... -t llvm` now reuses native runtime objects incrementally under `generated/native_runtime/cache/<host>/<runtime-name>/objects` using per-object depfiles and compile fingerprints, and it can prebuild manifest-declared static archives under the sibling `archives/` cache. The current runtime manifest packs the heavy `3rdparty/` surface into a cached `vendor-runtime` archive so warm LLVM/native builds can relink one vendor library instead of recompiling every third-party translation unit. If a warm LLVM/native build starts recompiling the whole runtime again, suspect a changed compile fingerprint, missing depfiles/fingerprints, a different cache root, or a newer source/header dependency before blaming LLVM itself.

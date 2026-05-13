@@ -1,0 +1,57 @@
+pub struct ToolRegistry:
+    manifest: Any
+    tools: Any
+
+pub fn load_tool_registry(path: String) -> ToolRegistry:
+    let manifest = json_parse(read_file(path))
+    return ToolRegistry {
+        manifest: manifest,
+        tools: json_get(manifest, "tools"),
+    }
+
+pub fn select_protocol_version(requested: String) -> String:
+    if requested == "2025-11-25":
+        return requested
+    if requested == "2025-06-18":
+        return requested
+    if requested == "2025-03-26":
+        return requested
+    return "2025-06-18"
+
+pub fn build_tools_list_result(registry: ToolRegistry) -> Any:
+    let result = json_object_new()
+    json_object_set(result, "tools", registry.tools)
+    return result
+
+pub fn build_initialize_result(registry: ToolRegistry, requested_protocol: String) -> Any:
+    let manifest = registry.manifest
+    let server = json_get(manifest, "server")
+    let result = json_object_new()
+    let capabilities = json_object_new()
+    let tools = json_object_new()
+    let server_info = json_object_new()
+
+    json_object_set(result, "protocolVersion", select_protocol_version(requested_protocol))
+    json_object_set(tools, "listChanged", false)
+    json_object_set(capabilities, "tools", tools)
+    json_object_set(result, "capabilities", capabilities)
+
+    json_object_set(server_info, "name", json_get_string(server, "name"))
+    json_object_set(server_info, "title", json_get_string(server, "title"))
+    json_object_set(server_info, "version", json_get_string(server, "version"))
+    json_object_set(server_info, "description", json_get_string(server, "description"))
+    json_object_set(result, "serverInfo", server_info)
+    json_object_set(result, "instructions", json_get_string(manifest, "instructions"))
+    return result
+
+pub fn resolve_tool_handler(registry: ToolRegistry, tool_name: String) -> String:
+    for spec in registry.tools:
+        if json_get_string(spec, "name") == tool_name:
+            return json_get_string(spec, "handler")
+    return ""
+
+pub fn resolve_tool_write_flag(registry: ToolRegistry, tool_name: String) -> Bool:
+    for spec in registry.tools:
+        if json_get_string(spec, "name") == tool_name:
+            return json_get_bool(spec, "writes")
+    return false

@@ -1,0 +1,124 @@
+use common::build_error_payload
+use common::build_tool_result
+use common::is_text_like_file
+use common::optional_bool_param
+use common::optional_int_param
+use common::optional_string_param
+use common::resolve_from_base
+use common::truncate_text
+use runtime_settings::McpRuntimeSettings
+
+fn should_skip_entry(entry: Any, include_hidden: Bool, skip_dirs: Array<String>) -> Bool:
+    let file_name = entry.file_name
+    if len(file_name) == 0:
+        return false
+    if !include_hidden:
+        if file_name.starts_with("."):
+            return true
+    if entry.file_type == "dir":
+        if skip_dirs.contains(file_name):
+            return true
+    return false
+
+fn directory_entry_payload(entry: Any) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "path", entry.path)
+    json_object_set(payload, "file_name", entry.file_name)
+    json_object_set(payload, "file_type", entry.file_type)
+    return payload
+
+fn append_directory_entries(results: Array<Any>, current_path: String, recursive: Bool, include_hidden: Bool, skip_dirs: Array<String>, max_entries: Int) -> Unit:
+    if len(results) < max_entries:
+        let entries = fs_read_dir(current_path)
+        for entry in entries:
+            if len(results) < max_entries:
+                if should_skip_entry(entry, include_hidden, skip_dirs):
+                    continue
+                push(results, directory_entry_payload(entry))
+                if recursive and entry.file_type == "dir":
+                    append_directory_entries(results, entry.path, recursive, include_hidden, skip_dirs, max_entries)
+
+pub fn handle_fs_list_directory(settings: McpRuntimeSettings, params: Any) -> Any:
+    let requested_path = optional_string_param(params, "path", ".")
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
+    if !path_is_dir(resolved_path):
+        let payload = build_error_payload("Path is not a directory: " + resolved_path)
+        return build_tool_result("Directory not found: " + requested_path, payload, true, true)
+
+    let recursive = optional_bool_param(params, "recursive", false)
+    let include_hidden = optional_bool_param(params, "includeHidden", settings.include_hidden)
+    let max_entries = optional_int_param(params, "maxEntries", settings.max_list_entries)
+    let entries = []
+    append_directory_entries(entries, resolved_path, recursive, include_hidden, settings.skip_dirs, max_entries)
+
+    let structured = json_object_new()
+    json_object_set(structured, "path", resolved_path)
+    json_object_set(structured, "recursive", recursive)
+    json_object_set(structured, "includeHidden", include_hidden)
+    json_object_set(structured, "entryCount", len(entries))
+    json_object_set(structured, "maxEntries", max_entries)
+    json_object_set(structured, "truncated", len(entries) >= max_entries)
+    json_object_set(structured, "entries", entries)
+
+    let summary = "Listed " + str(len(entries)) + " entries from " + resolved_path
+    return build_tool_result(summary, structured, true, false)
+
+pub fn handle_fs_read_file(settings: McpRuntimeSettings, params: Any) -> Any:
+    let requested_path = optional_string_param(params, "path", "")
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
+    if !file_exists(resolved_path):
+        let payload = build_error_payload("Could not find file: " + resolved_path)
+        return build_tool_result("File not found: " + requested_path, payload, true, true)
+
+    let max_bytes = optional_int_param(params, "maxBytes", settings.default_read_limit)
+    let content = read_file(resolved_path)
+    let truncated = max_bytes > 0 and len(content) > max_bytes
+    let limited = truncate_text(content, max_bytes)
+
+    let structured = json_object_new()
+    json_object_set(structured, "path", resolved_path)
+    json_object_set(structured, "content", limited)
+    json_object_set(structured, "truncated", truncated)
+    json_object_set(structured, "maxBytes", max_bytes)
+    json_object_set(structured, "textLike", is_text_like_file(resolved_path))
+
+    return build_tool_result("Read " + resolved_path, structured, true, false)
+
+pub fn handle_fs_write_file(settings: McpRuntimeSettings, params: Any) -> Any:
+    if !settings.allow_writes:
+        let payload = build_error_payload("Set KAIN_MCP_ALLOW_WRITES=1 to enable write tools.")
+        return build_tool_result("Filesystem writes are disabled for this MCP session.", payload, true, true)
+
+    let requested_path = optional_string_param(params, "path", "")
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
+    let overwrite = optional_bool_param(params, "overwrite", true)
+    if file_exists(resolved_path) and !overwrite:
+        let payload = build_error_payload("The target file already exists and overwrite=false.")
+        return build_tool_result("Refused to overwrite " + resolved_path, payload, true, true)
+
+    let content = json_get_string(params, "content")
+    let parent = path_parent(resolved_path)
+    if len(parent) > 0:
+        create_dir_all(parent)
+    write_file(resolved_path, content)
+
+    let structured = json_object_new()
+    json_object_set(structured, "path", resolved_path)
+    json_object_set(structured, "bytes", len(content))
+    json_object_set(structured, "overwroteExisting", file_exists(resolved_path) and overwrite)
+
+    return build_tool_result("Wrote " + resolved_path, structured, true, false)
+
+pub fn handle_fs_make_directory(settings: McpRuntimeSettings, params: Any) -> Any:
+    if !settings.allow_writes:
+        let payload = build_error_payload("Set KAIN_MCP_ALLOW_WRITES=1 to enable write tools.")
+        return build_tool_result("Filesystem writes are disabled for this MCP session.", payload, true, true)
+
+    let requested_path = optional_string_param(params, "path", "")
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
+    create_dir_all(resolved_path)
+
+    let structured = json_object_new()
+    json_object_set(structured, "path", resolved_path)
+
+    return build_tool_result("Created directory " + resolved_path, structured, true, false)

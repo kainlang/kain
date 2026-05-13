@@ -1,0 +1,51 @@
+use authoring_tools::*
+use filesystem_tools::*
+use kain_tools::*
+use runtime_settings::McpRuntimeSettings
+
+pub struct ToolDispatchResult:
+    handled: Bool
+    result: Any
+
+fn dispatch_handled(result: Any) -> ToolDispatchResult:
+    return ToolDispatchResult {
+        handled: true,
+        result: result,
+    }
+
+fn dispatch_unhandled() -> ToolDispatchResult:
+    return ToolDispatchResult {
+        handled: false,
+        result: json_object_new(),
+    }
+
+pub fn dispatch_tool_handler(settings: McpRuntimeSettings, handler: String, tool_args: Any) -> ToolDispatchResult:
+    if handler == "fs_list_directory":
+        return dispatch_handled(handle_fs_list_directory(settings, tool_args))
+    if handler == "fs_read_file":
+        return dispatch_handled(handle_fs_read_file(settings, tool_args))
+    if handler == "fs_write_file":
+        return dispatch_handled(handle_fs_write_file(settings, tool_args))
+    if handler == "fs_make_directory":
+        return dispatch_handled(handle_fs_make_directory(settings, tool_args))
+    if handler == "kain_doctor":
+        return dispatch_handled(handle_kain_doctor(settings, tool_args))
+    if handler == "kain_check":
+        return dispatch_handled(handle_kain_check(settings, tool_args))
+    if handler == "kain_run_plan":
+        return dispatch_handled(handle_kain_run_plan(settings, tool_args))
+    if handler == "kain_build":
+        return dispatch_handled(handle_kain_build(settings, tool_args))
+    if handler == "kain_commands_help":
+        return dispatch_handled(handle_kain_commands_help(settings, tool_args))
+    if handler == "kain_blades_inspect":
+        return dispatch_handled(handle_kain_blades_inspect(settings, tool_args))
+    if handler == "kain_blades_build":
+        return dispatch_handled(handle_kain_blades_build(settings, tool_args))
+    if handler == "authoring_topics":
+        return dispatch_handled(handle_authoring_topics(settings, tool_args))
+    if handler == "authoring_example":
+        return dispatch_handled(handle_authoring_example(settings, tool_args))
+    if handler == "authoring_validate_examples":
+        return dispatch_handled(handle_authoring_validate_examples(settings, tool_args))
+    return dispatch_unhandled()
