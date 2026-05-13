@@ -29,6 +29,7 @@ snippets when the binary help output disagrees.
 - `watch`
 - `gpu-artifacts`
 - `inject`
+- `import`
 - `import-asm`
 - `import-c`
 - `import-rust`
@@ -77,6 +78,11 @@ Use `kain run`, `kain run dev`, `kain run plan`, or `kain watch` for the
 unified runtime loop. That path is owned by `crates/kain-run` and supports Kain
 source, C files, Cargo crates, Fabric manifests, Node, Bun, blades, and
 workspace `[run]` metadata.
+
+Use `kain import crates [path]` when you want to import a Rust workspace-scale
+crate tree. It auto-detects `crates/`, `rust/`, or `src/rust/` under the chosen
+root and can either emit one bundled `.kn` or, with `--blades`, mirror the
+crate/file layout into a blades-style `.kn` tree.
 
 Use `kain runtime build` and `kain runtime validate` when you want to prove the
 owned native C/C++ runtime bundle itself instead of a single authored program.

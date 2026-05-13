@@ -1,5 +1,45 @@
 # Kain Memory
 
+# 2026-05-13 - `kain import crates` adds workspace Rust bundle and blades-mirror modes
+
+The Rust import lane now has a workspace-scale operator command that can either
+emit one combined `.kn` file or mirror each discovered Cargo crate into a
+blades-style directory tree.
+
+What changed:
+
+- Added the built-in `kain import crates` command metadata and typed routing in
+  `crates/kain-commands/commands/import.toml`,
+  `crates/kain-commands/src/kain.rs`, and `crates/cli/src/main.rs`.
+- Extended `crates/cli/src/import_rust.rs` with workspace root/source-root
+  resolution, Cargo crate discovery, shared directory import helpers, combined
+  bundle emission, and `--blades` mirroring.
+- The new lane auto-detects `./crates`, then `./rust`, then `./src/rust`
+  unless `--source-root` overrides it.
+- Bundle mode defaults to `<source-root>.kn`; `--blades` defaults to a mirrored
+  `.kn` tree under `<workspace-root>/blades`.
+- Blades mode preserves the imported Rust file layout and only rewrites the
+  extension to `.kn`; it does not synthesize `KAIN.toml` manifests yet.
+
+Validation:
+
+- `cargo test -p kain-commands --target-dir target/codex-import-crates-commands -- --nocapture`
+- `cargo test -p cli --lib import_rust --target-dir target/codex-import-crates-cli -- --nocapture`
+- `cargo build -p cli --target-dir target/codex-import-crates-bin`
+- `target/codex-import-crates-bin/debug/kain.exe import crates --output target/codex-import-crates-smoke/cuda.kn`
+  from `reference/cuda`
+- `target/codex-import-crates-bin/debug/kain.exe import crates --blades --output target/codex-import-crates-smoke/cuda-blades`
+  from `reference/cuda`
+
+Durable note:
+
+- `reference/cuda` is a strong smoke corpus for this lane. In this checkout the
+  command auto-detected `reference/cuda/crates`, imported 17 crates and 251
+  Rust files, emitted a 3,133,735-byte bundle, mirrored 251 `.kn` files in
+  blades mode, and reported 501 lossy-lowering diagnostics across 148 files.
+- Use `--source-root` when the workspace root is not the folder that directly
+  contains `crates/`, `rust/`, or `src/rust`.
+
 # 2026-05-13 - Managed sync lane proved live and `kain-json` became a runnable blade example
 
 The managed `kain-mcp` sync lane is now proven against the real PATH-installed

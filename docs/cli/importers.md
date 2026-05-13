@@ -1,6 +1,6 @@
 # Importers
 
-Snapshot: April 12, 2026.
+Snapshot: May 13, 2026.
 
 Kain's importers translate foreign source into Kain source or direct target
 artifacts. They are first-class workflows, not utility scripts.
@@ -19,6 +19,8 @@ Across the current importers:
 If you give a directory and no `--output`, the importer writes next to the
 source tree by default. If you give a single file and no `--output`, the importer
 usually keeps the result in memory unless you also ask for a target write.
+`kain import crates` is the workspace-scale exception: bundle mode defaults to
+`<source-root>.kn`, while `--blades` defaults to `<workspace-root>/blades`.
 
 ## `import-asm`
 
@@ -91,6 +93,39 @@ The report JSON includes:
 - `lossy_diagnostics`
 - `diagnostics_by_class`
 - file-level `repair_hint` entries
+
+## `import crates`
+
+`kain import crates [path] [options]`
+
+Flags:
+
+- `--source-root`
+- `-o/--output`
+- `--blades`
+- `-t/--target`
+- `--flat`
+- `--include`
+- `--exclude`
+- `--fail-fast`
+
+This is the workspace-scale Rust import lane. It resolves the workspace root
+from `[path]` or the current directory, then auto-detects `./crates`,
+`./rust`, or `./src/rust` unless `--source-root` is provided explicitly.
+
+Default mode merges every discovered Cargo crate into one generated `.kn`
+bundle. `--blades` instead mirrors the crate/file layout into a blades-style
+directory tree, rewriting each imported Rust file to a sibling `.kn`.
+
+Default outputs:
+
+- bundle mode: `<source-root>.kn`
+- blades mode: `<workspace-root>/blades`
+
+If no child crate directories are found but the detected source root itself has
+a `Cargo.toml`, the importer treats that source root as a single crate.
+
+`-t/--target` is only valid for bundle mode and conflicts with `--blades`.
 
 ## `import-crate`
 

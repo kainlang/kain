@@ -27,6 +27,15 @@ impl Default for ImportRustBatchOptions {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ImportRustCratesOptions {
+    pub source_root: Option<PathBuf>,
+    pub output: Option<PathBuf>,
+    pub blades: bool,
+    pub target: Option<String>,
+    pub batch: ImportRustBatchOptions,
+}
+
 #[derive(Debug, Default)]
 struct ImportRustSummary {
     discovered_files: usize,
@@ -73,9 +82,226 @@ struct ImportRustFailureReport {
     generated_at_utc: String,
 }
 
+#[derive(Debug, Clone)]
+struct ImportedRustFileProgram {
+    relative_path: PathBuf,
+    program: kain_core::ast::Program,
+}
+
+#[derive(Debug)]
+struct ImportedRustDirectoryPrograms {
+    imported_files: Vec<ImportedRustFileProgram>,
+    summary: ImportRustSummary,
+}
+
+#[derive(Debug)]
+struct ImportedRustCrateResult {
+    crate_name: String,
+    imported_files: Vec<ImportedRustFileProgram>,
+}
+
 /// Import a Rust file into KAIN AST and optionally write/compile
 pub fn import_rust(input: &Path, output: Option<&Path>, target: Option<&str>) -> KainResult<()> {
     import_rust_with_batch(input, output, target, &ImportRustBatchOptions::default())
+}
+
+pub fn import_workspace_crates(
+    workspace_root: &Path,
+    options: &ImportRustCratesOptions,
+) -> KainResult<()> {
+    let source_root =
+        resolve_workspace_rust_source_root(workspace_root, options.source_root.as_deref())?;
+    let crate_roots = discover_workspace_crate_roots(&source_root)?;
+
+    let discovered_crates = crate_roots.len();
+    let mut imported_crates = Vec::new();
+    let mut workspace_diagnostics = Vec::new();
+    let mut workspace_failed_previews = Vec::new();
+    let mut total_discovered_files = 0usize;
+    let mut total_imported_files = 0usize;
+    let mut total_skipped_files = 0usize;
+    let mut total_failed_files = 0usize;
+
+    for crate_root in crate_roots {
+        let crate_name = crate_root
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("crate")
+            .to_string();
+        let result = import_rust_directory_programs(&crate_root, &options.batch)?;
+
+        total_discovered_files += result.summary.discovered_files;
+        total_imported_files += result.summary.imported_files;
+        total_skipped_files += result.summary.skipped_files;
+        total_failed_files += result.summary.failed_files.len();
+
+        if workspace_failed_previews.len() < 5 {
+            for (path, error) in &result.summary.failed_files {
+                if workspace_failed_previews.len() >= 5 {
+                    break;
+                }
+                let relative = path.strip_prefix(&crate_root).unwrap_or(path);
+                workspace_failed_previews.push(format!(
+                    "{}:{}: {}",
+                    crate_name,
+                    relative.display(),
+                    error
+                ));
+            }
+        }
+
+        workspace_diagnostics.extend(result.summary.diagnostics.clone());
+
+        if !result.imported_files.is_empty() {
+            imported_crates.push(ImportedRustCrateResult {
+                crate_name,
+                imported_files: result.imported_files,
+            });
+        }
+    }
+
+    if imported_crates.is_empty() {
+        let detail = if workspace_failed_previews.is_empty() {
+            "No Rust source files matched include/exclude filters across discovered crates"
+                .to_string()
+        } else {
+            format!(
+                "All matching Rust files across discovered crates failed to import (e.g. {})",
+                workspace_failed_previews.join(" | ")
+            )
+        };
+        return Err(KainError::runtime(detail));
+    }
+
+    let imported_crate_count = imported_crates.len();
+    let skipped_crate_count = discovered_crates.saturating_sub(imported_crate_count);
+
+    if options.blades {
+        let output_root = options
+            .output
+            .as_deref()
+            .map(|path| resolve_workspace_relative_path(workspace_root, path))
+            .unwrap_or_else(|| workspace_root.join("blades"));
+        let mirrored_file_count = emit_imported_crates_as_blades(&output_root, &imported_crates)?;
+
+        println!("✅ Import complete");
+        println!("   Mode: mirrored blades workspace");
+        println!("   Workspace root: {}", workspace_root.display());
+        println!("   Source root: {}", source_root.display());
+        println!("   Output root: {}", output_root.display());
+        println!(
+            "   Crates: discovered {}, imported {}, skipped {}",
+            discovered_crates, imported_crate_count, skipped_crate_count
+        );
+        println!(
+            "   Rust files: discovered {}, imported {}, skipped {}, failed {}",
+            total_discovered_files, total_imported_files, total_skipped_files, total_failed_files
+        );
+        println!("   Mirrored KAIN files: {}", mirrored_file_count);
+    } else {
+        let output_path = options
+            .output
+            .as_deref()
+            .map(|path| resolve_workspace_relative_path(workspace_root, path))
+            .unwrap_or_else(|| source_root.with_extension("kn"));
+        let program = merge_workspace_crate_programs(imported_crates, options.batch.flat);
+        let kain_source = generate_kain_source(&program)?;
+        write_generated_kain_file(&output_path, &kain_source, "workspace Rust import bundle")?;
+        println!(
+            "✓ Generated KAIN source: {} ({} bytes)",
+            output_path.display(),
+            kain_source.len()
+        );
+
+        let mut compiled_output_path: Option<PathBuf> = None;
+        if let Some(target_str) = options.target.as_deref() {
+            let compile_target = crate::parse_compile_target(target_str)
+                .ok_or_else(|| KainError::runtime(format!("Unknown target: {}", target_str)))?;
+            println!("🔨 Compiling to target: {}", target_str);
+            let compiled = crate::compile(&kain_source, compile_target)
+                .map_err(|e| KainError::runtime(format!("Compilation failed: {}", e)))?;
+            let compiled_output =
+                output_path.with_extension(crate::target_extension(compile_target));
+            write_generated_kain_file(
+                &compiled_output,
+                &compiled,
+                "workspace Rust import compiled output",
+            )?;
+            compiled_output_path = Some(compiled_output.clone());
+            println!(
+                "✓ Compiled output: {} ({} bytes)",
+                compiled_output.display(),
+                compiled.len()
+            );
+        }
+
+        println!("✅ Import complete");
+        println!("   Mode: single bundle");
+        println!("   Workspace root: {}", workspace_root.display());
+        println!("   Source root: {}", source_root.display());
+        println!(
+            "   Crates: discovered {}, imported {}, skipped {}",
+            discovered_crates, imported_crate_count, skipped_crate_count
+        );
+        println!(
+            "   Rust files: discovered {}, imported {}, skipped {}, failed {}",
+            total_discovered_files, total_imported_files, total_skipped_files, total_failed_files
+        );
+        println!("   Functions: {}", count_functions(&program));
+        println!("   Structs: {}", count_structs(&program));
+        println!("   Enums: {}", count_enums(&program));
+        println!("   Bundle output: {}", output_path.display());
+        if let Some(compiled_output_path) = compiled_output_path {
+            println!("   Compiled output: {}", compiled_output_path.display());
+        }
+    }
+
+    if !workspace_failed_previews.is_empty() {
+        println!("   Failed files:");
+        for preview in &workspace_failed_previews {
+            println!("     - {}", preview);
+        }
+        if total_failed_files > workspace_failed_previews.len() {
+            println!(
+                "     ... {} more",
+                total_failed_files - workspace_failed_previews.len()
+            );
+        }
+    }
+
+    if !workspace_diagnostics.is_empty() {
+        let total_diags: usize = workspace_diagnostics
+            .iter()
+            .map(|(_, diagnostics)| diagnostics.len())
+            .sum();
+        let class_counts = diagnostic_class_counts(&workspace_diagnostics);
+        let external_mod_diags = *class_counts.get("external_mod_decl").unwrap_or(&0);
+        let visible_diags = total_diags.saturating_sub(external_mod_diags);
+        if visible_diags > 0 {
+            println!(
+                "   Lossy lowering: {} diagnostic(s) across {} file(s)",
+                visible_diags,
+                workspace_diagnostics.len()
+            );
+            if let Some((class, count)) = class_counts
+                .iter()
+                .find(|(class, _)| class.as_str() != "external_mod_decl")
+            {
+                println!(
+                    "   Primary repair seam: class:{} ({} note(s))",
+                    class, count
+                );
+            }
+        }
+        if external_mod_diags > 0 {
+            println!(
+                "   External module declarations: {} note(s)",
+                external_mod_diags
+            );
+        }
+    }
+
+    Ok(())
 }
 
 /// Import a Rust file or directory into KAIN AST and optionally write/compile.
@@ -279,80 +505,10 @@ fn import_path_to_program(
         )));
     }
 
-    let mut candidates = Vec::new();
-    collect_rust_files(input, batch.recursive, &mut candidates)?;
-    candidates.sort();
-
-    let mut summary = ImportRustSummary {
-        discovered_files: candidates.len(),
-        ..ImportRustSummary::default()
-    };
-
-    let mut merged_items = Vec::new();
-    let mut module_name_counts: HashMap<String, usize> = HashMap::new();
-    let normalized_includes = normalize_filters(&batch.include_filters);
-    let normalized_excludes = normalize_filters(&batch.exclude_filters);
-
-    for file in candidates {
-        let rel = file.strip_prefix(input).unwrap_or(file.as_path());
-        if !path_matches_filters(rel, &normalized_includes, &normalized_excludes) {
-            summary.skipped_files += 1;
-            continue;
-        }
-
-        match kain_import::import_rust_file_detailed(&file) {
-            Ok((program, diagnostics)) => {
-                summary.imported_files += 1;
-                if !diagnostics.is_empty() {
-                    summary.diagnostics.push((file.clone(), diagnostics));
-                }
-
-                if batch.flat {
-                    merged_items.extend(program.items);
-                } else {
-                    let module_path = module_path_for_relative_file(rel);
-                    if module_path.is_empty() {
-                        merged_items.extend(program.items);
-                    } else {
-                        let entry = module_name_counts
-                            .entry(module_path.join("::"))
-                            .or_insert(0);
-                        *entry += 1;
-                        let resolved_module_path = if *entry == 1 {
-                            module_path
-                        } else {
-                            let mut adjusted = module_path;
-                            if let Some(last) = adjusted.last_mut() {
-                                *last = format!("{}_{}", last, *entry);
-                            }
-                            adjusted
-                        };
-
-                        merged_items
-                            .push(build_nested_module(&resolved_module_path, program.items));
-                    }
-                }
-            }
-            Err(err) => {
-                let compact = compact_error_message(&format!("{}", err));
-                summary.failed_files.push((file.clone(), compact));
-                if batch.fail_fast {
-                    return Err(KainError::runtime(format!(
-                        "Rust import failed: {}: {}",
-                        file.display(),
-                        err
-                    )));
-                }
-            }
-        }
-    }
-
+    let result = import_rust_directory_programs(input, batch)?;
     Ok((
-        kain_core::ast::Program {
-            items: merged_items,
-            span: kain_core::span::Span::default(),
-        },
-        summary,
+        merge_imported_directory_programs(result.imported_files, batch.flat),
+        result.summary,
     ))
 }
 
@@ -498,6 +654,63 @@ fn compact_error_message(raw: &str) -> String {
     compact
 }
 
+fn import_rust_directory_programs(
+    input: &Path,
+    batch: &ImportRustBatchOptions,
+) -> KainResult<ImportedRustDirectoryPrograms> {
+    let mut candidates = Vec::new();
+    collect_rust_files(input, batch.recursive, &mut candidates)?;
+    candidates.sort();
+
+    let mut summary = ImportRustSummary {
+        discovered_files: candidates.len(),
+        ..ImportRustSummary::default()
+    };
+    let mut imported_files = Vec::new();
+    let normalized_includes = normalize_filters(&batch.include_filters);
+    let normalized_excludes = normalize_filters(&batch.exclude_filters);
+
+    for file in candidates {
+        let relative_path = file
+            .strip_prefix(input)
+            .unwrap_or(file.as_path())
+            .to_path_buf();
+        if !path_matches_filters(&relative_path, &normalized_includes, &normalized_excludes) {
+            summary.skipped_files += 1;
+            continue;
+        }
+
+        match kain_import::import_rust_file_detailed(&file) {
+            Ok((program, diagnostics)) => {
+                summary.imported_files += 1;
+                if !diagnostics.is_empty() {
+                    summary.diagnostics.push((file.clone(), diagnostics));
+                }
+                imported_files.push(ImportedRustFileProgram {
+                    relative_path,
+                    program,
+                });
+            }
+            Err(err) => {
+                let compact = compact_error_message(&format!("{}", err));
+                summary.failed_files.push((file.clone(), compact));
+                if batch.fail_fast {
+                    return Err(KainError::runtime(format!(
+                        "Rust import failed: {}: {}",
+                        file.display(),
+                        err
+                    )));
+                }
+            }
+        }
+    }
+
+    Ok(ImportedRustDirectoryPrograms {
+        imported_files,
+        summary,
+    })
+}
+
 fn collect_rust_files(root: &Path, recursive: bool, out: &mut Vec<PathBuf>) -> KainResult<()> {
     let entries = fs::read_dir(root).map_err(|e| {
         KainError::runtime(format!(
@@ -628,6 +841,211 @@ fn build_nested_module(path: &[String], items: Vec<kain_core::ast::Item>) -> kai
     }
 
     current.into_iter().next().expect("nested module wrapper")
+}
+
+fn merge_imported_directory_programs(
+    imported_files: Vec<ImportedRustFileProgram>,
+    flat: bool,
+) -> kain_core::ast::Program {
+    let mut merged_items = Vec::new();
+    let mut module_name_counts: HashMap<String, usize> = HashMap::new();
+
+    for imported_file in imported_files {
+        let ImportedRustFileProgram {
+            relative_path,
+            program,
+            ..
+        } = imported_file;
+
+        if flat {
+            merged_items.extend(program.items);
+            continue;
+        }
+
+        let module_path = module_path_for_relative_file(&relative_path);
+        if module_path.is_empty() {
+            merged_items.extend(program.items);
+            continue;
+        }
+
+        let entry = module_name_counts
+            .entry(module_path.join("::"))
+            .or_insert(0);
+        *entry += 1;
+        let resolved_module_path = if *entry == 1 {
+            module_path
+        } else {
+            let mut adjusted = module_path;
+            if let Some(last) = adjusted.last_mut() {
+                *last = format!("{}_{}", last, *entry);
+            }
+            adjusted
+        };
+
+        merged_items.push(build_nested_module(&resolved_module_path, program.items));
+    }
+
+    kain_core::ast::Program {
+        items: merged_items,
+        span: kain_core::span::Span::default(),
+    }
+}
+
+fn resolve_workspace_rust_source_root(
+    workspace_root: &Path,
+    explicit_source_root: Option<&Path>,
+) -> KainResult<PathBuf> {
+    if let Some(source_root) = explicit_source_root {
+        let resolved = resolve_workspace_relative_path(workspace_root, source_root);
+        if !resolved.is_dir() {
+            return Err(KainError::runtime(format!(
+                "Rust source root is not a directory: {}",
+                resolved.display()
+            )));
+        }
+        return Ok(resolved);
+    }
+
+    for candidate in [
+        workspace_root.join("crates"),
+        workspace_root.join("rust"),
+        workspace_root.join("src").join("rust"),
+    ] {
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(KainError::runtime(format!(
+        "No Rust crate source root found under {} (checked ./crates, ./rust, and ./src/rust)",
+        workspace_root.display()
+    )))
+}
+
+fn discover_workspace_crate_roots(source_root: &Path) -> KainResult<Vec<PathBuf>> {
+    let mut crate_roots = Vec::new();
+    let entries = fs::read_dir(source_root).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to read Rust source root {}: {}",
+            source_root.display(),
+            err
+        ))
+    })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|err| {
+            KainError::runtime(format!("Failed to read directory entry: {}", err))
+        })?;
+        let path = entry.path();
+        if path.is_dir() && path.join("Cargo.toml").is_file() {
+            crate_roots.push(path);
+        }
+    }
+
+    crate_roots.sort();
+    crate_roots.dedup();
+
+    if crate_roots.is_empty() && source_root.join("Cargo.toml").is_file() {
+        crate_roots.push(source_root.to_path_buf());
+    }
+
+    if crate_roots.is_empty() {
+        return Err(KainError::runtime(format!(
+            "No Rust crates with Cargo.toml were discovered under {}",
+            source_root.display()
+        )));
+    }
+
+    Ok(crate_roots)
+}
+
+fn resolve_workspace_relative_path(workspace_root: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        workspace_root.join(path)
+    }
+}
+
+fn merge_workspace_crate_programs(
+    crate_results: Vec<ImportedRustCrateResult>,
+    flat: bool,
+) -> kain_core::ast::Program {
+    let mut merged_items = Vec::new();
+    let mut crate_name_counts: HashMap<String, usize> = HashMap::new();
+
+    for crate_result in crate_results {
+        let program = merge_imported_directory_programs(crate_result.imported_files, flat);
+        if flat {
+            merged_items.extend(program.items);
+            continue;
+        }
+        if program.items.is_empty() {
+            continue;
+        }
+
+        let base_name = sanitize_module_component(&crate_result.crate_name);
+        let entry = crate_name_counts.entry(base_name.clone()).or_insert(0);
+        *entry += 1;
+        let crate_module_name = if *entry == 1 {
+            base_name
+        } else {
+            format!("{}_{}", base_name, *entry)
+        };
+        merged_items.push(build_nested_module(&[crate_module_name], program.items));
+    }
+
+    kain_core::ast::Program {
+        items: merged_items,
+        span: kain_core::span::Span::default(),
+    }
+}
+
+fn emit_imported_crates_as_blades(
+    output_root: &Path,
+    crate_results: &[ImportedRustCrateResult],
+) -> KainResult<usize> {
+    let mut mirrored_file_count = 0usize;
+
+    for crate_result in crate_results {
+        for imported_file in &crate_result.imported_files {
+            let rendered = generate_kain_source(&imported_file.program)?;
+            let output_path = output_root.join(&crate_result.crate_name).join(
+                kain_output_relative_path_for_source_file(&imported_file.relative_path),
+            );
+            write_generated_kain_file(&output_path, &rendered, "workspace blades mirror")?;
+            mirrored_file_count += 1;
+        }
+    }
+
+    Ok(mirrored_file_count)
+}
+
+fn kain_output_relative_path_for_source_file(relative_path: &Path) -> PathBuf {
+    let mut output_path = relative_path.to_path_buf();
+    output_path.set_extension("kn");
+    output_path
+}
+
+fn write_generated_kain_file(path: &Path, content: &str, label: &str) -> KainResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to create {} parent directory {}: {}",
+                label,
+                parent.display(),
+                err
+            ))
+        })?;
+    }
+    fs::write(path, content).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to write {} {}: {}",
+            label,
+            path.display(),
+            err
+        ))
+    })
 }
 
 /// Generate KAIN source code from AST
@@ -1838,7 +2256,10 @@ fn count_enums(program: &kain_core::ast::Program) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn rust_import_printer_preserves_tauri_preview_expression_bodies() {
@@ -1893,5 +2314,33 @@ mod tests {
         assert!(generated.contains("await run_native_blocking_task"));
         assert!(generated.contains("BinaryResponse__new_(bytes)"));
         assert!(generated.contains("dirs__home_dir().map"));
+    }
+
+    #[test]
+    fn blades_output_paths_preserve_relative_rust_layout() {
+        assert_eq!(
+            kain_output_relative_path_for_source_file(Path::new("src/lib.rs")),
+            PathBuf::from("src/lib.kn")
+        );
+        assert_eq!(
+            kain_output_relative_path_for_source_file(Path::new("build.rs")),
+            PathBuf::from("build.kn")
+        );
+        assert_eq!(
+            kain_output_relative_path_for_source_file(Path::new("tests/basic.rs")),
+            PathBuf::from("tests/basic.kn")
+        );
+    }
+
+    #[test]
+    fn workspace_source_root_detection_prefers_crates_then_rust() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let workspace_root = temp_dir.path();
+        fs::create_dir_all(workspace_root.join("rust")).expect("rust dir");
+        fs::create_dir_all(workspace_root.join("crates")).expect("crates dir");
+
+        let resolved = resolve_workspace_rust_source_root(workspace_root, None)
+            .expect("source root should resolve");
+        assert_eq!(resolved, workspace_root.join("crates"));
     }
 }

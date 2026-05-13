@@ -98,7 +98,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [testing](/M:/Code/Kain/testing): test infrastructure and fixtures
 - [src](src): owned selfhost root; keep only `src/core`, source docs, `src/.legacy`, and `src/.rustimport` at the top level
 - [src/core](src/core): canonical owned Kain core surface; this is the active hand-authored selfhost language tree
-- [src/.rustimport](src/.rustimport): reference-only donor and phase2 mirror root; `reference/` holds the moved Rust import corpus and `phase2/` is the canonical live selfhost mirror root
+- [src/.rustimport](src/.rustimport): reference-only donor and phase2 mirror root; `reference/` holds the moved Rust import corpus plus earlier mirrored crate-layout examples, `phase2/` is the canonical live selfhost mirror root, and `kain import crates --blades` is the operator path for recreating that per-crate `.kn` layout from a live Rust workspace
 - [src/.legacy](src/.legacy): archival donor tree kept for historical reference only
 - [ouroboros](ouroboros): selfhost control-plane manifests, repair tooling, inventories, reports, and pipeline automation
 
@@ -490,6 +490,7 @@ Typical commands:
 - `kain fabric run`
 - `python3 scripts/python/validate_dcc_parity_matrix.py`
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
+- `kain import crates [workspace-root]` for workspace-scale Rust bundling or `kain import crates [workspace-root] --blades` to mirror each Cargo crate into a blades-style `.kn` tree
 - `python tools\typescript_import\extract_ambient_manifest.py` to regenerate the embedded TypeScript ambient manifest from `reference/TypeScript-main/src/lib` plus `tools/typescript_import/typescript_ambient_overrides.json`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `kain runtime build`

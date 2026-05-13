@@ -1,6 +1,6 @@
 # Command Matrix
 
-Snapshot: May 12, 2026.
+Snapshot: May 13, 2026.
 
 This page is the canonical command inventory for the built-in command
 manifests in `crates/kain-commands/commands/*.toml` and the typed Clap routers
@@ -60,6 +60,7 @@ These flags live at the top level of `kain` / `kn`:
 | `watch` | run the unified run plan in watcher mode | `cli/build-run-init.md` |
 | `gpu-artifacts` | emit SPIR-V, Rust host wrappers, and reflection JSON | `cli/native-ui-and-packaging.md` |
 | `inject` | inject Kain output into an existing plugin | `cli/native-ui-and-packaging.md` |
+| `import` | workspace-oriented import workflows such as Rust crate-tree import | `cli/importers.md` |
 | `import-asm` | import assembly source | `cli/importers.md` |
 | `import-c` | import C source | `cli/importers.md` |
 | `import-rust` | import Rust source | `cli/importers.md` |
@@ -192,6 +193,23 @@ under `.kain/cache/run`; JSON reports and JSONL event streams live under
 | `--json` | write a structured test report |
 
 ## Importer Flags
+
+### `import crates`
+
+| Flag | Meaning |
+| --- | --- |
+| `path` | optional workspace root, defaults to the current directory |
+| `--source-root` | explicit Rust source root; otherwise detect `./crates`, then `./rust`, then `./src/rust` |
+| `-o`, `--output` | bundle `.kn` output path or mirrored blades output directory |
+| `--blades` | mirror each imported crate/file into a blades-style directory tree instead of one bundle |
+| `-t`, `--target` | compile the generated bundle directly; conflicts with `--blades` |
+| `--flat` | flatten imported symbols into one global scope inside each generated program |
+| `--include` | include filters by path fragment |
+| `--exclude` | exclude filters by path fragment |
+| `--fail-fast` | stop on the first failed file import |
+
+Default bundle output is `<source-root>.kn`. Default blades output root is
+`<workspace-root>/blades`.
 
 ### `import-asm`
 

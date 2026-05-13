@@ -283,6 +283,47 @@ pub enum BridgeCommand {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum ImportCommand {
+    /// Import every Rust crate in a workspace into one Kain bundle or a mirrored blades tree
+    Crates {
+        /// Workspace root (defaults to the current directory)
+        path: Option<PathBuf>,
+
+        /// Explicit Rust workspace source root (defaults to ./crates, ./rust, or ./src/rust)
+        #[arg(long)]
+        source_root: Option<PathBuf>,
+
+        /// Output .kn file for bundle mode or output directory for --blades mode
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Mirror each imported crate into a blades-style directory tree
+        #[arg(long)]
+        blades: bool,
+
+        /// Compilation target for the generated bundle file
+        #[arg(short, long, conflicts_with = "blades")]
+        target: Option<String>,
+
+        /// Flatten all imported items into one global scope in bundle mode
+        #[arg(long)]
+        flat: bool,
+
+        /// Include only files whose relative path contains one of these filters
+        #[arg(long = "include", value_delimiter = ',')]
+        include_filters: Vec<String>,
+
+        /// Exclude files whose relative path contains one of these filters
+        #[arg(long = "exclude", value_delimiter = ',')]
+        exclude_filters: Vec<String>,
+
+        /// Stop on first failed file import (default: continue and report failures)
+        #[arg(long)]
+        fail_fast: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 #[command(disable_help_subcommand = true)]
 pub enum RegistryCommand {
     /// List command registry entries
@@ -427,6 +468,12 @@ pub enum KainCommand {
     Fabric {
         #[command(subcommand)]
         command: FabricCommand,
+    },
+
+    /// Import grouped foreign source workflows
+    Import {
+        #[command(subcommand)]
+        command: ImportCommand,
     },
 
     /// Resolve and inspect local Kain blade workspaces
@@ -858,6 +905,43 @@ mod tests {
                 assert!(check);
             }
             other => panic!("expected format command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_import_crates_blades_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "import",
+            "crates",
+            "workspace",
+            "--source-root",
+            "rust",
+            "--output",
+            "out/blades",
+            "--blades",
+            "--include",
+            "src",
+        ]);
+        match cli.command {
+            Some(KainCommand::Import {
+                command:
+                    ImportCommand::Crates {
+                        path,
+                        source_root,
+                        output,
+                        blades,
+                        include_filters,
+                        ..
+                    },
+            }) => {
+                assert_eq!(path, Some(PathBuf::from("workspace")));
+                assert_eq!(source_root, Some(PathBuf::from("rust")));
+                assert_eq!(output, Some(PathBuf::from("out/blades")));
+                assert!(blades);
+                assert_eq!(include_filters, ["src"]);
+            }
+            other => panic!("expected import crates command, got {other:?}"),
         }
     }
 

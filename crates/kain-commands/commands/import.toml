@@ -37,6 +37,14 @@ handler = "builtin:import-crate"
 tags = ["import", "rust"]
 
 [[commands]]
+id = "import.crates"
+bins = ["kain", "kn"]
+path = ["import", "crates"]
+about = "Import every Rust crate in a workspace into one Kain bundle or a mirrored blades tree"
+handler = "builtin:import-crates"
+tags = ["import", "rust", "workspace", "blades"]
+
+[[commands]]
 id = "import-ts"
 bins = ["kain", "kn"]
 path = ["import-ts"]

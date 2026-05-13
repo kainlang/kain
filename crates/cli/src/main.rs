@@ -32,8 +32,8 @@ use kain_c_ffi::{
     PrepareContext as CPrepareContext,
 };
 use kain_commands::kain::{
-    BridgeCommand, BuildCommand, KainCli as Args, KainCommand as Commands, NativeUiCommand,
-    RegistryCommand, RunCommand,
+    BridgeCommand, BuildCommand, ImportCommand, KainCli as Args, KainCommand as Commands,
+    NativeUiCommand, RegistryCommand, RunCommand,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use kain_repl::{
@@ -1676,6 +1676,51 @@ fn main() {
                         std::process::exit(1);
                     }
                 }
+                Some(Commands::Import { command }) => match command {
+                    ImportCommand::Crates {
+                        path,
+                        source_root,
+                        output,
+                        blades,
+                        target,
+                        flat,
+                        include_filters,
+                        exclude_filters,
+                        fail_fast,
+                    } => {
+                        let workspace_root = match path {
+                            Some(path) => path,
+                            None => match std::env::current_dir() {
+                                Ok(path) => path,
+                                Err(err) => {
+                                    eprintln!("❌ import crates failed: {}", err);
+                                    std::process::exit(1);
+                                }
+                            },
+                        };
+                        let batch = import_rust::ImportRustBatchOptions {
+                            recursive: true,
+                            flat,
+                            include_filters,
+                            exclude_filters,
+                            fail_fast,
+                            report_json: None,
+                        };
+                        let options = import_rust::ImportRustCratesOptions {
+                            source_root,
+                            output,
+                            blades,
+                            target,
+                            batch,
+                        };
+                        if let Err(err) =
+                            import_rust::import_workspace_crates(&workspace_root, &options)
+                        {
+                            eprintln!("❌ import crates failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                },
                 Some(Commands::Blades { command }) => {
                     if let Err(e) = blades::run(command) {
                         eprintln!(" Blades command failed: {}", e);
