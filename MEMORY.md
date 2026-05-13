@@ -1,5 +1,44 @@
 # Kain Memory
 
+# 2026-05-13 - `kain_mcp` Codex timeout was a cold-sync budget issue, not a protocol bug
+
+The recent Codex `kain_mcp` startup timeout was caused by managed sync rebuilding
+the PATH-installed `kain.exe` before the MCP server answered `initialize`, not by
+JSON-RPC framing failure in the blade transport.
+
+What changed:
+
+- Updated repo `codex.config.toml` so the canonical copied MCP block now sets
+  `startup_timeout_sec = 300` and explicitly documents that cold managed-sync
+  launches can exceed 30 seconds.
+- Hardened `scripts/python/launch_kain_mcp.py` with immediate stderr reporting
+  of stale-sync reasons plus an explicit `running managed sync before MCP startup`
+  message, so future launch delays are diagnosable from Codex logs.
+- Hardened `scripts/windows/sync-kain-source-of-truth.ps1` so it can resolve the
+  repo root from `scripts/windows` even when the caller does not provide
+  `KAIN_REPO_ROOT` and `git rev-parse` discovery is unavailable.
+
+Formal proofs gathered with Z3:
+
+- `kain_mcp_timeout_root_cause_stale_stamp_implies_sync_required`
+- `kain_mcp_stale_repo_head_after_new_commit_requires_new_sync_attempt`
+- `kain_mcp_startup_non_blocking_if_runnable_binary_exists`
+- `kain_mcp_sync_requires_wait_only_when_no_runnable_binary_exists`
+- `kain_mcp_sync_lock_contention_never_blocks_if_current_binary_is_still_usable`
+
+These proofs do not claim the Rust/Python/OS build world is mathematically bounded;
+they prove the launcher decision logic and stale-stamp predicates. External build
+duration still requires an operator timeout budget.
+
+Validation:
+
+- `py -3 -m py_compile scripts/python/launch_kain_mcp.py`
+- TOML parse of `C:\\Users\\Admin\\.codex\\config.toml`
+- TOML parse of repo `codex.config.toml`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -ManagedSync`
+- Cold managed sync rebuild path completed in about `200 s`
+- Outside-cwd MCP `initialize` timing smoke: first response in about `8419 ms`
+
 # 2026-05-13 - `kain import crates` adds workspace Rust bundle and blades-mirror modes
 
 The Rust import lane now has a workspace-scale operator command that can either

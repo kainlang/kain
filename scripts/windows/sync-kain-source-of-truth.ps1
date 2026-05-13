@@ -317,6 +317,12 @@ if (-not [string]::IsNullOrWhiteSpace($env:KAIN_REPO_ROOT) -and (Test-Path $env:
     } catch {
     }
 }
+if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+    $scriptDerivedRepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\\.."))
+    if (Test-Path (Join-Path $scriptDerivedRepoRoot ".git")) {
+        $repoRoot = $scriptDerivedRepoRoot
+    }
+}
 if ([string]::IsNullOrWhiteSpace($repoRoot) -or -not (Test-Path $repoRoot)) {
     throw "Unable to resolve repository root."
 }

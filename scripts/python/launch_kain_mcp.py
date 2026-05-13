@@ -402,6 +402,11 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
     if not stale_reasons:
         return sync_stamp
 
+    print(
+        "[kain-mcp] auto-sync required before startup: " + ", ".join(stale_reasons) + ".",
+        file=sys.stderr,
+    )
+
     cooldown_seconds = int(sync_policy.get("cooldown_seconds", 45))
     last_attempt = int(sync_stamp.get("last_attempt_unix", 0)) if sync_stamp else 0
     now = int(time.time())
@@ -430,6 +435,7 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
         env["KAIN_SYNC_LOCK_PATH"] = str(lock_path)
         env["KAIN_SYNC_REPO_SHA"] = str(local_state.get("repo_sha", "unknown"))
         env["KAIN_SYNC_RUNTIME_STAMP"] = str(local_state.get("runtime_stamp", "unknown"))
+        print("[kain-mcp] running managed sync before MCP startup.", file=sys.stderr)
         result = subprocess.run(
             command,
             cwd=str(repo_root),
