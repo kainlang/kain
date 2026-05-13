@@ -183,6 +183,47 @@ pub enum BuildCommand {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum RuntimeCommand {
+    /// Compile the manifest-driven native runtime bundle
+    Build {
+        /// Compile the standalone runtime bundle in release mode
+        #[arg(long)]
+        release: bool,
+
+        /// Forward verbose output to the runtime build script
+        #[arg(long)]
+        verbose: bool,
+    },
+
+    /// Run the aggregate native runtime validation lane
+    Validate {
+        /// Compile the standalone runtime bundle in release mode
+        #[arg(long)]
+        release: bool,
+
+        /// Forward verbose output to runtime scripts
+        #[arg(long)]
+        verbose: bool,
+
+        /// Skip `cargo build -p cli`
+        #[arg(long = "skip-cli-build")]
+        skip_cli_build: bool,
+
+        /// Skip the standalone runtime bundle build step
+        #[arg(long = "skip-runtime-build")]
+        skip_runtime_build: bool,
+
+        /// Skip the native fixture suite
+        #[arg(long = "skip-fixtures")]
+        skip_fixtures: bool,
+
+        /// Skip the native conformance suite
+        #[arg(long = "skip-conformance")]
+        skip_conformance: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum NativeUiCommand {
     /// Launch a native desktop Kain app with watch + hot reload
     Dev {
@@ -438,6 +479,12 @@ pub enum KainCommand {
         /// Embed original KAIN source as comments in generated C++ (debugging/round-trip)
         #[arg(long)]
         embed: bool,
+    },
+
+    /// Build and validate the manifest-driven native runtime bundle
+    Runtime {
+        #[command(subcommand)]
+        command: RuntimeCommand,
     },
 
     /// Native desktop app workflows
@@ -754,6 +801,51 @@ mod tests {
                 assert_eq!(host, "tauri");
             }
             other => panic!("expected build native-ui command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_runtime_build_command() {
+        let cli = KainCli::parse_from(["kain", "runtime", "build", "--release", "--verbose"]);
+        match cli.command {
+            Some(KainCommand::Runtime {
+                command: RuntimeCommand::Build { release, verbose },
+            }) => {
+                assert!(release);
+                assert!(verbose);
+            }
+            other => panic!("expected runtime build command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_runtime_validate_command() {
+        let cli = KainCli::parse_from([
+            "kain",
+            "runtime",
+            "validate",
+            "--skip-cli-build",
+            "--skip-runtime-build",
+            "--skip-fixtures",
+            "--skip-conformance",
+        ]);
+        match cli.command {
+            Some(KainCommand::Runtime {
+                command:
+                    RuntimeCommand::Validate {
+                        skip_cli_build,
+                        skip_runtime_build,
+                        skip_fixtures,
+                        skip_conformance,
+                        ..
+                    },
+            }) => {
+                assert!(skip_cli_build);
+                assert!(skip_runtime_build);
+                assert!(skip_fixtures);
+                assert!(skip_conformance);
+            }
+            other => panic!("expected runtime validate command, got {other:?}"),
         }
     }
 

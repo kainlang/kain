@@ -213,6 +213,7 @@ mod tests {
         assert!(help.contains("Usage: kain"));
         assert!(help.contains("import-c"));
         assert!(help.contains("commands"));
+        assert!(help.contains("runtime"));
     }
 
     #[test]

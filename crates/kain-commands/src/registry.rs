@@ -262,6 +262,11 @@ mod tests {
             .iter()
             .any(|command| command.path == ["build"]));
         assert!(registry
+            .for_bin("kain")
+            .commands
+            .iter()
+            .any(|command| command.path == ["runtime", "build"]));
+        assert!(registry
             .for_bin("kn")
             .commands
             .iter()
@@ -277,11 +282,17 @@ mod tests {
     fn builtin_registry_preserves_command_packs() {
         let registry = builtin_registry();
         assert!(registry.packs.iter().any(|pack| pack.id == "core"));
+        assert!(registry.packs.iter().any(|pack| pack.id == "runtime"));
         assert!(registry.packs.iter().any(|pack| pack.id == "unreal"));
         assert!(registry.commands.iter().any(|command| {
             command.id == "inject"
                 && command.pack_id == "unreal"
                 && command.tags.iter().any(|tag| tag == "ue5")
+        }));
+        assert!(registry.commands.iter().any(|command| {
+            command.id == "runtime.validate"
+                && command.pack_id == "runtime"
+                && command.tags.iter().any(|tag| tag == "conformance")
         }));
     }
 }

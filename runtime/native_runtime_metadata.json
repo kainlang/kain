@@ -1021,6 +1021,8 @@
     "schema_version": "1.0.0",
     "last_updated": "2026-05-12",
     "validation_commands": [
+      "kain runtime build",
+      "kain runtime validate",
       "cargo build -p cli",
       "./runtime/compile_native_runtime.sh",
       "./runtime/fixtures/validate_all.sh",

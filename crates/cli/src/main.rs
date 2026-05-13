@@ -17,6 +17,7 @@ use cli::omni;
 use cli::packager;
 use cli::repair;
 use cli::run as run_cli;
+use cli::runtime_tools;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
@@ -1790,6 +1791,12 @@ fn main() {
                                 }
                             }
                         }
+                    }
+                }
+                Some(Commands::Runtime { command }) => {
+                    if let Err(e) = runtime_tools::run(command) {
+                        eprintln!(" Runtime command failed: {}", e);
+                        std::process::exit(1);
                     }
                 }
                 Some(Commands::NativeUi { command }) => match command {

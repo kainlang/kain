@@ -1,5 +1,38 @@
 # Kain Memory
 
+# 2026-05-12 - Native runtime commands became first-class CLI entrypoints
+
+The runtime validation wrappers from the earlier pass are now exposed directly
+through the typed `kain` / `kn` command surface, so future operators do not
+have to remember the underlying script names before they can prove the native
+runtime bundle.
+
+What changed:
+
+- Added a dedicated `runtime` command pack at `crates/kain-commands/commands/runtime.toml` and registered it in the built-in command-pack index.
+- Added typed `RuntimeCommand` parsing in `crates/kain-commands/src/kain.rs` for `kain runtime build` and `kain runtime validate`, including aggregate validation skip flags.
+- Added `crates/cli/src/runtime_tools.rs` as the thin execution host. It resolves the repo root from `KAIN_REPO_ROOT`, the current working tree, or the repo-built binary location, then forwards to the existing bash/PowerShell runtime wrappers instead of reimplementing runtime policy in Rust.
+- Updated the registry and dynamic help tests so `kain commands list --bin kain` and `kain commands help --bin kain` now expose the `runtime` command family.
+- Updated runtime/operator docs and metadata so `kain runtime build` / `kain runtime validate` are the preferred front door, while the bash/PowerShell scripts remain the underlying implementation truth.
+
+Durable design note:
+
+- Keep `kain runtime build` and `kain runtime validate` as thin operator entrypoints. They should discover the repo and delegate to the canonical wrapper scripts, not grow a second copy of native-runtime build logic inside `crates/cli`.
+- The existence of first-class runtime commands still does not imply a separate shipped `kain_runtime.exe`. The owned runtime remains a manifest-driven source/object/archive bundle linked into generated native programs.
+
+Validation:
+
+- `cargo fmt -p kain-commands -p cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test -p kain-commands --target-dir target\\codex-kain-runtime-commands -- --nocapture`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p cli --target-dir target\\codex-kain-runtime-commands-cli`
+- `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo build -p cli --target-dir target\\codex-kain-runtime-commands-cli`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe runtime build --help`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe runtime validate --help`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe commands list --bin kain`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe commands help --bin kain`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe runtime validate --skip-cli-build --skip-runtime-build --skip-fixtures --skip-conformance`
+- `target\\codex-kain-runtime-commands-cli\\debug\\kain.exe runtime build`
+
 # 2026-05-12 - Native runtime validation entrypoints aligned across bash and PowerShell
 
 The native runtime build pipeline was already present in code, but the operator surface around it was inconsistent enough to create false confusion about whether Kain had a real C runtime pipeline at all.

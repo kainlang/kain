@@ -490,6 +490,8 @@ Typical commands:
 - `kain import-c`, `kain import-rust`, `kain import-ts`, `kain import-asm`, `kain import-crate`
 - `python tools\typescript_import\extract_ambient_manifest.py` to regenerate the embedded TypeScript ambient manifest from `reference/TypeScript-main/src/lib` plus `tools/typescript_import/typescript_ambient_overrides.json`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
+- `kain runtime build`
+- `kain runtime validate`
 - `./runtime/fixtures/validate_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\fixtures\validate_all.ps1`
 - `./runtime/conformance/run_all.sh`
@@ -505,8 +507,10 @@ Runtime validation meaning:
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` is the backend IR/codegen proof lane.
 - `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p kain-core -p kain-c-ffi -p kain-sys-codegen -p kain-driver -p cli` is the current fastest end-to-end validation path for new backend plumbing on this machine because local Python 3.14 is newer than the repo's pinned PyO3 support window.
 - `cargo build -p cli` builds the Rust compiler host only. It does not precompile the native C runtime bundle. The runtime bundle compiles on demand during `kain build ... -t llvm` / `-t c`, or explicitly through `runtime/compile_native_runtime.sh` and its PowerShell wrapper.
+- `kain runtime build` is the first-class operator entrypoint for standalone native runtime bundle compilation. It forwards to the existing bash/PowerShell wrappers after resolving the repo root from `KAIN_REPO_ROOT`, the current working tree, or the repo-built binary location.
 - `./runtime/fixtures/validate_all.sh` is the generated LLVM/native executable proof lane. It now compiles, links, and executes dedicated heap, actor, and world fixtures.
 - `./runtime/conformance/run_all.sh` is the runtime-native harness lane. Its `--backend llvm` flag is not a substitute for executable LLVM proof.
+- `kain runtime validate` is the first-class aggregate operator entrypoint. It forwards to the existing validation wrapper and supports `--skip-cli-build`, `--skip-runtime-build`, `--skip-fixtures`, and `--skip-conformance`.
 - `./runtime/validate_native_runtime.sh` and `powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1` are the aggregate commands that run the CLI build, native runtime build, fixture suite, and conformance suite together.
 
 If the debug CLI is missing:

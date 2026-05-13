@@ -9,6 +9,20 @@ The native runtime gets compiled in two main ways:
   The CLI writes the backend artifact (`.ll` or `.c`), resolves `runtime/native_core_runtime.toml` first, compiles the listed C/C++ runtime sources with Clang, and links those objects/archives into the final executable.
 - Standalone through the runtime validation helpers in `runtime/`, which prove the manifest-driven runtime bundle independently of a single Kain program.
 
+## First-Class CLI Commands
+
+Prefer these top-level commands when you are operating from a Kain checkout:
+
+```powershell
+kain runtime build
+kain runtime validate
+```
+
+They resolve the repo root from `KAIN_REPO_ROOT`, the current working tree, or
+a repo-built `kain` binary, then forward to the existing platform wrappers.
+That keeps the runtime operator workflow discoverable in `kain --help` without
+duplicating the underlying bash/PowerShell implementation.
+
 ## Canonical Commands
 
 Unix-like shells:
@@ -39,6 +53,8 @@ That means:
 
 - `cargo build -p cli` builds the compiler host.
 - `kain build ... -t llvm` or `-t c` builds the user program and links the runtime into that program.
+- `kain runtime build` is the first-class standalone runtime-bundle command.
+- `kain runtime validate` is the first-class aggregate validation command.
 - `runtime/compile_native_runtime.*` validates that the manifest-declared runtime sources compile as a bundle on their own.
 
 ## Current Windows Contract

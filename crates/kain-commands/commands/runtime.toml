@@ -1,0 +1,61 @@
+[pack]
+id = "runtime"
+title = "Native Runtime Commands"
+owner = "runtime"
+about = "Build and validate the manifest-driven native runtime bundle and its fixture/conformance lanes."
+
+[[commands]]
+id = "runtime.build"
+bins = ["kain", "kn"]
+path = ["runtime", "build"]
+about = "Compile the manifest-driven native runtime bundle"
+handler = "builtin:runtime-build"
+tags = ["runtime", "native", "build", "validation"]
+
+[[commands.args]]
+name = "release"
+kind = "flag"
+long = "release"
+
+[[commands.args]]
+name = "verbose"
+kind = "flag"
+long = "verbose"
+
+[[commands]]
+id = "runtime.validate"
+bins = ["kain", "kn"]
+path = ["runtime", "validate"]
+about = "Run the aggregate native runtime validation lane"
+handler = "builtin:runtime-validate"
+tags = ["runtime", "native", "validation", "fixtures", "conformance"]
+
+[[commands.args]]
+name = "release"
+kind = "flag"
+long = "release"
+
+[[commands.args]]
+name = "verbose"
+kind = "flag"
+long = "verbose"
+
+[[commands.args]]
+name = "skip-cli-build"
+kind = "flag"
+long = "skip-cli-build"
+
+[[commands.args]]
+name = "skip-runtime-build"
+kind = "flag"
+long = "skip-runtime-build"
+
+[[commands.args]]
+name = "skip-fixtures"
+kind = "flag"
+long = "skip-fixtures"
+
+[[commands.args]]
+name = "skip-conformance"
+kind = "flag"
+long = "skip-conformance"

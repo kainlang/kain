@@ -55,6 +55,7 @@ These flags live at the top level of `kain` / `kn`:
 | `fabric` | init, validate, and run Fabric manifests | `cli/selfhost-omni-fabric-lsp.md` |
 | `commands` | list/export registry metadata, list manifest packs, or render dynamic registry help | `cli/cli-overview.md` |
 | `build` | build a file or a `KAIN.toml` project | `cli/build-run-init.md` |
+| `runtime` | build or validate the manifest-driven native runtime bundle as a first-class operator workflow | `runtime/NATIVE_RUNTIME_VALIDATION.md` |
 | `run` | resolve and execute a Kain source, C file, blade, manifest, Cargo crate, Node/Bun entry, or workspace | `cli/build-run-init.md` |
 | `watch` | run the unified run plan in watcher mode | `cli/build-run-init.md` |
 | `gpu-artifacts` | emit SPIR-V, Rust host wrappers, and reflection JSON | `cli/native-ui-and-packaging.md` |
@@ -112,6 +113,31 @@ These flags live at the top level of `kain` / `kn`:
 | `--runtime-crate` | native UI runtime crate name, default `kain-ui-native` |
 | `--runtime-path` | explicit path dependency for the runtime crate |
 | `--runtime-version` | published version dependency for the runtime crate |
+
+## Runtime Commands
+
+`runtime` is the first-class operator surface for the standalone native runtime
+bundle. It resolves the repo root from `KAIN_REPO_ROOT`, the current working
+tree, or a repo-built CLI binary, then forwards to the canonical platform
+wrapper scripts in `runtime/`.
+
+### `runtime build`
+
+| Flag | Meaning |
+| --- | --- |
+| `--release` | build the standalone native runtime bundle in release mode |
+| `--verbose` | forward verbose output to the runtime build wrapper |
+
+### `runtime validate`
+
+| Flag | Meaning |
+| --- | --- |
+| `--release` | build the standalone native runtime bundle in release mode |
+| `--verbose` | forward verbose output to runtime wrappers |
+| `--skip-cli-build` | skip `cargo build -p cli` |
+| `--skip-runtime-build` | skip the standalone runtime bundle build step |
+| `--skip-fixtures` | skip `runtime/fixtures/validate_all.*` |
+| `--skip-conformance` | skip `runtime/conformance/run_all.*` |
 
 ## Run And Watch
 
