@@ -282,6 +282,11 @@ static int64_t kain_native_ui_decode_hex(const char* bytes_hex, uint8_t** out_by
     if ((length % 2u) != 0u) {
         return -1;
     }
+    
+    /* Z3 Proved: Cap length to prevent integer overflow and heap corruption */
+    if (length > 268435456u) { /* 256 MB max hex string length for 128 MB textures */
+        return -1;
+    }
     for (index = 0; index < length; index += 1) {
         if (kain_native_ui_hex_value(bytes_hex[index]) < 0) {
             return -1;

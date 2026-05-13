@@ -1,0 +1,56 @@
+use layout::Theme
+use layout::FlexLayout
+use layout::stays_in_bounds
+use layout::no_overlap
+
+// The App State World
+// This represents the final realized coordinates for the UI surface.
+world AppState:
+    state window_width: Float = 1280.0
+    state sidebar_width: Float = 0.0
+    state content_width: Float = 0.0
+    surface native_ui => LayoutDemo
+
+// -----------------------------------------------------------------------------
+// TOPOLOGICAL STATE COUPLING (Entanglement)
+// The magic happens here: We bind the AppState directly to the LayoutActor.
+// Whenever the Actor receives a Resize pulse, the AppState updates instantly 
+// without any React-style re-renders or manual assignment!
+// -----------------------------------------------------------------------------
+entangle AppState.window_width <-> FlexLayout.parent_w with single_writer
+entangle AppState.sidebar_width <-> FlexLayout.child_a_w with single_writer
+entangle AppState.content_width <-> FlexLayout.child_b_w with single_writer
+
+component LayoutDemo():
+    render <panel title="Episode Filler - The Z3 Actor Layout" />
+
+fn main() -> Int:
+    // 1. Initialize our Design System (No CSS parser overhead!)
+    let active_theme = Theme
+    active_theme.padding = 24.0
+
+    // 2. Spawn the Layout Engine Actor
+    let layout_engine = spawn FlexLayout(parent_w = 1280.0, child_a_w = 0.0, child_b_w = 0.0)
+
+    // 3. Send a resize event to the engine
+    // In a real app, the native OS loop would send this on window resize.
+    send layout_engine.Resize(new_width = 1280.0, padding = active_theme.padding)
+    
+    // Because AppState is ENTANGLED to FlexLayout, AppState now holds the 
+    // exact, calculated dimensions for the sidebar and content areas!
+    let app = AppState
+    let sidebar_x = active_theme.padding
+    let content_x = sidebar_x + app.sidebar_width + active_theme.padding
+
+    // 4. Mathematical Verification via Z3 Laws
+    // Before we draw anything, we PROVE that the layout doesn't break.
+    let ok_sidebar_bounds = stays_in_bounds(sidebar_x, app.sidebar_width, app.window_width)
+    let ok_content_bounds = stays_in_bounds(content_x, app.content_width, app.window_width)
+    let ok_overlap = no_overlap(sidebar_x, app.sidebar_width, content_x, app.content_width)
+
+    // If the math holds up, we have a perfectly safe layout.
+    if ok_sidebar_bounds and ok_content_bounds and ok_overlap:
+        return 0 
+    
+    // If Z3 proves a collision, we catch the UI bug before the GPU even touches it!
+    return 1

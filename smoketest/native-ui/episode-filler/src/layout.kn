@@ -1,0 +1,32 @@
+// Z3-Provable Laws: We define the geometric boundaries mathematically.
+// The Z3 coprocessor can verify these at compile/runtime.
+
+law stays_in_bounds(child_x: Float, child_width: Float, parent_width: Float) -> Bool:
+    return child_x >= 0.0 and (child_x + child_width) <= parent_width
+
+law no_overlap(a_x: Float, a_width: Float, b_x: Float, b_width: Float) -> Bool:
+    return (a_x + a_width) <= b_x or (b_x + b_width) <= a_x
+
+// A data-driven Theme World instead of a CSS stylesheet.
+// This allows type-safe, compiled design tokens that actors can read.
+world Theme:
+    state background: String = "#0F0F13"
+    state primary: String = "#FF0055"
+    state secondary: String = "#00FFAA"
+    state padding: Float = 16.0
+    state font_size: Float = 14.0
+
+// An Actor-driven Layout Engine
+// Instead of 100 manual coordinate functions, this actor responds to resizes
+// and calculates the flexbox math.
+actor FlexLayout:
+    state parent_w: Float = 1280.0
+    state child_a_w: Float = 0.0
+    state child_b_w: Float = 0.0
+
+    on Resize(new_width: Float, padding: Float):
+        self.parent_w = new_width
+        // Calculate flex layout with a gap
+        let available = self.parent_w - (padding * 3.0)
+        self.child_a_w = available * 0.3  // 30% width for sidebar
+        self.child_b_w = available * 0.7  // 70% width for content

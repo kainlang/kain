@@ -1,0 +1,45 @@
+version: 1
+id: ui.kain_native_ui_node_destroy_generic_size_add
+kind: size_add_ok
+description: Size addition overflow in `kain_native_ui_node_destroy`
+tags:
+- bitwise
+- bounds
+- overflow
+- pointer
+source:
+  path: D:\Kain-Lang\runtime\native\src\ui\kain_native_ui_system.c
+  language: c
+  symbol: kain_native_ui_node_destroy
+  signature: int64_t kain_native_ui_node_destroy(int64_t session_id, int64_t node_id)
+    {
+  start_line: 579
+  end_line: 600
+  template_id: generic-size-add
+  template_origin: builtin
+  template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml
+  template_engine: regex
+  reason: Size addition overflow in `kain_native_ui_node_destroy`
+  bindings: {}
+  binding_spans: {}
+case:
+  size_bits: 64
+  addends:
+  - left
+  - right
+  declarations:
+  - name: left
+    sort:
+      kind: int
+  - name: right
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - left
+    - 0
+  - op: ge
+    args:
+    - right
+    - 0
