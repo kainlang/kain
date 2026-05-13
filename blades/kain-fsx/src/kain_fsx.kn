@@ -1,0 +1,85 @@
+use kain_json::json_parse_text
+use kain_json::json_to_text
+
+pub fn fsx_is_absolute_path(path: String) -> Bool:
+    if len(path) == 0:
+        return false
+    if path.starts_with("\\\\"):
+        return true
+    if path.starts_with("/"):
+        return true
+    if len(path) >= 2:
+        if char_at(path, 1) == ":":
+            return true
+    return false
+
+pub fn fsx_resolve_from_base(base: String, raw_path: String) -> String:
+    let trimmed = raw_path.trim()
+    if len(trimmed) == 0:
+        return base
+    if fsx_is_absolute_path(trimmed):
+        return trimmed
+    return path_join(base, trimmed)
+
+pub fn fsx_ensure_parent_dir(path: String) -> String:
+    let parent = path_parent(path)
+    if len(parent) > 0:
+        create_dir_all(parent)
+    return parent
+
+pub fn fsx_write_text_with_parent(path: String, content: String) -> String:
+    let _parent = fsx_ensure_parent_dir(path)
+    write_file(path, content)
+    return path
+
+pub fn fsx_read_text_if_exists(path: String, fallback: String) -> String:
+    if file_exists(path):
+        return read_file(path)
+    return fallback
+
+pub fn fsx_read_json_file(path: String) -> Any:
+    return json_parse_text(read_file(path))
+
+pub fn fsx_write_json_file(path: String, value: Any) -> String:
+    return fsx_write_text_with_parent(path, json_to_text(value))
+
+pub fn fsx_temp_json_path(prefix: String) -> String:
+    return fs_temp_file(prefix) + ".json"
+
+pub fn fsx_is_text_like_file(path_name: String) -> Bool:
+    let ext = path_extension(path_name).trim().to_ascii_lowercase()
+    if ext == "kn":
+        return true
+    if ext == "md":
+        return true
+    if ext == "toml":
+        return true
+    if ext == "json":
+        return true
+    if ext == "rs":
+        return true
+    if ext == "ts":
+        return true
+    if ext == "js":
+        return true
+    if ext == "py":
+        return true
+    if ext == "sh":
+        return true
+    if ext == "ps1":
+        return true
+    if ext == "c":
+        return true
+    if ext == "h":
+        return true
+    if ext == "cpp":
+        return true
+    if ext == "hpp":
+        return true
+    if ext == "yaml":
+        return true
+    if ext == "yml":
+        return true
+    if ext == "txt":
+        return true
+    return false

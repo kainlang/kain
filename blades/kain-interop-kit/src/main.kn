@@ -1,0 +1,3 @@
+fn main() -> Int:
+    println("kain-interop-kit library ready")
+    return 0

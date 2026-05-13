@@ -1,19 +1,15 @@
 [package]
-name = "kain-json"
+name = "kain-fmt"
 version = "0.1.0"
-description = "High-performance JSON serialization and parsing for Kain"
+description = "Shared formatting helpers for reusable Kain blade authoring."
 
 [blade]
-name = "kain-json"
+name = "kain-fmt"
 kind = "kain_library"
 entry = "src/main.kn"
 source_roots = ["src"]
 module_roots = ["src"]
 build_targets = ["run"]
-
-[[blade.dependencies]]
-name = "kain-fmt"
-kind = "kain"
 
 [run]
 entry = "src/main.kn"
@@ -31,6 +27,5 @@ kind = "check"
 entry = "src/main.kn"
 inputs = [
   "src/main.kn",
-  "src/json.kn",
-  "src/kain_json.kn",
+  "src/kain_fmt.kn",
 ]

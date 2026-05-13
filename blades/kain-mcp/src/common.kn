@@ -1,55 +1,27 @@
+use kain_config::config_parse_csv
+use kain_config::config_parse_truthy_text
+use kain_fmt::fmt_join_strings
+use kain_fsx::fsx_is_absolute_path
+use kain_fsx::fsx_is_text_like_file
+use kain_fsx::fsx_resolve_from_base
+use kain_json::json_bool_field_or
+use kain_json::json_int_field_or
+use kain_json::json_message_object
+use kain_json::json_string_array_field
+use kain_json::json_string_field_or
+use kain_process::process_command_payload
+
 pub fn is_absolute_path(path: String) -> Bool:
-    if len(path) == 0:
-        return false
-    if path.starts_with("\\\\"):
-        return true
-    if path.starts_with("/"):
-        return true
-    if len(path) >= 2:
-        if char_at(path, 1) == ":":
-            return true
-    return false
+    return fsx_is_absolute_path(path)
 
 pub fn resolve_from_base(base: String, raw_path: String) -> String:
-    let trimmed = raw_path.trim()
-    if len(trimmed) == 0:
-        return base
-    if is_absolute_path(trimmed):
-        return trimmed
-    return path_join(base, trimmed)
+    return fsx_resolve_from_base(base, raw_path)
 
 pub fn parse_truthy_text(raw_value: String, default_value: Bool) -> Bool:
-    let normalized = raw_value.trim().to_ascii_lowercase()
-    if len(normalized) == 0:
-        return default_value
-    if normalized == "1":
-        return true
-    if normalized == "true":
-        return true
-    if normalized == "yes":
-        return true
-    if normalized == "on":
-        return true
-    return false
+    return config_parse_truthy_text(raw_value, default_value)
 
 pub fn parse_csv(csv_text: String) -> Array<String>:
-    let items = []
-    let current = ""
-    let index = 0
-    while index < len(csv_text):
-        let ch = char_at(csv_text, index)
-        if ch == ",":
-            let trimmed = current.trim()
-            if len(trimmed) > 0:
-                push(items, trimmed)
-            current = ""
-        else:
-            current = current + ch
-        index = index + 1
-    let final_piece = current.trim()
-    if len(final_piece) > 0:
-        push(items, final_piece)
-    return items
+    return config_parse_csv(csv_text)
 
 pub fn json_string_array(values: Any) -> Array<String>:
     let items = []
@@ -58,29 +30,19 @@ pub fn json_string_array(values: Any) -> Array<String>:
     return items
 
 pub fn read_string_array_field(container: Any, key: String) -> Array<String>:
-    if !json_has(container, key):
-        return []
-    return json_string_array(json_get(container, key))
+    return json_string_array_field(container, key)
 
 pub fn optional_string_param(params: Any, key: String, default_value: String) -> String:
-    if !json_has(params, key):
-        return default_value
-    return json_get_string(params, key)
+    return json_string_field_or(params, key, default_value)
 
 pub fn optional_int_param(params: Any, key: String, default_value: Int) -> Int:
-    if !json_has(params, key):
-        return default_value
-    return json_get_int(params, key)
+    return json_int_field_or(params, key, default_value)
 
 pub fn optional_bool_param(params: Any, key: String, default_value: Bool) -> Bool:
-    if !json_has(params, key):
-        return default_value
-    return json_get_bool(params, key)
+    return json_bool_field_or(params, key, default_value)
 
 pub fn optional_string_array_param(params: Any, key: String) -> Array<String>:
-    if !json_has(params, key):
-        return []
-    return json_string_array(json_get(params, key))
+    return json_string_array_field(params, key)
 
 pub fn json_text_item(text: String) -> Any:
     let item = json_object_new()
@@ -99,9 +61,7 @@ pub fn build_tool_result(summary: String, structured: Any, include_structured: B
     return result
 
 pub fn build_error_payload(message: String) -> Any:
-    let payload = json_object_new()
-    json_object_set(payload, "message", message)
-    return payload
+    return json_message_object(message)
 
 pub fn extract_json_object_from_text(text: String) -> String:
     let index = 0
@@ -120,60 +80,10 @@ pub fn truncate_text(text: String, max_bytes: Int) -> String:
     return substring(text, 0, max_bytes)
 
 pub fn is_text_like_file(path_name: String) -> Bool:
-    let ext = path_extension(path_name).trim().to_ascii_lowercase()
-    if ext == "kn":
-        return true
-    if ext == "md":
-        return true
-    if ext == "toml":
-        return true
-    if ext == "json":
-        return true
-    if ext == "rs":
-        return true
-    if ext == "ts":
-        return true
-    if ext == "js":
-        return true
-    if ext == "py":
-        return true
-    if ext == "sh":
-        return true
-    if ext == "ps1":
-        return true
-    if ext == "c":
-        return true
-    if ext == "h":
-        return true
-    if ext == "cpp":
-        return true
-    if ext == "hpp":
-        return true
-    if ext == "yaml":
-        return true
-    if ext == "yml":
-        return true
-    if ext == "txt":
-        return true
-    return false
+    return fsx_is_text_like_file(path_name)
 
 pub fn join_strings(items: Array<String>, separator: String) -> String:
-    let joined = ""
-    let index = 0
-    while index < len(items):
-        if index > 0:
-            joined = joined + separator
-        joined = joined + items[index]
-        index = index + 1
-    return joined
+    return fmt_join_strings(items, separator)
 
 pub fn command_result_payload(result: Any) -> Any:
-    let payload = json_object_new()
-    json_object_set(payload, "program", result.program)
-    json_object_set(payload, "workdir", result.workdir)
-    json_object_set(payload, "args", result.args)
-    json_object_set(payload, "stdout", result.stdout)
-    json_object_set(payload, "stderr", result.stderr)
-    json_object_set(payload, "status", result.status)
-    json_object_set(payload, "success", result.success)
-    return payload
+    return process_command_payload(result)

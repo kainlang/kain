@@ -1,0 +1,28 @@
+use std::native::net
+use kain_json::json_message_object
+use kain_json::json_parse_text
+use kain_json::json_to_text
+
+pub fn http_build_json_request(method: String, url: String, payload: Any) -> Int:
+    let request = http_request_create(method, url)
+    let _header = http_request_set_header(request, "content-type", "application/json")
+    let _body = http_request_set_body_text(request, json_to_text(payload))
+    return request
+
+pub fn http_send_json_request(method: String, url: String, payload: Any) -> Any:
+    let request = http_build_json_request(method, url, payload)
+    let response = http_client_send(request)
+    return json_parse_text(http_response_body_text(response))
+
+pub fn http_response_summary(status_code: Int, body: String) -> String:
+    return "http status=" + str(status_code) + " bytes=" + str(len(body))
+
+pub fn http_respond_json(incoming_request_id: Int, status_code: Int, payload: Any) -> Int:
+    let _header = http_response_set_header_for_request(incoming_request_id, "content-type", "application/json")
+    return http_respond_text(incoming_request_id, status_code, json_to_text(payload))
+
+pub fn http_local_json_url(port: Int, path: String) -> String:
+    return http_local_url(port, path)
+
+pub fn http_ready_payload() -> Any:
+    return json_message_object("kain-http library ready")

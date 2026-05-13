@@ -1,10 +1,10 @@
 [package]
-name = "kain-json"
+name = "kain-fsx"
 version = "0.1.0"
-description = "High-performance JSON serialization and parsing for Kain"
+description = "Filesystem and manifest helpers for reusable Kain blades."
 
 [blade]
-name = "kain-json"
+name = "kain-fsx"
 kind = "kain_library"
 entry = "src/main.kn"
 source_roots = ["src"]
@@ -12,7 +12,7 @@ module_roots = ["src"]
 build_targets = ["run"]
 
 [[blade.dependencies]]
-name = "kain-fmt"
+name = "kain-json"
 kind = "kain"
 
 [run]
@@ -31,6 +31,5 @@ kind = "check"
 entry = "src/main.kn"
 inputs = [
   "src/main.kn",
-  "src/json.kn",
-  "src/kain_json.kn",
+  "src/kain_fsx.kn",
 ]

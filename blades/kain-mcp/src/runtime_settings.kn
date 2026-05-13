@@ -1,7 +1,10 @@
-use common::parse_csv
-use common::parse_truthy_text
-use common::read_string_array_field
 use common::resolve_from_base
+use kain_config::config_env_bool
+use kain_config::config_env_string
+use kain_config::config_load_json_file
+use kain_config::config_parse_csv
+use kain_config::config_resolve_path_field
+use kain_config::config_string_array_field
 
 pub struct McpRuntimeSettings:
     blade_root: String
@@ -41,16 +44,12 @@ fn resolve_blade_root() -> String:
 
 fn load_runtime_policy(blade_root: String) -> Any:
     let policy_path = path_join(blade_root, "config/runtime_policy.json")
-    return json_parse(read_file(policy_path))
+    return config_load_json_file(policy_path)
 
 fn resolve_repo_root(policy: Any, blade_root: String) -> String:
     let environment = json_get(policy, "environment")
-    let repo_root_keys = read_string_array_field(environment, "repo_root_keys")
-    for key in repo_root_keys:
-        let value = env(key).trim()
-        if len(value) > 0:
-            return value
-    return path_parent(path_parent(blade_root))
+    let repo_root_keys = config_string_array_field(environment, "repo_root_keys")
+    return config_env_string(repo_root_keys, path_parent(path_parent(blade_root)))
 
 fn resolve_kain_bin(policy: Any, repo_root: String) -> String:
     let environment = json_get(policy, "environment")
@@ -60,7 +59,7 @@ fn resolve_kain_bin(policy: Any, repo_root: String) -> String:
         return override_path
 
     let fallback_command = "kain"
-    let candidates = read_string_array_field(policy, "kain_binary_candidates")
+    let candidates = config_string_array_field(policy, "kain_binary_candidates")
     for candidate in candidates:
         if candidate.starts_with("PATH:"):
             return substring(candidate, len("PATH:"), len(candidate))
@@ -80,33 +79,27 @@ pub fn load_runtime_settings() -> McpRuntimeSettings:
     let repo_root = resolve_repo_root(policy, blade_root)
     let kain_bin = resolve_kain_bin(policy, repo_root)
 
-    let allow_writes = parse_truthy_text(
-        env(json_get_string(environment, "allow_writes_key")),
-        json_get_bool(defaults, "allow_writes"),
-    )
-    let include_hidden = parse_truthy_text(
-        env(json_get_string(environment, "include_hidden_key")),
-        json_get_bool(defaults, "include_hidden"),
-    )
+    let allow_writes = config_env_bool(json_get_string(environment, "allow_writes_key"), json_get_bool(defaults, "allow_writes"))
+    let include_hidden = config_env_bool(json_get_string(environment, "include_hidden_key"), json_get_bool(defaults, "include_hidden"))
 
-    let skip_dirs = read_string_array_field(defaults, "skip_dirs")
+    let skip_dirs = config_string_array_field(defaults, "skip_dirs")
     let skip_override = env(json_get_string(environment, "skip_dirs_key")).trim()
     if len(skip_override) > 0:
-        skip_dirs = parse_csv(skip_override)
+        skip_dirs = config_parse_csv(skip_override)
 
     return McpRuntimeSettings {
         blade_root: blade_root,
         repo_root: repo_root,
         kain_bin: kain_bin,
         python_program: json_get_string(python_runner, "program"),
-        python_args: read_string_array_field(python_runner, "args"),
+        python_args: config_string_array_field(python_runner, "args"),
         allow_writes: allow_writes,
         include_hidden: include_hidden,
         skip_dirs: skip_dirs,
         timeout_ms: json_get_int(defaults, "timeout_ms"),
         max_list_entries: json_get_int(defaults, "max_list_entries"),
         default_read_limit: json_get_int(defaults, "default_read_limit"),
-        tool_registry_path: resolve_from_base(blade_root, json_get_string(paths, "tools_manifest")),
-        examples_manifest_path: resolve_from_base(blade_root, json_get_string(paths, "examples_manifest")),
-        examples_validator_path: resolve_from_base(blade_root, json_get_string(paths, "examples_validator")),
+        tool_registry_path: config_resolve_path_field(blade_root, paths, "tools_manifest", "config/tools.json"),
+        examples_manifest_path: config_resolve_path_field(blade_root, paths, "examples_manifest", "../../docs/examples/examples_manifest.json"),
+        examples_validator_path: config_resolve_path_field(blade_root, paths, "examples_validator", "../../docs/examples/validate_examples.py"),
     }

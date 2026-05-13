@@ -1,0 +1,39 @@
+pub fn fmt_join_strings(items: Array<String>, separator: String) -> String:
+    let joined = ""
+    let index = 0
+    while index < len(items):
+        if index > 0:
+            joined = joined + separator
+        joined = joined + items[index]
+        index = index + 1
+    return joined
+
+pub fn fmt_non_empty(value: String, fallback: String) -> String:
+    let trimmed = value.trim()
+    if len(trimmed) == 0:
+        return fallback
+    return trimmed
+
+pub fn fmt_key_value(key: String, value: String) -> String:
+    return key + "=" + value
+
+pub fn fmt_bracketed(label: String, value: String) -> String:
+    return "[" + label + "] " + value
+
+pub fn fmt_bool_word(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+pub fn fmt_status_line(label: String, success: Bool) -> String:
+    return label + " " + fmt_key_value("success", fmt_bool_word(success))
+
+pub fn fmt_prefixed_lines(prefix: String, lines: Array<String>) -> String:
+    let rendered = ""
+    let index = 0
+    while index < len(lines):
+        if index > 0:
+            rendered = rendered + "\n"
+        rendered = rendered + prefix + lines[index]
+        index = index + 1
+    return rendered

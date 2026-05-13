@@ -1,0 +1,67 @@
+use kain_fsx::fsx_read_json_file
+use kain_fsx::fsx_resolve_from_base
+use kain_json::json_bool_field_or
+use kain_json::json_int_field_or
+use kain_json::json_string_array_field
+use kain_json::json_string_field_or
+
+pub fn config_load_json_file(path: String) -> Any:
+    return fsx_read_json_file(path)
+
+pub fn config_parse_truthy_text(raw_value: String, default_value: Bool) -> Bool:
+    let normalized = raw_value.trim().to_ascii_lowercase()
+    if len(normalized) == 0:
+        return default_value
+    if normalized == "1":
+        return true
+    if normalized == "true":
+        return true
+    if normalized == "yes":
+        return true
+    if normalized == "on":
+        return true
+    return false
+
+pub fn config_parse_csv(csv_text: String) -> Array<String>:
+    let items = []
+    let current = ""
+    let index = 0
+    while index < len(csv_text):
+        let ch = char_at(csv_text, index)
+        if ch == ",":
+            let trimmed = current.trim()
+            if len(trimmed) > 0:
+                push(items, trimmed)
+            current = ""
+        else:
+            current = current + ch
+        index = index + 1
+    let final_piece = current.trim()
+    if len(final_piece) > 0:
+        push(items, final_piece)
+    return items
+
+pub fn config_env_string(keys: Array<String>, default_value: String) -> String:
+    for key in keys:
+        let value = env(key).trim()
+        if len(value) > 0:
+            return value
+    return default_value
+
+pub fn config_env_bool(key: String, default_value: Bool) -> Bool:
+    return config_parse_truthy_text(env(key), default_value)
+
+pub fn config_string_array_field(container: Any, key: String) -> Array<String>:
+    return json_string_array_field(container, key)
+
+pub fn config_string_setting(container: Any, key: String, default_value: String) -> String:
+    return json_string_field_or(container, key, default_value)
+
+pub fn config_int_setting(container: Any, key: String, default_value: Int) -> Int:
+    return json_int_field_or(container, key, default_value)
+
+pub fn config_bool_setting(container: Any, key: String, default_value: Bool) -> Bool:
+    return json_bool_field_or(container, key, default_value)
+
+pub fn config_resolve_path_field(base: String, container: Any, key: String, fallback: String) -> String:
+    return fsx_resolve_from_base(base, config_string_setting(container, key, fallback))

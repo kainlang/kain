@@ -1,0 +1,10 @@
+use kain_config::config_env_string
+use kain_config::config_parse_csv
+use kain_config::config_parse_truthy_text
+
+fn main() -> Int:
+    let keys = config_parse_csv("KAIN_CONFIG_EXAMPLE,KAIN_REPO_ROOT")
+    println(config_env_string(keys, "unset"))
+    if config_parse_truthy_text("true", false):
+        return 0
+    return 1

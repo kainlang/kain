@@ -1,0 +1,6 @@
+use kain_http::http_ready_payload
+use kain_json::json_to_text
+
+fn main() -> Int:
+    println(json_to_text(http_ready_payload()))
+    return 0

@@ -1,5 +1,7 @@
 use common::build_error_payload
 use common::build_tool_result
+use kain_log::log_eprint_message
+use kain_log::log_level_info
 use protocol::*
 use runtime_settings::*
 use tool_dispatch::dispatch_tool_handler
@@ -62,7 +64,7 @@ fn main() -> Int:
     let settings = load_runtime_settings()
     let registry = load_tool_registry(settings.tool_registry_path)
 
-    eprintln("kain-mcp starting at repo " + settings.repo_root)
+    log_eprint_message(log_level_info(), "kain-mcp", "starting at repo " + settings.repo_root)
 
     while true:
         let raw_request = read_next_request_frame()

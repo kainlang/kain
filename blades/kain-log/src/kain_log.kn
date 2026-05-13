@@ -1,0 +1,46 @@
+use kain_fmt::fmt_bracketed
+use kain_fmt::fmt_bool_word
+use kain_fmt::fmt_join_strings
+use kain_fmt::fmt_key_value
+
+pub fn log_level_trace() -> String:
+    return "trace"
+
+pub fn log_level_debug() -> String:
+    return "debug"
+
+pub fn log_level_info() -> String:
+    return "info"
+
+pub fn log_level_warn() -> String:
+    return "warn"
+
+pub fn log_level_error() -> String:
+    return "error"
+
+pub fn log_record(level: String, component: String, message: String) -> Any:
+    let record = json_object_new()
+    json_object_set(record, "level", level)
+    json_object_set(record, "component", component)
+    json_object_set(record, "message", message)
+    return record
+
+pub fn log_record_add_field(record: Any, key: String, value: Any) -> Any:
+    json_object_set(record, key, value)
+    return record
+
+pub fn log_render_line(record: Any) -> String:
+    let header = fmt_bracketed(json_get_string(record, "level"), json_get_string(record, "component"))
+    return fmt_join_strings([header, json_get_string(record, "message")], " ")
+
+pub fn log_render_message(level: String, component: String, message: String) -> String:
+    return log_render_line(log_record(level, component, message))
+
+pub fn log_eprint_message(level: String, component: String, message: String) -> Unit:
+    eprintln(log_render_message(level, component, message))
+
+pub fn log_stdout_message(level: String, component: String, message: String) -> Unit:
+    println(log_render_message(level, component, message))
+
+pub fn log_success_field(label: String, success: Bool) -> String:
+    return fmt_key_value(label, fmt_bool_word(success))

@@ -411,12 +411,25 @@ pub fn resolve_c_ffi_library_blade(
 
 pub fn discover_blade_module_roots_from(start: impl AsRef<Path>) -> BladeResult<Vec<PathBuf>> {
     let mut roots = BTreeSet::new();
-    for blade in discover_workspace(start)?.blades {
-        for root in blade.module_roots {
-            if root.exists() {
-                roots.insert(root);
+    let mut visited_workspaces = BTreeSet::new();
+    let mut current = existing_directory_anchor(start.as_ref())?;
+    loop {
+        if is_workspace_marker_dir(&current) {
+            let workspace = discover_workspace(&current)?;
+            if visited_workspaces.insert(workspace.root.clone()) {
+                for blade in workspace.blades {
+                    for root in blade.module_roots {
+                        if root.exists() {
+                            roots.insert(root);
+                        }
+                    }
+                }
             }
         }
+        let Some(parent) = current.parent() else {
+            break;
+        };
+        current = parent.to_path_buf();
     }
     Ok(roots.into_iter().collect())
 }
@@ -954,7 +967,7 @@ targets = ["run", "hybrid"]
 name = "tasked-workspace"
 
 [build]
-artifact_root = ".kain/build"
+artifact_root = ".kain/out"
 cache_root = ".kain/cache/build"
 profile = "release"
 
@@ -971,7 +984,7 @@ depends_on = ["prepare"]
         let manifest = load_kain_manifest(&manifest_path).unwrap();
         assert_eq!(
             manifest.build.artifact_root,
-            Some(PathBuf::from(".kain/build"))
+            Some(PathBuf::from(".kain/out"))
         );
         assert_eq!(
             manifest.build.cache_root,
@@ -1095,5 +1108,41 @@ sources = ["native/ops.c"]
 
         let workspace = discover_workspace(tmp.path()).unwrap();
         assert!(workspace.find_blade("omni").is_some());
+    }
+
+    #[test]
+    fn discovers_ancestor_workspace_module_roots_from_inside_a_blade() {
+        let tmp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            tmp.path().join("KAIN.toml"),
+            "[workspace]\nblades = [\"blades/*\"]\n",
+        )
+        .unwrap();
+
+        let shared_root = tmp.path().join("blades").join("shared");
+        kfs::create_dir_all(shared_root.join("src")).unwrap();
+        kfs::write_text(
+            shared_root.join("KAIN.toml"),
+            "[package]\nname = \"shared\"\n\n[blade]\nkind = \"kain_library\"\nmodule_roots = [\"src\"]\n",
+        )
+        .unwrap();
+        kfs::write_text(shared_root.join("src").join("shared.kn"), "pub fn ready() -> Int:\n    return 1\n")
+            .unwrap();
+
+        let app_root = tmp.path().join("blades").join("app");
+        kfs::create_dir_all(app_root.join("src")).unwrap();
+        kfs::write_text(
+            app_root.join("KAIN.toml"),
+            "[package]\nname = \"app\"\n\n[blade]\nentry = \"src/main.kn\"\nsource_roots = [\"src\"]\nmodule_roots = [\"src\"]\n",
+        )
+        .unwrap();
+        kfs::write_text(app_root.join("src").join("main.kn"), "fn main() -> Int:\n    return 0\n")
+            .unwrap();
+
+        let roots = discover_blade_module_roots_from(app_root.join("src")).unwrap();
+        assert!(roots.iter().any(|root| root.ends_with(Path::new("blades").join("app").join("src"))));
+        assert!(roots
+            .iter()
+            .any(|root| root.ends_with(Path::new("blades").join("shared").join("src"))));
     }
 }

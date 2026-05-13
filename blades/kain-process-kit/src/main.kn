@@ -1,0 +1,5 @@
+use kain_process::process_ready_message
+
+fn main() -> Int:
+    println(process_ready_message("kain-process-kit", "kain", ["doctor"]))
+    return 0

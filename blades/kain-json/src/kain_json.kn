@@ -1,0 +1,50 @@
+pub fn json_parse_text(text: String) -> Any:
+    return json_parse(text)
+
+pub fn json_to_text(value: Any) -> String:
+    return json_string(value)
+
+pub fn json_has_key(container: Any, key: String) -> Bool:
+    return json_has(container, key)
+
+pub fn json_string_array(values: Any) -> Array<String>:
+    let items = []
+    for value in values:
+        push(items, str(value))
+    return items
+
+pub fn json_string_array_field(container: Any, key: String) -> Array<String>:
+    if !json_has_key(container, key):
+        return []
+    return json_string_array(json_get(container, key))
+
+pub fn json_string_field_or(container: Any, key: String, default_value: String) -> String:
+    if !json_has_key(container, key):
+        return default_value
+    return json_get_string(container, key)
+
+pub fn json_int_field_or(container: Any, key: String, default_value: Int) -> Int:
+    if !json_has_key(container, key):
+        return default_value
+    return json_get_int(container, key)
+
+pub fn json_bool_field_or(container: Any, key: String, default_value: Bool) -> Bool:
+    if !json_has_key(container, key):
+        return default_value
+    return json_get_bool(container, key)
+
+pub fn json_message_object(message: String) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "message", message)
+    return payload
+
+pub fn json_text_item(text: String) -> Any:
+    let item = json_object_new()
+    json_object_set(item, "type", "text")
+    json_object_set(item, "text", text)
+    return item
+
+pub fn json_object_with_string(key: String, value: String) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, key, value)
+    return payload

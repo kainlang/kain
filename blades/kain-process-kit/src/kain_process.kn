@@ -1,0 +1,50 @@
+use std::native::process
+use std::native::time
+use kain_fmt::fmt_join_strings
+use kain_log::log_level_info
+use kain_log::log_render_message
+
+pub fn process_run(program: String, args: Array<String>, workdir: String) -> Any:
+    return command_run(program, args, workdir)
+
+pub fn process_command_payload(result: Any) -> Any:
+    let payload = json_object_new()
+    json_object_set(payload, "program", result.program)
+    json_object_set(payload, "workdir", result.workdir)
+    json_object_set(payload, "args", result.args)
+    json_object_set(payload, "stdout", result.stdout)
+    json_object_set(payload, "stderr", result.stderr)
+    json_object_set(payload, "status", result.status)
+    json_object_set(payload, "success", result.success)
+    return payload
+
+pub fn process_command_summary(label: String, result: Any) -> String:
+    if result.success:
+        return label + " succeeded"
+    return label + " failed with status " + str(result.status)
+
+pub fn process_args_summary(program: String, args: Array<String>) -> String:
+    let rendered_args = fmt_join_strings(args, " ")
+    if len(rendered_args) == 0:
+        return program
+    return program + " " + rendered_args
+
+pub fn process_ready_message(component: String, program: String, args: Array<String>) -> String:
+    return log_render_message(log_level_info(), component, "ready to run " + process_args_summary(program, args))
+
+pub fn process_run_checked(label: String, program: String, args: Array<String>, workdir: String) -> Any:
+    let result = process_run(program, args, workdir)
+    let payload = process_command_payload(result)
+    json_object_set(payload, "summary", process_command_summary(label, result))
+    return payload
+
+pub fn process_spec_from_argv(executable: String, args: Array<String>, cwd_path: String) -> Int:
+    let spec = process_spec_create_piped(executable)
+    for argument in args:
+        let _arg = process_spec_add_arg(spec, argument)
+    if len(cwd_path) > 0:
+        let _cwd = process_spec_set_cwd(spec, cwd_path)
+    return spec
+
+pub fn process_wait_with_drain(process_id: Int, timeout_ms: Int, poll_sleep_ms: Int) -> Int:
+    return process_collect_output_until_exit(process_id, timeout_ms, poll_sleep_ms)

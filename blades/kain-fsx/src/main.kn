@@ -1,0 +1,5 @@
+use kain_fsx::fsx_resolve_from_base
+
+fn main() -> Int:
+    println(fsx_resolve_from_base(cwd(), "blades/kain-fsx"))
+    return 0

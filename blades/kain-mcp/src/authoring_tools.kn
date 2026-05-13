@@ -1,9 +1,11 @@
 use common::build_error_payload
 use common::build_tool_result
-use common::command_result_payload
 use common::optional_bool_param
 use common::optional_string_param
 use common::resolve_from_base
+use kain_process::process_command_payload
+use kain_process::process_command_summary
+use kain_process::process_run
 use runtime_settings::McpRuntimeSettings
 
 fn load_examples_manifest(settings: McpRuntimeSettings) -> Any:
@@ -71,11 +73,9 @@ pub fn handle_authoring_validate_examples(settings: McpRuntimeSettings, params: 
     if optional_bool_param(params, "keepOutput", false):
         push(args, "--keep-output")
 
-    let result = command_run(settings.python_program, args, settings.repo_root)
-    let structured = command_result_payload(result)
+    let result = process_run(settings.python_program, args, settings.repo_root)
+    let structured = process_command_payload(result)
     json_object_set(structured, "validator", settings.examples_validator_path)
     json_object_set(structured, "kain_bin", settings.kain_bin)
-    let summary = "docs/examples validation succeeded"
-    if !result.success:
-        summary = "docs/examples validation failed with status " + str(result.status)
+    let summary = process_command_summary("docs/examples validation", result)
     return build_tool_result(summary, structured, true, !result.success)

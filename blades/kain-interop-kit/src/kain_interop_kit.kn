@@ -1,0 +1,26 @@
+use std::interop::bridge
+
+pub fn interop_rgba_image(width: Int, height: Int, bytes: Any, mime_type: String) -> Any:
+    return interop_shared_image_from_bytes(bytes, width, height, 4, "HWC", "rgba8", mime_type)
+
+pub fn interop_buffer_payload(buffer: Any, label: String) -> Any:
+    let info = interop_shared_buffer_info(buffer)
+    let payload = json_object_new()
+    json_object_set(payload, "label", label)
+    json_object_set(payload, "byte_length", info.byte_length)
+    return payload
+
+pub fn interop_image_payload(image: Any, label: String) -> Any:
+    let info = interop_shared_image_info(image)
+    let payload = json_object_new()
+    json_object_set(payload, "label", label)
+    json_object_set(payload, "width", info.width)
+    json_object_set(payload, "height", info.height)
+    json_object_set(payload, "byte_length", info.byte_length)
+    return payload
+
+pub fn interop_buffer_bytes_snapshot(buffer: Any) -> Any:
+    return interop_shared_buffer_bytes(buffer)
+
+pub fn interop_image_bytes_snapshot(image: Any) -> Any:
+    return interop_shared_image_bytes(image)

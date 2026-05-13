@@ -1293,6 +1293,12 @@ pub fn render_text_report(report: &RunReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn process_context_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn parses_run_targets() {
@@ -1414,5 +1420,87 @@ args = ["from-root"]
             }
             other => panic!("expected node adapter, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn executes_kain_blade_with_sibling_blade_dependency() {
+        let _guard = process_context_test_lock().lock().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        kfs::write_text(
+            temp.path().join("KAIN.toml"),
+            r#"
+[workspace]
+blades = ["blades/*"]
+"#,
+        )
+        .unwrap();
+
+        let fmt_root = temp.path().join("blades").join("fmt");
+        kfs::create_dir_all(fmt_root.join("src")).unwrap();
+        kfs::write_text(
+            fmt_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "fmt"
+
+[blade]
+name = "fmt"
+kind = "kain_library"
+module_roots = ["src"]
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            fmt_root.join("src").join("kain_fmt.kn"),
+            r#"
+pub fn fmt_join_strings(items: Array<String>, separator: String) -> String:
+    let output = ""
+    let index = 0
+    while index < len(items):
+        if index > 0:
+            output = output + separator
+        output = output + items[index]
+        index = index + 1
+    return output
+"#,
+        )
+        .unwrap();
+
+        let app_root = temp.path().join("blades").join("app");
+        kfs::create_dir_all(app_root.join("src")).unwrap();
+        kfs::write_text(
+            app_root.join("KAIN.toml"),
+            r#"
+[package]
+name = "app"
+
+[blade]
+name = "app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+
+[[blade.dependencies]]
+name = "fmt"
+kind = "kain"
+"#,
+        )
+        .unwrap();
+        kfs::write_text(
+            app_root.join("src").join("main.kn"),
+            r#"
+use kain_fmt::fmt_join_strings
+
+fn main() -> String:
+    return fmt_join_strings(["one", "two"], ",")
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(app_root));
+        let report = execute_run(&request).unwrap();
+        assert!(report.is_success());
+        assert_eq!(report.units.len(), 1);
+        assert!(report.units[0].output.contains("one,two"));
     }
 }

@@ -1,10 +1,10 @@
 [package]
-name = "kain-json"
+name = "kain-process-kit"
 version = "0.1.0"
-description = "High-performance JSON serialization and parsing for Kain"
+description = "Command and process helpers for reusable Kain blades."
 
 [blade]
-name = "kain-json"
+name = "kain-process-kit"
 kind = "kain_library"
 entry = "src/main.kn"
 source_roots = ["src"]
@@ -13,6 +13,10 @@ build_targets = ["run"]
 
 [[blade.dependencies]]
 name = "kain-fmt"
+kind = "kain"
+
+[[blade.dependencies]]
+name = "kain-log"
 kind = "kain"
 
 [run]
@@ -31,6 +35,5 @@ kind = "check"
 entry = "src/main.kn"
 inputs = [
   "src/main.kn",
-  "src/json.kn",
-  "src/kain_json.kn",
+  "src/kain_process.kn",
 ]
