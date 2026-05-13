@@ -32,6 +32,8 @@
     "lock_relative_path": "locks/sync.lock",
     "stamp_relative_path": "state/kain_sync_stamp.json",
     "build_counter_relative_path": "state/build_counter.json",
+    "launch_trace_enabled": true,
+    "launch_trace_relative_path": "state/kain_mcp_launcher_trace.jsonl",
     "cooldown_seconds": 45,
     "stale_lock_seconds": 900,
     "preflight_enabled": true,

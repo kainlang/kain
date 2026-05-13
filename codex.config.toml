@@ -3,6 +3,6 @@
 
 [mcp_servers.kain_mcp]
 startup_timeout_sec = 300
-command = "py"
+command = "C:\\WINDOWS\\py.exe"
 args = ["-3", "${KAIN_REPO_ROOT}/scripts/python/launch_kain_mcp.py"]
 cwd = "${KAIN_REPO_ROOT}"

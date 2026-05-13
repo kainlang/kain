@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -104,6 +105,34 @@ def resolve_sync_paths(sync_policy: dict) -> tuple[Path, Path, Path]:
     stamp_path = (state_root / stamp_relative).resolve()
     counter_path = (state_root / counter_relative).resolve()
     return lock_path, stamp_path, counter_path
+
+
+def resolve_launch_trace_path(sync_policy: dict) -> Path:
+    state_root = resolve_sync_state_root(sync_policy)
+    relative = str(sync_policy.get("launch_trace_relative_path", "state/kain_mcp_launcher_trace.jsonl"))
+    return (state_root / relative).resolve()
+
+
+def append_launch_trace(sync_policy: dict, event: str, **fields) -> None:
+    if not bool(sync_policy.get("launch_trace_enabled", False)):
+        return
+    trace_path = resolve_launch_trace_path(sync_policy)
+    trace_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "event": event,
+        "pid": os.getpid(),
+        "unix": int(time.time()),
+        "utc": datetime.now(timezone.utc).isoformat(),
+    }
+    payload.update(fields)
+    line = json.dumps(payload, sort_keys=True)
+    try:
+        with trace_path.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+            handle.write("\n")
+    except OSError:
+        return
 
 
 def resolve_path_candidate(repo_root: Path, candidate: str) -> str:
@@ -400,11 +429,24 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
     local_state = sync_state_from_local(repo_root, sync_policy, selected_binary)
     stale_reasons = sync_state_stale_reasons(local_state, sync_stamp)
     if not stale_reasons:
+        append_launch_trace(
+            sync_policy,
+            "managed_sync_not_needed",
+            binary=selected_binary,
+            repo_sha=str(local_state.get("repo_sha", "")),
+        )
         return sync_stamp
 
     print(
         "[kain-mcp] auto-sync required before startup: " + ", ".join(stale_reasons) + ".",
         file=sys.stderr,
+    )
+    append_launch_trace(
+        sync_policy,
+        "managed_sync_required",
+        binary=selected_binary,
+        repo_sha=str(local_state.get("repo_sha", "")),
+        stale_reasons=stale_reasons,
     )
 
     cooldown_seconds = int(sync_policy.get("cooldown_seconds", 45))
@@ -415,6 +457,12 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
             "[kain-mcp] auto-sync skipped (cooldown active); using current binary.",
             file=sys.stderr,
         )
+        append_launch_trace(
+            sync_policy,
+            "managed_sync_skipped_cooldown",
+            cooldown_seconds=cooldown_seconds,
+            last_attempt_unix=last_attempt,
+        )
         return sync_stamp
 
     stale_lock_seconds = int(sync_policy.get("stale_lock_seconds", 900))
@@ -422,6 +470,12 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
         print(
             "[kain-mcp] auto-sync skipped (sync lock is active); using current binary.",
             file=sys.stderr,
+        )
+        append_launch_trace(
+            sync_policy,
+            "managed_sync_skipped_lock",
+            lock_path=str(lock_path),
+            stale_lock_seconds=stale_lock_seconds,
         )
         return sync_stamp
 
@@ -436,6 +490,12 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
         env["KAIN_SYNC_REPO_SHA"] = str(local_state.get("repo_sha", "unknown"))
         env["KAIN_SYNC_RUNTIME_STAMP"] = str(local_state.get("runtime_stamp", "unknown"))
         print("[kain-mcp] running managed sync before MCP startup.", file=sys.stderr)
+        append_launch_trace(
+            sync_policy,
+            "managed_sync_start",
+            command=command,
+            repo_sha=str(local_state.get("repo_sha", "")),
+        )
         result = subprocess.run(
             command,
             cwd=str(repo_root),
@@ -454,9 +514,20 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
                 f"[kain-mcp] auto-sync command failed (exit {result.returncode}); using current binary.",
                 file=sys.stderr,
             )
+            append_launch_trace(
+                sync_policy,
+                "managed_sync_failed",
+                returncode=result.returncode,
+            )
             return sync_stamp
 
         refreshed = read_sync_stamp(stamp_path)
+        append_launch_trace(
+            sync_policy,
+            "managed_sync_completed",
+            returncode=result.returncode,
+            synced_repo_sha=str(refreshed.get("repo_sha", "")) if isinstance(refreshed, dict) else "",
+        )
         if refreshed:
             return refreshed
         return sync_stamp
@@ -595,6 +666,13 @@ def main() -> int:
     policy = load_runtime_policy(blade_root)
 
     sync_policy = policy_sync(policy)
+    append_launch_trace(
+        sync_policy,
+        "launcher_start",
+        argv=sys.argv,
+        cwd=os.getcwd(),
+        repo_root=str(repo_root),
+    )
     lock_path, stamp_path, _counter_path = resolve_sync_paths(sync_policy)
     sync_stamp = read_sync_stamp(stamp_path)
     if bool(sync_policy.get("enabled", False)):
@@ -607,6 +685,11 @@ def main() -> int:
             print(
                 "[kain-mcp] managed synced binary failed preflight; falling back to repo/PATH resolution.",
                 file=sys.stderr,
+            )
+            append_launch_trace(
+                sync_policy,
+                "preflight_failed",
+                binary=kain_bin,
             )
             excluded = {normalize_candidate_for_compare(synced_binary)}
             kain_bin = resolve_kain_binary(
@@ -627,6 +710,13 @@ def main() -> int:
     command = [kain_bin, "run", str(blade_root)]
     if len(sys.argv) > 1:
         command.extend(["--", *sys.argv[1:]])
+    append_launch_trace(
+        sync_policy,
+        "spawn_child",
+        command=command,
+        kain_bin=kain_bin,
+        blade_root=str(blade_root),
+    )
 
     child = subprocess.Popen(
         command,
@@ -646,6 +736,11 @@ def main() -> int:
     stderr_thread.start()
 
     exit_code = child.wait()
+    append_launch_trace(
+        sync_policy,
+        "child_exit",
+        exit_code=exit_code,
+    )
     stdout_thread.join()
     stderr_thread.join()
     stdin_thread.join(timeout=0.1)

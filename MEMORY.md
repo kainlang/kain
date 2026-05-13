@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-13 - `kain_mcp` hangs were partly stale-session state; launcher now leaves boot breadcrumbs
+
+The live `kain_mcp` server was healthy when launched with the exact Codex config
+shape, but Codex sessions that started before the `.codex/config.toml` edit could
+keep waiting against stale MCP state and never even invoke the new launcher block.
+
+What changed:
+
+- Switched both repo `codex.config.toml` and live `C:\Users\Admin\.codex\config.toml`
+  to the absolute Windows Python launcher path `C:\Windows\py.exe` instead of bare
+  `py`, so MCP startup no longer depends on shell-local PATH resolution.
+- Extended `blades/kain-mcp/config/runtime_policy.json` with a data-driven launcher
+  trace path and enable flag.
+- Extended `scripts/python/launch_kain_mcp.py` so every boot attempt appends JSONL
+  breadcrumbs under `~/.kain/state/kain_mcp_launcher_trace.jsonl` for
+  `launcher_start`, managed-sync decisions, child spawn, and exit.
+- Updated `ARCHITECTURE.md` with the durable operator rule: after changing Codex MCP
+  config, restart the session and inspect the launcher trace before assuming the
+  Kain server itself is stuck.
+
+Formal proof gathered with Z3:
+
+- `kain_mcp_cooldown_and_sync_start_are_mutually_exclusive`
+
+That proof shows one launcher process cannot both take the cooldown-return path and
+reach `managed_sync_start`. If operators see both signals at once, they are looking
+at concurrent launches or mixed-session logs rather than a hidden single-process path.
+
+Validation:
+
+- `py -3 -m py_compile scripts/python/launch_kain_mcp.py`
+- TOML parse of `C:\Users\Admin\.codex\config.toml`
+- TOML parse of repo `codex.config.toml`
+- Exact-config MCP initialize smoke via `C:\Windows\py.exe -3 D:\Kain-Lang\scripts\python\launch_kain_mcp.py`
+  from repo cwd returned the first frame in about `8257 ms`
+- Verified launcher breadcrumbs were written to
+  `C:\Users\Admin\.kain\state\kain_mcp_launcher_trace.jsonl`
+
 # 2026-05-13 - `kain_mcp` Codex timeout was a cold-sync budget issue, not a protocol bug
 
 The recent Codex `kain_mcp` startup timeout was caused by managed sync rebuilding
