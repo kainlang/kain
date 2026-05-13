@@ -45,6 +45,10 @@ pub const BUILD_UNIX_TIME: &str = match option_env!("KAIN_BUILD_UNIX_TIME") {
     Some(v) => v,
     None => "0",
 };
+pub const BUILD_TRACKING_MODE: &str = match option_env!("KAIN_BUILD_TRACKING_MODE") {
+    Some(v) => v,
+    None => "unmanaged",
+};
 pub const BUILD_PROFILE: &str = match option_env!("KAIN_BUILD_PROFILE") {
     Some(v) => v,
     None => "unknown",

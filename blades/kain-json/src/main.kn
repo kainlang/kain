@@ -1,0 +1,11 @@
+use json::json_parse_bool
+use json::json_serialize_bool
+
+fn main() -> Int:
+    let parsed_true = json_parse_bool("true")
+    let parsed_false = json_parse_bool("false")
+    println(f"kain-json:true.kind={parsed_true.kind}")
+    println(f"kain-json:false.kind={parsed_false.kind}")
+    println(f"kain-json:serialize.true={json_serialize_bool(true)}")
+    println(f"kain-json:serialize.false={json_serialize_bool(false)}")
+    return 0

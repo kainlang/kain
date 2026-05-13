@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-13 - Managed sync lane proved live and `kain-json` became a runnable blade example
+
+The managed `kain-mcp` sync lane is now proven against the real PATH-installed
+`kain.exe`, and `blades/kain-json` is no longer just a loose source folder.
+
+What changed:
+
+- Ran the managed sync install end to end through
+  `scripts/windows/sync-kain-source-of-truth.ps1 -ManagedSync`, which built and
+  atomically installed the release CLI into `C:\Users\Admin\.cargo\bin`.
+- Verified the live PATH binary with `kain doctor`; it now reports `Build: 1`,
+  `Build Tracking: managed`, the managed sync stamp path, repo/runtime/binary
+  drift status, and the synced binary fingerprint.
+- Proved the canonical MCP launcher from outside the repo cwd with
+  `KAIN_REPO_ROOT` set and explicit `KAIN_MCP_KAIN_BIN`, including real MCP
+  `initialize`, `fs.read_file`, `kain.check`, `kain.run.plan`, and
+  `authoring.example` calls over stdin/stdout.
+- Upgraded `blades/kain-json/KAIN.toml` into a real runnable blade manifest and
+  added `src/main.kn` as a tiny executable demo that exercises the JSON helpers.
+
+Validation:
+
+- `cargo check -p cli --bins --target-dir target/codex-sync-doctor-live`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -ManagedSync`
+- `kain doctor`
+- `kain check blades/kain-json/src/main.kn`
+- `kain run plan blades/kain-json`
+- `kain blades build blades/kain-json --json`
+- `kain run blades/kain-json`
+- External-cwd MCP smoke via `scripts/python/launch_kain_mcp.py`
+
+Durable note:
+
+- The earlier compile blocker for `cargo check -p cli --bins` in this checkout
+  is resolved for the current HEAD. If the managed sync lane regresses again,
+  re-run the isolated-target-dir CLI check before assuming the launcher is at
+  fault.
+
 # 2026-05-13 - SPIR-V codegen gained a durable Z3 proof lane and a Vulkan layout fix
 
 The live SPIR-V backend in `crates/gpu/src/codegen_spirv.rs` now has its own solver-backed

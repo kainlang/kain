@@ -23,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_NUMBER");
+    println!("cargo:rerun-if-env-changed=KAIN_BUILD_TRACKING_MODE");
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
 
     let unix_time = env::var("SOURCE_DATE_EPOCH")
@@ -35,9 +36,25 @@ fn main() {
                 .unwrap_or(0)
         });
 
-    let build_number = env::var("KAIN_BUILD_NUMBER").unwrap_or_else(|_| unix_time.to_string());
+    let managed_build_number = env::var("KAIN_BUILD_NUMBER")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let build_tracking_mode = env::var("KAIN_BUILD_TRACKING_MODE")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let (build_number, tracking_mode) = match managed_build_number {
+        Some(number) => (
+            number,
+            build_tracking_mode.unwrap_or_else(|| "managed".to_string()),
+        ),
+        None => ("unmanaged".to_string(), "unmanaged".to_string()),
+    };
 
     println!("cargo:rustc-env=KAIN_BUILD_NUMBER={}", build_number);
+    println!("cargo:rustc-env=KAIN_BUILD_TRACKING_MODE={}", tracking_mode);
     println!("cargo:rustc-env=KAIN_BUILD_UNIX_TIME={}", unix_time);
     println!(
         "cargo:rustc-env=KAIN_BUILD_PROFILE={}",

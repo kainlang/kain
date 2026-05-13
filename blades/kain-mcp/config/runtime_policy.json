@@ -23,6 +23,38 @@
     "target/release/kain",
     "PATH:kain"
   ],
+  "launcher_sync": {
+    "enabled": true,
+    "prefer_synced_binary": true,
+    "state_root_env_key": "KAIN_SYNC_ROOT",
+    "default_state_root_windows": "%USERPROFILE%/.kain",
+    "default_state_root_unix": "~/.kain",
+    "lock_relative_path": "locks/sync.lock",
+    "stamp_relative_path": "state/kain_sync_stamp.json",
+    "build_counter_relative_path": "state/build_counter.json",
+    "cooldown_seconds": 45,
+    "stale_lock_seconds": 900,
+    "preflight_enabled": true,
+    "preflight_timeout_seconds": 20,
+    "sync_command_windows": [
+      "powershell",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "scripts/windows/sync-kain-source-of-truth.ps1",
+      "-ManagedSync"
+    ],
+    "sync_command_unix": [
+      "python3",
+      "install_kain.py"
+    ],
+    "runtime_stamp_files": [
+      "runtime/kain_runtime.c",
+      "runtime/native_runtime.toml",
+      "blades/kain-mcp/config/runtime_policy.json"
+    ]
+  },
   "defaults": {
     "allow_writes": true,
     "include_hidden": false,

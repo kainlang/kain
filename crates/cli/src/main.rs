@@ -25,7 +25,7 @@ use cli::{
     resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
     target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
     BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
-    BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    BUILD_TRACKING_MODE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
 };
 use kain_c_ffi::{
     ArtifactMode as CArtifactMode, ImportCOptions as CImportCOptions,
@@ -44,6 +44,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -153,6 +154,19 @@ fn parse_native_ui_host_kind(value: &str) -> Result<native_ui_build::NativeUiHos
             other
         )),
     }
+}
+
+fn parse_build_lane(value: Option<&str>) -> Result<Option<kain_build::BuildLane>, String> {
+    value
+        .map(|value| {
+            kain_build::BuildLane::parse(value).ok_or_else(|| {
+                format!(
+                    "unknown build lane '{}'; use bootstrap, dev, release, dist, or selfhost",
+                    value
+                )
+            })
+        })
+        .transpose()
 }
 
 fn read_source_from_path(input: &Path) -> Result<String, String> {
@@ -1020,6 +1034,38 @@ fn run_compile(
     )
 }
 
+fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
+    println!(
+        " Build {}: lane={} target={} host={}",
+        if report.is_success() {
+            "succeeded"
+        } else {
+            "failed"
+        },
+        report.lane.as_str(),
+        report.target,
+        report.host
+    );
+    println!(" Artifact root: {}", report.artifact_root.display());
+    println!(" Report: {}", report.report_path.display());
+    for task in &report.tasks {
+        let marker = match task.status {
+            kain_build::BuildTaskStatus::Cached => "cached",
+            kain_build::BuildTaskStatus::Succeeded => "ok",
+            kain_build::BuildTaskStatus::Planned => "planned",
+            kain_build::BuildTaskStatus::Skipped => "skipped",
+            kain_build::BuildTaskStatus::Failed => "failed",
+        };
+        println!("   {} {}", marker, task.id);
+        for output in &task.outputs {
+            println!("      {}", output.display());
+        }
+        if let Some(error) = &task.error {
+            eprintln!("      {}", error);
+        }
+    }
+}
+
 fn run_kn_repl() -> bool {
     run_terminal_repl(ReplTerminalConfig::new(ReplBuildMetadata::new(
         "Kain",
@@ -1648,10 +1694,18 @@ fn main() {
                     output,
                     target,
                     targets,
+                    lane,
                     ue5,
                     r#rust,
                     embed,
                 }) => {
+                    let lane = match parse_build_lane(lane.as_deref()) {
+                        Ok(lane) => lane,
+                        Err(err) => {
+                            eprintln!(" Build failed: {}", err);
+                            std::process::exit(1);
+                        }
+                    };
                     if let Some(BuildCommand::NativeUi {
                         input,
                         root_component,
@@ -1669,50 +1723,38 @@ fn main() {
                         tauri_window_label,
                     }) = command
                     {
-                        let host = match parse_native_ui_host_kind(&host) {
-                            Ok(host) => host,
-                            Err(err) => {
-                                eprintln!(" Native UI build failed: {}", err);
+                        let host = match kain_build::NativeUiBuildHost::parse(&host) {
+                            Some(host) => host,
+                            None => {
+                                eprintln!(" Native UI build failed: unsupported host '{}'", host);
                                 std::process::exit(1);
                             }
                         };
                         let runtime_dependency = if let Some(path) = runtime_path {
-                            native_ui_build::NativeUiRuntimeDependencyConfig::Path(path)
+                            kain_build::NativeUiRuntimeDependency::Path(path)
                         } else if let Some(version) = runtime_version {
-                            native_ui_build::NativeUiRuntimeDependencyConfig::Version(version)
+                            kain_build::NativeUiRuntimeDependency::Version(version)
                         } else {
-                            native_ui_build::NativeUiRuntimeDependencyConfig::WorkspacePath
+                            kain_build::NativeUiRuntimeDependency::WorkspacePath
                         };
-                        let config = native_ui_build::NativeUiBuildConfig {
-                            host,
-                            tauri: native_ui_build::NativeUiTauriConfig {
-                                bundle_identifier: tauri_bundle_id,
-                                window_label: tauri_window_label,
-                                ..Default::default()
-                            },
-                            root_component,
-                            window_title,
-                            app_name,
-                            project_dir,
-                            artifact_output_dir: artifact_dir
-                                .unwrap_or_else(|| PathBuf::from("generated")),
-                            build_executable: !bundle_only,
-                            release,
-                            runtime_crate_name: runtime_crate,
-                            runtime_dependency,
-                            ..Default::default()
-                        };
+                        let mut options = kain_build::KainNativeUiBuildOptions::new(input);
+                        options.lane = lane;
+                        options.host = host;
+                        options.root_component = root_component;
+                        options.window_title = window_title;
+                        options.app_name = app_name;
+                        options.project_dir = project_dir;
+                        options.artifact_output_dir =
+                            artifact_dir.unwrap_or_else(|| PathBuf::from("generated"));
+                        options.build_executable = !bundle_only;
+                        options.release = release;
+                        options.runtime_crate_name = runtime_crate;
+                        options.runtime_dependency = runtime_dependency;
+                        options.tauri_bundle_identifier = tauri_bundle_id;
+                        options.tauri_window_label = tauri_window_label;
 
-                        match native_ui_build::run_native_ui_build_pipeline(&input, &config) {
-                            Ok(result) => {
-                                println!(
-                                    " Native UI app: {} ({})",
-                                    result.metadata.app_name, result.metadata.root_component
-                                );
-                                for path in result.written_paths() {
-                                    println!("   ✓ {}", path.display());
-                                }
-                            }
+                        match kain_build::build_kain_native_ui(&options) {
+                            Ok(report) => print_kain_build_report(&report),
                             Err(e) => {
                                 eprintln!(" Native UI build failed: {}", e);
                                 std::process::exit(1);
@@ -1728,16 +1770,11 @@ fn main() {
                     } else if r#rust {
                         match input {
                             Some(file) => {
-                                match rust_build::run_rust_build_pipeline(
-                                    &file,
-                                    output.as_ref(),
-                                    None,
-                                ) {
-                                    Ok(paths) => {
-                                        for path in paths {
-                                            println!("   ✓ {}", path.display());
-                                        }
-                                    }
+                                let mut options = kain_build::KainRustBuildOptions::new(file);
+                                options.output = output.clone();
+                                options.lane = lane;
+                                match kain_build::build_kain_rust_file(&options) {
+                                    Ok(report) => print_kain_build_report(&report),
                                     Err(e) => {
                                         eprintln!(" Rust build failed: {}", e);
                                         std::process::exit(1);
@@ -1745,7 +1782,14 @@ fn main() {
                                 }
                             }
                             None => {
-                                if let Err(e) = packager::build_rust_project() {
+                                let mut options = kain_build::KainProjectBuildOptions::new(
+                                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                                );
+                                options.rust_only = true;
+                                options.lane = lane;
+                                if let Err(e) = kain_build::build_kain_project(&options)
+                                    .map(|report| print_kain_build_report(&report))
+                                {
                                     eprintln!(" Build failed: {}", e);
                                     std::process::exit(1);
                                 }
@@ -1765,17 +1809,16 @@ fn main() {
                                     );
                                     std::process::exit(1);
                                 };
-                                if !run_compile(
-                                    &file,
-                                    resolved_target,
-                                    output.as_ref(),
-                                    args.emit_ast,
-                                    args.emit_typed,
-                                    args.verbose,
-                                    args.analyze,
-                                    args.plugin.as_deref(),
-                                ) {
-                                    std::process::exit(1);
+                                let mut options =
+                                    kain_build::KainFileBuildOptions::new(file, resolved_target);
+                                options.output = output.clone();
+                                options.lane = lane;
+                                match kain_build::build_kain_file(&options) {
+                                    Ok(report) => print_kain_build_report(&report),
+                                    Err(e) => {
+                                        eprintln!(" Build failed: {}", e);
+                                        std::process::exit(1);
+                                    }
                                 }
                             }
                             None => {
@@ -1785,9 +1828,17 @@ fn main() {
                                 } else {
                                     targets.clone()
                                 };
-                                if let Err(e) = packager::build_project(target_overrides) {
-                                    eprintln!(" Build failed: {}", e);
-                                    std::process::exit(1);
+                                let mut options = kain_build::KainProjectBuildOptions::new(
+                                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+                                );
+                                options.target_overrides = target_overrides;
+                                options.lane = lane;
+                                match kain_build::build_kain_project(&options) {
+                                    Ok(report) => print_kain_build_report(&report),
+                                    Err(e) => {
+                                        eprintln!(" Build failed: {}", e);
+                                        std::process::exit(1);
+                                    }
                                 }
                             }
                         }
@@ -2430,6 +2481,93 @@ fn is_aggressive_fix(fix: &kain_repair::AppliedFix) -> bool {
     )
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct DoctorManagedSyncBinaryStamp {
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    size_bytes: Option<u64>,
+    #[serde(default)]
+    mtime_unix: Option<i64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct DoctorManagedSyncStamp {
+    #[serde(default)]
+    repo_sha: Option<String>,
+    #[serde(default)]
+    runtime_stamp: Option<String>,
+    #[serde(default)]
+    build_number: Option<String>,
+    #[serde(default)]
+    synced_at_unix: Option<i64>,
+    #[serde(default)]
+    binary: Option<DoctorManagedSyncBinaryStamp>,
+}
+
+fn default_sync_state_root() -> Option<PathBuf> {
+    if let Some(root) = std::env::var_os("KAIN_SYNC_ROOT") {
+        let path = PathBuf::from(root);
+        if !path.as_os_str().is_empty() {
+            return Some(path);
+        }
+    }
+
+    if cfg!(windows) {
+        return std::env::var_os("USERPROFILE").map(|profile| PathBuf::from(profile).join(".kain"));
+    }
+
+    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".kain"))
+}
+
+fn resolve_sync_stamp_path() -> Option<PathBuf> {
+    if let Some(override_path) = std::env::var_os("KAIN_SYNC_STAMP_PATH") {
+        let path = PathBuf::from(override_path);
+        if !path.as_os_str().is_empty() {
+            return Some(path);
+        }
+    }
+    default_sync_state_root().map(|root| root.join("state").join("kain_sync_stamp.json"))
+}
+
+fn load_managed_sync_stamp() -> Option<(PathBuf, DoctorManagedSyncStamp)> {
+    let stamp_path = resolve_sync_stamp_path()?;
+    let raw = fs::read_to_string(&stamp_path).ok()?;
+    let stamp = serde_json::from_str::<DoctorManagedSyncStamp>(&raw).ok()?;
+    Some((stamp_path, stamp))
+}
+
+fn normalize_path_for_compare(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('/', "\\")
+        .to_ascii_lowercase()
+}
+
+fn paths_match_for_doctor(left: &Path, right: &Path) -> bool {
+    normalize_path_for_compare(left) == normalize_path_for_compare(right)
+}
+
+fn resolve_repo_head_sha_runtime(repo_root: Option<&Path>) -> Option<String> {
+    let mut command = Command::new("git");
+    if let Some(root) = repo_root {
+        command.arg("-C");
+        command.arg(root);
+    }
+    command.arg("rev-parse");
+    command.arg("HEAD");
+
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
 fn print_doctor(active_launcher: LauncherKind) {
     let current_exe = std::env::current_exe().ok();
     let kain_path_command = which::which("kain").ok();
@@ -2444,10 +2582,16 @@ fn print_doctor(active_launcher: LauncherKind) {
     } else {
         None
     };
+    let managed_sync_stamp = load_managed_sync_stamp();
+
+    let current_dir = std::env::current_dir().ok();
+    let project_root = current_dir.as_ref().and_then(|cwd| find_project_root(cwd));
+    let runtime_repo_sha = resolve_repo_head_sha_runtime(project_root.as_deref());
 
     println!(" KAIN Doctor");
     println!(" Version: {}", VERSION);
     println!(" Build: {}", BUILD_NUMBER);
+    println!(" Build Tracking: {}", BUILD_TRACKING_MODE);
     println!(" Built At (UTC): {}", format_build_time(BUILD_UNIX_TIME));
     println!(
         " Git: {} (commit #{}, {})",
@@ -2492,16 +2636,16 @@ fn print_doctor(active_launcher: LauncherKind) {
         }
     }
 
-    match std::env::current_dir() {
-        Ok(cwd) => {
+    match &current_dir {
+        Some(cwd) => {
             println!(" Current Dir: {}", cwd.display());
-            if let Some(root) = find_project_root(&cwd) {
+            if let Some(root) = &project_root {
                 println!(" Project Root: {}", root.display());
             } else {
                 println!(" Project Root: <not found (no KAIN.toml in parent chain)>");
             }
         }
-        Err(err) => println!(" Current Dir: <unknown> ({})", err),
+        None => println!(" Current Dir: <unknown>"),
     }
 
     println!(" Supported Targets: {}", supported_targets_csv());
@@ -2529,6 +2673,66 @@ fn print_doctor(active_launcher: LauncherKind) {
         " PATH Match Status (kn): {}",
         doctor_path_status(current_exe.as_deref(), kn_path_command.as_deref(), "kn")
     );
+
+    match managed_sync_stamp {
+        Some((stamp_path, stamp)) => {
+            println!(" Managed Sync Stamp: {}", stamp_path.display());
+            if let Some(repo_sha) = stamp.repo_sha {
+                println!(" Managed Sync Repo SHA: {}", repo_sha);
+                if let Some(runtime_sha) = runtime_repo_sha.as_ref() {
+                    if runtime_sha == &repo_sha {
+                        println!(" Managed Sync Repo Status: current repo head matches stamp");
+                    } else {
+                        println!(" Managed Sync Repo Status: drift (repo head differs from stamp)");
+                    }
+                }
+            }
+            if let Some(runtime_stamp) = stamp.runtime_stamp {
+                println!(" Managed Sync Runtime Stamp: {}", runtime_stamp);
+            }
+            if let Some(build_number) = stamp.build_number {
+                if !build_number.trim().is_empty() {
+                    println!(" Managed Sync Build: {}", build_number);
+                }
+            }
+            if let Some(synced_at_unix) = stamp.synced_at_unix {
+                println!(
+                    " Managed Sync At (UTC): {}",
+                    format_build_time(&synced_at_unix.to_string())
+                );
+            }
+
+            if let Some(binary_stamp) = stamp.binary {
+                if let Some(sync_binary_path_text) = binary_stamp.path {
+                    let sync_binary_path = PathBuf::from(&sync_binary_path_text);
+                    println!(" Managed Sync Binary: {}", sync_binary_path.display());
+                    if let Some(size_bytes) = binary_stamp.size_bytes {
+                        println!(" Managed Sync Binary Size: {} bytes", size_bytes);
+                    }
+                    if let Some(mtime_unix) = binary_stamp.mtime_unix {
+                        println!(
+                            " Managed Sync Binary Modified (UTC): {}",
+                            format_build_time(&mtime_unix.to_string())
+                        );
+                    }
+                    let binary_match = current_exe
+                        .as_deref()
+                        .map(|path| paths_match_for_doctor(path, &sync_binary_path))
+                        .unwrap_or(false);
+                    println!(
+                        " Managed Sync Binary Match: {}",
+                        if binary_match { "yes" } else { "drift" }
+                    );
+                    if !binary_match {
+                        println!(
+                            " Warning: this shell is running a different binary than the managed sync target."
+                        );
+                    }
+                }
+            }
+        }
+        None => println!(" Managed Sync Stamp: <not found>"),
+    }
 
     if stdlib_roots.is_empty() {
         println!(" Resolved Stdlib Roots: <none>");
