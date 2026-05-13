@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-13 - repo-local `kain_mcp` configs must use repo-relative paths, not `${KAIN_REPO_ROOT}`
+
+The lingering post-reboot `kain_mcp` timeout was not inside the blade runtime.
+The installed `C:\Users\Admin\.cargo\bin\kain.exe` answered a real MCP
+`initialize` request in about `0.6 s`, including when launched from
+`C:\Users\Admin`. The actual break was the repo-local `codex.config.toml` and
+root `mcp.json`: both used `${KAIN_REPO_ROOT}` placeholders that Codex treated
+as literal text in this lane. New repo sessions could therefore override the
+good global MCP block with a broken local block even after a reboot.
+
+What changed:
+
+- Updated repo `codex.config.toml` to use `command = "kain"`,
+  `args = ["run", "blades/kain-mcp"]`, `cwd = "."`, and `enabled = true`.
+- Updated root `mcp.json` to use the same repo-relative launch contract and
+  dropped the fake `KAIN_REPO_ROOT` env indirection.
+- Updated `ARCHITECTURE.md` so future agents know the repo-local Codex config
+  must stay repo-relative instead of relying on unsupported placeholder
+  interpolation.
+
+Formal proof gathered with Z3:
+
+- `kain_mcp_literal_repo_root_placeholder_never_equals_real_repo_root`
+
+That proof encodes the exact strings involved in this checkout and proves the
+literal placeholder `${KAIN_REPO_ROOT}` cannot equal the real repo root
+`D:\Kain-Lang`, so a client that skips interpolation must mis-resolve the path.
+
+Validation:
+
+- Literal-placeholder smoke:
+  `C:\Users\Admin\.cargo\bin\kain.exe run ${KAIN_REPO_ROOT}/blades/kain-mcp`
+  from `D:\Kain-Lang` failed immediately with
+  `D:\Kain-Lang\${KAIN_REPO_ROOT}\blades\kain-mcp`
+- Direct MCP `initialize` smoke against
+  `C:\Users\Admin\.cargo\bin\kain.exe run D:\Kain-Lang\blades\kain-mcp`
+  from `D:\Kain-Lang` returned the first `Content-Length` frame in about
+  `0.613 s`
+- Direct MCP `initialize` smoke against the same command from
+  `C:\Users\Admin` returned the first `Content-Length` frame in about `0.594 s`
+
 # 2026-05-13 - `kain_mcp` now boots directly from compiled `kain.exe` without the Python shim
 
 The `kain_mcp` boot lane no longer needs `py` in the default Codex path. The

@@ -4,12 +4,9 @@
       "command": "kain",
       "args": [
         "run",
-        "${KAIN_REPO_ROOT}/blades/kain-mcp"
+        "blades/kain-mcp"
       ],
-      "cwd": "${KAIN_REPO_ROOT}",
-      "env": {
-        "KAIN_REPO_ROOT": "${KAIN_REPO_ROOT}"
-      }
+      "cwd": "."
     }
   }
 }
