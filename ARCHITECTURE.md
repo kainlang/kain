@@ -491,8 +491,11 @@ Typical commands:
 - `python tools\typescript_import\extract_ambient_manifest.py` to regenerate the embedded TypeScript ambient manifest from `reference/TypeScript-main/src/lib` plus `tools/typescript_import/typescript_ambient_overrides.json`
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `./runtime/fixtures/validate_all.sh`
+- `powershell -ExecutionPolicy Bypass -File runtime\fixtures\validate_all.ps1`
 - `./runtime/conformance/run_all.sh`
+- `powershell -ExecutionPolicy Bypass -File runtime\conformance\run_all.ps1`
 - `./runtime/validate_native_runtime.sh`
+- `powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1`
 - `python3 tools/kain-flight-control/launcher.py`
 - `cd tools/kain-flight-control && go test ./...`
 - `powershell -ExecutionPolicy Bypass -File smoketest/allinone/run_all.ps1`
@@ -501,9 +504,10 @@ Runtime validation meaning:
 
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test -- --nocapture` is the backend IR/codegen proof lane.
 - `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo check -p kain-core -p kain-c-ffi -p kain-sys-codegen -p kain-driver -p cli` is the current fastest end-to-end validation path for new backend plumbing on this machine because local Python 3.14 is newer than the repo's pinned PyO3 support window.
+- `cargo build -p cli` builds the Rust compiler host only. It does not precompile the native C runtime bundle. The runtime bundle compiles on demand during `kain build ... -t llvm` / `-t c`, or explicitly through `runtime/compile_native_runtime.sh` and its PowerShell wrapper.
 - `./runtime/fixtures/validate_all.sh` is the generated LLVM/native executable proof lane. It now compiles, links, and executes dedicated heap, actor, and world fixtures.
 - `./runtime/conformance/run_all.sh` is the runtime-native harness lane. Its `--backend llvm` flag is not a substitute for executable LLVM proof.
-- `./runtime/validate_native_runtime.sh` is the aggregate command that runs the CLI build, native runtime build, fixture suite, and conformance suite together.
+- `./runtime/validate_native_runtime.sh` and `powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1` are the aggregate commands that run the CLI build, native runtime build, fixture suite, and conformance suite together.
 
 If the debug CLI is missing:
 

@@ -1,5 +1,23 @@
 # Kain Memory
 
+# 2026-05-12 - Native runtime validation entrypoints aligned across bash and PowerShell
+
+The native runtime build pipeline was already present in code, but the operator surface around it was inconsistent enough to create false confusion about whether Kain had a real C runtime pipeline at all.
+
+What changed:
+
+- Added the missing aggregate validation entrypoint `runtime/validate_native_runtime.sh` so the command already referenced by metadata and `ARCHITECTURE.md` now exists for real.
+- Added Windows operator wrappers at `runtime/compile_native_runtime.ps1`, `runtime/conformance/run_all.ps1`, and `runtime/validate_native_runtime.ps1`.
+- Replaced the stale `runtime/fixtures/validate_all.ps1` implementation with a thin wrapper around the canonical `runtime/fixtures/validate_all.sh` lane so PowerShell no longer routes through an older Rust-target-only fixture script.
+- Added `runtime/scripts/runtime_windows_shell_helpers.ps1` to keep bash discovery and Windows path translation in one place instead of duplicating wrapper logic.
+- Added `runtime/NATIVE_RUNTIME_VALIDATION.md` to spell out the important build distinction: `cargo build -p cli` builds the compiler host, while `kain build ... -t llvm` and `kain build ... -t c` compile and link the manifest-driven native runtime bundle into the produced executable.
+- Updated `ARCHITECTURE.md` so runtime validation commands now list both bash and PowerShell entrypoints, and so future agents do not assume the C runtime should be a separate shipped executable.
+
+Durable design note:
+
+- Do not create a separate `kain_runtime.exe` just to prove the runtime exists. The current architecture intentionally treats the owned native runtime as a manifest-driven object/archive bundle that gets linked into each generated native program.
+- Keep the bash scripts as the canonical runtime validation logic for now, and keep PowerShell wrappers thin. That avoids two diverging implementations of the same runtime build policy.
+
 # 2026-05-12 - kain-core Z3 proof pack landed and low-level memory layout math was hardened
 
 `crates/kain-core` now has its own durable proof pack at `crates/kain-core/z3`. The pack is scoped at compiler/frontend arithmetic and indexing seams instead of the native C runtime: low-level memory layout lowering in `src/low_level_memory.rs`, signed `usize -> i64` literal conversions used by lowered helpers, diagnostics span/line-end math in `src/diagnostics.rs`, and parser slice/index guards in `src/parser.rs`.
