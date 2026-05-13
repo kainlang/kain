@@ -22,6 +22,7 @@ use kain_ui::{
     ui_runtime_bundle_from_output, ui_runtime_bundle_to_json, UiBuildOutput, UiRuntimeBundle,
     UiRuntimeMetadata,
 };
+use sha2::{Digest, Sha256};
 
 const NATIVE_APP_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
 const NATIVE_APP_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
@@ -233,6 +234,8 @@ pub struct NativeAppMaterializationConfig {
     pub build_executable: bool,
     pub release: bool,
     pub executable_output_dir: Option<PathBuf>,
+    pub cargo_target_dir: Option<PathBuf>,
+    pub gpu_runtime_cargo_target_dir: Option<PathBuf>,
     pub launcher_entrypoint: NativeAppLauncherEntrypoint,
     pub host_sidecars: Vec<NativeAppHostSidecarBinding>,
 }
@@ -572,6 +575,14 @@ impl DriverSession {
         };
         fs::create_dir_all(&artifact_root)
             .map_err(io_error("create native app artifact directory"))?;
+        let cargo_target_dir = config
+            .cargo_target_dir
+            .clone()
+            .unwrap_or_else(|| project_dir.join(".kain").join("cargo-target"));
+        let gpu_runtime_cargo_target_dir = config
+            .gpu_runtime_cargo_target_dir
+            .clone()
+            .unwrap_or_else(|| project_dir.join(".kain").join("gpu-runtime-target"));
 
         let mut artifact_paths = Vec::new();
         let (materialized_realtime_bundle, packaged_realtime_asset_paths) =
@@ -613,9 +624,11 @@ impl DriverSession {
         let compute_residency_paths =
             write_compute_residency_sidecars(&bundle.realtime, &artifact_root)?;
         artifact_paths.extend(compute_residency_paths.iter().cloned());
-        if let Some(runtime_dll_path) =
-            materialize_gpu_runtime_library(&artifact_root, config.release)?
-        {
+        if let Some(runtime_dll_path) = materialize_gpu_runtime_library(
+            &artifact_root,
+            config.release,
+            Some(&gpu_runtime_cargo_target_dir),
+        )? {
             artifact_paths.push(runtime_dll_path);
         }
 
@@ -807,6 +820,7 @@ impl DriverSession {
                 &bundle.metadata.app_name,
                 config.release,
                 config.executable_output_dir.as_deref(),
+                Some(&cargo_target_dir),
             )?)
         } else {
             None
@@ -1667,12 +1681,9 @@ fn reload_path_string(project_dir: &Path, path: &Path) -> String {
 }
 
 fn fingerprint_text(value: &str) -> String {
-    let mut hash = 0xcbf29ce484222325u64;
-    for byte in value.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    format!("{hash:016x}")
+    let mut hash = Sha256::new();
+    hash.update(value.as_bytes());
+    format!("{:x}", hash.finalize())
 }
 
 fn current_timestamp_string() -> String {
@@ -1744,6 +1755,7 @@ fn copy_runtime_sidecars_to_executable_dir(
 fn materialize_gpu_runtime_library(
     artifact_root: &Path,
     release: bool,
+    cargo_target_dir: Option<&Path>,
 ) -> Result<Option<PathBuf>, KainError> {
     let Some(workspace_root) = find_workspace_root_with_gpu_runtime() else {
         return Ok(None);
@@ -1754,6 +1766,11 @@ fn materialize_gpu_runtime_library(
     command.arg("build").arg("-p").arg("kain-gpu-runtime");
     if release {
         command.arg("--release");
+    }
+    if let Some(cargo_target_dir) = cargo_target_dir {
+        fs::create_dir_all(cargo_target_dir)
+            .map_err(io_error("create kain-gpu-runtime cargo target directory"))?;
+        command.env("CARGO_TARGET_DIR", cargo_target_dir);
     }
     command.current_dir(&workspace_root);
     let output = command.output().map_err(|err| {
@@ -1772,8 +1789,9 @@ fn materialize_gpu_runtime_library(
         )));
     }
 
-    let built_library = workspace_root
-        .join("target")
+    let built_library = cargo_target_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| workspace_root.join("target"))
         .join(if release { "release" } else { "debug" })
         .join(runtime_library_file_name);
     if !built_library.exists() {
@@ -1830,11 +1848,17 @@ fn build_native_app_executable(
     app_name: &str,
     release: bool,
     output_dir: Option<&Path>,
+    cargo_target_dir: Option<&Path>,
 ) -> Result<PathBuf, KainError> {
     let mut command = Command::new("cargo");
     command.arg("build");
     if release {
         command.arg("--release");
+    }
+    if let Some(cargo_target_dir) = cargo_target_dir {
+        fs::create_dir_all(cargo_target_dir)
+            .map_err(io_error("create native app cargo target directory"))?;
+        command.env("CARGO_TARGET_DIR", cargo_target_dir);
     }
     command.current_dir(project_dir);
 
@@ -1855,8 +1879,9 @@ fn build_native_app_executable(
         )));
     }
 
-    let built_executable = project_dir
-        .join("target")
+    let built_executable = cargo_target_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| project_dir.join("target"))
         .join(if release { "release" } else { "debug" })
         .join(binary_file_name(app_name));
 
@@ -2124,6 +2149,8 @@ mod tests {
             build_executable: false,
             release: false,
             executable_output_dir: None,
+            cargo_target_dir: None,
+            gpu_runtime_cargo_target_dir: None,
             launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
             host_sidecars: Vec::new(),
         }
@@ -2936,6 +2963,8 @@ component App():
                 build_executable: false,
                 release: false,
                 executable_output_dir: None,
+                cargo_target_dir: None,
+                gpu_runtime_cargo_target_dir: None,
                 launcher_entrypoint: NativeAppLauncherEntrypoint::RunNoArgFunction {
                     function_name: "run_fast3d_cli".to_string(),
                 },

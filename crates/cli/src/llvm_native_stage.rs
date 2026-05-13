@@ -142,11 +142,25 @@ pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, 
     let Some(workspace_root) = find_workspace_root_for_gpu_runtime() else {
         return Ok(None);
     };
+    let cargo_target_dir = executable_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(".kain")
+        .join("cargo-target")
+        .join("gpu-runtime");
+    fs::create_dir_all(&cargo_target_dir).map_err(|err| {
+        format!(
+            "unable to create kain-gpu-runtime cargo target dir {}: {}",
+            cargo_target_dir.display(),
+            err
+        )
+    })?;
 
     let status = std::process::Command::new("cargo")
         .arg("build")
         .arg("-p")
         .arg("kain-gpu-runtime")
+        .env("CARGO_TARGET_DIR", &cargo_target_dir)
         .current_dir(&workspace_root)
         .status()
         .map_err(|err| format!("unable to invoke cargo for kain-gpu-runtime: {err}"))?;
@@ -154,8 +168,7 @@ pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, 
         return Err("cargo build -p kain-gpu-runtime failed".to_string());
     }
 
-    let built_dll = workspace_root
-        .join("target")
+    let built_dll = cargo_target_dir
         .join("debug")
         .join(GPU_RUNTIME_WINDOWS_DLL_FILE_NAME);
     if !built_dll.exists() {

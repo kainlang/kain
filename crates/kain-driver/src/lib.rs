@@ -11,8 +11,8 @@ use std::sync::Mutex;
 
 use kain_core::ast::{Expr, Item, Program, Use, WorldSurfaceKind};
 use kain_core::error::KainError;
-use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::module_resolution::resolve_filesystem_module_file;
+use kain_core::monomorphize::MonomorphizedProgram;
 use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
@@ -338,8 +338,8 @@ impl DriverSession {
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
         let typed = self.frontend_to_typed_program(source, target)?;
-        let frontend = build_frontend_source_bundle(source, target)
-            .unwrap_or_else(|_| FrontendSourceBundle {
+        let frontend =
+            build_frontend_source_bundle(source, target).unwrap_or_else(|_| FrontendSourceBundle {
                 user_source: source.to_string(),
                 full_source: source.to_string(),
             });
@@ -763,7 +763,8 @@ impl FrontendImportCollector {
                     module_file.display()
                 ))
             })?;
-            let prepared_module_source = prepare_frontend_source_for_target(&module_source, target)?;
+            let prepared_module_source =
+                prepare_frontend_source_for_target(&module_source, target)?;
             self.collect_from_source(&prepared_module_source, target)?;
             self.module_sources.push(prepared_module_source);
         }

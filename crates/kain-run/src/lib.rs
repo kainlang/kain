@@ -717,7 +717,7 @@ fn node_unit(kind: NodeRuntimeKind, workspace_root: &Path, entry: &Path) -> RunR
 fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
     let started_unix_ms = unix_timestamp_ms();
     let result = match &unit.adapter {
-        RunAdapter::KainInterpreter { entry } => run_kain(entry),
+        RunAdapter::KainInterpreter { entry } => run_kain(entry, unit),
         RunAdapter::CExecutable {
             source,
             executable,
@@ -762,23 +762,78 @@ fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
     })
 }
 
-fn run_kain(entry: &Path) -> RunResult<RunUnitExecution> {
-    let source = kfs::read_text(entry)?;
-    let value = kain_driver::compile(&source, CompileTarget::Interpret)?;
-    Ok(RunUnitExecution {
-        id: "kain".to_string(),
-        target: RunTarget::Kain,
-        status: RunStatus::Succeeded,
-        started_unix_ms: None,
-        finished_unix_ms: None,
-        inputs: vec![entry.to_path_buf()],
-        process: None,
-        exit_code: Some(0),
-        stdout: String::new(),
-        stderr: String::new(),
-        output: value,
-        error: None,
+fn run_kain(entry: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+    with_temporary_process_context(&unit.cwd, &unit.env, || {
+        let source = kfs::read_text(entry)?;
+        let value = kain_driver::compile(&source, CompileTarget::Interpret)?;
+        Ok(RunUnitExecution {
+            id: "kain".to_string(),
+            target: RunTarget::Kain,
+            status: RunStatus::Succeeded,
+            started_unix_ms: None,
+            finished_unix_ms: None,
+            inputs: vec![entry.to_path_buf()],
+            process: None,
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: String::new(),
+            output: value,
+            error: None,
+        })
     })
+}
+
+fn with_temporary_process_context<T>(
+    cwd: &Path,
+    env_overrides: &BTreeMap<String, String>,
+    action: impl FnOnce() -> RunResult<T>,
+) -> RunResult<T> {
+    let previous_cwd = std::env::current_dir().map_err(|err| {
+        RunError::Process(format!("failed to read current directory before Kain run: {err}"))
+    })?;
+    std::env::set_current_dir(cwd).map_err(|err| {
+        RunError::Process(format!(
+            "failed to set current directory to {} before Kain run: {err}",
+            cwd.display()
+        ))
+    })?;
+
+    let mut previous_env = Vec::with_capacity(env_overrides.len());
+    for (key, value) in env_overrides {
+        previous_env.push((key.clone(), std::env::var_os(key)));
+        std::env::set_var(key, value);
+    }
+
+    let result = action();
+    for (key, previous_value) in previous_env.into_iter().rev() {
+        match previous_value {
+            Some(value) => {
+                std::env::set_var(&key, value);
+            }
+            None => {
+                std::env::remove_var(&key);
+            }
+        }
+    }
+
+    let mut restore_error = None;
+    if let Err(err) = std::env::set_current_dir(&previous_cwd) {
+        if restore_error.is_none() {
+            restore_error = Some(RunError::Process(format!(
+                "failed to restore current directory to {} after Kain run: {err}",
+                previous_cwd.display()
+            )));
+        }
+    }
+
+    match (result, restore_error) {
+        (Ok(value), None) => Ok(value),
+        (Ok(_), Some(error)) => Err(error),
+        (Err(error), None) => Err(error),
+        (Err(error), Some(restore_error)) => Err(RunError::Process(format!(
+            "{error}; additionally failed to restore process context: {restore_error}"
+        ))),
+    }
 }
 
 fn run_c(

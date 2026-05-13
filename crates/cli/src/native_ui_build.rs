@@ -217,6 +217,10 @@ fn build_qt_native_ui(
             build_executable: config.build_executable,
             release: config.release,
             executable_output_dir,
+            cargo_target_dir: Some(project_dir.join(".kain").join("cargo-target")),
+            gpu_runtime_cargo_target_dir: Some(
+                project_dir.join(".kain").join("gpu-runtime-target"),
+            ),
             launcher_entrypoint: NativeAppLauncherEntrypoint::default(),
             host_sidecars,
         },
@@ -468,6 +472,7 @@ fn tauri_materialization_config_from_cli(
         artifact_output_dir: config.artifact_output_dir.clone(),
         build_executable: config.build_executable,
         release: config.release,
+        cargo_target_dir: Some(project_dir.join(".kain").join("cargo-target")),
         bundle_identifier: config.tauri.bundle_identifier.clone(),
         window_label: config.tauri.window_label.clone(),
         cargo_package_name: config.tauri.cargo_package_name.clone(),

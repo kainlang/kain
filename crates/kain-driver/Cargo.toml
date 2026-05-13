@@ -18,6 +18,7 @@ kain-ui = { path = "../kain-ui" }
 kain-ui-tauri = { path = "../kain-ui-tauri", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10"
 toml = { workspace = true }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }

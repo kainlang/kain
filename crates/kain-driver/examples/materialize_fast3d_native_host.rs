@@ -110,6 +110,8 @@ component App():
             build_executable: true,
             release: false,
             executable_output_dir: Some(executable_output_dir.clone()),
+            cargo_target_dir: None,
+            gpu_runtime_cargo_target_dir: None,
             launcher_entrypoint: NativeAppLauncherEntrypoint::RunNoArgFunction {
                 function_name: "run_fast3d_cli".to_string(),
             },

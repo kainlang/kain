@@ -24,6 +24,7 @@ use kain_ui_tauri::{
 };
 use serde::Serialize;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 const TAURI_RUNTIME_BUNDLE_FILE_NAME: &str = "native_app_bundle.json";
 const TAURI_RUNTIME_CONTRACT_FILE_NAME: &str = "kain_runtime_contract.json";
@@ -69,6 +70,7 @@ pub struct TauriAppMaterializationConfig {
     pub artifact_output_dir: PathBuf,
     pub build_executable: bool,
     pub release: bool,
+    pub cargo_target_dir: Option<PathBuf>,
     pub bundle_identifier: Option<String>,
     pub window_label: Option<String>,
     pub cargo_package_name: Option<String>,
@@ -85,6 +87,7 @@ impl Default for TauriAppMaterializationConfig {
             artifact_output_dir: PathBuf::from(TAURI_ARTIFACT_OUTPUT_DIR_NAME),
             build_executable: true,
             release: false,
+            cargo_target_dir: None,
             bundle_identifier: None,
             window_label: None,
             cargo_package_name: None,
@@ -143,6 +146,10 @@ impl DriverSession {
         } else {
             project_dir.join(&config.artifact_output_dir)
         };
+        let cargo_target_dir = config
+            .cargo_target_dir
+            .clone()
+            .unwrap_or_else(|| src_tauri_dir.join(".kain").join("cargo-target"));
 
         fs::create_dir_all(&src_tauri_src_dir)
             .map_err(io_error("create Tauri source directory"))?;
@@ -560,6 +567,7 @@ impl DriverSession {
                 &src_tauri_manifest_path,
                 &cargo_package_name,
                 config.release,
+                Some(&cargo_target_dir),
             )?)
         } else {
             None
@@ -1060,12 +1068,9 @@ fn reload_path_string(project_dir: &Path, path: &Path) -> String {
 }
 
 fn fingerprint_text(value: &str) -> String {
-    let mut hash = 0xcbf29ce484222325u64;
-    for byte in value.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    format!("{hash:016x}")
+    let mut hash = Sha256::new();
+    hash.update(value.as_bytes());
+    format!("{:x}", hash.finalize())
 }
 
 fn current_timestamp_string() -> String {
@@ -1130,6 +1135,7 @@ fn build_tauri_app_executable(
     manifest_path: &Path,
     cargo_package_name: &str,
     release: bool,
+    cargo_target_dir: Option<&Path>,
 ) -> Result<PathBuf, KainError> {
     let mut command = Command::new("cargo");
     command
@@ -1138,6 +1144,11 @@ fn build_tauri_app_executable(
         .arg(manifest_path);
     if release {
         command.arg("--release");
+    }
+    if let Some(cargo_target_dir) = cargo_target_dir {
+        fs::create_dir_all(cargo_target_dir)
+            .map_err(io_error("create Tauri cargo target directory"))?;
+        command.env("CARGO_TARGET_DIR", cargo_target_dir);
     }
     command.current_dir(
         manifest_path
@@ -1162,10 +1173,14 @@ fn build_tauri_app_executable(
         )));
     }
 
-    let target_root = manifest_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("target")
+    let target_root = cargo_target_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| {
+            manifest_path
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("target")
+        })
         .join(if release { "release" } else { "debug" });
     let executable_path = target_root.join(binary_file_name(cargo_package_name));
     if !executable_path.exists() {

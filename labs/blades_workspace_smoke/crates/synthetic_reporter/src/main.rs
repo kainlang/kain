@@ -1,7 +1,7 @@
 mod atlas;
 
 use atlas::{collect_shader_artifacts, render_html, render_ppm, render_report, render_svg};
-use blade::discover_workspace;
+use blade::{discover_workspace, load_kain_manifest};
 use kain_fs as kfs;
 use std::env;
 use std::error::Error;
@@ -27,7 +27,19 @@ fn run() -> Result<(), Box<dyn Error>> {
         .find_blade("gpu-compute")
         .ok_or("gpu-compute blade was not discovered")?;
 
-    let artifact_root = workspace.root.join(".kain").join("build");
+    let artifact_root = workspace
+        .manifest_path
+        .as_ref()
+        .and_then(|path| load_kain_manifest(path).ok())
+        .and_then(|manifest| manifest.build.artifact_root)
+        .map(|path| {
+            if path.is_absolute() {
+                path
+            } else {
+                workspace.root.join(path)
+            }
+        })
+        .unwrap_or_else(|| workspace.root.join(".kain").join("out"));
     let artifacts = collect_shader_artifacts(
         &artifact_root,
         &gpu_blade.gpu_shader_sources,

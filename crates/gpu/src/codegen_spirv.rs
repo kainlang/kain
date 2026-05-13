@@ -3267,11 +3267,12 @@ fn storage_buffer_stride(buffer_ty: &Type) -> u32 {
         {
             16
         }
-        Type::Named { ref name, .. } if matches!(name.as_str(), "Vec2" | "IVec2" | "UVec2") => {
-            8
-        }
+        Type::Named { ref name, .. } if matches!(name.as_str(), "Vec2" | "IVec2" | "UVec2") => 8,
         Type::Named { ref name, .. }
-            if matches!(name.as_str(), "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool") =>
+            if matches!(
+                name.as_str(),
+                "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool"
+            ) =>
         {
             4
         }

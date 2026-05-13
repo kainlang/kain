@@ -1,5 +1,5 @@
 [pack]
-name = "kain.core.proofs"
+name = "kain.build.proofs"
 scope = ".."
 languages = ["rust"]
 
@@ -14,17 +14,16 @@ exclude = ["z3/**", "target/**", "node_modules/**"]
 [templates]
 use = ["builtin:*", "local:templates/*.yaml"]
 
+[plugins]
+use = ["local:*", "global:*"]
+
 [fixtures]
 use = ["fixtures/**/*.*"]
 
 [ci]
 smoke = ["proofs/**/*.yaml"]
 full = ["proofs/**/*.*"]
-memory = ["proofs/memory-*.yaml"]
-diagnostics = ["proofs/diagnostics-*.yaml"]
-literals = ["proofs/literal-*.yaml"]
-parser = ["proofs/parser-*.yaml"]
-keywords = ["proofs/keywords-*.yaml"]
+build = ["proofs/build-*.yaml"]
 
 [reports]
 path = "reports"

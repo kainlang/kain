@@ -8,6 +8,7 @@ Current focus:
 - signed literal bounds for lowered memory helper integers
 - span-clamping and line-end arithmetic in `src/diagnostics.rs`
 - parser slice/index guards in `src/parser.rs`
+- keyword contracts for `patch`, `law`, `converge`, and `orchestrate`
 
 Common commands:
 
@@ -17,6 +18,7 @@ uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\K
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane diagnostics
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane literals
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane parser
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane keywords
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane full
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --workspace --project-root D:\Kain-Lang --lane smoke
 ```

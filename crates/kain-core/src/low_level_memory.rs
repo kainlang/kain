@@ -217,9 +217,7 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) ->
                                     let used_bits_after_insert = checked_layout_add(
                                         pack.used_bits,
                                         width,
-                                        format!(
-                                            "{field_context}: checking bitfield pack capacity"
-                                        ),
+                                        format!("{field_context}: checking bitfield pack capacity"),
                                     )?;
                                     pack.unit_size != unit_size
                                         || pack.align != align
@@ -391,10 +389,9 @@ impl LayoutRegistry {
             }
             Type::Ref { .. } | Type::Ptr { .. } => Ok(8),
             Type::Option(inner, _) => self.type_size_fallback(inner),
-            Type::Result(ok, err, _) => Ok(
-                self.type_size_fallback(ok)?
-                    .max(self.type_size_fallback(err)?),
-            ),
+            Type::Result(ok, err, _) => Ok(self
+                .type_size_fallback(ok)?
+                .max(self.type_size_fallback(err)?)),
             Type::Unit(_) | Type::Never(_) => Ok(0),
             _ => Ok(8),
         }
@@ -692,11 +689,7 @@ fn lower_typed_item_memory(
     }
 }
 
-fn lower_enum_memory(
-    enum_ast: &Enum,
-    target: CompileTarget,
-    layouts: &LayoutRegistry,
-) -> Enum {
+fn lower_enum_memory(enum_ast: &Enum, target: CompileTarget, layouts: &LayoutRegistry) -> Enum {
     let mut variants = Vec::new();
     for variant in &enum_ast.variants {
         let fields = match &variant.fields {
@@ -783,11 +776,7 @@ fn lower_function_memory(
     }
 }
 
-fn lower_free_expr_memory(
-    expr: &Expr,
-    target: CompileTarget,
-    layouts: &LayoutRegistry,
-) -> Expr {
+fn lower_free_expr_memory(expr: &Expr, target: CompileTarget, layouts: &LayoutRegistry) -> Expr {
     let mut ctx = FunctionMemoryCtx {
         target,
         layouts,
@@ -986,24 +975,20 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ],
             span,
         ),
-        Expr::SizeOfType { target, .. } => {
-            Expr::Int(
-                size_literal_i64_or_panic(
-                    estimate_type_size(target, ctx.layouts),
-                    format!("lowering sizeof_type for {}", format_type_label(target)),
-                ),
-                span,
-            )
-        }
-        Expr::AlignOfType { target, .. } => {
-            Expr::Int(
-                size_literal_i64_or_panic(
-                    estimate_type_align(target, ctx.layouts),
-                    format!("lowering alignof_type for {}", format_type_label(target)),
-                ),
-                span,
-            )
-        }
+        Expr::SizeOfType { target, .. } => Expr::Int(
+            size_literal_i64_or_panic(
+                estimate_type_size(target, ctx.layouts),
+                format!("lowering sizeof_type for {}", format_type_label(target)),
+            ),
+            span,
+        ),
+        Expr::AlignOfType { target, .. } => Expr::Int(
+            size_literal_i64_or_panic(
+                estimate_type_align(target, ctx.layouts),
+                format!("lowering alignof_type for {}", format_type_label(target)),
+            ),
+            span,
+        ),
         Expr::Alloca { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
         Expr::Uninit { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
         Expr::Alloc {
@@ -1086,9 +1071,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                                 Expr::Int(
                                     size_literal_i64_or_panic(
                                         field_bit_offset,
-                                        format!(
-                                            "lowering bitfield bit offset for '{field}'"
-                                        ),
+                                        format!("lowering bitfield bit offset for '{field}'"),
                                     ),
                                     *span,
                                 ),
@@ -1103,9 +1086,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                                 Expr::Int(
                                     size_literal_i64_or_panic(
                                         promoted_bits,
-                                        format!(
-                                            "lowering promoted bitfield width for '{field}'"
-                                        ),
+                                        format!("lowering promoted bitfield width for '{field}'"),
                                     ),
                                     *span,
                                 ),
@@ -1314,9 +1295,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             Expr::Int(
                                 size_literal_i64_or_panic(
                                     field_bit_offset,
-                                    format!(
-                                        "lowering bitfield bit offset for '{field}'"
-                                    ),
+                                    format!("lowering bitfield bit offset for '{field}'"),
                                 ),
                                 *span,
                             ),
@@ -1331,9 +1310,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             Expr::Int(
                                 size_literal_i64_or_panic(
                                     promoted_bits,
-                                    format!(
-                                        "lowering promoted bitfield width for '{field}'"
-                                    ),
+                                    format!("lowering promoted bitfield width for '{field}'"),
                                 ),
                                 *span,
                             ),
@@ -2160,7 +2137,10 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
         Type::Array(inner, size, _) => checked_layout_mul_or_panic(
             estimate_type_size(inner, layouts),
             *size,
-            format!("estimating lowered array size for {}", format_type_label(ty)),
+            format!(
+                "estimating lowered array size for {}",
+                format_type_label(ty)
+            ),
         ),
         Type::Slice(_, _) => 16,
         Type::Tuple(types, _) => {
@@ -2169,7 +2149,10 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
                 total = checked_layout_add_or_panic(
                     total,
                     estimate_type_size(item_ty, layouts),
-                    format!("estimating lowered tuple size for {}", format_type_label(ty)),
+                    format!(
+                        "estimating lowered tuple size for {}",
+                        format_type_label(ty)
+                    ),
                 );
             }
             total
@@ -2406,10 +2389,7 @@ fn lower_aggregate_init_expr(
                                     Expr::Int(
                                         size_literal_i64_or_panic(
                                             info.size,
-                                            format!(
-                                                "lowering aggregate union size for '{}'",
-                                                name
-                                            ),
+                                            format!("lowering aggregate union size for '{}'", name),
                                         ),
                                         span,
                                     ),

@@ -70,7 +70,9 @@ fn write_temp_spv(case_name: &str, bytes: &[u8]) -> PathBuf {
 
 fn run_spirv_val(case_name: &str, spv_path: &Path) {
     let Some(spirv_val) = resolve_spirv_val() else {
-        eprintln!("[spirv-layout] spirv-val not found; skipping external validation for {case_name}");
+        eprintln!(
+            "[spirv-layout] spirv-val not found; skipping external validation for {case_name}"
+        );
         return;
     };
 
@@ -93,7 +95,11 @@ fn run_spirv_val(case_name: &str, spv_path: &Path) {
 fn assert_valid_spirv_case(case_name: &str, source: &str) {
     let bytes = compile_spirv(source);
     assert!(bytes.len() > 16, "SPIR-V output too small");
-    assert_eq!(&bytes[0..4], [0x03, 0x02, 0x23, 0x07], "invalid SPIR-V magic");
+    assert_eq!(
+        &bytes[0..4],
+        [0x03, 0x02, 0x23, 0x07],
+        "invalid SPIR-V magic"
+    );
     let spv_path = write_temp_spv(case_name, &bytes);
     run_spirv_val(case_name, &spv_path);
     let _ = fs::remove_file(spv_path);

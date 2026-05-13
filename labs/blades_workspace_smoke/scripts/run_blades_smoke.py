@@ -247,9 +247,9 @@ def assert_singularity_atlas(lab_root: Path, env: dict[str, str]) -> None:
 
 def find_lab_executable(lab_root: Path, stem: str) -> Path:
     binary_name = platform_binary_name(stem)
-    matches = sorted((lab_root / ".kain" / "build").rglob(binary_name))
+    matches = sorted((lab_root / ".kain" / "out").rglob(binary_name))
     if not matches:
-        raise RuntimeError(f"could not find lab executable {binary_name} under .kain/build")
+        raise RuntimeError(f"could not find lab executable {binary_name} under .kain/out")
     return matches[-1]
 
 

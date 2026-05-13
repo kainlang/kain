@@ -516,6 +516,10 @@ pub enum KainCommand {
         #[arg(long, value_delimiter = ',')]
         targets: Option<Vec<String>>,
 
+        /// Canonical build lane: bootstrap, dev, release, dist, or selfhost
+        #[arg(long)]
+        lane: Option<String>,
+
         /// Build UE5 plugin from KAIN.toml [ue5] config
         #[arg(long)]
         ue5: bool,
