@@ -118,6 +118,47 @@ function Get-HashValue {
     return $DefaultValue
 }
 
+function ConvertTo-NormalizedObject {
+    param([Parameter(Mandatory = $true)]$Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [hashtable]) {
+        $result = @{}
+        foreach ($key in $Value.Keys) {
+            $result[$key] = ConvertTo-NormalizedObject -Value $Value[$key]
+        }
+        return $result
+    }
+    if ($Value -is [System.Management.Automation.PSCustomObject]) {
+        $result = @{}
+        foreach ($property in $Value.PSObject.Properties) {
+            $result[$property.Name] = ConvertTo-NormalizedObject -Value $property.Value
+        }
+        return $result
+    }
+    if (($Value -is [System.Collections.IEnumerable]) -and -not ($Value -is [string])) {
+        $items = @()
+        foreach ($item in $Value) {
+            $items += ,(ConvertTo-NormalizedObject -Value $item)
+        }
+        return $items
+    }
+    return $Value
+}
+
+function ConvertFrom-JsonCompat {
+    param([Parameter(Mandatory = $true)][string]$JsonText)
+
+    $convertCommand = Get-Command ConvertFrom-Json -ErrorAction Stop
+    if ($convertCommand.Parameters.ContainsKey("AsHashtable")) {
+        return ConvertFrom-Json -InputObject $JsonText -AsHashtable
+    }
+    $parsed = ConvertFrom-Json -InputObject $JsonText
+    return ConvertTo-NormalizedObject -Value $parsed
+}
+
 function Convert-ToStringArray {
     param([Parameter(Mandatory = $true)]$Value)
     $result = @()
@@ -138,7 +179,7 @@ function Load-RuntimePolicy {
         return @{}
     }
     try {
-        return Get-Content -Raw -Path $policyPath | ConvertFrom-Json -AsHashtable
+        return ConvertFrom-JsonCompat -JsonText (Get-Content -Raw -Path $policyPath)
     } catch {
         return @{}
     }
@@ -182,6 +223,33 @@ function Resolve-RepoHeadSha {
         $sha = (& git -C $RepoRoot rev-parse HEAD 2>$null | Select-Object -First 1).Trim()
         if (-not [string]::IsNullOrWhiteSpace($sha)) {
             return $sha
+        }
+    } catch {
+    }
+    return "unknown"
+}
+
+function Resolve-RepoCommitCount {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+    try {
+        $count = (& git -C $RepoRoot rev-list --count HEAD 2>$null | Select-Object -First 1).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($count)) {
+            return $count
+        }
+    } catch {
+    }
+    return "0"
+}
+
+function Resolve-RepoDirtyState {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+    try {
+        $status = (& git -C $RepoRoot status --porcelain 2>$null)
+        if ($LASTEXITCODE -eq 0) {
+            if ([string]::IsNullOrWhiteSpace(($status | Out-String))) {
+                return "clean"
+            }
+            return "dirty"
         }
     } catch {
     }
@@ -266,13 +334,41 @@ function Read-BuildCounter {
         return 0
     }
     try {
-        $payload = Get-Content -Raw -Path $CounterPath | ConvertFrom-Json -AsHashtable
+        $payload = ConvertFrom-JsonCompat -JsonText (Get-Content -Raw -Path $CounterPath)
         if ($payload -is [hashtable] -and $payload.ContainsKey("last_build_number")) {
             return [int]$payload["last_build_number"]
         }
     } catch {
     }
     return 0
+}
+
+function Read-SyncStampBuildNumber {
+    param([Parameter(Mandatory = $true)][string]$StampPath)
+    if (-not (Test-Path $StampPath)) {
+        return 0
+    }
+    try {
+        $payload = ConvertFrom-JsonCompat -JsonText (Get-Content -Raw -Path $StampPath)
+        if ($payload -is [hashtable] -and $payload.ContainsKey("build_number")) {
+            $raw = [string]$payload["build_number"]
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                return [int]$raw
+            }
+        }
+    } catch {
+    }
+    return 0
+}
+
+function Read-ManagedBuildNumber {
+    param(
+        [Parameter(Mandatory = $true)][string]$CounterPath,
+        [Parameter(Mandatory = $true)][string]$StampPath
+    )
+    $counterValue = Read-BuildCounter -CounterPath $CounterPath
+    $stampValue = Read-SyncStampBuildNumber -StampPath $StampPath
+    return [Math]::Max($counterValue, $stampValue)
 }
 
 function Write-BuildCounter {
@@ -383,6 +479,9 @@ if ($resolvedPythonPath) {
 
 $buildNumberForThisSync = ""
 $nextBuildNumber = 0
+$repoSha = Resolve-RepoHeadSha -RepoRoot $repoRoot
+$repoCommitCount = Resolve-RepoCommitCount -RepoRoot $repoRoot
+$repoDirtyState = Resolve-RepoDirtyState -RepoRoot $repoRoot
 
 if (-not $ManagedSync) {
     Write-Host "============================================================================" -ForegroundColor Cyan
@@ -423,11 +522,20 @@ try {
     }
 
     if (-not $SkipBuild) {
-        $currentBuildCounter = Read-BuildCounter -CounterPath $counterPath
+        $currentBuildCounter = Read-ManagedBuildNumber -CounterPath $counterPath -StampPath $stampPath
         $nextBuildNumber = $currentBuildCounter + 1
         $buildNumberForThisSync = [string]$nextBuildNumber
         $env:KAIN_BUILD_NUMBER = $buildNumberForThisSync
         $env:KAIN_BUILD_TRACKING_MODE = "managed"
+        if ($repoSha -eq "unknown") {
+            $env:KAIN_BUILD_GIT_SHA = "unknown"
+        } elseif ($repoSha.Length -gt 12) {
+            $env:KAIN_BUILD_GIT_SHA = $repoSha.Substring(0, 12)
+        } else {
+            $env:KAIN_BUILD_GIT_SHA = $repoSha
+        }
+        $env:KAIN_BUILD_GIT_COMMIT_COUNT = $repoCommitCount
+        $env:KAIN_BUILD_GIT_DIRTY = $repoDirtyState
 
         if (-not $ManagedSync) {
             Write-Host "[1/5] Building crates/cli in release mode (build #$buildNumberForThisSync)..." -ForegroundColor Cyan
@@ -495,7 +603,6 @@ try {
         Write-Host "[4/5] Session updated. Use -PersistUserEnv to make it permanent." -ForegroundColor Cyan
     }
 
-    $repoSha = Resolve-RepoHeadSha -RepoRoot $repoRoot
     $runtimeStamp = Get-RuntimeStamp -RepoRoot $repoRoot -RuntimeStampFiles $runtimeStampFiles
     $binaryFingerprint = Get-BinaryFingerprint -Path $primaryBinary.Destination
     $nowUnix = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()

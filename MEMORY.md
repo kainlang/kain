@@ -1,5 +1,38 @@
 # Kain Memory
 
+# 2026-05-13 - managed sync now keeps doctor metadata and build numbers in sync
+
+The repo-local `kain_mcp` lane now has coherent managed build metadata end to end:
+`kain doctor`, the managed sync stamp, and the PATH-installed binary all agree on
+the live repo SHA and build number after sync.
+
+What changed:
+
+- Updated `crates/cli/build.rs` so CLI build metadata can be driven by explicit
+  managed-sync git env vars and so Cargo watches the active branch ref plus
+  `packed-refs`, not only `.git/HEAD`.
+- Updated `scripts/windows/sync-kain-source-of-truth.ps1` to inject git metadata
+  env vars into the CLI build, derive the next managed build number from both the
+  counter file and the previous sync stamp, and parse JSON in a Windows PowerShell 5
+  compatible way instead of relying on `ConvertFrom-Json -AsHashtable`.
+- Updated `ARCHITECTURE.md` and the `kain-blades-system` skill with the durable
+  Windows PowerShell compatibility warning for the managed sync lane.
+
+Formal proof gathered with Z3:
+
+- `kain_managed_build_number_monotonic_from_counter_and_stamp`
+
+That proof shows the new `next = max(counter, stamp) + 1` rule is strictly
+monotonic over non-negative stored build numbers.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -ManagedSync`
+- `kain doctor`
+- Verified `C:\Users\Admin\.kain\state\build_counter.json` now advances to `2`
+- Verified `C:\Users\Admin\.kain\state\kain_sync_stamp.json` now reports
+  `build_number = "2"` and current repo SHA
+
 # 2026-05-13 - `kain_mcp` hangs were partly stale-session state; launcher now leaves boot breadcrumbs
 
 The live `kain_mcp` server was healthy when launched with the exact Codex config

@@ -18,12 +18,22 @@ fn git_output(args: &[&str]) -> Option<String> {
     }
 }
 
+fn env_override(key: &str) -> Option<String> {
+    env::var(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_NUMBER");
     println!("cargo:rerun-if-env-changed=KAIN_BUILD_TRACKING_MODE");
+    println!("cargo:rerun-if-env-changed=KAIN_BUILD_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=KAIN_BUILD_GIT_COMMIT_COUNT");
+    println!("cargo:rerun-if-env-changed=KAIN_BUILD_GIT_DIRTY");
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
 
     let unix_time = env::var("SOURCE_DATE_EPOCH")
@@ -69,15 +79,19 @@ fn main() {
         env::var("HOST").unwrap_or_else(|_| "unknown".to_string())
     );
 
-    let git_sha =
-        git_output(&["rev-parse", "--short=12", "HEAD"]).unwrap_or_else(|| "unknown".to_string());
-    let git_commit_count =
-        git_output(&["rev-list", "--count", "HEAD"]).unwrap_or_else(|| "0".to_string());
-    let git_dirty = match git_output(&["status", "--porcelain"]) {
-        Some(status) if status.is_empty() => "clean".to_string(),
-        Some(_) => "dirty".to_string(),
-        None => "unknown".to_string(),
-    };
+    let git_sha = env_override("KAIN_BUILD_GIT_SHA")
+        .or_else(|| git_output(&["rev-parse", "--short=12", "HEAD"]))
+        .unwrap_or_else(|| "unknown".to_string());
+    let git_commit_count = env_override("KAIN_BUILD_GIT_COMMIT_COUNT")
+        .or_else(|| git_output(&["rev-list", "--count", "HEAD"]))
+        .unwrap_or_else(|| "0".to_string());
+    let git_dirty = env_override("KAIN_BUILD_GIT_DIRTY").unwrap_or_else(|| {
+        match git_output(&["status", "--porcelain"]) {
+            Some(status) if status.is_empty() => "clean".to_string(),
+            Some(_) => "dirty".to_string(),
+            None => "unknown".to_string(),
+        }
+    });
 
     println!("cargo:rustc-env=KAIN_GIT_SHA={}", git_sha);
     println!("cargo:rustc-env=KAIN_GIT_COMMIT_COUNT={}", git_commit_count);
@@ -88,6 +102,16 @@ fn main() {
         let head_path = git_path.join("HEAD");
         if head_path.exists() {
             println!("cargo:rerun-if-changed={}", head_path.display());
+        }
+        if let Some(symbolic_ref) = git_output(&["symbolic-ref", "-q", "HEAD"]) {
+            let ref_path = git_path.join(symbolic_ref);
+            if ref_path.exists() {
+                println!("cargo:rerun-if-changed={}", ref_path.display());
+            }
+        }
+        let packed_refs_path = git_path.join("packed-refs");
+        if packed_refs_path.exists() {
+            println!("cargo:rerun-if-changed={}", packed_refs_path.display());
         }
     }
 }
