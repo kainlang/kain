@@ -1,0 +1,91 @@
+fn network_bool_word(value: Bool) -> String:
+    if value:
+        return "yes"
+    return "no"
+
+pub fn cleanup_previous_network_actor() -> Int:
+    return 0
+
+pub fn run_episode_network_probe(session_id: Int, page_node_id: Int, request_seed: Int) -> Int:
+    let _reset = net_reset()
+    let _seed = ui_state_set_i64(session_id, page_node_id, "network.seed", request_seed)
+
+    if net_platform_available() != 1:
+        let _available = ui_state_set_string(session_id, page_node_id, "network.available", "no")
+        let _port = ui_state_set_i64(session_id, page_node_id, "network.port", 0)
+        let _actor = ui_state_set_i64(session_id, page_node_id, "network.actor_id", 0)
+        let _method = ui_state_set_string(session_id, page_node_id, "network.method", "offline")
+        let _path = ui_state_set_string(session_id, page_node_id, "network.path", "/episode-two/probe")
+        let _body = ui_state_set_string(session_id, page_node_id, "network.body", "platform-unavailable")
+        let _response = ui_state_set_string(session_id, page_node_id, "network.response", "network unavailable on this host")
+        let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", 1)
+        return 1
+
+    let server = http_server_create_localhost(0)
+    if server <= 0:
+        let _available = ui_state_set_string(session_id, page_node_id, "network.available", "yes")
+        let _response = ui_state_set_string(session_id, page_node_id, "network.response", net_last_error_kind() + " / " + net_last_error_message())
+        let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", 0)
+        return 0
+
+    if http_server_listen(server) != 0:
+        let _close = http_server_close(server)
+        let _response = ui_state_set_string(session_id, page_node_id, "network.response", "listen failed")
+        let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", 0)
+        return 0
+
+    let port = http_server_local_port(server)
+    let handler = native_actor_spawn("EpisodeTwoNetActor", "requests=0")
+    let _route = http_route_actor(server, "POST", "/episode-two/probe", handler, "HttpRequest")
+
+    let body = "hello-actor"
+    let request_text = "POST /episode-two/probe HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 11\r\n\r\nhello-actor"
+    let client = tcp_connect("127.0.0.1", port, 5000)
+    if client <= 0:
+        let _server_close = http_server_close(server)
+        let _response = ui_state_set_string(session_id, page_node_id, "network.response", "tcp connect failed")
+        let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", 0)
+        return 0
+
+    let _write = tcp_write_text(client, request_text)
+    let incoming = http_server_pump(server, 5000)
+    if incoming <= 0:
+        let _client_close = tcp_close(client)
+        let _server_close = http_server_close(server)
+        let _response = ui_state_set_string(session_id, page_node_id, "network.response", "pump failed")
+        let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", 0)
+        return 0
+
+    let next_request = http_server_next_request(server)
+    let method = http_request_method(incoming)
+    let path = http_request_path(incoming)
+    let request_body = http_request_body_text(incoming)
+    let _respond = http_respond_text(incoming, 202, "network-ok:" + str(request_seed))
+    let response_text = tcp_read_text(client)
+
+    let client_probe = http_request_create("GET", http_local_url(port, "/episode-two/introspect"))
+    let _client_timeout = http_request_set_timeout(client_probe, 1)
+    let _client_destroy = http_request_destroy(client_probe)
+
+    let handler_state = native_actor_get_state(handler)
+    let roundtrip_ok = next_request == incoming and method == "POST" and path == "/episode-two/probe" and request_body == body and response_text != ""
+    let roundtrip_ok_i64 = 0
+    if roundtrip_ok:
+        roundtrip_ok_i64 = 1
+
+    let _available = ui_state_set_string(session_id, page_node_id, "network.available", "yes")
+    let _port = ui_state_set_i64(session_id, page_node_id, "network.port", port)
+    let _actor_id = ui_state_set_i64(session_id, page_node_id, "network.actor_id", handler)
+    let _actor_state = ui_state_set_string(session_id, page_node_id, "network.actor.running", network_bool_word(handler_state == 2))
+    let _method = ui_state_set_string(session_id, page_node_id, "network.method", method)
+    let _path = ui_state_set_string(session_id, page_node_id, "network.path", path)
+    let _body = ui_state_set_string(session_id, page_node_id, "network.body", request_body)
+    let _response = ui_state_set_string(session_id, page_node_id, "network.response", response_text)
+    let _ok = ui_state_set_i64(session_id, page_node_id, "network.ok", roundtrip_ok_i64)
+
+    let _client_close = tcp_close(client)
+    let _server_close = http_server_close(server)
+
+    if roundtrip_ok:
+        return 1
+    return 0

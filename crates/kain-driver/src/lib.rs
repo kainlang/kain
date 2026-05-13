@@ -4,13 +4,15 @@
 //! and Rust-hosted applications that want to compile KAIN without going
 //! through the CLI binary.
 
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
 
-use kain_core::ast::{Expr, Program, WorldSurfaceKind};
+use kain_core::ast::{Expr, Item, Program, Use, WorldSurfaceKind};
 use kain_core::error::KainError;
 use kain_core::monomorphize::MonomorphizedProgram;
+use kain_core::module_resolution::resolve_filesystem_module_file;
 use kain_core::runtime;
 use kain_core::{
     comptime, diagnostics, emit_realtime_app_bundle, emit_runtime_contract_bundle, monomorphize,
@@ -220,6 +222,18 @@ struct WorldSurfaceSelection {
     root_component: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+struct FrontendSourceBundle {
+    user_source: String,
+    full_source: String,
+}
+
+#[derive(Debug, Default)]
+struct FrontendImportCollector {
+    visited_module_files: HashSet<PathBuf>,
+    module_sources: Vec<String>,
+}
+
 #[cfg(feature = "sys")]
 #[derive(Debug, Clone)]
 pub struct RustBundleOutput {
@@ -263,13 +277,10 @@ impl DriverSession {
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
         register_frontend_extensions_for_target(target);
-        let source = prepare_frontend_source_for_target(source, target)?;
+        let frontend = build_frontend_source_bundle(source, target)?;
 
-        let stdlib_source = stdlib::load_stdlib_for_target(target);
-        let full_source = format!("{stdlib_source}\n{source}");
-
-        let tokens = Lexer::new(&full_source).tokenize()?;
-        let span_mapper = diagnostics::SpanMapper::new(&full_source);
+        let tokens = Lexer::new(&frontend.full_source).tokenize()?;
+        let span_mapper = diagnostics::SpanMapper::new(&frontend.full_source);
         let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
         comptime::eval_program(&mut ast)?;
         let typed = types::check_with_extra_globals(&ast, &span_mapper, "<input>", extra_globals)?;
@@ -327,12 +338,15 @@ impl DriverSession {
         root_component: Option<&str>,
     ) -> Result<RealtimeAppBundleOutput, KainError> {
         let typed = self.frontend_to_typed_program(source, target)?;
-        let prepared_source =
-            prepare_c_ffi_source(source, target).unwrap_or_else(|_| source.to_string());
+        let frontend = build_frontend_source_bundle(source, target)
+            .unwrap_or_else(|_| FrontendSourceBundle {
+                user_source: source.to_string(),
+                full_source: source.to_string(),
+            });
         let resolved_world = resolve_world_selection(&typed, target, root_component)?;
         let ui_output = if let Some(root_component) = resolved_world.root_component.as_deref() {
             Some(kain_core::build_ui_output_from_source(
-                &prepared_source,
+                &frontend.user_source,
                 root_component,
             )?)
         } else {
@@ -611,12 +625,10 @@ impl DriverSession {
         copyright: Option<&str>,
         metadata_dir: Option<PathBuf>,
     ) -> Result<ue5::Ue5Output, KainError> {
-        let source = prepare_rust_ffi_source(source, CompileTarget::Ue5)?;
-        let stdlib_source = stdlib::load_stdlib_for_target(CompileTarget::Ue5);
-        let full_source = format!("{stdlib_source}\n{source}");
+        let frontend = build_frontend_source_bundle(source, CompileTarget::Ue5)?;
 
-        let tokens = Lexer::new(&full_source).tokenize()?;
-        let span_mapper = diagnostics::SpanMapper::new(&full_source);
+        let tokens = Lexer::new(&frontend.full_source).tokenize()?;
+        let span_mapper = diagnostics::SpanMapper::new(&frontend.full_source);
         let mut ast = Parser::new(&tokens, &span_mapper, "<input>").parse()?;
         comptime::eval_program(&mut ast)?;
         let typed_ast = types::check(&ast, &span_mapper, "<input>")?;
@@ -724,6 +736,89 @@ impl DriverSession {
             .or_else(|| self.ue5_metadata_dir.clone())
             .unwrap_or_else(find_metadata_dir)
     }
+}
+
+impl FrontendImportCollector {
+    fn collect_from_source(
+        &mut self,
+        source: &str,
+        target: CompileTarget,
+    ) -> Result<(), KainError> {
+        let program = parse_frontend_program(source, "<frontend-import-scan>")?;
+        for item in program.items {
+            let Item::Use(import) = item else {
+                continue;
+            };
+            let Some(module_file) = resolve_frontend_module_file(&import) else {
+                continue;
+            };
+            let module_file = canonicalize_existing_path(&module_file);
+            if !self.visited_module_files.insert(module_file.clone()) {
+                continue;
+            }
+
+            let module_source = std::fs::read_to_string(&module_file).map_err(|err| {
+                KainError::runtime(format!(
+                    "Failed to read imported frontend module {}: {err}",
+                    module_file.display()
+                ))
+            })?;
+            let prepared_module_source = prepare_frontend_source_for_target(&module_source, target)?;
+            self.collect_from_source(&prepared_module_source, target)?;
+            self.module_sources.push(prepared_module_source);
+        }
+        Ok(())
+    }
+}
+
+fn build_frontend_source_bundle(
+    source: &str,
+    target: CompileTarget,
+) -> Result<FrontendSourceBundle, KainError> {
+    let prepared_source = prepare_frontend_source_for_target(source, target)?;
+    let mut collector = FrontendImportCollector::default();
+    collector.collect_from_source(&prepared_source, target)?;
+    let user_source = assemble_frontend_user_source(&collector.module_sources, &prepared_source);
+    let stdlib_source = stdlib::load_stdlib_for_target(target);
+    Ok(FrontendSourceBundle {
+        user_source: user_source.clone(),
+        full_source: format!("{stdlib_source}\n{user_source}"),
+    })
+}
+
+fn assemble_frontend_user_source(module_sources: &[String], entry_source: &str) -> String {
+    let mut combined = String::new();
+    for module_source in module_sources {
+        combined.push_str(module_source);
+        if !module_source.ends_with('\n') {
+            combined.push('\n');
+        }
+    }
+    combined.push_str(entry_source);
+    combined
+}
+
+fn parse_frontend_program(source: &str, filename: &str) -> Result<Program, KainError> {
+    let tokens = Lexer::new(source).tokenize()?;
+    let span_mapper = diagnostics::SpanMapper::new(source);
+    Parser::new(&tokens, &span_mapper, filename).parse()
+}
+
+fn resolve_frontend_module_file(import: &Use) -> Option<PathBuf> {
+    let Some(first_segment) = import.path.first() else {
+        return None;
+    };
+    if matches!(
+        first_segment.as_str(),
+        "std" | "stdlib" | "rust" | "node" | "python" | "js" | "c"
+    ) {
+        return None;
+    }
+    resolve_filesystem_module_file(&import.path).map(|resolution| resolution.file_path)
+}
+
+fn canonicalize_existing_path(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn prepare_rust_ffi_source(source: &str, target: CompileTarget) -> Result<String, KainError> {
@@ -1932,6 +2027,154 @@ test crate_ffi:
 
         let output = result.expect("crate ffi test output");
         assert_eq!(output, "Tests passed");
+    }
+
+    #[test]
+    fn frontend_to_typed_program_includes_filesystem_module_items() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("module_probe.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use module_probe::four
+
+fn main() -> Int:
+    return four()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub fn four() -> Int:
+    return 4
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().frontend_to_typed_program(&source, CompileTarget::Llvm)
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let typed = result.expect("typed program");
+        assert!(typed.items.iter().any(|item| {
+            matches!(item, TypedItem::Function(function) if function.ast.name == "four")
+        }));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_materializes_imported_filesystem_functions() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("module_probe.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use module_probe::four
+
+fn main() -> Int:
+    return four()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub fn four() -> Int:
+    return 4
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().compile(&source, CompileTarget::Llvm)
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let llvm = result.expect("llvm output");
+        assert!(llvm.contains("define i64 @four("));
+        assert!(llvm.contains("call i64 @four("));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_supports_imported_string_concat_with_numeric_values() {
+        let _guard = TEST_CWD_LOCK.lock().expect("cwd lock");
+        let temp = tempfile::tempdir().expect("tempdir");
+        let main_path = temp.path().join("main.kn");
+        let module_dir = temp.path().join("src");
+        let module_path = module_dir.join("module_probe.kn");
+        fs::create_dir_all(&module_dir).expect("module dir");
+        fs::write(
+            &main_path,
+            r#"
+use module_probe::four
+use module_probe::label
+
+fn main() -> Int:
+    let text = label() + " / " + str(four())
+    if text != "":
+        return 0
+    return 1
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub fn four() -> Int:
+    return 4
+
+pub fn label() -> String:
+    return "label"
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let result = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            DriverSession::default().compile(&source, CompileTarget::Llvm)
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+
+        let llvm = result.expect("llvm output");
+        assert!(llvm.contains("call i8* @str_concat("));
+        assert!(llvm.contains("call i8* @to_string(i64"));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_supports_statement_if_with_ignored_string_result() {
+        let llvm = DriverSession::default()
+            .compile(
+                r#"
+fn main() -> Int:
+    if 1 == 1:
+        "episode" + " two"
+    return 0
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("llvm output");
+
+        assert!(llvm.contains("call i8* @str_concat("));
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]

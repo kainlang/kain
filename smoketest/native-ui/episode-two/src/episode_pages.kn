@@ -1,0 +1,162 @@
+pub fn page_actors() -> Int:
+    return 0
+
+pub fn page_three_d() -> Int:
+    return 1
+
+pub fn page_network() -> Int:
+    return 2
+
+pub fn page_entangle() -> Int:
+    return 3
+
+pub fn page_name(page_id: Int) -> String:
+    if page_id == page_actors():
+        return "ACTORS"
+    if page_id == page_three_d():
+        return "3D"
+    if page_id == page_network():
+        return "NETWORK"
+    return "ENTANGLE"
+
+pub fn page_title(page_id: Int) -> String:
+    if page_id == page_actors():
+        return "Actors / Scheduler / Intent"
+    if page_id == page_three_d():
+        return "3D / Graphics / Viewport"
+    if page_id == page_network():
+        return "Networking / Local Actor Route"
+    return "Entangle / Lattice / Patch"
+
+pub fn page_subtitle(page_id: Int) -> String:
+    if page_id == page_actors():
+        return "Language actor pulses, runtime scheduler counters, and native actor metadata in one authored surface."
+    if page_id == page_three_d():
+        return "Raw mesh + pipeline + draw metadata, wrapped in a compact DCC-style viewport shell."
+    if page_id == page_network():
+        return "Loopback HTTP server, actor route registration, TCP request body proof, and response capture."
+    return "Single-writer entanglement driven from authored patches and a tiny clickable lattice toy."
+
+pub fn page_summary(page_id: Int) -> String:
+    if page_id == page_actors():
+        return "Click the pulse buttons to drive the language actor lane."
+    if page_id == page_three_d():
+        return "Drive the viewport knobs to mutate instance count and orbit input."
+    if page_id == page_network():
+        return "Rerun the roundtrip to prove the local HTTP actor bridge."
+    return "Boost energy, seed the lattice, and click the cells to watch entangled state stay in sync."
+
+pub fn page_action_label(page_id: Int, slot: Int) -> String:
+    if page_id == page_actors():
+        if slot == 0:
+            return "Pulse +3"
+        if slot == 1:
+            return "Pulse +11"
+        if slot == 2:
+            return "Respawn"
+        return "Stop"
+    if page_id == page_three_d():
+        if slot == 0:
+            return "Instances +1"
+        if slot == 1:
+            return "Instances -1"
+        if slot == 2:
+            return "Orbit +Axis"
+        return "Redraw"
+    if page_id == page_network():
+        if slot == 0:
+            return "Run Roundtrip"
+        if slot == 1:
+            return "Run Again"
+        if slot == 2:
+            return "Inspect Route"
+        return "Probe State"
+    if slot == 0:
+        return "Energy +16"
+    if slot == 1:
+        return "Energy -8"
+    if slot == 2:
+        return "Seed Lattice"
+    return "Sync Check"
+
+pub fn page_metric_label(page_id: Int, slot: Int) -> String:
+    if page_id == page_actors():
+        if slot == 0:
+            return "daemon.state"
+        if slot == 1:
+            return "expected.total"
+        if slot == 2:
+            return "scheduler.enqueued"
+        if slot == 3:
+            return "scheduler.dequeued"
+        if slot == 4:
+            return "queue.depth"
+        return "busy.workers"
+    if page_id == page_three_d():
+        if slot == 0:
+            return "backend"
+        if slot == 1:
+            return "instances"
+        if slot == 2:
+            return "draw.commands"
+        if slot == 3:
+            return "draw.instances"
+        if slot == 4:
+            return "orbit.axis"
+        return "present.status"
+    if page_id == page_network():
+        if slot == 0:
+            return "available"
+        if slot == 1:
+            return "port"
+        if slot == 2:
+            return "actor.id"
+        if slot == 3:
+            return "method"
+        if slot == 4:
+            return "path"
+        return "roundtrip.ok"
+    if slot == 0:
+        return "energy"
+    if slot == 1:
+        return "displayed.energy"
+    if slot == 2:
+        return "lattice.sum"
+    if slot == 3:
+        return "propagations"
+    if slot == 4:
+        return "patch.journal"
+    return "sync.ok"
+
+pub fn page_accent_label(page_id: Int, slot: Int) -> String:
+    if page_id == page_actors():
+        if slot == 0:
+            return "QUEUE"
+        if slot == 1:
+            return "BUSY"
+        if slot == 2:
+            return "SUP"
+        return "FLOW"
+    if page_id == page_three_d():
+        if slot == 0:
+            return "MESH"
+        if slot == 1:
+            return "PIPE"
+        if slot == 2:
+            return "DRAW"
+        return "AXIS"
+    if page_id == page_network():
+        if slot == 0:
+            return "PORT"
+        if slot == 1:
+            return "ROUTE"
+        if slot == 2:
+            return "BODY"
+        return "REPLY"
+    if slot == 0:
+        return "CELL A"
+    if slot == 1:
+        return "CELL B"
+    if slot == 2:
+        return "CELL C"
+    return "CELL D"

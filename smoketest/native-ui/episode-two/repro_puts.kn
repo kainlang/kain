@@ -1,0 +1,6 @@
+@extern
+fn puts(text: String) -> Int
+
+fn main() -> Int:
+    let _print = puts("episode-two puts works")
+    return 7

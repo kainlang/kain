@@ -132,3 +132,7 @@ website/
 /.reference/
 zender
 zender
+
+# Native runtime build artifacts
+*.obj.fingerprint
+*.obj.d

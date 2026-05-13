@@ -1,0 +1,8 @@
+use repro_shared::four
+use repro_shared::label
+
+fn main() -> Int:
+    let text = label() + " / " + str(four())
+    if text != "":
+        return 0
+    return 1

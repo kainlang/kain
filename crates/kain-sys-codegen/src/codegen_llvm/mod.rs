@@ -3936,6 +3936,49 @@ impl LlvmGenerator {
         }
     }
 
+    fn compile_if_statement(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Block,
+        else_branch: Option<&ElseBranch>,
+    ) -> KainResult<()> {
+        let (cond_val, _) = self.compile_expr(condition)?;
+        let label_then = self.next_label();
+        let label_merge = self.next_label();
+        let label_else = else_branch.map(|_| self.next_label());
+
+        if let Some(label_else) = &label_else {
+            self.emit(&format!(
+                "  br i1 {}, label %{}, label %{}",
+                cond_val, label_then, label_else
+            ));
+        } else {
+            self.emit(&format!(
+                "  br i1 {}, label %{}, label %{}",
+                cond_val, label_then, label_merge
+            ));
+        }
+
+        self.emit_label(&label_then);
+        self.compile_block(then_branch)?;
+        self.emit(&format!("  br label %{}", label_merge));
+
+        if let Some(else_branch) = else_branch {
+            let label_else = label_else.expect("else label must exist when else branch is present");
+            self.emit_label(&label_else);
+            match else_branch {
+                ElseBranch::Else(block) => self.compile_block(block)?,
+                ElseBranch::ElseIf(condition, then_branch, else_branch) => {
+                    self.compile_if_statement(condition, then_branch, else_branch.as_deref())?
+                }
+            }
+            self.emit(&format!("  br label %{}", label_merge));
+        }
+
+        self.emit_label(&label_merge);
+        Ok(())
+    }
+
     fn compile_stmt(&mut self, stmt: &Stmt) -> KainResult<()> {
         match stmt {
             Stmt::Let {
@@ -3978,10 +4021,20 @@ impl LlvmGenerator {
                 }
             }
             Stmt::Expr(expr) => {
-                let (val, ty) = self.compile_expr(expr)?;
-                // If it is a new object, and we are ignoring the result, release it.
-                if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
-                    self.emit_release(&val, &ty);
+                if let Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } = expr
+                {
+                    self.compile_if_statement(condition, then_branch, else_branch.as_deref())?;
+                } else {
+                    let (val, ty) = self.compile_expr(expr)?;
+                    // If it is a new object, and we are ignoring the result, release it.
+                    if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
+                        self.emit_release(&val, &ty);
+                    }
                 }
             }
             Stmt::Return(expr, _) => {
@@ -5247,10 +5300,9 @@ impl LlvmGenerator {
             } => {
                 let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
-                let (lhs, ty, rhs, rhs_ty) =
-                    self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
-
-                if *op == BinaryOp::Add && (ty == "i8*" || rhs_ty == "i8*") {
+                if *op == BinaryOp::Add && (lhs_ty == "i8*" || rhs_ty == "i8*") {
+                    let (lhs, _) = self.stringify_value(&lhs, &lhs_ty)?;
+                    let (rhs, _) = self.stringify_value(&rhs, &rhs_ty)?;
                     let res = self.next_reg();
                     self.emit(&format!(
                         "  {} = call i8* @str_concat(i8* {}, i8* {})",
@@ -5259,8 +5311,11 @@ impl LlvmGenerator {
                     return Ok((res, "i8*".into()));
                 }
 
-                if (*op == BinaryOp::Eq || *op == BinaryOp::Ne) && (ty == "i8*" || rhs_ty == "i8*")
+                if (*op == BinaryOp::Eq || *op == BinaryOp::Ne)
+                    && (lhs_ty == "i8*" || rhs_ty == "i8*")
                 {
+                    let (lhs, _) = self.stringify_value(&lhs, &lhs_ty)?;
+                    let (rhs, _) = self.stringify_value(&rhs, &rhs_ty)?;
                     let res = self.next_reg();
                     self.emit(&format!(
                         "  {} = call i1 @deep_eq(i8* {}, i8* {})",
@@ -5274,6 +5329,9 @@ impl LlvmGenerator {
                     }
                     return Ok((res, "i1".into()));
                 }
+
+                let (lhs, ty, rhs, rhs_ty) =
+                    self.coerce_binary_operands(lhs, lhs_ty, rhs, rhs_ty)?;
 
                 let is_float = ty == "double" && rhs_ty == "double";
                 let res = self.next_reg();
@@ -5579,13 +5637,9 @@ impl LlvmGenerator {
 
                 // Handle print intrinsic
                 if let Expr::Ident(name, _) = callee.as_ref() {
-                    if name == "to_string" && args.len() == 1 {
+                    if (name == "to_string" || name == "str") && args.len() == 1 {
                         let (val, ty) = self.compile_expr(&args[0].value)?;
-                        if ty == "i64" {
-                            let res = self.next_reg();
-                            self.emit(&format!("  {} = call i8* @to_string(i64 {})", res, val));
-                            return Ok((res, "i8*".into()));
-                        }
+                        return self.stringify_value(&val, &ty);
                     }
 
                     if name == "now" {

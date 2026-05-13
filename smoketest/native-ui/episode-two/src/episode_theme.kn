@@ -1,0 +1,103 @@
+use episode_pages::page_actors
+use episode_pages::page_three_d
+use episode_pages::page_network
+
+pub fn page_accent_r(page_id: Int) -> Float:
+    if page_id == page_actors():
+        return 0.18
+    if page_id == page_three_d():
+        return 0.92
+    if page_id == page_network():
+        return 0.99
+    return 0.38
+
+pub fn page_accent_g(page_id: Int) -> Float:
+    if page_id == page_actors():
+        return 0.80
+    if page_id == page_three_d():
+        return 0.70
+    if page_id == page_network():
+        return 0.45
+    return 0.92
+
+pub fn page_accent_b(page_id: Int) -> Float:
+    if page_id == page_actors():
+        return 0.65
+    if page_id == page_three_d():
+        return 0.28
+    if page_id == page_network():
+        return 0.20
+    return 0.58
+
+pub fn apply_shell_theme(session_id: Int, root_id: Int, topbar_id: Int, sidebar_id: Int, status_id: Int, surface_id: Int, hero_id: Int) -> Int:
+    let _root = ui_style_color_rgba(session_id, root_id, "fill", 0.03, 0.035, 0.05, 1.0)
+    let _topbar = ui_style_color_rgba(session_id, topbar_id, "fill", 0.08, 0.09, 0.12, 0.96)
+    let _sidebar = ui_style_color_rgba(session_id, sidebar_id, "fill", 0.06, 0.07, 0.10, 0.96)
+    let _status = ui_style_color_rgba(session_id, status_id, "fill", 0.07, 0.08, 0.11, 0.98)
+    let _surface = ui_style_color_rgba(session_id, surface_id, "fill", 0.05, 0.06, 0.09, 0.98)
+    return ui_style_color_rgba(session_id, hero_id, "fill", 0.10, 0.11, 0.15, 1.0)
+
+pub fn apply_brand_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.98, 0.96, 0.90, 1.0)
+
+pub fn apply_sidebar_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.78, 0.86, 0.94, 1.0)
+
+pub fn apply_title_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.99, 0.97, 0.93, 1.0)
+
+pub fn apply_subtitle_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.70, 0.76, 0.84, 1.0)
+
+pub fn apply_metric_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.84, 0.90, 0.97, 1.0)
+
+pub fn apply_status_text(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 0.93, 0.86, 1.0)
+
+pub fn apply_tab_theme(session_id: Int, node_id: Int, page_id: Int, active_page: Int) -> Int:
+    let accent_r = page_accent_r(page_id)
+    let accent_g = page_accent_g(page_id)
+    let accent_b = page_accent_b(page_id)
+    let hovered = native_ui_node_has_flag(session_id, node_id, "hovered")
+    let pressed = native_ui_node_has_flag(session_id, node_id, "pressed")
+    if page_id == active_page:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r, accent_g, accent_b, 0.92)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.06, 0.06, 0.08, 1.0)
+    if pressed == 1:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.55, accent_g * 0.55, accent_b * 0.55, 0.80)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.98, 0.96, 0.92, 1.0)
+    if hovered == 1:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.36, accent_g * 0.36, accent_b * 0.36, 0.72)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.96, 0.95, 0.91, 1.0)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.10, 0.11, 0.14, 0.90)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.72, 0.78, 0.85, 1.0)
+
+pub fn apply_action_theme(session_id: Int, node_id: Int, page_id: Int) -> Int:
+    let accent_r = page_accent_r(page_id)
+    let accent_g = page_accent_g(page_id)
+    let accent_b = page_accent_b(page_id)
+    let hovered = native_ui_node_has_flag(session_id, node_id, "hovered")
+    let pressed = native_ui_node_has_flag(session_id, node_id, "pressed")
+    if pressed == 1:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.72, accent_g * 0.72, accent_b * 0.72, 0.88)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.04, 0.05, 0.06, 1.0)
+    if hovered == 1:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.90, accent_g * 0.90, accent_b * 0.90, 0.84)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.05, 0.05, 0.07, 1.0)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.58, accent_g * 0.58, accent_b * 0.58, 0.76)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.97, 0.95, 0.91, 1.0)
+
+pub fn apply_accent_theme(session_id: Int, node_id: Int, page_id: Int, filled: Int) -> Int:
+    let accent_r = page_accent_r(page_id)
+    let accent_g = page_accent_g(page_id)
+    let accent_b = page_accent_b(page_id)
+    let hovered = native_ui_node_has_flag(session_id, node_id, "hovered")
+    if filled != 0:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r, accent_g, accent_b, 0.88)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.05, 0.05, 0.07, 1.0)
+    if hovered == 1:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", accent_r * 0.35, accent_g * 0.35, accent_b * 0.35, 0.62)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 0.93, 0.88, 1.0)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.12, 0.13, 0.16, 0.96)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.86, 0.90, 0.95, 1.0)
