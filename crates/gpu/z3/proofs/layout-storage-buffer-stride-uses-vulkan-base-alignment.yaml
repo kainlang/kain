@@ -1,0 +1,21 @@
+version: 1
+id: kain.gpu.proofs.layout_storage_buffer_stride_uses_vulkan_base_alignment
+kind: check_smt2
+description: storage_buffer_stride uses Vulkan std430/base-alignment-compatible array
+  strides for scalar and vector storage-buffer elements, including 16-byte stride for
+  3-lane vectors.
+tags:
+- gpu
+- spirv
+- layout
+- storage-buffer
+- std430
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_spirv.rs
+  symbol: storage_buffer_stride
+  start_line: 3258
+  reason: Vec3-class storage buffers must keep 16-byte base alignment under Vulkan
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const lanes Int)\n(assert (and (>= lanes 1) (<= lanes 4)))\n(define-fun required_alignment () Int (ite (= lanes 1) 4 (ite (= lanes 2) 8 16)))\n(define-fun chosen_stride () Int (ite (= lanes 1) 4 (ite (= lanes 2) 8 16)))\n(assert (not (= chosen_stride required_alignment)))\n(check-sat)"
+  include_model: false
+  include_stats: false

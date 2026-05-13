@@ -1,0 +1,23 @@
+version: 1
+id: kain.gpu.proofs.layout_storage_buffer_access_chain_wrapper_member_zero_is_in_bounds
+kind: range_check
+description: StorageBuffer indexing always enters the single-member block wrapper through
+  member index 0 before applying the runtime array index.
+tags:
+- gpu
+- spirv
+- layout
+- access-chain
+- storage-buffer
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_spirv.rs
+  symbol: emit_expr
+  start_line: 2344
+  reason: storage-buffer access chains are emitted as [0, runtime_index] into a one-member
+    wrapper struct
+case:
+  declarations: []
+  constraints: []
+  expression: 0
+  lower: 0
+  upper: 0

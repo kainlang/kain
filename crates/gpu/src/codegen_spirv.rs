@@ -3258,9 +3258,24 @@ fn storage_buffer_elem_type(buffer_ty: &Type, span: kain_core::span::Span) -> Ty
 fn storage_buffer_stride(buffer_ty: &Type) -> u32 {
     let elem_ty = storage_buffer_elem_type(buffer_ty, kain_core::span::Span::default());
     match elem_ty {
-        Type::Named { ref name, .. } if name == "Vec4" || name == "UVec4" => 16,
-        Type::Named { ref name, .. } if name == "Vec3" || name == "UVec3" => 12,
-        Type::Named { ref name, .. } if name == "Vec2" || name == "UVec2" => 8,
+        // Vulkan std430/base-alignment rules keep 3-lane vectors at 16-byte alignment.
+        Type::Named { ref name, .. }
+            if matches!(
+                name.as_str(),
+                "Vec4" | "IVec4" | "UVec4" | "Vec3" | "IVec3" | "UVec3"
+            ) =>
+        {
+            16
+        }
+        Type::Named { ref name, .. } if matches!(name.as_str(), "Vec2" | "IVec2" | "UVec2") => {
+            8
+        }
+        Type::Named { ref name, .. }
+            if matches!(name.as_str(), "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool") =>
+        {
+            4
+        }
+        Type::Named { ref name, .. } if name == "Mat4" => 64,
         _ => 4,
     }
 }
@@ -3595,6 +3610,44 @@ fn swizzle_indices(field: &str) -> Option<Vec<u32>> {
         out.push(idx);
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named_type(name: &str) -> Type {
+        Type::Named {
+            name: name.into(),
+            generics: vec![],
+            span: kain_core::span::Span::default(),
+        }
+    }
+
+    fn storage_buffer_of(name: &str) -> Type {
+        Type::Named {
+            name: "StorageBuffer".into(),
+            generics: vec![named_type(name)],
+            span: kain_core::span::Span::default(),
+        }
+    }
+
+    #[test]
+    fn storage_buffer_stride_matches_vulkan_base_alignment_for_common_types() {
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Float")), 4);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Int")), 4);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("UInt")), 4);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Vec2")), 8);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("IVec2")), 8);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("UVec2")), 8);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Vec3")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("IVec3")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("UVec3")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Vec4")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("IVec4")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("UVec4")), 16);
+        assert_eq!(storage_buffer_stride(&storage_buffer_of("Mat4")), 64);
+    }
 }
 
 fn emit_index_lvalue_ptr(

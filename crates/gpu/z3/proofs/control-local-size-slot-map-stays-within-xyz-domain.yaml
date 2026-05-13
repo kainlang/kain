@@ -1,0 +1,20 @@
+version: 1
+id: kain.gpu.proofs.control_local_size_slot_map_stays_within_xyz_domain
+kind: check_smt2
+description: compute local-size uniforms only map to X/Y/Z slots 0..2 and always choose
+  positive default values.
+tags:
+- gpu
+- spirv
+- control
+- compute
+- local-size
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_spirv.rs
+  symbol: emit_shader
+  start_line: 151
+  reason: LOCAL_SIZE_X/Y/Z are mapped to slots 0..2 with defaults 8, 8, and 1
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const slot Int)\n(assert (or (= slot 0) (= slot 1) (= slot 2)))\n(define-fun default_value () Int (ite (or (= slot 0) (= slot 1)) 8 1))\n(assert (or (< slot 0) (> slot 2) (<= default_value 0)))\n(check-sat)"
+  include_model: false
+  include_stats: false

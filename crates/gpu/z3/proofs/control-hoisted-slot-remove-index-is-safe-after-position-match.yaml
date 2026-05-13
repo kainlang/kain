@@ -1,0 +1,20 @@
+version: 1
+id: kain.gpu.proofs.control_hoisted_slot_remove_index_is_safe_after_position_match
+kind: check_smt2
+description: take_hoisted_slot only removes an index after position(...) proves the matched
+  slot index lies within the current slot list.
+tags:
+- gpu
+- spirv
+- control
+- hoisting
+- bounds
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_spirv.rs
+  symbol: take_hoisted_slot
+  start_line: 1071
+  reason: Vec::remove(idx) is guarded by the Option-producing position search
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const slots_len Int)\n(declare-const idx Int)\n(assert (>= slots_len 1))\n(assert (>= idx 0))\n(assert (< idx slots_len))\n(assert (or (< idx 0) (>= idx slots_len)))\n(check-sat)"
+  include_model: false
+  include_stats: false

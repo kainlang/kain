@@ -1,5 +1,129 @@
 # Kain Memory
 
+# 2026-05-13 - SPIR-V codegen gained a durable Z3 proof lane and a Vulkan layout fix
+
+The live SPIR-V backend in `crates/gpu/src/codegen_spirv.rs` now has its own solver-backed
+validation lane, and that lane immediately paid for itself by catching a real Vulkan layout bug:
+storage buffers holding 3-lane vectors were being decorated with a 12-byte stride instead of the
+16-byte base alignment Vulkan expects under std430-style rules.
+
+What changed:
+
+- Fixed `storage_buffer_stride(...)` in `crates/gpu/src/codegen_spirv.rs` so scalar buffers stay
+  at 4 bytes, `Vec2`/`IVec2`/`UVec2` stay at 8 bytes, `Vec3`/`IVec3`/`UVec3` stay at 16 bytes,
+  `Vec4`/`IVec4`/`UVec4` stay at 16 bytes, and `Mat4` stays at 64 bytes.
+- Added a focused unit test in `crates/gpu/src/codegen_spirv.rs` to lock the common storage-buffer
+  stride cases to Vulkan base-alignment expectations.
+- Added `crates/gpu/tests/spirv_layout.rs`, which compiles a compute shader using
+  `StorageBuffer<Vec3>` and validates the emitted module with `spirv-val --target-env vulkan1.3`.
+- Added the durable proof pack at `crates/gpu/z3` with `layout`, `constructors`, `control`,
+  `full`, and workspace `smoke` lanes. The first curated proofs cover wrapper-layout arithmetic,
+  access-chain member-zero safety, vector-constructor component bounds, local-size slot mapping,
+  and hoisted-local slot removal.
+
+Validation:
+
+- `cargo test -p gpu --lib storage_buffer_stride_matches_vulkan_base_alignment_for_common_types --target-dir target\\codex-spirv-proof-lib -- --nocapture`
+- `cargo test -p gpu --test spirv_layout --target-dir target\\codex-spirv-proof-layout -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\gpu", lane="full")` proved 6/6 cases in `kain.gpu.proofs`.
+- `mcp__z3_local__.run_workspace_proofs(project_root="D:\\Kain-Lang", lane="smoke")` still reports unrelated existing counterexamples in `runtime/native/src/ui/z3`, but the new GPU pack passed inside workspace discovery.
+
+Durable design note:
+
+- Treat `crates/gpu/z3` as the mandatory follow-through surface for `codegen_spirv.rs`. If a SPIR-V
+  change touches layout arithmetic, vector flattening, access-chain indexing, or hoisted slot
+  bookkeeping, update proofs before trusting tests alone.
+- Keep pairing solver proofs with an external module validator. The proof pack checks our backend
+  arithmetic and indexing invariants; `spirv-val` checks the binary against the Vulkan/SPIR-V rules
+  that the solver model intentionally abstracts.
+
+Current known gap in this checkout:
+
+- The new proof lane does not mean the entire Kain shader authoring pipeline is globally green.
+  Existing `crates/gpu/tests/spirv_smoke.rs` and `crates/gpu/tests/spirv_execute.rs` still expose
+  pre-existing frontend/typechecker issues such as `.xyz` field admission, `group_index`
+  resolution, tuple/vector arithmetic compatibility, and old constructor-style casts like `Int(a)`.
+
+# 2026-05-13 - Managed MCP sync lane + deterministic doctor build tracking
+
+The canonical `blades/kain-mcp` launcher/sync surface now has a first-class managed
+sync contract for multi-agent environments, and `kain doctor` now reports explicit
+managed-sync drift instead of only raw build metadata.
+
+What changed:
+
+- Extended `blades/kain-mcp/config/runtime_policy.json` with a `launcher_sync`
+  section (state root, lock path, stamp path, build-counter path, cooldown,
+  stale-lock timeout, sync command, runtime stamp files, and `prefer_synced_binary`).
+- Reworked `scripts/python/launch_kain_mcp.py` to load policy data, run stale checks
+  (`repo_sha` + runtime stamp + binary stamp) on launch, enforce a global sync lock,
+  respect cooldown, and call managed sync before boot when stale.
+- Reworked `scripts/windows/sync-kain-source-of-truth.ps1` to support managed sync:
+  deterministic build counter at `~/.kain/state/build_counter.json`, injected
+  `KAIN_BUILD_NUMBER`, atomic swap install for `kain.exe`/`kn.exe`, and stamp writes
+  at `~/.kain/state/kain_sync_stamp.json`.
+- Updated `crates/cli/build.rs` so build numbers default to explicit unmanaged mode
+  instead of timestamp-like pseudo-build IDs; managed numbers now come from sync.
+- Added `BUILD_TRACKING_MODE` in `crates/cli/src/lib.rs` and expanded doctor output
+  in `crates/cli/src/main.rs` to show managed-sync stamp details, repo drift status,
+  managed binary details, and binary-path mismatch warnings.
+
+Durable design note:
+
+- Keep launcher/sync/doctor on one data model (`runtime_policy.json` + sync stamp).
+  Avoid reintroducing hardcoded binary paths or hand-written stale logic in one lane.
+- The managed sync lane must be resilient to lock contention and failed rebuilds:
+  warn and continue with the current binary rather than breaking MCP transport.
+
+Validation:
+
+- `py -3 -m py_compile scripts/python/launch_kain_mcp.py`
+- PowerShell parse check for sync script (`[ScriptBlock]::Create(...)`)
+- `cargo check -p cli --target-dir target/codex-sync-doctor` (pass)
+- `pwsh -File scripts/windows/sync-kain-source-of-truth.ps1 -SkipBuild -ManagedSync` (pass)
+- End-to-end MCP stdio smoke through launcher (`initialize`, `tools/list`, `shutdown`) (pass)
+
+Current known blocker in this checkout:
+
+- `cargo check -p cli --bins` / `cargo build -p cli` currently fails in pre-existing
+  `crates/kain-build/src/workspace.rs` compile errors unrelated to this sync pass.
+  Because of that repo-wide breakage, full binary-level doctor verification from a
+  freshly rebuilt CLI was blocked in this turn.
+
+# 2026-05-13 - `kain-core` keyword contracts gained a dedicated Z3 lane
+
+The `crates/kain-core/z3` pack now has a focused `keywords` lane for the compiler-owned
+`patch`, `law`, `converge`, and `orchestrate` forms. These proofs stay separate from the
+existing arithmetic/parser lanes so future agents can run branch-ordering and runtime
+contract checks without digging through the low-level memory suites.
+
+What changed:
+
+- Added `proofs/keywords-patch-cancel-rewinds-only-when-reversible.yaml` to prove the
+  patch rewind path only fires for reversible frames.
+- Added `proofs/keywords-law-runtime-accepts-only-bool-results.yaml` to prove law
+  runtime acceptance is Bool-only.
+- Added `proofs/keywords-converge-first-fast-lane-wins-and-spec-fallback.yaml` to prove
+  converge selection honors first-match fast lanes and the spec fallback.
+- Added `proofs/keywords-orchestrate-rejects-invalid-stage-ordering.yaml` to prove
+  orchestrate stage collection rejects late stage declarations, nested items, and bare
+  stage calls.
+- Wired a new `keywords` lane into `crates/kain-core/z3/z3.toml` and documented it in
+  `crates/kain-core/z3/README.md`.
+
+Validation:
+
+- `mcp__z3_local__.check_smt2` proved the patch, law, and converge formulas unsat with
+  `include_model=false` and `include_stats=false`.
+- `mcp__z3_local__.state_machine_check` proved the orchestrate ordering invariant holds
+  within 4 bounded steps.
+
+Durable note:
+
+- Keep these keyword-contract proofs in their own lane. They are branch-ordering and
+  runtime-contract checks, not arithmetic proofs, and should stay easy to rerun as a
+  group.
+
 # 2026-05-13 - `kain-mcp` launcher transport hardened and request loop de-actorized for stability
 
 The canonical `blades/kain-mcp` lane now survives real MCP stdio clients in this

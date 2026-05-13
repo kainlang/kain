@@ -1,0 +1,20 @@
+version: 1
+id: kain.gpu.proofs.layout_uniform_wrapper_mat4_stride_and_member_zero_stay_aligned
+kind: check_smt2
+description: Mat4 uniform wrappers keep member zero at offset 0 and use a 16-byte matrix
+  stride, which is aligned to a column vector's base alignment.
+tags:
+- gpu
+- spirv
+- layout
+- uniform
+- mat4
+source:
+  path: D:\Kain-Lang\crates\gpu\src\codegen_spirv.rs
+  symbol: get_or_create_uniform_wrapper_type
+  start_line: 572
+  reason: Mat4 wrappers decorate member 0 with Offset 0 and MatrixStride 16
+case:
+  smt2: "(set-logic QF_LIA)\n(define-fun member_offset () Int 0)\n(define-fun matrix_stride () Int 16)\n(define-fun column_alignment () Int 16)\n(assert (or (not (= member_offset 0)) (not (= 0 (mod matrix_stride column_alignment)))))\n(check-sat)"
+  include_model: false
+  include_stats: false
