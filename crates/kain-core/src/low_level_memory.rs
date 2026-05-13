@@ -17,6 +17,7 @@ use crate::types::{
 };
 use crate::CompileTarget;
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
 struct LayoutField {
@@ -43,20 +44,78 @@ struct LayoutRegistry {
 }
 
 impl LayoutRegistry {
-    fn build_with_abi(items: &[TypedItem], abi: &'static CAbiPolicy) -> Self {
+    fn build_with_abi(items: &[TypedItem], abi: &'static CAbiPolicy) -> KainResult<Self> {
         let mut registry = Self {
             abi,
             structs: HashMap::new(),
         };
-        collect_struct_layouts(items, &mut registry);
-        registry
+        collect_struct_layouts(items, &mut registry)?;
+        Ok(registry)
     }
 }
 
-fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
+fn format_type_label(ty: &Type) -> String {
+    format!("{ty:?}")
+}
+
+fn layout_overflow_error(operation: &str, detail: impl Into<String>) -> crate::error::KainError {
+    DiagnosticBuilder::new(
+        ErrorKind::Validation,
+        DiagnosticCode::MemoryLayoutOverflow,
+        format!("low-level memory layout {operation} overflowed target usize arithmetic"),
+    )
+    .context(detail)
+    .suggestion(
+        "Reduce the affected array length, tuple width, field storage width, or aggregate size so the layout remains representable.",
+    )
+    .build()
+}
+
+fn checked_layout_add(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {
+    lhs.checked_add(rhs)
+        .ok_or_else(|| layout_overflow_error("addition", detail))
+}
+
+fn checked_layout_mul(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {
+    lhs.checked_mul(rhs)
+        .ok_or_else(|| layout_overflow_error("multiplication", detail))
+}
+
+fn checked_align_up(value: usize, align: usize, detail: impl Into<String>) -> KainResult<usize> {
+    let align = align.max(1);
+    let remainder = value % align;
+    if remainder == 0 {
+        Ok(value)
+    } else {
+        checked_layout_add(
+            value,
+            align - remainder,
+            format!("{} (align_up with align={align})", detail.into()),
+        )
+    }
+}
+
+fn size_literal_i64(value: usize, detail: impl Into<String>) -> KainResult<i64> {
+    i64::try_from(value).map_err(|_| layout_overflow_error("signed literal conversion", detail))
+}
+
+fn checked_layout_add_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {
+    checked_layout_add(lhs, rhs, detail).unwrap_or_else(|err| panic!("{err}"))
+}
+
+fn checked_layout_mul_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {
+    checked_layout_mul(lhs, rhs, detail).unwrap_or_else(|err| panic!("{err}"))
+}
+
+fn size_literal_i64_or_panic(value: usize, detail: impl Into<String>) -> i64 {
+    size_literal_i64(value, detail).unwrap_or_else(|err| panic!("{err}"))
+}
+
+fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) -> KainResult<()> {
     for item in items {
         match item {
             TypedItem::Struct(st) => {
+                let struct_name = st.ast.name.clone();
                 let is_union = has_attr(&st.ast.attributes, C_UNION_ATTR);
                 let is_packed = has_attr(&st.ast.attributes, C_PACKED_ATTR);
                 let pack_align = match attr_usize_arg(&st.ast.attributes, C_PACK_ALIGN_ATTR) {
@@ -89,9 +148,14 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                 let mut field_order = Vec::new();
                 let mut bit_pack: Option<BitfieldPack> = None;
                 for field in &st.ast.fields {
-                    let size = attr_usize_arg(&field.attributes, C_STORAGE_BITS_ATTR)
-                        .map(|bits| bits.div_ceil(8))
-                        .unwrap_or_else(|| registry.type_size_fallback(&field.ty));
+                    let field_context = format!(
+                        "collecting layout for struct '{struct_name}' field '{}'",
+                        field.name
+                    );
+                    let size = match attr_usize_arg(&field.attributes, C_STORAGE_BITS_ATTR) {
+                        Some(bits) => bits.div_ceil(8),
+                        None => registry.type_size_fallback(&field.ty)?,
+                    };
                     let natural_align = attr_usize_arg(&field.attributes, C_STORAGE_ALIGN_ATTR)
                         .map(|bits| bits.div_ceil(8))
                         .unwrap_or_else(|| registry.type_align_fallback(&field.ty))
@@ -117,31 +181,67 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                     } else if let Some(width) = bit_width {
                         let width = width.max(1);
                         let unit_size = size.max(1);
-                        let unit_bits = unit_size.saturating_mul(8).max(1);
+                        let unit_bits = checked_layout_mul(
+                            unit_size,
+                            8,
+                            format!("{field_context}: computing bitfield storage width"),
+                        )?
+                        .max(1);
 
                         if width >= unit_bits {
                             if let Some(pack) = bit_pack.take() {
-                                offset = offset.max(pack.unit_offset + pack.unit_size);
+                                let pack_end = checked_layout_add(
+                                    pack.unit_offset,
+                                    pack.unit_size,
+                                    format!(
+                                        "{field_context}: flushing full-width bitfield storage pack"
+                                    ),
+                                )?;
+                                offset = offset.max(pack_end);
                             }
-                            offset = align_up(offset, align);
+                            offset = checked_align_up(
+                                offset,
+                                align,
+                                format!("{field_context}: aligning full-width bitfield storage"),
+                            )?;
                             let field_offset = offset;
-                            offset += unit_size;
+                            offset = checked_layout_add(
+                                offset,
+                                unit_size,
+                                format!("{field_context}: advancing full-width bitfield storage"),
+                            )?;
                             (field_offset, Some(0usize))
                         } else {
                             let needs_new_pack = match bit_pack.as_ref() {
                                 Some(pack) => {
+                                    let used_bits_after_insert = checked_layout_add(
+                                        pack.used_bits,
+                                        width,
+                                        format!(
+                                            "{field_context}: checking bitfield pack capacity"
+                                        ),
+                                    )?;
                                     pack.unit_size != unit_size
                                         || pack.align != align
-                                        || pack.used_bits + width > unit_bits
+                                        || used_bits_after_insert > unit_bits
                                 }
                                 None => true,
                             };
 
                             if needs_new_pack {
                                 if let Some(pack) = bit_pack.take() {
-                                    offset = offset.max(pack.unit_offset + pack.unit_size);
+                                    let pack_end = checked_layout_add(
+                                        pack.unit_offset,
+                                        pack.unit_size,
+                                        format!("{field_context}: flushing prior bitfield pack"),
+                                    )?;
+                                    offset = offset.max(pack_end);
                                 }
-                                offset = align_up(offset, align);
+                                offset = checked_align_up(
+                                    offset,
+                                    align,
+                                    format!("{field_context}: aligning new bitfield storage pack"),
+                                )?;
                                 bit_pack = Some(BitfieldPack {
                                     unit_offset: offset,
                                     unit_size,
@@ -154,25 +254,48 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                                 .as_mut()
                                 .expect("bitfield pack should exist before recording field");
                             let field_offset = pack.unit_offset;
+                            let used_bits_after_insert = checked_layout_add(
+                                pack.used_bits,
+                                width,
+                                format!("{field_context}: recording bitfield usage"),
+                            )?;
                             let field_bit_offset = if registry.abi.bitfield_lsb_first {
                                 pack.used_bits
                             } else {
-                                unit_bits.saturating_sub(pack.used_bits + width)
+                                unit_bits - used_bits_after_insert
                             };
-                            pack.used_bits += width;
+                            pack.used_bits = used_bits_after_insert;
                             if pack.used_bits >= unit_bits {
                                 let flushed = bit_pack.take().expect("bitfield pack should flush");
-                                offset = offset.max(flushed.unit_offset + flushed.unit_size);
+                                let flushed_end = checked_layout_add(
+                                    flushed.unit_offset,
+                                    flushed.unit_size,
+                                    format!("{field_context}: flushing completed bitfield pack"),
+                                )?;
+                                offset = offset.max(flushed_end);
                             }
                             (field_offset, Some(field_bit_offset))
                         }
                     } else {
                         if let Some(pack) = bit_pack.take() {
-                            offset = offset.max(pack.unit_offset + pack.unit_size);
+                            let pack_end = checked_layout_add(
+                                pack.unit_offset,
+                                pack.unit_size,
+                                format!("{field_context}: flushing trailing bitfield pack"),
+                            )?;
+                            offset = offset.max(pack_end);
                         }
-                        offset = align_up(offset, align);
+                        offset = checked_align_up(
+                            offset,
+                            align,
+                            format!("{field_context}: aligning field storage"),
+                        )?;
                         let field_offset = offset;
-                        offset += size.max(1);
+                        offset = checked_layout_add(
+                            offset,
+                            size.max(1),
+                            format!("{field_context}: advancing field storage"),
+                        )?;
                         (field_offset, None)
                     };
                     fields.insert(
@@ -188,7 +311,12 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                     field_order.push(field_name);
                 }
                 if let Some(pack) = bit_pack.take() {
-                    offset = offset.max(pack.unit_offset + pack.unit_size);
+                    let pack_end = checked_layout_add(
+                        pack.unit_offset,
+                        pack.unit_size,
+                        format!("collecting layout for struct '{struct_name}': flushing trailing bitfield storage"),
+                    )?;
+                    offset = offset.max(pack_end);
                 }
                 let raw_size = if is_union { max_field_size } else { offset };
                 let base_final_align = if let Some(pack_align) = pack_align {
@@ -201,9 +329,13 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                 let final_align = explicit_type_align
                     .map(|align| align.max(base_final_align))
                     .unwrap_or(base_final_align);
-                let size = align_up(raw_size.max(1), final_align);
+                let size = checked_align_up(
+                    raw_size.max(1),
+                    final_align,
+                    format!("collecting layout for struct '{struct_name}': final struct size"),
+                )?;
                 registry.structs.insert(
-                    st.ast.name.clone(),
+                    struct_name,
                     StructLayoutInfo {
                         size,
                         align: final_align,
@@ -213,10 +345,11 @@ fn collect_struct_layouts(items: &[TypedItem], registry: &mut LayoutRegistry) {
                     },
                 );
             }
-            TypedItem::Mod(module) => collect_struct_layouts(&module.items, registry),
+            TypedItem::Mod(module) => collect_struct_layouts(&module.items, registry)?,
             _ => {}
         }
     }
+    Ok(())
 }
 
 impl LayoutRegistry {
@@ -224,31 +357,46 @@ impl LayoutRegistry {
         self.structs.get(struct_name)?.fields.get(field)
     }
 
-    fn type_size_fallback(&self, ty: &Type) -> usize {
+    fn type_size_fallback(&self, ty: &Type) -> KainResult<usize> {
         match ty {
-            Type::Named { name, .. } => match name.as_str() {
+            Type::Named { name, .. } => Ok(match name.as_str() {
                 "Bool" => self.abi.bool_bits.div_ceil(8),
                 "Char" => self.abi.char_bits.div_ceil(8),
                 "Int" | "isize" | "usize" => self.abi.long_bits.div_ceil(8),
                 "Float" => self.abi.double_bits.div_ceil(8),
                 other => self.structs.get(other).map(|info| info.size).unwrap_or(8),
-            },
-            Type::Array(inner, size, _) => self.type_size_fallback(inner) * *size,
-            Type::Slice(_, _) => 16,
+            }),
+            Type::Array(inner, size, _) => checked_layout_mul(
+                self.type_size_fallback(inner)?,
+                *size,
+                format!(
+                    "computing fallback array size for {}",
+                    format_type_label(ty)
+                ),
+            ),
+            Type::Slice(_, _) => Ok(16),
             Type::Tuple(types, _) => {
                 let mut total = 0usize;
-                for ty in types {
-                    total += self.type_size_fallback(ty);
+                for item_ty in types {
+                    total = checked_layout_add(
+                        total,
+                        self.type_size_fallback(item_ty)?,
+                        format!(
+                            "computing fallback tuple size for {}",
+                            format_type_label(ty)
+                        ),
+                    )?;
                 }
-                total
+                Ok(total)
             }
-            Type::Ref { .. } | Type::Ptr { .. } => 8,
+            Type::Ref { .. } | Type::Ptr { .. } => Ok(8),
             Type::Option(inner, _) => self.type_size_fallback(inner),
-            Type::Result(ok, err, _) => self
-                .type_size_fallback(ok)
-                .max(self.type_size_fallback(err)),
-            Type::Unit(_) | Type::Never(_) => 0,
-            _ => 8,
+            Type::Result(ok, err, _) => Ok(
+                self.type_size_fallback(ok)?
+                    .max(self.type_size_fallback(err)?),
+            ),
+            Type::Unit(_) | Type::Never(_) => Ok(0),
+            _ => Ok(8),
         }
     }
 
@@ -289,16 +437,6 @@ struct BitfieldPack {
     unit_size: usize,
     align: usize,
     used_bits: usize,
-}
-
-fn align_up(value: usize, align: usize) -> usize {
-    let align = align.max(1);
-    let remainder = value % align;
-    if remainder == 0 {
-        value
-    } else {
-        value + (align - remainder)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -384,7 +522,7 @@ pub fn lower_typed_program_memory_for_target(
     if !supported {
         return Ok(program.clone());
     }
-    let layouts = LayoutRegistry::build_with_abi(&program.items, c_abi_policy_for_target(target));
+    let layouts = LayoutRegistry::build_with_abi(&program.items, c_abi_policy_for_target(target))?;
 
     Ok(TypedProgram {
         items: program
@@ -554,7 +692,11 @@ fn lower_typed_item_memory(
     }
 }
 
-fn lower_enum_memory(enum_ast: &Enum, target: CompileTarget, layouts: &LayoutRegistry) -> Enum {
+fn lower_enum_memory(
+    enum_ast: &Enum,
+    target: CompileTarget,
+    layouts: &LayoutRegistry,
+) -> Enum {
     let mut variants = Vec::new();
     for variant in &enum_ast.variants {
         let fields = match &variant.fields {
@@ -641,7 +783,11 @@ fn lower_function_memory(
     }
 }
 
-fn lower_free_expr_memory(expr: &Expr, target: CompileTarget, layouts: &LayoutRegistry) -> Expr {
+fn lower_free_expr_memory(
+    expr: &Expr,
+    target: CompileTarget,
+    layouts: &LayoutRegistry,
+) -> Expr {
     let mut ctx = FunctionMemoryCtx {
         target,
         layouts,
@@ -841,10 +987,22 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             span,
         ),
         Expr::SizeOfType { target, .. } => {
-            Expr::Int(estimate_type_size(target, ctx.layouts) as i64, span)
+            Expr::Int(
+                size_literal_i64_or_panic(
+                    estimate_type_size(target, ctx.layouts),
+                    format!("lowering sizeof_type for {}", format_type_label(target)),
+                ),
+                span,
+            )
         }
         Expr::AlignOfType { target, .. } => {
-            Expr::Int(estimate_type_align(target, ctx.layouts) as i64, span)
+            Expr::Int(
+                size_literal_i64_or_panic(
+                    estimate_type_align(target, ctx.layouts),
+                    format!("lowering alignof_type for {}", format_type_label(target)),
+                ),
+                span,
+            )
         }
         Expr::Alloca { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
         Expr::Uninit { ty, .. } => lower_storage_expr(ty, ctx.layouts, span, false),
@@ -918,11 +1076,39 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             vec![
                                 lowered_object,
                                 Expr::String(field.clone(), *span),
-                                Expr::Int(field_offset as i64, *span),
-                                Expr::Int(field_bit_offset as i64, *span),
-                                Expr::Int(bit_width as i64, *span),
+                                Expr::Int(
+                                    size_literal_i64_or_panic(
+                                        field_offset,
+                                        format!("lowering bitfield field offset for '{field}'"),
+                                    ),
+                                    *span,
+                                ),
+                                Expr::Int(
+                                    size_literal_i64_or_panic(
+                                        field_bit_offset,
+                                        format!(
+                                            "lowering bitfield bit offset for '{field}'"
+                                        ),
+                                    ),
+                                    *span,
+                                ),
+                                Expr::Int(
+                                    size_literal_i64_or_panic(
+                                        bit_width,
+                                        format!("lowering bitfield width for '{field}'"),
+                                    ),
+                                    *span,
+                                ),
                                 Expr::Bool(field_bit_signed, *span),
-                                Expr::Int(promoted_bits as i64, *span),
+                                Expr::Int(
+                                    size_literal_i64_or_panic(
+                                        promoted_bits,
+                                        format!(
+                                            "lowering promoted bitfield width for '{field}'"
+                                        ),
+                                    ),
+                                    *span,
+                                ),
                                 lowered_value,
                             ],
                             *span,
@@ -952,7 +1138,13 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                             Expr::String(field.clone(), *span),
                             Expr::String(field_type_name, *span),
                             Expr::Int(field_stride, *span),
-                            Expr::Int(layout_size as i64, *span),
+                            Expr::Int(
+                                size_literal_i64_or_panic(
+                                    layout_size,
+                                    format!("lowering union layout size for field '{field}'"),
+                                ),
+                                *span,
+                            ),
                             lower_expr_memory_with_ctx(value, ctx),
                         ],
                         *span,
@@ -1112,11 +1304,39 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                         vec![
                             lower_expr_memory_with_ctx(object, ctx),
                             Expr::String(field.clone(), *span),
-                            Expr::Int(field_offset as i64, *span),
-                            Expr::Int(field_bit_offset as i64, *span),
-                            Expr::Int(bit_width as i64, *span),
+                            Expr::Int(
+                                size_literal_i64_or_panic(
+                                    field_offset,
+                                    format!("lowering bitfield field offset for '{field}'"),
+                                ),
+                                *span,
+                            ),
+                            Expr::Int(
+                                size_literal_i64_or_panic(
+                                    field_bit_offset,
+                                    format!(
+                                        "lowering bitfield bit offset for '{field}'"
+                                    ),
+                                ),
+                                *span,
+                            ),
+                            Expr::Int(
+                                size_literal_i64_or_panic(
+                                    bit_width,
+                                    format!("lowering bitfield width for '{field}'"),
+                                ),
+                                *span,
+                            ),
                             Expr::Bool(field_bit_signed, *span),
-                            Expr::Int(promoted_bits as i64, *span),
+                            Expr::Int(
+                                size_literal_i64_or_panic(
+                                    promoted_bits,
+                                    format!(
+                                        "lowering promoted bitfield width for '{field}'"
+                                    ),
+                                ),
+                                *span,
+                            ),
                         ],
                         *span,
                     );
@@ -1146,7 +1366,13 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                         Expr::String(field.clone(), *span),
                         Expr::String(field_type_name, *span),
                         Expr::Int(field_stride, *span),
-                        Expr::Int(layout_size as i64, *span),
+                        Expr::Int(
+                            size_literal_i64_or_panic(
+                                layout_size,
+                                format!("lowering union layout size for field '{field}'"),
+                            ),
+                            *span,
+                        ),
                         fallback,
                     ],
                     *span,
@@ -1482,7 +1708,13 @@ fn pointer_for_addressable(value: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> Opt
                 vec![
                     base_ptr,
                     Expr::String(field.clone(), *span),
-                    Expr::Int(offset as i64, *span),
+                    Expr::Int(
+                        size_literal_i64_or_panic(
+                            offset,
+                            format!("lowering field pointer offset for '{field}'"),
+                        ),
+                        *span,
+                    ),
                 ],
                 *span,
             ))
@@ -1907,7 +2139,12 @@ fn helper_call(name: &str, args: Vec<Expr>, span: Span) -> Expr {
 }
 
 fn memory_stride_for_type(ty: Option<&Type>, layouts: &LayoutRegistry) -> Option<i64> {
-    ty.map(|ty| estimate_type_size(ty, layouts) as i64)
+    ty.map(|ty| {
+        size_literal_i64_or_panic(
+            estimate_type_size(ty, layouts),
+            format!("lowering memory stride for {}", format_type_label(ty)),
+        )
+    })
 }
 
 fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
@@ -1916,11 +2153,27 @@ fn estimate_type_size(ty: &Type, layouts: &LayoutRegistry) -> usize {
             "Bool" | "Char" => 1,
             "Int" | "isize" | "usize" => 8,
             "Float" => 8,
-            _ => layouts.type_size_fallback(ty),
+            _ => layouts
+                .type_size_fallback(ty)
+                .unwrap_or_else(|err| panic!("{err}")),
         },
-        Type::Array(inner, size, _) => estimate_type_size(inner, layouts) * *size,
+        Type::Array(inner, size, _) => checked_layout_mul_or_panic(
+            estimate_type_size(inner, layouts),
+            *size,
+            format!("estimating lowered array size for {}", format_type_label(ty)),
+        ),
         Type::Slice(_, _) => 16,
-        Type::Tuple(types, _) => types.iter().map(|ty| estimate_type_size(ty, layouts)).sum(),
+        Type::Tuple(types, _) => {
+            let mut total = 0usize;
+            for item_ty in types {
+                total = checked_layout_add_or_panic(
+                    total,
+                    estimate_type_size(item_ty, layouts),
+                    format!("estimating lowered tuple size for {}", format_type_label(ty)),
+                );
+            }
+            total
+        }
         Type::Ref { .. } | Type::Ptr { .. } => 8,
         Type::Option(inner, _) => estimate_type_size(inner, layouts),
         Type::Result(ok, err, _) => {
@@ -2150,7 +2403,16 @@ fn lower_aggregate_init_expr(
                                     Expr::String(active_field, span),
                                     Expr::String(active_type_name, span),
                                     Expr::Int(active_stride, span),
-                                    Expr::Int(info.size as i64, span),
+                                    Expr::Int(
+                                        size_literal_i64_or_panic(
+                                            info.size,
+                                            format!(
+                                                "lowering aggregate union size for '{}'",
+                                                name
+                                            ),
+                                        ),
+                                        span,
+                                    ),
                                     active_value,
                                 ],
                                 span,

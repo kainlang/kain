@@ -1,0 +1,52 @@
+version: 1
+id: kain.core.proofs.diagnostics_span_mapper_new_newline_offset_stays_within_source_length
+kind: size_add_ok
+description: SpanMapper::new only records idx + 1 for newline byte offsets produced
+  by char_indices(), so every stored line start stays within the source length.
+tags:
+- diagnostics
+- span
+- bounds
+- newline
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\diagnostics.rs
+  symbol: new
+  start_line: 29
+  reason: newline offsets are recorded as idx + 1 while scanning source.char_indices()
+case:
+  declarations:
+  - name: idx
+    sort:
+      kind: int
+  - name: source_len
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - source_len
+    - 0
+  - op: le
+    args:
+    - source_len
+    - size_max
+  - op: ge
+    args:
+    - idx
+    - 0
+  - op: lt
+    args:
+    - idx
+    - source_len
+  addends:
+  - idx
+  - 1
+  size_bits: 64
+  limit: source_len

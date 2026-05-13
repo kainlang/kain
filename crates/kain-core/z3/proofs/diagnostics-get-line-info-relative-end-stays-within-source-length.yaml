@@ -1,0 +1,67 @@
+version: 1
+id: kain.core.proofs.diagnostics_get_line_info_relative_end_stays_within_source_length
+kind: size_add_ok
+description: Diagnostics::get_line_info only computes start + relative_end from a
+  search inside self.source[start..], so the computed line_end stays within the full
+  source length.
+tags:
+- diagnostics
+- span
+- bounds
+- line-end
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\diagnostics.rs
+  symbol: get_line_info
+  start_line: 186
+  reason: line_end comes from start + find('\n') within the suffix self.source[start..]
+case:
+  declarations:
+  - name: start
+    sort:
+      kind: int
+  - name: relative_end
+    sort:
+      kind: int
+  - name: source_len
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - source_len
+    - 0
+  - op: le
+    args:
+    - source_len
+    - size_max
+  - op: ge
+    args:
+    - start
+    - 0
+  - op: le
+    args:
+    - start
+    - source_len
+  - op: ge
+    args:
+    - relative_end
+    - 0
+  - op: le
+    args:
+    - relative_end
+    - op: sub
+      args:
+      - source_len
+      - start
+  addends:
+  - start
+  - relative_end
+  size_bits: 64
+  limit: source_len

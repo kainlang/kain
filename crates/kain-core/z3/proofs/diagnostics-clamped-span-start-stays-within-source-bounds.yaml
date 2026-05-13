@@ -1,0 +1,31 @@
+version: 1
+id: kain.core.proofs.diagnostics_clamped_span_start_stays_within_source_bounds
+kind: find_counterexample
+description: get_line_info clamps span.start so downstream slicing always begins inside
+  the source buffer.
+tags:
+- diagnostics
+- span
+- bounds
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\diagnostics.rs
+  symbol: get_line_info
+  start_line: 186
+  reason: line lookup clamps span.start before computing line_end and slicing line
+    content
+case:
+  declarations:
+  - name: span_start
+    sort:
+      kind: int
+  - name: source_len
+    sort:
+      kind: int
+  - name: start
+    sort:
+      kind: int
+  constraints:
+  - (>= span_start 0)
+  - (>= source_len 0)
+  - (= start (ite (<= span_start source_len) span_start source_len))
+  claim: (and (>= start 0) (<= start source_len))

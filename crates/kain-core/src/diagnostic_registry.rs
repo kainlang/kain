@@ -14,6 +14,7 @@ pub enum DiagnosticCode {
     MemoryLoweringRequired,
     MemoryUnsupportedBackend,
     MemoryIllegalBitfieldAddress,
+    MemoryLayoutOverflow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +110,13 @@ const DIAGNOSTIC_SPECS: &[DiagnosticSpec] = &[
         title: "Illegal Bitfield Address",
         docs_key: Some("memory/bitfields"),
         default_suggestion: Some("Do not take the address of a C bitfield directly; lower it into a load/store/mask operation instead."),
+    },
+    DiagnosticSpec {
+        code: DiagnosticCode::MemoryLayoutOverflow,
+        code_str: "KAIN-MEM-0004",
+        title: "Memory Layout Overflow",
+        docs_key: Some("memory/layout-overflow"),
+        default_suggestion: Some("Reduce the aggregate size or field count, or split the layout so size and offset calculations stay within the target address space."),
     },
 ];
 

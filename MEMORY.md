@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-05-12 - kain-core Z3 proof pack landed and low-level memory layout math was hardened
+
+`crates/kain-core` now has its own durable proof pack at `crates/kain-core/z3`. The pack is scoped at compiler/frontend arithmetic and indexing seams instead of the native C runtime: low-level memory layout lowering in `src/low_level_memory.rs`, signed `usize -> i64` literal conversions used by lowered helpers, diagnostics span/line-end math in `src/diagnostics.rs`, and parser slice/index guards in `src/parser.rs`.
+
+What changed:
+
+- Added the `kain.core.proofs` pack with lanes `memory`, `diagnostics`, `literals`, `parser`, `smoke`, and `full`.
+- Hardened `crates/kain-core/src/low_level_memory.rs` so layout addition, multiplication, align-up steps, fallback array sizing, fallback tuple sizing, and lowered signed literal conversions now fail explicitly instead of silently wrapping.
+- Added `DiagnosticCode::MemoryLayoutOverflow` (`KAIN-MEM-0004`) in `crates/kain-core/src/diagnostic_registry.rs` and routed layout overflow failures through a dedicated validation diagnostic with a concrete suggestion.
+- Seeded durable proofs for checked layout addition, checked layout multiplication, align-up wrap prevention, tuple and array fallback sizing, signed literal bounds, diagnostics span/line-end bounds, and parser indexing/slicing preconditions.
+
+Validation:
+
+- `cargo check -p kain-core`
+- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="memory")` proved 5/5.
+- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="diagnostics")` proved 3/3.
+- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="literals")` proved 1/1.
+- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="parser")` proved 3/3.
+- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="full")` proved 12/12.
+- `run_workspace_proofs(project_root="D:\Kain-Lang", lane="smoke")` proved both repo packs for 32/32 total cases.
+
+Current unrelated test status:
+
+- `cargo test -p kain-core` still has five pre-existing failures outside this proof pass: `language_features::tests::default_profile_keeps_struct_literals_disabled`, `realtime_app_bundle::tests::emits_bundle_owned_camera_and_presentation_metadata_for_viewports`, `realtime_app_bundle::tests::emits_realtime_bundle_with_viewport_scene_binding`, `stdlib_tests::test_load_stdlib_graceful_degradation`, and `stdlib_tests::test_env_var_priority_over_filesystem`.
+
+Durable workflow note:
+
+- If a `kain-core` proof fails only on values larger than `18446744073709551615` or `9223372036854775807`, inspect the proof model before changing Rust code. This pack intentionally constrains `usize`-shaped arithmetic to `SIZE_MAX` and signed-literal success paths to `i64::MAX`; otherwise Z3 can invent values the ABI or helper never accepts.
+
 # 2026-05-12 - Native core Z3 pack expanded across actor/net/process/entangle
 
 The repo-local native proof pack at `runtime/native/src/core/z3` is no longer just a seed lane. It now carries curated durable proofs across four low-level runtime seams and validates the upgraded Z3 workflow end to end.

@@ -1,0 +1,32 @@
+version: 1
+id: kain.core.proofs.parser_expected_tokens_list_rest_slice_end_stays_nonnegative
+kind: range_check
+description: expected_tokens_list only enters the join-and-suffix branch for three
+  or more expected tokens, so expected.len() - 1 remains non-negative.
+tags:
+- parser
+- slice
+- bounds
+- errors
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\parser.rs
+  symbol: expected_tokens_list
+  start_line: 306
+  reason: the fallback branch uses &expected[..expected.len() - 1] only when expected.len()
+    >= 3
+case:
+  declarations:
+  - name: expected_len
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - expected_len
+    - 3
+  expression:
+    op: sub
+    args:
+    - expected_len
+    - 1
+  lower: 0

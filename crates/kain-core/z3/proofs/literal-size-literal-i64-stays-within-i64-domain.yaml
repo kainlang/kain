@@ -1,0 +1,33 @@
+version: 1
+id: kain.core.proofs.literal_size_literal_i64_stays_within_i64_domain
+kind: range_check
+description: size_literal_i64 only succeeds for non-negative usize values that fit
+  inside signed i64 literals.
+tags:
+- memory
+- literal
+- i64
+- bounds
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\low_level_memory.rs
+  symbol: size_literal_i64
+  start_line: 98
+  reason: lowered memory helper literals now reject values outside the signed i64
+    domain
+case:
+  declarations:
+  - name: value
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - value
+    - 0
+  - op: le
+    args:
+    - value
+    - 9223372036854775807
+  expression: value
+  lower: '0'
+  upper: '9223372036854775807'

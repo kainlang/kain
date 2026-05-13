@@ -1,0 +1,37 @@
+version: 1
+id: kain.core.proofs.memory_type_size_fallback_tuple_accumulation_stays_within_size_max
+kind: size_add_ok
+description: type_size_fallback tuple accumulation is only accepted when each checked
+  addition keeps the running total within usize.
+tags:
+- memory
+- tuple
+- layout
+- overflow
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\low_level_memory.rs
+  symbol: type_size_fallback
+  start_line: 360
+  reason: tuple fallback sizing now uses checked addition instead of raw accumulation
+case:
+  declarations:
+  - name: running_total
+    sort:
+      kind: int
+  - name: next_size
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - (= size_max 18446744073709551615)
+  - (>= running_total 0)
+  - (<= running_total size_max)
+  - (>= next_size 0)
+  - (<= next_size (- size_max running_total))
+  addends:
+  - running_total
+  - next_size
+  size_bits: 64
+  limit: size_max

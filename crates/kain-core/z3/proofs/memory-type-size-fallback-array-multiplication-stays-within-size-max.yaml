@@ -1,0 +1,34 @@
+version: 1
+id: kain.core.proofs.memory_type_size_fallback_array_multiplication_stays_within_size_max
+kind: find_counterexample
+description: type_size_fallback only accepts array element-size and length pairs whose
+  product fits within usize.
+tags:
+- memory
+- array
+- layout
+- overflow
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\low_level_memory.rs
+  symbol: type_size_fallback
+  start_line: 360
+  reason: array fallback sizing now routes through checked multiplication instead
+    of raw element_size * count
+case:
+  declarations:
+  - name: element_size
+    sort:
+      kind: int
+  - name: array_len
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - (= size_max 18446744073709551615)
+  - (>= element_size 0)
+  - (<= element_size size_max)
+  - (>= array_len 0)
+  - (or (= element_size 0) (<= array_len (div size_max element_size)))
+  claim: (<= (* element_size array_len) size_max)
