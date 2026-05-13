@@ -1,0 +1,6 @@
+[blade]
+name = "kain-json"
+version = "0.1.0"
+description = "High-performance JSON serialization and parsing for Kain"
+
+[build]

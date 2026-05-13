@@ -1,0 +1,22 @@
+# JSON parsing and serialization for Kain
+
+pub struct JsonValue:
+    kind: Int # 0: Null, 1: Bool, 2: Int, 3: String
+    bool_value: Bool
+    int_value: Int
+    string_value: String
+
+pub fn json_null() -> JsonValue:
+    return JsonValue { kind: 0, bool_value: false, int_value: 0, string_value: "" }
+
+pub fn json_parse_bool(text: String) -> JsonValue:
+    if text == "true":
+        return JsonValue { kind: 1, bool_value: true, int_value: 0, string_value: "" }
+    if text == "false":
+        return JsonValue { kind: 1, bool_value: false, int_value: 0, string_value: "" }
+    return json_null()
+
+pub fn json_serialize_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
