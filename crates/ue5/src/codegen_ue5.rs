@@ -7254,6 +7254,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         Expr::PtrOffset { .. } | Expr::MemLoad { .. } | Expr::MemStore { .. } => true,
         Expr::Alloca { .. } | Expr::Uninit { .. } => true,
         Expr::Alloc { .. } | Expr::Realloc { .. } => true,
+        Expr::Observe { .. } | Expr::Collapse { .. } | Expr::Decay { .. } => true,
         Expr::Int(_, _)
         | Expr::Float(_, _)
         | Expr::String(_, _)

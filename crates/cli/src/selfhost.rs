@@ -1548,6 +1548,11 @@ fn collect_macro_calls_from_expr(
                 collect_macro_calls_from_type(ty, required, counts);
             }
         }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            collect_macro_calls_from_expr(target, required, counts);
+            collect_macro_calls_from_expr(body, required, counts);
+        }
+        Expr::Decay { target, .. } => collect_macro_calls_from_expr(target, required, counts),
         Expr::Cast { value, target, .. } => {
             collect_macro_calls_from_expr(value, required, counts);
             collect_macro_calls_from_type(target, required, counts);

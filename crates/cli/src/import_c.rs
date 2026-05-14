@@ -1134,6 +1134,23 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 expr_to_string(size)
             ),
         },
+        kain_core::ast::Expr::Observe { target, body, .. } => {
+            format!(
+                "observe {}: {}",
+                expr_to_string(target),
+                expr_to_string(body)
+            )
+        }
+        kain_core::ast::Expr::Collapse { target, body, .. } => {
+            format!(
+                "collapse {}: {}",
+                expr_to_string(target),
+                expr_to_string(body)
+            )
+        }
+        kain_core::ast::Expr::Decay { target, .. } => {
+            format!("decay {}", expr_to_string(target))
+        }
         kain_core::ast::Expr::Deref(value, _) => format!("(*{})", expr_to_string(value)),
         kain_core::ast::Expr::Cast { value, target, .. } => {
             format!("({} as {})", expr_to_string(value), type_to_string(target))

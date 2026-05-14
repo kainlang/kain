@@ -1758,6 +1758,35 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
                 expr_to_string(size)
             )
         }
+        Expr::Observe { target, body, .. } => match body.as_ref() {
+            Expr::Block(block, _) => {
+                format!(
+                    "observe {}:\n{}",
+                    expr_to_string(target),
+                    block_to_string(block, 1)
+                )
+            }
+            other => format!(
+                "observe {}: {}",
+                expr_to_string(target),
+                expr_to_string(other)
+            ),
+        },
+        Expr::Collapse { target, body, .. } => match body.as_ref() {
+            Expr::Block(block, _) => {
+                format!(
+                    "collapse {}:\n{}",
+                    expr_to_string(target),
+                    block_to_string(block, 1)
+                )
+            }
+            other => format!(
+                "collapse {}: {}",
+                expr_to_string(target),
+                expr_to_string(other)
+            ),
+        },
+        Expr::Decay { target, .. } => format!("decay {}", expr_to_string_prec(target, 13)),
         Expr::Cast { value, target, .. } => {
             format!(
                 "{} as {}",

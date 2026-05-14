@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-14 - Native LLVM workbench 711-frame crash traced to loop-local allocas and fixed
+
+The interactive `blades/kain-example` Win32/GL workbench no longer crashes at the deterministic 711-frame mark. `samply` reproduced the original failure as Windows stack overflow (`0xc00000fd`), and the generated LLVM IR showed the root cause: `alloca` instructions were being emitted inside long-running loop blocks in `@main`, causing per-frame stack growth.
+
+What changed:
+
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now routes backend stack slots through `emit_entry_alloca`, which inserts textual LLVM `alloca` instructions immediately after the active function's `entry:` label instead of the current loop/control block.
+- `next_reg()` now emits named locals (`%rN`) rather than ordered unnamed numeric locals (`%0`, `%1`, ...). This avoids invalid LLVM when later entry-block insertion places a higher-numbered alloca before an earlier emitted temporary.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now has `llvm_hoists_loop_local_allocas_to_function_entry`, which checks a loop-heavy function and verifies the generated LLVM with repo `llvm-as`.
+- `crates/kain-sys-codegen/z3/proofs/memory-entry-alloca-hoist-keeps-loop-stack-growth-zero.yaml` is the durable Z3 proof that frame count cannot create stack overflow once loop-stack contribution is zero and fixed entry allocation fits.
+- Ownership keyword integration holes exposed by the full build were patched across `kain-core`, `kain-sys-codegen`, `gpu`, `ue5`, and CLI importer/selfhost walkers so `observe`/`collapse`/`decay` are not parser-only surface.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen llvm_hoists_loop_local_allocas_to_function_entry -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_consumes_lowered_memory_helpers_into_pointer_ir -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_sizes_runtime_memory_helpers_for_bool_values -- --nocapture`
+- `cargo build -p cli`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="full", report_name="llvm-full-after-named-ssa-and-entry-alloca")` proved 13/13.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\\blades\\kain-example\\run-ui.ps1`
+- `@main` in `target/kain-example/kain_example_workbench.ll` now has 288 allocas and all 288 are in `entry`; non-entry alloca count is 0.
+- `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES` runs at 711, 720, 1000, 1500, and 3000 frames all returned exit code 0 with valid BMP captures.
+- Post-fix `samply` profile: `target/kain-example/samply-after-fix-711.json.gz`. Assembly dump: `target/kain-example/kain_example_workbench.after_fix.text.asm`. Dynamic stack-adjust sites matching `subq %rax, %rsp` dropped from 278 in the stale crashing assembly to 31 in the rebuilt binary.
+
+Recommended next step:
+
+- Keep using `blades/kain-example/run-ui.ps1` as the first native LLVM UI proving loop. If another deterministic frame-count crash appears, inspect non-entry allocas and unnamed numeric local ordering before blaming Win32/GL.
+
 # 2026-05-14 - `collapse`, `observe`, and `decay` are first-class ownership keywords across core, LLVM, and native runtime
 
 The ownership model moved from semantic-kernel design into the language/runtime path. `collapse`, `observe`, and `decay` now parse as reserved keywords, typecheck against pointer-like regions, execute through interpreter ownership guards, emit `memory.ownership` runtime-contract requirements, lower through LLVM checked native calls, and have a C runtime guard registry backing native heap/imported pointer lifetimes.

@@ -140,6 +140,13 @@ struct LlvmGenerator {
     world_globals: HashMap<String, WorldGlobalInfo>,
     native_entanglements: Vec<NativeEntangleBinding>,
     current_patch_name: Option<String>,
+    /// Byte offset immediately after the current function's `entry:` label.
+    ///
+    /// LLVM permits `alloca` outside the entry block, but those allocations
+    /// execute every time control reaches them. Long-running Kain loops such as
+    /// native UI frame loops must reuse fixed local slots instead of consuming
+    /// more stack every iteration.
+    entry_alloca_insert_offset: Option<usize>,
 }
 
 impl LlvmGenerator {
@@ -168,6 +175,7 @@ impl LlvmGenerator {
             world_globals: HashMap::new(),
             native_entanglements: Vec::new(),
             current_patch_name: None,
+            entry_alloca_insert_offset: None,
         }
     }
 
@@ -179,10 +187,23 @@ impl LlvmGenerator {
     fn emit_label(&mut self, label: &str) {
         self.emit(&format!("{}:", label));
         self.current_block = label.to_string();
+        if label == "entry" {
+            self.entry_alloca_insert_offset = Some(self.output.len());
+        }
+    }
+
+    fn emit_entry_alloca(&mut self, target: &str, ty: &str) {
+        let line = format!("  {} = alloca {}\n", target, ty);
+        if let Some(offset) = self.entry_alloca_insert_offset {
+            self.output.insert_str(offset, &line);
+            self.entry_alloca_insert_offset = Some(offset + line.len());
+        } else {
+            self.output.push_str(&line);
+        }
     }
 
     fn next_reg(&mut self) -> String {
-        let r = format!("%{}", self.reg_count);
+        let r = format!("%r{}", self.reg_count);
         self.reg_count += 1;
         r
     }
@@ -821,7 +842,7 @@ impl LlvmGenerator {
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
 
         let temp_ptr = self.next_reg();
-        self.emit(&format!("  {} = alloca {}", temp_ptr, load_ty));
+        self.emit_entry_alloca(&temp_ptr, load_ty);
 
         let temp_i8 = self.next_reg();
         self.emit(&format!(
@@ -857,7 +878,7 @@ impl LlvmGenerator {
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
 
         let temp_ptr = self.next_reg();
-        self.emit(&format!("  {} = alloca {}", temp_ptr, stored_ty));
+        self.emit_entry_alloca(&temp_ptr, &stored_ty);
         self.emit(&format!(
             "  store {} {}, {}* {}",
             stored_ty, stored_value, stored_ty, temp_ptr
@@ -912,7 +933,10 @@ impl LlvmGenerator {
             import_status, ptr_i8
         ));
         let import_ok = self.next_reg();
-        self.emit(&format!("  {} = icmp eq i32 {}, 0", import_ok, import_status));
+        self.emit(&format!(
+            "  {} = icmp eq i32 {}, 0",
+            import_ok, import_status
+        ));
         self.emit(&format!(
             "  br i1 {}, label %{}, label %{}",
             import_ok, continue_label, abort_label
@@ -986,7 +1010,7 @@ impl LlvmGenerator {
             self.emit(&format!("  call void @rc_retain(i8* {})", retained));
         }
         let stack_slot = self.next_reg();
-        self.emit(&format!("  {} = alloca {}", stack_slot, value_ty));
+        self.emit_entry_alloca(&stack_slot, value_ty);
         self.emit(&format!(
             "  store {} {}, {}* {}",
             value_ty, value, value_ty, stack_slot
@@ -1012,7 +1036,7 @@ impl LlvmGenerator {
 
         let (payload_size, _) = self.abi_layout_for_ty(target_ty, span)?;
         let out_slot = self.next_reg();
-        self.emit(&format!("  {} = alloca {}", out_slot, target_ty));
+        self.emit_entry_alloca(&out_slot, target_ty);
         let out_i8 = self.next_reg();
         self.emit(&format!(
             "  {} = bitcast {}* {} to i8*",
@@ -1583,7 +1607,7 @@ impl LlvmGenerator {
             Pattern::Binding { name, .. } => {
                 let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                 self.reg_count += 1;
-                self.emit(&format!("  {} = alloca {}", addr_reg, ty));
+                self.emit_entry_alloca(&addr_reg, &ty);
                 self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr_reg));
 
                 self.locals.insert(name.clone(), (addr_reg, ty));
@@ -1941,7 +1965,7 @@ impl LlvmGenerator {
         let (val, ty) = self.compile_expr(expr)?;
         let addr = format!("%tmp.addr.{}", self.reg_count);
         self.reg_count += 1;
-        self.emit(&format!("  {} = alloca {}", addr, ty));
+        self.emit_entry_alloca(&addr, &ty);
         self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr));
         Ok((addr, ty))
     }
@@ -2012,7 +2036,7 @@ impl LlvmGenerator {
                             )
                         })?;
                         let tmp_addr = self.next_reg();
-                        self.emit(&format!("  {} = alloca {}", tmp_addr, obj_ty));
+                        self.emit_entry_alloca(&tmp_addr, &obj_ty);
                         self.emit(&format!(
                             "  store {} {}, {}* {}",
                             obj_ty, obj_val, obj_ty, tmp_addr
@@ -2966,7 +2990,7 @@ impl LlvmGenerator {
 
         // Receive loop setup.
         let message_ptr = self.next_reg();
-        self.emit(&format!("  {} = alloca %KainActorMessage", message_ptr));
+        self.emit_entry_alloca(&message_ptr, "%KainActorMessage");
         let label_loop = self.next_label();
         self.emit(&format!("  br label %{}", label_loop));
         self.emit_label(&label_loop);
@@ -3054,7 +3078,7 @@ impl LlvmGenerator {
                 .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
 
             let return_slot = self.next_reg();
-            self.emit(&format!("  {} = alloca i32", return_slot));
+            self.emit_entry_alloca(&return_slot, "i32");
             self.emit(&format!("  store i32 0, i32* {}", return_slot));
             let handler_return_label = self.next_label();
             self.actor_return_label = Some(handler_return_label.clone());
@@ -3075,7 +3099,7 @@ impl LlvmGenerator {
                 ));
 
                 let addr_reg = format!("%{}.addr", param.name);
-                self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
+                self.emit_entry_alloca(&addr_reg, &p_ty);
                 self.emit(&format!("  store {} {}, {}* {}", p_ty, val, p_ty, addr_reg));
                 self.locals.insert(param.name.clone(), (addr_reg, p_ty));
                 if let Some(scope) = self.scopes.last_mut() {
@@ -3337,7 +3361,7 @@ impl LlvmGenerator {
 
         for (i, (param_name, param_ty)) in defs.iter().enumerate() {
             let addr_reg = format!("%{}.addr", param_name);
-            self.emit(&format!("  {} = alloca {}", addr_reg, param_ty));
+            self.emit_entry_alloca(&addr_reg, param_ty);
             self.emit(&format!(
                 "  store {} %arg{}, {}* {}",
                 param_ty, i, param_ty, addr_reg
@@ -3416,7 +3440,7 @@ impl LlvmGenerator {
         self.emit_label("entry");
 
         let self_addr = "%self.addr".to_string();
-        self.emit(&format!("  {} = alloca {}", self_addr, self_ty));
+        self.emit_entry_alloca(&self_addr, &self_ty);
         self.emit(&format!(
             "  store {} %arg0, {}* {}",
             self_ty, self_ty, self_addr
@@ -3431,7 +3455,7 @@ impl LlvmGenerator {
         for (i, param) in method.params.iter().enumerate() {
             let p_ty = self.map_type_from_ast(&param.ty);
             let addr_reg = format!("%{}.addr", param.name);
-            self.emit(&format!("  {} = alloca {}", addr_reg, p_ty));
+            self.emit_entry_alloca(&addr_reg, &p_ty);
             self.emit(&format!(
                 "  store {} %arg{}, {}* {}",
                 p_ty,
@@ -3555,7 +3579,7 @@ impl LlvmGenerator {
         for (index, param) in params.iter().enumerate() {
             let param_ty = param_type_strings[index].clone();
             let addr_reg = format!("%{}.addr", param.name);
-            self.emit(&format!("  {} = alloca {}", addr_reg, param_ty));
+            self.emit_entry_alloca(&addr_reg, &param_ty);
             self.emit(&format!(
                 "  store {} %arg{}, {}* {}",
                 param_ty, index, param_ty, addr_reg
@@ -4122,7 +4146,7 @@ impl LlvmGenerator {
                         let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                         self.reg_count += 1;
 
-                        self.emit(&format!("  {} = alloca {}", addr_reg, val_ty));
+                        self.emit_entry_alloca(&addr_reg, &val_ty);
                         self.emit(&format!(
                             "  store {} {}, {}* {}",
                             val_ty, val_reg, val_ty, addr_reg
@@ -4336,7 +4360,7 @@ impl LlvmGenerator {
                 };
                 let var_addr = format!("%{}.addr_{}", loop_var, self.reg_count);
                 self.reg_count += 1;
-                self.emit(&format!("  {} = alloca i64", var_addr));
+                self.emit_entry_alloca(&var_addr, "i64");
                 self.emit(&format!("  store i64 {}, i64* {}", start_val, var_addr));
                 self.locals
                     .insert(loop_var.to_string(), (var_addr.clone(), "i64".into()));
@@ -4549,7 +4573,10 @@ impl LlvmGenerator {
                 for item in args {
                     let (val, ty) = self.compile_expr(item)?;
                     let stored = self.coerce_to_i64_storage(&val, &ty);
-                    self.emit(&format!("  call void @array_push(i8* {}, i64 {})", arr, stored));
+                    self.emit(&format!(
+                        "  call void @array_push(i8* {}, i64 {})",
+                        arr, stored
+                    ));
                 }
                 Ok((arr, "i8*".into()))
             }
@@ -4770,7 +4797,7 @@ impl LlvmGenerator {
             Expr::Alloca { ty, .. } => {
                 let ty_str = self.map_type_from_ast(ty);
                 let addr = self.next_reg();
-                self.emit(&format!("  {} = alloca {}", addr, ty_str));
+                self.emit_entry_alloca(&addr, &ty_str);
                 Ok((addr, format!("{}*", ty_str)))
             }
             Expr::Uninit { ty, .. } => Ok((
@@ -4883,7 +4910,7 @@ impl LlvmGenerator {
                                 )
                             })?;
                             let tmp_addr = self.next_reg();
-                            self.emit(&format!("  {} = alloca {}", tmp_addr, obj_ty));
+                            self.emit_entry_alloca(&tmp_addr, &obj_ty);
                             self.emit(&format!(
                                 "  store {} {}, {}* {}",
                                 obj_ty, obj_val, obj_ty, tmp_addr
@@ -5196,7 +5223,7 @@ impl LlvmGenerator {
 
                 // Initialize the runtime spawn config on the stack.
                 let config_ptr = self.next_reg();
-                self.emit(&format!("  {} = alloca %KainActorSpawnConfig", config_ptr));
+                self.emit_entry_alloca(&config_ptr, "%KainActorSpawnConfig");
                 self.emit(&format!(
                     "  call void @kain_actor_spawn_config_init(%KainActorSpawnConfig* {})",
                     config_ptr
@@ -5325,7 +5352,7 @@ impl LlvmGenerator {
 
                 let payload_struct_name = format!("{}_{}", actor_name, message);
                 let message_ptr = self.next_reg();
-                self.emit(&format!("  {} = alloca %KainActorMessage", message_ptr));
+                self.emit_entry_alloca(&message_ptr, "%KainActorMessage");
 
                 let payload_mem = if let Some(field_defs) =
                     self.struct_defs.get(&payload_struct_name).cloned()
@@ -5336,7 +5363,7 @@ impl LlvmGenerator {
                         let payload_ty = format!("%{}", payload_struct_name);
                         let payload_ptr_ty = format!("{}*", payload_ty);
                         let payload_ptr = self.next_reg();
-                        self.emit(&format!("  {} = alloca {}", payload_ptr, payload_ty));
+                        self.emit_entry_alloca(&payload_ptr, &payload_ty);
 
                         let named_args: std::collections::HashMap<String, Expr> =
                             data.iter().cloned().collect();
