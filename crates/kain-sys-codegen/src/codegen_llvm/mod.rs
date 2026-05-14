@@ -10,7 +10,9 @@ use kain_core::ast::{
     VariantPatternFields,
 };
 use kain_core::error::{KainError, KainResult};
-use kain_core::types::{ResolvedType, TypedComponent, TypedFunction, TypedItem, TypedProgram};
+use kain_core::types::{
+    ResolvedType, TypedComponent, TypedConst, TypedFunction, TypedItem, TypedProgram,
+};
 use kain_core::Span;
 use kain_core::{
     lower_typed_program_memory_for_target, validate_typed_program_memory_support, CompileTarget,
@@ -36,6 +38,15 @@ struct WorldGlobalInfo {
     global_symbol: String,
     init_flag_symbol: String,
     init_fn_name: String,
+}
+
+#[derive(Clone, Debug)]
+struct ConstGlobalInfo {
+    global_symbol: String,
+    init_flag_symbol: String,
+    init_fn_name: String,
+    ty: String,
+    requires_runtime_init: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -138,6 +149,7 @@ struct LlvmGenerator {
     actor_return_slot: Option<String>,
     target: &'static LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
+    const_globals: HashMap<String, ConstGlobalInfo>,
     native_entanglements: Vec<NativeEntangleBinding>,
     current_patch_name: Option<String>,
     /// Byte offset immediately after the current function's `entry:` label.
@@ -173,6 +185,7 @@ impl LlvmGenerator {
             actor_return_slot: None,
             target: resolve_host_llvm_target_descriptor(),
             world_globals: HashMap::new(),
+            const_globals: HashMap::new(),
             native_entanglements: Vec::new(),
             current_patch_name: None,
             entry_alloca_insert_offset: None,
@@ -219,6 +232,21 @@ impl LlvmGenerator {
             .chars()
             .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
             .collect()
+    }
+
+    fn sanitize_symbol_fragment(fragment: &str) -> String {
+        let mut sanitized = String::new();
+        for byte in fragment.bytes() {
+            match byte {
+                b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' => sanitized.push(byte as char),
+                _ => sanitized.push_str(&format!("_{:02X}", byte)),
+            }
+        }
+        if sanitized.is_empty() {
+            "unnamed".to_string()
+        } else {
+            sanitized
+        }
     }
 
     fn tuple_struct_name_from_types(field_tys: &[String]) -> String {
@@ -398,6 +426,15 @@ impl LlvmGenerator {
                             self.collect_tuple_types_from_ast(ret);
                         }
                     }
+                }
+                TypedItem::Const(const_def) => {
+                    self.collect_tuple_types_from_resolved(&const_def.ty);
+                    self.collect_tuple_types_from_ast(&const_def.ast.ty);
+                }
+                TypedItem::Mod(module) => {
+                    self.collect_program_tuple_types(&TypedProgram {
+                        items: module.items.clone(),
+                    });
                 }
                 _ => {}
             }
@@ -2006,12 +2043,19 @@ impl LlvmGenerator {
 
     fn compile_addressable_ptr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
-            Expr::Ident(name, span) => self
-                .locals
-                .get(name)
-                .cloned()
-                .map(|(addr, ty)| (addr, ty))
-                .ok_or_else(|| KainError::codegen(format!("Undefined variable: {}", name), *span)),
+            Expr::Ident(name, span) => {
+                if let Some((addr, ty)) = self.locals.get(name).cloned() {
+                    Ok((addr, ty))
+                } else if let Some(info) = self.const_globals.get(name).cloned() {
+                    self.emit_const_init_call_if_needed(&info);
+                    Ok((info.global_symbol, info.ty))
+                } else {
+                    Err(KainError::codegen(
+                        format!("Undefined variable: {}", name),
+                        *span,
+                    ))
+                }
+            }
             Expr::Field {
                 object,
                 field,
@@ -2717,6 +2761,135 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn llvm_constant_initializer_for_expr(&self, expr: &Expr, ty: &str) -> Option<String> {
+        match expr {
+            Expr::Int(value, _) if matches!(ty, "i64" | "i32" | "i8") => Some(value.to_string()),
+            Expr::Float(value, _) if ty == "double" => Some(format!("{:.6}", value)),
+            Expr::Bool(value, _) if ty == "i1" => Some(if *value {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
+            Expr::None(_) if ty.ends_with('*') => Some("null".to_string()),
+            Expr::Paren(inner, _) => self.llvm_constant_initializer_for_expr(inner, ty),
+            _ => None,
+        }
+    }
+
+    fn register_const_global(&mut self, constant: &TypedConst) {
+        let name = &constant.ast.name;
+        let llvm_ty = self.map_type(&constant.ty);
+        let symbol_name = Self::sanitize_symbol_fragment(name);
+        let initializer = self.llvm_constant_initializer_for_expr(&constant.ast.value, &llvm_ty);
+        let requires_runtime_init = initializer.is_none();
+
+        let info = ConstGlobalInfo {
+            global_symbol: format!("@__kain_const_{}", symbol_name),
+            init_flag_symbol: format!("@__kain_const_init_flag_{}", symbol_name),
+            init_fn_name: format!("__kain_init_const_{}", symbol_name),
+            ty: llvm_ty.clone(),
+            requires_runtime_init,
+        };
+
+        if let Some(initializer) = initializer {
+            self.emit(&format!(
+                "{} = internal constant {} {}",
+                info.global_symbol, llvm_ty, initializer
+            ));
+        } else {
+            self.emit(&format!(
+                "{} = internal global {} zeroinitializer",
+                info.global_symbol, llvm_ty
+            ));
+            self.emit(&format!("{} = internal global i1 0", info.init_flag_symbol));
+        }
+
+        self.const_globals.insert(name.clone(), info);
+    }
+
+    fn register_const_globals(&mut self, items: &[TypedItem]) {
+        for item in items {
+            if let TypedItem::Const(constant) = item {
+                self.register_const_global(constant);
+            }
+        }
+        if items.iter().any(|item| matches!(item, TypedItem::Const(_))) {
+            self.emit("");
+        }
+    }
+
+    fn compile_const_initializer(&mut self, constant: &TypedConst) -> KainResult<()> {
+        let Some(info) = self.const_globals.get(&constant.ast.name).cloned() else {
+            return Err(KainError::codegen(
+                format!("Missing LLVM const registration for {}", constant.ast.name),
+                constant.ast.span,
+            ));
+        };
+
+        if !info.requires_runtime_init {
+            return Ok(());
+        }
+
+        self.reg_count = 0;
+        self.locals.clear();
+        self.borrowed_locals.clear();
+        self.scopes.clear();
+        self.current_return_type = Some("void".to_string());
+
+        self.emit(&format!("define void @{}() {{", info.init_fn_name));
+        self.emit_label("entry");
+
+        let initialized = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i1, i1* {}",
+            initialized, info.init_flag_symbol
+        ));
+
+        let init_block = self.next_label();
+        let already_init_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            initialized, already_init_block, init_block
+        ));
+
+        self.emit_label(&init_block);
+        let (initial_value, initial_ty) =
+            self.compile_expr_for_target_type(&constant.ast.value, &info.ty)?;
+        if initial_ty == "i8*" && !self.is_new_object(&constant.ast.value) {
+            self.emit(&format!("  call void @rc_retain(i8* {})", initial_value));
+        }
+        self.emit(&format!(
+            "  store {} {}, {}* {}",
+            initial_ty, initial_value, info.ty, info.global_symbol
+        ));
+        self.emit(&format!("  store i1 1, i1* {}", info.init_flag_symbol));
+        self.emit(&format!("  br label %{}", already_init_block));
+
+        self.emit_label(&already_init_block);
+        self.emit("  ret void");
+        self.emit("}");
+        self.emit("");
+        self.current_return_type = None;
+        self.entry_alloca_insert_offset = None;
+        Ok(())
+    }
+
+    fn emit_const_init_call_if_needed(&mut self, info: &ConstGlobalInfo) {
+        if info.requires_runtime_init {
+            self.emit(&format!("  call void @{}()", info.init_fn_name));
+        }
+    }
+
+    fn compile_const_load(&mut self, info: &ConstGlobalInfo) -> (String, String) {
+        self.emit_const_init_call_if_needed(info);
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}",
+            loaded, info.ty, info.ty, info.global_symbol
+        ));
+        (loaded, info.ty.clone())
+    }
+
     fn compile_module(&mut self, program: &TypedProgram) -> KainResult<()> {
         // 1. Emit Header
         self.emit("; ModuleID = 'KAIN'");
@@ -2842,6 +3015,8 @@ impl LlvmGenerator {
             }
         }
 
+        self.register_const_globals(&program.items);
+
         // 2b. Pre-scan functions to register return types
         for item in &program.items {
             if let TypedItem::Function(func) = item {
@@ -2915,7 +3090,8 @@ impl LlvmGenerator {
                 TypedItem::Component(component) => self.compile_component(component)?,
                 TypedItem::Impl(imp) => self.compile_impl(imp)?,
                 TypedItem::Actor(actor) => self.compile_actor(actor)?,
-                // TODO: Handle Structs, Enums, Consts
+                TypedItem::Const(constant) => self.compile_const_initializer(constant)?,
+                // Structs and enums were emitted during the type pre-scan.
                 _ => {}
             }
         }
@@ -5578,6 +5754,8 @@ impl LlvmGenerator {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
                     Ok((reg, ty))
+                } else if let Some(info) = self.const_globals.get(name).cloned() {
+                    Ok(self.compile_const_load(&info))
                 } else if let Some(world_info) = self.world_globals.get(name).cloned() {
                     self.emit(&format!("  call void @{}()", world_info.init_fn_name));
                     Ok((world_info.global_symbol.clone(), format!("%{}*", name)))

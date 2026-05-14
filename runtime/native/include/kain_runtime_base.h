@@ -2,6 +2,7 @@
 #define KAIN_RUNTIME_BASE_H
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -196,6 +197,9 @@ typedef struct {
 
 typedef struct {
     char* key;
+    uint64_t hash;
+    uint64_t key_prefix;
+    size_t key_length;
     long long value;
     int occupied;
 } MapEntry;
@@ -204,6 +208,7 @@ typedef struct {
     MapEntry* entries;
     long long capacity;
     long long count;
+    uint64_t mask;
 } KainMap;
 
 typedef struct MessageNode {

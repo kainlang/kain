@@ -149,6 +149,40 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_resolves_top_level_const_values() {
+    let source = r#"
+const ANSWER_BASE: Int = 40
+const ANSWER: Int = ANSWER_BASE + 2
+const CONST_ENABLED: Bool = true
+const CONST_NAME: String = "kain-llvm"
+
+fn main() -> Int:
+    let value = ANSWER
+    if CONST_ENABLED && CONST_NAME == "kain-llvm":
+        return value
+    return 0
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("@__kain_const_ANSWER_BASE = internal constant i64 40"));
+    assert!(llvm.contains("@__kain_const_CONST_ENABLED = internal constant i1 1"));
+    assert!(llvm.contains("@__kain_const_ANSWER = internal global i64 zeroinitializer"));
+    assert!(llvm.contains("@__kain_const_CONST_NAME = internal global i8* zeroinitializer"));
+    assert!(llvm.contains("define void @__kain_init_const_ANSWER()"));
+    assert!(llvm.contains("define void @__kain_init_const_CONST_NAME()"));
+    assert!(llvm.contains("call void @__kain_init_const_ANSWER()"));
+    assert!(llvm.contains("call void @__kain_init_const_CONST_NAME()"));
+    assert!(llvm.contains("load i64, i64* @__kain_const_ANSWER_BASE"));
+    assert!(llvm.contains("load i64, i64* @__kain_const_ANSWER"));
+    assert!(llvm.contains("load i8*, i8** @__kain_const_CONST_NAME"));
+
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "top-level-const-values");
+}
+
+#[test]
 fn llvm_uses_explicit_native_stdlib_wrapper_string_signatures() {
     let source = r#"
 @extern

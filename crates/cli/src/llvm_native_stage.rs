@@ -399,6 +399,23 @@ fn main() -> Int:
     }
 
     #[test]
+    fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
+        let source = include_str!("../../../blades/kain-example/src/main.kn");
+
+        let extracted = super::shader_artifact_source(source)
+            .expect("kain-example native source should yield shader-only source");
+
+        assert!(extracted.contains("shader fragment NativeExampleGradient"));
+        assert!(extracted.contains("shader compute NativeExampleBlendKernel"));
+        assert!(!extracted.contains("native_runtime_heap_validate"));
+        assert!(!extracted.contains("fn main()"));
+
+        let bundle = crate::compile_shader_artifact_bundle(&extracted)
+            .expect("kain-example extracted shader source should compile to a shader bundle");
+        assert!(bundle.bundle_json.contains("NativeExampleGradient"));
+    }
+
+    #[test]
     fn stage_llvm_native_artifacts_skips_optional_gpu_sidecars_for_ui_only_source() {
         let temp = TempDir::new().expect("temp dir");
         let output_path = temp.path().join("build").join("demo.ll");

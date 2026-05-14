@@ -1,0 +1,51 @@
+version: 1
+id: kain.native.core.proofs.native_map_entry_allocation_does_not_wrap_after_capacity_guard
+kind: size_mul_ok
+description: The optimized map only allocates the resized entry array after proving the
+  doubled capacity still fits the target `calloc` byte budget.
+tags:
+- native-runtime
+- map
+- allocation
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_core.c
+  symbol: map_set
+  start_line: 1169
+  reason: map_set rejects `new_capacity > SIZE_MAX / sizeof(MapEntry)` before resize
+case:
+  declarations:
+  - name: new_capacity
+    sort:
+      kind: int
+  - name: entry_size
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - new_capacity
+    - 0
+  - op: ge
+    args:
+    - entry_size
+    - 1
+  - op: le
+    args:
+    - new_capacity
+    - op: div
+      args:
+      - size_max
+      - entry_size
+  factors:
+  - new_capacity
+  - entry_size
+  size_bits: 64
+  limit: size_max

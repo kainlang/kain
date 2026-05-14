@@ -1,0 +1,46 @@
+version: 1
+id: kain.native.core.proofs.native_map_growth_threshold_stays_below_capacity
+kind: range_check
+description: The 75% load threshold used by the optimized map always stays strictly below
+  capacity, so the table still has spare slots when resize triggers.
+tags:
+- native-runtime
+- map
+- load-factor
+- capacity
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_core.c
+  symbol: kain_map_growth_threshold
+  start_line: 885
+  reason: capacity - (capacity >> 2) leaves at least one empty slot for power-of-two tables
+case:
+  declarations:
+  - name: capacity
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - capacity
+    - 16
+  - op: eq
+    args:
+    - op: mod
+      args:
+      - capacity
+      - 4
+    - 0
+  expression:
+    op: sub
+    args:
+    - capacity
+    - op: div
+      args:
+      - capacity
+      - 4
+  lower: 12
+  upper:
+    op: sub
+    args:
+    - capacity
+    - 1

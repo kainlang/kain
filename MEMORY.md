@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-14 - Native C runtime map hot path now uses cached key metadata and mask probing
+
+The low-level builtin map in `runtime/native/src/core/kain_runtime_core.c` is no longer the old djb2-plus-modulo-plus-strcmp-everywhere implementation. The runtime now treats map capacity as a power-of-two invariant, caches per-entry key metadata, and probes with a mask instead of `%`.
+
+What changed:
+
+- `MapEntry` now stores `hash`, `key_prefix`, and `key_length`, and `KainMap` now stores a cached `mask`.
+- `map_get` and `map_set` compute key metadata once, use `hash & mask` for the start slot, fold the first 32 bytes of the key into a synthesized prefix state, and use an 8-slot branchless probe window to reject almost all collisions before `memcmp`.
+- Resize no longer recursively calls `map_set` on old entries. Rehash now reinserts with stored metadata and does not `rc_retain` again, which fixes the old refcount leak on every resize.
+- Added durable Z3 proofs and reference SMTs:
+  - `native-map-entry-allocation-does-not-wrap-after-capacity-guard.yaml`
+  - `native-map-growth-threshold-stays-below-capacity.yaml`
+  - `runtime/native/src/core/z3/proofs-experimental/map-magic-current-intent-pool.smt2`
+  - `runtime/native/src/core/z3/proofs-experimental/map-eight-slot-selection.smt2`
+  - `runtime/native/src/core/z3/proofs-experimental/map-power-two-window-index-bounds.smt2`
+- Gathered direct solver reports for the bitwise probe math: `map-magic-multiplier-no-current-key-collisions`, `map-eight-slot-value-selection`, and `map-eight-slot-power-two-index-bounds` returned `unsat`.
+
+Validation:
+
+- `clang -c runtime/native/src/core/kain_runtime_core.c -Iruntime/native/include -o target/codex-map-core.obj`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="native", report_name="native-core-map-hotpath-native-lane")` proved 31/31.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_core.c`
+- Scratch C smoke `target/codex-map-smoke.exe` inserted, updated, grew, and read back native map entries successfully.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="full", report_name="native-core-full-after-branchless-map-swar")` proved 38/38.
+- Conservative local microbenchmark in `target/codex-map-benchmark.c` / `target/codex-map-benchmark.exe`:
+  - insert speedup: ~1.71x
+  - hit lookup speedup: ~1.48x
+  - miss lookup speedup: ~1.29x
+
+Design note:
+
+- This is a real hot-path improvement, but not a fantasy 100x or 1000x jump. The current pass already crossed into deliberately alien territory with branchless 8-slot selection math. The next truly aggressive move would be a SwissTable-style control-byte sidecar or a generated perfect-hash fast path for closed key universes such as compiler-owned intent pools.
+
+Recommended next step:
+
+- If map lookups still matter in profiles, build a second-stage specialized table for runtime-owned closed dictionaries: 7-bit fingerprints in a control-byte array plus 8-at-a-time SWAR probing, or a generated perfect hash for known key sets.
+
 # 2026-05-14 - `benchmark/` expanded from pressure tests into a broader language-edge suite
 
 The Kain vs Rust LLVM benchmark lane now covers both the "alien tech" pressure tests and ordinary compiler battle cases. The suite is still manifest-driven through `benchmark/benchmarks.json`, and every case remains paired as `main.kn` plus `main.rs` with no external language dependencies.
