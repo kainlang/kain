@@ -41,6 +41,48 @@ class CommandResult:
     elapsed_ms: float
 
 
+@dataclass
+class ResolvedExecutable:
+    path: Path
+    source: str
+    build_command: list[str] | None = None
+
+
+RUST_RELEASE_FLAGS = [
+    "-C",
+    "opt-level=3",
+    "-C",
+    "target-cpu=native",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "panic=abort",
+    "-C",
+    "overflow-checks=off",
+]
+
+KAIN_NATIVE_PROFILE_DEFAULTS: dict[str, dict[str, str]] = {
+    "debug": {
+        "KAIN_NATIVE_PROFILE": "debug",
+        "KAIN_NATIVE_OPT_LEVEL": "0",
+        "KAIN_NATIVE_TARGET_CPU": "",
+        "KAIN_NATIVE_DEBUG_INFO": "1",
+    },
+    "release": {
+        "KAIN_NATIVE_PROFILE": "release",
+        "KAIN_NATIVE_OPT_LEVEL": "2",
+        "KAIN_NATIVE_TARGET_CPU": "",
+        "KAIN_NATIVE_DEBUG_INFO": "0",
+    },
+    "benchmark-release": {
+        "KAIN_NATIVE_PROFILE": "benchmark-release",
+        "KAIN_NATIVE_OPT_LEVEL": "3",
+        "KAIN_NATIVE_TARGET_CPU": "native",
+        "KAIN_NATIVE_DEBUG_INFO": "0",
+    },
+}
+
+
 def strip_ansi(value: str) -> str:
     return ANSI_RE.sub("", value)
 
@@ -56,8 +98,17 @@ def display_command(command: list[str]) -> str:
     return " ".join(command)
 
 
-def run_command(command: list[str], timeout: int, cwd: Path = REPO_ROOT) -> CommandResult:
+def run_command(
+    command: list[str],
+    timeout: int,
+    cwd: Path = REPO_ROOT,
+    env_overrides: dict[str, str] | None = None,
+) -> CommandResult:
     start = time.perf_counter_ns()
+    env = None
+    if env_overrides:
+        env = os.environ.copy()
+        env.update(env_overrides)
     completed = subprocess.run(
         command,
         cwd=str(cwd),
@@ -65,6 +116,7 @@ def run_command(command: list[str], timeout: int, cwd: Path = REPO_ROOT) -> Comm
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=timeout,
+        env=env,
     )
     elapsed_ms = (time.perf_counter_ns() - start) / 1_000_000.0
     return CommandResult(
@@ -86,36 +138,71 @@ def find_line_that_looks_like_path(output: str) -> str | None:
     return None
 
 
-def resolve_kain_exe(explicit: str | None, timeout: int) -> Path:
-    candidates: list[Path] = []
+def resolve_kain_exe(explicit: str | None, timeout: int) -> ResolvedExecutable:
+    candidates: list[ResolvedExecutable] = []
 
     if explicit:
-        candidates.append(Path(explicit))
+        candidates.append(ResolvedExecutable(Path(explicit), "explicit --kain-exe"))
 
     env_kain = os.environ.get("KAIN_EXE")
     if env_kain:
-        candidates.append(Path(env_kain))
+        candidates.append(ResolvedExecutable(Path(env_kain), "KAIN_EXE"))
 
     bazel = shutil.which("bazel")
+    compiler_timeout = max(timeout, 1200)
     if bazel:
-        build = run_command([bazel, "build", "//:kain", "--config=dev"], timeout=timeout)
-        info = run_command([bazel, "info", "bazel-bin", "--config=dev"], timeout=timeout)
+        build_command = [bazel, "build", "//:kain", "--config=release"]
+        build = run_command(build_command, timeout=compiler_timeout)
+        info = run_command(
+            [bazel, "info", "bazel-bin", "--config=release"], timeout=compiler_timeout
+        )
         info_line = find_line_that_looks_like_path(info.stdout)
         if info_line:
-            candidates.append(Path(info_line) / "crates" / "cli" / executable_name("kain"))
-        if build.returncode != 0 and not any(candidate.exists() for candidate in candidates):
+            candidates.append(
+                ResolvedExecutable(
+                    Path(info_line) / "crates" / "cli" / executable_name("kain"),
+                    "bazel --config=release",
+                    build_command,
+                )
+            )
+        if build.returncode != 0 and not any(candidate.path.exists() for candidate in candidates):
             combined = (build.stdout + "\n" + build.stderr).strip()
             raise RuntimeError(f"Unable to build //:kain with Bazel.\n{combined}")
 
-    candidates.append(REPO_ROOT / "target" / "debug" / executable_name("kain"))
+    for candidate in candidates:
+        if candidate.path.exists():
+            candidate.path = candidate.path.resolve()
+            return candidate
+
+    cargo_release = shutil.which("cargo")
+    if cargo_release:
+        build_command = [cargo_release, "build", "--release", "-p", "cli"]
+        build = run_command(build_command, timeout=compiler_timeout)
+        release_candidate = REPO_ROOT / "target" / "release" / executable_name("kain")
+        if release_candidate.exists() and build.returncode == 0:
+            candidates.append(
+                ResolvedExecutable(
+                    release_candidate,
+                    "cargo --release -p cli",
+                    build_command,
+                )
+            )
+
+    candidates.append(
+        ResolvedExecutable(REPO_ROOT / "target" / "release" / executable_name("kain"), "target/release")
+    )
+    candidates.append(
+        ResolvedExecutable(REPO_ROOT / "target" / "debug" / executable_name("kain"), "target/debug")
+    )
 
     path_kain = shutil.which("kain")
     if path_kain:
-        candidates.append(Path(path_kain))
+        candidates.append(ResolvedExecutable(Path(path_kain), "PATH kain"))
 
     for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
+        if candidate.path.exists():
+            candidate.path = candidate.path.resolve()
+            return candidate
 
     raise RuntimeError(
         "Could not find kain compiler. Set KAIN_EXE or pass --kain-exe."
@@ -126,6 +213,32 @@ def executable_name(stem: str) -> str:
     if os.name == "nt":
         return f"{stem}.exe"
     return stem
+
+
+def resolved_kain_native_tuning(args: argparse.Namespace) -> dict[str, str]:
+    profile = args.kain_native_profile
+    defaults = KAIN_NATIVE_PROFILE_DEFAULTS[profile]
+    opt_level = args.kain_native_opt_level.strip() if args.kain_native_opt_level else ""
+    target_cpu = args.kain_native_target_cpu.strip() if args.kain_native_target_cpu else ""
+    debug_info = args.kain_native_debug_info.strip() if args.kain_native_debug_info else ""
+    tuning = {
+        "profile": defaults["KAIN_NATIVE_PROFILE"],
+        "opt_level": opt_level or defaults["KAIN_NATIVE_OPT_LEVEL"],
+        "target_cpu": target_cpu or defaults["KAIN_NATIVE_TARGET_CPU"],
+        "debug_info": debug_info or defaults["KAIN_NATIVE_DEBUG_INFO"],
+    }
+    return tuning
+
+
+def kain_native_env_from_tuning(tuning: dict[str, str]) -> dict[str, str]:
+    env = {
+        "KAIN_NATIVE_PROFILE": tuning["profile"],
+        "KAIN_NATIVE_OPT_LEVEL": tuning["opt_level"],
+        "KAIN_NATIVE_DEBUG_INFO": tuning["debug_info"],
+    }
+    if tuning["target_cpu"]:
+        env["KAIN_NATIVE_TARGET_CPU"] = tuning["target_cpu"]
+    return env
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -157,9 +270,10 @@ def validate_case_files(case: dict[str, Any]) -> None:
 
 def build_kain_case(
     case: dict[str, Any],
-    kain_exe: Path,
+    kain_exe: ResolvedExecutable,
     timeout: int,
     no_build: bool,
+    env_overrides: dict[str, str],
 ) -> dict[str, Any]:
     case_id = case["id"]
     build_dir = BUILD_ROOT / case_id / "kain"
@@ -168,7 +282,7 @@ def build_kain_case(
     exe_path = build_dir / executable_name(case_id)
 
     command = [
-        str(kain_exe),
+        str(kain_exe.path),
         repo_relative(BENCHMARK_ROOT / case["kain"]),
         "-t",
         "llvm",
@@ -182,13 +296,14 @@ def build_kain_case(
             "language": "kain",
             "exe": str(exe_path),
             "command": command,
+            "env": env_overrides,
             "build_ms": 0.0,
             "stdout": "",
             "stderr": "",
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
-    result = run_command(command, timeout=timeout)
+    result = run_command(command, timeout=timeout, env_overrides=env_overrides)
     produced_exe = ll_path.with_suffix(".exe" if os.name == "nt" else "")
     if produced_exe.exists() and produced_exe != exe_path:
         shutil.copyfile(produced_exe, exe_path)
@@ -201,6 +316,7 @@ def build_kain_case(
         "language": "kain",
         "exe": str(exe_path),
         "command": command,
+        "env": env_overrides,
         "build_ms": result.elapsed_ms,
         "stdout": result.stdout[-4000:],
         "stderr": result.stderr[-4000:],
@@ -221,16 +337,7 @@ def build_rust_case(
     command = [
         rustc,
         repo_relative(BENCHMARK_ROOT / case["rust"]),
-        "-C",
-        "opt-level=3",
-        "-C",
-        "target-cpu=native",
-        "-C",
-        "debuginfo=0",
-        "-C",
-        "panic=abort",
-        "-C",
-        "overflow-checks=off",
+        *RUST_RELEASE_FLAGS,
         "-o",
         repo_relative(exe_path),
     ]
@@ -241,6 +348,7 @@ def build_rust_case(
             "language": "rust",
             "exe": str(exe_path),
             "command": command,
+            "flags": RUST_RELEASE_FLAGS,
             "build_ms": 0.0,
             "stdout": "",
             "stderr": "",
@@ -254,6 +362,7 @@ def build_rust_case(
         "language": "rust",
         "exe": str(exe_path),
         "command": command,
+        "flags": RUST_RELEASE_FLAGS,
         "build_ms": result.elapsed_ms,
         "stdout": result.stdout[-4000:],
         "stderr": result.stderr[-4000:],
@@ -329,15 +438,16 @@ def failed_run_result(
 
 def benchmark_case(
     case: dict[str, Any],
-    kain_exe: Path,
+    kain_exe: ResolvedExecutable,
     rustc: str,
     warmups: int,
     runs: int,
     timeout: int,
     no_build: bool,
+    kain_native_env: dict[str, str],
 ) -> dict[str, Any]:
     validate_case_files(case)
-    kain_build = build_kain_case(case, kain_exe, timeout, no_build)
+    kain_build = build_kain_case(case, kain_exe, timeout, no_build, kain_native_env)
     rust_build = build_rust_case(case, rustc, timeout, no_build)
     kain_run = measure_executable(kain_build, warmups, runs, timeout)
     rust_run = measure_executable(rust_build, warmups, runs, timeout)
@@ -369,6 +479,14 @@ def benchmark_case(
         "build": {
             "kain": kain_build,
             "rust": rust_build,
+        },
+        "toolchain": {
+            "kain_exe": str(kain_exe.path),
+            "kain_exe_source": kain_exe.source,
+            "kain_exe_build_command": kain_exe.build_command,
+            "kain_native_env": kain_native_env,
+            "rustc": rustc,
+            "rust_flags": RUST_RELEASE_FLAGS,
         },
         "run": {
             "kain": kain_run,
@@ -495,6 +613,7 @@ code {{ font-family: Consolas, monospace; }}
 <p class="lede">Paired native benchmarks. Programs use no external packages; the runner builds Kain LLVM and Rust LLVM artifacts, times executable samples, and rewrites this report every run.</p>
 <p class="meta">Generated {generated}. Warmups: {report['warmups']}. Timed runs: {report['runs']}. Host: {html.escape(report['platform'])}.</p>
 </header>
+{render_toolchain_summary(report)}
 <table>
 <thead>
 <tr><th>Case</th><th>Kain median ms</th><th>Kain</th><th>Rust median ms</th><th>Rust</th><th>Winner</th><th>Ratio</th></tr>
@@ -543,6 +662,33 @@ def render_case_detail(case: dict[str, Any]) -> str:
     return "".join(parts)
 
 
+def render_toolchain_summary(report: dict[str, Any]) -> str:
+    toolchain = report.get("toolchain", {})
+    kain_native_env = toolchain.get("kain_native_env", {})
+    native_summary = ", ".join(
+        f"{key}={html.escape(value)}"
+        for key, value in (
+            ("profile", kain_native_env.get("KAIN_NATIVE_PROFILE", "n/a")),
+            ("opt_level", kain_native_env.get("KAIN_NATIVE_OPT_LEVEL", "n/a")),
+            ("target_cpu", kain_native_env.get("KAIN_NATIVE_TARGET_CPU") or "none"),
+            ("debug_info", kain_native_env.get("KAIN_NATIVE_DEBUG_INFO", "n/a")),
+        )
+    )
+    rust_flags = toolchain.get("rust_flags", [])
+    rust_flags_text = " ".join(rust_flags) if rust_flags else "n/a"
+    build_command = toolchain.get("kain_exe_build_command")
+    build_command_text = display_command(build_command) if build_command else "n/a"
+    return (
+        "<section class='case'><h2>Toolchain</h2>"
+        f"<p><strong>Kain exe:</strong> <code>{html.escape(toolchain.get('kain_exe', 'n/a'))}</code></p>"
+        f"<p><strong>Kain source:</strong> {html.escape(toolchain.get('kain_exe_source', 'n/a'))}</p>"
+        f"<p><strong>Kain native:</strong> <code>{native_summary}</code></p>"
+        f"<p><strong>Kain build:</strong></p><pre>{html.escape(build_command_text)}</pre>"
+        f"<p><strong>Rust flags:</strong> <code>{html.escape(rust_flags_text)}</code></p>"
+        "</section>"
+    )
+
+
 def render_error(build: dict[str, Any], run: dict[str, Any]) -> str:
     errors = []
     if build.get("error"):
@@ -576,6 +722,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--kain-exe")
     parser.add_argument("--rustc", default=os.environ.get("RUSTC", "rustc"))
+    parser.add_argument(
+        "--kain-native-profile",
+        choices=sorted(KAIN_NATIVE_PROFILE_DEFAULTS.keys()),
+        default="benchmark-release",
+    )
+    parser.add_argument("--kain-native-opt-level")
+    parser.add_argument("--kain-native-target-cpu")
+    parser.add_argument("--kain-native-debug-info")
     parser.add_argument("--no-build", action="store_true")
     return parser.parse_args()
 
@@ -585,6 +739,8 @@ def main() -> int:
     manifest = load_manifest(Path(args.manifest))
     warmups = args.warmups if args.warmups is not None else int(manifest.get("default_warmups", 2))
     runs = args.runs if args.runs is not None else int(manifest.get("default_runs", 7))
+    kain_native_tuning = resolved_kain_native_tuning(args)
+    kain_native_env = kain_native_env_from_tuning(kain_native_tuning)
 
     report: dict[str, Any] = {
         "suite": manifest.get("suite", "kain-vs-rust-llvm"),
@@ -601,8 +757,13 @@ def main() -> int:
         kain_exe = resolve_kain_exe(args.kain_exe, args.timeout)
         rustc_path = shutil.which(args.rustc) or args.rustc
         report["toolchain"] = {
-            "kain_exe": str(kain_exe),
+            "kain_exe": str(kain_exe.path),
+            "kain_exe_source": kain_exe.source,
+            "kain_exe_build_command": kain_exe.build_command,
+            "kain_native_tuning": kain_native_tuning,
+            "kain_native_env": kain_native_env,
             "rustc": rustc_path,
+            "rust_flags": RUST_RELEASE_FLAGS,
         }
         for case in selected_cases(manifest, args.only_case):
             print(f"[bench] {case['id']}")
@@ -614,6 +775,7 @@ def main() -> int:
                 runs=runs,
                 timeout=args.timeout,
                 no_build=args.no_build,
+                kain_native_env=kain_native_env,
             )
             report["cases"].append(result)
         report["ok"] = all(

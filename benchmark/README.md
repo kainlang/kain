@@ -7,6 +7,7 @@ The contract is intentionally simple:
 - Every Kain benchmark in `cases/<case>/main.kn` must have a Rust sibling at `cases/<case>/main.rs`.
 - Case programs may import local files later, but they must not use external packages or crates.
 - Build time is recorded separately; timed samples run the already-built executables.
+- The runner prefers a release-built `kain.exe` and passes a benchmark-native tuning profile into the Kain compiler unless you override it.
 - Every run writes `out/reports/latest.html`, a timestamped HTML report, and `out/reports/latest.json`.
 - The report includes a maturity/fairness note per case. Some pressure tests are honest proxies until Kain exposes the matching runtime primitive directly in LLVM.
 
@@ -41,7 +42,7 @@ Useful variants:
 ```powershell
 python benchmark/run.py --runs 9 --warmups 2
 python benchmark/run.py --case ownership_memory
-python benchmark/run.py --kain-exe D:\Kain-Lang\target\debug\kain.exe
+python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe
 ```
 
-The runner prefers a direct Bazel-built `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler.
+The runner prefers a direct Bazel-built release `kain.exe` to avoid the Windows PowerShell launcher `-o` forwarding ambiguity. Use `--kain-exe` or `KAIN_EXE` to pin a specific compiler. Use `--kain-native-profile`, `--kain-native-opt-level`, `--kain-native-target-cpu`, and `--kain-native-debug-info` only if you are intentionally changing the native benchmark tuning.

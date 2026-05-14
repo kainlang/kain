@@ -19,8 +19,9 @@ description: Use when adding, changing, running, or reviewing the Kain vs Rust L
 
 - Main command: `python benchmark/run.py`
 - Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
-- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\debug\kain.exe`
-- The runner prefers a direct Bazel-built `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`.
+- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\release\kain.exe`
+- The runner prefers a direct Bazel-built release `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`.
+- Benchmark-native tuning defaults to `KAIN_NATIVE_PROFILE=benchmark-release` with `opt-level=3`, `target-cpu=native`, and no debug info unless you intentionally override it.
 - Reports are written to:
   - `benchmark/out/reports/latest.html`
   - `benchmark/out/reports/latest.json`

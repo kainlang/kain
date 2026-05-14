@@ -1,5 +1,35 @@
 # Kain Memory
 
+# 2026-05-14 - Benchmark lane now runs release compiler + benchmark-native tuning
+
+The paired Kain-vs-Rust benchmark lane now prefers a release-built `kain.exe`
+and injects an explicit benchmark-native tuning profile into Kain native
+builds:
+
+- `KAIN_NATIVE_PROFILE=benchmark-release`
+- `KAIN_NATIVE_OPT_LEVEL=3`
+- `KAIN_NATIVE_TARGET_CPU=native`
+- `KAIN_NATIVE_DEBUG_INFO=0`
+
+The CLI native LLVM/C path now threads those settings into both the runtime
+object cache fingerprint and the final `clang` link step, so benchmark runs
+cannot silently reuse debug-built native artifacts. The benchmark runner also
+records the resolved compiler source, native tuning env, and Rust release flags
+in `latest.json` and `latest.html`.
+
+Validation:
+
+- `cargo test -p cli native_toolchain_tuning -- --nocapture`
+- `python benchmark/run.py --runs 3 --warmups 1`
+
+Latest report:
+
+- `benchmark/out/reports/latest.html`
+- Kain still wins `contention_wall` under the fairer release/native lane.
+- Rust still wins the remaining implemented edge cases, which is useful signal:
+  the benchmark is now exposing real codegen/runtime gaps instead of debug-mode
+  noise.
+
 # 2026-05-14 - LLVM top-level consts and blade shader staging are now wired
 
 The LLVM backend now treats top-level `const` items as real global values instead

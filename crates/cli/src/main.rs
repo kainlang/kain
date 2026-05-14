@@ -21,11 +21,11 @@ use cli::runtime_tools;
 use cli::rust_build;
 use cli::selfhost;
 use cli::{
-    compile, detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
-    resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
-    target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
-    BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
-    BUILD_TRACKING_MODE, BUILD_UNIX_TIME, LANGUAGE_NAME, VERSION,
+    BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY, BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER,
+    BUILD_PROFILE, BUILD_TARGET_TRIPLE, BUILD_TRACKING_MODE, BUILD_UNIX_TIME, CompileTarget,
+    LANGUAGE_NAME, LauncherKind, VERSION, compile, detect_launcher_from_path, format_source,
+    parse_compile_target, render_launcher_menu, resolve_legacy_target_alias,
+    should_show_launcher_menu, supported_targets_csv, target_extension,
 };
 use kain_c_ffi::{
     ArtifactMode as CArtifactMode, ImportCOptions as CImportCOptions,
@@ -37,7 +37,7 @@ use kain_commands::kain::{
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
 use kain_repl::{
-    normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
+    ReplBuildMetadata, ReplTerminalConfig, normalize_script_source, run_terminal_repl,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,8 +45,8 @@ use std::fs;
 use std::io::{self, IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 #[derive(Debug, Default, Deserialize)]
@@ -130,6 +130,81 @@ struct NativeRuntimeStaticArchivePaths {
 struct NativeRuntimeCompiledArtifacts {
     loose_objects: Vec<PathBuf>,
     static_archives: Vec<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativeToolchainProfile {
+    Debug,
+    Release,
+    BenchmarkRelease,
+}
+
+impl NativeToolchainProfile {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Debug => "debug",
+            Self::Release => "release",
+            Self::BenchmarkRelease => "benchmark-release",
+        }
+    }
+
+    fn defaults(self) -> NativeToolchainTuning {
+        match self {
+            Self::Debug => NativeToolchainTuning {
+                profile: self,
+                opt_level: "0".to_string(),
+                target_cpu: None,
+                debug_info: true,
+            },
+            Self::Release => NativeToolchainTuning {
+                profile: self,
+                opt_level: "2".to_string(),
+                target_cpu: None,
+                debug_info: false,
+            },
+            Self::BenchmarkRelease => NativeToolchainTuning {
+                profile: self,
+                opt_level: "3".to_string(),
+                target_cpu: Some("native".to_string()),
+                debug_info: false,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeToolchainTuning {
+    profile: NativeToolchainProfile,
+    opt_level: String,
+    target_cpu: Option<String>,
+    debug_info: bool,
+}
+
+impl NativeToolchainTuning {
+    fn apply_to_clang_command(&self, command: &mut Command) {
+        command.arg(format!("-O{}", self.opt_level));
+        if self.debug_info {
+            command.arg("-g");
+        } else {
+            command.arg("-g0");
+        }
+        if let Some(target_cpu) = &self.target_cpu {
+            command.arg(format!("-march={target_cpu}"));
+            command.arg(format!("-mtune={target_cpu}"));
+        }
+    }
+
+    fn fingerprint_lines(&self) -> [String; 4] {
+        [
+            format!("native_profile={}", self.profile.as_str()),
+            format!("native_opt_level={}", self.opt_level),
+            format!(
+                "native_target_cpu={}",
+                self.target_cpu.as_deref().unwrap_or("")
+            ),
+            format!("native_debug_info={}", self.debug_info),
+        ]
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -881,6 +956,13 @@ fn run_source(
                         })
                         .unwrap_or_else(|| "clang".to_string());
 
+                    let native_toolchain_tuning = match resolve_native_toolchain_tuning() {
+                        Ok(tuning) => tuning,
+                        Err(err) => {
+                            eprintln!(" Failed to resolve native toolchain tuning: {}", err);
+                            return false;
+                        }
+                    };
                     let mut cmd = std::process::Command::new(&clang_cmd);
                     let mut runtime_link_libs = Vec::new();
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
@@ -900,14 +982,17 @@ fn run_source(
                             return false;
                         }
                     } {
-                        runtime_artifacts =
-                            match compile_native_runtime_bundle(&runtime_bundle, &clang_cmd) {
-                                Ok(artifacts) => artifacts,
-                                Err(err) => {
-                                    eprintln!(" Failed to compile runtime library: {}", err);
-                                    return false;
-                                }
-                            };
+                        runtime_artifacts = match compile_native_runtime_bundle(
+                            &runtime_bundle,
+                            &clang_cmd,
+                            &native_toolchain_tuning,
+                        ) {
+                            Ok(artifacts) => artifacts,
+                            Err(err) => {
+                                eprintln!(" Failed to compile runtime library: {}", err);
+                                return false;
+                            }
+                        };
                         runtime_link_libs = runtime_bundle.link_libs;
                         if runtime_bundle.uses_cpp_runtime {
                             runtime_link_libs = unique_link_libs(
@@ -921,6 +1006,7 @@ fn run_source(
                         cmd.arg("-std=c11");
                     }
 
+                    native_toolchain_tuning.apply_to_clang_command(&mut cmd);
                     cmd.arg(&output_path);
 
                     for object in runtime_artifacts.loose_objects {
@@ -930,7 +1016,7 @@ fn run_source(
                         cmd.arg(archive);
                     }
 
-                    cmd.arg("-o").arg(&exe_path).arg("-g");
+                    cmd.arg("-o").arg(&exe_path);
                     if target == CompileTarget::Llvm {
                         cmd.arg("-Wno-override-module");
                     }
@@ -1083,6 +1169,80 @@ fn env_var_truthy(name: &str) -> bool {
         }
         Err(_) => false,
     }
+}
+
+fn parse_bool_env_value(name: &str, value: &str) -> Result<bool, String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(format!(
+            "{name} must be one of 1, 0, true, false, yes, no, on, off"
+        )),
+    }
+}
+
+fn parse_native_toolchain_profile(value: &str) -> Result<NativeToolchainProfile, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "debug" | "dev" => Ok(NativeToolchainProfile::Debug),
+        "release" | "rel" => Ok(NativeToolchainProfile::Release),
+        "benchmark-release" | "benchmark" | "bench" => Ok(NativeToolchainProfile::BenchmarkRelease),
+        other => Err(format!(
+            "KAIN_NATIVE_PROFILE `{other}` is invalid; expected debug, release, or benchmark-release"
+        )),
+    }
+}
+
+fn parse_native_opt_level(value: &str) -> Result<String, String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "0" | "1" | "2" | "3" | "s" | "z" => Ok(normalized),
+        _ => Err(format!(
+            "KAIN_NATIVE_OPT_LEVEL `{}` is invalid; expected 0, 1, 2, 3, s, or z",
+            value.trim()
+        )),
+    }
+}
+
+fn parse_optional_env_string(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn parse_native_toolchain_tuning(
+    profile: Option<&str>,
+    opt_level: Option<&str>,
+    target_cpu: Option<&str>,
+    debug_info: Option<&str>,
+) -> Result<NativeToolchainTuning, String> {
+    let selected_profile = match profile {
+        Some(raw) => parse_native_toolchain_profile(raw)?,
+        None => NativeToolchainProfile::Debug,
+    };
+    let mut tuning = selected_profile.defaults();
+    if let Some(raw_opt_level) = opt_level {
+        tuning.opt_level = parse_native_opt_level(raw_opt_level)?;
+    }
+    if let Some(raw_target_cpu) = target_cpu {
+        tuning.target_cpu = parse_optional_env_string(raw_target_cpu);
+    }
+    if let Some(raw_debug_info) = debug_info {
+        tuning.debug_info = parse_bool_env_value("KAIN_NATIVE_DEBUG_INFO", raw_debug_info)?;
+    }
+    Ok(tuning)
+}
+
+fn resolve_native_toolchain_tuning() -> Result<NativeToolchainTuning, String> {
+    parse_native_toolchain_tuning(
+        std::env::var("KAIN_NATIVE_PROFILE").ok().as_deref(),
+        std::env::var("KAIN_NATIVE_OPT_LEVEL").ok().as_deref(),
+        std::env::var("KAIN_NATIVE_TARGET_CPU").ok().as_deref(),
+        std::env::var("KAIN_NATIVE_DEBUG_INFO").ok().as_deref(),
+    )
 }
 
 fn should_suppress_cli_banner(args: &Args) -> bool {
@@ -3289,6 +3449,7 @@ fn current_platform_runtime_defines(manifest: &NativeRuntimeManifest) -> Vec<Str
 fn compile_native_runtime_bundle(
     bundle: &ResolvedNativeRuntimeBundle,
     clang_cmd: &str,
+    toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<NativeRuntimeCompiledArtifacts, String> {
     let runtime_cache_dir = bundle.cache_root.join(sanitize_runtime_name(&bundle.name));
     let runtime_obj_dir = runtime_cache_dir.join("objects");
@@ -3317,7 +3478,7 @@ fn compile_native_runtime_bundle(
         let cache_paths =
             build_native_runtime_object_cache_paths(&runtime_obj_dir, index, source, object_ext);
         let compile_fingerprint =
-            build_native_runtime_compile_fingerprint(bundle, clang_cmd, source)?;
+            build_native_runtime_compile_fingerprint(bundle, clang_cmd, source, toolchain_tuning)?;
 
         if native_runtime_object_cache_is_fresh(&cache_paths, &compile_fingerprint) {
             reused_object_count += 1;
@@ -3331,12 +3492,12 @@ fn compile_native_runtime_bundle(
             .arg(source)
             .arg("-o")
             .arg(&cache_paths.object_path)
-            .arg("-g")
             .arg("-MMD")
             .arg("-MF")
             .arg(&cache_paths.depfile_path)
             .arg("-MT")
             .arg("kain_runtime_target");
+        toolchain_tuning.apply_to_clang_command(&mut compile_cmd);
 
         if runtime_source_uses_cpp(source) {
             compile_cmd.arg("-std=c++20");
@@ -3452,10 +3613,7 @@ fn compile_native_runtime_bundle(
     {
         eprintln!(
             " Native runtime cache: {} reused, {} compiled, {} archives reused, {} archives rebuilt",
-            reused_object_count,
-            compiled_object_count,
-            reused_archive_count,
-            rebuilt_archive_count
+            reused_object_count, compiled_object_count, reused_archive_count, rebuilt_archive_count
         );
     }
 
@@ -3511,6 +3669,7 @@ fn build_native_runtime_compile_fingerprint(
     bundle: &ResolvedNativeRuntimeBundle,
     clang_cmd: &str,
     source: &Path,
+    toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<String, String> {
     let mut fingerprint_lines = vec![
         "kain-native-runtime-cache-v1".to_string(),
@@ -3519,6 +3678,7 @@ fn build_native_runtime_compile_fingerprint(
         format!("source={}", source.display()),
         format!("cpp={}", runtime_source_uses_cpp(source)),
     ];
+    fingerprint_lines.extend(toolchain_tuning.fingerprint_lines());
 
     for include_dir in &bundle.include_dirs {
         fingerprint_lines.push(format!("include={}", include_dir.display()));
@@ -3988,14 +4148,14 @@ fn runtime_search_roots() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_native_runtime_archive_fingerprint, build_native_runtime_compile_fingerprint,
-        build_native_runtime_object_cache_paths, default_native_runtime_link_libs,
-        default_runtime_cache_root, load_native_runtime_manifest,
-        native_runtime_object_cache_is_fresh, parse_native_runtime_depfile, platform_link_libs,
-        resolve_native_runtime_archive_groups, runtime_source_uses_cpp, sanitize_runtime_name,
-        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
-        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, ResolvedNativeRuntimeArchiveGroup,
-        ResolvedNativeRuntimeBundle,
+        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
+        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
+        ResolvedNativeRuntimeBundle, build_native_runtime_archive_fingerprint,
+        build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
+        default_native_runtime_link_libs, default_runtime_cache_root, load_native_runtime_manifest,
+        native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
+        parse_native_toolchain_tuning, platform_link_libs, resolve_native_runtime_archive_groups,
+        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
     };
     use std::{fs, path::Path, path::PathBuf, thread::sleep, time::Duration};
 
@@ -4186,6 +4346,75 @@ macos = ["Cocoa"]
     }
 
     #[test]
+    fn native_toolchain_tuning_defaults_to_debug_profile() {
+        let tuning = parse_native_toolchain_tuning(None, None, None, None).expect("default tuning");
+
+        assert_eq!(tuning.profile, NativeToolchainProfile::Debug);
+        assert_eq!(tuning.opt_level, "0");
+        assert_eq!(tuning.target_cpu, None);
+        assert!(tuning.debug_info);
+    }
+
+    #[test]
+    fn native_toolchain_tuning_supports_benchmark_release_profile() {
+        let tuning = parse_native_toolchain_tuning(Some("benchmark-release"), None, None, None)
+            .expect("benchmark-release tuning");
+
+        assert_eq!(tuning.profile, NativeToolchainProfile::BenchmarkRelease);
+        assert_eq!(tuning.opt_level, "3");
+        assert_eq!(tuning.target_cpu.as_deref(), Some("native"));
+        assert!(!tuning.debug_info);
+    }
+
+    #[test]
+    fn native_toolchain_tuning_accepts_overrides() {
+        let tuning =
+            parse_native_toolchain_tuning(Some("release"), Some("3"), Some("znver4"), Some("true"))
+                .expect("override tuning");
+
+        assert_eq!(tuning.profile, NativeToolchainProfile::Release);
+        assert_eq!(tuning.opt_level, "3");
+        assert_eq!(tuning.target_cpu.as_deref(), Some("znver4"));
+        assert!(tuning.debug_info);
+    }
+
+    #[test]
+    fn native_runtime_compile_fingerprint_changes_with_toolchain_tuning() {
+        let bundle = ResolvedNativeRuntimeBundle {
+            name: "test-runtime".to_string(),
+            sources: vec![PathBuf::from("/abs/runtime.c")],
+            include_dirs: vec![PathBuf::from("/abs/include")],
+            defines: vec!["KAIN_TEST=1".to_string()],
+            archive_groups: Vec::new(),
+            cache_root: default_runtime_cache_root(),
+            link_libs: Vec::new(),
+            uses_cpp_runtime: false,
+        };
+        let debug_tuning =
+            parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
+        let bench_tuning =
+            parse_native_toolchain_tuning(Some("benchmark-release"), None, None, None)
+                .expect("bench tuning");
+
+        let debug_fingerprint = build_native_runtime_compile_fingerprint(
+            &bundle,
+            "clang",
+            Path::new("/abs/runtime.c"),
+            &debug_tuning,
+        )
+        .expect("debug fingerprint");
+        let bench_fingerprint = build_native_runtime_compile_fingerprint(
+            &bundle,
+            "clang",
+            Path::new("/abs/runtime.c"),
+            &bench_tuning,
+        )
+        .expect("bench fingerprint");
+
+        assert_ne!(debug_fingerprint, bench_fingerprint);
+    }
+
+    #[test]
     fn native_runtime_object_cache_detects_stale_dependencies() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let source_path = temp_dir.path().join("runtime.c");
@@ -4205,8 +4434,11 @@ macos = ["Cocoa"]
             link_libs: Vec::new(),
             uses_cpp_runtime: false,
         };
+        let tuning =
+            parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
         let fingerprint =
-            build_native_runtime_compile_fingerprint(&bundle, "clang", &source_path).expect("fp");
+            build_native_runtime_compile_fingerprint(&bundle, "clang", &source_path, &tuning)
+                .expect("fp");
 
         sleep(Duration::from_millis(20));
         fs::write(&cache_paths.object_path, "object").expect("object");
