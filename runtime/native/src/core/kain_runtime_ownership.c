@@ -12,8 +12,19 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #define KAIN_OWNERSHIP_MAX_REGIONS 4096u
+#define KAIN_OWNERSHIP_WORD_BITS 64u
+#define KAIN_OWNERSHIP_WORD_COUNT (KAIN_OWNERSHIP_MAX_REGIONS / KAIN_OWNERSHIP_WORD_BITS)
+#define KAIN_OWNERSHIP_INDEX_CAPACITY 8192u
+#define KAIN_OWNERSHIP_INDEX_MASK (KAIN_OWNERSHIP_INDEX_CAPACITY - 1u)
+#if (KAIN_OWNERSHIP_MAX_REGIONS % KAIN_OWNERSHIP_WORD_BITS) != 0
+#error "KAIN_OWNERSHIP_MAX_REGIONS must be divisible by 64 for occupancy-word indexing."
+#endif
+#if (KAIN_OWNERSHIP_INDEX_CAPACITY & KAIN_OWNERSHIP_INDEX_MASK) != 0
+#error "KAIN_OWNERSHIP_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
 
 typedef struct KainOwnershipRegion {
     void* ptr;
@@ -25,6 +36,8 @@ typedef struct KainOwnershipRegion {
 } KainOwnershipRegion;
 
 static KainOwnershipRegion KAIN_OWNERSHIP_REGIONS[KAIN_OWNERSHIP_MAX_REGIONS];
+static uint64_t KAIN_OWNERSHIP_OCCUPANCY_WORDS[KAIN_OWNERSHIP_WORD_COUNT];
+static uint32_t KAIN_OWNERSHIP_POINTER_INDEX[KAIN_OWNERSHIP_INDEX_CAPACITY];
 static atomic_flag KAIN_OWNERSHIP_REGISTRY_LOCK = ATOMIC_FLAG_INIT;
 
 static void kain_ownership_lock(void) {
@@ -64,22 +77,108 @@ static int kain_ownership_fail(int status) {
     return status;
 }
 
+static uint64_t kain_ownership_mix_pointer(const void* ptr) {
+    uint64_t x = (uint64_t)(uintptr_t)ptr;
+    x ^= x >> 30u;
+    x *= UINT64_C(0xbf58476d1ce4e5b9);
+    x ^= x >> 27u;
+    x *= UINT64_C(0x94d049bb133111eb);
+    x ^= x >> 31u;
+    return x;
+}
+
+static uint32_t kain_ownership_pointer_index_slot(const void* ptr) {
+    return (uint32_t)(kain_ownership_mix_pointer(ptr) & KAIN_OWNERSHIP_INDEX_MASK);
+}
+
+static uint64_t kain_ownership_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_ownership_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];
+}
+
+static int kain_ownership_index_insert_unlocked(const void* ptr, int slot) {
+    uint32_t index;
+    uint32_t encoded_slot;
+
+    if (ptr == NULL || slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
+    }
+
+    index = kain_ownership_pointer_index_slot(ptr);
+    encoded_slot = (uint32_t)slot + 1u;
+    for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;
+        uint32_t candidate = KAIN_OWNERSHIP_POINTER_INDEX[candidate_index];
+        if (candidate == 0u || candidate == encoded_slot) {
+            KAIN_OWNERSHIP_POINTER_INDEX[candidate_index] = encoded_slot;
+            return KAIN_OWNERSHIP_OK;
+        }
+    }
+
+    return KAIN_OWNERSHIP_ERR_CAPACITY;
+}
+
+static void kain_ownership_rebuild_pointer_index_unlocked(void) {
+    memset(KAIN_OWNERSHIP_POINTER_INDEX, 0, sizeof(KAIN_OWNERSHIP_POINTER_INDEX));
+    for (uint32_t slot = 0u; slot < KAIN_OWNERSHIP_MAX_REGIONS; ++slot) {
+        if (KAIN_OWNERSHIP_REGIONS[slot].occupied) {
+            (void)kain_ownership_index_insert_unlocked(
+                KAIN_OWNERSHIP_REGIONS[slot].ptr,
+                (int)slot
+            );
+        }
+    }
+}
+
 static int kain_ownership_find_slot(const void* ptr) {
+    uint32_t index;
+
     if (ptr == NULL) {
         return -1;
     }
-    for (uint32_t i = 0; i < KAIN_OWNERSHIP_MAX_REGIONS; ++i) {
-        if (KAIN_OWNERSHIP_REGIONS[i].occupied && KAIN_OWNERSHIP_REGIONS[i].ptr == ptr) {
-            return (int)i;
+
+    index = kain_ownership_pointer_index_slot(ptr);
+    for (uint32_t probe = 0u; probe < KAIN_OWNERSHIP_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_OWNERSHIP_INDEX_MASK;
+        uint32_t encoded_slot = KAIN_OWNERSHIP_POINTER_INDEX[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return -1;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_OWNERSHIP_MAX_REGIONS &&
+            KAIN_OWNERSHIP_REGIONS[slot].occupied &&
+            KAIN_OWNERSHIP_REGIONS[slot].ptr == ptr) {
+            return (int)slot;
         }
     }
+
     return -1;
 }
 
 static int kain_ownership_find_free_slot(void) {
-    for (uint32_t i = 0; i < KAIN_OWNERSHIP_MAX_REGIONS; ++i) {
-        if (!KAIN_OWNERSHIP_REGIONS[i].occupied) {
-            return (int)i;
+    for (uint32_t word_index = 0u; word_index < KAIN_OWNERSHIP_WORD_COUNT; ++word_index) {
+        uint64_t free_mask = ~KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index];
+        if (free_mask != 0u) {
+            uint64_t low_bit = kain_ownership_isolate_low_bit_u64(free_mask);
+            unsigned int bit_index = kain_ownership_low_bit_index_u64(low_bit);
+            uint32_t slot = word_index * KAIN_OWNERSHIP_WORD_BITS + bit_index;
+            if (slot < KAIN_OWNERSHIP_MAX_REGIONS) {
+                return (int)slot;
+            }
         }
     }
     return -1;
@@ -90,6 +189,7 @@ static int kain_ownership_region_is_heap(const KainOwnershipRegion* region) {
 }
 
 static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size_t size) {
+    int is_new_slot = 0;
     if (ptr == NULL) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
     }
@@ -100,6 +200,7 @@ static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size
         if (slot < 0) {
             return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
         }
+        is_new_slot = 1;
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
@@ -109,6 +210,18 @@ static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size
     region->state = KAIN_OWNERSHIP_STATE_IDLE;
     region->observers = 0;
     region->occupied = 1;
+    if (is_new_slot) {
+        uint32_t word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
+        uint64_t bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);
+        int index_status;
+        KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
+        index_status = kain_ownership_index_insert_unlocked(ptr, slot);
+        if (index_status != KAIN_OWNERSHIP_OK) {
+            region->occupied = 0;
+            KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] &= ~bit;
+            return kain_ownership_fail(index_status);
+        }
+    }
     return KAIN_OWNERSHIP_OK;
 }
 
@@ -161,6 +274,7 @@ static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t s
     region->ptr = new_ptr;
     region->size = size;
     region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
+    kain_ownership_rebuild_pointer_index_unlocked();
     return KAIN_OWNERSHIP_OK;
 }
 

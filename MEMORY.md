@@ -1,5 +1,63 @@
 # Kain Memory
 
+# 2026-05-14 - Native ownership collapse guards now use a pointer index and occupancy-word allocator
+
+The native collapse/observe/decay guard path in
+`runtime/native/src/core/kain_runtime_ownership.c` no longer depends on a
+4096-entry linear registry scan for every pointer lookup. The ownership
+semantics remain the same, but the registry now has sidecar silicon math:
+
+- a SplitMix-style `uintptr_t` mixer using `0xbf58476d1ce4e5b9` and
+  `0x94d049bb133111eb`
+- an 8192-entry power-of-two pointer index with masked probing
+- 64-bit occupancy words for finding the next free ownership region
+- the same de Bruijn low-bit decoder already proven useful in the actor table
+
+What changed:
+
+- `kain_ownership_find_slot` now uses the pointer index instead of scanning all
+  `KAIN_OWNERSHIP_MAX_REGIONS`.
+- `kain_ownership_find_free_slot` now scans 64 occupancy words instead of 4096
+  region structs.
+- new ownership registrations set both the occupancy word and pointer-index
+  entry.
+- realloc/update keeps the old state guards, mutates the region pointer only
+  after validation, and rebuilds the pointer index so stale pointer hashes do
+  not accumulate.
+
+Experimental proofs added under
+`runtime/native/src/core/z3/proofs-experimental/`:
+
+- `ownership-pointer-index-probe-bounds.smt2`
+- `ownership-occupancy-slot-composition-bounds.smt2`
+- `ownership-debruijn-low-bit-distinct.smt2`
+
+Validation:
+
+- direct Z3 returned `unsat` for all three new experimental proof artifacts.
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core\\z3", lane="ownership", report_name="native-ownership-lane-after-pointer-index-pass")` proved `3/3`.
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core\\z3", lane="full", report_name="native-core-full-after-ownership-pointer-index")` proved `38/38`.
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership\\z3", lane="full", report_name="kain-ownership-semantic-lane-after-native-index-pass")` proved `7/7`.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_ownership.c`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- `target/native_test_ownership_memory.exe`
+- `cargo test -p kain-ownership --target-dir target/codex-ownership-check -- --nocapture`
+- `cargo check -p kain-core -p kain-sys-codegen --target-dir target/codex-ownership-check`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel test //runtime:native_test_ownership_memory`
+
+Scratch benchmark `target/codex-ownership-hotpath-benchmark.exe`:
+
+- ownership pointer lookup: about `100.07x` faster than the old linear scan
+- full-table free-slot discovery: about `58.80x` faster than the old linear scan
+
+Design note:
+
+- This is not a semantic lattice change. It is a native registry data-structure
+  change under the existing serialized lock. The proof boundary is index and
+  slot arithmetic, while the curated ownership proof lanes continue proving the
+  state-machine contract for collapse/observe/decay.
+
 # 2026-05-14 - Reflection and native UI closed-string classifiers now use branchless token selectors
 
 The reflection JSON/kind parser and native UI flag path now promote the

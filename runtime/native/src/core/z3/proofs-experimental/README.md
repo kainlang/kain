@@ -28,3 +28,6 @@ Current references:
 - `reflection-field-selector-equivalence.smt2`
 - `native-ui-flag-selector-equivalence.smt2`
 - `native-ui-flag-update-equivalence.smt2`
+- `ownership-pointer-index-probe-bounds.smt2`
+- `ownership-occupancy-slot-composition-bounds.smt2`
+- `ownership-debruijn-low-bit-distinct.smt2`

@@ -39,6 +39,19 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 - `runtime/native/include/kain_runtime_ownership.h` and `runtime/native/src/core/kain_runtime_ownership.c`: native ownership ABI and guarded registry.
 - `runtime/native/src/core/kain_runtime_memory.c`: heap allocation/realloc/free registration bridge.
 
+## Native Registry Hot Path
+
+- `kain_runtime_ownership.c` uses a serialized global registry, but pointer
+  lookup is no longer a full linear scan. It has an 8192-entry masked pointer
+  index driven by a SplitMix-style pointer mixer.
+- Free region discovery uses 64-bit occupancy words plus a de Bruijn low-bit
+  decoder. If `KAIN_OWNERSHIP_MAX_REGIONS` changes, revisit the occupancy word
+  count, pointer-index capacity, and experimental SMT proofs together.
+- Realloc/update rebuilds the pointer index after changing a region pointer.
+  Keep that rebuild unless a deletion/tombstone scheme is added and proved.
+- The current experimental arithmetic proofs live in
+  `runtime/native/src/core/z3/proofs-experimental/ownership-*.smt2`.
+
 ## Workflow
 
 1. Read `ARCHITECTURE.md`, `MEMORY.md`, and `crates/kain-ownership/src/lib.rs`.
