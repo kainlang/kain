@@ -1,0 +1,159 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "bytes",
+        "role": "unsigned-int",
+        "type": "&[u8]"
+      },
+      "id": "bytes-to-hex.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 152,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 152,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+        "start_col": 1,
+        "start_line": 152
+      },
+      "symbol": "bytes_to_hex",
+      "text": "pub fn bytes_to_hex(bytes: &[u8]) -> String {",
+      "variables": [
+        "bytes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"canonical_native_payload\\\": \\\"spirv\\\"\")",
+      "id": "serializes-shader-bundle-with-spirv-payload.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 232,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+      "span": {
+        "end_col": 67,
+        "end_line": 232,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+        "start_col": 1,
+        "start_line": 232
+      },
+      "symbol": "serializes_shader_bundle_with_spirv_payload",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"canonical_native_payload\\\": \\\"spirv\\\"\"));",
+      "variables": [
+        "canonical_native_payload",
+        "contains",
+        "json",
+        "spirv"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"module_name\\\": \\\"viewport\\\"\")",
+      "id": "serializes-shader-bundle-with-spirv-payload.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 233,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 233,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+        "start_col": 1,
+        "start_line": 233
+      },
+      "symbol": "serializes_shader_bundle_with_spirv_payload",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"module_name\\\": \\\"viewport\\\"\"));",
+      "variables": [
+        "contains",
+        "json",
+        "module_name",
+        "viewport"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"format\\\": \\\"hlsl\\\"\")",
+      "id": "serializes-shader-bundle-with-spirv-payload.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 234,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 234,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+        "start_col": 1,
+        "start_line": 234
+      },
+      "symbol": "serializes_shader_bundle_with_spirv_payload",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"format\\\": \\\"hlsl\\\"\"));",
+      "variables": [
+        "contains",
+        "format",
+        "hlsl",
+        "json"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"format\\\": \\\"ptx\\\"\")",
+      "id": "serializes-shader-bundle-with-spirv-payload.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 235,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 235,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+        "start_col": 1,
+        "start_line": 235
+      },
+      "symbol": "serializes_shader_bundle_with_spirv_payload",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"format\\\": \\\"ptx\\\"\"));",
+      "variables": [
+        "contains",
+        "format",
+        "json",
+        "ptx"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "6507af01afe87a99fd440d9ccc4c14487a235b994bab34012860f099c2d39a64",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\shader_artifact.rs",
+  "version": 1
+}

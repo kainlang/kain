@@ -1,0 +1,1084 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(ty, Type::Array(_, 2, _))",
+      "id": "parser-normalizes-alignof-alloca-and-uninit-calls.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 246,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 246,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 246
+      },
+      "symbol": "parser_normalizes_alignof_alloca_and_uninit_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(ty, Type::Array(_, 2, _)));",
+      "variables": [
+        "Array",
+        "Type",
+        "_",
+        "matches",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(ty, Type::Named { name, .. } if name == \"Int\")",
+      "id": "parser-normalizes-alignof-alloca-and-uninit-calls.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 255,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 255,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 255
+      },
+      "symbol": "parser_normalizes_alignof_alloca_and_uninit_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(ty, Type::Named { name, .. } if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Type",
+        "matches",
+        "name",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target, Type::Named { name, .. } if name == \"Int\")",
+      "id": "parser-normalizes-alignof-alloca-and-uninit-calls.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 262,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 262,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 262
+      },
+      "symbol": "parser_normalizes_alignof_alloca_and_uninit_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(target, Type::Named { name, .. } if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Type",
+        "matches",
+        "name",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "zeroed"
+        ],
+        "op": "not"
+      },
+      "expression": "!zeroed",
+      "id": "parser-normalizes-alloc-realloc-and-aggregate-init-calls.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 286,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 286,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 286
+      },
+      "symbol": "parser_normalizes_alloc_realloc_and_aggregate_init_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!zeroed);",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(ty, Some(Type::Named { name, .. }) if name == \"Pair\")",
+      "id": "parser-normalizes-alloc-realloc-and-aggregate-init-calls.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 287,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 287,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 287
+      },
+      "symbol": "parser_normalizes_alloc_realloc_and_aggregate_init_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(ty, Some(Type::Named { name, .. }) if name == \"Pair\"));",
+      "variables": [
+        "Named",
+        "Pair",
+        "Some",
+        "Type",
+        "matches",
+        "name",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(ty, Some(Type::Named { name, .. }) if name == \"Int\")",
+      "id": "parser-normalizes-alloc-realloc-and-aggregate-init-calls.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 296,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 296,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 296
+      },
+      "symbol": "parser_normalizes_alloc_realloc_and_aggregate_init_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(ty, Some(Type::Named { name, .. }) if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Some",
+        "Type",
+        "matches",
+        "name",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*zeroed_new",
+      "id": "parser-normalizes-alloc-realloc-and-aggregate-init-calls.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 297,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 297,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 297
+      },
+      "symbol": "parser_normalizes_alloc_realloc_and_aggregate_init_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(*zeroed_new);",
+      "variables": [
+        "zeroed_new"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*zero_fill_rest",
+      "id": "parser-normalizes-alloc-realloc-and-aggregate-init-calls.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 306,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 306,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 306
+      },
+      "symbol": "parser_normalizes_alloc_realloc_and_aggregate_init_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(*zero_fill_rest);",
+      "variables": [
+        "zero_fill_rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-normalizes-mem-load-and-store-calls.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 125,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 90,
+        "end_line": 125,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 125
+      },
+      "symbol": "parser_normalizes_mem_load_and_store_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "ast",
+        "kain_core",
+        "matches",
+        "name",
+        "p",
+        "pointer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(value.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"v\")",
+      "id": "parser-normalizes-mem-load-and-store-calls.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 126,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 88,
+        "end_line": 126,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 126
+      },
+      "symbol": "parser_normalizes_mem_load_and_store_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(value.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"v\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "ast",
+        "kain_core",
+        "matches",
+        "name",
+        "v",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-normalizes-mem-load-and-store-calls.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 133,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 90,
+        "end_line": 133,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 133
+      },
+      "symbol": "parser_normalizes_mem_load_and_store_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "ast",
+        "kain_core",
+        "matches",
+        "name",
+        "p",
+        "pointer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\")",
+      "id": "parser-normalizes-ptr-offset-call.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 101,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 90,
+        "end_line": 101,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 101
+      },
+      "symbol": "parser_normalizes_ptr_offset_call",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(pointer.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"p\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "ast",
+        "kain_core",
+        "matches",
+        "name",
+        "p",
+        "pointer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(offset.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"i\")",
+      "id": "parser-normalizes-ptr-offset-call.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 102,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 89,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "parser_normalizes_ptr_offset_call",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(offset.as_ref(), kain_core::ast::Expr::Ident(name, _) if name == \"i\"));",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "ast",
+        "i",
+        "kain_core",
+        "matches",
+        "name",
+        "offset"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(store_ty, Some(Type::Named { name, .. }) if name == \"Int\")",
+      "id": "parser-preserves-typed-memory-intrinsics.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 173,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 78,
+        "end_line": 173,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 173
+      },
+      "symbol": "parser_preserves_typed_memory_intrinsics",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(store_ty, Some(Type::Named { name, .. }) if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Some",
+        "Type",
+        "matches",
+        "name",
+        "store_ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(element_ty, Some(Type::Named { name, .. }) if name == \"Int\")",
+      "id": "parser-preserves-typed-memory-intrinsics.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 182,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 80,
+        "end_line": 182,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 182
+      },
+      "symbol": "parser_preserves_typed_memory_intrinsics",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(element_ty, Some(Type::Named { name, .. }) if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Some",
+        "Type",
+        "element_ty",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(base.as_ref(), kain_core::ast::Expr::AddrOf { .. })",
+      "id": "parser-preserves-typed-memory-intrinsics.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 183,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 183,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 183
+      },
+      "symbol": "parser_preserves_typed_memory_intrinsics",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(base.as_ref(), kain_core::ast::Expr::AddrOf { .. }));",
+      "variables": [
+        "AddrOf",
+        "Expr",
+        "as_ref",
+        "ast",
+        "base",
+        "kain_core",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(load_ty, Some(Type::Named { name, .. }) if name == \"Int\")",
+      "id": "parser-preserves-typed-memory-intrinsics.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 194,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 77,
+        "end_line": 194,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 194
+      },
+      "symbol": "parser_preserves_typed_memory_intrinsics",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(load_ty, Some(Type::Named { name, .. }) if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Some",
+        "Type",
+        "load_ty",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "mutable"
+        ],
+        "op": "not"
+      },
+      "expression": "!mutable",
+      "id": "parser-recognizes-ptr-type-syntax.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 47,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 47,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 47
+      },
+      "symbol": "parser_recognizes_ptr_type_syntax",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!mutable);",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(inner.as_ref(), Type::Named { name, .. } if name == \"Int\")",
+      "id": "parser-recognizes-ptr-type-syntax.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 48,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 78,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "parser_recognizes_ptr_type_syntax",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(inner.as_ref(), Type::Named { name, .. } if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Type",
+        "as_ref",
+        "inner",
+        "matches",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"KAIN-MEM-0002\")",
+      "id": "ts-backend-validation-rejects-raw-memory-ops.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 149,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "ts_backend_validation_rejects_raw_memory_ops",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(rendered.contains(\"KAIN-MEM-0002\"));",
+      "variables": [
+        "KAIN",
+        "MEM",
+        "contains",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"raw memory operation\")",
+      "id": "ts-backend-validation-rejects-raw-memory-ops.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 150,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 150,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 150
+      },
+      "symbol": "ts_backend_validation_rejects_raw_memory_ops",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(rendered.contains(\"raw memory operation\"));",
+      "variables": [
+        "contains",
+        "memory",
+        "operation",
+        "raw",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"KAIN-MEM-0002\")",
+      "id": "ts-backend-validation-rejects-raw-ptr-types.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 70,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 70,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 70
+      },
+      "symbol": "ts_backend_validation_rejects_raw_ptr_types",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(rendered.contains(\"KAIN-MEM-0002\"));",
+      "variables": [
+        "KAIN",
+        "MEM",
+        "contains",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "rendered.contains(\"raw pointer\")",
+      "id": "ts-backend-validation-rejects-raw-ptr-types.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 71,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 71,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 71
+      },
+      "symbol": "ts_backend_validation_rejects_raw_ptr_types",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(rendered.contains(\"raw pointer\"));",
+      "variables": [
+        "contains",
+        "pointer",
+        "raw",
+        "rendered"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&fields[0].1, kain_core::ast::Expr::Int(0, _))",
+      "id": "ts-memory-lowering-preserves-non-scalar-union-reinterpretation-contract.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1132,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 1132,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 1132
+      },
+      "symbol": "ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(matches!(&fields[0].1, kain_core::ast::Expr::Int(0, _)));",
+      "variables": [
+        "Expr",
+        "Int",
+        "_",
+        "ast",
+        "fields",
+        "kain_core",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _))",
+      "id": "ts-memory-lowering-preserves-non-scalar-union-reinterpretation-contract.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1133,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 1133,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 1133
+      },
+      "symbol": "ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _)));",
+      "variables": [
+        "Expr",
+        "Int",
+        "_",
+        "ast",
+        "fields",
+        "kain_core",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&fields[0].1, kain_core::ast::Expr::Int(1, _))",
+      "id": "ts-memory-lowering-rewrites-heap-nodes-and-zero-fills-struct-aggregates.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 541,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 541,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 541
+      },
+      "symbol": "ts_memory_lowering_rewrites_heap_nodes_and_zero_fills_struct_aggregates",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(&fields[0].1, kain_core::ast::Expr::Int(1, _)));",
+      "variables": [
+        "Expr",
+        "Int",
+        "_",
+        "ast",
+        "fields",
+        "kain_core",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _))",
+      "id": "ts-memory-lowering-rewrites-heap-nodes-and-zero-fills-struct-aggregates.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 542,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 542,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 542
+      },
+      "symbol": "ts_memory_lowering_rewrites_heap_nodes_and_zero_fills_struct_aggregates",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(&fields[1].1, kain_core::ast::Expr::Int(0, _)));",
+      "variables": [
+        "Expr",
+        "Int",
+        "_",
+        "ast",
+        "fields",
+        "kain_core",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(function.ast.params[0].ty, Type::Named { ref name, .. } if name == \"Int\")",
+      "id": "ts-memory-lowering-rewrites-raw-ops-into-helper-calls.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 337,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 337,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 337
+      },
+      "symbol": "ts_memory_lowering_rewrites_raw_ops_into_helper_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(function.ast.params[0].ty, Type::Named { ref name, .. } if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Type",
+        "ast",
+        "function",
+        "matches",
+        "name",
+        "params",
+        "ref",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target, Type::Named { name, .. } if name == \"Int\")",
+      "id": "ts-memory-lowering-rewrites-raw-ops-into-helper-calls.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 352,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 352,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 352
+      },
+      "symbol": "ts_memory_lowering_rewrites_raw_ops_into_helper_calls",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(target, Type::Named { name, .. } if name == \"Int\"));",
+      "variables": [
+        "Int",
+        "Named",
+        "Type",
+        "matches",
+        "name",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&args[1].value, kain_core::ast::Expr::String(field, _) if field == \"right\")",
+      "id": "ts-memory-lowering-uses-layout-offsets-for-field-addresses.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 426,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 95,
+        "end_line": 426,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 426
+      },
+      "symbol": "ts_memory_lowering_uses_layout_offsets_for_field_addresses",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(&args[1].value, kain_core::ast::Expr::String(field, _) if field == \"right\"));",
+      "variables": [
+        "Expr",
+        "String",
+        "_",
+        "args",
+        "ast",
+        "field",
+        "kain_core",
+        "matches",
+        "right",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(&args[2].value, kain_core::ast::Expr::Int(offset, _) if *offset == 8)",
+      "id": "ts-memory-lowering-uses-layout-offsets-for-field-addresses.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 427,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+      "span": {
+        "end_col": 89,
+        "end_line": 427,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+        "start_col": 1,
+        "start_line": 427
+      },
+      "symbol": "ts_memory_lowering_uses_layout_offsets_for_field_addresses",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(&args[2].value, kain_core::ast::Expr::Int(offset, _) if *offset == 8));",
+      "variables": [
+        "Expr",
+        "Int",
+        "_",
+        "args",
+        "ast",
+        "kain_core",
+        "matches",
+        "offset",
+        "value"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "b00b34a18b2db8f02a2fc5faa6349812646a7eea0c5b8d9cf23abbf0a0c9a2eb",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\ptr_type_test.rs",
+  "version": 1
+}

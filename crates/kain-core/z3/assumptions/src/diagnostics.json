@@ -1,0 +1,208 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "span",
+        "role": "unsigned-size",
+        "type": "Span) -> (usize, usize, &str"
+      },
+      "id": "get-line-info.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 186,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 62,
+        "end_line": 186,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 186
+      },
+      "symbol": "get_line_info",
+      "text": "fn get_line_info(&self, span: Span) -> (usize, usize, &str) {",
+      "variables": [
+        "span"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "i",
+          "start"
+        ],
+        "op": "ge"
+      },
+      "expression": "i >= start",
+      "id": "get-line-info.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 194,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 16,
+        "end_line": 194,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 194
+      },
+      "symbol": "get_line_info",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if i >= start {",
+      "variables": [
+        "i",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "c == '\\n'",
+      "id": "get-line-info.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 197,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 15,
+        "end_line": 197,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 197
+      },
+      "symbol": "get_line_info",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if c == '\\n' {",
+      "variables": [
+        "c",
+        "n"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "line",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "new.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 16,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "new",
+      "text": "pub fn new(file: &'a str, line: usize, col: usize) -> Self {",
+      "variables": [
+        "line"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "col",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "new.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 16,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "new",
+      "text": "pub fn new(file: &'a str, line: usize, col: usize) -> Self {",
+      "variables": [
+        "col"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ch == '\\n'",
+      "id": "new.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 34,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 16,
+        "end_line": 34,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 34
+      },
+      "symbol": "new",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if ch == '\\n' {",
+      "variables": [
+        "ch",
+        "n"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "filename",
+        "role": "length-like",
+        "type": "&'a str"
+      },
+      "id": "new.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 85,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 85,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+        "start_col": 1,
+        "start_line": 85
+      },
+      "symbol": "new",
+      "text": "pub fn new(source: &'a str, filename: &'a str) -> Self {",
+      "variables": [
+        "filename"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "f185b5379f3a227ba26999c93b33f591030664068bea19b8aa73bd265e12aa24",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\diagnostics.rs",
+  "version": 1
+}

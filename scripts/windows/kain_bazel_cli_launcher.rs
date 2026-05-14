@@ -1,0 +1,118 @@
+use std::env;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+use std::process::{self, Command};
+
+const DEFAULT_REPO_ROOT: &str = env!("KAIN_DEFAULT_REPO_ROOT");
+const DEFAULT_BAZEL_CONFIG: &str = match option_env!("KAIN_DEFAULT_BAZEL_CONFIG") {
+    Some(value) if !value.is_empty() => value,
+    _ => "dev",
+};
+const DEFAULT_LAUNCHER_DIR: &str = match option_env!("KAIN_DEFAULT_LAUNCHER_DIR") {
+    Some(value) if !value.is_empty() => value,
+    _ => "D:/Kain-Bazel/bin",
+};
+
+fn is_non_empty(value: &OsStr) -> bool {
+    !value.is_empty()
+}
+
+fn resolve_repo_root() -> PathBuf {
+    if let Some(value) = env::var_os("KAIN_REPO_ROOT").filter(|value| is_non_empty(value)) {
+        return PathBuf::from(value);
+    }
+    PathBuf::from(DEFAULT_REPO_ROOT)
+}
+
+fn resolve_bazel_config() -> OsString {
+    env::var_os("KAIN_BAZEL_CONFIG")
+        .filter(|value| is_non_empty(value))
+        .unwrap_or_else(|| OsString::from(DEFAULT_BAZEL_CONFIG))
+}
+
+fn resolve_launcher_dir() -> OsString {
+    env::var_os("KAIN_BAZEL_LAUNCHER_DIR")
+        .filter(|value| is_non_empty(value))
+        .unwrap_or_else(|| OsString::from(DEFAULT_LAUNCHER_DIR))
+}
+
+fn resolve_binary_name(exe_path: &Path) -> Result<&'static str, String> {
+    let stem = exe_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| format!("unable to derive launcher name from {}", exe_path.display()))?;
+
+    match stem.to_ascii_lowercase().as_str() {
+        "kain" => Ok("kain"),
+        "kn" => Ok("kn"),
+        other => Err(format!(
+            "unsupported launcher name `{other}` at {}",
+            exe_path.display()
+        )),
+    }
+}
+
+fn main() {
+    let launcher_path = match env::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("kain bazel launcher failed to resolve its own path: {error}");
+            process::exit(1);
+        }
+    };
+
+    let binary_name = match resolve_binary_name(&launcher_path) {
+        Ok(name) => name,
+        Err(message) => {
+            eprintln!("{message}");
+            process::exit(1);
+        }
+    };
+
+    let repo_root = resolve_repo_root();
+    let launcher_script = repo_root.join("scripts").join("windows").join("launch-bazel-cli.ps1");
+    if !launcher_script.exists() {
+        eprintln!(
+            "kain bazel launcher could not find {}",
+            launcher_script.display()
+        );
+        process::exit(1);
+    }
+
+    let forward_args: Vec<OsString> = env::args_os().skip(1).collect();
+    let bazel_config = resolve_bazel_config();
+    let launcher_dir = resolve_launcher_dir();
+
+    let status = match Command::new("powershell.exe")
+        .arg("-NoProfile")
+        .arg("-ExecutionPolicy")
+        .arg("Bypass")
+        .arg("-File")
+        .arg(&launcher_script)
+        .arg("-BinaryName")
+        .arg(binary_name)
+        .arg("-BazelConfig")
+        .arg(&bazel_config)
+        .arg("-LauncherPath")
+        .arg(&launcher_path)
+        .args(&forward_args)
+        .env("KAIN_REPO_ROOT", &repo_root)
+        .env("KAIN_BAZEL_CONFIG", &bazel_config)
+        .env("KAIN_BAZEL_LAUNCHER_DIR", &launcher_dir)
+        .env("KAIN_ACTIVE_LAUNCHER_NAME", binary_name)
+        .env("KAIN_ACTIVE_LAUNCHER_MODE", "bazel-wrapper")
+        .env("KAIN_ACTIVE_LAUNCHER_PATH", &launcher_path)
+        .status()
+    {
+        Ok(status) => status,
+        Err(error) => {
+            eprintln!(
+                "kain bazel launcher could not start PowerShell for {}: {error}",
+                launcher_script.display()
+            );
+            process::exit(1);
+        }
+    };
+
+    process::exit(status.code().unwrap_or(1));
+}

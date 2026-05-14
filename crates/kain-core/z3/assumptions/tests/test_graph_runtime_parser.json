@@ -1,0 +1,67 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "graph_def.instance.is_some()",
+      "id": "test-parse-graph-runtime-with-instance.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 67,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_graph_runtime_parser.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 67,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_graph_runtime_parser.rs",
+        "start_col": 1,
+        "start_line": 67
+      },
+      "symbol": "test_parse_graph_runtime_with_instance",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(graph_def.instance.is_some());",
+      "variables": [
+        "graph_def",
+        "instance",
+        "is_some"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "graph_def.instance.is_some()",
+      "id": "trigger.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 67,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_graph_runtime_parser.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 67,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_graph_runtime_parser.rs",
+        "start_col": 1,
+        "start_line": 67
+      },
+      "symbol": "trigger",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(graph_def.instance.is_some());",
+      "variables": [
+        "graph_def",
+        "instance",
+        "is_some"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "7569af0b06ab8ad24a1aef11c2a559a3644f9ed02eda113bf938ccc663de00a8",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\test_graph_runtime_parser.rs",
+  "version": 1
+}

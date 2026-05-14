@@ -1,0 +1,238 @@
+use episode_pages::page_actors
+use episode_pages::page_labs
+use episode_pages::page_three_d
+use episode_pages::page_network
+
+pub fn episode_window_width() -> Int:
+    return 1280
+
+pub fn episode_window_height() -> Int:
+    return 760
+
+pub fn episode_window_width_f() -> Float:
+    return 1280.0
+
+pub fn episode_window_height_f() -> Float:
+    return 760.0
+
+pub fn episode_topbar_x() -> Float:
+    return 18.0
+
+pub fn episode_topbar_y() -> Float:
+    return 18.0
+
+pub fn episode_topbar_width() -> Float:
+    return 1244.0
+
+pub fn episode_topbar_height() -> Float:
+    return 56.0
+
+pub fn episode_sidebar_x() -> Float:
+    return 18.0
+
+pub fn episode_sidebar_y() -> Float:
+    return 96.0
+
+pub fn episode_sidebar_width() -> Float:
+    return 248.0
+
+pub fn episode_sidebar_height() -> Float:
+    return 590.0
+
+pub fn episode_surface_x() -> Float:
+    return 284.0
+
+pub fn episode_surface_y() -> Float:
+    return 96.0
+
+pub fn episode_surface_width() -> Float:
+    return 978.0
+
+pub fn episode_surface_height() -> Float:
+    return 590.0
+
+pub fn episode_status_x() -> Float:
+    return 18.0
+
+pub fn episode_status_y() -> Float:
+    return 704.0
+
+pub fn episode_status_width() -> Float:
+    return 1244.0
+
+pub fn episode_status_height() -> Float:
+    return 38.0
+
+pub fn episode_toolbar_brand_x() -> Float:
+    return 34.0
+
+pub fn episode_toolbar_brand_y() -> Float:
+    return 29.0
+
+pub fn episode_toolbar_brand_width() -> Float:
+    return 220.0
+
+pub fn episode_toolbar_brand_height() -> Float:
+    return 28.0
+
+pub fn episode_toolbar_tab_x(page_id: Int) -> Float:
+    if page_id == page_actors():
+        return 288.0
+    if page_id == page_three_d():
+        return 426.0
+    if page_id == page_network():
+        return 564.0
+    if page_id == page_labs():
+        return 840.0
+    return 702.0
+
+pub fn episode_toolbar_tab_y() -> Float:
+    return 26.0
+
+pub fn episode_toolbar_tab_width() -> Float:
+    return 126.0
+
+pub fn episode_toolbar_tab_height() -> Float:
+    return 36.0
+
+pub fn episode_sidebar_title_x() -> Float:
+    return 36.0
+
+pub fn episode_sidebar_title_y() -> Float:
+    return 114.0
+
+pub fn episode_sidebar_title_width() -> Float:
+    return 208.0
+
+pub fn episode_sidebar_title_height() -> Float:
+    return 24.0
+
+pub fn episode_sidebar_line_x() -> Float:
+    return 36.0
+
+pub fn episode_sidebar_line_y(slot: Int) -> Float:
+    if slot == 0:
+        return 164.0
+    if slot == 1:
+        return 198.0
+    if slot == 2:
+        return 232.0
+    return 266.0
+
+pub fn episode_sidebar_line_width() -> Float:
+    return 206.0
+
+pub fn episode_sidebar_line_height() -> Float:
+    return 24.0
+
+pub fn episode_page_title_x() -> Float:
+    return 308.0
+
+pub fn episode_page_title_y() -> Float:
+    return 118.0
+
+pub fn episode_page_title_width() -> Float:
+    return 600.0
+
+pub fn episode_page_title_height() -> Float:
+    return 30.0
+
+pub fn episode_page_subtitle_x() -> Float:
+    return 308.0
+
+pub fn episode_page_subtitle_y() -> Float:
+    return 156.0
+
+pub fn episode_page_subtitle_width() -> Float:
+    return 700.0
+
+pub fn episode_page_subtitle_height() -> Float:
+    return 44.0
+
+pub fn episode_hero_x() -> Float:
+    return 308.0
+
+pub fn episode_hero_y() -> Float:
+    return 214.0
+
+pub fn episode_hero_width() -> Float:
+    return 630.0
+
+pub fn episode_hero_height() -> Float:
+    return 188.0
+
+pub fn episode_hero_caption_x() -> Float:
+    return 328.0
+
+pub fn episode_hero_caption_y() -> Float:
+    return 360.0
+
+pub fn episode_hero_caption_width() -> Float:
+    return 590.0
+
+pub fn episode_hero_caption_height() -> Float:
+    return 24.0
+
+pub fn episode_action_x(slot: Int) -> Float:
+    if slot == 0:
+        return 308.0
+    if slot == 1:
+        return 466.0
+    if slot == 2:
+        return 624.0
+    return 782.0
+
+pub fn episode_action_y() -> Float:
+    return 426.0
+
+pub fn episode_action_width() -> Float:
+    return 146.0
+
+pub fn episode_action_height() -> Float:
+    return 44.0
+
+pub fn episode_metric_x(slot: Int) -> Float:
+    if slot == 0 or slot == 2 or slot == 4:
+        return 308.0
+    return 622.0
+
+pub fn episode_metric_y(slot: Int) -> Float:
+    if slot == 0 or slot == 1:
+        return 498.0
+    if slot == 2 or slot == 3:
+        return 532.0
+    return 566.0
+
+pub fn episode_metric_width() -> Float:
+    return 290.0
+
+pub fn episode_metric_height() -> Float:
+    return 24.0
+
+pub fn episode_accent_x(slot: Int) -> Float:
+    if slot == 0 or slot == 2:
+        return 1014.0
+    return 1118.0
+
+pub fn episode_accent_y(slot: Int) -> Float:
+    if slot == 0 or slot == 1:
+        return 232.0
+    return 340.0
+
+pub fn episode_accent_width() -> Float:
+    return 88.0
+
+pub fn episode_accent_height() -> Float:
+    return 88.0
+
+pub fn episode_accent_label_x(slot: Int) -> Float:
+    return episode_accent_x(slot)
+
+pub fn episode_accent_label_y(slot: Int) -> Float:
+    return episode_accent_y(slot) + 30.0
+
+pub fn episode_accent_label_width() -> Float:
+    return 88.0
+
+pub fn episode_accent_label_height() -> Float:
+    return 20.0

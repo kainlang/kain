@@ -1,0 +1,3650 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-align-up.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 84,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 98,
+        "end_line": 84,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 84
+      },
+      "symbol": "checked_align_up",
+      "text": "fn checked_align_up(value: usize, align: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "align",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-align-up.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 84,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 98,
+        "end_line": 84,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 84
+      },
+      "symbol": "checked_align_up",
+      "text": "fn checked_align_up(value: usize, align: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "align"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "remainder",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "remainder == 0",
+      "id": "checked-align-up.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "checked_align_up",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if remainder == 0 {",
+      "variables": [
+        "remainder"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "lhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-add.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 74,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 96,
+        "end_line": 74,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 74
+      },
+      "symbol": "checked_layout_add",
+      "text": "fn checked_layout_add(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "lhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "rhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-add.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 74,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 96,
+        "end_line": 74,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 74
+      },
+      "symbol": "checked_layout_add",
+      "text": "fn checked_layout_add(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "rhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "lhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-add-or-panic.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 102,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "checked_layout_add_or_panic",
+      "text": "fn checked_layout_add_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {",
+      "variables": [
+        "lhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "rhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-add-or-panic.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 102,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "checked_layout_add_or_panic",
+      "text": "fn checked_layout_add_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {",
+      "variables": [
+        "rhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "lhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-mul.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 79,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 96,
+        "end_line": 79,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 79
+      },
+      "symbol": "checked_layout_mul",
+      "text": "fn checked_layout_mul(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "lhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "rhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-mul.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 79,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 96,
+        "end_line": 79,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 79
+      },
+      "symbol": "checked_layout_mul",
+      "text": "fn checked_layout_mul(lhs: usize, rhs: usize, detail: impl Into<String>) -> KainResult<usize> {",
+      "variables": [
+        "rhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "lhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-mul-or-panic.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 106,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 106,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 106
+      },
+      "symbol": "checked_layout_mul_or_panic",
+      "text": "fn checked_layout_mul_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {",
+      "variables": [
+        "lhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "rhs",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "checked-layout-mul-or-panic.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 106,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 106,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 106
+      },
+      "symbol": "checked_layout_mul_or_panic",
+      "text": "fn checked_layout_mul_or_panic(lhs: usize, rhs: usize, detail: impl Into<String>) -> usize {",
+      "variables": [
+        "rhs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(root) = root_ident_of_addressable(value)",
+      "id": "collect-address-taken-from-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1783,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 1783,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1783
+      },
+      "symbol": "collect_address_taken_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(root) = root_ident_of_addressable(value) {",
+      "variables": [
+        "Some",
+        "let",
+        "root",
+        "root_ident_of_addressable",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "align",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "align > 0",
+      "id": "collect-struct-layouts.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 124,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 15,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if align > 0 {",
+      "variables": [
+        "align"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "align",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "align > 0",
+      "id": "collect-struct-layouts.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 136,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 15,
+        "end_line": 136,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 136
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if align > 0 {",
+      "variables": [
+        "align"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "width",
+          "unit_bits"
+        ],
+        "op": "ge"
+      },
+      "expression": "width >= unit_bits",
+      "id": "collect-struct-layouts.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 191,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 191,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 191
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if width >= unit_bits {",
+      "variables": [
+        "unit_bits",
+        "width"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(pack) = bit_pack.take()",
+      "id": "collect-struct-layouts.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 192,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 192,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 192
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(pack) = bit_pack.take() {",
+      "variables": [
+        "Some",
+        "bit_pack",
+        "let",
+        "pack",
+        "take"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "needs_new_pack",
+      "expression": "needs_new_pack",
+      "id": "collect-struct-layouts.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 229,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 229,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 229
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if needs_new_pack {",
+      "variables": [
+        "needs_new_pack"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(pack) = bit_pack.take()",
+      "id": "collect-struct-layouts.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 230,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 230,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 230
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(pack) = bit_pack.take() {",
+      "variables": [
+        "Some",
+        "bit_pack",
+        "let",
+        "pack",
+        "take"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "pack.used_bits >= unit_bits",
+      "id": "collect-struct-layouts.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 266,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 266,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 266
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if pack.used_bits >= unit_bits {",
+      "variables": [
+        "pack",
+        "unit_bits",
+        "used_bits"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(pack) = bit_pack.take()",
+      "id": "collect-struct-layouts.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 278,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 278,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 278
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(pack) = bit_pack.take() {",
+      "variables": [
+        "Some",
+        "bit_pack",
+        "let",
+        "pack",
+        "take"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(pack) = bit_pack.take()",
+      "id": "collect-struct-layouts.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 311,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 311,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 311
+      },
+      "symbol": "collect_struct_layouts",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(pack) = bit_pack.take() {",
+      "variables": [
+        "Some",
+        "bit_pack",
+        "let",
+        "pack",
+        "take"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_stmt_context(stmt, &owner)",
+      "id": "first-memory-block-context.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2678,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 65,
+        "end_line": 2678,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2678
+      },
+      "symbol": "first_memory_block_context",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_stmt_context(stmt, &owner) {",
+      "variables": [
+        "Some",
+        "context",
+        "first_memory_stmt_context",
+        "let",
+        "owner",
+        "stmt"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(cond, base.clone())",
+      "id": "first-memory-else-branch-context.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2912,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 2912,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2912
+      },
+      "symbol": "first_memory_else_branch_context",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(cond, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "cond",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(pointer, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2739,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 74,
+        "end_line": 2739,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2739
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(pointer, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "pointer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(left, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2747,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 2747,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2747
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(left, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "left",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(callee, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2763,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 2763,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2763
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(callee, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "callee",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(receiver, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2771,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 75,
+        "end_line": 2771,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2771
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(receiver, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "receiver"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(object, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2779,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 2779,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2779
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(object, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(target, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2786,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 2786,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2786
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(target, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context_from_pairs(fields, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2793,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 84,
+        "end_line": 2793,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2793
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context_from_pairs(fields, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "fields",
+        "first_memory_expr_context_from_pairs",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(expr, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2808,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 2808,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2808
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(expr, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "expr",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(condition, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2828,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 2828,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2828
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(condition, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "condition",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(scrutinee, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2842,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 2842,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2842
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(scrutinee, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "scrutinee"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(&arm.body, base.clone())",
+      "id": "first-memory-expr-context.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2846,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 76,
+        "end_line": 2846,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2846
+      },
+      "symbol": "first_memory_expr_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(&arm.body, base.clone()) {",
+      "variables": [
+        "Some",
+        "arm",
+        "base",
+        "body",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(&arg.value, base.clone())",
+      "id": "first-memory-expr-context-from-call-args.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2898,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 77,
+        "end_line": 2898,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2898
+      },
+      "symbol": "first_memory_expr_context_from_call_args",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(&arg.value, base.clone()) {",
+      "variables": [
+        "Some",
+        "arg",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(value, base.clone())",
+      "id": "first-memory-expr-context-from-exprs.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2886,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 2886,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2886
+      },
+      "symbol": "first_memory_expr_context_from_exprs",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(value, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(value, base.clone())",
+      "id": "first-memory-expr-context-from-pairs.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2877,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 2877,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2877
+      },
+      "symbol": "first_memory_expr_context_from_pairs",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(value, base.clone()) {",
+      "variables": [
+        "Some",
+        "base",
+        "clone",
+        "context",
+        "first_memory_expr_context",
+        "let",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(",
+      "id": "first-memory-stmt-context.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2701,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 2701,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2701
+      },
+      "symbol": "first_memory_stmt_context",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(",
+      "variables": [
+        "Some",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(",
+      "id": "first-memory-stmt-context.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2713,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 2713,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2713
+      },
+      "symbol": "first_memory_stmt_context",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(",
+      "variables": [
+        "Some",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_unsupported_memory_context_in_function(f, caps)",
+      "id": "first-unsupported-memory-context.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2525,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 79,
+        "end_line": 2525,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2525
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_unsupported_memory_context_in_function(f, caps) {",
+      "variables": [
+        "Some",
+        "caps",
+        "context",
+        "f",
+        "first_unsupported_memory_context_in_function",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers",
+      "id": "first-unsupported-memory-context.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2530,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2530,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2530
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers {",
+      "variables": [
+        "caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "field.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2532,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2532,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2532
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if field.ty.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "field",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers",
+      "id": "first-unsupported-memory-context.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2542,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2542,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2542
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers {",
+      "variables": [
+        "caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "prop.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2544,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 2544,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2544
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if prop.ty.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "prop",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers",
+      "id": "first-unsupported-memory-context.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2554,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2554,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2554
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers {",
+      "variables": [
+        "caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2556,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2556,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2556
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if state.ty.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "state",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers && c.ast.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2566,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 2566,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2566
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers && c.ast.ty.contains_raw_ptr() {",
+      "variables": [
+        "ast",
+        "c",
+        "caps",
+        "contains_raw_ptr",
+        "raw_pointers",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_memory_ops",
+      "id": "first-unsupported-memory-context.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2569,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 2569,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2569
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_memory_ops {",
+      "variables": [
+        "caps",
+        "raw_memory_ops"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_expr_context(",
+      "id": "first-unsupported-memory-context.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2570,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 2570,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2570
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_expr_context(",
+      "variables": [
+        "Some",
+        "context",
+        "first_memory_expr_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers && alias.ast.target.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2579,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 63,
+        "end_line": 2579,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2579
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers && alias.ast.target.contains_raw_ptr() {",
+      "variables": [
+        "alias",
+        "ast",
+        "caps",
+        "contains_raw_ptr",
+        "raw_pointers",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) =",
+      "id": "first-unsupported-memory-context.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2588,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2588,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2588
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) =",
+      "variables": [
+        "Some",
+        "context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_unsupported_memory_context(&module.items, caps)",
+      "id": "first-unsupported-memory-context.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2596,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 79,
+        "end_line": 2596,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2596
+      },
+      "symbol": "first_unsupported_memory_context",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_unsupported_memory_context(&module.items, caps) {",
+      "variables": [
+        "Some",
+        "caps",
+        "context",
+        "first_unsupported_memory_context",
+        "items",
+        "let",
+        "module"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2646,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2646,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2646
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers {",
+      "variables": [
+        "caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2648,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2648,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2648
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if param.ty.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "param",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &function.return_type",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2655,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 2655,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2655
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ret) = &function.return_type {",
+      "variables": [
+        "Some",
+        "function",
+        "let",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ret.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2656,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 2656,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2656
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if ret.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "ret"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_memory_ops",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2665,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 2665,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2665
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_memory_ops {",
+      "variables": [
+        "caps",
+        "raw_memory_ops"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) =",
+      "id": "first-unsupported-memory-context-in-ast-function.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2666,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2666,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2666
+      },
+      "symbol": "first_unsupported_memory_context_in_ast_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) =",
+      "variables": [
+        "Some",
+        "context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_pointers",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2611,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2611,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2611
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_pointers {",
+      "variables": [
+        "caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.ty.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2613,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2613,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2613
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if param.ty.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "param",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &function.ast.return_type",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2620,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 2620,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2620
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ret) = &function.ast.return_type {",
+      "variables": [
+        "Some",
+        "ast",
+        "function",
+        "let",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ret.contains_raw_ptr()",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2621,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 2621,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2621
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if ret.contains_raw_ptr() {",
+      "variables": [
+        "contains_raw_ptr",
+        "ret"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caps.raw_memory_ops",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2630,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 2630,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2630
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if !caps.raw_memory_ops {",
+      "variables": [
+        "caps",
+        "raw_memory_ops"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_memory_block_context(",
+      "id": "first-unsupported-memory-context-in-function.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2631,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 2631,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2631
+      },
+      "symbol": "first_unsupported_memory_context_in_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(context) = first_memory_block_context(",
+      "variables": [
+        "Some",
+        "context",
+        "first_memory_block_context",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "mutable",
+      "expression": "mutable",
+      "id": "format-ptr-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2946,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 13,
+        "end_line": 2946,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2946
+      },
+      "symbol": "format_ptr_type",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if mutable {",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "generics.is_empty()",
+      "id": "format-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2956,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 2956,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2956
+      },
+      "symbol": "format_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if generics.is_empty() {",
+      "variables": [
+        "generics",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*mutable",
+      "id": "format-type.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2966,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 2966,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2966
+      },
+      "symbol": "format_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if *mutable {",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*mutable",
+      "id": "format-type.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2973,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 2973,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2973
+      },
+      "symbol": "format_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if *mutable {",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "generics.is_empty()",
+      "id": "format-type.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2998,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 2998,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2998
+      },
+      "symbol": "format_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if generics.is_empty() {",
+      "variables": [
+        "generics",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "first"
+        ],
+        "op": "not"
+      },
+      "expression": "!first",
+      "id": "join-formatted-type-list.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3015,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 3015,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 3015
+      },
+      "symbol": "join_formatted_type_list",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !first {",
+      "variables": [
+        "first"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "first"
+        ],
+        "op": "not"
+      },
+      "expression": "!first",
+      "id": "join-type-key-list.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1954,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 1954,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1954
+      },
+      "symbol": "join_type_key_list",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !first {",
+      "variables": [
+        "first"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty",
+      "id": "load-from-pointer-binding.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1611,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 1611,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1611
+      },
+      "symbol": "load_from_pointer_binding",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(ty) = ty {",
+      "variables": [
+        "Some",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ptr) = pointer_for_addressable(value, ctx)",
+      "id": "lower-addr-of-memory.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1653,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 1653,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1653
+      },
+      "symbol": "lower_addr_of_memory",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ptr) = pointer_for_addressable(value, ctx) {",
+      "variables": [
+        "Some",
+        "ctx",
+        "let",
+        "pointer_for_addressable",
+        "ptr",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = pointee_ty",
+      "id": "lower-addr-of-memory.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1657,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 1657,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1657
+      },
+      "symbol": "lower_addr_of_memory",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = pointee_ty {",
+      "variables": [
+        "Some",
+        "let",
+        "pointee_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "info.is_union",
+      "id": "lower-aggregate-init-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2354,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 2354,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2354
+      },
+      "symbol": "lower_aggregate_init_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if info.is_union {",
+      "variables": [
+        "info",
+        "is_union"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(active_field) = active_field",
+      "id": "lower-aggregate-init-expr.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2370,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 2370,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2370
+      },
+      "symbol": "lower_aggregate_init_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(active_field) = active_field {",
+      "variables": [
+        "Some",
+        "active_field",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(field) = info.fields.get(field_name)",
+      "id": "lower-aggregate-init-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2406,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 2406,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2406
+      },
+      "symbol": "lower_aggregate_init_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(field) = info.fields.get(field_name) {",
+      "variables": [
+        "Some",
+        "field",
+        "field_name",
+        "fields",
+        "get",
+        "info",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zero_fill_rest",
+      "expression": "zero_fill_rest",
+      "id": "lower-aggregate-init-expr.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2410,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 2410,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2410
+      },
+      "symbol": "lower_aggregate_init_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if zero_fill_rest {",
+      "variables": [
+        "zero_fill_rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = load_ty.as_ref()",
+      "id": "lower-expr-memory-with-ctx.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 960,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 960,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 960
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = load_ty.as_ref() {",
+      "variables": [
+        "Some",
+        "as_ref",
+        "let",
+        "load_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::Ident(name, _) = target.as_ref()",
+      "id": "lower-expr-memory-with-ctx.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1036,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1036,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1036
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Expr::Ident(name, _) = target.as_ref() {",
+      "variables": [
+        "Expr",
+        "Ident",
+        "_",
+        "as_ref",
+        "let",
+        "name",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "should_load_from_pointer(name, ctx)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1037,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 1037,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1037
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if should_load_from_pointer(name, ctx) {",
+      "variables": [
+        "ctx",
+        "name",
+        "should_load_from_pointer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::Field { object, field, .. } = target.as_ref()",
+      "id": "lower-expr-memory-with-ctx.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1048,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 1048,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1048
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Expr::Field { object, field, .. } = target.as_ref() {",
+      "variables": [
+        "Expr",
+        "Field",
+        "as_ref",
+        "field",
+        "let",
+        "object",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(field_layout) = field_layout_from_object(object, field, ctx)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1049,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 75,
+        "end_line": 1049,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1049
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(field_layout) = field_layout_from_object(object, field, ctx) {",
+      "variables": [
+        "Some",
+        "ctx",
+        "field",
+        "field_layout",
+        "field_layout_from_object",
+        "let",
+        "object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(bit_width) = field_bit_width",
+      "id": "lower-expr-memory-with-ctx.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1056,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 1056,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1056
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(bit_width) = field_bit_width {",
+      "variables": [
+        "Some",
+        "bit_width",
+        "field_bit_width",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(layout_size) = struct_layout_from_object(object, ctx)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1099,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 1099,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1099
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(layout_size) = struct_layout_from_object(object, ctx)",
+      "variables": [
+        "Some",
+        "ctx",
+        "layout_size",
+        "let",
+        "object",
+        "struct_layout_from_object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "should_apply_usual_arithmetic_conversions(*op)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1165,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 1165,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1165
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if should_apply_usual_arithmetic_conversions(*op) {",
+      "variables": [
+        "op",
+        "should_apply_usual_arithmetic_conversions"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(field_layout) = field_layout_from_object(object, field, ctx)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1275,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 75,
+        "end_line": 1275,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1275
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(field_layout) = field_layout_from_object(object, field, ctx) {",
+      "variables": [
+        "Some",
+        "ctx",
+        "field",
+        "field_layout",
+        "field_layout_from_object",
+        "let",
+        "object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(bit_width) = field_bit_width",
+      "id": "lower-expr-memory-with-ctx.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1280,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 1280,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1280
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(bit_width) = field_bit_width {",
+      "variables": [
+        "Some",
+        "bit_width",
+        "field_bit_width",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(layout_size) = struct_layout_from_object(object, ctx)",
+      "id": "lower-expr-memory-with-ctx.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1322,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 1322,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1322
+      },
+      "symbol": "lower_expr_memory_with_ctx",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(layout_size) = struct_layout_from_object(object, ctx)",
+      "variables": [
+        "Some",
+        "ctx",
+        "layout_size",
+        "let",
+        "object",
+        "struct_layout_from_object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!ctx.address_taken.is_empty()",
+      "id": "lower-function-memory.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 752,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 752,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 752
+      },
+      "symbol": "lower_function_memory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !ctx.address_taken.is_empty() {",
+      "variables": [
+        "address_taken",
+        "ctx",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ctx.address_taken.contains(&param.name)",
+      "id": "lower-function-memory.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 755,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 755,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 755
+      },
+      "symbol": "lower_function_memory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if ctx.address_taken.contains(&param.name) {",
+      "variables": [
+        "address_taken",
+        "contains",
+        "ctx",
+        "name",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!prefix.is_empty()",
+      "id": "lower-function-memory.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 759,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 759,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 759
+      },
+      "symbol": "lower_function_memory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !prefix.is_empty() {",
+      "variables": [
+        "is_empty",
+        "prefix"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "uses_seeded_heap_helper_abi(target)",
+      "id": "lower-heap-alloc-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2304,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 2304,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2304
+      },
+      "symbol": "lower_heap_alloc_expr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if uses_seeded_heap_helper_abi(target) {",
+      "variables": [
+        "target",
+        "uses_seeded_heap_helper_abi"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "uses_seeded_heap_helper_abi(target)",
+      "id": "lower-heap-realloc-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2325,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 2325,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2325
+      },
+      "symbol": "lower_heap_realloc_expr",
+      "tags": [
+        "bounds",
+        "pointer"
+      ],
+      "text": "if uses_seeded_heap_helper_abi(target) {",
+      "variables": [
+        "target",
+        "uses_seeded_heap_helper_abi"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Pattern::Binding { name, .. } = pattern",
+      "id": "lower-stmt-memory-with-ctx.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 858,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 858,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 858
+      },
+      "symbol": "lower_stmt_memory_with_ctx",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Pattern::Binding { name, .. } = pattern {",
+      "variables": [
+        "Binding",
+        "Pattern",
+        "let",
+        "name",
+        "pattern"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty",
+      "id": "lower-stmt-memory-with-ctx.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 859,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 859,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 859
+      },
+      "symbol": "lower_stmt_memory_with_ctx",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ty) = ty {",
+      "variables": [
+        "Some",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ctx.address_taken.contains(name)",
+      "id": "lower-stmt-memory-with-ctx.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 862,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 862,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 862
+      },
+      "symbol": "lower_stmt_memory_with_ctx",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ctx.address_taken.contains(name) {",
+      "variables": [
+        "address_taken",
+        "contains",
+        "ctx",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "remaining",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "remaining > 0",
+      "id": "lower-storage-array-items.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2268,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 2268,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2268
+      },
+      "symbol": "lower_storage_array_items",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "while remaining > 0 {",
+      "variables": [
+        "remaining"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zeroed",
+      "expression": "zeroed",
+      "id": "lower-storage-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2205,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 2205,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2205
+      },
+      "symbol": "lower_storage_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zeroed {",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zeroed",
+      "expression": "zeroed",
+      "id": "lower-storage-expr.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2212,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 2212,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2212
+      },
+      "symbol": "lower_storage_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zeroed {",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zeroed",
+      "expression": "zeroed",
+      "id": "lower-storage-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2219,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 2219,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2219
+      },
+      "symbol": "lower_storage_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zeroed {",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zeroed",
+      "expression": "zeroed",
+      "id": "lower-storage-expr.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2226,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 2226,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2226
+      },
+      "symbol": "lower_storage_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zeroed {",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(field) = info.fields.get(field_name)",
+      "id": "lower-storage-expr.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2236,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 2236,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2236
+      },
+      "symbol": "lower_storage_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(field) = info.fields.get(field_name) {",
+      "variables": [
+        "Some",
+        "field",
+        "field_name",
+        "fields",
+        "get",
+        "info",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "supported"
+        ],
+        "op": "not"
+      },
+      "expression": "!supported",
+      "id": "lower-typed-program-memory-for-target.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 519,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 16,
+        "end_line": 519,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 519
+      },
+      "symbol": "lower_typed_program_memory_for_target",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !supported {",
+      "variables": [
+        "supported"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "index",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "index > 0",
+      "id": "lower-union-aggregate-fields.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2462,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 2462,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2462
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while index > 0 {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "info.fields.contains_key(field_name)",
+      "id": "lower-union-aggregate-fields.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2465,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 2465,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2465
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if info.fields.contains_key(field_name) {",
+      "variables": [
+        "contains_key",
+        "field_name",
+        "fields",
+        "info"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "active_name.is_none()",
+      "id": "lower-union-aggregate-fields.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2470,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 2470,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2470
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if active_name.is_none() {",
+      "variables": [
+        "active_name",
+        "is_none"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zero_fill_rest",
+      "expression": "zero_fill_rest",
+      "id": "lower-union-aggregate-fields.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2482,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 2482,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2482
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zero_fill_rest {",
+      "variables": [
+        "zero_fill_rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(field) = info.fields.get(field_name)",
+      "id": "lower-union-aggregate-fields.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2494,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 2494,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2494
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(field) = info.fields.get(field_name) {",
+      "variables": [
+        "Some",
+        "field",
+        "field_name",
+        "fields",
+        "get",
+        "info",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zero_fill_rest",
+      "expression": "zero_fill_rest",
+      "id": "lower-union-aggregate-fields.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2499,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 2499,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2499
+      },
+      "symbol": "lower_union_aggregate_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if zero_fill_rest {",
+      "variables": [
+        "zero_fill_rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(layout) = field_layout_from_object(object, field, ctx)",
+      "id": "pointer-for-addressable.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1675,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 1675,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1675
+      },
+      "symbol": "pointer_for_addressable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(layout) = field_layout_from_object(object, field, ctx) {",
+      "variables": [
+        "Some",
+        "ctx",
+        "field",
+        "field_layout_from_object",
+        "layout",
+        "let",
+        "object"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(bit_width) = layout.bit_width",
+      "id": "pointer-for-addressable.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1676,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1676,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 1676
+      },
+      "symbol": "pointer_for_addressable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(bit_width) = layout.bit_width {",
+      "variables": [
+        "Some",
+        "bit_width",
+        "layout",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "size-literal-i64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 98,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 82,
+        "end_line": 98,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 98
+      },
+      "symbol": "size_literal_i64",
+      "text": "fn size_literal_i64(value: usize, detail: impl Into<String>) -> KainResult<i64> {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "size-literal-i64-or-panic.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 110,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 79,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "size_literal_i64_or_panic",
+      "text": "fn size_literal_i64_or_panic(value: usize, detail: impl Into<String>) -> i64 {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "zeroed",
+      "expression": "zeroed",
+      "id": "storage-seed-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2283,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 2283,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 2283
+      },
+      "symbol": "storage_seed_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if zeroed {",
+      "variables": [
+        "zeroed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "caps.raw_pointers && caps.raw_memory_ops",
+      "id": "validate-typed-program-memory-support.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 481,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 481,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 481
+      },
+      "symbol": "validate_typed_program_memory_support",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if caps.raw_pointers && caps.raw_memory_ops {",
+      "variables": [
+        "caps",
+        "raw_memory_ops",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(context) = first_unsupported_memory_context(&program.items, caps)",
+      "id": "validate-typed-program-memory-support.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 485,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+      "span": {
+        "end_col": 80,
+        "end_line": 485,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+        "start_col": 1,
+        "start_line": 485
+      },
+      "symbol": "validate_typed_program_memory_support",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(context) = first_unsupported_memory_context(&program.items, caps) {",
+      "variables": [
+        "Some",
+        "caps",
+        "context",
+        "first_unsupported_memory_context",
+        "items",
+        "let",
+        "program"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "be40cc8568f49c88925da6780635e131cc7146166193b9937d795a31509edf71",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory.rs",
+  "version": 1
+}

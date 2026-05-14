@@ -1,0 +1,419 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(token) = iter.next()",
+      "id": "process-indentation.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 360,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 360,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 360
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while let Some(token) = iter.next() {",
+      "variables": [
+        "Some",
+        "iter",
+        "let",
+        "next",
+        "token"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(next) = iter.peek()",
+      "id": "process-indentation.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 364,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 364,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 364
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(next) = iter.peek() {",
+      "variables": [
+        "Some",
+        "iter",
+        "let",
+        "next",
+        "peek"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(next.kind, TokenKind::Newline(_))",
+      "id": "process-indentation.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 365,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 365,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 365
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(next.kind, TokenKind::Newline(_)) {",
+      "variables": [
+        "Newline",
+        "TokenKind",
+        "_",
+        "kind",
+        "matches",
+        "next"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "indent",
+          "current"
+        ],
+        "op": "gt"
+      },
+      "expression": "indent > current",
+      "id": "process-indentation.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 375,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 375,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 375
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if indent > current {",
+      "variables": [
+        "current",
+        "indent"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "indent_stack.len() > 1 && *indent_stack.last().unwrap() > indent",
+      "id": "process-indentation.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 383,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 383,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 383
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while indent_stack.len() > 1 && *indent_stack.last().unwrap() > indent {",
+      "variables": [
+        "indent",
+        "indent_stack",
+        "last",
+        "len",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "indent_stack.len() > 1",
+      "id": "process-indentation.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 400,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 400,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 400
+      },
+      "symbol": "process_indentation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while indent_stack.len() > 1 {",
+      "variables": [
+        "indent_stack",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(tokens[0].kind, TokenKind::Fn)",
+      "id": "test-basic-tokens.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 444,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 444,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 444
+      },
+      "symbol": "test_basic_tokens",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(tokens[0].kind, TokenKind::Fn));",
+      "variables": [
+        "Fn",
+        "TokenKind",
+        "kind",
+        "matches",
+        "tokens"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(tokens[1].kind, TokenKind::Ident(_))",
+      "id": "test-basic-tokens.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 445,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 445,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 445
+      },
+      "symbol": "test_basic_tokens",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(matches!(tokens[1].kind, TokenKind::Ident(_)));",
+      "variables": [
+        "Ident",
+        "TokenKind",
+        "_",
+        "kind",
+        "matches",
+        "tokens"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "tokens.iter().any(|t| matches!(t.kind, TokenKind::Indent))",
+      "id": "test-indentation.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 452,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 452,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 452
+      },
+      "symbol": "test_indentation",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(tokens.iter().any(|t| matches!(t.kind, TokenKind::Indent)));",
+      "variables": [
+        "Indent",
+        "TokenKind",
+        "any",
+        "iter",
+        "kind",
+        "matches",
+        "t",
+        "tokens"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(result) = lex.next()",
+      "id": "tokenize.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 327,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 327,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 327
+      },
+      "symbol": "tokenize",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "while let Some(result) = lex.next() {",
+      "variables": [
+        "Some",
+        "let",
+        "lex",
+        "next",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(kind, TokenKind::Comment | TokenKind::HashComment)",
+      "id": "tokenize.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 332,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 65,
+        "end_line": 332,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 332
+      },
+      "symbol": "tokenize",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if matches!(kind, TokenKind::Comment | TokenKind::HashComment) {",
+      "variables": [
+        "Comment",
+        "HashComment",
+        "TokenKind",
+        "kind",
+        "matches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(c) = chars.next()",
+      "id": "unescape.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 413,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 413,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 413
+      },
+      "symbol": "unescape",
+      "tags": [
+        "bounds"
+      ],
+      "text": "while let Some(c) = chars.next() {",
+      "variables": [
+        "Some",
+        "c",
+        "chars",
+        "let",
+        "next"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "c == '\\\\'",
+      "id": "unescape.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 414,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+      "span": {
+        "end_col": 15,
+        "end_line": 414,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+        "start_col": 1,
+        "start_line": 414
+      },
+      "symbol": "unescape",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if c == '\\\\' {",
+      "variables": [
+        "c"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "5862ab83be8fe5d9bfdc7f07c74d3af0e2860d1ab2a7e2bb3a2c11e617642584",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\lexer.rs",
+  "version": 1
+}

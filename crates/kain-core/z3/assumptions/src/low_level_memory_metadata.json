@@ -1,0 +1,147 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "attr.name != name",
+      "id": "attr-usize-arg.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 42,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 42,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+        "start_col": 1,
+        "start_line": 42
+      },
+      "symbol": "attr_usize_arg",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if attr.name != name {",
+      "variables": [
+        "attr",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "name",
+        "role": "unsigned-size",
+        "type": "&str) -> Option<(usize, bool"
+      },
+      "id": "attr-usize-bool-args.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 52,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+      "span": {
+        "end_col": 88,
+        "end_line": 52,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+        "start_col": 1,
+        "start_line": 52
+      },
+      "symbol": "attr_usize_bool_args",
+      "text": "pub fn attr_usize_bool_args(attrs: &[Attribute], name: &str) -> Option<(usize, bool)> {",
+      "variables": [
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "attr.name != name",
+      "id": "attr-usize-bool-args.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 54,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 54,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+        "start_col": 1,
+        "start_line": 54
+      },
+      "symbol": "attr_usize_bool_args",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if attr.name != name {",
+      "variables": [
+        "attr",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "usize-attr.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 20,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 20,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+        "start_col": 1,
+        "start_line": 20
+      },
+      "symbol": "usize_attr",
+      "text": "pub fn usize_attr(name: &str, value: usize, span: Span) -> Attribute {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "usize-bool-attr.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 28,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+      "span": {
+        "end_col": 88,
+        "end_line": 28,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+        "start_col": 1,
+        "start_line": 28
+      },
+      "symbol": "usize_bool_attr",
+      "text": "pub fn usize_bool_attr(name: &str, value: usize, flag: bool, span: Span) -> Attribute {",
+      "variables": [
+        "value"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "dfe5392c4a91bd6fcebd670371e3c0b1165ea1162ce3ff39b67c2445dbadbd9c",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\low_level_memory_metadata.rs",
+  "version": 1
+}

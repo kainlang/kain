@@ -1,0 +1,376 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(parent) = file_path.parent()",
+      "id": "create-file.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 25,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 25,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 25
+      },
+      "symbol": "create_file",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(parent) = file_path.parent() {",
+      "variables": [
+        "Some",
+        "file_path",
+        "let",
+        "parent"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "temp_dir.exists()",
+      "id": "new.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 16,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 16,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 16
+      },
+      "symbol": "new",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if temp_dir.exists() {",
+      "variables": [
+        "exists",
+        "temp_dir"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!roots.is_empty(), \"Should find stdlib in parent directory\"",
+      "id": "test-find-stdlib-in-parent-directory.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 102,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "test_find_stdlib_in_parent_directory",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!roots.is_empty(), \"Should find stdlib in parent directory\");",
+      "variables": [
+        "Should",
+        "directory",
+        "find",
+        "in",
+        "is_empty",
+        "parent",
+        "roots",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_some(), \"Should load files successfully\"",
+      "id": "test-load-kn-files-alphabetical-ordering.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 268,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 268,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 268
+      },
+      "symbol": "test_load_kn_files_alphabetical_ordering",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(result.is_some(), \"Should load files successfully\");",
+      "variables": [
+        "Should",
+        "files",
+        "is_some",
+        "load",
+        "result",
+        "successfully"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_none(), \"Should return None for empty directory\"",
+      "id": "test-load-kn-files-empty-directory.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 240,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 240,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 240
+      },
+      "symbol": "test_load_kn_files_empty_directory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.is_none(), \"Should return None for empty directory\");",
+      "variables": [
+        "None",
+        "Should",
+        "directory",
+        "empty",
+        "for",
+        "is_none",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_some(), \"Should load files successfully\"",
+      "id": "test-load-kn-files-multiple-files.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 165,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 165,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 165
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(result.is_some(), \"Should load files successfully\");",
+      "variables": [
+        "Should",
+        "files",
+        "is_some",
+        "load",
+        "result",
+        "successfully"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "content.contains(\"fn a()\"), \"Should contain function a\"",
+      "id": "test-load-kn-files-multiple-files.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 169,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 169,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 169
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(content.contains(\"fn a()\"), \"Should contain function a\");",
+      "variables": [
+        "Should",
+        "a",
+        "contain",
+        "contains",
+        "content",
+        "fn",
+        "function"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "content.contains(\"fn b()\"), \"Should contain function b\"",
+      "id": "test-load-kn-files-multiple-files.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 170,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 170,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 170
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(content.contains(\"fn b()\"), \"Should contain function b\");",
+      "variables": [
+        "Should",
+        "b",
+        "contain",
+        "contains",
+        "content",
+        "fn",
+        "function"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "content.contains(\"fn c()\"), \"Should contain function c\"",
+      "id": "test-load-kn-files-multiple-files.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 171,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 66,
+        "end_line": 171,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 171
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(content.contains(\"fn c()\"), \"Should contain function c\");",
+      "variables": [
+        "Should",
+        "c",
+        "contain",
+        "contains",
+        "content",
+        "fn",
+        "function"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_some(), \"Should load files successfully\"",
+      "id": "test-load-kn-files-with-readme.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 194,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 194,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 194
+      },
+      "symbol": "test_load_kn_files_with_readme",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(result.is_some(), \"Should load files successfully\");",
+      "variables": [
+        "Should",
+        "files",
+        "is_some",
+        "load",
+        "result",
+        "successfully"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_some(), \"Should load files successfully\"",
+      "id": "test-readme-case-insensitive-filtering.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 430,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 430,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+        "start_col": 1,
+        "start_line": 430
+      },
+      "symbol": "test_readme_case_insensitive_filtering",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(result.is_some(), \"Should load files successfully\");",
+      "variables": [
+        "Should",
+        "files",
+        "is_some",
+        "load",
+        "result",
+        "successfully"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "437300fc1f935ce34e4928771cd72eaf147669575139fb6450333fd31d78c4eb",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib_tests.rs",
+  "version": 1
+}

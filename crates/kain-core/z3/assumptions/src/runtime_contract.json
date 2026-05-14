@@ -1,0 +1,1422 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "memory_caps.raw_pointers",
+      "id": "collect-runtime-capabilities.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 365,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 365,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 365
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if memory_caps.raw_pointers {",
+      "variables": [
+        "memory_caps",
+        "raw_pointers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "memory_caps.raw_memory_ops",
+      "id": "collect-runtime-capabilities.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 372,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 372,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 372
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if memory_caps.raw_memory_ops {",
+      "variables": [
+        "memory_caps",
+        "raw_memory_ops"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.components > 0",
+      "id": "collect-runtime-capabilities.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 380,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 380,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 380
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.components > 0 {",
+      "variables": [
+        "components",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.actors > 0",
+      "id": "collect-runtime-capabilities.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 392,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 392,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 392
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.actors > 0 {",
+      "variables": [
+        "actors",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.async_tasks > 0",
+      "id": "collect-runtime-capabilities.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 399,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 399,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 399
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.async_tasks > 0 {",
+      "variables": [
+        "async_tasks",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.shaders > 0 || summary.material_graphs > 0 || summary.material_functions > 0",
+      "id": "collect-runtime-capabilities.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 411,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 90,
+        "end_line": 411,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 411
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.shaders > 0 || summary.material_graphs > 0 || summary.material_functions > 0 {",
+      "variables": [
+        "material_functions",
+        "material_graphs",
+        "shaders",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.compute_shaders > 0",
+      "id": "collect-runtime-capabilities.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 418,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 418,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 418
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.compute_shaders > 0 {",
+      "variables": [
+        "compute_shaders",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.compute_plan_shaders > 0",
+      "id": "collect-runtime-capabilities.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 431,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 431,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 431
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.compute_plan_shaders > 0 {",
+      "variables": [
+        "compute_plan_shaders",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.compute_storage_buffers > 0",
+      "id": "collect-runtime-capabilities.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 446,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 446,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 446
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.compute_storage_buffers > 0 {",
+      "variables": [
+        "compute_storage_buffers",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.editor_modules > 0 || summary.graph_editors > 0 || summary.graph_runtimes > 0",
+      "id": "collect-runtime-capabilities.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 463,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 91,
+        "end_line": 463,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 463
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.editor_modules > 0 || summary.graph_editors > 0 || summary.graph_runtimes > 0 {",
+      "variables": [
+        "editor_modules",
+        "graph_editors",
+        "graph_runtimes",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.patches > 0",
+      "id": "collect-runtime-capabilities.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 470,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 470,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 470
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.patches > 0 {",
+      "variables": [
+        "patches",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.laws > 0",
+      "id": "collect-runtime-capabilities.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 477,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 477,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 477
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.laws > 0 {",
+      "variables": [
+        "laws",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.converges > 0",
+      "id": "collect-runtime-capabilities.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 484,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 484,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 484
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.converges > 0 {",
+      "variables": [
+        "converges",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.entanglements > 0",
+      "id": "collect-runtime-capabilities.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 491,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 491,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 491
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.entanglements > 0 {",
+      "variables": [
+        "entanglements",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.orchestrations > 0",
+      "id": "collect-runtime-capabilities.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 498,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 498,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 498
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.orchestrations > 0 {",
+      "variables": [
+        "orchestrations",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_native_ui > 0",
+      "id": "collect-runtime-capabilities.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 505,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 505,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 505
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.world_native_ui > 0 {",
+      "variables": [
+        "summary",
+        "world_native_ui"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_viewport3d > 0",
+      "id": "collect-runtime-capabilities.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 512,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 512,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 512
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.world_viewport3d > 0 {",
+      "variables": [
+        "summary",
+        "world_viewport3d"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_web > 0",
+      "id": "collect-runtime-capabilities.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 519,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 519,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 519
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.world_web > 0 {",
+      "variables": [
+        "summary",
+        "world_web"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_ue5 > 0",
+      "id": "collect-runtime-capabilities.guard-condition.19",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 526,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 526,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 526
+      },
+      "symbol": "collect_runtime_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if summary.world_ue5 > 0 {",
+      "variables": [
+        "summary",
+        "world_ue5"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "target == CompileTarget::Wasm",
+      "id": "compile-target-name.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1150,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 1150,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1150
+      },
+      "symbol": "compile_target_name",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if target == CompileTarget::Wasm {",
+      "variables": [
+        "CompileTarget",
+        "Wasm",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"async.runtime\\\"\")",
+      "id": "emits-async-requirements-for-async-task-items.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1740,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 1740,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1740
+      },
+      "symbol": "emits_async_requirements_for_async_task_items",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"async.runtime\\\"\"));",
+      "variables": [
+        "async",
+        "contains",
+        "json",
+        "runtime"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"async.timers\\\"\")",
+      "id": "emits-async-requirements-for-async-task-items.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1741,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1741,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1741
+      },
+      "symbol": "emits_async_requirements_for_async_task_items",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"async.timers\\\"\"));",
+      "variables": [
+        "async",
+        "contains",
+        "json",
+        "timers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"async-task:LoadAssets\\\"\")",
+      "id": "emits-async-requirements-for-async-task-items.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1742,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 1742,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1742
+      },
+      "symbol": "emits_async_requirements_for_async_task_items",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"async-task:LoadAssets\\\"\"));",
+      "variables": [
+        "LoadAssets",
+        "async",
+        "contains",
+        "json",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.items.iter().any(|item| item.id == \"component:App\")",
+      "id": "emits-component-capability-for-ui-source.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1678,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 1678,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1678
+      },
+      "symbol": "emits_component_capability_for_ui_source",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(bundle.items.iter().any(|item| item.id == \"component:App\"));",
+      "variables": [
+        "App",
+        "any",
+        "bundle",
+        "component",
+        "id",
+        "item",
+        "items",
+        "iter"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.reflection_payload.is_some()",
+      "id": "emits-component-capability-for-ui-source.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1681,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 1681,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1681
+      },
+      "symbol": "emits_component_capability_for_ui_source",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(bundle.reflection_payload.is_some());",
+      "variables": [
+        "bundle",
+        "is_some",
+        "reflection_payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.compatibility.install.supported",
+      "id": "emits-component-capability-for-ui-source.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1691,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1691,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1691
+      },
+      "symbol": "emits_component_capability_for_ui_source",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(bundle.compatibility.install.supported);",
+      "variables": [
+        "bundle",
+        "compatibility",
+        "install",
+        "supported"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "major",
+        "role": "unsigned-int",
+        "type": "u32"
+      },
+      "id": "new.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 75,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 84,
+        "end_line": 75,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 75
+      },
+      "symbol": "new",
+      "text": "pub fn new(major: u32, minor: u32, patch: u32, string: impl Into<String>) -> Self {",
+      "variables": [
+        "major"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "minor",
+        "role": "unsigned-int",
+        "type": "u32"
+      },
+      "id": "new.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 75,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 84,
+        "end_line": 75,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 75
+      },
+      "symbol": "new",
+      "text": "pub fn new(major: u32, minor: u32, patch: u32, string: impl Into<String>) -> Self {",
+      "variables": [
+        "minor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "patch",
+        "role": "unsigned-int",
+        "type": "u32"
+      },
+      "id": "new.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 75,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 84,
+        "end_line": 75,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 75
+      },
+      "symbol": "new",
+      "text": "pub fn new(major: u32, minor: u32, patch: u32, string: impl Into<String>) -> Self {",
+      "variables": [
+        "patch"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "target == CompileTarget::Rust",
+      "id": "runtime-lane-name.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1186,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 1186,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1186
+      },
+      "symbol": "runtime_lane_name",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if target == CompileTarget::Rust {",
+      "variables": [
+        "CompileTarget",
+        "Rust",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.async_tasks > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.async_tasks > 0 {",
+      "variables": [
+        "async_tasks",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.compute_shaders > 0 && matches!(target, CompileTarget::C | CompileTarget::Llvm)",
+      "id": "runtime-service-bindings-for-target.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 616,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 93,
+        "end_line": 616,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 616
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.compute_shaders > 0 && matches!(target, CompileTarget::C | CompileTarget::Llvm) {",
+      "variables": [
+        "C",
+        "CompileTarget",
+        "Llvm",
+        "compute_shaders",
+        "matches",
+        "summary",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.patches > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 623,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 623,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 623
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.patches > 0 {",
+      "variables": [
+        "patches",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.laws > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 630,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 630,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 630
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.laws > 0 {",
+      "variables": [
+        "laws",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.converges > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 637,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 637,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 637
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.converges > 0 {",
+      "variables": [
+        "converges",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.entanglements > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 644,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 644,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 644
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.entanglements > 0 {",
+      "variables": [
+        "entanglements",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.orchestrations > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 651,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 651,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 651
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.orchestrations > 0 {",
+      "variables": [
+        "orchestrations",
+        "summary"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_native_ui > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 658,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 658,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 658
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.world_native_ui > 0",
+      "variables": [
+        "summary",
+        "world_native_ui"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target, CompileTarget::Rust)",
+      "id": "runtime-service-bindings-for-target.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 666,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 666,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 666
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(target, CompileTarget::Rust) {",
+      "variables": [
+        "CompileTarget",
+        "Rust",
+        "matches",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_viewport3d > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 674,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 674,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 674
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.world_viewport3d > 0",
+      "variables": [
+        "summary",
+        "world_viewport3d"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(target, CompileTarget::Rust)",
+      "id": "runtime-service-bindings-for-target.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 682,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 682,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 682
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(target, CompileTarget::Rust) {",
+      "variables": [
+        "CompileTarget",
+        "Rust",
+        "matches",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_web > 0",
+      "id": "runtime-service-bindings-for-target.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 690,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 690,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 690
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.world_web > 0",
+      "variables": [
+        "summary",
+        "world_web"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "summary.world_ue5 > 0 && matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor)",
+      "id": "runtime-service-bindings-for-target.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 702,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 94,
+        "end_line": 702,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 702
+      },
+      "symbol": "runtime_service_bindings_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if summary.world_ue5 > 0 && matches!(target, CompileTarget::Ue5 | CompileTarget::Ue5Editor) {",
+      "variables": [
+        "CompileTarget",
+        "Ue5",
+        "Ue5Editor",
+        "matches",
+        "summary",
+        "target",
+        "world_ue5"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "character.is_ascii_alphanumeric() || character == '_'",
+      "id": "sanitize-contract-ident.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1119,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 1119,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1119
+      },
+      "symbol": "sanitize_contract_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if character.is_ascii_alphanumeric() || character == '_' {",
+      "variables": [
+        "_",
+        "character",
+        "is_ascii_alphanumeric"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "sanitized.is_empty()",
+      "id": "sanitize-contract-ident.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1126,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 1126,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1126
+      },
+      "symbol": "sanitize_contract_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if sanitized.is_empty() {",
+      "variables": [
+        "is_empty",
+        "sanitized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(shader.ast.stage, ShaderStage::Compute)",
+      "id": "summarize-items-into.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1307,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 1307,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1307
+      },
+      "symbol": "summarize_items_into",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(shader.ast.stage, ShaderStage::Compute) {",
+      "variables": [
+        "Compute",
+        "ShaderStage",
+        "ast",
+        "matches",
+        "shader",
+        "stage"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "shader",
+      "expression": "shader",
+      "id": "summarize-items-into.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1309,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 1309,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+        "start_col": 1,
+        "start_line": 1309
+      },
+      "symbol": "summarize_items_into",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if shader",
+      "variables": [
+        "shader"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "583d751b62b6d536880238a7e86c9ca1dd08f135b20f893a00c0950ea0228ed9",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_contract.rs",
+  "version": 1
+}

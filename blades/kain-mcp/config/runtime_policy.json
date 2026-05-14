@@ -17,18 +17,26 @@
     "args": ["-3"]
   },
   "kain_binary_candidates": [
+    "PATH:kain",
     "target/debug/kain.exe",
     "target/debug/kain",
     "target/release/kain.exe",
-    "target/release/kain",
-    "PATH:kain"
+    "target/release/kain"
+  ],
+  "kain_launcher_dirs_windows": [
+    "D:/Kain-Bazel/bin"
   ],
   "launcher_sync": {
-    "enabled": true,
-    "prefer_synced_binary": true,
+    "enabled": false,
+    "prefer_synced_binary": false,
     "state_root_env_key": "KAIN_SYNC_ROOT",
     "default_state_root_windows": "%USERPROFILE%/.kain",
     "default_state_root_unix": "~/.kain",
+    "shared_launcher_dir_windows": "D:/Kain-Bazel/bin",
+    "shadow_launcher_dirs_windows": [
+      "%USERPROFILE%/.cargo/bin"
+    ],
+    "bazel_default_config_windows": "dev",
     "lock_relative_path": "locks/sync.lock",
     "stamp_relative_path": "state/kain_sync_stamp.json",
     "build_counter_relative_path": "state/build_counter.json",

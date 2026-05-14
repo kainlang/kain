@@ -30,6 +30,14 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
    - `bazel build //:blade --config=dev`
    - `bazel test //crates/kain-build:unit_test --config=dev`
 
+## Shared launcher contract
+
+- On this Windows workstation, `kain` and `kn` in PATH should resolve through the Bazel-backed launcher shims installed in `D:/Kain-Bazel/bin` and shadowed into `%USERPROFILE%/.cargo/bin`, not through copied Cargo release binaries.
+- The native launcher shim is the source of truth because it dispatches to `scripts/windows/launch-bazel-cli.ps1`, which runs `bazel build //:kain` or `//:kn` before executing the real Bazel artifact. That is what prevents library-only Bazel work from leaving the CLI image stale even when an agent inherits an old PATH order.
+- Refresh or install the wrappers with:
+  - `powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv`
+- The Bazel-backed repo binary launched through `kain`, `kn`, `D:/Kain-Bazel/bin/kain.exe`, or `%USERPROFILE%/.cargo/bin/kain.exe` should report `Binary Kind: bazel-output` in `kain doctor`.
+
 ## D-drive cache contract
 
 - Keep Bazel heavy outputs off `C:`.

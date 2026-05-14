@@ -1,0 +1,153 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_local_size_param(name)",
+      "id": "classify-binding.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 183,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 183,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+        "start_col": 1,
+        "start_line": 183
+      },
+      "symbol": "classify_binding",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if is_local_size_param(name) {",
+      "variables": [
+        "is_local_size_param",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "generics.is_empty()",
+      "id": "format-gpu-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 100,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 100,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+        "start_col": 1,
+        "start_line": 100
+      },
+      "symbol": "format_gpu_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if generics.is_empty() {",
+      "variables": [
+        "generics",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*mutable",
+      "id": "format-gpu-type.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 122,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 122,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+        "start_col": 1,
+        "start_line": 122
+      },
+      "symbol": "format_gpu_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if *mutable {",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*mutable",
+      "id": "format-gpu-type.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 129,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 129,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+        "start_col": 1,
+        "start_line": 129
+      },
+      "symbol": "format_gpu_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if *mutable {",
+      "variables": [
+        "mutable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "generics.is_empty()",
+      "id": "format-gpu-type.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 159,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 159,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+        "start_col": 1,
+        "start_line": 159
+      },
+      "symbol": "format_gpu_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if generics.is_empty() {",
+      "variables": [
+        "generics",
+        "is_empty"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "85cb4069ec3f0a82acb0dd5642e14b39a359cec4702a876863ffc182a0338aa8",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_artifacts.rs",
+  "version": 1
+}

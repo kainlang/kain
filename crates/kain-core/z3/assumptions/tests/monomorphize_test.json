@@ -1,0 +1,79 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "a",
+          "b"
+        ],
+        "op": "gt"
+      },
+      "expression": "a > b",
+      "id": "test-generic-with-comparison.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 85,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\monomorphize_test.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 85,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\monomorphize_test.rs",
+        "start_col": 1,
+        "start_line": 85
+      },
+      "symbol": "test_generic_with_comparison",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if a > b:",
+      "variables": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "names.contains(&\"main\"), \"Should have main function\"",
+      "id": "test-simple-generic-instantiation.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 53,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\monomorphize_test.rs",
+      "span": {
+        "end_col": 63,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\monomorphize_test.rs",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "test_simple_generic_instantiation",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(names.contains(&\"main\"), \"Should have main function\");",
+      "variables": [
+        "Should",
+        "contains",
+        "function",
+        "have",
+        "main",
+        "names"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "20e78024808edfbbf27ac17c9bf47c0f0288b9eeebfa9367f54fd2e08a7a761c",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\monomorphize_test.rs",
+  "version": 1
+}

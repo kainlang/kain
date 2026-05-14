@@ -1,0 +1,65 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ch.is_ascii_alphanumeric() || ch == '_'",
+      "id": "sanitize-ident.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 285,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_host.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 285,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_host.rs",
+        "start_col": 1,
+        "start_line": 285
+      },
+      "symbol": "sanitize_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if ch.is_ascii_alphanumeric() || ch == '_' {",
+      "variables": [
+        "_",
+        "ch",
+        "is_ascii_alphanumeric"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "out.is_empty()",
+      "id": "sanitize-ident.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_host.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_host.rs",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "sanitize_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if out.is_empty() {",
+      "variables": [
+        "is_empty",
+        "out"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "86423423c0c14d0df05d925b49c62b3f218ca7d2352e2b760a834fab9314e516",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\gpu_host.rs",
+  "version": 1
+}

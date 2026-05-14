@@ -75,12 +75,51 @@ def resolve_kain_binary_candidates(policy: dict) -> list[str]:
         if candidates:
             return candidates
     return [
+        "PATH:kain",
         "target/debug/kain.exe",
         "target/debug/kain",
         "target/release/kain.exe",
         "target/release/kain",
-        "PATH:kain",
     ]
+
+
+def iter_kain_launcher_dirs(policy: dict) -> list[Path]:
+    discovered: list[Path] = []
+    override = os.environ.get("KAIN_BAZEL_LAUNCHER_DIR", "").strip()
+    if override:
+        discovered.append(Path(override))
+
+    key = "kain_launcher_dirs_windows" if os.name == "nt" else "kain_launcher_dirs_unix"
+    raw = policy.get(key, [])
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                discovered.append(Path(item.strip()))
+
+    if os.name == "nt":
+        discovered.append(Path("D:/Kain-Bazel/bin"))
+
+    ordered: list[Path] = []
+    seen: set[str] = set()
+    for path in discovered:
+        try:
+            candidate = path.expanduser().resolve()
+        except OSError:
+            continue
+        key_value = str(candidate).lower()
+        if key_value in seen or not candidate.exists():
+            continue
+        seen.add(key_value)
+        ordered.append(candidate)
+    return ordered
+
+
+def build_kain_search_path(policy: dict, existing_path: str | None = None) -> str:
+    prefixes = [str(path) for path in iter_kain_launcher_dirs(policy)]
+    base_path = existing_path if existing_path is not None else os.environ.get("PATH", "")
+    if base_path:
+        prefixes.append(base_path)
+    return os.pathsep.join(prefixes)
 
 
 def resolve_sync_state_root(sync_policy: dict) -> Path:
@@ -135,7 +174,7 @@ def append_launch_trace(sync_policy: dict, event: str, **fields) -> None:
         return
 
 
-def resolve_path_candidate(repo_root: Path, candidate: str) -> str:
+def resolve_path_candidate(repo_root: Path, candidate: str, policy: dict) -> str:
     normalized = candidate.strip()
     if not normalized:
         return ""
@@ -143,7 +182,7 @@ def resolve_path_candidate(repo_root: Path, candidate: str) -> str:
         command_name = normalized[len("PATH:") :].strip()
         if not command_name:
             return ""
-        resolved = shutil.which(command_name)
+        resolved = shutil.which(command_name, path=build_kain_search_path(policy))
         return resolved or command_name
     candidate_path = (repo_root / normalized).resolve()
     if candidate_path.exists():
@@ -196,11 +235,11 @@ def resolve_kain_binary(
             return synced_binary
 
     for candidate in resolve_kain_binary_candidates(policy):
-        resolved = resolve_path_candidate(repo_root, candidate)
+        resolved = resolve_path_candidate(repo_root, candidate, policy)
         if resolved and normalize_candidate_for_compare(resolved) not in excluded:
             return resolved
 
-    fallback = shutil.which("kain")
+    fallback = shutil.which("kain", path=build_kain_search_path(policy))
     if fallback and normalize_candidate_for_compare(fallback) not in excluded:
         return fallback
 
@@ -600,8 +639,8 @@ def iter_python_runtime_dirs() -> list[Path]:
     return ordered
 
 
-def build_launch_path() -> str:
-    existing = os.environ.get("PATH", "")
+def build_launch_path(policy: dict) -> str:
+    existing = build_kain_search_path(policy)
     prefixes = [str(path) for path in iter_python_runtime_dirs()]
     if not prefixes:
         return existing
@@ -739,7 +778,7 @@ def main() -> int:
     env["KAIN_MCP_BLADE_ROOT"] = str(blade_root)
     env["KAIN_SYNC_LOCK_PATH"] = str(lock_path)
     env["KAIN_SYNC_STAMP_PATH"] = str(stamp_path)
-    env["PATH"] = build_launch_path()
+    env["PATH"] = build_launch_path(policy)
 
     command = [kain_bin, "run", str(blade_root)]
     if len(sys.argv) > 1:

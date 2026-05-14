@@ -106,6 +106,19 @@ function Resolve-Python312Path {
     return $null
 }
 
+function Resolve-RustcPath {
+    if (-not [string]::IsNullOrWhiteSpace($env:RUSTC) -and (Test-Path $env:RUSTC)) {
+        return (Resolve-Path $env:RUSTC).Path
+    }
+
+    $rustcFromPath = Resolve-CommandPath -Name "rustc"
+    if ($rustcFromPath) {
+        return (Resolve-Path $rustcFromPath).Path
+    }
+
+    return $null
+}
+
 function Get-HashValue {
     param(
         [Parameter(Mandatory = $true)]$Table,
@@ -170,6 +183,20 @@ function Convert-ToStringArray {
         }
     }
     return $result
+}
+
+function Resolve-ConfiguredPathList {
+    param([Parameter(Mandatory = $true)]$Value)
+
+    $results = @()
+    foreach ($item in (Convert-ToStringArray -Value $Value)) {
+        $expanded = [Environment]::ExpandEnvironmentVariables($item)
+        if ($expanded.StartsWith("~")) {
+            $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
+        }
+        $results += [System.IO.Path]::GetFullPath($expanded)
+    }
+    return $results
 }
 
 function Load-RuntimePolicy {
@@ -328,6 +355,54 @@ function Write-JsonAtomic {
     Move-FileAtomically -TempPath $tempPath -DestinationPath $Path
 }
 
+function Write-TextAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Content
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+    $tempPath = Join-Path $directory ([System.IO.Path]::GetFileName($Path) + ".tmp.$PID")
+    [System.IO.File]::WriteAllText($tempPath, $Content, [System.Text.UTF8Encoding]::new($false))
+    Move-FileAtomically -TempPath $tempPath -DestinationPath $Path
+}
+
+function Copy-FileAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $directory = Split-Path -Parent $DestinationPath
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+    $tempPath = Join-Path $directory ([System.IO.Path]::GetFileName($DestinationPath) + ".tmp.$PID")
+    Copy-Item -LiteralPath $SourcePath -Destination $tempPath -Force
+    Move-FileAtomically -TempPath $tempPath -DestinationPath $DestinationPath
+}
+
+function Backup-ExistingBinaryOnce {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Suffix
+    )
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    $backupPath = "$Path.$Suffix"
+    if (Test-Path $backupPath) {
+        return
+    }
+
+    Copy-FileAtomic -SourcePath $Path -DestinationPath $backupPath
+}
+
 function Read-BuildCounter {
     param([Parameter(Mandatory = $true)][string]$CounterPath)
     if (-not (Test-Path $CounterPath)) {
@@ -401,6 +476,62 @@ function Get-BinaryFingerprint {
     }
 }
 
+function Build-BazelLauncherBinary {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$RustcPath,
+        [Parameter(Mandatory = $true)][string]$DefaultRepoRoot,
+        [Parameter(Mandatory = $true)][string]$DefaultBazelConfig,
+        [Parameter(Mandatory = $true)][string]$DefaultLauncherDir,
+        [Parameter(Mandatory = $true)][string]$OutputPath
+    )
+
+    $sourcePath = Join-Path $RepoRoot "scripts\windows\kain_bazel_cli_launcher.rs"
+    if (-not (Test-Path $sourcePath)) {
+        throw ("Bazel launcher source not found at " + $sourcePath)
+    }
+
+    $outputDir = Split-Path -Parent $OutputPath
+    if (-not [string]::IsNullOrWhiteSpace($outputDir)) {
+        New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+    }
+
+    $tempOutputPath = Join-Path $outputDir ([System.IO.Path]::GetFileName($OutputPath) + ".tmp.$PID")
+    $previousRepoRoot = $env:KAIN_DEFAULT_REPO_ROOT
+    $previousBazelConfig = $env:KAIN_DEFAULT_BAZEL_CONFIG
+    $previousLauncherDir = $env:KAIN_DEFAULT_LAUNCHER_DIR
+
+    try {
+        $env:KAIN_DEFAULT_REPO_ROOT = $DefaultRepoRoot
+        $env:KAIN_DEFAULT_BAZEL_CONFIG = $DefaultBazelConfig
+        $env:KAIN_DEFAULT_LAUNCHER_DIR = $DefaultLauncherDir
+        & $RustcPath $sourcePath "--crate-name" "kain_bazel_cli_launcher" "-C" "opt-level=2" "-C" "debuginfo=0" "-o" $tempOutputPath
+        if ($LASTEXITCODE -ne 0) {
+            throw ("rustc failed to build Bazel launcher shim with exit code " + $LASTEXITCODE)
+        }
+        Move-FileAtomically -TempPath $tempOutputPath -DestinationPath $OutputPath
+    } finally {
+        if ($null -ne $previousRepoRoot) {
+            $env:KAIN_DEFAULT_REPO_ROOT = $previousRepoRoot
+        } else {
+            Remove-Item Env:KAIN_DEFAULT_REPO_ROOT -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $previousBazelConfig) {
+            $env:KAIN_DEFAULT_BAZEL_CONFIG = $previousBazelConfig
+        } else {
+            Remove-Item Env:KAIN_DEFAULT_BAZEL_CONFIG -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $previousLauncherDir) {
+            $env:KAIN_DEFAULT_LAUNCHER_DIR = $previousLauncherDir
+        } else {
+            Remove-Item Env:KAIN_DEFAULT_LAUNCHER_DIR -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $tempOutputPath) {
+            Remove-Item -LiteralPath $tempOutputPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 $repoRoot = ""
 if (-not [string]::IsNullOrWhiteSpace($env:KAIN_REPO_ROOT) -and (Test-Path $env:KAIN_REPO_ROOT)) {
     $repoRoot = [System.IO.Path]::GetFullPath($env:KAIN_REPO_ROOT)
@@ -439,20 +570,37 @@ $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPol
         "blades/kain-mcp/config/runtime_policy.json"
     ))
 
-$installRoot = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $env:USERPROFILE ".cargo" }
-$installDir = Join-Path $installRoot "bin"
+$launcherScriptPath = Join-Path $repoRoot "scripts\windows\launch-bazel-cli.ps1"
+if (-not (Test-Path $launcherScriptPath)) {
+    throw ("Bazel launcher script not found at " + $launcherScriptPath)
+}
+$sharedLauncherDir = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_LAUNCHER_DIR)) {
+    [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($env:KAIN_BAZEL_LAUNCHER_DIR))
+} else {
+    [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string](Get-HashValue -Table $syncPolicy -Key "shared_launcher_dir_windows" -DefaultValue "D:/Kain-Bazel/bin")))
+}
+$shadowLauncherDirs = Resolve-ConfiguredPathList -Value (Get-HashValue -Table $syncPolicy -Key "shadow_launcher_dirs_windows" -DefaultValue @("%USERPROFILE%/.cargo/bin"))
+$bazelConfig = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_CONFIG)) {
+    $env:KAIN_BAZEL_CONFIG
+} else {
+    [string](Get-HashValue -Table $syncPolicy -Key "bazel_default_config_windows" -DefaultValue "dev")
+}
 $binaryNames = @("kain", "kn")
 $binaryTargets = foreach ($name in $binaryNames) {
     [pscustomobject]@{
         Name = $name
-        Source = Join-Path $repoRoot ("target\release\" + $name + ".exe")
-        Destination = Join-Path $installDir ($name + ".exe")
+        SharedExecutable = Join-Path $sharedLauncherDir ($name + ".exe")
+        SharedWrapper = Join-Path $sharedLauncherDir ($name + ".cmd")
+        ShadowExecutables = @($shadowLauncherDirs | ForEach-Object { Join-Path $_ ($name + ".exe") })
     }
 }
 $primaryBinary = $binaryTargets | Where-Object { $_.Name -eq "kain" } | Select-Object -First 1
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-Python312Path
-$sessionPathPrefixes = @($installDir)
+$resolvedRustcPath = Resolve-RustcPath
+New-Item -ItemType Directory -Force -Path $sharedLauncherDir | Out-Null
+$sessionPathPrefixes = @($sharedLauncherDir)
+$launcherShimTemplatePath = Join-Path $stateRoot "artifacts\kain_bazel_cli_launcher.exe"
 
 if ($resolvedClangPath) {
     $sessionPathPrefixes += (Split-Path -Parent $resolvedClangPath)
@@ -462,12 +610,15 @@ if ($resolvedPythonPath) {
 }
 
 $resourceMap = [ordered]@{
+    "KAIN_REPO_ROOT" = $repoRoot
     "KAIN_STDLIB_PATH" = (Join-Path $repoRoot "stdlib")
     "KAIN_RUNTIME_C_PATH" = (Join-Path $repoRoot "runtime\kain_runtime.c")
     "KAIN_RUNTIME_MANIFEST_PATH" = (Join-Path $repoRoot "runtime\native_runtime.toml")
     "KAIN_SYNC_ROOT" = $stateRoot
     "KAIN_SYNC_STAMP_PATH" = $stampPath
     "KAIN_SYNC_LOCK_PATH" = $lockPath
+    "KAIN_BAZEL_CONFIG" = $bazelConfig
+    "KAIN_BAZEL_LAUNCHER_DIR" = $sharedLauncherDir
 }
 
 if ($resolvedClangPath) {
@@ -477,18 +628,13 @@ if ($resolvedPythonPath) {
     $resourceMap["PYO3_PYTHON"] = $resolvedPythonPath
 }
 
-$buildNumberForThisSync = ""
-$nextBuildNumber = 0
-$repoSha = Resolve-RepoHeadSha -RepoRoot $repoRoot
-$repoCommitCount = Resolve-RepoCommitCount -RepoRoot $repoRoot
-$repoDirtyState = Resolve-RepoDirtyState -RepoRoot $repoRoot
-
 if (-not $ManagedSync) {
     Write-Host "============================================================================" -ForegroundColor Cyan
     Write-Host "Syncing KAIN source of truth" -ForegroundColor Cyan
     Write-Host "============================================================================" -ForegroundColor Cyan
     Write-Host "Repo Root : $repoRoot"
-    Write-Host "Install   : $installDir"
+    Write-Host "Launcher  : $sharedLauncherDir"
+    Write-Host "Config    : $bazelConfig"
     Write-Host "State Root: $stateRoot"
     Write-Host
 }
@@ -496,7 +642,7 @@ if (-not $ManagedSync) {
 Push-Location $repoRoot
 try {
     if (-not $ManagedSync) {
-        Write-Host "[0/5] Resolving external toolchain paths..." -ForegroundColor Cyan
+        Write-Host "[0/6] Resolving external toolchain paths..." -ForegroundColor Cyan
         if ($resolvedClangPath) {
             Write-Host ("  [ok] clang -> {0}" -f $resolvedClangPath)
         } else {
@@ -506,6 +652,11 @@ try {
             Write-Host ("  [ok] python 3.12 -> {0}" -f $resolvedPythonPath)
         } else {
             Write-Host "  [warn] Python 3.12 not found. PyO3-backed builds may fail on newer default Python versions." -ForegroundColor Yellow
+        }
+        if ($resolvedRustcPath) {
+            Write-Host ("  [ok] rustc -> {0}" -f $resolvedRustcPath)
+        } else {
+            throw "rustc.exe not found in PATH or RUSTC. The Bazel launcher shim cannot be built."
         }
     }
 
@@ -522,56 +673,61 @@ try {
     }
 
     if (-not $SkipBuild) {
-        $currentBuildCounter = Read-ManagedBuildNumber -CounterPath $counterPath -StampPath $stampPath
-        $nextBuildNumber = $currentBuildCounter + 1
-        $buildNumberForThisSync = [string]$nextBuildNumber
-        $env:KAIN_BUILD_NUMBER = $buildNumberForThisSync
-        $env:KAIN_BUILD_TRACKING_MODE = "managed"
-        if ($repoSha -eq "unknown") {
-            $env:KAIN_BUILD_GIT_SHA = "unknown"
-        } elseif ($repoSha.Length -gt 12) {
-            $env:KAIN_BUILD_GIT_SHA = $repoSha.Substring(0, 12)
-        } else {
-            $env:KAIN_BUILD_GIT_SHA = $repoSha
-        }
-        $env:KAIN_BUILD_GIT_COMMIT_COUNT = $repoCommitCount
-        $env:KAIN_BUILD_GIT_DIRTY = $repoDirtyState
-
         if (-not $ManagedSync) {
-            Write-Host "[1/5] Building crates/cli in release mode (build #$buildNumberForThisSync)..." -ForegroundColor Cyan
+            Write-Host "[1/6] Building Bazel CLI targets through the shared launcher lane..." -ForegroundColor Cyan
         }
-        cargo build --release -p cli
-        if ($LASTEXITCODE -ne 0) {
-            throw "cargo build --release -p cli failed with exit code $LASTEXITCODE"
+        foreach ($binary in $binaryTargets) {
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherScriptPath -BinaryName $binary.Name -BazelConfig $bazelConfig -LauncherPath $binary.SharedExecutable -UpdateStampOnly
+            if ($LASTEXITCODE -ne 0) {
+                throw ("Bazel launcher build failed for " + $binary.Name + " with exit code " + $LASTEXITCODE)
+            }
+            if (-not $ManagedSync) {
+                Write-Host ("  [built] //:{0} via {1}" -f $binary.Name, $binary.SharedExecutable)
+            }
         }
-        Write-BuildCounter -CounterPath $counterPath -NextBuildNumber $nextBuildNumber
     } else {
         if (-not $ManagedSync) {
-            Write-Host "[1/5] Skipping build (using existing release binary)..." -ForegroundColor Yellow
+            Write-Host "[1/6] Skipping build (refreshing wrapper stamp only)..." -ForegroundColor Yellow
         }
-    }
-
-    foreach ($binary in $binaryTargets) {
-        if (-not (Test-Path $binary.Source)) {
-            throw ("Release binary not found at " + $binary.Source)
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $launcherScriptPath -BinaryName "kain" -BazelConfig $bazelConfig -LauncherPath $primaryBinary.SharedExecutable -UpdateStampOnly -SkipBuild
+        if ($LASTEXITCODE -ne 0) {
+            throw ("Bazel launcher stamp refresh failed with exit code " + $LASTEXITCODE)
         }
     }
 
     if (-not $ManagedSync) {
-        Write-Host "[2/5] Installing stable PATH binaries (atomic swap)..." -ForegroundColor Cyan
+        Write-Host "[2/6] Building native Bazel launcher shim..." -ForegroundColor Cyan
     }
-    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+    Build-BazelLauncherBinary -RepoRoot $repoRoot -RustcPath $resolvedRustcPath -DefaultRepoRoot $repoRoot -DefaultBazelConfig $bazelConfig -DefaultLauncherDir $sharedLauncherDir -OutputPath $launcherShimTemplatePath
+    if (-not $ManagedSync) {
+        Write-Host ("  [shim] {0}" -f $launcherShimTemplatePath)
+        Write-Host "[3/6] Installing shared PATH launchers..." -ForegroundColor Cyan
+    }
     foreach ($binary in $binaryTargets) {
-        $tempDestination = ($binary.Destination + ".syncing." + $PID + ".tmp")
-        Copy-Item -LiteralPath $binary.Source -Destination $tempDestination -Force
-        Move-FileAtomically -TempPath $tempDestination -DestinationPath $binary.Destination
+        Copy-FileAtomic -SourcePath $launcherShimTemplatePath -DestinationPath $binary.SharedExecutable
         if (-not $ManagedSync) {
-            Write-Host ("  [swap] {0} -> {1}" -f $binary.Source, $binary.Destination)
+            Write-Host ("  [exe] {0}" -f $binary.SharedExecutable)
+        }
+        foreach ($shadowExecutable in $binary.ShadowExecutables) {
+            Backup-ExistingBinaryOnce -Path $shadowExecutable -Suffix "pre-bazel-wrapper"
+            Copy-FileAtomic -SourcePath $launcherShimTemplatePath -DestinationPath $shadowExecutable
+            if (-not $ManagedSync) {
+                Write-Host ("  [shadow] {0}" -f $shadowExecutable)
+            }
+        }
+        $wrapperContent = @"
+@echo off
+"%~dp0$($binary.Name).exe" %*
+exit /b %ERRORLEVEL%
+"@
+        Write-TextAtomic -Path $binary.SharedWrapper -Content $wrapperContent
+        if (-not $ManagedSync) {
+            Write-Host ("  [cmd] {0}" -f $binary.SharedWrapper)
         }
     }
 
     if (-not $ManagedSync) {
-        Write-Host "[3/5] Applying KAIN resource roots to this session..." -ForegroundColor Cyan
+        Write-Host "[4/6] Applying KAIN resource roots to this session..." -ForegroundColor Cyan
     }
     foreach ($entry in $resourceMap.GetEnumerator()) {
         if (-not [string]::IsNullOrWhiteSpace([string]$entry.Value)) {
@@ -584,7 +740,7 @@ try {
 
     if ($PersistUserEnv) {
         if (-not $ManagedSync) {
-            Write-Host "[4/5] Persisting PATH and KAIN environment variables for future shells..." -ForegroundColor Cyan
+            Write-Host "[5/6] Persisting PATH and KAIN environment variables for future shells..." -ForegroundColor Cyan
         }
         foreach ($entry in $resourceMap.GetEnumerator()) {
             if (-not [string]::IsNullOrWhiteSpace([string]$entry.Value)) {
@@ -600,29 +756,15 @@ try {
             }
         }
     } elseif (-not $ManagedSync) {
-        Write-Host "[4/5] Session updated. Use -PersistUserEnv to make it permanent." -ForegroundColor Cyan
+        Write-Host "[5/6] Session updated. Use -PersistUserEnv to make it permanent." -ForegroundColor Cyan
     }
 
-    $runtimeStamp = Get-RuntimeStamp -RepoRoot $repoRoot -RuntimeStampFiles $runtimeStampFiles
-    $binaryFingerprint = Get-BinaryFingerprint -Path $primaryBinary.Destination
-    $nowUnix = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    $stampPayload = @{
-        schema_version = 1
-        repo_root = $repoRoot
-        repo_sha = $repoSha
-        runtime_stamp = $runtimeStamp
-        runtime_stamp_files = $runtimeStampFiles
-        binary = $binaryFingerprint
-        build_number = $buildNumberForThisSync
-        synced_at_unix = $nowUnix
-        last_attempt_unix = $nowUnix
-        managed_sync = [bool]$ManagedSync
+    if (-not (Test-Path $stampPath)) {
+        throw ("Expected sync stamp at " + $stampPath + " after Bazel launcher refresh")
     }
-
-    Write-JsonAtomic -Path $stampPath -Payload $stampPayload
 
     if (-not $ManagedSync) {
-        Write-Host "[5/5] Sync stamp updated: $stampPath" -ForegroundColor Cyan
+        Write-Host "[6/6] Sync stamp updated: $stampPath" -ForegroundColor Cyan
         Write-Host
         Write-Host "Active PATH resolution (kain):" -ForegroundColor Green
         & where.exe kain
@@ -630,8 +772,8 @@ try {
         Write-Host "Active PATH resolution (kn):" -ForegroundColor Green
         & where.exe kn
         Write-Host
-        Write-Host "Installed binary doctor output:" -ForegroundColor Green
-        & $primaryBinary.Destination doctor
+        Write-Host "Installed launcher doctor output:" -ForegroundColor Green
+        & $primaryBinary.SharedExecutable doctor
     }
 } finally {
     Pop-Location

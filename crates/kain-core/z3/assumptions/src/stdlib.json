@@ -1,0 +1,1331 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(env_path) = env::var(\"KAIN_STDLIB_PATH\")",
+      "id": "find-stdlib-search-roots.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1327,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 1327,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1327
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Ok(env_path) = env::var(\"KAIN_STDLIB_PATH\") {",
+      "variables": [
+        "KAIN_STDLIB_PATH",
+        "Ok",
+        "env",
+        "env_path",
+        "let",
+        "var"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path.exists()",
+      "id": "find-stdlib-search-roots.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1329,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 1329,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1329
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path.exists() {",
+      "variables": [
+        "exists",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(exe_path) = env::current_exe()",
+      "id": "find-stdlib-search-roots.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1336,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 1336,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1336
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Ok(exe_path) = env::current_exe() {",
+      "variables": [
+        "Ok",
+        "current_exe",
+        "env",
+        "exe_path",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(mut current) = exe_path.parent()",
+      "id": "find-stdlib-search-roots.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1337,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 1337,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1337
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(mut current) = exe_path.parent() {",
+      "variables": [
+        "Some",
+        "current",
+        "exe_path",
+        "let",
+        "mut",
+        "parent"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib_dir.exists() && stdlib_dir.is_dir()",
+      "id": "find-stdlib-search-roots.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1340,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1340,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1340
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if stdlib_dir.exists() && stdlib_dir.is_dir() {",
+      "variables": [
+        "exists",
+        "is_dir",
+        "stdlib_dir"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(parent) = current.parent()",
+      "id": "find-stdlib-search-roots.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1346,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 1346,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1346
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(parent) = current.parent() {",
+      "variables": [
+        "Some",
+        "current",
+        "let",
+        "parent"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(mut current) = env::current_dir()",
+      "id": "find-stdlib-search-roots.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1356,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 1356,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1356
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Ok(mut current) = env::current_dir() {",
+      "variables": [
+        "Ok",
+        "current",
+        "current_dir",
+        "env",
+        "let",
+        "mut"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib_dir.exists() && stdlib_dir.is_dir()",
+      "id": "find-stdlib-search-roots.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1359,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1359,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1359
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if stdlib_dir.exists() && stdlib_dir.is_dir() {",
+      "variables": [
+        "exists",
+        "is_dir",
+        "stdlib_dir"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!roots.iter().any(|r| r == &stdlib_dir)",
+      "id": "find-stdlib-search-roots.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1361,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 45,
+        "end_line": 1361,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1361
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !roots.iter().any(|r| r == &stdlib_dir) {",
+      "variables": [
+        "any",
+        "iter",
+        "r",
+        "roots",
+        "stdlib_dir"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(parent) = current.parent()",
+      "id": "find-stdlib-search-roots.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1368,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 1368,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1368
+      },
+      "symbol": "find_stdlib_search_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(parent) = current.parent() {",
+      "variables": [
+        "Some",
+        "current",
+        "let",
+        "parent"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path.is_file()",
+      "id": "load-kn-files-from-dir.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1401,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 1401,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1401
+      },
+      "symbol": "load_kn_files_from_dir",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path.is_file() {",
+      "variables": [
+        "is_file",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(filename) = path.file_name()",
+      "id": "load-kn-files-from-dir.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1402,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 1402,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1402
+      },
+      "symbol": "load_kn_files_from_dir",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(filename) = path.file_name() {",
+      "variables": [
+        "Some",
+        "file_name",
+        "filename",
+        "let",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "filename_str.ends_with(\".kn\")",
+      "id": "load-kn-files-from-dir.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1406,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 1406,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1406
+      },
+      "symbol": "load_kn_files_from_dir",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if filename_str.ends_with(\".kn\") {",
+      "variables": [
+        "ends_with",
+        "filename_str",
+        "kn"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "filename_str.to_lowercase().contains(\"readme\")",
+      "id": "load-kn-files-from-dir.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1408,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 1408,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1408
+      },
+      "symbol": "load_kn_files_from_dir",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if filename_str.to_lowercase().contains(\"readme\") {",
+      "variables": [
+        "contains",
+        "filename_str",
+        "readme",
+        "to_lowercase"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kn_files.is_empty()",
+      "id": "load-kn-files-from-dir.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1429,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 1429,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1429
+      },
+      "symbol": "load_kn_files_from_dir",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if kn_files.is_empty() {",
+      "variables": [
+        "is_empty",
+        "kn_files"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "search_roots.is_empty()",
+      "id": "load-stdlib.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1520,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 1520,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1520
+      },
+      "symbol": "load_stdlib",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if search_roots.is_empty() {",
+      "variables": [
+        "is_empty",
+        "search_roots"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "search_roots.is_empty()",
+      "id": "load-stdlib-for-target.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1536,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 1536,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1536
+      },
+      "symbol": "load_stdlib_for_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if search_roots.is_empty() {",
+      "variables": [
+        "is_empty",
+        "search_roots"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "candidate_dir.exists() && candidate_dir.is_dir()",
+      "id": "load-stdlib-from-profiles.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1495,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 1495,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1495
+      },
+      "symbol": "load_stdlib_from_profiles",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if candidate_dir.exists() && candidate_dir.is_dir() {",
+      "variables": [
+        "candidate_dir",
+        "exists",
+        "is_dir"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(stdlib_source) = load_kn_files_from_dir(&candidate_dir)",
+      "id": "load-stdlib-from-profiles.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1496,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 1496,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1496
+      },
+      "symbol": "load_stdlib_from_profiles",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(stdlib_source) = load_kn_files_from_dir(&candidate_dir) {",
+      "variables": [
+        "Some",
+        "candidate_dir",
+        "let",
+        "load_kn_files_from_dir",
+        "stdlib_source"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!chunks.is_empty()",
+      "id": "load-stdlib-from-profiles.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1502,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 1502,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1502
+      },
+      "symbol": "load_stdlib_from_profiles",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !chunks.is_empty() {",
+      "variables": [
+        "chunks",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "profiles.is_empty()",
+      "id": "parse-profile-env-override.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1483,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 1483,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1483
+      },
+      "symbol": "parse_profile_env_override",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if profiles.is_empty() {",
+      "variables": [
+        "is_empty",
+        "profiles"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "profile.trim().is_empty() || profile.eq_ignore_ascii_case(\"root\")",
+      "id": "resolve-profile-path.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1469,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 71,
+        "end_line": 1469,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1469
+      },
+      "symbol": "resolve_profile_path",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if profile.trim().is_empty() || profile.eq_ignore_ascii_case(\"root\") {",
+      "variables": [
+        "eq_ignore_ascii_case",
+        "is_empty",
+        "profile",
+        "root",
+        "trim"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "roots.is_empty() || !roots.is_empty()",
+      "id": "test-find-stdlib-invalid-env-var-falls-back.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1615,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1615,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1615
+      },
+      "symbol": "test_find_stdlib_invalid_env_var_falls_back",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(roots.is_empty() || !roots.is_empty());",
+      "variables": [
+        "is_empty",
+        "roots"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "alpha_pos",
+          "middle_pos"
+        ],
+        "op": "lt"
+      },
+      "expression": "alpha_pos < middle_pos",
+      "id": "test-load-kn-files-alphabetical-order.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1643,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 1643,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1643
+      },
+      "symbol": "test_load_kn_files_alphabetical_order",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(alpha_pos < middle_pos);",
+      "variables": [
+        "alpha_pos",
+        "middle_pos"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "middle_pos",
+          "zebra_pos"
+        ],
+        "op": "lt"
+      },
+      "expression": "middle_pos < zebra_pos",
+      "id": "test-load-kn-files-alphabetical-order.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1644,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 1644,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1644
+      },
+      "symbol": "test_load_kn_files_alphabetical_order",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(middle_pos < zebra_pos);",
+      "variables": [
+        "middle_pos",
+        "zebra_pos"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_none()",
+      "id": "test-load-kn-files-empty-directory.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1698,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1698,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1698
+      },
+      "symbol": "test_load_kn_files_empty_directory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.is_none());",
+      "variables": [
+        "is_none",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.contains(\"content1\")",
+      "id": "test-load-kn-files-multiple-files.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1680,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 1680,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1680
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.contains(\"content1\"));",
+      "variables": [
+        "contains",
+        "content1",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.contains(\"content2\")",
+      "id": "test-load-kn-files-multiple-files.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1681,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 1681,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1681
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.contains(\"content2\"));",
+      "variables": [
+        "contains",
+        "content2",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.contains(\"content3\")",
+      "id": "test-load-kn-files-multiple-files.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1682,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 1682,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1682
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.contains(\"content3\"));",
+      "variables": [
+        "contains",
+        "content3",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "lines.len() >= 3",
+      "id": "test-load-kn-files-multiple-files.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1686,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1686,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1686
+      },
+      "symbol": "test_load_kn_files_multiple_files",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(lines.len() >= 3);",
+      "variables": [
+        "len",
+        "lines"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_none()",
+      "id": "test-load-kn-files-no-kn-files.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1713,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1713,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1713
+      },
+      "symbol": "test_load_kn_files_no_kn_files",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.is_none());",
+      "variables": [
+        "is_none",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_none()",
+      "id": "test-load-kn-files-nonexistent-directory.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1724,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1724,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1724
+      },
+      "symbol": "test_load_kn_files_nonexistent_directory",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.is_none());",
+      "variables": [
+        "is_none",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "native_pos",
+          "c_pos"
+        ],
+        "op": "lt"
+      },
+      "expression": "native_pos < c_pos",
+      "id": "test-load-stdlib-for-target-uses-target-profile-order.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1921,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 1921,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1921
+      },
+      "symbol": "test_load_stdlib_for_target_uses_target_profile_order",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(native_pos < c_pos);",
+      "variables": [
+        "c_pos",
+        "native_pos"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.is_empty() || !result.is_empty()",
+      "id": "test-load-stdlib-graceful-degradation-no-panic.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1744,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 1744,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1744
+      },
+      "symbol": "test_load_stdlib_graceful_degradation_no_panic",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(result.is_empty() || !result.is_empty());",
+      "variables": [
+        "is_empty",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"print\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1929,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1929,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1929
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"print\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "print",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"println\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1930,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 1930,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1930
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"println\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "println",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"sqrt\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1931,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1931,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1931
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"sqrt\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "sqrt",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"vec3\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1932,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1932,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1932
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"vec3\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "stdlib",
+        "vec3"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"push\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1933,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 1933,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1933
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"push\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "push",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"ask\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.6",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1934,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 1934,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1934
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"ask\"));",
+      "variables": [
+        "ask",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"ask_timeout\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.7",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1935,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 1935,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1935
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"ask_timeout\"));",
+      "variables": [
+        "ask_timeout",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"command_run\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.8",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1936,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 1936,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1936
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"command_run\"));",
+      "variables": [
+        "command_run",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"json_parse\")",
+      "id": "test-stdlib-builtin-functions-exist.assert-condition.9",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1937,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 1937,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1937
+      },
+      "symbol": "test_stdlib_builtin_functions_exist",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"json_parse\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "json_parse",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!sqrt_fn.doc.is_empty()",
+      "id": "test-stdlib-function-metadata.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 1951,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 1951,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+        "start_col": 1,
+        "start_line": 1951
+      },
+      "symbol": "test_stdlib_function_metadata",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!sqrt_fn.doc.is_empty());",
+      "variables": [
+        "doc",
+        "is_empty",
+        "sqrt_fn"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "033dbf906a01c562a257ef27a32b024e1ac6118b187109d55d435ebc3bf35c14",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\stdlib.rs",
+  "version": 1
+}

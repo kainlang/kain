@@ -2856,7 +2856,9 @@ fn format_build_time(unix_time: &str) -> String {
 }
 
 fn classify_binary_path(path: &Path) -> &'static str {
-    if is_repo_target_binary(path) {
+    if is_bazel_output_binary(path) {
+        "bazel-output"
+    } else if is_repo_target_binary(path) {
         "repo-target"
     } else if is_cargo_bin_binary(path) {
         "cargo-bin"
@@ -2871,6 +2873,13 @@ fn is_repo_target_binary(path: &Path) -> bool {
         .replace('/', "\\")
         .to_ascii_lowercase();
     normalized.contains("\\target\\debug\\") || normalized.contains("\\target\\release\\")
+}
+
+fn is_bazel_output_binary(path: &Path) -> bool {
+    path.to_string_lossy()
+        .replace('/', "\\")
+        .to_ascii_lowercase()
+        .contains("\\bazel-out\\")
 }
 
 fn is_cargo_bin_binary(path: &Path) -> bool {
@@ -2900,7 +2909,14 @@ fn doctor_path_status(
         (Some(current), Some(path_entry)) if paths_equivalent(current, path_entry) => {
             "current process matches PATH".to_string()
         }
-        (Some(_), Some(_)) => "drift: current process differs from PATH".to_string(),
+        (Some(_), Some(path_entry)) => {
+            if let Some(active_launcher_path) = active_launcher_path_for_doctor(command_name) {
+                if paths_equivalent(&active_launcher_path, path_entry) {
+                    return "current process launched through PATH Bazel wrapper".to_string();
+                }
+            }
+            "drift: current process differs from PATH".to_string()
+        }
         (Some(_), None) => {
             format!("current process exists, but {command_name} is not resolvable from PATH")
         }
@@ -2909,6 +2925,14 @@ fn doctor_path_status(
         }
         (None, None) => "unknown".to_string(),
     }
+}
+
+fn active_launcher_path_for_doctor(command_name: &str) -> Option<PathBuf> {
+    let active_launcher_name = std::env::var("KAIN_ACTIVE_LAUNCHER_NAME").ok()?;
+    if active_launcher_name != command_name {
+        return None;
+    }
+    std::env::var_os("KAIN_ACTIVE_LAUNCHER_PATH").map(PathBuf::from)
 }
 
 fn paths_equivalent(a: &Path, b: &Path) -> bool {

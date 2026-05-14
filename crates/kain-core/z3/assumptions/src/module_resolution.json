@@ -1,0 +1,398 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path_segments.is_empty()",
+      "id": "append-blade-module-candidates-for-roots.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 126,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 126,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 126
+      },
+      "symbol": "append_blade_module_candidates_for_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path_segments.is_empty() {",
+      "variables": [
+        "is_empty",
+        "path_segments"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path_segments.len() > 1",
+      "id": "append-blade-module-candidates-for-roots.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 137,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 137,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 137
+      },
+      "symbol": "append_blade_module_candidates_for_roots",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path_segments.len() > 1 {",
+      "variables": [
+        "len",
+        "path_segments"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path_segments.len() > 1",
+      "id": "filesystem-item-import-fallback-start.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 147,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 147,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 147
+      },
+      "symbol": "filesystem_item_import_fallback_start",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if path_segments.len() > 1 {",
+      "variables": [
+        "len",
+        "path_segments"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path_segments.is_empty()",
+      "id": "filesystem-module-candidates.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 75,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 75,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 75
+      },
+      "symbol": "filesystem_module_candidates",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path_segments.is_empty() {",
+      "variables": [
+        "is_empty",
+        "path_segments"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "path_segments.len() > 1",
+      "id": "filesystem-module-candidates.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 97,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 97,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 97
+      },
+      "symbol": "filesystem_module_candidates",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if path_segments.len() > 1 {",
+      "variables": [
+        "len",
+        "path_segments"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(env_path) = std::env::var(\"KAIN_STDLIB_PATH\")",
+      "id": "find-stdlib-roots.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 15,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 15,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 15
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Ok(env_path) = std::env::var(\"KAIN_STDLIB_PATH\") {",
+      "variables": [
+        "KAIN_STDLIB_PATH",
+        "Ok",
+        "env",
+        "env_path",
+        "let",
+        "std",
+        "var"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(exe_path) = std::env::current_exe()",
+      "id": "find-stdlib-roots.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 19,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 19,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 19
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Ok(exe_path) = std::env::current_exe() {",
+      "variables": [
+        "Ok",
+        "current_exe",
+        "env",
+        "exe_path",
+        "let",
+        "std"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf())",
+      "id": "find-stdlib-roots.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 20,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 68,
+        "end_line": 20,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 20
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {",
+      "variables": [
+        "Some",
+        "dir",
+        "exe_path",
+        "let",
+        "map",
+        "mut",
+        "p",
+        "parent",
+        "to_path_buf"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!dir.pop()",
+      "id": "find-stdlib-roots.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 23,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 16,
+        "end_line": 23,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 23
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !dir.pop() {",
+      "variables": [
+        "dir",
+        "pop"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(mut dir) = std::env::current_dir()",
+      "id": "find-stdlib-roots.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 30,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 30,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 30
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Ok(mut dir) = std::env::current_dir() {",
+      "variables": [
+        "Ok",
+        "current_dir",
+        "dir",
+        "env",
+        "let",
+        "mut",
+        "std"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!dir.pop()",
+      "id": "find-stdlib-roots.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 33,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 16,
+        "end_line": 33,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 33
+      },
+      "symbol": "find_stdlib_roots",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !dir.pop() {",
+      "variables": [
+        "dir",
+        "pop"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!paths.iter().any(|existing| existing == &path)",
+      "id": "push-unique-path.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 155,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 155,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 155
+      },
+      "symbol": "push_unique_path",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !paths.iter().any(|existing| existing == &path) {",
+      "variables": [
+        "any",
+        "existing",
+        "iter",
+        "path",
+        "paths"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "candidate.exists()",
+      "id": "resolve-filesystem-module-file.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 56,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 56,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+        "start_col": 1,
+        "start_line": 56
+      },
+      "symbol": "resolve_filesystem_module_file",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if candidate.exists() {",
+      "variables": [
+        "candidate",
+        "exists"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "7061621d70a18fd12ff1546ba01f4625025d39fd563bf6a9251ce8f6a8487b3e",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\module_resolution.rs",
+  "version": 1
+}

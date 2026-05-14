@@ -1,0 +1,74 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::Comptime(inner, span) = expr",
+      "id": "eval-expr-in-place.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 80,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 80,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
+        "start_col": 1,
+        "start_line": 80
+      },
+      "symbol": "eval_expr_in_place",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Expr::Comptime(inner, span) = expr {",
+      "variables": [
+        "Comptime",
+        "Expr",
+        "expr",
+        "inner",
+        "let",
+        "span"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let JSXAttrValue::Expr(e) = &mut attr.value",
+      "id": "eval-jsx.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 136,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 136,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
+        "start_col": 1,
+        "start_line": 136
+      },
+      "symbol": "eval_jsx",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let JSXAttrValue::Expr(e) = &mut attr.value {",
+      "variables": [
+        "Expr",
+        "JSXAttrValue",
+        "attr",
+        "e",
+        "let",
+        "mut",
+        "value"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "c159f35208010f4e3f978c3e82d1cc86ab9e6edfdb922654c5046690dc04c936",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\comptime.rs",
+  "version": 1
+}

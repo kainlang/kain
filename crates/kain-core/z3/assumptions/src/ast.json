@@ -1,0 +1,2077 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(next_else) = next",
+      "id": "collect-type-names-from-else-branch.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2951,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 2951,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2951
+      },
+      "symbol": "collect_type_names_from_else_branch",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if let Some(next_else) = next {",
+      "variables": [
+        "Some",
+        "let",
+        "next",
+        "next_else"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(rest) = rest",
+      "id": "collect-type-names-from-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2661,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 2661,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2661
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(rest) = rest {",
+      "variables": [
+        "Some",
+        "let",
+        "rest"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(else_b) = else_branch",
+      "id": "collect-type-names-from-expr.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2738,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2738,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2738
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(else_b) = else_branch {",
+      "variables": [
+        "Some",
+        "else_b",
+        "else_branch",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(guard) = &arm.guard",
+      "id": "collect-type-names-from-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2748,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 2748,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2748
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(guard) = &arm.guard {",
+      "variables": [
+        "Some",
+        "arm",
+        "guard",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = return_type",
+      "id": "collect-type-names-from-expr.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2763,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2763,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2763
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ret) = return_type {",
+      "variables": [
+        "Some",
+        "let",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(s) = start",
+      "id": "collect-type-names-from-expr.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2788,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 2788,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2788
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(s) = start {",
+      "variables": [
+        "Some",
+        "let",
+        "s",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(e) = end",
+      "id": "collect-type-names-from-expr.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2791,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2791,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2791
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(e) = end {",
+      "variables": [
+        "Some",
+        "e",
+        "end",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = pointee_ty",
+      "id": "collect-type-names-from-expr.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2802,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 2802,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2802
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = pointee_ty {",
+      "variables": [
+        "Some",
+        "let",
+        "pointee_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = element_ty",
+      "id": "collect-type-names-from-expr.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2822,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 2822,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2822
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = element_ty {",
+      "variables": [
+        "Some",
+        "element_ty",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = load_ty",
+      "id": "collect-type-names-from-expr.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2830,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 2830,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2830
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = load_ty {",
+      "variables": [
+        "Some",
+        "let",
+        "load_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = store_ty",
+      "id": "collect-type-names-from-expr.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2842,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 29,
+        "end_line": 2842,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2842
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = store_ty {",
+      "variables": [
+        "Some",
+        "let",
+        "store_ty",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty",
+      "id": "collect-type-names-from-expr.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2857,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2857,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2857
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = ty {",
+      "variables": [
+        "Some",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty",
+      "id": "collect-type-names-from-expr.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2866,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2866,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2866
+      },
+      "symbol": "collect_type_names_from_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = ty {",
+      "variables": [
+        "Some",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &p.default",
+      "id": "collect-type-names-from-item.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2165,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2165,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2165
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &p.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "p"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &f.return_type",
+      "id": "collect-type-names-from-item.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2169,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2169,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2169
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret) = &f.return_type {",
+      "variables": [
+        "Some",
+        "f",
+        "let",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &param.default",
+      "id": "collect-type-names-from-item.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2182,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2182,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2182
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &param.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &patch.return_type",
+      "id": "collect-type-names-from-item.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2186,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2186,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2186
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret) = &patch.return_type {",
+      "variables": [
+        "Some",
+        "let",
+        "patch",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &param.default",
+      "id": "collect-type-names-from-item.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2199,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2199,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2199
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &param.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &param.default",
+      "id": "collect-type-names-from-item.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2214,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2214,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2214
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &param.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &converge.return_type",
+      "id": "collect-type-names-from-item.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2218,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 2218,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2218
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret) = &converge.return_type {",
+      "variables": [
+        "Some",
+        "converge",
+        "let",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &param.default",
+      "id": "collect-type-names-from-item.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2248,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2248,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2248
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &param.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &orchestrate.return_type",
+      "id": "collect-type-names-from-item.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2252,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 2252,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2252
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret) = &orchestrate.return_type {",
+      "variables": [
+        "Some",
+        "let",
+        "orchestrate",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &f.default",
+      "id": "collect-type-names-from-item.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2265,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2265,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2265
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &f.default {",
+      "variables": [
+        "Some",
+        "default",
+        "f",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret) = &method.return_type",
+      "id": "collect-type-names-from-item.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2341,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 2341,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2341
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret) = &method.return_type {",
+      "variables": [
+        "Some",
+        "let",
+        "method",
+        "ret",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(body) = &method.default_impl",
+      "id": "collect-type-names-from-item.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2344,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 2344,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2344
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(body) = &method.default_impl {",
+      "variables": [
+        "Some",
+        "body",
+        "default_impl",
+        "let",
+        "method"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(trait_name) = &i.trait_name",
+      "id": "collect-type-names-from-item.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2350,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 2350,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2350
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(trait_name) = &i.trait_name {",
+      "variables": [
+        "Some",
+        "i",
+        "let",
+        "trait_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &input.default",
+      "id": "collect-type-names-from-item.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2373,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2373,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2373
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &input.default {",
+      "variables": [
+        "Some",
+        "default",
+        "input",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &input.default",
+      "id": "collect-type-names-from-item.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2391,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2391,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2391
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &input.default {",
+      "variables": [
+        "Some",
+        "default",
+        "input",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &pin.default",
+      "id": "collect-type-names-from-item.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2408,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 2408,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2408
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &pin.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "pin"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &pin.default",
+      "id": "collect-type-names-from-item.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2414,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 2414,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2414
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &pin.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "pin"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(default) = &prop.default",
+      "id": "collect-type-names-from-item.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2420,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 2420,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2420
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(default) = &prop.default {",
+      "variables": [
+        "Some",
+        "default",
+        "let",
+        "prop"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(schema) = &ge.schema",
+      "id": "collect-type-names-from-item.guard-condition.19",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2425,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2425,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2425
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(schema) = &ge.schema {",
+      "variables": [
+        "Some",
+        "ge",
+        "let",
+        "schema"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(gd) = &gr.graph_data",
+      "id": "collect-type-names-from-item.guard-condition.20",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2432,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2432,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2432
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(gd) = &gr.graph_data {",
+      "variables": [
+        "Some",
+        "gd",
+        "gr",
+        "graph_data",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(base) = &nd.base_class",
+      "id": "collect-type-names-from-item.guard-condition.21",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2441,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 2441,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2441
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(base) = &nd.base_class {",
+      "variables": [
+        "Some",
+        "base",
+        "base_class",
+        "let",
+        "nd"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(logic) = &nd.execute_logic",
+      "id": "collect-type-names-from-item.guard-condition.22",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2456,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 41,
+        "end_line": 2456,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2456
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(logic) = &nd.execute_logic {",
+      "variables": [
+        "Some",
+        "execute_logic",
+        "let",
+        "logic",
+        "nd"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(inst) = &gr.instance",
+      "id": "collect-type-names-from-item.guard-condition.23",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2460,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2460,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2460
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(inst) = &gr.instance {",
+      "variables": [
+        "Some",
+        "gr",
+        "inst",
+        "instance",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(pc) = &gr.pin_config",
+      "id": "collect-type-names-from-item.guard-condition.24",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2473,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2473,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2473
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(pc) = &gr.pin_config {",
+      "variables": [
+        "Some",
+        "gr",
+        "let",
+        "pc",
+        "pin_config"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(cond) = &transition.condition",
+      "id": "collect-type-names-from-item.guard-condition.25",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2488,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 2488,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2488
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(cond) = &transition.condition {",
+      "variables": [
+        "Some",
+        "cond",
+        "condition",
+        "let",
+        "transition"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_enter) = &state.on_enter",
+      "id": "collect-type-names-from-item.guard-condition.26",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2492,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 2492,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2492
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_enter) = &state.on_enter {",
+      "variables": [
+        "Some",
+        "let",
+        "on_enter",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_exit) = &state.on_exit",
+      "id": "collect-type-names-from-item.guard-condition.27",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2495,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 2495,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2495
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_exit) = &state.on_exit {",
+      "variables": [
+        "Some",
+        "let",
+        "on_exit",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(do_work) = &at.do_work",
+      "id": "collect-type-names-from-item.guard-condition.28",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2507,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 2507,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2507
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(do_work) = &at.do_work {",
+      "variables": [
+        "Some",
+        "at",
+        "do_work",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(callback) = &at.callback",
+      "id": "collect-type-names-from-item.guard-condition.29",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2510,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 2510,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2510
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(callback) = &at.callback {",
+      "variables": [
+        "Some",
+        "at",
+        "callback",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_execute) = &cue.on_execute",
+      "id": "collect-type-names-from-item.guard-condition.30",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2543,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 2543,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2543
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_execute) = &cue.on_execute {",
+      "variables": [
+        "Some",
+        "cue",
+        "let",
+        "on_execute"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_add) = &cue.on_add",
+      "id": "collect-type-names-from-item.guard-condition.31",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2546,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2546,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2546
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_add) = &cue.on_add {",
+      "variables": [
+        "Some",
+        "cue",
+        "let",
+        "on_add"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_remove) = &cue.on_remove",
+      "id": "collect-type-names-from-item.guard-condition.32",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2549,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 2549,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2549
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_remove) = &cue.on_remove {",
+      "variables": [
+        "Some",
+        "cue",
+        "let",
+        "on_remove"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(while_active) = &cue.while_active",
+      "id": "collect-type-names-from-item.guard-condition.33",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2552,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 2552,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2552
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(while_active) = &cue.while_active {",
+      "variables": [
+        "Some",
+        "cue",
+        "let",
+        "while_active"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(activate) = &task.activate_method",
+      "id": "collect-type-names-from-item.guard-condition.34",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2562,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 2562,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2562
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(activate) = &task.activate_method {",
+      "variables": [
+        "Some",
+        "activate",
+        "activate_method",
+        "let",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(on_destroy) = &task.on_destroy_method",
+      "id": "collect-type-names-from-item.guard-condition.35",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2565,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 2565,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2565
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(on_destroy) = &task.on_destroy_method {",
+      "variables": [
+        "Some",
+        "let",
+        "on_destroy",
+        "on_destroy_method",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(filter) = &target.filter",
+      "id": "collect-type-names-from-item.guard-condition.36",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2574,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 2574,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2574
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(filter) = &target.filter {",
+      "variables": [
+        "Some",
+        "filter",
+        "let",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(custom_filter) = &filter.custom_filter_method",
+      "id": "collect-type-names-from-item.guard-condition.37",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2575,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 2575,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2575
+      },
+      "symbol": "collect_type_names_from_item",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(custom_filter) = &filter.custom_filter_method {",
+      "variables": [
+        "Some",
+        "custom_filter",
+        "custom_filter_method",
+        "filter",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(else_b) = else_branch",
+      "id": "collect-type-names-from-jsx.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3068,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 3068,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 3068
+      },
+      "symbol": "collect_type_names_from_jsx",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(else_b) = else_branch {",
+      "variables": [
+        "Some",
+        "else_b",
+        "else_branch",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(name) = enum_name",
+      "id": "collect-type-names-from-pattern.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2964,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 2964,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2964
+      },
+      "symbol": "collect_type_names_from_pattern",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(name) = enum_name {",
+      "variables": [
+        "Some",
+        "enum_name",
+        "let",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(s) = start",
+      "id": "collect-type-names-from-pattern.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3003,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 3003,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 3003
+      },
+      "symbol": "collect_type_names_from_pattern",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(s) = start {",
+      "variables": [
+        "Some",
+        "let",
+        "s",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(e) = end",
+      "id": "collect-type-names-from-pattern.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 3006,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 3006,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 3006
+      },
+      "symbol": "collect_type_names_from_pattern",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(e) = end {",
+      "variables": [
+        "Some",
+        "e",
+        "end",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty",
+      "id": "collect-type-names-from-stmt.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2902,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2902,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2902
+      },
+      "symbol": "collect_type_names_from_stmt",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(ty) = ty {",
+      "variables": [
+        "Some",
+        "let",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(val) = value",
+      "id": "collect-type-names-from-stmt.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2905,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 2905,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 2905
+      },
+      "symbol": "collect_type_names_from_stmt",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(val) = value {",
+      "variables": [
+        "Some",
+        "let",
+        "val",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(name) = &arg.name",
+      "id": "expr-to-plan-string.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 952,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 952,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 952
+      },
+      "symbol": "expr_to_plan_string",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(name) = &arg.name {",
+      "variables": [
+        "Some",
+        "arg",
+        "let",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Stmt::Item(item) = stmt",
+      "id": "extract-compute-metadata-from-block.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 576,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 576,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 576
+      },
+      "symbol": "extract_compute_metadata_from_block",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Stmt::Item(item) = stmt {",
+      "variables": [
+        "Item",
+        "Stmt",
+        "item",
+        "let",
+        "stmt"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Item::Comptime(comptime) = item.as_ref()",
+      "id": "extract-compute-metadata-from-block.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 577,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 577,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 577
+      },
+      "symbol": "extract_compute_metadata_from_block",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Item::Comptime(comptime) = item.as_ref() {",
+      "variables": [
+        "Comptime",
+        "Item",
+        "as_ref",
+        "comptime",
+        "item",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(metadata) =",
+      "id": "extract-compute-metadata-from-block.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 578,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 578,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 578
+      },
+      "symbol": "extract_compute_metadata_from_block",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(metadata) =",
+      "variables": [
+        "Some",
+        "let",
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Item::Comptime(comptime) = item.as_ref()",
+      "id": "extract-compute-metadata-from-comptime-block.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 603,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 603,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 603
+      },
+      "symbol": "extract_compute_metadata_from_comptime_block",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Item::Comptime(comptime) = item.as_ref() {",
+      "variables": [
+        "Comptime",
+        "Item",
+        "as_ref",
+        "comptime",
+        "item",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(metadata) =",
+      "id": "extract-compute-metadata-from-comptime-block.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 604,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 604,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 604
+      },
+      "symbol": "extract_compute_metadata_from_comptime_block",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(metadata) =",
+      "variables": [
+        "Some",
+        "let",
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "items.len() != 3",
+      "id": "parse-dimension-triplet-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 691,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 691,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 691
+      },
+      "symbol": "parse_dimension_triplet_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if items.len() != 3 {",
+      "variables": [
+        "items",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fields.len() < 4",
+      "id": "parse-neural-node-plan-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 876,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 876,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 876
+      },
+      "symbol": "parse_neural_node_plan_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if fields.len() < 4 {",
+      "variables": [
+        "fields",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fields.len() < 2",
+      "id": "parse-stream-plan-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 817,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 817,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 817
+      },
+      "symbol": "parse_stream_plan_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if fields.len() < 2 {",
+      "variables": [
+        "fields",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "Err(\"expected an array or tuple of strings\".to_string())",
+      "id": "parse-string-list-expr.return-condition.1",
+      "kind": "return-condition",
+      "language": "rust",
+      "line": 910,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 65,
+        "end_line": 910,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 910
+      },
+      "symbol": "parse_string_list_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return Err(\"expected an array or tuple of strings\".to_string());",
+      "variables": [
+        "Err",
+        "an",
+        "array",
+        "expected",
+        "of",
+        "strings",
+        "to_string",
+        "tuple"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "fields.len() < 3",
+      "id": "parse-tensor-plan-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 755,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 755,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+        "start_col": 1,
+        "start_line": 755
+      },
+      "symbol": "parse_tensor_plan_expr",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if fields.len() < 3 {",
+      "variables": [
+        "fields",
+        "len"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "f1ae34ca1978804e59e89f1aa6a99a1bfea1d1f42187bbd97021875b78dd9874",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\ast.rs",
+  "version": 1
+}

@@ -1,0 +1,2087 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "include"
+        ],
+        "op": "not"
+      },
+      "expression": "!include",
+      "id": "build-ui-structure-index.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 649,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 649,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 649
+      },
+      "symbol": "build_ui_structure_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !include {",
+      "variables": [
+        "include"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(metadata) = explicit_metadata",
+      "id": "collect-neural-nodes.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1498,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1498,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1498
+      },
+      "symbol": "collect_neural_nodes",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(metadata) = explicit_metadata {",
+      "variables": [
+        "Some",
+        "explicit_metadata",
+        "let",
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!metadata.neural_node_plans.is_empty()",
+      "id": "collect-neural-nodes.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1499,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1499,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1499
+      },
+      "symbol": "collect_neural_nodes",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !metadata.neural_node_plans.is_empty() {",
+      "variables": [
+        "is_empty",
+        "metadata",
+        "neural_node_plans"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!matches!(shader.ast.stage, ShaderStage::Compute) || storage_bindings.is_empty()",
+      "id": "collect-neural-nodes.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1518,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 86,
+        "end_line": 1518,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1518
+      },
+      "symbol": "collect_neural_nodes",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !matches!(shader.ast.stage, ShaderStage::Compute) || storage_bindings.is_empty() {",
+      "variables": [
+        "Compute",
+        "ShaderStage",
+        "ast",
+        "is_empty",
+        "matches",
+        "shader",
+        "stage",
+        "storage_bindings"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_patches",
+      "expression": "has_patches",
+      "id": "collect-requirements.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2079,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 17,
+        "end_line": 2079,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2079
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_patches {",
+      "variables": [
+        "has_patches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_laws",
+      "expression": "has_laws",
+      "id": "collect-requirements.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2082,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 2082,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2082
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_laws {",
+      "variables": [
+        "has_laws"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_converges",
+      "expression": "has_converges",
+      "id": "collect-requirements.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2085,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 2085,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2085
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_converges {",
+      "variables": [
+        "has_converges"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_entanglements",
+      "expression": "has_entanglements",
+      "id": "collect-requirements.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2088,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 2088,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2088
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_entanglements {",
+      "variables": [
+        "has_entanglements"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_orchestrations",
+      "expression": "has_orchestrations",
+      "id": "collect-requirements.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2091,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2091,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2091
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_orchestrations {",
+      "variables": [
+        "has_orchestrations"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_world_native_ui",
+      "expression": "has_world_native_ui",
+      "id": "collect-requirements.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2094,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 2094,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2094
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_world_native_ui {",
+      "variables": [
+        "has_world_native_ui"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_world_viewport3d",
+      "expression": "has_world_viewport3d",
+      "id": "collect-requirements.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2097,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 2097,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2097
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_world_viewport3d {",
+      "variables": [
+        "has_world_viewport3d"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_world_web",
+      "expression": "has_world_web",
+      "id": "collect-requirements.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2100,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 2100,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2100
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_world_web {",
+      "variables": [
+        "has_world_web"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_world_ue5",
+      "expression": "has_world_ue5",
+      "id": "collect-requirements.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2103,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 2103,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2103
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_world_ue5 {",
+      "variables": [
+        "has_world_ue5"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!shader_bundle_refs.is_empty()",
+      "id": "collect-requirements.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2106,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 36,
+        "end_line": 2106,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2106
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !shader_bundle_refs.is_empty() {",
+      "variables": [
+        "is_empty",
+        "shader_bundle_refs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!shader_canvases.is_empty()",
+      "id": "collect-requirements.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2109,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2109,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2109
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !shader_canvases.is_empty() {",
+      "variables": [
+        "is_empty",
+        "shader_canvases"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_compute_refs",
+      "expression": "has_compute_refs",
+      "id": "collect-requirements.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2113,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 2113,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2113
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_compute_refs {",
+      "variables": [
+        "has_compute_refs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_explicit_compute_metadata",
+      "expression": "has_explicit_compute_metadata",
+      "id": "collect-requirements.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2118,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2118,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2118
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_explicit_compute_metadata {",
+      "variables": [
+        "has_explicit_compute_metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!scenes.is_empty()",
+      "id": "collect-requirements.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2121,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 2121,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2121
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !scenes.is_empty() {",
+      "variables": [
+        "is_empty",
+        "scenes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "tool_caps.iter().any(|entry| entry == \"viewport.3d\")",
+      "id": "collect-requirements.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2124,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 2124,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2124
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if tool_caps.iter().any(|entry| entry == \"viewport.3d\") {",
+      "variables": [
+        "any",
+        "d",
+        "entry",
+        "iter",
+        "tool_caps",
+        "viewport"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "has_world_web =>",
+      "id": "collect-requirements.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2131,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 2131,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2131
+      },
+      "symbol": "collect_requirements",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_world_web =>",
+      "variables": [
+        "has_world_web"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!glyphs.contains(&normalized)",
+      "id": "collect-shader-canvas-glyphs.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1199,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 1199,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1199
+      },
+      "symbol": "collect_shader_canvas_glyphs",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !glyphs.contains(&normalized) {",
+      "variables": [
+        "contains",
+        "glyphs",
+        "normalized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(title) = title_text",
+      "id": "collect-shader-canvas-surface-resources.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1088,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 1088,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1088
+      },
+      "symbol": "collect_shader_canvas_surface_resources",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(title) = title_text {",
+      "variables": [
+        "Some",
+        "let",
+        "title",
+        "title_text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(body) = body_text",
+      "id": "collect-shader-canvas-surface-resources.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1098,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 1098,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1098
+      },
+      "symbol": "collect_shader_canvas_surface_resources",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(body) = body_text",
+      "variables": [
+        "Some",
+        "body",
+        "body_text",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!text_runs.is_empty()",
+      "id": "collect-shader-canvas-surface-resources.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1113,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1113,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1113
+      },
+      "symbol": "collect_shader_canvas_surface_resources",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !text_runs.is_empty() {",
+      "variables": [
+        "is_empty",
+        "text_runs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(atlas) = font_atlases.first()",
+      "id": "collect-shader-canvas-surface-resources.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1165,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1165,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1165
+      },
+      "symbol": "collect_shader_canvas_surface_resources",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(atlas) = font_atlases.first() {",
+      "variables": [
+        "Some",
+        "atlas",
+        "first",
+        "font_atlases",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(shader.ast.stage, ShaderStage::Compute)",
+      "id": "collect-shader-resource-bindings.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1359,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 1359,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1359
+      },
+      "symbol": "collect_shader_resource_bindings",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if matches!(shader.ast.stage, ShaderStage::Compute)",
+      "variables": [
+        "Compute",
+        "ShaderStage",
+        "ast",
+        "matches",
+        "shader",
+        "stage"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(metadata) = explicit_metadata",
+      "id": "collect-stream-bindings.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1467,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1467,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1467
+      },
+      "symbol": "collect_stream_bindings",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(metadata) = explicit_metadata {",
+      "variables": [
+        "Some",
+        "explicit_metadata",
+        "let",
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(stream_plans) = &metadata.stream_plans",
+      "id": "collect-stream-bindings.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1468,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 1468,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1468
+      },
+      "symbol": "collect_stream_bindings",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(stream_plans) = &metadata.stream_plans {",
+      "variables": [
+        "Some",
+        "let",
+        "metadata",
+        "stream_plans"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(metadata) = explicit_metadata",
+      "id": "collect-tensor-bindings.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1434,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 1434,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1434
+      },
+      "symbol": "collect_tensor_bindings",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(metadata) = explicit_metadata {",
+      "variables": [
+        "Some",
+        "explicit_metadata",
+        "let",
+        "metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!metadata.tensor_plans.is_empty()",
+      "id": "collect-tensor-bindings.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1435,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 1435,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1435
+      },
+      "symbol": "collect_tensor_bindings",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !metadata.tensor_plans.is_empty() {",
+      "variables": [
+        "is_empty",
+        "metadata",
+        "tensor_plans"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_patches",
+      "expression": "has_patches",
+      "id": "collect-tool-caps.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1972,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 17,
+        "end_line": 1972,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1972
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_patches {",
+      "variables": [
+        "has_patches"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_laws",
+      "expression": "has_laws",
+      "id": "collect-tool-caps.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1975,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 14,
+        "end_line": 1975,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1975
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_laws {",
+      "variables": [
+        "has_laws"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_converges",
+      "expression": "has_converges",
+      "id": "collect-tool-caps.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1978,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 1978,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1978
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_converges {",
+      "variables": [
+        "has_converges"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_entanglements",
+      "expression": "has_entanglements",
+      "id": "collect-tool-caps.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1981,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 23,
+        "end_line": 1981,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1981
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_entanglements {",
+      "variables": [
+        "has_entanglements"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_orchestrations",
+      "expression": "has_orchestrations",
+      "id": "collect-tool-caps.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1984,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 1984,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1984
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_orchestrations {",
+      "variables": [
+        "has_orchestrations"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(output) = ui_output",
+      "id": "collect-tool-caps.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1987,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 1987,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1987
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(output) = ui_output {",
+      "variables": [
+        "Some",
+        "let",
+        "output",
+        "ui_output"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "output",
+      "expression": "output",
+      "id": "collect-tool-caps.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1988,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 1988,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1988
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if output",
+      "variables": [
+        "output"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "output",
+      "expression": "output",
+      "id": "collect-tool-caps.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1996,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 1996,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1996
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if output",
+      "variables": [
+        "output"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "output",
+      "expression": "output",
+      "id": "collect-tool-caps.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2004,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 2004,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2004
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if output",
+      "variables": [
+        "output"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!shader_canvases.is_empty()",
+      "id": "collect-tool-caps.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2027,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 2027,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2027
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if !shader_canvases.is_empty() {",
+      "variables": [
+        "is_empty",
+        "shader_canvases"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(shader.ast.stage, ShaderStage::Compute)",
+      "id": "collect-tool-caps.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2036,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 2036,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2036
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(shader.ast.stage, ShaderStage::Compute) {",
+      "variables": [
+        "Compute",
+        "ShaderStage",
+        "ast",
+        "matches",
+        "shader",
+        "stage"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_explicit_compute_metadata",
+      "expression": "has_explicit_compute_metadata",
+      "id": "collect-tool-caps.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2038,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2038,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2038
+      },
+      "symbol": "collect_tool_caps",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if has_explicit_compute_metadata {",
+      "variables": [
+        "has_explicit_compute_metadata"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!output.systems.workspace_layout.roots.is_empty()",
+      "id": "collect-ui-contracts.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 533,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 533,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 533
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !output.systems.workspace_layout.roots.is_empty()",
+      "variables": [
+        "is_empty",
+        "output",
+        "roots",
+        "systems",
+        "workspace_layout"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "output.systems.hot_reload != UiHotReloadPlan::default()",
+      "id": "collect-ui-contracts.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 541,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 541,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 541
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if output.systems.hot_reload != UiHotReloadPlan::default() {",
+      "variables": [
+        "UiHotReloadPlan",
+        "default",
+        "hot_reload",
+        "output",
+        "systems"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!output.systems.focus_graph.scopes.is_empty()",
+      "id": "collect-ui-contracts.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 544,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 544,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 544
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !output.systems.focus_graph.scopes.is_empty()",
+      "variables": [
+        "focus_graph",
+        "is_empty",
+        "output",
+        "scopes",
+        "systems"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!output.systems.selection_model.scopes.is_empty()",
+      "id": "collect-ui-contracts.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 551,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 551,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 551
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !output.systems.selection_model.scopes.is_empty()",
+      "variables": [
+        "is_empty",
+        "output",
+        "scopes",
+        "selection_model",
+        "systems"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!output.systems.overlay_stack.entries.is_empty()",
+      "id": "collect-ui-contracts.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 558,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 558,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 558
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if !output.systems.overlay_stack.entries.is_empty() {",
+      "variables": [
+        "entries",
+        "is_empty",
+        "output",
+        "overlay_stack",
+        "systems"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.motion_policy_json.is_none()",
+      "id": "collect-ui-contracts.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 561,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 561,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 561
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if bundle.motion_policy_json.is_none()",
+      "variables": [
+        "bundle",
+        "is_none",
+        "motion_policy_json"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "has_any",
+      "expression": "has_any",
+      "id": "collect-ui-contracts.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 584,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 13,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "collect_ui_contracts",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if has_any {",
+      "variables": [
+        "has_any"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "target == CompileTarget::Wasm",
+      "id": "compile-target-name.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2146,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 2146,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2146
+      },
+      "symbol": "compile_target_name",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if target == CompileTarget::Wasm {",
+      "variables": [
+        "CompileTarget",
+        "Wasm",
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "bindings",
+      "expression": "bindings",
+      "id": "compute-execution-domain.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1545,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 12,
+        "end_line": 1545,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1545
+      },
+      "symbol": "compute_execution_domain",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if bindings",
+      "variables": [
+        "bindings"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(current) = cursor",
+      "id": "compute-region-hint.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 694,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "while let Some(current) = cursor {",
+      "variables": [
+        "Some",
+        "current",
+        "cursor",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(node) = nodes.get(&current)",
+      "id": "compute-region-hint.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 695,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 695,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 695
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(node) = nodes.get(&current) {",
+      "variables": [
+        "Some",
+        "current",
+        "get",
+        "let",
+        "node",
+        "nodes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "dock_hint.is_none()",
+      "id": "compute-region-hint.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 696,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 696,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 696
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if dock_hint.is_none() {",
+      "variables": [
+        "dock_hint",
+        "is_none"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(placement) = node.layout.dock",
+      "id": "compute-region-hint.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 697,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 697,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 697
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(placement) = node.layout.dock {",
+      "variables": [
+        "Some",
+        "dock",
+        "layout",
+        "let",
+        "node",
+        "placement"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "chrome_hint.is_none()",
+      "id": "compute-region-hint.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 701,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 701,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 701
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if chrome_hint.is_none() {",
+      "variables": [
+        "chrome_hint",
+        "is_none"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "anchor_hint.is_none()",
+      "id": "compute-region-hint.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 714,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 714,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 714
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if anchor_hint.is_none() {",
+      "variables": [
+        "anchor_hint",
+        "is_none"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "dock_hint.is_some()",
+      "id": "compute-region-hint.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 721,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 25,
+        "end_line": 721,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 721
+      },
+      "symbol": "compute_region_hint",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if dock_hint.is_some() {",
+      "variables": [
+        "dock_hint",
+        "is_some"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.tool_caps.iter().any(|entry| entry == \"gpu.compute\")",
+      "id": "emits-compute-bundle-metadata-for-native-runtime-consumers.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 2549,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 70,
+        "end_line": 2549,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2549
+      },
+      "symbol": "emits_compute_bundle_metadata_for_native_runtime_consumers",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(bundle.tool_caps.iter().any(|entry| entry == \"gpu.compute\"));",
+      "variables": [
+        "any",
+        "bundle",
+        "compute",
+        "entry",
+        "gpu",
+        "iter",
+        "tool_caps"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "lower.contains(\"conv\")",
+      "id": "infer-neural-op-name.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1573,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 1573,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1573
+      },
+      "symbol": "infer_neural_op_name",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if lower.contains(\"conv\") {",
+      "variables": [
+        "contains",
+        "conv",
+        "lower"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "lower.starts_with(\"out\")",
+      "id": "infer-storage-buffer-access.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1410,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 1410,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1410
+      },
+      "symbol": "infer_storage_buffer_access",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if lower.starts_with(\"out\")",
+      "variables": [
+        "lower",
+        "out",
+        "starts_with"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "lower.contains(\"vec4\") || lower.contains(\"rgba\")",
+      "id": "infer-tensor-element-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 1586,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1586
+      },
+      "symbol": "infer_tensor_element_type",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if lower.contains(\"vec4\") || lower.contains(\"rgba\") {",
+      "variables": [
+        "contains",
+        "lower",
+        "rgba",
+        "vec4"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "trimmed.is_empty()",
+      "id": "normalize-asset-source.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1928,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 1928,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1928
+      },
+      "symbol": "normalize_asset_source",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if trimmed.is_empty() {",
+      "variables": [
+        "is_empty",
+        "trimmed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ch.is_ascii()",
+      "id": "normalize-shader-canvas-glyph.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1208,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 19,
+        "end_line": 1208,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1208
+      },
+      "symbol": "normalize_shader_canvas_glyph",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if ch.is_ascii() {",
+      "variables": [
+        "ch",
+        "is_ascii"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(source) =",
+      "id": "push-asset-binding-from-first-prop.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1915,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 1915,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1915
+      },
+      "symbol": "push_asset_binding_from_first_prop",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(source) =",
+      "variables": [
+        "Some",
+        "let",
+        "source"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(source) =",
+      "id": "push-asset-binding-from-prop.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1898,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 1898,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1898
+      },
+      "symbol": "push_asset_binding_from_prop",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(source) =",
+      "variables": [
+        "Some",
+        "let",
+        "source"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "character.is_ascii_alphanumeric() || character == '_'",
+      "id": "sanitize-bundle-symbol-ident.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2201,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 2201,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2201
+      },
+      "symbol": "sanitize_bundle_symbol_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if character.is_ascii_alphanumeric() || character == '_' {",
+      "variables": [
+        "_",
+        "character",
+        "is_ascii_alphanumeric"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "sanitized.is_empty()",
+      "id": "sanitize-bundle-symbol-ident.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 2208,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 2208,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 2208
+      },
+      "symbol": "sanitize_bundle_symbol_ident",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if sanitized.is_empty() {",
+      "variables": [
+        "is_empty",
+        "sanitized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "matches!(shader.ast.stage, ShaderStage::Compute)",
+      "id": "shader-bundle-ref.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1290,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 1290,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1290
+      },
+      "symbol": "shader_bundle_ref",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if matches!(shader.ast.stage, ShaderStage::Compute) {",
+      "variables": [
+        "Compute",
+        "ShaderStage",
+        "ast",
+        "matches",
+        "shader",
+        "stage"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "family",
+      "expression": "family",
+      "id": "shader-canvas-font-atlas-default-encoding-for-family.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1184,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+      "span": {
+        "end_col": 10,
+        "end_line": 1184,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+        "start_col": 1,
+        "start_line": 1184
+      },
+      "symbol": "shader_canvas_font_atlas_default_encoding_for_family",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if family",
+      "variables": [
+        "family"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "e28875edffdafa7317de3f94245766ff5435b1d21e5b0d23407295ce99e23114",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\realtime_app_bundle.rs",
+  "version": 1
+}

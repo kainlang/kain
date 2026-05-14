@@ -1,0 +1,38 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "error.to_string().contains(\"duplicate handler\")",
+      "id": "typecheck-rejects-duplicate-actor-handlers-through-actor-model-validator.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 49,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\actor_contract_test.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\actor_contract_test.rs",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "typecheck_rejects_duplicate_actor_handlers_through_actor_model_validator",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(error.to_string().contains(\"duplicate handler\"));",
+      "variables": [
+        "contains",
+        "duplicate",
+        "error",
+        "handler",
+        "to_string"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "6f7b3fa2c8a00b92b06023207312c3ebc8c4dec7d99c8242c6dd1468a0d0dce1",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\actor_contract_test.rs",
+  "version": 1
+}

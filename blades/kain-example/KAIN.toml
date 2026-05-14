@@ -1,7 +1,7 @@
 [package]
 name = "kain-example"
 version = "0.1.0"
-description = "Canonical single-file native LLVM Kain proving ground for future agents."
+description = "Canonical native LLVM Kain proving ground plus an interactive runtime workbench."
 
 [blade]
 name = "kain-example"
@@ -26,3 +26,21 @@ kind = "check"
 entry = "src/main.kn"
 target = "llvm"
 inputs = ["src/main.kn"]
+
+[[build.tasks]]
+id = "check-ui-llvm"
+kind = "check"
+entry = "src/ui.kn"
+target = "llvm"
+inputs = [
+    "src/ui.kn",
+    "src/episode_graphics.kn",
+    "src/episode_input.kn",
+    "src/episode_layout.kn",
+    "src/episode_network.kn",
+    "src/episode_pages.kn",
+    "src/episode_strings.kn",
+    "src/episode_theme.kn",
+    "src/episode_ui_helpers.kn",
+    "src/workbench_labs.kn"
+]

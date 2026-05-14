@@ -1,0 +1,89 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "range",
+        "role": "unsigned-size",
+        "type": "Range<usize>"
+      },
+      "id": "from.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 30,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 30,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+        "start_col": 1,
+        "start_line": 30
+      },
+      "symbol": "from",
+      "text": "fn from(range: Range<usize>) -> Self {",
+      "variables": [
+        "range"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "start",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "new.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 13,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 13,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+        "start_col": 1,
+        "start_line": 13
+      },
+      "symbol": "new",
+      "text": "pub fn new(start: usize, end: usize) -> Self {",
+      "variables": [
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "end",
+        "role": "unsigned-size",
+        "type": "usize"
+      },
+      "id": "new.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 13,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 13,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+        "start_col": 1,
+        "start_line": 13
+      },
+      "symbol": "new",
+      "text": "pub fn new(start: usize, end: usize) -> Self {",
+      "variables": [
+        "end"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "bc8d3c1a2b2f6138d83c1899218f82492e5b561e27d32ccb7d2a6657a089b498",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\span.rs",
+  "version": 1
+}

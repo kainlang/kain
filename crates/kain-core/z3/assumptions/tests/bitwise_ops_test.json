@@ -1,0 +1,272 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "6 & 3 | 8 >> 1 ^ 1 << 2\"#",
+      "id": "parser-accepts-bitwise-and-shift-operators.return-condition.1",
+      "kind": "return-condition",
+      "language": "rust",
+      "line": 14,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 14,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 14
+      },
+      "symbol": "parser_accepts_bitwise_and_shift_operators",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return 6 & 3 | 8 >> 1 ^ 1 << 2\"#;",
+      "variables": []
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!typed.items.is_empty()",
+      "id": "parser-accepts-bitwise-and-shift-operators.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 17,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 17,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 17
+      },
+      "symbol": "parser_accepts_bitwise_and_shift_operators",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!typed.items.is_empty());",
+      "variables": [
+        "is_empty",
+        "items",
+        "typed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!typed.items.is_empty()",
+      "id": "parser-accepts-compound-assignment-operators.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 56,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 56,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 56
+      },
+      "symbol": "parser_accepts_compound_assignment_operators",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!typed.items.is_empty());",
+      "variables": [
+        "is_empty",
+        "items",
+        "typed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(x == 1) ? 7 : 9\"#",
+      "id": "parser-accepts-inc-dec-ternary-and-raw-strings.return-condition.1",
+      "kind": "return-condition",
+      "language": "rust",
+      "line": 97,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 97,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 97
+      },
+      "symbol": "parser_accepts_inc_dec_ternary_and_raw_strings",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return (x == 1) ? 7 : 9\"#;",
+      "variables": [
+        "x"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!typed.items.is_empty()",
+      "id": "parser-accepts-inc-dec-ternary-and-raw-strings.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 101,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 101,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 101
+      },
+      "symbol": "parser_accepts_inc_dec_ternary_and_raw_strings",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!typed.items.is_empty());",
+      "variables": [
+        "is_empty",
+        "items",
+        "typed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!typed.items.is_empty()",
+      "id": "parser-accepts-ref-and-deref-prefix-operators.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 187,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 187,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 187
+      },
+      "symbol": "parser_accepts_ref_and_deref_prefix_operators",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!typed.items.is_empty());",
+      "variables": [
+        "is_empty",
+        "items",
+        "typed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!typed.items.is_empty()",
+      "id": "parser-accepts-safe-navigation.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 175,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 175,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 175
+      },
+      "symbol": "parser_accepts_safe_navigation",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(!typed.items.is_empty());",
+      "variables": [
+        "is_empty",
+        "items",
+        "typed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "6 & 3 | 8 >> 1 ^ 1 << 2\"#",
+      "id": "runtime-evaluates-bitwise-expression.return-condition.1",
+      "kind": "return-condition",
+      "language": "rust",
+      "line": 23,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 23,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 23
+      },
+      "symbol": "runtime_evaluates_bitwise_expression",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return 6 & 3 | 8 >> 1 ^ 1 << 2\"#;",
+      "variables": []
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(x == 1) ? 42 : 0\"#",
+      "id": "runtime-evaluates-inc-dec-and-ternary.return-condition.1",
+      "kind": "return-condition",
+      "language": "rust",
+      "line": 112,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+      "span": {
+        "end_col": 28,
+        "end_line": 112,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+        "start_col": 1,
+        "start_line": 112
+      },
+      "symbol": "runtime_evaluates_inc_dec_and_ternary",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return (x == 1) ? 42 : 0\"#;",
+      "variables": [
+        "x"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "e33ed55b0866615863d56eb33c593d8238a265f417270f63609c378cad5a208a",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\bitwise_ops_test.rs",
+  "version": 1
+}

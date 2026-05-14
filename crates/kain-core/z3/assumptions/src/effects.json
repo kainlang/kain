@@ -1,0 +1,152 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "callee.is_pure()",
+      "id": "can-call.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 85,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+      "span": {
+        "end_col": 22,
+        "end_line": 85,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+        "start_col": 1,
+        "start_line": 85
+      },
+      "symbol": "can_call",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if callee.is_pure() {",
+      "variables": [
+        "callee",
+        "is_pure"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.is_pure()",
+      "id": "can-call.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 88,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+      "span": {
+        "end_col": 20,
+        "end_line": 88,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+        "start_col": 1,
+        "start_line": 88
+      },
+      "symbol": "can_call",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if self.is_pure() {",
+      "variables": [
+        "is_pure",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.effects.contains(&Effect::Unsafe)",
+      "id": "can-call.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "can_call",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if self.effects.contains(&Effect::Unsafe) {",
+      "variables": [
+        "Effect",
+        "Unsafe",
+        "contains",
+        "effects",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!caller.can_call(callee)",
+      "id": "check-effect-call.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 105,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 105,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+        "start_col": 1,
+        "start_line": 105
+      },
+      "symbol": "check_effect_call",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if !caller.can_call(callee) {",
+      "variables": [
+        "callee",
+        "caller",
+        "can_call"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "effect_set.is_pure()",
+      "id": "effect-set-to-string.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 49,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "effect_set_to_string",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if effect_set.is_pure() {",
+      "variables": [
+        "effect_set",
+        "is_pure"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "293bb04f0e61e863fdc74302a8b627f608fbee84badac6f3986863324b1ff78a",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\effects.rs",
+  "version": 1
+}

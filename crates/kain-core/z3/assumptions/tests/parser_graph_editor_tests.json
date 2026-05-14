@@ -1,0 +1,343 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.inputs[0].is_array",
+      "id": "test-graph-with-array-pins.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 171,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 171,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 171
+      },
+      "symbol": "test_graph_with_array_pins",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(node.inputs[0].is_array);",
+      "variables": [
+        "inputs",
+        "is_array",
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.outputs[0].is_array",
+      "id": "test-graph-with-array-pins.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 175,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 175,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 175
+      },
+      "symbol": "test_graph_with_array_pins",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(node.outputs[0].is_array);",
+      "variables": [
+        "is_array",
+        "node",
+        "outputs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_named_type(&node.properties[0].ty, \"Float\")",
+      "id": "test-graph-with-properties.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 132,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 132,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 132
+      },
+      "symbol": "test_graph_with_properties",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(is_named_type(&node.properties[0].ty, \"Float\"));",
+      "variables": [
+        "Float",
+        "is_named_type",
+        "node",
+        "properties",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.properties[0].default.is_some()",
+      "id": "test-graph-with-properties.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 133,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 133,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 133
+      },
+      "symbol": "test_graph_with_properties",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(node.properties[0].default.is_some());",
+      "variables": [
+        "default",
+        "is_some",
+        "node",
+        "properties"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_named_type(&node.properties[1].ty, \"String\")",
+      "id": "test-graph-with-properties.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 137,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 58,
+        "end_line": 137,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 137
+      },
+      "symbol": "test_graph_with_properties",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(is_named_type(&node.properties[1].ty, \"String\"));",
+      "variables": [
+        "String",
+        "is_named_type",
+        "node",
+        "properties",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.properties[1].default.is_some()",
+      "id": "test-graph-with-properties.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 138,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 138,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 138
+      },
+      "symbol": "test_graph_with_properties",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(node.properties[1].default.is_some());",
+      "variables": [
+        "default",
+        "is_some",
+        "node",
+        "properties"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "graph.schema.is_some()",
+      "id": "test-graph-with-schema.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 207,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 33,
+        "end_line": 207,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 207
+      },
+      "symbol": "test_graph_with_schema",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(graph.schema.is_some());",
+      "variables": [
+        "graph",
+        "is_some",
+        "schema"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_named_type(&node.outputs[0].ty, \"Exec\")",
+      "id": "test-simple-graph-editor.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 48,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 48,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 48
+      },
+      "symbol": "test_simple_graph_editor",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(is_named_type(&node.outputs[0].ty, \"Exec\"));",
+      "variables": [
+        "Exec",
+        "is_named_type",
+        "node",
+        "outputs",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.outputs[0].default.is_none()",
+      "id": "test-simple-graph-editor.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 49,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "test_simple_graph_editor",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(node.outputs[0].default.is_none());",
+      "variables": [
+        "default",
+        "is_none",
+        "node",
+        "outputs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_named_type(&node.outputs[1].ty, \"Float\")",
+      "id": "test-simple-graph-editor.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 53,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "test_simple_graph_editor",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(is_named_type(&node.outputs[1].ty, \"Float\"));",
+      "variables": [
+        "Float",
+        "is_named_type",
+        "node",
+        "outputs",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node.outputs[1].default.is_some()",
+      "id": "test-simple-graph-editor.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 54,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 54,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+        "start_col": 1,
+        "start_line": 54
+      },
+      "symbol": "test_simple_graph_editor",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(node.outputs[1].default.is_some());",
+      "variables": [
+        "default",
+        "is_some",
+        "node",
+        "outputs"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "3e145674bbbd59e614db9190f2ce83e5245178ce1afc652b3f53781efc663e30",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\parser_graph_editor_tests.rs",
+  "version": 1
+}

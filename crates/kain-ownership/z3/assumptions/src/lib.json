@@ -1,0 +1,392 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "decayed.is_terminal()",
+      "id": "decay-is-terminal-and-rejects-live-capabilities.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 475,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 475,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 475
+      },
+      "symbol": "decay_is_terminal_and_rejects_live_capabilities",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(decayed.is_terminal());",
+      "variables": [
+        "decayed",
+        "is_terminal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local.emits_readonly",
+      "id": "lowering-hints-match-region-policy.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 506,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 506,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 506
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(local.emits_readonly);",
+      "variables": [
+        "emits_readonly",
+        "local"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local.emits_noalias",
+      "id": "lowering-hints-match-region-policy.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 507,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 507,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 507
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(local.emits_noalias);",
+      "variables": [
+        "emits_noalias",
+        "local"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "local.emits_lifetime_end",
+      "id": "lowering-hints-match-region-policy.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 508,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 508,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 508
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(local.emits_lifetime_end);",
+      "variables": [
+        "emits_lifetime_end",
+        "local"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!local.requires_snapshot",
+      "id": "lowering-hints-match-region-policy.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 509,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 509,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 509
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!local.requires_snapshot);",
+      "variables": [
+        "local",
+        "requires_snapshot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "world.requires_runtime_guard",
+      "id": "lowering-hints-match-region-policy.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 512,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 39,
+        "end_line": 512,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 512
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(world.requires_runtime_guard);",
+      "variables": [
+        "requires_runtime_guard",
+        "world"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "world.requires_snapshot",
+      "id": "lowering-hints-match-region-policy.assert-condition.6",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 513,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 513,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 513
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(world.requires_snapshot);",
+      "variables": [
+        "requires_snapshot",
+        "world"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!world.emits_noalias",
+      "id": "lowering-hints-match-region-policy.assert-condition.7",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 514,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 514,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 514
+      },
+      "symbol": "lowering_hints_match_region_policy",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!world.emits_noalias);",
+      "variables": [
+        "emits_noalias",
+        "world"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "readers",
+        "role": "unsigned-int",
+        "type": "u32"
+      },
+      "id": "new.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 45,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 45,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 45
+      },
+      "symbol": "new",
+      "text": "pub fn new(readers: u32) -> Result<Self, OwnershipTransitionError> {",
+      "variables": [
+        "readers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "readers",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "readers == 0",
+      "id": "new.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 46,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 46,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 46
+      },
+      "symbol": "new",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if readers == 0 {",
+      "variables": [
+        "readers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "readers",
+        "role": "unsigned-int",
+        "type": "u32"
+      },
+      "id": "observed.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "rust",
+      "line": 79,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 74,
+        "end_line": 79,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 79
+      },
+      "symbol": "observed",
+      "text": "pub fn observed(readers: u32) -> Result<Self, OwnershipTransitionError> {",
+      "variables": [
+        "readers"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!world.supports_decay()",
+      "id": "policy-table-is-conservative-for-worlds-and-entangle.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 487,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 487,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 487
+      },
+      "symbol": "policy_table_is_conservative_for_worlds_and_entangle",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!world.supports_decay());",
+      "variables": [
+        "supports_decay",
+        "world"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!mirror.supports_collapse()",
+      "id": "policy-table-is-conservative-for-worlds-and-entangle.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 491,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 38,
+        "end_line": 491,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 491
+      },
+      "symbol": "policy_table_is_conservative_for_worlds_and_entangle",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!mirror.supports_collapse());",
+      "variables": [
+        "mirror",
+        "supports_collapse"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!mirror.supports_decay()",
+      "id": "policy-table-is-conservative-for-worlds-and-entangle.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 492,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 492,
+        "path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+        "start_col": 1,
+        "start_line": 492
+      },
+      "symbol": "policy_table_is_conservative_for_worlds_and_entangle",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(!mirror.supports_decay());",
+      "variables": [
+        "mirror",
+        "supports_decay"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "9d9931947f5d33c57f035fd04a45f231b02669b535bcf9f9dedbea75e68ddc9a",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-ownership\\src\\lib.rs",
+  "version": 1
+}

@@ -1,0 +1,38 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(shader_metadata) = &shader_support",
+      "id": "generate-rust-artifact-bundle.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 42,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\artifact_bundle.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 42,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\artifact_bundle.rs",
+        "start_col": 1,
+        "start_line": 42
+      },
+      "symbol": "generate_rust_artifact_bundle",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if let Some(shader_metadata) = &shader_support {",
+      "variables": [
+        "Some",
+        "let",
+        "shader_metadata",
+        "shader_support"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "60c183f5a6a2a2e6faefdea4539185011953a7eeaefe00e2bd32f4cfefc61257",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_rust\\artifact_bundle.rs",
+  "version": 1
+}

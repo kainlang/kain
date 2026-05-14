@@ -1,0 +1,624 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "result.success && result.status == 0 && result.stdout == \"hello\"",
+      "id": "command-run-builtin-captures-stdout-and-status.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 154,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 69,
+        "end_line": 154,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 154
+      },
+      "symbol": "command_run_builtin_captures_stdout_and_status",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if result.success && result.status == 0 && result.stdout == \"hello\":",
+      "variables": [
+        "hello",
+        "result",
+        "status",
+        "stdout",
+        "success"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "opcode == \">\"",
+      "id": "elif-chain-executes-matching-arm.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 53,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 18,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "elif_chain_executes_matching_arm",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if opcode == \">\":",
+      "variables": [
+        "opcode"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "text == \"hello fs\" && len(bytes) == 8 && metadata.file_type == \"file\" && metadata.len == 8 && len(entries) == 1 && len(digest) == 64",
+      "id": "filesystem-builtins-round-trip-text-metadata-walk-and-hash.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 184,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 137,
+        "end_line": 184,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 184
+      },
+      "symbol": "filesystem_builtins_round_trip_text_metadata_walk_and_hash",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if text == \"hello fs\" && len(bytes) == 8 && metadata.file_type == \"file\" && metadata.len == 8 && len(entries) == 1 && len(digest) == 64:",
+      "variables": [
+        "bytes",
+        "digest",
+        "entries",
+        "file",
+        "file_type",
+        "fs",
+        "hello",
+        "len",
+        "metadata",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "slice == \"bcd\" && rewritten == \"abcXYZ\" && len(chunks) == 3 && copied == 6 && len(events) == 1 && closed && len(journal) == 2 && tx_text == \"one two\" && fs_capability_has(\"fs.read\")",
+      "id": "filesystem-v2-virtual-stream-watch-and-transaction-flow.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 223,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 186,
+        "end_line": 223,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 223
+      },
+      "symbol": "filesystem_v2_virtual_stream_watch_and_transaction_flow",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if slice == \"bcd\" && rewritten == \"abcXYZ\" && len(chunks) == 3 && copied == 6 && len(events) == 1 && closed && len(journal) == 2 && tx_text == \"one two\" && fs_capability_has(\"fs.read\"):",
+      "variables": [
+        "abcXYZ",
+        "bcd",
+        "chunks",
+        "closed",
+        "copied",
+        "events",
+        "fs",
+        "fs_capability_has",
+        "journal",
+        "len",
+        "one",
+        "read",
+        "rewritten",
+        "slice",
+        "two",
+        "tx_text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json_get_string(payload, \"method\") == \"tools/call\" && json_get_int(params, \"count\") == 7 && json_get_bool(params, \"enabled\")",
+      "id": "json-helpers-extract-nested-fields.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 243,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 129,
+        "end_line": 243,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 243
+      },
+      "symbol": "json_helpers_extract_nested_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if json_get_string(payload, \"method\") == \"tools/call\" && json_get_int(params, \"count\") == 7 && json_get_bool(params, \"enabled\"):",
+      "variables": [
+        "call",
+        "count",
+        "enabled",
+        "json_get_bool",
+        "json_get_int",
+        "json_get_string",
+        "method",
+        "params",
+        "payload",
+        "tools"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"ord\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 103,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 103,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 103
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"ord\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "ord",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"chr\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 104,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 104,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 104
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"chr\"));",
+      "variables": [
+        "chr",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"ask\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 105,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 105,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 105
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"ask\"));",
+      "variables": [
+        "ask",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"ask_timeout\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 106,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 106,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 106
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"ask_timeout\"));",
+      "variables": [
+        "ask_timeout",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"command_run\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 107,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 107,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 107
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"command_run\"));",
+      "variables": [
+        "command_run",
+        "contains_key",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"json_parse\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.6",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 108,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 108,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 108
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"json_parse\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "json_parse",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"json_object_new\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.7",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 109,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 109,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 109
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"json_object_new\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "json_object_new",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"read_line\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.8",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 110,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"read_line\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "read_line",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"stdout_write\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.9",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 111,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 111,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 111
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"stdout_write\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "stdlib",
+        "stdout_write"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"stdin_read_exact\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.10",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 112,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 112,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 112
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"stdin_read_exact\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "stdin_read_exact",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"to_int\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.11",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 113,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 113,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 113
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"to_int\"));",
+      "variables": [
+        "contains_key",
+        "functions",
+        "stdlib",
+        "to_int"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"fs_read_text\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.12",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 114,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 114,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 114
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"fs_read_text\"));",
+      "variables": [
+        "contains_key",
+        "fs_read_text",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"fs_try_read_text\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.13",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 115,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 115,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 115
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"fs_try_read_text\"));",
+      "variables": [
+        "contains_key",
+        "fs_try_read_text",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"fs_metadata\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.14",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 116,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 116,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 116
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"fs_metadata\"));",
+      "variables": [
+        "contains_key",
+        "fs_metadata",
+        "functions",
+        "stdlib"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "stdlib.functions.contains_key(\"fs_path_join\")",
+      "id": "stdlib-registry-exposes-ord-and-chr.assert-condition.15",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 117,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 117,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+        "start_col": 1,
+        "start_line": 117
+      },
+      "symbol": "stdlib_registry_exposes_ord_and_chr",
+      "tags": [
+        "bounds"
+      ],
+      "text": "assert!(stdlib.functions.contains_key(\"fs_path_join\"));",
+      "variables": [
+        "contains_key",
+        "fs_path_join",
+        "functions",
+        "stdlib"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "cec6873a464e93349941a041d362de4e7d1b2689573e8c3eedcef4fd8a8373b7",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\src\\runtime_tests.rs",
+  "version": 1
+}

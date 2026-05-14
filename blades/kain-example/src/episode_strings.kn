@@ -1,0 +1,32 @@
+pub fn metric_line(label: String, value: Int) -> String:
+    return label + ": " + str(value)
+
+pub fn metric_text(label: String, value: String) -> String:
+    return label + ": " + value
+
+pub fn bool_word(value: Bool) -> String:
+    if value:
+        return "yes"
+    return "no"
+
+pub fn actor_state_name(state_value: Int) -> String:
+    if state_value == 0:
+        return "invalid"
+    if state_value == 1:
+        return "starting"
+    if state_value == 2:
+        return "running"
+    if state_value == 3:
+        return "draining"
+    if state_value == 4:
+        return "stopping"
+    if state_value == 5:
+        return "stopped"
+    if state_value == 6:
+        return "killed"
+    return "unknown"
+
+pub fn empty_fallback(value: String, fallback: String) -> String:
+    if value == "":
+        return fallback
+    return value

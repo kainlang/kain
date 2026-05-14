@@ -1,0 +1,2470 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ptr) = self.variables.get(&name)",
+      "id": "gen-expr.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 898,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 898,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 898
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(ptr) = self.variables.get(&name) {",
+      "variables": [
+        "Some",
+        "get",
+        "let",
+        "name",
+        "ptr",
+        "self",
+        "variables"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!self.initialized_vars.contains(&name)",
+      "id": "gen-expr.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 899,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 44,
+        "end_line": 899,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 899
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if !self.initialized_vars.contains(&name) {",
+      "variables": [
+        "contains",
+        "initialized_vars",
+        "name",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.struct_params.contains(&name)",
+      "id": "gen-expr.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 907,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 907,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 907
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.struct_params.contains(&name) {",
+      "variables": [
+        "contains",
+        "name",
+        "self",
+        "struct_params"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(&name).cloned()",
+      "id": "gen-expr.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 928,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 65,
+        "end_line": 928,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 928
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(&name).cloned() {",
+      "variables": [
+        "Some",
+        "cloned",
+        "get",
+        "let",
+        "name",
+        "self",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(idx) = self.get_field_index(&name, &init.name)",
+      "id": "gen-expr.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 931,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 931,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 931
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(idx) = self.get_field_index(&name, &init.name) {",
+      "variables": [
+        "Some",
+        "get_field_index",
+        "idx",
+        "init",
+        "let",
+        "name",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Ok(idx) = field.parse::<u32>()",
+      "id": "gen-expr.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1020,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1020,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1020
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Ok(idx) = field.parse::<u32>() {",
+      "variables": [
+        "Ok",
+        "field",
+        "idx",
+        "let",
+        "parse",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(&struct_name).cloned()",
+      "id": "gen-expr.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1034,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 1034,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1034
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(&struct_name).cloned() {",
+      "variables": [
+        "Some",
+        "cloned",
+        "get",
+        "let",
+        "self",
+        "struct_name",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(idx) = self.get_field_index(&struct_name, &field)",
+      "id": "gen-expr.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1038,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 64,
+        "end_line": 1038,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1038
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(idx) = self.get_field_index(&struct_name, &field) {",
+      "variables": [
+        "Some",
+        "field",
+        "get_field_index",
+        "idx",
+        "let",
+        "self",
+        "struct_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(i as u32)",
+      "id": "gen-expr.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1084,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1084,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1084
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(i as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "i",
+        "let",
+        "param",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1085,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1085,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1085
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "arg_vals.len() > declared",
+      "id": "gen-expr.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1101,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 1101,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1101
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if arg_vals.len() > declared {",
+      "variables": [
+        "arg_vals",
+        "declared",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(idx as u32)",
+      "id": "gen-expr.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1105,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 1105,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1105
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(idx as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "idx",
+        "let",
+        "param",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1106,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1106,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1106
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(0)",
+      "id": "gen-expr.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1139,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 1139,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1139
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(0) {",
+      "variables": [
+        "Some",
+        "f",
+        "get_nth_param",
+        "let",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1140,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1140,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1140
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(param_idx as u32)",
+      "id": "gen-expr.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1157,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 1157,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1157
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(param_idx as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "let",
+        "param",
+        "param_idx",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1158,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1158,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1158
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "call_args.len() > declared",
+      "id": "gen-expr.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1173,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 1173,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1173
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if call_args.len() > declared {",
+      "variables": [
+        "call_args",
+        "declared",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(idx as u32)",
+      "id": "gen-expr.guard-condition.19",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1177,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 1177,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1177
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(idx as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "idx",
+        "let",
+        "param",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.20",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1178,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1178,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1178
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "op == \"||\" || op == \"&&\"",
+      "id": "gen-expr.guard-condition.21",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1198,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 1198,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1198
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if op == \"||\" || op == \"&&\" {",
+      "variables": [
+        "op"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!func_name.is_empty()",
+      "id": "gen-expr.guard-condition.22",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1256,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 1256,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1256
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if !func_name.is_empty() {",
+      "variables": [
+        "func_name",
+        "is_empty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(f) = self.module.get_function(func_name)",
+      "id": "gen-expr.guard-condition.23",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1257,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 55,
+        "end_line": 1257,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1257
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(f) = self.module.get_function(func_name) {",
+      "variables": [
+        "Some",
+        "f",
+        "func_name",
+        "get_function",
+        "let",
+        "module",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(i as u32)",
+      "id": "gen-expr.guard-condition.24",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1282,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 49,
+        "end_line": 1282,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1282
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(i as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "i",
+        "let",
+        "param",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.25",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1283,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1283,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1283
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "arg_vals.len() > declared",
+      "id": "gen-expr.guard-condition.26",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1295,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 31,
+        "end_line": 1295,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1295
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if arg_vals.len() > declared {",
+      "variables": [
+        "arg_vals",
+        "declared",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(param) = f.get_nth_param(idx as u32)",
+      "id": "gen-expr.guard-condition.27",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 1299,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1299
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(param) = f.get_nth_param(idx as u32) {",
+      "variables": [
+        "Some",
+        "as",
+        "f",
+        "get_nth_param",
+        "idx",
+        "let",
+        "param",
+        "u32"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param.get_type().is_pointer_type()",
+      "id": "gen-expr.guard-condition.28",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1300,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 40,
+        "end_line": 1300,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1300
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if param.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "param"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(f) = self.module.get_function(\"KAIN_array_get\")",
+      "id": "gen-expr.guard-condition.29",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 1342,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 62,
+        "end_line": 1342,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 1342
+      },
+      "symbol": "gen_expr",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(f) = self.module.get_function(\"KAIN_array_get\") {",
+      "variables": [
+        "KAIN_array_get",
+        "Some",
+        "f",
+        "get_function",
+        "let",
+        "module",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.module.get_function(&def.name).is_some() { return; }",
+      "id": "gen-extern-decl.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 435,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 61,
+        "end_line": 435,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 435
+      },
+      "symbol": "gen_extern_decl",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if self.module.get_function(&def.name).is_some() { return; }",
+      "variables": [
+        "def",
+        "get_function",
+        "is_some",
+        "module",
+        "name",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "name == \"main\" { name = \"main_KAIN\".to_string(); }",
+      "id": "gen-function.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 451,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 451,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 451
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if name == \"main\" { name = \"main_KAIN\".to_string(); }",
+      "variables": [
+        "main",
+        "main_KAIN",
+        "name",
+        "to_string"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.current_impl_type.is_some() && !has_explicit_self",
+      "id": "gen-function.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 456,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 456,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 456
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.current_impl_type.is_some() && !has_explicit_self {",
+      "variables": [
+        "current_impl_type",
+        "has_explicit_self",
+        "is_some",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = &param.ty",
+      "id": "gen-function.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 461,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 461,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 461
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ty) = &param.ty {",
+      "variables": [
+        "Some",
+        "let",
+        "param",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(actual_ty)",
+      "id": "gen-function.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 469,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 469,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 469
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(actual_ty) {",
+      "variables": [
+        "Some",
+        "actual_ty",
+        "get",
+        "let",
+        "self",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(impl_type) = &self.current_impl_type",
+      "id": "gen-function.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 477,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 477,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 477
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(impl_type) = &self.current_impl_type {",
+      "variables": [
+        "Some",
+        "current_impl_type",
+        "impl_type",
+        "let",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(impl_type)",
+      "id": "gen-function.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 478,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 478,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 478
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(impl_type) {",
+      "variables": [
+        "Some",
+        "get",
+        "impl_type",
+        "let",
+        "self",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(return_type) = &def.return_type",
+      "id": "gen-function.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 501,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 501,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 501
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(return_type) = &def.return_type {",
+      "variables": [
+        "Some",
+        "def",
+        "let",
+        "return_type"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.current_impl_type.is_some() && !has_explicit_self",
+      "id": "gen-function.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 526,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 526,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 526
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.current_impl_type.is_some() && !has_explicit_self {",
+      "variables": [
+        "current_impl_type",
+        "has_explicit_self",
+        "is_some",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(p0) = function.get_nth_param(0)",
+      "id": "gen-function.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 527,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 527,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 527
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(p0) = function.get_nth_param(0) {",
+      "variables": [
+        "Some",
+        "function",
+        "get_nth_param",
+        "let",
+        "p0"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "p0.get_type().is_pointer_type()",
+      "id": "gen-function.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 528,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 528,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 528
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if p0.get_type().is_pointer_type() {",
+      "variables": [
+        "get_type",
+        "is_pointer_type",
+        "p0"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(impl_type) = &self.current_impl_type",
+      "id": "gen-function.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 533,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 533,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 533
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(impl_type) = &self.current_impl_type {",
+      "variables": [
+        "Some",
+        "current_impl_type",
+        "impl_type",
+        "let",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "formal_count == def.params.len() + 1 { 1 } else { 0 }",
+      "id": "gen-function.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 543,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 543,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 543
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if formal_count == def.params.len() + 1 { 1 } else { 0 }",
+      "variables": [
+        "def",
+        "else",
+        "formal_count",
+        "len",
+        "params"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(p_val) = function.get_nth_param(param_index)",
+      "id": "gen-function.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 548,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 59,
+        "end_line": 548,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 548
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(p_val) = function.get_nth_param(param_index) {",
+      "variables": [
+        "Some",
+        "function",
+        "get_nth_param",
+        "let",
+        "p_val",
+        "param_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = &param.ty",
+      "id": "gen-function.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 576,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 30,
+        "end_line": 576,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 576
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ty) = &param.ty {",
+      "variables": [
+        "Some",
+        "let",
+        "param",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "param_ty == \"Self\"",
+      "id": "gen-function.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 578,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 24,
+        "end_line": 578,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 578
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if param_ty == \"Self\" {",
+      "variables": [
+        "Self",
+        "param_ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(impl_type) = &self.current_impl_type",
+      "id": "gen-function.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 579,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 579,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 579
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(impl_type) = &self.current_impl_type {",
+      "variables": [
+        "Some",
+        "current_impl_type",
+        "impl_type",
+        "let",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(impl_type) = &self.current_impl_type",
+      "id": "gen-function.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 51,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(impl_type) = &self.current_impl_type {",
+      "variables": [
+        "Some",
+        "current_impl_type",
+        "impl_type",
+        "let",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-function.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 599,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 599,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 599
+      },
+      "symbol": "gen_function",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "name == \"main\" { name = \"main_KAIN\".to_string(); }",
+      "id": "gen-program.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 247,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 54,
+        "end_line": 247,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 247
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if name == \"main\" { name = \"main_KAIN\".to_string(); }",
+      "variables": [
+        "main",
+        "main_KAIN",
+        "name",
+        "to_string"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = &p.ty",
+      "id": "gen-program.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 250,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 250,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 250
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ty) = &p.ty {",
+      "variables": [
+        "Some",
+        "let",
+        "p",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(actual_ty)",
+      "id": "gen-program.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 252,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 60,
+        "end_line": 252,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 252
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(actual_ty) {",
+      "variables": [
+        "Some",
+        "actual_ty",
+        "get",
+        "let",
+        "self",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.module.get_function(&name).is_none()",
+      "id": "gen-program.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 262,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 262,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 262
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.module.get_function(&name).is_none() {",
+      "variables": [
+        "get_function",
+        "is_none",
+        "module",
+        "name",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "p.name == \"self\" || p.ty.as_deref() == Some(\"Self\")",
+      "id": "gen-program.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 273,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 57,
+        "end_line": 273,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 273
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if p.name == \"self\" || p.ty.as_deref() == Some(\"Self\") {",
+      "variables": [
+        "Self",
+        "Some",
+        "as_deref",
+        "name",
+        "p",
+        "self",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "is_instance",
+      "expression": "is_instance",
+      "id": "gen-program.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 278,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 17,
+        "end_line": 278,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 278
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if is_instance {",
+      "variables": [
+        "is_instance"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "p.name == \"self\" { continue; }",
+      "id": "gen-program.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 283,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 34,
+        "end_line": 283,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 283
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if p.name == \"self\" { continue; }",
+      "variables": [
+        "continue",
+        "name",
+        "p",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = &p.ty",
+      "id": "gen-program.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 284,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 26,
+        "end_line": 284,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 284
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ty) = &p.ty {",
+      "variables": [
+        "Some",
+        "let",
+        "p",
+        "ty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "is_struct { param_types.push(self.context.ptr_type(AddressSpace::default()).into()); }",
+      "id": "gen-program.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 287,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 90,
+        "end_line": 287,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 287
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if is_struct { param_types.push(self.context.ptr_type(AddressSpace::default()).into()); }",
+      "variables": [
+        "AddressSpace",
+        "context",
+        "default",
+        "into",
+        "is_struct",
+        "param_types",
+        "ptr_type",
+        "push",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.module.get_function(&mangled).is_none()",
+      "id": "gen-program.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 294,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 50,
+        "end_line": 294,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 294
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if self.module.get_function(&mangled).is_none() {",
+      "variables": [
+        "get_function",
+        "is_none",
+        "mangled",
+        "module",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Item::Impl(def) = item",
+      "id": "gen-program.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 315,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 32,
+        "end_line": 315,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 315
+      },
+      "symbol": "gen_program",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Item::Impl(def) = item {",
+      "variables": [
+        "Impl",
+        "Item",
+        "def",
+        "item",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty_opt",
+      "id": "gen-stmt.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 637,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 637,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 637
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = ty_opt {",
+      "variables": [
+        "Some",
+        "let",
+        "ty",
+        "ty_opt"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ty) = ty_opt",
+      "id": "gen-stmt.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 649,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 27,
+        "end_line": 649,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 649
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(ty) = ty_opt {",
+      "variables": [
+        "Some",
+        "let",
+        "ty",
+        "ty_opt"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ptr) = self.variables.get(&name)",
+      "id": "gen-stmt.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 657,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 657,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 657
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(ptr) = self.variables.get(&name) {",
+      "variables": [
+        "Some",
+        "get",
+        "let",
+        "name",
+        "ptr",
+        "self",
+        "variables"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_name) = self.infer_expr_type(&obj)",
+      "id": "gen-stmt.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 662,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 56,
+        "end_line": 662,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 662
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(struct_name) = self.infer_expr_type(&obj) {",
+      "variables": [
+        "Some",
+        "infer_expr_type",
+        "let",
+        "obj",
+        "self",
+        "struct_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(struct_ty) = self.struct_types.get(&struct_name).cloned()",
+      "id": "gen-stmt.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 664,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 72,
+        "end_line": 664,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 664
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(struct_ty) = self.struct_types.get(&struct_name).cloned() {",
+      "variables": [
+        "Some",
+        "cloned",
+        "get",
+        "let",
+        "self",
+        "struct_name",
+        "struct_ty",
+        "struct_types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(idx) = self.get_field_index(&struct_name, &field)",
+      "id": "gen-stmt.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 667,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 64,
+        "end_line": 667,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 667
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(idx) = self.get_field_index(&struct_name, &field) {",
+      "variables": [
+        "Some",
+        "field",
+        "get_field_index",
+        "idx",
+        "let",
+        "self",
+        "struct_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-stmt.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 704,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 704,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 704
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(else_stmts) = else_block_opt",
+      "id": "gen-stmt.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 709,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 43,
+        "end_line": 709,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 709
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some(else_stmts) = else_block_opt {",
+      "variables": [
+        "Some",
+        "else_block_opt",
+        "else_stmts",
+        "let"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-stmt.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 712,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 712,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 712
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-stmt.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 736,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 736,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 736
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((_, end_bb)) = self.loop_stack.last()",
+      "id": "gen-stmt.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 744,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 52,
+        "end_line": 744,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 744
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some((_, end_bb)) = self.loop_stack.last() {",
+      "variables": [
+        "Some",
+        "_",
+        "end_bb",
+        "last",
+        "let",
+        "loop_stack",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some((cond_bb, _)) = self.loop_stack.last()",
+      "id": "gen-stmt.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 749,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 53,
+        "end_line": 749,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 749
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if let Some((cond_bb, _)) = self.loop_stack.last() {",
+      "variables": [
+        "Some",
+        "_",
+        "cond_bb",
+        "last",
+        "let",
+        "loop_stack",
+        "self"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-stmt.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 833,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 833,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 833
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "self.builder.get_insert_block().unwrap().get_terminator().is_none()",
+      "id": "gen-stmt.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 853,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 73,
+        "end_line": 853,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 853
+      },
+      "symbol": "gen_stmt",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if self.builder.get_insert_block().unwrap().get_terminator().is_none() {",
+      "variables": [
+        "builder",
+        "get_insert_block",
+        "get_terminator",
+        "is_none",
+        "self",
+        "unwrap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Expr::Ident(type_name) = obj.as_ref()",
+      "id": "infer-expr-type.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 181,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 181,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 181
+      },
+      "symbol": "infer_expr_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Expr::Ident(type_name) = obj.as_ref() {",
+      "variables": [
+        "Expr",
+        "Ident",
+        "as_ref",
+        "let",
+        "obj",
+        "type_name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "let Some(ret_type) = self.function_return_types.get(&mangled)",
+      "id": "infer-expr-type.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "rust",
+      "line": 196,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+      "span": {
+        "end_col": 67,
+        "end_line": 196,
+        "path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+        "start_col": 1,
+        "start_line": 196
+      },
+      "symbol": "infer_expr_type",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if let Some(ret_type) = self.function_return_types.get(&mangled) {",
+      "variables": [
+        "Some",
+        "function_return_types",
+        "get",
+        "let",
+        "mangled",
+        "ret_type",
+        "self"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "79cabbb5d941ebb2872311a56eb4cfd66596ef9c77090135f1a2d925ae0d1560",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-sys-codegen\\src\\codegen_llvm\\archive\\mod2.rs",
+  "version": 1
+}

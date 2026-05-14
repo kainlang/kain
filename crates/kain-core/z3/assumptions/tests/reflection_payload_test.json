@@ -1,0 +1,339 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.reflection_payload.is_none()",
+      "id": "does-not-emit-reflection-payload-for-js-target.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 119,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 119,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 119
+      },
+      "symbol": "does_not_emit_reflection_payload_for_js_target",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(bundle.reflection_payload.is_none());",
+      "variables": [
+        "bundle",
+        "is_none",
+        "reflection_payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!bundle.reflection.emitted",
+      "id": "does-not-emit-reflection-payload-for-js-target.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 120,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "does_not_emit_reflection_payload_for_js_target",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "assert!(!bundle.reflection.emitted);",
+      "variables": [
+        "bundle",
+        "emitted",
+        "reflection"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.reflection_payload.is_some()",
+      "id": "emits-reflection-payload-for-llvm-target.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 86,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "emits_reflection_payload_for_llvm_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "assert!(bundle.reflection_payload.is_some());",
+      "variables": [
+        "bundle",
+        "is_some",
+        "reflection_payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle.reflection_payload.is_some()",
+      "id": "emits-reflection-payload-for-rust-target.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 29,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 29,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 29
+      },
+      "symbol": "emits_reflection_payload_for_rust_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(bundle.reflection_payload.is_some());",
+      "variables": [
+        "bundle",
+        "is_some",
+        "reflection_payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "payload.items.len() >= 3",
+      "id": "emits-reflection-payload-for-rust-target.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 46,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 35,
+        "end_line": 46,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 46
+      },
+      "symbol": "emits_reflection_payload_for_rust_target",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(payload.items.len() >= 3);",
+      "variables": [
+        "items",
+        "len",
+        "payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"reflection_payload\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.1",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 148,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 46,
+        "end_line": 148,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 148
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"reflection_payload\"));",
+      "variables": [
+        "contains",
+        "json",
+        "reflection_payload"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"name\\\": \\\"Color\\\"\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.2",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 149,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 47,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"name\\\": \\\"Color\\\"\"));",
+      "variables": [
+        "Color",
+        "contains",
+        "json",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"name\\\": \\\"Button\\\"\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.3",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 150,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 48,
+        "end_line": 150,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 150
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"name\\\": \\\"Button\\\"\"));",
+      "variables": [
+        "Button",
+        "contains",
+        "json",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"types\\\"\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.4",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 151,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 151,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 151
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"types\\\"\"));",
+      "variables": [
+        "contains",
+        "json",
+        "types"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"items\\\"\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.5",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 152,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 37,
+        "end_line": 152,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 152
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"items\\\"\"));",
+      "variables": [
+        "contains",
+        "items",
+        "json"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "json.contains(\"\\\"components\\\"\")",
+      "id": "reflection-payload-serializes-to-json.assert-condition.6",
+      "kind": "assert-condition",
+      "language": "rust",
+      "line": 153,
+      "origin_class": "assert-condition",
+      "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+      "span": {
+        "end_col": 42,
+        "end_line": 153,
+        "path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+        "start_col": 1,
+        "start_line": 153
+      },
+      "symbol": "reflection_payload_serializes_to_json",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "assert!(json.contains(\"\\\"components\\\"\"));",
+      "variables": [
+        "components",
+        "contains",
+        "json"
+      ]
+    }
+  ],
+  "language": "rust",
+  "source_hash": "ef3fe5eada03d140a3241125b561c24ce5fb5f8a661ed787efa83950a596e931",
+  "source_path": "D:\\Kain-Lang\\crates\\kain-core\\tests\\reflection_payload_test.rs",
+  "version": 1
+}

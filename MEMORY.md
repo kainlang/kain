@@ -64,6 +64,7 @@ Known validation noise:
 Recommended next step:
 
 - Add a small `.kn` native executable fixture that allocates, observes, collapses, and decays a heap pointer end-to-end through the real LLVM linker path, then promote it into the native LLVM proving-ground blade once the sample surface is stable.
+
 # 2026-05-14 - `crates/kain-ownership` landed as the proof-backed memory ownership kernel
 
 The first vertical slice of the `collapse` / `observe` / `decay` ownership model now exists as a dedicated semantic crate instead of remaining a design note.
@@ -86,17 +87,49 @@ Design decisions:
 
 Formal proof gathered with Z3:
 
-- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\kain-ownership", lane="full", report_name="kain-ownership-initial-full-after-line-anchors")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership", lane="full", report_name="kain-ownership-initial-full-after-line-anchors")`
 - Result: 4/4 proved, 0 counterexamples, 0 unknown, 0 errors.
 
 Validation:
 
 - `cargo fmt -p kain-ownership`
-- `cargo test -p kain-ownership --target-dir target\codex-kain-ownership -- --nocapture`
+- `cargo test -p kain-ownership --target-dir target\\codex-kain-ownership -- --nocapture`
 
 Recommended next step:
 
 - Wire `kain-core` parser/AST/typechecker support for intrinsic-style `observe`, `collapse`, and `decay` expressions against this crate before adding LLVM/native lowering.
+
+# 2026-05-14 - Windows `kain` and Codex MCP now route through Bazel-backed launcher shims instead of stale Cargo binaries
+
+The Windows workstation no longer relies on PATH order alone to keep `kain` fresh. The launcher contract now installs a real native shim in both the shared Bazel launcher directory and the old Cargo-bin location, so even long-lived agent processes that inherited an older PATH order still rebuild `//:kain` or `//:kn` before execution.
+
+What changed:
+
+- Added `scripts/windows/kain_bazel_cli_launcher.rs`, a tiny native Windows launcher that derives whether it is running as `kain.exe` or `kn.exe`, resolves the repo root plus Bazel config, and dispatches into `scripts/windows/launch-bazel-cli.ps1`.
+- `scripts/windows/sync-kain-source-of-truth.ps1` now builds that launcher shim with `rustc`, installs it to the canonical shared launcher dir `D:/Kain-Bazel/bin`, and shadows `%USERPROFILE%/.cargo/bin/kain.exe` plus `kn.exe` with the same Bazel-backed shim after making a one-time `.pre-bazel-wrapper` backup of the previous binaries.
+- The same sync script still writes compatibility `.cmd` wrappers in `D:/Kain-Bazel/bin`, but those now trampoline into the native `.exe` shim instead of embedding PowerShell command strings directly.
+- `blades/kain-mcp/config/runtime_policy.json` now records the shadow launcher dir contract, and root `mcp.json` plus the live `C:\Users\Admin\.codex\config.toml` block now launch MCP through plain `command = "kain"` instead of pinning Python or a stale hardcoded Cargo binary path.
+- `.agents/skills/kain-bazel-rust-sync/SKILL.md` and `ARCHITECTURE.md` now document the shared-plus-shadow launcher contract so future agents stop reaching for copied CLI binaries.
+
+Why it changed:
+
+- The earlier `D:/Kain-Bazel/bin/*.cmd` wrapper fixed fresh shells but not long-lived agent processes that had already inherited a PATH where `C:\Users\Admin\.cargo\bin` came first.
+- That meant `where kain` could still resolve the old Cargo-installed binary even after Bazel work was correct, which is exactly the stale-CLI failure mode the user called out: a library target was green, but the executable an agent actually launched could still be old.
+- Replacing both the shared launcher path and the legacy Cargo-bin entrypoint with the same Bazel-backed shim removes that ambiguity. `kain` now means "build the current Bazel CLI target, then run the Bazel artifact" no matter which of those two Windows locations wins resolution first.
+
+Validation:
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv`
+- `$env:CARGO_BAZEL_REPIN='1'; bazel fetch //:kain --config=dev`
+- `kain doctor`
+- `D:\Kain-Bazel\bin\kain.exe doctor`
+- `C:\Users\Admin\.cargo\bin\kain.exe doctor`
+- `codex exec --json --ephemeral -C D:\Kain-Lang -c mcp_servers.poly.enabled=false -c mcp_servers.z3_local.enabled=false "Respond with OK and exit."`
+
+Durable note:
+
+- On this workstation, future agents should treat `kain` as a Bazel launcher shim, not as a copied Cargo binary. If MCP or shell commands ever start hitting a stale CLI again, the first repair step is rerunning `scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv`, not manually rebuilding `cargo build -p cli` and copying exes around.
+- The wrapper now exposes Cargo-to-Bazel drift immediately. If `kain` fails during Bazel analysis with a `crate_universe` digest mismatch, repin with `$env:CARGO_BAZEL_REPIN='1'; bazel fetch //:kain --config=dev` and keep the resulting `MODULE.bazel.lock` update with the Cargo manifest change that caused it.
 
 # 2026-05-14 - `crates/kain-sys-codegen` now has a durable LLVM Z3 proof pack
 
@@ -517,7 +550,7 @@ Validation:
 Current risks:
 
 - `kain blades check .` still reports unrelated pre-existing missing generated paths for `kade-desktop` and the Fabric DCC suite apps. That workspace-level failure is not caused by the new essential blades.
-- The PATH-installed `C:\Users\Admin\.cargo\bin\kain.exe` can lag behind the checked-out workspace code. For blade import/runtime validation after blade-system changes, prefer `cargo run -p cli -- ...` or a freshly rebuilt local CLI binary.
+- The older PATH-installed Cargo binary drift risk is superseded on this workstation by the Bazel launcher shims in `D:/Kain-Bazel/bin` and `%USERPROFILE%/.cargo/bin`. If drift reappears, rerun `scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv` before falling back to manual CLI rebuilds.
 
 Recommended next step:
 
