@@ -9,6 +9,7 @@
 #include "kain_runtime_reflection.h"
 #include "kain_runtime_diagnostics.h"
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1010,34 +1011,170 @@ static int reflection_ensure_item_capacity(KainReflectionPayload* payload, int m
     return 0;
 }
 
-static KainTypeKind reflection_type_kind_from_string(const char* kind) {
-    if (!kind) {
-        return KAIN_TYPE_KIND_UNKNOWN;
+typedef struct KainReflectionToken16 {
+    uint64_t length;
+    uint64_t lo;
+    uint64_t hi;
+    uint64_t state;
+} KainReflectionToken16;
+
+typedef enum KainReflectionFieldToken {
+    KAIN_REFLECTION_FIELD_UNKNOWN = 0,
+    KAIN_REFLECTION_FIELD_NAME = 1,
+    KAIN_REFLECTION_FIELD_ITEM_ID = 2,
+    KAIN_REFLECTION_FIELD_TYPE_ID = 3,
+    KAIN_REFLECTION_FIELD_KIND = 4,
+    KAIN_REFLECTION_FIELD_SIZE_HINT = 5,
+    KAIN_REFLECTION_FIELD_FIELDS = 6,
+    KAIN_REFLECTION_FIELD_MODULE_PATH = 7,
+    KAIN_REFLECTION_FIELD_SCHEMA_VERSION = 8,
+    KAIN_REFLECTION_FIELD_TYPES = 9,
+    KAIN_REFLECTION_FIELD_ITEMS = 10,
+    KAIN_REFLECTION_FIELD_ACTORS = 11,
+    KAIN_REFLECTION_FIELD_COMPONENTS = 12,
+    KAIN_REFLECTION_FIELD_MESSAGES = 13,
+} KainReflectionFieldToken;
+
+static uint64_t reflection_token_rotl64(uint64_t value, unsigned int shift) {
+    return (value << shift) | (value >> (64u - shift));
+}
+
+static uint64_t reflection_token_nonzero_bit(uint64_t value) {
+    return ((value | (UINT64_C(0) - value)) >> 63u) & UINT64_C(1);
+}
+
+static uint64_t reflection_token_zero_bit(uint64_t value) {
+    return reflection_token_nonzero_bit(value) ^ UINT64_C(1);
+}
+
+static uint64_t reflection_token_load_le64(const unsigned char* bytes) {
+    return ((uint64_t)bytes[0]) |
+        ((uint64_t)bytes[1] << 8u) |
+        ((uint64_t)bytes[2] << 16u) |
+        ((uint64_t)bytes[3] << 24u) |
+        ((uint64_t)bytes[4] << 32u) |
+        ((uint64_t)bytes[5] << 40u) |
+        ((uint64_t)bytes[6] << 48u) |
+        ((uint64_t)bytes[7] << 56u);
+}
+
+static uint64_t reflection_token_state16(uint64_t lo, uint64_t hi, uint64_t length) {
+    const uint64_t magic = UINT64_C(0x64170d358aa115a1);
+    uint64_t folded0 = (lo ^ length) * magic;
+    uint64_t folded1 = (hi ^ reflection_token_rotl64(magic, 17u)) *
+        UINT64_C(0x9e3779b97f4a7c15);
+    uint64_t folded2 = ((lo >> 7u) ^ (hi << 11u) ^ UINT64_C(0xbf58476d1ce4e5b9)) *
+        UINT64_C(0xd6e8feb86659fd93);
+    uint64_t state = folded0 ^ folded1 ^ folded2;
+    return ((state ^ (state >> 33u)) * UINT64_C(0xff51afd7ed558ccd)) ^
+        (state >> 29u);
+}
+
+static KainReflectionToken16 reflection_token_from_text16(const char* text) {
+    unsigned char bytes[16] = {0};
+    KainReflectionToken16 token;
+    size_t length = text ? strlen(text) : 0u;
+    size_t copy_length = length;
+    if (copy_length > sizeof(bytes)) {
+        copy_length = sizeof(bytes);
     }
-    if (strcmp(kind, "primitive") == 0) return KAIN_TYPE_KIND_PRIMITIVE;
-    if (strcmp(kind, "struct") == 0) return KAIN_TYPE_KIND_STRUCT;
-    if (strcmp(kind, "enum") == 0) return KAIN_TYPE_KIND_ENUM;
-    if (strcmp(kind, "array") == 0) return KAIN_TYPE_KIND_ARRAY;
-    if (strcmp(kind, "pointer") == 0) return KAIN_TYPE_KIND_POINTER;
-    if (strcmp(kind, "function") == 0) return KAIN_TYPE_KIND_FUNCTION;
-    if (strcmp(kind, "actor") == 0) return KAIN_TYPE_KIND_ACTOR;
-    if (strcmp(kind, "message") == 0) return KAIN_TYPE_KIND_MESSAGE;
-    return KAIN_TYPE_KIND_UNKNOWN;
+    if (text && copy_length != 0u) {
+        memcpy(bytes, text, copy_length);
+    }
+    token.length = (uint64_t)length;
+    token.lo = reflection_token_load_le64(bytes);
+    token.hi = reflection_token_load_le64(bytes + 8);
+    token.state = reflection_token_state16(token.lo, token.hi, token.length);
+    return token;
+}
+
+static uint64_t reflection_token_match_bit(
+    const KainReflectionToken16* token,
+    uint64_t length,
+    uint64_t lo,
+    uint64_t hi,
+    uint64_t state
+) {
+    return reflection_token_zero_bit(token->length ^ length) &
+        reflection_token_zero_bit(token->lo ^ lo) &
+        reflection_token_zero_bit(token->hi ^ hi) &
+        reflection_token_zero_bit(token->state ^ state);
+}
+
+static KainTypeKind reflection_type_kind_from_string(const char* kind) {
+    KainReflectionToken16 token = reflection_token_from_text16(kind);
+    uint64_t primitive = reflection_token_match_bit(&token, 9u, UINT64_C(0x766974696d697270), UINT64_C(0x0000000000000065), UINT64_C(0x73f6cb8537351cac));
+    uint64_t structure = reflection_token_match_bit(&token, 6u, UINT64_C(0x0000746375727473), UINT64_C(0x0000000000000000), UINT64_C(0x85e2349084f91fcd));
+    uint64_t enumeration = reflection_token_match_bit(&token, 4u, UINT64_C(0x000000006d756e65), UINT64_C(0x0000000000000000), UINT64_C(0x90375b34f50a79ea));
+    uint64_t array = reflection_token_match_bit(&token, 5u, UINT64_C(0x0000007961727261), UINT64_C(0x0000000000000000), UINT64_C(0x71345c4d8b8bf8bd));
+    uint64_t pointer = reflection_token_match_bit(&token, 7u, UINT64_C(0x007265746e696f70), UINT64_C(0x0000000000000000), UINT64_C(0x7960d2d443fbfcc1));
+    uint64_t function = reflection_token_match_bit(&token, 8u, UINT64_C(0x6e6f6974636e7566), UINT64_C(0x0000000000000000), UINT64_C(0xd6a68da987f03e7a));
+    uint64_t actor = reflection_token_match_bit(&token, 5u, UINT64_C(0x000000726f746361), UINT64_C(0x0000000000000000), UINT64_C(0x7f9eb4e3bc9d4474));
+    uint64_t message = reflection_token_match_bit(&token, 7u, UINT64_C(0x006567617373656d), UINT64_C(0x0000000000000000), UINT64_C(0xd2f837f41e8abcb6));
+    uint64_t selected =
+        (primitive * (uint64_t)KAIN_TYPE_KIND_PRIMITIVE) |
+        (structure * (uint64_t)KAIN_TYPE_KIND_STRUCT) |
+        (enumeration * (uint64_t)KAIN_TYPE_KIND_ENUM) |
+        (array * (uint64_t)KAIN_TYPE_KIND_ARRAY) |
+        (pointer * (uint64_t)KAIN_TYPE_KIND_POINTER) |
+        (function * (uint64_t)KAIN_TYPE_KIND_FUNCTION) |
+        (actor * (uint64_t)KAIN_TYPE_KIND_ACTOR) |
+        (message * (uint64_t)KAIN_TYPE_KIND_MESSAGE);
+    return (KainTypeKind)selected;
 }
 
 static KainItemKind reflection_item_kind_from_string(const char* kind) {
-    if (!kind) {
-        return KAIN_ITEM_KIND_UNKNOWN;
-    }
-    if (strcmp(kind, "function") == 0) return KAIN_ITEM_KIND_FUNCTION;
-    if (strcmp(kind, "struct") == 0) return KAIN_ITEM_KIND_STRUCT;
-    if (strcmp(kind, "enum") == 0) return KAIN_ITEM_KIND_ENUM;
-    if (strcmp(kind, "actor") == 0) return KAIN_ITEM_KIND_ACTOR;
-    if (strcmp(kind, "component") == 0) return KAIN_ITEM_KIND_COMPONENT;
-    if (strcmp(kind, "message") == 0) return KAIN_ITEM_KIND_MESSAGE;
-    if (strcmp(kind, "service") == 0) return KAIN_ITEM_KIND_SERVICE;
-    if (strcmp(kind, "module") == 0) return KAIN_ITEM_KIND_MODULE;
-    return KAIN_ITEM_KIND_UNKNOWN;
+    KainReflectionToken16 token = reflection_token_from_text16(kind);
+    uint64_t function = reflection_token_match_bit(&token, 8u, UINT64_C(0x6e6f6974636e7566), UINT64_C(0x0000000000000000), UINT64_C(0xd6a68da987f03e7a));
+    uint64_t structure = reflection_token_match_bit(&token, 6u, UINT64_C(0x0000746375727473), UINT64_C(0x0000000000000000), UINT64_C(0x85e2349084f91fcd));
+    uint64_t enumeration = reflection_token_match_bit(&token, 4u, UINT64_C(0x000000006d756e65), UINT64_C(0x0000000000000000), UINT64_C(0x90375b34f50a79ea));
+    uint64_t actor = reflection_token_match_bit(&token, 5u, UINT64_C(0x000000726f746361), UINT64_C(0x0000000000000000), UINT64_C(0x7f9eb4e3bc9d4474));
+    uint64_t component = reflection_token_match_bit(&token, 9u, UINT64_C(0x6e656e6f706d6f63), UINT64_C(0x0000000000000074), UINT64_C(0xd56fea0c726645b2));
+    uint64_t message = reflection_token_match_bit(&token, 7u, UINT64_C(0x006567617373656d), UINT64_C(0x0000000000000000), UINT64_C(0xd2f837f41e8abcb6));
+    uint64_t service = reflection_token_match_bit(&token, 7u, UINT64_C(0x0065636976726573), UINT64_C(0x0000000000000000), UINT64_C(0x730d81792e48e264));
+    uint64_t module = reflection_token_match_bit(&token, 6u, UINT64_C(0x0000656c75646f6d), UINT64_C(0x0000000000000000), UINT64_C(0xc32071eee8a4630a));
+    uint64_t selected =
+        (function * (uint64_t)KAIN_ITEM_KIND_FUNCTION) |
+        (structure * (uint64_t)KAIN_ITEM_KIND_STRUCT) |
+        (enumeration * (uint64_t)KAIN_ITEM_KIND_ENUM) |
+        (actor * (uint64_t)KAIN_ITEM_KIND_ACTOR) |
+        (component * (uint64_t)KAIN_ITEM_KIND_COMPONENT) |
+        (message * (uint64_t)KAIN_ITEM_KIND_MESSAGE) |
+        (service * (uint64_t)KAIN_ITEM_KIND_SERVICE) |
+        (module * (uint64_t)KAIN_ITEM_KIND_MODULE);
+    return (KainItemKind)selected;
+}
+
+static KainReflectionFieldToken reflection_field_from_string(const char* field_name) {
+    KainReflectionToken16 token = reflection_token_from_text16(field_name);
+    uint64_t name = reflection_token_match_bit(&token, 4u, UINT64_C(0x00000000656d616e), UINT64_C(0x0000000000000000), UINT64_C(0xbdbe7f7dcdf6ceea));
+    uint64_t item_id = reflection_token_match_bit(&token, 7u, UINT64_C(0x0064695f6d657469), UINT64_C(0x0000000000000000), UINT64_C(0x396873470de3a18d));
+    uint64_t type_id = reflection_token_match_bit(&token, 7u, UINT64_C(0x0064695f65707974), UINT64_C(0x0000000000000000), UINT64_C(0xa2e1fd958c48e7bf));
+    uint64_t kind = reflection_token_match_bit(&token, 4u, UINT64_C(0x00000000646e696b), UINT64_C(0x0000000000000000), UINT64_C(0x85f92e94ef70fc1a));
+    uint64_t size_hint = reflection_token_match_bit(&token, 9u, UINT64_C(0x6e69685f657a6973), UINT64_C(0x0000000000000074), UINT64_C(0xd9ab85228acf82d8));
+    uint64_t fields = reflection_token_match_bit(&token, 6u, UINT64_C(0x000073646c656966), UINT64_C(0x0000000000000000), UINT64_C(0x5606bb346200eebb));
+    uint64_t module_path = reflection_token_match_bit(&token, 11u, UINT64_C(0x705f656c75646f6d), UINT64_C(0x0000000000687461), UINT64_C(0xdaa9949d1f3d885d));
+    uint64_t schema_version = reflection_token_match_bit(&token, 14u, UINT64_C(0x765f616d65686373), UINT64_C(0x00006e6f69737265), UINT64_C(0xcef0f89d5f9114e2));
+    uint64_t types = reflection_token_match_bit(&token, 5u, UINT64_C(0x0000007365707974), UINT64_C(0x0000000000000000), UINT64_C(0xec24f923c8feccea));
+    uint64_t items = reflection_token_match_bit(&token, 5u, UINT64_C(0x000000736d657469), UINT64_C(0x0000000000000000), UINT64_C(0xd72884d7aee6376c));
+    uint64_t actors = reflection_token_match_bit(&token, 6u, UINT64_C(0x000073726f746361), UINT64_C(0x0000000000000000), UINT64_C(0x6db01821db700c91));
+    uint64_t components = reflection_token_match_bit(&token, 10u, UINT64_C(0x6e656e6f706d6f63), UINT64_C(0x0000000000007374), UINT64_C(0xd48f0b56436d2bf4));
+    uint64_t messages = reflection_token_match_bit(&token, 8u, UINT64_C(0x736567617373656d), UINT64_C(0x0000000000000000), UINT64_C(0xc2fd8edf6348077f));
+    uint64_t selected =
+        (name * (uint64_t)KAIN_REFLECTION_FIELD_NAME) |
+        (item_id * (uint64_t)KAIN_REFLECTION_FIELD_ITEM_ID) |
+        (type_id * (uint64_t)KAIN_REFLECTION_FIELD_TYPE_ID) |
+        (kind * (uint64_t)KAIN_REFLECTION_FIELD_KIND) |
+        (size_hint * (uint64_t)KAIN_REFLECTION_FIELD_SIZE_HINT) |
+        (fields * (uint64_t)KAIN_REFLECTION_FIELD_FIELDS) |
+        (module_path * (uint64_t)KAIN_REFLECTION_FIELD_MODULE_PATH) |
+        (schema_version * (uint64_t)KAIN_REFLECTION_FIELD_SCHEMA_VERSION) |
+        (types * (uint64_t)KAIN_REFLECTION_FIELD_TYPES) |
+        (items * (uint64_t)KAIN_REFLECTION_FIELD_ITEMS) |
+        (actors * (uint64_t)KAIN_REFLECTION_FIELD_ACTORS) |
+        (components * (uint64_t)KAIN_REFLECTION_FIELD_COMPONENTS) |
+        (messages * (uint64_t)KAIN_REFLECTION_FIELD_MESSAGES);
+    return (KainReflectionFieldToken)selected;
 }
 
 static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* diag, const char* array_name) {
@@ -1077,6 +1214,7 @@ static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* dia
         while (parser->pos < parser->length) {
             json_skip_ws(parser);
             char field_name[KAIN_REFLECTION_NAME_MAX];
+            KainReflectionFieldToken field_token;
             if (!json_parse_string(parser, field_name, sizeof(field_name))) {
                 reflection_set_diag(
                     diag,
@@ -1097,7 +1235,8 @@ static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* dia
                 );
                 return -1;
             }
-            if (strcmp(field_name, "name") == 0) {
+            field_token = reflection_field_from_string(field_name);
+            if (field_token == KAIN_REFLECTION_FIELD_NAME) {
                 if (!json_parse_string(parser, key, sizeof(key))) {
                     reflection_set_diag(
                         diag,
@@ -1109,7 +1248,7 @@ static int json_parse_named_object_array(JsonParser* parser, KainDiagnostic* dia
                     return -1;
                 }
                 saw_name = 1;
-            } else if (strcmp(field_name, "item_id") == 0) {
+            } else if (field_token == KAIN_REFLECTION_FIELD_ITEM_ID) {
                 unsigned long long dummy = 0;
                 if (!json_parse_u64(parser, &dummy)) {
                     reflection_set_diag(
@@ -1216,20 +1355,21 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
             REFLECTION_TYPE_FAIL("Failed to parse reflection type field separator");
         }
 
-        if (strcmp(field_name, "type_id") == 0) {
+        KainReflectionFieldToken field_token = reflection_field_from_string(field_name);
+        if (field_token == KAIN_REFLECTION_FIELD_TYPE_ID) {
             if (!json_parse_u64(parser, &type_id)) {
                 REFLECTION_TYPE_FAIL("Failed to parse reflection type type_id");
             }
             has_type_id = 1;
-        } else if (strcmp(field_name, "name") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_NAME) {
             if (!json_parse_string(parser, name, sizeof(name))) {
                 REFLECTION_TYPE_FAIL("Failed to parse reflection type name");
             }
-        } else if (strcmp(field_name, "kind") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_KIND) {
             if (!json_parse_string(parser, kind, sizeof(kind))) {
                 REFLECTION_TYPE_FAIL("Failed to parse reflection type kind");
             }
-        } else if (strcmp(field_name, "size_hint") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_SIZE_HINT) {
             if (json_match_literal(parser, "null")) {
                 has_size_hint = 0;
             } else if (json_parse_u64(parser, &size_hint)) {
@@ -1237,7 +1377,7 @@ static int parse_type_object(JsonParser* parser, KainReflectionPayload* payload,
             } else {
                 REFLECTION_TYPE_FAIL("Failed to parse reflection type size_hint");
             }
-        } else if (strcmp(field_name, "fields") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_FIELDS) {
             if (!json_match_char(parser, '[')) {
                 REFLECTION_TYPE_FAIL("Failed to parse reflection type fields array");
             }
@@ -1344,24 +1484,25 @@ static int parse_item_object(JsonParser* parser, KainReflectionPayload* payload,
             REFLECTION_ITEM_FAIL("Failed to parse reflection item field separator");
         }
 
-        if (strcmp(field_name, "item_id") == 0) {
+        KainReflectionFieldToken field_token = reflection_field_from_string(field_name);
+        if (field_token == KAIN_REFLECTION_FIELD_ITEM_ID) {
             if (!json_parse_u64(parser, &item_id)) {
                 REFLECTION_ITEM_FAIL("Failed to parse reflection item item_id");
             }
             has_item_id = 1;
-        } else if (strcmp(field_name, "name") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_NAME) {
             if (!json_parse_string(parser, name, sizeof(name))) {
                 REFLECTION_ITEM_FAIL("Failed to parse reflection item name");
             }
-        } else if (strcmp(field_name, "kind") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_KIND) {
             if (!json_parse_string(parser, kind, sizeof(kind))) {
                 REFLECTION_ITEM_FAIL("Failed to parse reflection item kind");
             }
-        } else if (strcmp(field_name, "module_path") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_MODULE_PATH) {
             if (!json_parse_string(parser, module_path, sizeof(module_path))) {
                 REFLECTION_ITEM_FAIL("Failed to parse reflection item module_path");
             }
-        } else if (strcmp(field_name, "type_id") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_TYPE_ID) {
             if (json_match_literal(parser, "null")) {
                 has_type_id = 0;
             } else if (json_parse_u64(parser, &type_id)) {
@@ -1519,6 +1660,7 @@ static int json_parse_top_level(JsonParser* parser, KainReflectionPayload* paylo
     }
 
     while (parser->pos < parser->length) {
+        KainReflectionFieldToken field_token;
         if (json_match_char(parser, '}')) {
             break;
         }
@@ -1544,7 +1686,8 @@ static int json_parse_top_level(JsonParser* parser, KainReflectionPayload* paylo
             return -1;
         }
 
-        if (strcmp(key, "schema_version") == 0) {
+        field_token = reflection_field_from_string(key);
+        if (field_token == KAIN_REFLECTION_FIELD_SCHEMA_VERSION) {
             if (!json_parse_u64(parser, &schema_version)) {
                 reflection_set_diag(
                     diag,
@@ -1556,15 +1699,17 @@ static int json_parse_top_level(JsonParser* parser, KainReflectionPayload* paylo
                 return -1;
             }
             saw_schema_version = 1;
-        } else if (strcmp(key, "types") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_TYPES) {
             if (json_parse_type_array(parser, payload, diag) != 0) {
                 return -1;
             }
-        } else if (strcmp(key, "items") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_ITEMS) {
             if (json_parse_item_array(parser, payload, diag) != 0) {
                 return -1;
             }
-        } else if (strcmp(key, "actors") == 0 || strcmp(key, "components") == 0 || strcmp(key, "messages") == 0) {
+        } else if (field_token == KAIN_REFLECTION_FIELD_ACTORS ||
+            field_token == KAIN_REFLECTION_FIELD_COMPONENTS ||
+            field_token == KAIN_REFLECTION_FIELD_MESSAGES) {
             if (json_parse_named_object_array(parser, diag, key) != 0) {
                 return -1;
             }

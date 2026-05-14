@@ -127,32 +127,104 @@ static int64_t kain_native_ui_positive_hash(uint64_t hash) {
     return (int64_t)(hash & UINT64_C(0x7fffffffffffffff));
 }
 
-static int64_t kain_native_ui_flag_bit(const char* flag) {
-    if (!flag) {
-        return 0;
+typedef struct KainNativeUiToken16 {
+    uint64_t length;
+    uint64_t lo;
+    uint64_t hi;
+    uint64_t state;
+} KainNativeUiToken16;
+
+typedef struct KainNativeUiFlagInfo {
+    int64_t bit;
+    uint64_t visible;
+} KainNativeUiFlagInfo;
+
+static uint64_t kain_native_ui_token_rotl64(uint64_t value, unsigned int shift) {
+    return (value << shift) | (value >> (64u - shift));
+}
+
+static uint64_t kain_native_ui_token_nonzero_bit(uint64_t value) {
+    return ((value | (UINT64_C(0) - value)) >> 63u) & UINT64_C(1);
+}
+
+static uint64_t kain_native_ui_token_zero_bit(uint64_t value) {
+    return kain_native_ui_token_nonzero_bit(value) ^ UINT64_C(1);
+}
+
+static uint64_t kain_native_ui_token_load_le64(const unsigned char* bytes) {
+    return ((uint64_t)bytes[0]) |
+        ((uint64_t)bytes[1] << 8u) |
+        ((uint64_t)bytes[2] << 16u) |
+        ((uint64_t)bytes[3] << 24u) |
+        ((uint64_t)bytes[4] << 32u) |
+        ((uint64_t)bytes[5] << 40u) |
+        ((uint64_t)bytes[6] << 48u) |
+        ((uint64_t)bytes[7] << 56u);
+}
+
+static uint64_t kain_native_ui_token_state16(uint64_t lo, uint64_t hi, uint64_t length) {
+    const uint64_t magic = UINT64_C(0x64170d358aa115a1);
+    uint64_t folded0 = (lo ^ length) * magic;
+    uint64_t folded1 = (hi ^ kain_native_ui_token_rotl64(magic, 17u)) *
+        UINT64_C(0x9e3779b97f4a7c15);
+    uint64_t folded2 = ((lo >> 7u) ^ (hi << 11u) ^ UINT64_C(0xbf58476d1ce4e5b9)) *
+        UINT64_C(0xd6e8feb86659fd93);
+    uint64_t state = folded0 ^ folded1 ^ folded2;
+    return ((state ^ (state >> 33u)) * UINT64_C(0xff51afd7ed558ccd)) ^
+        (state >> 29u);
+}
+
+static KainNativeUiToken16 kain_native_ui_token_from_text16(const char* text) {
+    unsigned char bytes[16] = {0};
+    KainNativeUiToken16 token;
+    size_t length = text ? strlen(text) : 0u;
+    size_t copy_length = length;
+    if (copy_length > sizeof(bytes)) {
+        copy_length = sizeof(bytes);
     }
-    if (strcmp(flag, "hidden") == 0) {
-        return KAIN_NATIVE_UI_NODE_HIDDEN;
+    if (text && copy_length != 0u) {
+        memcpy(bytes, text, copy_length);
     }
-    if (strcmp(flag, "visible") == 0) {
-        return KAIN_NATIVE_UI_NODE_HIDDEN;
-    }
-    if (strcmp(flag, "focusable") == 0) {
-        return KAIN_NATIVE_UI_NODE_FOCUSABLE;
-    }
-    if (strcmp(flag, "interactive") == 0) {
-        return KAIN_NATIVE_UI_NODE_INTERACTIVE;
-    }
-    if (strcmp(flag, "disabled") == 0) {
-        return KAIN_NATIVE_UI_NODE_DISABLED;
-    }
-    if (strcmp(flag, "hovered") == 0) {
-        return KAIN_NATIVE_UI_NODE_HOVERED;
-    }
-    if (strcmp(flag, "pressed") == 0) {
-        return KAIN_NATIVE_UI_NODE_PRESSED;
-    }
-    return 0;
+    token.length = (uint64_t)length;
+    token.lo = kain_native_ui_token_load_le64(bytes);
+    token.hi = kain_native_ui_token_load_le64(bytes + 8);
+    token.state = kain_native_ui_token_state16(token.lo, token.hi, token.length);
+    return token;
+}
+
+static uint64_t kain_native_ui_token_match_bit(
+    const KainNativeUiToken16* token,
+    uint64_t length,
+    uint64_t lo,
+    uint64_t hi,
+    uint64_t state
+) {
+    return kain_native_ui_token_zero_bit(token->length ^ length) &
+        kain_native_ui_token_zero_bit(token->lo ^ lo) &
+        kain_native_ui_token_zero_bit(token->hi ^ hi) &
+        kain_native_ui_token_zero_bit(token->state ^ state);
+}
+
+static KainNativeUiFlagInfo kain_native_ui_flag_info(const char* flag) {
+    KainNativeUiToken16 token = kain_native_ui_token_from_text16(flag);
+    KainNativeUiFlagInfo info;
+    uint64_t hidden = kain_native_ui_token_match_bit(&token, 6u, UINT64_C(0x00006e6564646968), UINT64_C(0x0000000000000000), UINT64_C(0x85daa81451a55c7a));
+    uint64_t visible = kain_native_ui_token_match_bit(&token, 7u, UINT64_C(0x00656c6269736976), UINT64_C(0x0000000000000000), UINT64_C(0x7f0f01206f964b92));
+    uint64_t focusable = kain_native_ui_token_match_bit(&token, 9u, UINT64_C(0x6c62617375636f66), UINT64_C(0x0000000000000065), UINT64_C(0x7a75024eba4e101f));
+    uint64_t interactive = kain_native_ui_token_match_bit(&token, 11u, UINT64_C(0x7463617265746e69), UINT64_C(0x0000000000657669), UINT64_C(0x948038e6c1c6ea72));
+    uint64_t disabled = kain_native_ui_token_match_bit(&token, 8u, UINT64_C(0x64656c6261736964), UINT64_C(0x0000000000000000), UINT64_C(0x4f87286f47c95184));
+    uint64_t hovered = kain_native_ui_token_match_bit(&token, 7u, UINT64_C(0x0064657265766f68), UINT64_C(0x0000000000000000), UINT64_C(0x13bef354dde61301));
+    uint64_t pressed = kain_native_ui_token_match_bit(&token, 7u, UINT64_C(0x0064657373657270), UINT64_C(0x0000000000000000), UINT64_C(0x61f59c74a54f9887));
+    info.bit = (int64_t)(
+        ((hidden | visible) * (uint64_t)KAIN_NATIVE_UI_NODE_HIDDEN) |
+        (focusable * (uint64_t)KAIN_NATIVE_UI_NODE_FOCUSABLE) |
+        (interactive * (uint64_t)KAIN_NATIVE_UI_NODE_INTERACTIVE) |
+        (disabled * (uint64_t)KAIN_NATIVE_UI_NODE_DISABLED) |
+        (hovered * (uint64_t)KAIN_NATIVE_UI_NODE_HOVERED) |
+        (pressed * (uint64_t)KAIN_NATIVE_UI_NODE_PRESSED)
+    );
+    info.visible = visible;
+    return info;
 }
 
 static int kain_native_ui_node_is_visible(const KainNativeUiNode* node) {
@@ -793,38 +865,34 @@ const char* kain_native_ui_accessibility_label(int64_t session_id, int64_t node_
 int64_t kain_native_ui_node_set_flag(int64_t session_id, int64_t node_id, const char* flag, int64_t enabled) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     KainNativeUiNode* node = kain_native_ui_find_node(session, node_id);
-    int64_t bit = kain_native_ui_flag_bit(flag);
+    KainNativeUiFlagInfo flag_info = kain_native_ui_flag_info(flag);
+    uint64_t bit_mask = (uint64_t)flag_info.bit;
+    uint64_t enabled_bit = kain_native_ui_token_nonzero_bit((uint64_t)enabled) ^ flag_info.visible;
+    uint64_t enabled_mask = UINT64_C(0) - enabled_bit;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     if (!node) {
         return KAIN_NATIVE_UI_INVALID_NODE;
     }
-    if (bit == 0) {
+    if (flag_info.bit == 0) {
         return KAIN_NATIVE_UI_INVALID_ARGUMENT;
     }
-    if (flag && strcmp(flag, "visible") == 0) {
-        enabled = enabled ? 0 : 1;
-    }
-    if (enabled) {
-        node->flags |= bit;
-    } else {
-        node->flags &= ~bit;
-    }
+    node->flags = (int64_t)(((uint64_t)node->flags & ~bit_mask) | (bit_mask & enabled_mask));
     kain_native_ui_touch_node(session, node, 5);
     return KAIN_NATIVE_UI_OK;
 }
 
 int64_t kain_native_ui_node_has_flag(int64_t session_id, int64_t node_id, const char* flag) {
     KainNativeUiNode* node = kain_native_ui_find_node(kain_native_ui_find_session(session_id), node_id);
-    int64_t bit = kain_native_ui_flag_bit(flag);
-    if (!node || bit == 0) {
+    KainNativeUiFlagInfo flag_info = kain_native_ui_flag_info(flag);
+    if (!node || flag_info.bit == 0) {
         return 0;
     }
-    if (flag && strcmp(flag, "visible") == 0) {
-        return (node->flags & bit) == 0 ? 1 : 0;
-    }
-    return (node->flags & bit) != 0 ? 1 : 0;
+    return (int64_t)(
+        kain_native_ui_token_nonzero_bit((uint64_t)node->flags & (uint64_t)flag_info.bit) ^
+        flag_info.visible
+    );
 }
 
 int64_t kain_native_ui_node_set_style_i64(int64_t session_id, int64_t node_id, const char* key, int64_t value) {

@@ -23,3 +23,8 @@ Current references:
 - `service-alias-canonicalizer-token-states.smt2`
 - `reflection-ui-token-magic-collision-free.smt2`
 - `reflection-kind-token-states.smt2`
+- `reflection-type-kind-selector-equivalence.smt2`
+- `reflection-item-kind-selector-equivalence.smt2`
+- `reflection-field-selector-equivalence.smt2`
+- `native-ui-flag-selector-equivalence.smt2`
+- `native-ui-flag-update-equivalence.smt2`

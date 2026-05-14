@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-14 - Reflection and native UI closed-string classifiers now use branchless token selectors
+
+The reflection JSON/kind parser and native UI flag path now promote the
+previously experimental closed-token math into runtime code.
+
+What changed:
+
+- `runtime/native/src/core/kain_runtime_reflection.c` now classifies
+  reflection type kinds, item kinds, and JSON field names through packed
+  16-byte token descriptors plus the shared 64-bit magic-state polynomial.
+- Reflection parse loops now switch on `KainReflectionFieldToken` instead of
+  paying repeated `strcmp(field_name, ...)` and `strcmp(key, ...)` chains.
+- `runtime/native/src/ui/kain_native_ui_system.c` now classifies UI flags
+  (`hidden`, `visible`, `focusable`, `interactive`, `disabled`, `hovered`,
+  `pressed`) with the same branchless token selector.
+- `visible` no longer needs a string-special-case branch. The hidden-bit
+  inversion is folded into `enabled_bit = nonzero(enabled) ^ visible_bit`, and
+  the flag update is a single mask equation.
+
+Experimental proofs added under
+`runtime/native/src/core/z3/proofs-experimental/`:
+
+- `reflection-type-kind-selector-equivalence.smt2`
+- `reflection-item-kind-selector-equivalence.smt2`
+- `reflection-field-selector-equivalence.smt2`
+- `native-ui-flag-selector-equivalence.smt2`
+- `native-ui-flag-update-equivalence.smt2`
+
+Validation:
+
+- Z3 MCP `check_smt2` returned `unsat` for all five selector/update proof
+  artifacts.
+- Direct `z3.exe` also returned `unsat` for the five new artifacts and the
+  combined `reflection-ui-token-magic-collision-free.smt2` reference.
+- `clang -fsyntax-only -Iruntime/native/include runtime/native/src/core/kain_runtime_reflection.c`
+- `clang -fsyntax-only -Iruntime/native/include runtime/native/src/ui/kain_native_ui_system.c`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\compile_native_runtime.ps1`
+- Core curated Z3 full lane proved `38/38`.
+
+Known proof-pack note:
+
+- `runtime/native/src/ui/z3` still has noisy auto-extracted generic
+  `size_add_ok` cases with empty bindings that report unrelated
+  counterexamples. The new durable UI flag math is covered by the explicit SMT
+  artifacts above.
+
 # 2026-05-14 - Native actor runtime now uses occupancy-bitset allocation and a masked ring scheduler
 
 The native actor runtime in `runtime/native/src/core/kain_runtime_actor.c`
