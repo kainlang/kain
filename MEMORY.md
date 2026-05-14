@@ -1,5 +1,41 @@
 # Kain Memory
 
+# 2026-05-14 - LLVM top-level consts and blade shader staging are now wired
+
+The LLVM backend now treats top-level `const` items as real global values instead
+of dropping them during item emission. Scalar literal consts lower to immutable
+`internal constant` globals; runtime-backed consts such as derived expressions or
+strings lower to internal globals with a lazy initializer and an init flag.
+`Expr::Ident` and addressable identifier lowering both consult the const-global
+table, so functions can read top-level consts without falling through to
+`Undefined variable`.
+
+Important design notes:
+
+- Runtime-backed const initializers store the computed value before setting the
+  init flag. `compile_const_load` emits the init call before loading the global.
+- The LLVM LangRef distinction matters here: globals mutated by a lazy
+  initializer cannot be marked `constant`; only fully literal scalars use
+  `internal constant`.
+- The Kain example proving-ground now has direct regression coverage for const
+  globals, including const-to-const references and string consts.
+- `kain-build` had a separate native artifact staging path from the CLI helper.
+  It now extracts shader-only source before compiling optional SPIR-V shader
+  bundles, preventing native-only functions such as
+  `native_runtime_heap_validate()` from being typechecked under the GPU target
+  during `kain build ... -t llvm`.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_resolves_top_level_const_values --target-dir target\codex-llvm-const -- --nocapture`
+- `cargo test -p kain-build --target-dir target\codex-llvm-const shader_artifact_source_extracts_kain_example_shaders_without_native_body -- --nocapture`
+- `cargo test -p cli --target-dir target\codex-llvm-const shader_artifact_source_extracts_kain_example_shaders_without_native_body -- --nocapture`
+- `target\codex-llvm-const\debug\kain.exe build blades\kain-example\src\main.kn -t llvm -o target\codex-llvm-const\kain_example_const.ll`
+
+Durable proof added:
+
+- `crates/kain-sys-codegen/z3/proofs/control-top-level-const-lazy-load-follows-initializer.yaml`
+
 # 2026-05-14 - Native ownership collapse guards now use a pointer index and occupancy-word allocator
 
 The native collapse/observe/decay guard path in

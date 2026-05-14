@@ -2,6 +2,11 @@ use blade::{
     discover_workspace, load_kain_manifest, BladeError, BladeWorkspace, KainBuildTaskSection,
     KainManifest, ResolvedBlade, ResolvedCffiLibrary, FABRIC_MANIFEST_NAME,
 };
+use kain_core::ast::{Item, Program};
+use kain_core::diagnostics::SpanMapper;
+use kain_core::format_program;
+use kain_core::lexer::Lexer;
+use kain_core::parser::Parser;
 use kain_core::CompileTarget;
 use kain_fs as kfs;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
@@ -2280,7 +2285,16 @@ fn stage_native_backend_artifacts(
         &compute_paths,
     )?);
 
-    match kain_driver::compile_shader_artifact_bundle(source) {
+    let shader_bundle_source;
+    let shader_source = match shader_artifact_source(source) {
+        Some(source) => {
+            shader_bundle_source = source;
+            shader_bundle_source.as_str()
+        }
+        None => source,
+    };
+
+    match kain_driver::compile_shader_artifact_bundle(shader_source) {
         Ok(bundle) => {
             let shader_path = output_path.with_extension("shader_bundle.json");
             kfs::atomic_write_text(&shader_path, &bundle.bundle_json)?;
@@ -2298,6 +2312,49 @@ fn stage_native_backend_artifacts(
     }
 
     Ok(artifacts)
+}
+
+fn shader_artifact_source(source: &str) -> Option<String> {
+    let tokens = Lexer::new(source).tokenize().ok()?;
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "<native-backend-shader-extract>")
+        .parse()
+        .ok()?;
+    let shader_items = filter_shader_items(&program.items);
+    if shader_items.is_empty() {
+        return None;
+    }
+
+    let shader_program = Program {
+        items: shader_items,
+        span: program.span,
+    };
+    format_program(&shader_program).ok()
+}
+
+fn filter_shader_items(items: &[Item]) -> Vec<Item> {
+    items
+        .iter()
+        .filter_map(filter_shader_item)
+        .collect::<Vec<_>>()
+}
+
+fn filter_shader_item(item: &Item) -> Option<Item> {
+    match item {
+        Item::Shader(shader) => Some(Item::Shader(shader.clone())),
+        Item::Mod(module) => {
+            let inline = module.inline.as_ref()?;
+            let filtered_inline = filter_shader_items(inline);
+            if filtered_inline.is_empty() {
+                return None;
+            }
+
+            let mut filtered_module = module.clone();
+            filtered_module.inline = Some(filtered_inline);
+            Some(Item::Mod(filtered_module))
+        }
+        _ => None,
+    }
 }
 
 fn record_existing_artifacts(
@@ -3264,6 +3321,22 @@ mod tests {
             ],
         };
         assert!(validate_plan_safety(&plan).is_err());
+    }
+
+    #[test]
+    fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
+        let source = include_str!("../../../blades/kain-example/src/main.kn");
+
+        let extracted = shader_artifact_source(source)
+            .expect("kain-example native source should yield shader-only source");
+        let bundle = kain_driver::compile_shader_artifact_bundle(&extracted)
+            .expect("kain-example extracted shader source should compile");
+
+        assert!(extracted.contains("shader fragment NativeExampleGradient"));
+        assert!(extracted.contains("shader compute NativeExampleBlendKernel"));
+        assert!(!extracted.contains("native_runtime_heap_validate"));
+        assert!(!extracted.contains("fn main()"));
+        assert!(bundle.bundle_json.contains("NativeExampleGradient"));
     }
 
     fn test_task(id: &str, depends_on: Vec<&str>) -> BuildTask {
