@@ -58,6 +58,7 @@ rust_binary(
     edition = "2021",
     aliases = aliases(),
     deps = [
+        ":ue5-materials",
         "//crates/kain-core:kain-core",
         "//crates/ue5-asset-utils:ue5-asset-utils",
         "//crates/unreal/unreal_asset:unreal_asset",
@@ -77,6 +78,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        ":ue5-materials",
         "//crates/kain-core:kain-core",
         "//crates/ue5-asset-utils:ue5-asset-utils",
         "//crates/unreal/unreal_asset:unreal_asset",

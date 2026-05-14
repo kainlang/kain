@@ -55,6 +55,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        ":gpu",
         "//crates/kain-core:kain-core",
         "//crates/kain-gpu-runtime:kain-gpu-runtime",
     ] + all_crate_deps(normal = True, normal_dev = True),
@@ -73,6 +74,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        ":gpu",
         "//crates/kain-core:kain-core",
         "//crates/kain-gpu-runtime:kain-gpu-runtime",
     ] + all_crate_deps(normal = True, normal_dev = True),
@@ -91,6 +93,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        ":gpu",
         "//crates/kain-core:kain-core",
         "//crates/kain-gpu-runtime:kain-gpu-runtime",
     ] + all_crate_deps(normal = True, normal_dev = True),
@@ -109,6 +112,7 @@ rust_test(
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
+        ":gpu",
         "//crates/kain-core:kain-core",
         "//crates/kain-gpu-runtime:kain-gpu-runtime",
     ] + all_crate_deps(normal = True, normal_dev = True),

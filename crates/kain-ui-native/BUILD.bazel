@@ -54,6 +54,7 @@ rust_binary(
     edition = "2021",
     aliases = aliases(),
     deps = [
+        ":kain-ui-native",
         "//crates/kain-core:kain-core",
         "//crates/kain-ui:kain-ui",
     ] + all_crate_deps(normal = True),

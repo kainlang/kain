@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-13 - Bazel Rust workspace lane builds the main CLIs with D-drive cache/temp roots
+
+The repo now has a generated `rules_rust` Bazel lane for workspace crates, with root aliases for the main developer binaries. This is meant to reduce repeated Cargo rebuild pain while keeping Cargo metadata as the source of truth.
+
+What changed:
+
+- `.bazelrc` now pins Bazel output, repository cache, repo/action/test temp env, and disk cache away from the low-space Windows `C:` drive:
+  - `D:/Kain-Bazel/output-user-root`
+  - `D:/Kain-Bazel/repository-cache`
+  - `D:/Kain-Bazel/tmp`
+  - workspace-local `.bazel-cache/disk`
+- `tools/bazel/sync_rust_builds.py` generates deterministic Rust package `BUILD.bazel` files from `cargo metadata`.
+- Generated crate rules now model Cargo's implicit same-package library visibility by adding `:<package>` deps to generated binaries/tests when a normal library target exists.
+- `MODULE.bazel` wires `rules_rust`/crate-universe with the Rust 1.95.0 toolchain, PyO3 Python override, and zstd-sys build-script handling.
+- Root Bazel aliases expose `//:kain`, `//:kn`, `//:blade`, plus focused crate library/test entrypoints.
+
+Validation:
+
+- `python -m py_compile tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `bazel info output_base` reports `D:/kain-bazel/output-user-root/ccujd7ry`
+- `bazel build //:kain --config=dev`
+- `bazel build //:kn --config=dev`
+- `bazel build //:blade --config=dev`
+- `bazel test //crates/kain-build:unit_test --config=dev`
+
+Known issues:
+
+- `bazel test //:crate_tests --config=dev` is not yet green. `kain-build` and `kain-commands` pass, but `kain-core` has current source/test failures and `cli` exits before output under Bazel.
+- At least `language_features::tests::default_profile_keeps_struct_literals_disabled` is not a Bazel regression; the same targeted test fails under Cargo because `ParserStructLiterals` is enabled by default while the test expects it disabled.
+- Bazel still emits a noisy Windows `rules_swift` local-config error (`name 'arch' is not defined`). With `--keep_going`, the Rust targets above complete successfully.
+- Moving `--repository_cache` to `D:/Kain-Bazel/repository-cache` causes a one-time external dependency/toolchain refetch; subsequent builds reuse that D-drive cache.
+
+Recommended next step:
+
+- Repair or quarantine the current `kain-core`/`cli` unit-test assumptions, then promote `bazel test //:crate_tests --config=dev` from diagnostic lane to required green lane.
+
 # 2026-05-13 - Bazel-native C runtime lane now mirrors the manifest split and is validated on Windows
 
 The repo's Bazel work is no longer crates-only. `runtime/` now has a manifest-synced Bazel lane that gives parallel agents a shared native-runtime build surface instead of each person inventing local compile glue.

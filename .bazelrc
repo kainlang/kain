@@ -3,6 +3,7 @@ common --announce_rc
 common --color=yes
 common --curses=yes
 common --experimental_convenience_symlinks=ignore
+common --repository_cache=D:/Kain-Bazel/repository-cache
 startup --output_user_root=D:/Kain-Bazel/output-user-root
 common --repo_env=TMP=D:/Kain-Bazel/tmp
 common --repo_env=TEMP=D:/Kain-Bazel/tmp
@@ -22,3 +23,6 @@ build:warnings --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings
 
 test --test_output=errors
 test --test_summary=short
+test --test_env=TMP=D:/Kain-Bazel/tmp
+test --test_env=TEMP=D:/Kain-Bazel/tmp
+test --test_env=TMPDIR=D:/Kain-Bazel/tmp

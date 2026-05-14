@@ -503,6 +503,12 @@ Typical commands:
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `kain runtime build`
 - `kain runtime validate`
+- `python tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `bazel build //:kain --config=dev`
+- `bazel build //:kn --config=dev`
+- `bazel build //:blade --config=dev`
+- `bazel test //crates/kain-build:unit_test --config=dev`
 - `py -3 tools/bazel/sync_native_runtime_builds.py`
 - `py -3 tools/bazel/sync_native_runtime_builds.py --check`
 - `bazel build //runtime:all`
@@ -586,6 +592,11 @@ If the debug CLI is missing:
 - The native runtime now has two companion metadata surfaces: `runtime/native_runtime.toml` is the manifest/build truth, and `runtime/native_runtime_metadata.json` is the tooling-facing reflection of that truth. When services, platforms, defines, sources, or link dependencies change, update both together.
 - Bazel now has a manifest-synced native runtime lane. Regenerate `runtime/runtime_manifest_data.bzl` with `py -3 tools/bazel/sync_native_runtime_builds.py`, treat `//runtime:native_runtime` as the lean default lane, and use `//runtime:native_full_runtime` only when you intentionally need the broad manifest surface.
 - On Windows/MSVC, `//runtime:native_full_runtime` is intentionally marked incompatible today because QuickJS/vendor sources and a few broad-manifest runtime files are not yet Bazel-clean under that toolchain. The validated Windows Bazel proof lane is `bazel build //runtime:all` plus `bazel test //runtime:native_runtime_tests`, which cover the lean core runtime and actor C tests.
+- Bazel also has a generated Rust workspace lane. `Cargo.toml`/`Cargo.lock` remain the source of truth; regenerate crate `BUILD.bazel` files with `python tools/bazel/sync_rust_builds.py` and verify drift with `python tools/bazel/sync_rust_builds.py --check`.
+- Bazel caches are intentionally D-drive-local on this Windows machine: `.bazelrc` sets `--output_user_root=D:/Kain-Bazel/output-user-root`, `--repository_cache=D:/Kain-Bazel/repository-cache`, repo/action/test temp env to `D:/Kain-Bazel/tmp`, and the workspace disk cache to `.bazel-cache/disk`.
+- The Rust Bazel lane uses a single generated target per workspace crate, so package binaries/tests must explicitly depend on their sibling library target when Cargo would make it visible implicitly. Keep that behavior in `tools/bazel/sync_rust_builds.py`, not hand-edited generated `BUILD.bazel` files.
+- Bazel may emit a noisy `rules_swift` local-config analysis error (`name 'arch' is not defined`) on this Windows host. With `--keep_going`, Rust targets such as `//:kain`, `//:kn`, `//:blade`, and `//crates/kain-build:unit_test` still complete successfully; treat the Swift error as unrelated unless it starts blocking a requested target.
+- `bazel test //:crate_tests --config=dev` is not a clean green lane yet. Current failures include at least one source-level `kain-core` test that also fails under Cargo (`language_features::tests::default_profile_keeps_struct_literals_disabled`) and a `cli` unit-test process exit before output; use focused Bazel crate tests until those source/test assumptions are repaired.
 - The native core runtime now has a durable Z3 pack at `runtime/native/src/core/z3`. Use `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke` after touching actor mailbox/scheduler/supervision arithmetic or low-level net size arithmetic.
 - The proof-pack workflow is broader now: use `uv run --project C:\\Dev\\polytools\\z3-mcp --no-sync z3-mcp-batch --pack-path D:\\Kain-Lang\\runtime\\native\\src\\core --lane actor|net|process|entangle|native|full` for focused reruns, and `uv run --project C:\\Dev\\polytools\\z3-mcp --no-sync z3-mcp-batch --workspace --project-root D:\\Kain-Lang --lane smoke` to prove pack discovery plus workspace orchestration.
 - `crates/kain-core` now has its own durable Z3 pack at `crates/kain-core/z3`. Use `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane memory|diagnostics|literals|parser|full` after touching `src/low_level_memory.rs`, `src/diagnostics.rs`, parser slice/index helpers, or signed `usize -> i64` literal conversions. When a proof only fails on impossible values outside the ABI domain, constrain the model first: `usize` proofs should stay within `SIZE_MAX`, and `size_literal_i64` success paths should stay within `i64::MAX`.

@@ -28,6 +28,12 @@ rust_library(
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(),
     deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
@@ -37,6 +43,12 @@ rust_test(
     name = "unit_test",
     crate = ":unreal_helpers",
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(normal_dev = True, proc_macro_dev = True),
     deps = all_crate_deps(normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro_dev = True),
@@ -49,8 +61,16 @@ rust_test(
     crate_root = "tests/bitvec.rs",
     srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal = True, normal_dev = True),
+    deps = [
+        ":unreal_helpers",
+    ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
     tags = [
@@ -64,8 +84,16 @@ rust_test(
     crate_root = "tests/bool.rs",
     srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal = True, normal_dev = True),
+    deps = [
+        ":unreal_helpers",
+    ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
     tags = [
@@ -79,8 +107,16 @@ rust_test(
     crate_root = "tests/fstring.rs",
     srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal = True, normal_dev = True),
+    deps = [
+        ":unreal_helpers",
+    ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
     tags = [
@@ -94,8 +130,16 @@ rust_test(
     crate_root = "tests/path.rs",
     srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "bitvec",
+        "guid",
+        "path",
+        "read_write",
+    ],
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal = True, normal_dev = True),
+    deps = [
+        ":unreal_helpers",
+    ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
     tags = [

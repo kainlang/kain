@@ -50,6 +50,8 @@ class Dependency:
     kind: str | None
     path: Path | None
     optional: bool
+    uses_default_features: bool
+    features: list[str]
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,7 @@ def main() -> int:
 
     packages = load_workspace_packages()
     workspace_labels = workspace_package_labels(packages)
+    workspace_features = workspace_package_features(packages)
     proc_macro_packages = {
         package.name
         for package in packages
@@ -94,7 +97,12 @@ def main() -> int:
     stale = []
     for package in packages:
         build_path = package.directory / "BUILD.bazel"
-        content = render_build_file(package, workspace_labels, proc_macro_packages)
+        content = render_build_file(
+            package,
+            workspace_labels,
+            workspace_features,
+            proc_macro_packages,
+        )
         if args.check:
             existing = build_path.read_text(encoding="utf-8") if build_path.exists() else None
             if existing != content:
@@ -148,6 +156,8 @@ def load_workspace_packages() -> list[Package]:
                         if dependency.get("path")
                         else None,
                         optional=dependency["optional"],
+                        uses_default_features=dependency["uses_default_features"],
+                        features=dependency.get("features", []),
                     )
                     for dependency in raw_package["dependencies"]
                 ],
@@ -164,9 +174,54 @@ def workspace_package_labels(packages: list[Package]) -> dict[Path, str]:
     }
 
 
+def workspace_package_features(packages: list[Package]) -> dict[Path, list[str]]:
+    packages_by_directory = {package.directory: package for package in packages}
+    features_by_directory = {
+        package.directory: set(package.default_features)
+        for package in packages
+    }
+
+    for package in packages:
+        for dependency in package.dependencies:
+            if dependency.path not in packages_by_directory:
+                continue
+            dependency_package = packages_by_directory[dependency.path]
+            enabled = features_by_directory[dependency.path]
+            if dependency.uses_default_features:
+                enabled.update(dependency_package.default_features)
+            enabled.update(feature for feature in dependency.features if "/" not in feature)
+
+    return {
+        directory: sorted(resolve_feature_closure(packages_by_directory[directory], features))
+        for directory, features in features_by_directory.items()
+    }
+
+
+def resolve_feature_closure(package: Package, initial_features: Iterable[str]) -> set[str]:
+    resolved = set()
+    pending = list(initial_features)
+    optional_dependencies = {
+        dependency.name
+        for dependency in package.dependencies
+        if dependency.optional
+    }
+
+    while pending:
+        feature = pending.pop()
+        if feature in resolved or "/" in feature or feature.startswith("dep:"):
+            continue
+        resolved.add(feature)
+        if feature in optional_dependencies:
+            continue
+        pending.extend(package.features.get(feature, []))
+
+    return resolved
+
+
 def render_build_file(
     package: Package,
     workspace_labels: dict[Path, str],
+    workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
     targets = []
@@ -190,6 +245,7 @@ def render_build_file(
                     target,
                     has_build_script,
                     workspace_labels,
+                    workspace_features,
                     proc_macro_packages,
                 )
             )
@@ -200,6 +256,7 @@ def render_build_file(
                     target,
                     has_build_script,
                     workspace_labels,
+                    workspace_features,
                     proc_macro_packages,
                 )
             )
@@ -210,6 +267,7 @@ def render_build_file(
                     target,
                     has_build_script,
                     workspace_labels,
+                    workspace_features,
                     proc_macro_packages,
                 )
             )
@@ -264,6 +322,7 @@ def render_library(
     target: RustTarget,
     has_build_script: bool,
     workspace_labels: dict[Path, str],
+    workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
     rule = "rust_proc_macro" if "proc-macro" in target.crate_types else "rust_library"
@@ -277,7 +336,7 @@ def render_library(
         "crate_root": relpath(target.src_path, package.directory),
         "srcs": 'glob(["src/**/*.rs"])',
         "edition": string_literal(target.edition),
-        "crate_features": package.default_features,
+        "crate_features": workspace_features[package.directory],
         "aliases": "aliases()",
         "deps": deps,
         "proc_macro_deps": deps_expression(
@@ -292,6 +351,7 @@ def render_library(
             package,
             has_build_script,
             workspace_labels,
+            workspace_features,
             proc_macro_packages,
         )
     return rendered
@@ -301,6 +361,7 @@ def render_unit_test(
     package: Package,
     has_build_script: bool,
     workspace_labels: dict[Path, str],
+    workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
     local_deps = internal_deps(package, workspace_labels, proc_macro_packages, {"dev"}, False)
@@ -313,7 +374,7 @@ def render_unit_test(
             "name": string_literal("unit_test"),
             "crate": string_literal(f":{package.name}"),
             "edition": string_literal(package.targets[0].edition),
-            "crate_features": package.default_features,
+            "crate_features": workspace_features[package.directory],
             "aliases": "aliases(normal_dev = True, proc_macro_dev = True)",
             "deps": deps,
             "proc_macro_deps": deps_expression(
@@ -330,12 +391,16 @@ def render_binary(
     target: RustTarget,
     has_build_script: bool,
     workspace_labels: dict[Path, str],
+    workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
     name = target.name
     if any(is_library_target(candidate) and candidate.name == target.name for candidate in package.targets):
         name = f"{name}_bin"
     local_deps = internal_deps(package, workspace_labels, proc_macro_packages, {None}, False)
+    package_lib_dep = package_library_dep(package)
+    if package_lib_dep:
+        local_deps = [package_lib_dep] + local_deps
     if has_build_script:
         local_deps = [":build_script"] + local_deps
     deps = deps_expression(local_deps, "all_crate_deps(normal = True)")
@@ -345,7 +410,7 @@ def render_binary(
         "crate_root": relpath(target.src_path, package.directory),
         "srcs": 'glob(["src/**/*.rs"])',
         "edition": string_literal(target.edition),
-        "crate_features": package.default_features,
+        "crate_features": workspace_features[package.directory],
         "aliases": "aliases()",
         "deps": deps,
         "proc_macro_deps": deps_expression(
@@ -362,6 +427,7 @@ def render_integration_test(
     target: RustTarget,
     has_build_script: bool,
     workspace_labels: dict[Path, str],
+    workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
     local_deps = internal_deps(
@@ -371,6 +437,9 @@ def render_integration_test(
         {None, "dev"},
         False,
     )
+    package_lib_dep = package_library_dep(package)
+    if package_lib_dep:
+        local_deps = [package_lib_dep] + local_deps
     if has_build_script:
         local_deps = [":build_script"] + local_deps
     deps = deps_expression(local_deps, "all_crate_deps(normal = True, normal_dev = True)")
@@ -380,7 +449,7 @@ def render_integration_test(
         "crate_root": relpath(target.src_path, package.directory),
         "srcs": 'glob(["src/**/*.rs", "tests/**/*.rs"])',
         "edition": string_literal(target.edition),
-        "crate_features": package.default_features,
+        "crate_features": workspace_features[package.directory],
         "aliases": "aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True)",
         "deps": deps,
         "proc_macro_deps": deps_expression(
@@ -425,6 +494,13 @@ def is_library_target(target: RustTarget) -> bool:
         kind in {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"}
         for kind in target.kind
     )
+
+
+def package_library_dep(package: Package) -> str | None:
+    for target in package.targets:
+        if is_library_target(target) and "proc-macro" not in target.crate_types:
+            return f":{package.name}"
+    return None
 
 
 def deps_expression(labels: list[str], external_expression: str) -> str:

@@ -55,6 +55,7 @@ rust_binary(
     edition = "2021",
     aliases = aliases(),
     deps = [
+        ":kain-3d",
         "//crates/kain-core:kain-core",
         "//crates/kain-host:kain-host",
         "//crates/kain-reflect:kain-reflect",

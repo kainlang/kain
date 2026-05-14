@@ -50,7 +50,9 @@ rust_binary(
     srcs = glob(["src/**/*.rs"]),
     edition = "2021",
     aliases = aliases(),
-    deps = all_crate_deps(normal = True),
+    deps = [
+        ":kain-fast3d-runtime",
+    ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
 )
