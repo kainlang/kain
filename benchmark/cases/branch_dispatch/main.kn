@@ -1,0 +1,31 @@
+fn classify(value: Int) -> Int:
+    let tag: Int = value % 8
+    if tag == 0:
+        return value + 1
+    if tag == 1:
+        return (value * 3) + 7
+    if tag == 2:
+        return value - 5
+    if tag == 3:
+        return (value * value) + 11
+    if tag == 4:
+        return value + 17
+    if tag == 5:
+        return (value * 5) - 13
+    if tag == 6:
+        return value + 23
+    return value - 11
+
+fn main() -> Int:
+    let iterations: Int = 3000000
+    let modulus: Int = 1000000007
+    let expected: Int = 632706747
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc = (acc + classify(i)) % modulus
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

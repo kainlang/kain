@@ -38,6 +38,60 @@
       "fairness_note": "This is a direct memory-lifecycle smoke, not a contention test.",
       "kain": "cases/ownership_memory/main.kn",
       "rust": "cases/ownership_memory/main.rs"
+    },
+    {
+      "id": "branch_dispatch",
+      "title": "Branch Dispatch",
+      "description": "Integer match/branch dispatch with mixed arithmetic. This catches control-flow lowering, branch prediction, and basic optimizer quality.",
+      "maturity": "implemented",
+      "fairness_note": "Both sides use deterministic scalar control flow and no external dependencies.",
+      "kain": "cases/branch_dispatch/main.kn",
+      "rust": "cases/branch_dispatch/main.rs"
+    },
+    {
+      "id": "call_chain",
+      "title": "Call Chain",
+      "description": "Deep small-function call graph inside a hot loop. This measures call overhead, inlining assumptions, and arithmetic lowering.",
+      "maturity": "implemented",
+      "fairness_note": "Rust functions are marked inline(never) to keep this from becoming a pure optimizer-elimination benchmark.",
+      "kain": "cases/call_chain/main.kn",
+      "rust": "cases/call_chain/main.rs"
+    },
+    {
+      "id": "memory_stream",
+      "title": "Memory Stream",
+      "description": "Sequential write/read over a helper-owned integer buffer. Kain uses raw memory helpers under collapse/observe; Rust uses a Vec<i64>.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct memory-throughput smoke, not a SIMD memcpy benchmark.",
+      "kain": "cases/memory_stream/main.kn",
+      "rust": "cases/memory_stream/main.rs"
+    },
+    {
+      "id": "alloc_churn",
+      "title": "Allocation Churn",
+      "description": "Many small allocate/write/read/free cycles. Kain uses alloc_zeroed plus decay; Rust uses Box allocation and drop.",
+      "maturity": "implemented",
+      "fairness_note": "This is intentionally allocator-heavy and will expose runtime bookkeeping overhead.",
+      "kain": "cases/alloc_churn/main.kn",
+      "rust": "cases/alloc_churn/main.rs"
+    },
+    {
+      "id": "struct_method",
+      "title": "Struct Method Dispatch",
+      "description": "Construct small records and call an instance method in a hot loop. This catches aggregate layout and method-call lowering.",
+      "maturity": "implemented",
+      "fairness_note": "Both sides allocate records on the stack/logical value path rather than external heaps.",
+      "kain": "cases/struct_method/main.kn",
+      "rust": "cases/struct_method/main.rs"
+    },
+    {
+      "id": "option_result",
+      "title": "Option/Result Tagged Values",
+      "description": "Hot loop over Option and Result creation, branching, and unwrap paths. This probes tagged runtime value overhead.",
+      "maturity": "implemented",
+      "fairness_note": "Rust uses std Option/Result; Kain uses its native tagged runtime path.",
+      "kain": "cases/option_result/main.kn",
+      "rust": "cases/option_result/main.rs"
     }
   ]
 }

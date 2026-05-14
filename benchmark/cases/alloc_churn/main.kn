@@ -1,0 +1,21 @@
+fn main() -> Int:
+    let iterations: Int = 50000
+    let modulus: Int = 1000000007
+    let expected: Int = 250324993
+    let stride: Int = sizeof_type("Int")
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let mut cell: ptr<Int> = alloc_zeroed(stride, "Int")
+        collapse cell:
+            mem_store(cell, i + 7, "Int")
+            0
+        let value: Int = observe cell:
+            mem_load(cell, "Int")
+        decay cell
+        acc = (acc + value) % modulus
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

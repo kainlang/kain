@@ -1,0 +1,24 @@
+fn step_a(value: Int) -> Int:
+    return ((value * 3) + 1) % 1000000007
+
+fn step_b(value: Int) -> Int:
+    return ((step_a(value) + 5) * 7) % 1000000007
+
+fn step_c(value: Int) -> Int:
+    return (step_b(value) + step_a(value + 11) + 13) % 1000000007
+
+fn step_d(value: Int) -> Int:
+    return ((step_c(value) * 3) + step_b(value + 17) + 19) % 1000000007
+
+fn main() -> Int:
+    let iterations: Int = 1500000
+    let expected: Int = 61920954
+    var acc: Int = 1
+    var i: Int = 0
+    while i < iterations:
+        acc = step_d(acc + i)
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

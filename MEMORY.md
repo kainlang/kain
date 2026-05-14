@@ -1,5 +1,42 @@
 # Kain Memory
 
+# 2026-05-14 - `benchmark/` expanded from pressure tests into a broader language-edge suite
+
+The Kain vs Rust LLVM benchmark lane now covers both the "alien tech" pressure tests and ordinary compiler battle cases. The suite is still manifest-driven through `benchmark/benchmarks.json`, and every case remains paired as `main.kn` plus `main.rs` with no external language dependencies.
+
+What changed:
+
+- Added `branch_dispatch`, `call_chain`, `memory_stream`, `alloc_churn`, `struct_method`, and `option_result` cases.
+- Updated `benchmark/README.md` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` with the new case taxonomy and current Kain gaps.
+- Kept reports generated under ignored `benchmark/out/`; latest local report is still `benchmark/out/reports/latest.html`.
+
+Current Kain gaps exposed:
+
+- Scalar `match` in the standalone branch hot loop built but trapped at runtime, so `branch_dispatch` uses equivalent `if` dispatch until that native codegen path is fixed.
+- Method receiver field access in the aggregate benchmark hit a native codegen gap, so `struct_method` uses `score_pair(pair)` instead of `pair.score()`.
+
+Validation:
+
+- `python benchmark\\run.py --runs 1 --warmups 0`
+- `python benchmark\\run.py --runs 3 --warmups 1`
+
+Latest compact run:
+
+- `contention_wall`: Kain median ~978.235 ms, Rust median ~1940.509 ms, Kain won the proxy.
+- `ghost_mirror`: Kain median ~80.953 ms, Rust median ~52.844 ms, Rust won.
+- `evolutionary_loop`: Kain median ~155.904 ms, Rust median ~24.907 ms, Rust won.
+- `ownership_memory`: Kain median ~90.714 ms, Rust median ~16.907 ms, Rust won.
+- `branch_dispatch`: Kain median ~125.412 ms, Rust median ~17.590 ms, Rust won.
+- `call_chain`: Kain median ~185.414 ms, Rust median ~33.882 ms, Rust won.
+- `memory_stream`: Kain median ~93.237 ms, Rust median ~10.355 ms, Rust won.
+- `alloc_churn`: Kain median ~93.864 ms, Rust median ~11.394 ms, Rust won.
+- `struct_method`: Kain median ~157.714 ms, Rust median ~13.084 ms, Rust won.
+- `option_result`: Kain median ~140.499 ms, Rust median ~10.870 ms, Rust won.
+
+Recommended next step:
+
+- Treat Rust's wins here as an optimization roadmap: native Kain needs LLVM optimization/link flags, aggregate/match codegen fixes, tagged-value fast paths, and cheaper ownership guard paths before these become competitive outside the collapse proxy.
+
 # 2026-05-14 - `benchmark/` now has a paired Kain LLVM vs Rust LLVM pressure-test lane
 
 The new `benchmark/` workspace is a manifest-driven benchmark lane for comparing dependency-free Kain LLVM examples against paired Rust LLVM examples. It is intentionally honest about maturity: some cases are direct implemented comparisons, while others are pressure-test proxies for Kain runtime features that are not fully exposed to user LLVM code yet.

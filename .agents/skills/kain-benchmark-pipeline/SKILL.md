@@ -40,6 +40,15 @@ description: Use when adding, changing, running, or reviewing the Kain vs Rust L
 - `evolutionary_loop`: Rust uses runtime feature detection; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
 - `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against Rust `Box` ownership.
 
+## Current Basic Edge Cases
+
+- `branch_dispatch`: scalar branch-heavy dispatch. It uses `if` today because scalar `match` in the standalone hot loop built but trapped at runtime.
+- `call_chain`: small function graph in a hot loop.
+- `memory_stream`: sequential buffer write/read through Kain helper-owned memory versus Rust `Vec<i64>`.
+- `alloc_churn`: many small allocation/write/read/lifetime-end cycles.
+- `struct_method`: aggregate construction plus explicit `score_pair(pair)` field access. Avoid receiver method field access until that native codegen gap is fixed.
+- `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
+
 ## Validation
 
 - `python -m py_compile benchmark/run.py`

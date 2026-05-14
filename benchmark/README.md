@@ -16,6 +16,20 @@ Current pressure cases:
 - `ghost_mirror`: Rust std TCP transfer of a 1 MiB payload versus Kain entangle-backed world mirroring plus in-process payload mutation.
 - `evolutionary_loop`: Rust runtime feature-detected lane choice versus Kain `converge` / `orchestrate` dispatch syntax.
 
+Current basic language-edge cases:
+
+- `branch_dispatch`: branch-heavy scalar dispatch.
+- `call_chain`: small-function call graph in a hot loop.
+- `memory_stream`: sequential helper-owned buffer write/read.
+- `alloc_churn`: many small allocation/lifetime cycles.
+- `struct_method`: aggregate construction plus explicit score function over fields.
+- `option_result`: tagged Option/Result creation, branching, and unwrap.
+
+Known Kain gaps exposed while shaping these cases:
+
+- Scalar `match` in the standalone branch hot loop built but trapped at runtime, so `branch_dispatch` currently uses equivalent `if` dispatch.
+- Method receiver field access in the struct benchmark hit a native codegen gap, so `struct_method` uses `score_pair(pair)` instead of `pair.score()`.
+
 Run the suite from the repo root:
 
 ```powershell

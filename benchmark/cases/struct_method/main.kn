@@ -1,0 +1,24 @@
+struct BenchPair:
+    x: Int
+    y: Int
+
+fn make_pair(seed: Int) -> BenchPair:
+    return BenchPair { x: seed % 97, y: (seed * 7) % 101 }
+
+fn score_pair(pair: BenchPair) -> Int:
+    return (pair.x * 3) + (pair.y * 5)
+
+fn main() -> Int:
+    let iterations: Int = 1000000
+    let modulus: Int = 1000000007
+    let expected: Int = 393996945
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let pair = make_pair(i)
+        acc = (acc + score_pair(pair)) % modulus
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0
