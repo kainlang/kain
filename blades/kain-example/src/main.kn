@@ -11,6 +11,8 @@
 // - Live native code in this file now exercises enum `match`, numeric `for`
 //   loops over `range`, `vec!`, `format!`, and `println` in addition to the
 //   broader runtime and intent surface.
+// - The ownership-memory lane demonstrates first-class `observe`, `collapse`,
+//   and `decay` over both Kain heap regions and imported/local pointers.
 // - Array `for`, receive, emit, user-defined macro expansion, and the more
 //   exotic trait-dispatch corners remain deliberate backend proving targets.
 // - Shader declarations are validated by the compiler and native graphics
@@ -31,6 +33,7 @@ enum NativeSubsystem:
     Graphics
     IntentRuntime
     LowLevelMemory
+    OwnershipMemory
 
 fn subsystem_label(subsystem: NativeSubsystem) -> String:
     match subsystem:
@@ -43,6 +46,7 @@ fn subsystem_label(subsystem: NativeSubsystem) -> String:
         NativeSubsystem::Graphics => "graphics"
         NativeSubsystem::IntentRuntime => "intent-runtime"
         NativeSubsystem::LowLevelMemory => "low-level-memory"
+        NativeSubsystem::OwnershipMemory => "ownership-memory"
         _ => "unknown"
 
 fn subsystem_rank(subsystem: NativeSubsystem) -> Int:
@@ -56,6 +60,7 @@ fn subsystem_rank(subsystem: NativeSubsystem) -> Int:
         NativeSubsystem::Graphics => 7
         NativeSubsystem::IntentRuntime => 8
         NativeSubsystem::LowLevelMemory => 9
+        NativeSubsystem::OwnershipMemory => 10
         _ => 0
 
 struct NativeMetric:
@@ -269,6 +274,48 @@ fn low_level_memory_lane() -> Int:
         return 1
     if grown != 0:
         return 2
+    return 0
+
+fn ownership_memory_lane() -> Int:
+    let stride: Int = sizeof_type("Int")
+    let mut heap_cell: ptr<Int> = alloc_zeroed(stride, "Int")
+    mem_store(heap_cell, 21, "Int")
+
+    let heap_observed: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_observed != 21:
+        return 1
+
+    let heap_collapsed: Int = collapse heap_cell:
+        let current: Int = mem_load(heap_cell, "Int")
+        mem_store(heap_cell, current + 21, "Int")
+        mem_load(heap_cell, "Int")
+    if heap_collapsed != 42:
+        return 2
+
+    let heap_reobserved: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_reobserved != 42:
+        return 3
+
+    decay heap_cell
+
+    var imported_value: Int = 5
+    let imported_cell: ptr<Int> = addr_of(imported_value, "Int")
+    let imported_observed: Int = observe imported_cell:
+        mem_load(imported_cell, "Int")
+    if imported_observed != 5:
+        return 4
+
+    let imported_collapsed: Int = collapse imported_cell:
+        mem_store(imported_cell, imported_observed + 8, "Int")
+        mem_load(imported_cell, "Int")
+    if imported_collapsed != 13:
+        return 5
+
+    decay imported_cell
+    if imported_value != 13:
+        return 6
     return 0
 
 fn intent_actor_lane(init_status: Int) -> Int:
@@ -664,6 +711,8 @@ fn main() -> Int with Unsafe:
     status = first_error(status, normalize_status(option_result_future_lane(), 200))
     status = first_error(status, normalize_status(low_level_memory_lane(), 300))
     status = first_error(status, heap_checkpoint(350))
+    status = first_error(status, normalize_status(ownership_memory_lane(), 360))
+    status = first_error(status, heap_checkpoint(390))
     status = first_error(status, normalize_status(intent_actor_lane(init_status), 400))
     status = first_error(status, normalize_status(filesystem_lane(), 500))
     status = first_error(status, heap_checkpoint(550))
