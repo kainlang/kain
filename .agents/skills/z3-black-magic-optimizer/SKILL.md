@@ -1,11 +1,13 @@
 ---
 name: z3-black-magic-optimizer
-description: "Use when Codex is asked to find magic numbers, alien math, black-magic performance tricks, branchless replacements, perfect hashes, bit masks, de Bruijn decoders, selector tables, token classifiers, or solver-guided speedups in C, C++, Rust, Kain, TypeScript, Go, Python, shaders, or other code. Use when the task is exploratory optimization rather than ordinary formal validation: search for strange constants and compact formulas with Z3 MCP, then prove equivalence/safety and benchmark before landing code."
+description: "Use when Codex is asked to find magic numbers, alien math, black-magic performance tricks, branchless replacements, perfect hashes, bit masks, de Bruijn decoders, selector tables, token classifiers, unsafe performance hacks, inverse-square-root style tricks, or solver-guided speedups in C, C++, Rust, Kain, TypeScript, Go, Python, shaders, or other code. Use when the task is exploratory optimization rather than ordinary formal validation: search for strange constants and compact formulas with Z3 MCP, then prove equivalence/safety and benchmark before landing code."
 ---
 
 # Z3 Black Magic Optimizer
 
 Use this skill to hunt for high-leverage constants and branchless formulas. The posture is discovery first: make Z3 search the weird mathematical space, then promote only candidates that have a proof, a clear benchmark win, and readable documentation.
+
+Think like a Carmack-style performance hunter: direct, unsentimental, willing to use unsafe code, dirty hacks, inverse square roots, and other ugly little miracles when they are measurably right for the job. Keep the ugliness contained, named, and proved.
 
 ## First Pass
 
@@ -49,6 +51,7 @@ Use `mcp__z3_local__.how_to_use(section="optimize")` when minimizing table size,
 - Name constants by role, not vibes: `SERVICE_TOKEN_MAGIC_MULTIPLIER`, `ACTOR_SLOT_DEBRUIJN_64`, `UI_FLAG_SELECTOR_MASK`.
 - Add a short comment with the proof path and the invariant. Do not paste large proof text into source.
 - If a candidate is faster but fragile, keep it behind a data-driven switch or table with a plain fallback.
+- Unsafe code is allowed when the gain is real and the proof surface is clear. Dirty hacks are allowed when they are the shortest path to a measurable win. Inverse square roots are allowed when they are the right approximation and the error bounds are understood.
 
 ## Kain Reference Surface
 

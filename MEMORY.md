@@ -3212,3 +3212,5 @@ Validation:
 - `python C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py .agents\skills\z3-black-magic-optimizer` passes.
 - `python .agents\skills\z3-black-magic-optimizer\scripts\find_magic_candidates.py runtime\native\src\core\z3\proofs-experimental --json --limit 3` finds the expected de Bruijn and magic-multiplier examples.
 - Z3 MCP `prove_or_witness(kind="check_smt2")` proved a reduced one-hot branchless selector claim with `unsat`.
+
+Updated the skill to explicitly allow Carmack-style performance hunting: unsafe code, dirty hacks, and inverse-square-root tricks are permitted when they are measured, bounded, and still proven or benchmarked before landing.
