@@ -44,6 +44,28 @@ powershell -ExecutionPolicy Bypass -File runtime\conformance\run_all.ps1
 powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1
 ```
 
+## Bazel Runtime Lane
+
+The repo also has a Bazel-native runtime lane that mirrors the manifest split:
+
+- `//runtime:native_runtime` is the lean default Bazel runtime target and currently aliases `native_core_runtime.toml`.
+- `//runtime:native_full_runtime` is the broad manifest-backed Bazel target for app/vendor work.
+
+Regenerate the Bazel manifest data any time `runtime/native_core_runtime.toml` or
+`runtime/native_runtime.toml` changes:
+
+```powershell
+py -3 tools/bazel/sync_native_runtime_builds.py
+py -3 tools/bazel/sync_native_runtime_builds.py --check
+bazel build //runtime:all
+bazel test //runtime:native_runtime_tests
+```
+
+Current Windows contract:
+
+- The validated Windows/MSVC Bazel lane is the lean core runtime plus the actor C tests.
+- `//runtime:native_full_runtime` is intentionally not part of the Windows default Bazel lane yet because the broad manifest still includes QuickJS/vendor and related sources that are not Bazel-clean under MSVC.
+
 ## Important Distinction
 
 You do not normally ship a separate `kain_runtime.exe`.

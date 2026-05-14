@@ -195,6 +195,7 @@ Native Kain builds use explicit stdlib/runtime profiles instead of the generic r
 - `stdlib/c` is loaded after `stdlib/native` only for direct C output and keeps C bridge helpers as `@extern` declarations.
 - `runtime/native_core_runtime.toml` is the default lean manifest for normal file builds. It links the owned C core, diagnostics, actor, async, entangle, filesystem-capable native stdlib facade, and related sources.
 - `runtime/native_runtime.toml` remains the broad app/vendor manifest. Use it when the task needs the larger native app/UI/vendor surface instead of the core language proof runtime.
+- `runtime/BUILD.bazel` mirrors that split for Bazel: `//runtime:native_runtime` aliases the lean `native_core_runtime` lane by default, while `//runtime:native_full_runtime` is the broad manifest-backed target for app/vendor work.
 - `runtime/fixtures/native_option_result_future/main.kn` is the focused LLVM fixture for native tagged `Option`, `Result`, `Future`, `async`, `await`, `?`, and unwrap-style helpers.
 - `runtime/fixtures/native_world_actor_intent/main.kn` is the current all-in-one fixture proving `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and stdlib facade calls through both `-t llvm` and `-t c`.
 - `runtime/fixtures/native_fs/main.kn` is the focused filesystem fixture proving text writes/appends/reads, ranged text and byte-hex reads, temp directories, path joins, existence/type checks, structured metadata text, directory path listings, streaming copies, SHA-256 hashing, recursive removal, and native stdlib status plumbing through both `-t llvm` and `-t c`.
@@ -325,7 +326,8 @@ The hand-written lane is the promotion target. The Rust mirror lane is reference
 
 - `src/core` is the canonical owned compiler surface.  
 - `src/KAIN.toml` is the canonical hand-written selfhost contract.  
-- `runtime/native_runtime.toml` is the canonical native runtime contract.  
+- `runtime/native_core_runtime.toml` is the canonical lean runtime contract for ordinary native builds and Bazel validation.  
+- `runtime/native_runtime.toml` remains the canonical broad app/vendor runtime contract for the owned bootstrap lane.  
 - `kain selfhost bootstrap` is the owned lane entrypoint, and `src/build_selfhost.sh` is only a thin wrapper around that CLI path.  
 - `src/.selfhost/` is the canonical artifact/report root for the owned lane.  
 - The owned lane may temporarily assemble an aggregate bootstrap source from ordered `src/core` files, but that aggregate source is a compatibility bridge, not the end-state module system.  
@@ -333,7 +335,7 @@ The hand-written lane is the promotion target. The Rust mirror lane is reference
 - The architectural boundary is strict:
   - Rust is allowed to own manifest loading, filesystem/path/env/process helpers, report emission, and runtime artifact discovery during bootstrap.  
   - Rust must not remain the permanent owner of parser, typechecker, lowering, or backend/codegen logic on the real compile path.  
-  - The native C runtime is not optional in this lane. The produced native `kainc` is expected to link against the real runtime bundle defined by `runtime/native_runtime.toml`, not a guessed `-lkain_runtime` string or a Rust-host substitute.  
+  - The native C runtime is not optional in this lane. The produced native `kainc` is expected to link against the real runtime bundle defined by the runtime manifests, not a guessed `-lkain_runtime` string or a Rust-host substitute.  
 
 The important rule is: the mirror lane proves reference and repair behavior, while the owned lane proves real selfhost direction. Keep the Rust mirror lane available for comparison, but promote the manifest-first hand-written lane as the compiler that is supposed to survive once bootstrap is over.
 
@@ -501,6 +503,10 @@ Typical commands:
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `kain runtime build`
 - `kain runtime validate`
+- `py -3 tools/bazel/sync_native_runtime_builds.py`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel build //runtime:all`
+- `bazel test //runtime:native_runtime_tests`
 - `kain run blades/kain-mcp`
 - `kain run plan blades/kain-mcp`
 - `kain blades build blades/kain-mcp --json`
@@ -578,6 +584,8 @@ If the debug CLI is missing:
 - Linux now validates the core raw-native lane end-to-end: `cargo build -p cli`, `kain build -t llvm`, `./runtime/fixtures/validate_all.sh`, `./runtime/conformance/run_all.sh`, and `./runtime/validate_native_runtime.sh` all pass on a Linux host. The Win32 app-host, input, and viewport host services are still Windows-specific until a non-Win32 native host lands.
 - Runtime conformance harnesses that compile `kain_runtime_services.c` or `kain_runtime_contract.c` in isolation must also compile `runtime/native/src/vendor/kain_runtime_vendor_lane.c` or define `KAIN_RUNTIME_VENDOR_STUBS_ONLY=1`; the service catalog now has real vendor-backed function-table references.
 - The native runtime now has two companion metadata surfaces: `runtime/native_runtime.toml` is the manifest/build truth, and `runtime/native_runtime_metadata.json` is the tooling-facing reflection of that truth. When services, platforms, defines, sources, or link dependencies change, update both together.
+- Bazel now has a manifest-synced native runtime lane. Regenerate `runtime/runtime_manifest_data.bzl` with `py -3 tools/bazel/sync_native_runtime_builds.py`, treat `//runtime:native_runtime` as the lean default lane, and use `//runtime:native_full_runtime` only when you intentionally need the broad manifest surface.
+- On Windows/MSVC, `//runtime:native_full_runtime` is intentionally marked incompatible today because QuickJS/vendor sources and a few broad-manifest runtime files are not yet Bazel-clean under that toolchain. The validated Windows Bazel proof lane is `bazel build //runtime:all` plus `bazel test //runtime:native_runtime_tests`, which cover the lean core runtime and actor C tests.
 - The native core runtime now has a durable Z3 pack at `runtime/native/src/core/z3`. Use `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke` after touching actor mailbox/scheduler/supervision arithmetic or low-level net size arithmetic.
 - The proof-pack workflow is broader now: use `uv run --project C:\\Dev\\polytools\\z3-mcp --no-sync z3-mcp-batch --pack-path D:\\Kain-Lang\\runtime\\native\\src\\core --lane actor|net|process|entangle|native|full` for focused reruns, and `uv run --project C:\\Dev\\polytools\\z3-mcp --no-sync z3-mcp-batch --workspace --project-root D:\\Kain-Lang --lane smoke` to prove pack discovery plus workspace orchestration.
 - `crates/kain-core` now has its own durable Z3 pack at `crates/kain-core/z3`. Use `uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane memory|diagnostics|literals|parser|full` after touching `src/low_level_memory.rs`, `src/diagnostics.rs`, parser slice/index helpers, or signed `usize -> i64` literal conversions. When a proof only fails on impossible values outside the ABI domain, constrain the model first: `usize` proofs should stay within `SIZE_MAX`, and `size_literal_i64` success paths should stay within `i64::MAX`.

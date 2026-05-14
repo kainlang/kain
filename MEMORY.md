@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-13 - Bazel-native C runtime lane now mirrors the manifest split and is validated on Windows
+
+The repo's Bazel work is no longer crates-only. `runtime/` now has a manifest-synced Bazel lane that gives parallel agents a shared native-runtime build surface instead of each person inventing local compile glue.
+
+What changed:
+
+- Added `tools/bazel/sync_native_runtime_builds.py` to parse `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml` and regenerate `runtime/runtime_manifest_data.bzl`.
+- Added `runtime/native_runtime_rules.bzl` so runtime bundle expansion, platform selects, header globs, and Windows/POSIX compile options live in one Bazel macro layer instead of being repeated inline.
+- Added `runtime/BUILD.bazel` with:
+  - `//runtime:native_core_runtime`
+  - `//runtime:native_runtime` as the default alias to the lean core lane
+  - `//runtime:native_full_runtime` for the broad manifest
+  - `//runtime:native_runtime_tests` for the two actor C tests already living under `runtime/native/tests`
+- Added root aliases/test-suite exposure so the runtime Bazel lane is visible from the workspace root the same way the crate Bazel work is.
+- Added direct `rules_cc` and `platforms` deps in `MODULE.bazel` so the runtime package can use `cc_library`, `cc_test`, and platform constraints without relying on accidental transitive visibility.
+
+Why it changed:
+
+- The repo already had real Bazel synchronization work in `crates/`, but the native C runtime was still outside that shared contract.
+- Without a runtime Bazel lane, parallel repo work would keep drifting between crate-only Bazel assumptions and ad hoc native compile scripts.
+- The runtime already had a durable manifest split: `native_core_runtime.toml` is the lean proof/runtime lane and `native_runtime.toml` is the broader app/vendor lane. Bazel now reflects that split instead of flattening them into one ambiguous default target.
+
+Validation:
+
+- `py -3 tools/bazel/sync_native_runtime_builds.py`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel build //runtime:native_core_runtime //runtime:native_test_actor_monitor_link //runtime:native_test_actor_supervision --verbose_failures`
+- `bazel test //runtime:native_test_actor_monitor_link //runtime:native_test_actor_supervision --test_output=errors`
+- `bazel build //runtime:all`
+
+Design decisions:
+
+- The default Bazel runtime target is intentionally the lean lane: `//runtime:native_runtime -> //runtime:native_core_runtime`. That matches the repo's existing native-build default better than pointing Bazel at the broad manifest.
+- The broad Bazel target is preserved as `//runtime:native_full_runtime`, but on Windows/MSVC it is intentionally marked incompatible today rather than pretending it is a validated default.
+- The generator avoids `tomllib` so it still runs in the local Python 3.10 lane while producing deterministic `.bzl` data for Bazel.
+- Windows Bazel C builds now pass `/experimental:c11atomics` in the runtime macro layer because `<stdatomic.h>` required it under Bazel's MSVC toolchain.
+
+Current risks:
+
+- `runtime/native_runtime.toml` still pulls in QuickJS/vendor and related runtime sources that are not Bazel-clean under the current Windows/MSVC lane.
+- Some broad-manifest vendor sources still rely on textual include patterns or GCC/Clang assumptions that Bazel/MSVC does not accept without further source or toolchain work.
+
+Recommended next step:
+
+- Either add a Windows `clang-cl` Bazel lane for the broad manifest or split platform-specific source overrides so `//runtime:native_full_runtime` can become a real validated target on Windows instead of an intentionally incompatible one.
+
 # 2026-05-13 - live Codex startup was fixed by pinning `kain_mcp` to direct `kain.exe`, not the Python launcher
 
 The recurring `MCP startup failed: handshaking with MCP server failed: connection closed: initialize response` error on this machine was not the `blades/kain-mcp` request loop anymore. The live global Codex config had drifted back to the Python managed-sync launcher, and real `codex exec` reproduced the hang there even after the blade itself had already been hardened.
