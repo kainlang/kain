@@ -1,5 +1,47 @@
 # Kain Memory
 
+# 2026-05-14 - Service registry alias canonicalization now uses cached token metadata and a solver-backed fast path
+
+After the native `KainMap` branchless lookup pass, the best honest closed-world
+target in `runtime/native` turned out to be the service registry rather than the
+tiny reflection-kind classifiers.
+
+What shipped:
+
+- `runtime/native/include/kain_runtime_services.h` now gives
+  `KainServiceDescriptor` cached `key_length` and `key_state` fields.
+- `runtime/native/src/core/kain_runtime_services.c` now computes lowercase
+  first-32-byte magic-state metadata once per descriptor and uses it to reject
+  lookup candidates before paying for case-insensitive string compare.
+- `kain_service_registry_canonicalize_key` now uses a solver-backed switch over
+  the current `native.*` alias universe instead of a linear alias scan.
+
+What stayed experimental:
+
+- `runtime/native/src/core/kain_runtime_reflection.c` was a tempting candidate
+  for the same finite-token trick, and the token-state proofs are sound, but the
+  local benchmark showed the state computation costs more than the short
+  `strcmp` ladder for that tiny universe. The proof remains in the lab and the
+  runtime code stays on the old direct string checks.
+
+Experimental proofs under `runtime/native/src/core/z3/proofs-experimental/`:
+
+- `service-registry-magic-collision-free.smt2`
+- `service-alias-canonicalizer-token-states.smt2`
+- `reflection-ui-token-magic-collision-free.smt2`
+- `reflection-kind-token-states.smt2`
+
+Validation:
+
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_services.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_reflection.c`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- Z3 MCP `check_smt2` returned `unsat` for `service-alias-canonicalizer-token-states`
+  and `reflection-kind-token-states`.
+- Scratch benchmark `target/codex-token-fastpath-benchmark.exe`:
+  - service alias canonicalization: about `2.68x` faster
+  - reflection token-state classifier: about `0.77x`, so it was not promoted
+
 # 2026-05-14 - Native C runtime map hot path now uses cached key metadata and mask probing
 
 The low-level builtin map in `runtime/native/src/core/kain_runtime_core.c` is no longer the old djb2-plus-modulo-plus-strcmp-everywhere implementation. The runtime now treats map capacity as a power-of-two invariant, caches per-entry key metadata, and probes with a mask instead of `%`.

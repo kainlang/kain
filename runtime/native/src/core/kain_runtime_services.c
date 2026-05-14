@@ -55,6 +55,99 @@ static int kain_text_equals_ci(const char* left, const char* right) {
 #endif
 }
 
+static uint64_t kain_service_rotate_left_u64(uint64_t value, unsigned int shift) {
+    return (value << shift) | (value >> (64u - shift));
+}
+
+static uint64_t kain_service_magic_prefix_state(
+    uint64_t word0,
+    uint64_t word1,
+    uint64_t word2,
+    uint64_t word3,
+    uint64_t length
+) {
+    const uint64_t magic = 0x64170d358aa115a1ULL;
+    const uint64_t lane1 = 0x9e3779b97f4a7c15ULL;
+    const uint64_t lane2 = 0xbf58476d1ce4e5b9ULL;
+    const uint64_t lane3 = 0x94d049bb133111ebULL;
+    const uint64_t lane4 = 0xd6e8feb86659fd93ULL;
+    uint64_t folded0 = (word0 ^ length) * magic;
+    uint64_t folded1 = (word1 ^ kain_service_rotate_left_u64(magic, 13u)) * lane1;
+    uint64_t folded2 = (word2 ^ kain_service_rotate_left_u64(magic, 27u)) * lane2;
+    uint64_t folded3 = (word3 ^ (magic ^ lane3)) * lane4;
+    uint64_t state = folded0 ^ folded1 ^ folded2 ^ folded3;
+    return ((state ^ (state >> 33u)) * 0xff51afd7ed558ccdULL) ^ (state >> 29u);
+}
+
+static void kain_service_key_metadata_ascii_lower(
+    const char* key,
+    size_t* out_length,
+    uint64_t* out_state
+) {
+    size_t key_length = 0u;
+    size_t prefix_length = 0u;
+    uint64_t prefix_words[4] = {0u, 0u, 0u, 0u};
+    unsigned char folded_prefix[32] = {0u};
+    size_t i;
+
+    if (key) {
+        key_length = strlen(key);
+        prefix_length = key_length < 32u ? key_length : 32u;
+        for (i = 0u; i < prefix_length; ++i) {
+            unsigned char byte = (unsigned char)key[i];
+            if (byte >= 'A' && byte <= 'Z') {
+                byte = (unsigned char)(byte + ('a' - 'A'));
+            }
+            folded_prefix[i] = byte;
+        }
+        if (prefix_length > 0u) {
+            memcpy(prefix_words, folded_prefix, prefix_length);
+        }
+    }
+
+    if (out_length) {
+        *out_length = key_length;
+    }
+    if (out_state) {
+        *out_state = kain_service_magic_prefix_state(
+            prefix_words[0],
+            prefix_words[1],
+            prefix_words[2],
+            prefix_words[3],
+            (uint64_t)key_length
+        );
+    }
+}
+
+static void kain_service_descriptor_refresh_key_metadata(
+    KainServiceDescriptor* descriptor
+) {
+    if (!descriptor) {
+        return;
+    }
+
+    kain_service_key_metadata_ascii_lower(
+        descriptor->key,
+        &descriptor->key_length,
+        &descriptor->key_state
+    );
+}
+
+static int kain_service_descriptor_matches_lookup(
+    const KainServiceDescriptor* descriptor,
+    const char* key,
+    size_t key_length,
+    uint64_t key_state
+) {
+    if (!descriptor || !key) {
+        return 0;
+    }
+    if (descriptor->key_length != key_length || descriptor->key_state != key_state) {
+        return 0;
+    }
+    return kain_text_equals_ci(descriptor->key, key);
+}
+
 static void kain_service_descriptor_copy(
     KainServiceDescriptor* destination,
     const KainServiceDescriptor* source
@@ -76,6 +169,7 @@ static void kain_service_descriptor_copy(
     destination->requirement = source->requirement;
     destination->abi_version = source->abi_version;
     destination->function_table = source->function_table;
+    kain_service_descriptor_refresh_key_metadata(destination);
 }
 
 static const KainServiceKeyAlias g_kain_native_runtime_service_aliases[] = {
@@ -685,17 +779,103 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
 static KainServiceRegistry g_service_registry = {0};
 
 const char* kain_service_registry_canonicalize_key(const char* key) {
-    size_t i;
+    size_t key_length;
+    uint64_t key_state;
 
     if (!key || !key[0]) {
         return key;
     }
 
-    for (i = 0; i < sizeof(g_kain_native_runtime_service_aliases) / sizeof(g_kain_native_runtime_service_aliases[0]); ++i) {
-        const KainServiceKeyAlias* alias = &g_kain_native_runtime_service_aliases[i];
-        if (kain_text_equals_ci(key, alias->alias_key)) {
-            return alias->canonical_key;
-        }
+    kain_service_key_metadata_ascii_lower(key, &key_length, &key_state);
+
+    switch (key_state) {
+        case 0xe967a2e7a5088d07ULL:
+            if (key_length == 15u && kain_text_equals_ci(key, "native.app-host")) {
+                return KAIN_SERVICE_KEY_PLATFORM_APP_HOST;
+            }
+            break;
+        case 0x1c9e242eb4645378ULL:
+            if (key_length == 12u && kain_text_equals_ci(key, "native.input")) {
+                return KAIN_SERVICE_KEY_PLATFORM_INPUT;
+            }
+            break;
+        case 0x8140fe9573cec064ULL:
+            if (key_length == 15u && kain_text_equals_ci(key, "native.viewport")) {
+                return KAIN_SERVICE_KEY_GFX_VIEWPORT;
+            }
+            break;
+        case 0x52b4f4dbb3337bfbULL:
+            if (key_length == 15u && kain_text_equals_ci(key, "native.graphics")) {
+                return KAIN_SERVICE_KEY_GFX_RAW_NATIVE;
+            }
+            break;
+        case 0x9b6bbed0fbf8a1ddULL:
+            if (key_length == 12u && kain_text_equals_ci(key, "native.scene")) {
+                return KAIN_SERVICE_KEY_SCENE_RUNTIME;
+            }
+            break;
+        case 0xcccf3d4aaed22219ULL:
+            if (key_length == 18u && kain_text_equals_ci(key, "native.scene.query")) {
+                return KAIN_SERVICE_KEY_SCENE_QUERY;
+            }
+            break;
+        case 0xf26120689e22a9e2ULL:
+            if (key_length == 21u && kain_text_equals_ci(key, "native.scene.mutation")) {
+                return KAIN_SERVICE_KEY_SCENE_MUTATION;
+            }
+            break;
+        case 0xf42f6791bc7ef2bdULL:
+            if (key_length == 25u && kain_text_equals_ci(key, "native.runtime.inspection")) {
+                return KAIN_SERVICE_KEY_RUNTIME_INSPECTION;
+            }
+            break;
+        case 0x7a425942690ea4d7ULL:
+            if (key_length == 24u && kain_text_equals_ci(key, "native.device.reflection")) {
+                return KAIN_SERVICE_KEY_DEVICE_REFLECTION;
+            }
+            break;
+        case 0x5b2990da90ab1f38ULL:
+            if (key_length == 17u && kain_text_equals_ci(key, "native.asset.gltf")) {
+                return KAIN_SERVICE_KEY_ASSET_GLTF;
+            }
+            break;
+        case 0x403bc9addf0d3a57ULL:
+            if (key_length == 22u && kain_text_equals_ci(key, "native.asset.ingestion")) {
+                return KAIN_SERVICE_KEY_ASSET_INGESTION;
+            }
+            break;
+        case 0xe764215896fc05bbULL:
+            if (key_length == 26u && kain_text_equals_ci(key, "native.ui.compiled-bundle")) {
+                return KAIN_SERVICE_KEY_UI_BUNDLE;
+            }
+            break;
+        case 0x83303d876aa8e678ULL:
+            if (key_length == 14u && kain_text_equals_ci(key, "native.compute")) {
+                return KAIN_SERVICE_KEY_GFX_COMPUTE;
+            }
+            break;
+        case 0x25be923470113a81ULL:
+            if (key_length == 20u && kain_text_equals_ci(key, "native.shader.spirv")) {
+                return KAIN_SERVICE_KEY_GFX_SHADER_SPIRV;
+            }
+            break;
+        case 0x0d2f647f2745c670ULL:
+            if (key_length == 13u && kain_text_equals_ci(key, "native.vulkan")) {
+                return KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN;
+            }
+            break;
+        case 0x249604c6dc88fc47ULL:
+            if (key_length == 11u && kain_text_equals_ci(key, "native.dx12")) {
+                return KAIN_SERVICE_KEY_GFX_BACKEND_D3D12;
+            }
+            break;
+        case 0x5a3a87a1ea23aab6ULL:
+            if (key_length == 12u && kain_text_equals_ci(key, "native.d3d12")) {
+                return KAIN_SERVICE_KEY_GFX_BACKEND_D3D12;
+            }
+            break;
+        default:
+            break;
     }
 
     return key;
@@ -714,14 +894,27 @@ static KainServiceDescriptor* kain_service_registry_lookup_mutable(
     const char* key
 ) {
     const char* canonical_key = kain_service_registry_canonicalize_key(key);
+    size_t canonical_key_length;
+    uint64_t canonical_key_state;
     int i;
 
     if (!registry || !canonical_key) {
         return NULL;
     }
 
+    kain_service_key_metadata_ascii_lower(
+        canonical_key,
+        &canonical_key_length,
+        &canonical_key_state
+    );
+
     for (i = 0; i < registry->service_count; ++i) {
-        if (kain_text_equals_ci(registry->services[i].key, canonical_key)) {
+        if (kain_service_descriptor_matches_lookup(
+                &registry->services[i],
+                canonical_key,
+                canonical_key_length,
+                canonical_key_state
+            )) {
             return &registry->services[i];
         }
     }
@@ -779,6 +972,7 @@ int kain_service_registry_register(
     descriptor->requirement = requirement;
     descriptor->abi_version = abi_version;
     descriptor->function_table = function_table;
+    kain_service_descriptor_refresh_key_metadata(descriptor);
     
     registry->service_count++;
     return 0;
@@ -811,13 +1005,26 @@ const KainServiceDescriptor* kain_service_registry_lookup(
 ) {
     int i;
     const char* canonical_key = kain_service_registry_canonicalize_key(key);
+    size_t canonical_key_length;
+    uint64_t canonical_key_state;
     
     if (!registry || !canonical_key) {
         return NULL;
     }
+
+    kain_service_key_metadata_ascii_lower(
+        canonical_key,
+        &canonical_key_length,
+        &canonical_key_state
+    );
     
     for (i = 0; i < registry->service_count; i++) {
-        if (kain_text_equals_ci(registry->services[i].key, canonical_key)) {
+        if (kain_service_descriptor_matches_lookup(
+                &registry->services[i],
+                canonical_key,
+                canonical_key_length,
+                canonical_key_state
+            )) {
             return &registry->services[i];
         }
     }

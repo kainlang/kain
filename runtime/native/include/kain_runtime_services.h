@@ -4,6 +4,7 @@
 #include "kain_runtime_version.h"
 #include "kain_runtime_diagnostics.h"
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * KAIN Native Runtime Service Registry
@@ -136,6 +137,8 @@ typedef struct {
     KainServiceRequirement requirement;
     unsigned int abi_version;
     void* function_table;  /* Opaque pointer to service-specific function table */
+    size_t key_length;
+    uint64_t key_state;
 } KainServiceDescriptor;
 
 /*
