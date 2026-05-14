@@ -1,0 +1,4 @@
+interface:
+  display_name: "Z3 Black Magic Optimizer"
+  short_description: "Find solver-backed alien math speedups"
+  default_prompt: "Use $z3-black-magic-optimizer to hunt for solver-backed magic numbers and branchless replacements in this code path."

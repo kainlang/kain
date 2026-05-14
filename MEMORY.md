@@ -3195,3 +3195,20 @@ Validation:
 - `cargo check -p kain-3d --bins --lib --target-dir target\codex-kain-3d-clean-check` passes.
 - `cargo test -p kain-3d --target-dir target\codex-kain-3d-clean-test` passes: 27 lib tests, 2 smoke-bin tests, 0 doc tests.
 - `cargo check --bins` exposed a separate `kain-fs::canonicalize_path` return-type drift; `kain-c-ffi`, `kain-crate-ffi`, and `kain-codebase` now convert the returned `String` into `PathBuf` at PathBuf-owning call sites.
+
+# 2026-05-14 - Z3 black-magic optimizer skill added
+
+Added `.agents/skills/z3-black-magic-optimizer` as the project skill for solver-guided "alien math" optimization work: magic constants, branchless selectors, perfect hashes, de Bruijn decoders, token classifiers, bit masks, and other high-risk/high-reward hot-path rewrites across C, Rust, Kain, TypeScript, Go, shaders, and adjacent languages.
+
+Important behavior notes:
+
+- The skill treats Z3 MCP as a discovery coprocessor first and a proof gate second: use `sat` witnesses to search constants/formulas, then invert correctness/collision claims and require `unsat` before landing code.
+- Every useful exploratory SMT proof must be saved in the nearest `proofs-experimental/` folder, including rejected candidates, so the repo accumulates future examples instead of losing hard-won search patterns.
+- The bundled `scripts/find_magic_candidates.py` scanner ranks suspicious constants, masks, shifts, bitwise-heavy lines, and hot-name neighborhoods before agents choose a Z3 pattern.
+- `references/sorcery-patterns.md` distills the current native-runtime experimental proof families: closed-domain token classifiers, branchless one-hot selection, power-of-two windowing, de Bruijn low-bit decoding, and packed selector equivalence.
+
+Validation:
+
+- `python C:\Users\Admin\.codex\skills\.system\skill-creator\scripts\quick_validate.py .agents\skills\z3-black-magic-optimizer` passes.
+- `python .agents\skills\z3-black-magic-optimizer\scripts\find_magic_candidates.py runtime\native\src\core\z3\proofs-experimental --json --limit 3` finds the expected de Bruijn and magic-multiplier examples.
+- Z3 MCP `prove_or_witness(kind="check_smt2")` proved a reduced one-hot branchless selector claim with `unsat`.
