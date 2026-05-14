@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-13 - live Codex startup was fixed by pinning `kain_mcp` to direct `kain.exe`, not the Python launcher
+
+The recurring `MCP startup failed: handshaking with MCP server failed: connection closed: initialize response` error on this machine was not the `blades/kain-mcp` request loop anymore. The live global Codex config had drifted back to the Python managed-sync launcher, and real `codex exec` reproduced the hang there even after the blade itself had already been hardened.
+
+What changed:
+
+- Rechecked the actual live `C:\\Users\\Admin\\.codex\\config.toml` instead of assuming the earlier direct-binary edit was still present.
+- Reproduced the failure through real `codex exec --json --ephemeral -C D:\\Kain-Lang "Respond with OK and exit."` using the live global config.
+- Confirmed through `C:\\Users\\Admin\\.kain\\state\\kain_mcp_launcher_trace.jsonl` that Codex was launching `scripts/python/launch_kain_mcp.py`, which then branched through managed-sync/preflight/fallback behavior before spawning `kain`.
+- Proved the clean path by overriding Codex to launch `kain_mcp` directly as `C:\\Users\\Admin\\.cargo\\bin\\kain.exe run D:\\Kain-Lang\\blades\\kain-mcp`; the same proof also passed against `D:\\Kain-Lang\\target\\debug\\kain.exe`.
+- Updated the live global Codex block so `mcp_servers.kain_mcp` now launches the direct binary with `args = ['run', 'D:\\Kain-Lang\\blades\\kain-mcp']`, `cwd = 'D:\\Kain-Lang'`, and `KAIN_NO_BANNER=1`.
+
+Why it changed:
+
+- The repo docs were already right that the Python launcher should be fallback/debug plumbing, not the default Codex boot path.
+- The launcher is still useful for explicit managed-sync flows, but it introduces extra state branches (stale checks, lock/cooldown handling, preflight fallback, binary selection) that can make live Codex startup look flaky even when the Kain MCP server itself is healthy.
+- Direct `kain.exe run ...` removes that ambiguity and matches the machine-facing stdout contract already enforced in `crates/cli/src/main.rs`.
+
+Validation:
+
+- `codex exec --json --ephemeral -C D:\\Kain-Lang -c mcp_servers.poly.enabled=false -c mcp_servers.z3_local.enabled=false -c mcp_servers.kain_mcp.command='C:\\Users\\Admin\\.cargo\\bin\\kain.exe' -c 'mcp_servers.kain_mcp.args=["run","D:\\\\Kain-Lang\\\\blades\\\\kain-mcp"]' ... "Respond with OK and exit."` (pass)
+- Same direct proof against `D:\\Kain-Lang\\target\\debug\\kain.exe` (pass)
+- Plain `codex exec --json --ephemeral -C D:\\Kain-Lang "Respond with OK and exit."` after the live config edit, with the normal global MCP set enabled (`poly`, `z3_local`, `kain_mcp`) (pass)
+
+Durable note:
+
+- On this machine, future agents should treat `C:\\Users\\Admin\\.codex\\config.toml` as the real source of truth for the live Codex MCP path. Keep `kain_mcp` pointed at direct `kain.exe run D:\\Kain-Lang\\blades\\kain-mcp` unless you are explicitly debugging or exercising the managed-sync launcher.
+
 # 2026-05-13 - `collapse`, `observe`, and `decay` are a good ownership subsystem but not a drop-in final keyword pass
 
 The proposed memory triad is directionally right for Kain's native story, but the solver pass and repo sweep showed it does not blend into the current `world`/`entangle`/LLVM pipeline as simple last-minute top-level keywords.
