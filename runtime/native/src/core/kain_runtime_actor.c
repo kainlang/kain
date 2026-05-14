@@ -17,9 +17,15 @@
 
 /* Global actor table */
 #define KAIN_ACTOR_TABLE_SIZE KAIN_ACTOR_TABLE_CAPACITY
+#define KAIN_ACTOR_TABLE_WORD_BITS 64u
+#define KAIN_ACTOR_TABLE_WORD_COUNT (KAIN_ACTOR_TABLE_SIZE / KAIN_ACTOR_TABLE_WORD_BITS)
+#if (KAIN_ACTOR_TABLE_SIZE % KAIN_ACTOR_TABLE_WORD_BITS) != 0
+#error "KAIN_ACTOR_TABLE_SIZE must be a multiple of 64 for occupancy-word indexing."
+#endif
 
 typedef struct {
     KainActorState_Internal* actors[KAIN_ACTOR_TABLE_SIZE];
+    uint64_t occupancy_words[KAIN_ACTOR_TABLE_WORD_COUNT];
 #ifdef _WIN32
     CRITICAL_SECTION lock;
 #else
@@ -54,10 +60,16 @@ static KainActorRegistry g_actor_registry = {0};
 /* Actor scheduler - work queue for actor execution */
 #define KAIN_SCHEDULER_WORKER_COUNT KAIN_ACTOR_SCHEDULER_WORKER_COUNT
 #define KAIN_SCHEDULER_USE_POOLED 1  /* 1 = use worker pool, 0 = thread-per-actor */
+#define KAIN_SCHEDULER_QUEUE_CAPACITY KAIN_ACTOR_TABLE_CAPACITY
+#define KAIN_SCHEDULER_QUEUE_MASK (KAIN_SCHEDULER_QUEUE_CAPACITY - 1u)
+#if (KAIN_SCHEDULER_QUEUE_CAPACITY & KAIN_SCHEDULER_QUEUE_MASK) != 0
+#error "KAIN_SCHEDULER_QUEUE_CAPACITY must be a power of two for masked ring indexing."
+#endif
 
 typedef struct {
-    KainActorSchedulerNode* head;
-    KainActorSchedulerNode* tail;
+    KainActorId queue[KAIN_SCHEDULER_QUEUE_CAPACITY];
+    size_t enqueue_cursor;
+    size_t dequeue_cursor;
     int shutdown;
     int active_workers;
     size_t busy_workers;
@@ -107,6 +119,24 @@ static void kain_actor_finalize_exit_state(
 static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor);
 static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src);
 
+static uint64_t kain_actor_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_actor_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * 0x03f79d71b4cb0a89ULL) >> 58u];
+}
+
 /*
  * Initialize Actor Runtime
  *
@@ -127,6 +157,8 @@ void kain_actor_runtime_init(void) {
 
     g_actor_table.next_id = 1;
     memset(g_actor_table.actors, 0, sizeof(g_actor_table.actors));
+    memset(g_actor_table.occupancy_words, 0, sizeof(g_actor_table.occupancy_words));
+    g_actor_table.occupancy_words[0] = 1ULL;
     memset(g_actor_registry.buckets, 0, sizeof(g_actor_registry.buckets));
     g_actor_spawn_sequence = 1;
 
@@ -333,6 +365,7 @@ static KainActorState_Internal* kain_actor_table_get(KainActorId actor_id) {
 }
 
 static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
+    size_t word_index;
 #ifdef _WIN32
     EnterCriticalSection(&g_actor_table.lock);
 #else
@@ -341,13 +374,24 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
 
     KainActorId id = KAIN_ACTOR_ID_INVALID;
     
-    /* Find free slot */
-    for (size_t i = 1; i < KAIN_ACTOR_TABLE_SIZE; i++) {
-        if (g_actor_table.actors[i] == NULL) {
-            id = i;
-            actor->actor_id = id;
-            actor->spawn_sequence = g_actor_spawn_sequence++;
-            g_actor_table.actors[i] = actor;
+    /* Find first free slot with a reserved-invalid-slot bitset. */
+    for (word_index = 0u; word_index < KAIN_ACTOR_TABLE_WORD_COUNT; ++word_index) {
+        uint64_t free_mask = ~g_actor_table.occupancy_words[word_index];
+        if (word_index == 0u) {
+            free_mask &= ~1ULL;
+        }
+        if (free_mask != 0u) {
+            uint64_t low_bit = kain_actor_isolate_low_bit_u64(free_mask);
+            unsigned int bit_index = kain_actor_low_bit_index_u64(low_bit);
+            id = (KainActorId)(word_index * KAIN_ACTOR_TABLE_WORD_BITS + bit_index);
+            if (id != KAIN_ACTOR_ID_INVALID && id < KAIN_ACTOR_TABLE_SIZE) {
+                actor->actor_id = id;
+                actor->spawn_sequence = g_actor_spawn_sequence++;
+                g_actor_table.actors[id] = actor;
+                g_actor_table.occupancy_words[word_index] |= low_bit;
+            } else {
+                id = KAIN_ACTOR_ID_INVALID;
+            }
             break;
         }
     }
@@ -362,6 +406,8 @@ static KainActorId kain_actor_table_insert(KainActorState_Internal* actor) {
 }
 
 static void kain_actor_table_remove(KainActorId actor_id) {
+    size_t word_index;
+    uint64_t bit_mask;
     if (actor_id == KAIN_ACTOR_ID_INVALID || actor_id >= KAIN_ACTOR_TABLE_SIZE) {
         return;
     }
@@ -373,6 +419,9 @@ static void kain_actor_table_remove(KainActorId actor_id) {
 #endif
 
     g_actor_table.actors[actor_id] = NULL;
+    word_index = (size_t)(actor_id / KAIN_ACTOR_TABLE_WORD_BITS);
+    bit_mask = 1ULL << (unsigned int)(actor_id % KAIN_ACTOR_TABLE_WORD_BITS);
+    g_actor_table.occupancy_words[word_index] &= ~bit_mask;
 
 #ifdef _WIN32
     LeaveCriticalSection(&g_actor_table.lock);
@@ -1574,7 +1623,7 @@ static void* kain_scheduler_worker_thread(void* param) {
 #endif
         
         /* Wait for work or shutdown */
-        while (g_scheduler.head == NULL && !g_scheduler.shutdown) {
+        while (g_scheduler.queue_depth == 0u && !g_scheduler.shutdown) {
 #ifdef _WIN32
             LeaveCriticalSection(&g_scheduler.lock);
             WaitForSingleObject(g_scheduler.work_available, INFINITE);
@@ -1585,7 +1634,7 @@ static void* kain_scheduler_worker_thread(void* param) {
         }
         
         /* Check for shutdown */
-        if (g_scheduler.shutdown && g_scheduler.head == NULL) {
+        if (g_scheduler.shutdown && g_scheduler.queue_depth == 0u) {
 #ifdef _WIN32
             LeaveCriticalSection(&g_scheduler.lock);
 #else
@@ -1690,8 +1739,9 @@ static void kain_scheduler_init(void) {
     g_scheduler.worker_threads = (pthread_t*)malloc(sizeof(pthread_t) * KAIN_SCHEDULER_WORKER_COUNT);
 #endif
     
-    g_scheduler.head = NULL;
-    g_scheduler.tail = NULL;
+    memset(g_scheduler.queue, 0, sizeof(g_scheduler.queue));
+    g_scheduler.enqueue_cursor = 0u;
+    g_scheduler.dequeue_cursor = 0u;
     g_scheduler.shutdown = 0;
     g_scheduler.active_workers = KAIN_SCHEDULER_WORKER_COUNT;
     g_scheduler.busy_workers = 0;
@@ -1758,30 +1808,15 @@ static void kain_scheduler_shutdown(void) {
     pthread_cond_destroy(&g_scheduler.work_available);
 #endif
     
-    /* Free remaining queue nodes */
-    KainActorSchedulerNode* node = g_scheduler.head;
-    while (node != NULL) {
-        KainActorSchedulerNode* next = node->next;
-        free(node);
-        node = next;
-    }
 }
 
 static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
     KainActorId actor_id;
-    KainActorSchedulerNode* node = (KainActorSchedulerNode*)malloc(sizeof(KainActorSchedulerNode));
-    if (node == NULL) {
-        return;
-    }
-    
     if (actor == NULL) {
-        free(node);
         return;
     }
 
     actor_id = actor->actor_id;
-    node->actor_id = actor_id;
-    node->next = NULL;
     
 #ifdef _WIN32
     EnterCriticalSection(&g_scheduler.lock);
@@ -1789,24 +1824,20 @@ static void kain_scheduler_enqueue(KainActorState_Internal* actor) {
     pthread_mutex_lock(&g_scheduler.lock);
 #endif
 
-    if (g_scheduler.shutdown || actor->in_scheduler_queue) {
+    if (g_scheduler.shutdown ||
+        actor->in_scheduler_queue ||
+        g_scheduler.queue_depth >= KAIN_SCHEDULER_QUEUE_CAPACITY) {
 #ifdef _WIN32
         LeaveCriticalSection(&g_scheduler.lock);
 #else
         pthread_mutex_unlock(&g_scheduler.lock);
 #endif
-        free(node);
         return;
     }
     actor->in_scheduler_queue = 1;
     
-    if (g_scheduler.tail == NULL) {
-        g_scheduler.head = node;
-        g_scheduler.tail = node;
-    } else {
-        g_scheduler.tail->next = node;
-        g_scheduler.tail = node;
-    }
+    g_scheduler.queue[g_scheduler.enqueue_cursor & KAIN_SCHEDULER_QUEUE_MASK] = actor_id;
+    g_scheduler.enqueue_cursor++;
     g_scheduler.queue_depth++;
     g_scheduler.total_enqueued++;
     if (g_scheduler.queue_depth > g_scheduler.max_queue_depth) {
@@ -1883,20 +1914,18 @@ static int kain_actor_spawn_direct_thread(KainActorState_Internal* actor, KainDi
 
 static KainActorId kain_scheduler_dequeue(void) {
     /* Caller must hold scheduler lock */
-    if (g_scheduler.head == NULL) {
+    KainActorId actor_id;
+    size_t slot_index;
+
+    if (g_scheduler.queue_depth == 0u) {
         return KAIN_ACTOR_ID_INVALID;
     }
-    
-    KainActorSchedulerNode* node = g_scheduler.head;
-    KainActorId actor_id = node->actor_id;
-    
-    g_scheduler.head = node->next;
-    if (g_scheduler.head == NULL) {
-        g_scheduler.tail = NULL;
-    }
-    if (g_scheduler.queue_depth > 0) {
-        g_scheduler.queue_depth--;
-    }
+
+    slot_index = g_scheduler.dequeue_cursor & KAIN_SCHEDULER_QUEUE_MASK;
+    actor_id = g_scheduler.queue[slot_index];
+    g_scheduler.queue[slot_index] = KAIN_ACTOR_ID_INVALID;
+    g_scheduler.dequeue_cursor++;
+    g_scheduler.queue_depth--;
     g_scheduler.total_dequeued++;
     {
         KainActorState_Internal* actor = kain_actor_table_get(actor_id);
@@ -1904,8 +1933,7 @@ static KainActorId kain_scheduler_dequeue(void) {
             actor->in_scheduler_queue = 0;
         }
     }
-    
-    free(node);
+
     return actor_id;
 }
 

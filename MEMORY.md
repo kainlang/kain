@@ -1,5 +1,53 @@
 # Kain Memory
 
+# 2026-05-14 - Native actor runtime now uses occupancy-bitset allocation and a masked ring scheduler
+
+The native actor runtime in `runtime/native/src/core/kain_runtime_actor.c`
+got the kind of solver-backed hot-path rewrite that is only worth doing when
+the old code is obviously paying rent on every spawn and schedule step.
+
+What shipped:
+
+- Actor-table allocation no longer linearly scans 1023 slots looking for a
+  free `actor_id`. The table now keeps 64-bit occupancy words, reserves slot 0
+  as the invalid ID bit, isolates the first free bit, and decodes the slot
+  index with a de Bruijn multiply/lookup fast path.
+- The pooled scheduler no longer heap-allocates and frees a linked-list node on
+  every enqueue/dequeue. It now uses a fixed-capacity power-of-two ring buffer
+  keyed by actor IDs with masked cursor indexing.
+- Actor removal now clears the occupancy bit so the allocator and scheduler
+  stay in the same truth domain.
+- Experimental proof references for the weird math now live under
+  `runtime/native/src/core/z3/proofs-experimental/`:
+  - `actor-scheduler-ring-mask-index-bounds.smt2`
+  - `actor-table-slot-composition-bounds.smt2`
+  - `actor-table-debruijn-hash-distinct.smt2`
+
+What the proof/benchmark loop said:
+
+- The ring-mask and slot-composition constraints both proved `unsat`.
+- The full 64-entry de Bruijn one-hot hash distinctness check also proved
+  `unsat`, which means the low-bit decode table is valid for every one-hot
+  occupancy mask state we rely on.
+- Scratch benchmark `target/codex-actor-hotpath-benchmark.exe` showed:
+  - actor-table insert path: about `48.17x` faster
+  - scheduler queue path: about `19.00x` faster
+
+Validation:
+
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_actor.c`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core\\z3", lane="actor", report_name="native-actor-lane-after-bitset-ring-pass")` proved `7/7`
+- `bash runtime/conformance/actor_runtime/run_tests.sh --test-timeout 45 --verbose`
+
+Design note:
+
+- This is the right kind of dirty optimization for the native actor lane
+  because the capacity is fixed and small enough that closed-form bit math is
+  simpler than dynamic allocation. The unsafe-looking part is not the ring
+  buffer itself; it is trusting the masked arithmetic and de Bruijn decode. The
+  solver now owns that trust boundary.
+
 # 2026-05-14 - Service registry alias canonicalization now uses cached token metadata and a solver-backed fast path
 
 After the native `KainMap` branchless lookup pass, the best honest closed-world

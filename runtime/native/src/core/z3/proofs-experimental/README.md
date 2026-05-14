@@ -16,6 +16,9 @@ Current references:
 - `map-magic-current-intent-pool.smt2`
 - `map-eight-slot-selection.smt2`
 - `map-power-two-window-index-bounds.smt2`
+- `actor-scheduler-ring-mask-index-bounds.smt2`
+- `actor-table-slot-composition-bounds.smt2`
+- `actor-table-debruijn-hash-distinct.smt2`
 - `service-registry-magic-collision-free.smt2`
 - `service-alias-canonicalizer-token-states.smt2`
 - `reflection-ui-token-magic-collision-free.smt2`
