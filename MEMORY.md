@@ -1,5 +1,41 @@
 # Kain Memory
 
+# 2026-05-14 - `collapse`, `observe`, and `decay` are first-class ownership keywords across core, LLVM, and native runtime
+
+The ownership model moved from semantic-kernel design into the language/runtime path. `collapse`, `observe`, and `decay` now parse as reserved keywords, typecheck against pointer-like regions, execute through interpreter ownership guards, emit `memory.ownership` runtime-contract requirements, lower through LLVM checked native calls, and have a C runtime guard registry backing native heap/imported pointer lifetimes.
+
+What changed:
+
+- `kain-core` now owns `Expr::Observe`, `Expr::Collapse`, and `Expr::Decay`, parser support, formatter support, comptime/runtime traversal, typechecking, backend memory validation, runtime-contract capability emission, and interpreter guard transitions.
+- `crates/kain-sys-codegen` now lowers ownership expressions to `__kain_ownership_*` runtime calls. Untracked LLVM pointers are lazily registered as imported regions before guard transitions, so FFI/local pointers can participate without claiming Kain heap ownership.
+- `runtime/native` now has `kain_runtime_ownership.h/.c`, a serialized C11-atomic registry for observe/collapse/decay transitions, heap allocation registration from `__kain_alloc`, pre-move registration for `__kain_realloc`, and `__kain_free` behind heap decay.
+- `runtime/BUILD.bazel`, `tools/bazel/sync_native_runtime_builds.py`, and `runtime/runtime_manifest_data.bzl` now include `native_test_ownership_memory`, which proves the C runtime guard surface under Bazel.
+- `crates/kain-ownership` policy now treats imported pointers as borrowed observe/collapse/lifetime-end regions, not heap-free regions.
+
+Formal proof gathered with Z3:
+
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership", lane="full", report_name="ownership_keywords_core")` proved 7/7.
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="ownership", report_name="native_ownership_runtime")` proved 3/3.
+
+Validation:
+
+- `cargo fmt -p kain-core -p kain-sys-codegen -p kain-ownership`
+- `cargo check -p kain-core -p kain-sys-codegen --target-dir target\\codex-ownership-check`
+- `cargo test -p kain-ownership --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-core --test ownership_keywords_test --target-dir target\\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target\\codex-ownership-check -- --nocapture`
+- `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+- `bazel test //runtime:native_test_ownership_memory`
+- `bazel build //runtime:all`
+
+Known validation noise:
+
+- `bazel test //runtime:native_runtime_tests` still fails in the pre-existing actor monitor/link test (`Link did not propagate crash`). The new ownership C runtime test passes, and actor supervision passes.
+- Bazel still prints the known Windows `rules_swift` local-config `name 'arch' is not defined` analysis noise under `--keep_going`, while the requested runtime build/test targets complete.
+
+Recommended next step:
+
+- Add a small `.kn` native executable fixture that allocates, observes, collapses, and decays a heap pointer end-to-end through the real LLVM linker path, then promote it into the native LLVM proving-ground blade once the sample surface is stable.
 # 2026-05-14 - `crates/kain-ownership` landed as the proof-backed memory ownership kernel
 
 The first vertical slice of the `collapse` / `observe` / `decay` ownership model now exists as a dedicated semantic crate instead of remaining a design note.
@@ -18,7 +54,7 @@ Design decisions:
 - `observe` over world and entangle-backed regions is snapshot-first in v1. Direct live readonly aliasing would be dishonest until epoch/freeze semantics exist.
 - `collapse` only succeeds from `Idle`; observed regions reject it.
 - `decay` only succeeds from `Idle`; observed, collapsed, or already-decayed regions reject it.
-- Entangled mirrors and imported pointers are deliberately conservative: no collapse or decay powers are claimed.
+- Entangled mirrors are deliberately conservative: no collapse or decay powers are claimed. Imported pointer policy was expanded later the same day to borrowed observe/collapse/lifetime-end without heap-free ownership.
 
 Formal proof gathered with Z3:
 

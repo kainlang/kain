@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    ConvergeSelector, ShaderStage, Type, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
+    Block, ConvergeSelector, Expr, ShaderStage, Stmt, Type, WorldSurfaceKind,
+    COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
@@ -11,6 +12,7 @@ use crate::types::{
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
+use kain_ownership::OWNERSHIP_CAPABILITY;
 
 pub const RUNTIME_CONTRACT_SCHEMA_VERSION: u32 = 1;
 
@@ -374,6 +376,13 @@ fn collect_runtime_capabilities(
             "memory.raw-ops",
             "kain-core.low_level_memory",
             Some("Target accepts raw memory operation lowering."),
+        ));
+    }
+    if summary.ownership_ops > 0 {
+        capabilities.push(runtime_capability(
+            OWNERSHIP_CAPABILITY,
+            "kain-ownership",
+            Some("Program uses compiler-owned collapse/observe/decay memory ownership scopes."),
         ));
     }
 
@@ -1272,6 +1281,7 @@ struct ItemSummary {
     graph_editors: usize,
     graph_runtimes: usize,
     editor_modules: usize,
+    ownership_ops: usize,
 }
 
 fn summarize_items(items: &[TypedItem]) -> ItemSummary {
@@ -1280,9 +1290,166 @@ fn summarize_items(items: &[TypedItem]) -> ItemSummary {
     summary
 }
 
+fn block_contains_ownership_expr(block: &Block) -> bool {
+    block.stmts.iter().any(stmt_contains_ownership_expr)
+}
+
+fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_ownership_expr),
+        Stmt::Expr(expr) => expr_contains_ownership_expr(expr),
+        Stmt::Return(value, _) | Stmt::Break(value, _) => {
+            value.as_ref().is_some_and(expr_contains_ownership_expr)
+        }
+        Stmt::For { iter, body, .. } => {
+            expr_contains_ownership_expr(iter) || block_contains_ownership_expr(body)
+        }
+        Stmt::While {
+            condition, body, ..
+        } => expr_contains_ownership_expr(condition) || block_contains_ownership_expr(body),
+        Stmt::Loop { body, .. } => block_contains_ownership_expr(body),
+        Stmt::Item(_) | Stmt::Continue(_) => false,
+    }
+}
+
+fn expr_contains_ownership_expr(expr: &Expr) -> bool {
+    match expr {
+        Expr::Observe { .. } | Expr::Collapse { .. } | Expr::Decay { .. } => true,
+        Expr::Binary { left, right, .. } => {
+            expr_contains_ownership_expr(left) || expr_contains_ownership_expr(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => expr_contains_ownership_expr(operand),
+        Expr::Call { callee, args, .. } => {
+            expr_contains_ownership_expr(callee)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_ownership_expr(&arg.value))
+        }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .any(|arg| expr_contains_ownership_expr(&arg.value)),
+        Expr::MacroCall { args, .. } => args.iter().any(expr_contains_ownership_expr),
+        Expr::MethodCall { receiver, args, .. } => {
+            expr_contains_ownership_expr(receiver)
+                || args
+                    .iter()
+                    .any(|arg| expr_contains_ownership_expr(&arg.value))
+        }
+        Expr::Field { object, .. } => expr_contains_ownership_expr(object),
+        Expr::Index { object, index, .. } => {
+            expr_contains_ownership_expr(object) || expr_contains_ownership_expr(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            expr_contains_ownership_expr(target) || expr_contains_ownership_expr(value)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| expr_contains_ownership_expr(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_ownership_expr(value))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| expr_contains_ownership_expr(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            crate::ast::EnumVariantFields::Unit => false,
+            crate::ast::EnumVariantFields::Tuple(values) => {
+                values.iter().any(expr_contains_ownership_expr)
+            }
+            crate::ast::EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| expr_contains_ownership_expr(value)),
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(expr_contains_ownership_expr)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| expr_contains_ownership_expr(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| expr_contains_ownership_expr(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            expr_contains_ownership_expr(condition)
+                || block_contains_ownership_expr(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_ownership_expr(branch))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            expr_contains_ownership_expr(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard.as_ref().is_some_and(expr_contains_ownership_expr)
+                        || expr_contains_ownership_expr(&arm.body)
+                })
+        }
+        Expr::Lambda { body, .. } => expr_contains_ownership_expr(body),
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(offset),
+        Expr::MemLoad { pointer, .. } => expr_contains_ownership_expr(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(value)
+        }
+        Expr::Alloc { size, .. } => expr_contains_ownership_expr(size),
+        Expr::Realloc { pointer, size, .. } => {
+            expr_contains_ownership_expr(pointer) || expr_contains_ownership_expr(size)
+        }
+        Expr::SendMsg { target, data, .. } => {
+            expr_contains_ownership_expr(target)
+                || data
+                    .iter()
+                    .any(|(_, value)| expr_contains_ownership_expr(value))
+        }
+        Expr::Spawn { init, .. } => init
+            .iter()
+            .any(|(_, value)| expr_contains_ownership_expr(value)),
+        Expr::Block(block, _) => block_contains_ownership_expr(block),
+        _ => false,
+    }
+}
+
+fn else_branch_contains_ownership_expr(branch: &crate::ast::ElseBranch) -> bool {
+    match branch {
+        crate::ast::ElseBranch::Else(block) => block_contains_ownership_expr(block),
+        crate::ast::ElseBranch::ElseIf(condition, block, next) => {
+            expr_contains_ownership_expr(condition)
+                || block_contains_ownership_expr(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| else_branch_contains_ownership_expr(branch))
+        }
+    }
+}
+
 fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
     for item in items {
         match item {
+            TypedItem::Function(function) => {
+                if block_contains_ownership_expr(&function.ast.body) {
+                    summary.ownership_ops += 1;
+                }
+            }
             TypedItem::Component(_) => summary.components += 1,
             TypedItem::Actor(_) => summary.actors += 1,
             TypedItem::AsyncTask(_) => summary.async_tasks += 1,

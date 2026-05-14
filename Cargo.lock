@@ -2819,6 +2819,7 @@ dependencies = [
  "kain-entangle",
  "kain-fs",
  "kain-input",
+ "kain-ownership",
  "kain-ui",
  "logos",
  "once_cell",
@@ -3125,6 +3126,7 @@ dependencies = [
  "inkwell",
  "kain-actor",
  "kain-core",
+ "kain-ownership",
  "serde",
  "serde_json",
 ]

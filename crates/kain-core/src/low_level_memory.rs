@@ -1016,6 +1016,20 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             ctx.layouts,
             span,
         ),
+        Expr::Observe { target, body, span } => Expr::Observe {
+            target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
+            body: Box::new(lower_expr_memory_with_ctx(body, ctx)),
+            span: *span,
+        },
+        Expr::Collapse { target, body, span } => Expr::Collapse {
+            target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
+            body: Box::new(lower_expr_memory_with_ctx(body, ctx)),
+            span: *span,
+        },
+        Expr::Decay { target, span } => Expr::Decay {
+            target: Box::new(lower_expr_memory_with_ctx(target, ctx)),
+            span: *span,
+        },
         Expr::AggregateInit {
             ty,
             fields,
@@ -2742,6 +2756,9 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
                 first_memory_expr_context(size, base)
             }
         }
+        Expr::Observe { .. } => Some(format!("{base}: ownership observe expression")),
+        Expr::Collapse { .. } => Some(format!("{base}: ownership collapse expression")),
+        Expr::Decay { .. } => Some(format!("{base}: ownership decay expression")),
         Expr::AggregateInit { fields, .. } => first_memory_expr_context_from_pairs(fields, base),
         Expr::Binary { left, right, .. } => {
             if let Some(context) = first_memory_expr_context(left, base.clone()) {

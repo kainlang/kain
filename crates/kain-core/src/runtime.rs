@@ -8,6 +8,7 @@ use crate::module_resolution::{
     filesystem_module_candidates, resolve_filesystem_module_file, resolve_stdlib_module_file,
 };
 use crate::parser::Parser;
+use crate::span::Span;
 use crate::types::{TypedItem, TypedProgram};
 use crate::ui::{eval_jsx, VNode};
 use flume::Sender;
@@ -18,6 +19,9 @@ use kain_fs::{
     FsWatchEvent, FsWatcher,
 };
 use kain_input::{InputEvent, InputSession, InputSource};
+use kain_ownership::{
+    OwnershipRegionDescriptor, OwnershipRegionKind, OwnershipTransition, OWNERSHIP_CAPABILITY,
+};
 use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
@@ -402,6 +406,7 @@ pub struct Env {
     self_actor_id: Option<ActorId>,
     execution_lane: ExecutionLane,
     active_capabilities: Vec<String>,
+    ownership_regions: HashMap<String, OwnershipRegionDescriptor>,
     active_patch_frames: Vec<ActivePatchFrame>,
     patch_records: Vec<PatchRuntimeRecord>,
     patch_replay_catalog: Vec<ReplayablePatchRecord>,
@@ -436,8 +441,10 @@ impl Env {
                 "patch.transactions".to_string(),
                 "converge.dispatch".to_string(),
                 "orchestrate.pipeline".to_string(),
+                OWNERSHIP_CAPABILITY.to_string(),
                 "host.runtime.interpret".to_string(),
             ],
+            ownership_regions: HashMap::new(),
             active_patch_frames: Vec::new(),
             patch_records: Vec::new(),
             patch_replay_catalog: Vec::new(),
@@ -4643,6 +4650,60 @@ fn eval_else_branch(env: &mut Env, else_branch: &ElseBranch) -> KainResult<Value
     }
 }
 
+fn runtime_ownership_region_id(target: &Expr) -> String {
+    match target {
+        Expr::Ident(name, _) => name.clone(),
+        Expr::AddrOf { value, .. } | Expr::Ref { value, .. } => runtime_ownership_region_id(value),
+        Expr::Paren(value, _) => runtime_ownership_region_id(value),
+        other => {
+            let span = other.span();
+            format!("ownership-region:{}..{}", span.start, span.end)
+        }
+    }
+}
+
+fn apply_runtime_ownership_transition(
+    env: &mut Env,
+    target: &Expr,
+    transition: OwnershipTransition,
+    operation: &str,
+    span: Span,
+) -> KainResult<()> {
+    let region_id = runtime_ownership_region_id(target);
+    let region = env
+        .ownership_regions
+        .entry(region_id.clone())
+        .or_insert_with(|| {
+            OwnershipRegionDescriptor::new(region_id.clone(), OwnershipRegionKind::HeapAllocation)
+        });
+    region.apply(transition).map(|_| ()).map_err(|err| {
+        KainError::runtime(format!(
+            "{operation} ownership transition failed for '{region_id}' at {}..{}: {err}",
+            span.start, span.end
+        ))
+    })
+}
+
+fn eval_scoped_ownership_expr(
+    env: &mut Env,
+    target: &Expr,
+    body: &Expr,
+    begin: OwnershipTransition,
+    end: OwnershipTransition,
+    operation: &str,
+    span: Span,
+) -> KainResult<Value> {
+    let _ = eval_expr(env, target)?;
+    apply_runtime_ownership_transition(env, target, begin, operation, span)?;
+    let body_result = eval_expr(env, body);
+    let end_result = apply_runtime_ownership_transition(env, target, end, operation, span);
+    match (body_result, end_result) {
+        (Ok(value), Ok(())) => Ok(value),
+        (Err(err), Ok(())) => Err(err),
+        (Ok(_), Err(err)) | (Err(_), Err(err)) => Err(err),
+    }
+}
+
 pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
     match expr {
         Expr::MethodCall {
@@ -5697,6 +5758,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     self_actor_id: Some(id),
                     execution_lane,
                     active_capabilities,
+                    ownership_regions: HashMap::new(),
                     active_patch_frames: Vec::new(),
                     patch_records: Vec::new(),
                     patch_replay_catalog: Vec::new(),
@@ -5874,6 +5936,35 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
         Expr::Uninit { .. } => Ok(Value::None),
         Expr::Alloc { zeroed, .. } => Ok(if *zeroed { Value::Int(0) } else { Value::None }),
         Expr::Realloc { .. } => Ok(Value::Int(0)),
+        Expr::Observe { target, body, span } => eval_scoped_ownership_expr(
+            env,
+            target,
+            body,
+            OwnershipTransition::BeginObserve,
+            OwnershipTransition::EndObserve,
+            "observe",
+            *span,
+        ),
+        Expr::Collapse { target, body, span } => eval_scoped_ownership_expr(
+            env,
+            target,
+            body,
+            OwnershipTransition::BeginCollapse,
+            OwnershipTransition::EndCollapse,
+            "collapse",
+            *span,
+        ),
+        Expr::Decay { target, span } => {
+            let _ = eval_expr(env, target)?;
+            apply_runtime_ownership_transition(
+                env,
+                target,
+                OwnershipTransition::Decay,
+                "decay",
+                *span,
+            )?;
+            Ok(Value::Unit)
+        }
 
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
@@ -6922,10 +7013,17 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(offset)
         }
-        Expr::MemLoad { pointer, .. } => expr_contains_runtime_best_effort_effects(pointer),
+        Expr::MemLoad { pointer, .. }
+        | Expr::Decay {
+            target: pointer, ..
+        } => expr_contains_runtime_best_effort_effects(pointer),
         Expr::MemStore { pointer, value, .. } => {
             expr_contains_runtime_best_effort_effects(pointer)
                 || expr_contains_runtime_best_effort_effects(value)
+        }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            expr_contains_runtime_best_effort_effects(target)
+                || expr_contains_runtime_best_effort_effects(body)
         }
         Expr::Return(value, _) | Expr::Break(value, _) => value
             .as_ref()

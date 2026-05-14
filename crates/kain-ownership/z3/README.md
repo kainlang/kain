@@ -5,9 +5,11 @@ This pack holds durable solver-backed proofs for `crates/kain-ownership`.
 Current focus:
 
 - `observe` and `collapse` exclusivity
+- balanced scoped `observe` and `collapse` returning to `Idle`
 - `decay` preconditions
 - terminal decayed-state behavior
 - conservative policy shape for world and entangle regions
+- imported pointer borrowed lifetime policy without heap-free ownership
 
 Common commands:
 

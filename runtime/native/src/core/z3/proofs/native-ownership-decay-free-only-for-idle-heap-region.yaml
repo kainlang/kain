@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_decay_free_only_for_idle_heap_region
+kind: check_smt2
+description: __kain_ownership_decay can call __kain_free only after excluding decayed, collapsed, and observed states, and only for heap regions.
+tags:
+- native-runtime
+- ownership
+- decay
+- free
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_ownership.c
+  symbol: __kain_ownership_decay
+  start_line: 278
+  reason: decay returns before free unless the region is idle with zero observers and heap-owned
+case:
+  smt2: |
+    (set-logic ALL)
+    ; states: 0=idle, 1=observed, 2=collapsed, 3=decayed
+    ; kinds: 1=heap_allocation
+    (declare-const state Int)
+    (declare-const observers Int)
+    (declare-const kind Int)
+    (define-fun calls_free () Bool (and (= state 0) (= observers 0) (= kind 1)))
+    (assert (>= observers 0))
+    (assert calls_free)
+    (assert (or (not (= state 0)) (not (= observers 0)) (not (= kind 1))))
+    (check-sat)
+  include_model: false
+  include_stats: false

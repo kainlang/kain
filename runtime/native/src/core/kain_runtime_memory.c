@@ -15,6 +15,7 @@
  */
 
 #include "../../include/kain_runtime_memory.h"
+#include "../../include/kain_runtime_ownership.h"
 #include <errno.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -267,7 +268,17 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
 
     header->metadata.magic = KAIN_ALLOC_MAGIC;
     header->metadata.payload_size = payload_size;
-    return kain_payload_from_header(header);
+    void* payload = kain_payload_from_header(header);
+    if (__kain_ownership_register(
+            payload,
+            KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
+            payload_size
+        ) != KAIN_OWNERSHIP_OK) {
+        header->metadata.magic = 0;
+        free(header);
+        return NULL;
+    }
+    return payload;
 }
 
 /*
@@ -292,13 +303,26 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         return NULL;
     }
 
+    old_payload_size = old_header->metadata.payload_size;
+
+    int ownership_state = __kain_ownership_state(ptr);
+    if (ownership_state != KAIN_OWNERSHIP_STATE_IDLE
+        && ownership_state != KAIN_OWNERSHIP_ERR_NOT_FOUND) {
+        errno = EBUSY;
+        return NULL;
+    }
+    if (ownership_state == KAIN_OWNERSHIP_ERR_NOT_FOUND
+        && __kain_ownership_register(ptr, KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION, old_payload_size)
+            != KAIN_OWNERSHIP_OK) {
+        return NULL;
+    }
+
     if (kain_mul_overflow_size(size, stride, &new_payload_size)
         || kain_add_overflow_size(sizeof(KainAllocHeader), new_payload_size, &allocation_size)) {
         errno = ENOMEM;
         return NULL;
     }
 
-    old_payload_size = old_header->metadata.payload_size;
     new_header = (KainAllocHeader*)realloc(old_header, allocation_size);
     if (new_header == NULL) {
         return NULL;
@@ -315,5 +339,27 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         );
     }
 
-    return kain_payload_from_header(new_header);
+    void* payload = kain_payload_from_header(new_header);
+    if (__kain_ownership_update(ptr, payload, new_payload_size) != KAIN_OWNERSHIP_OK) {
+        return payload;
+    }
+
+    return payload;
+}
+
+int __kain_free(void* ptr) {
+    if (ptr == NULL) {
+        return 0;
+    }
+
+    KainAllocHeader* header = kain_header_from_payload(ptr);
+    if (!kain_validate_helper_header(header)) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    header->metadata.magic = 0;
+    header->metadata.payload_size = 0;
+    free(header);
+    return 0;
 }

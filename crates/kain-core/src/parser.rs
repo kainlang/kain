@@ -7,6 +7,7 @@ use crate::error::{KainError, KainResult};
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
+use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD};
 
 /// Maximum number of errors to accumulate before bailing out.
 /// Prevents runaway error accumulation from freezing the compiler.
@@ -60,6 +61,9 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "macro",
     "vertex",
     "fragment",
+    "collapse",
+    "observe",
+    "decay",
     "test",
     "Pure",
     "IO",
@@ -3709,6 +3713,9 @@ impl<'a> Parser<'a> {
 
     fn parse_unary(&mut self) -> KainResult<Expr> {
         match self.peek_kind() {
+            TokenKind::Observe => self.parse_scoped_ownership_expr(OBSERVE_KEYWORD),
+            TokenKind::Collapse => self.parse_scoped_ownership_expr(COLLAPSE_KEYWORD),
+            TokenKind::Decay => self.parse_decay_expr(),
             TokenKind::Amp => {
                 let s = self.current_span();
                 self.advance();
@@ -3856,6 +3863,38 @@ impl<'a> Parser<'a> {
             }
             _ => self.parse_postfix(),
         }
+    }
+
+    fn parse_scoped_ownership_expr(&mut self, keyword: &str) -> KainResult<Expr> {
+        let start = self.current_span();
+        self.advance();
+        let target = self.parse_expr()?;
+        self.expect(TokenKind::Colon)?;
+        let body = Expr::Block(self.parse_block()?, start);
+        let span = start.merge(body.span());
+        match keyword {
+            OBSERVE_KEYWORD => Ok(Expr::Observe {
+                target: Box::new(target),
+                body: Box::new(body),
+                span,
+            }),
+            COLLAPSE_KEYWORD => Ok(Expr::Collapse {
+                target: Box::new(target),
+                body: Box::new(body),
+                span,
+            }),
+            _ => Err(self.parser_error("Unknown scoped ownership keyword", start)),
+        }
+    }
+
+    fn parse_decay_expr(&mut self) -> KainResult<Expr> {
+        let start = self.current_span();
+        self.advance();
+        let target = self.parse_unary()?;
+        Ok(Expr::Decay {
+            span: start.merge(target.span()),
+            target: Box::new(target),
+        })
     }
 
     fn parse_postfix(&mut self) -> KainResult<Expr> {
@@ -5659,6 +5698,7 @@ impl<'a> Parser<'a> {
                  TokenKind::Mod | TokenKind::Use | TokenKind::True | TokenKind::False | TokenKind::None |
                  TokenKind::Spawn | TokenKind::Send | TokenKind::Receive | TokenKind::Emit |
                  TokenKind::Comptime | TokenKind::Macro | TokenKind::Vertex | TokenKind::Fragment |
+                 TokenKind::Collapse | TokenKind::Observe | TokenKind::Decay |
                  TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |
                  TokenKind::Gpu | TokenKind::Reactive | TokenKind::Unsafe) => {
                 Err(self.parser_error(

@@ -116,6 +116,11 @@ fn eval_expr_in_place(env: &mut Env, expr: &mut Expr) -> KainResult<()> {
             eval_expr_in_place(env, pointer)?;
             eval_expr_in_place(env, size)?;
         }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            eval_expr_in_place(env, target)?;
+            eval_expr_in_place(env, body)?;
+        }
+        Expr::Decay { target, .. } => eval_expr_in_place(env, target)?,
         Expr::Paren(e, _) => eval_expr_in_place(env, e)?,
         Expr::Block(b, _) => eval_block(env, b)?,
         Expr::JSX(node, _) => eval_jsx(env, node)?,

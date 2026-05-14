@@ -1,0 +1,27 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_realloc_registers_missing_region_before_moving
+kind: check_smt2
+description: __kain_realloc must not move a helper allocation whose ownership region is missing unless pre-registration succeeds.
+tags:
+- native-runtime
+- ownership
+- realloc
+- registry
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  symbol: __kain_realloc
+  start_line: 308
+  reason: missing ownership state triggers pre-registration, and registration failure returns before realloc
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const state_missing Bool)
+    (declare-const preregister_ok Bool)
+    (declare-const realloc_called Bool)
+    (assert state_missing)
+    (assert (not preregister_ok))
+    (assert (= realloc_called (or (not state_missing) preregister_ok)))
+    (assert realloc_called)
+    (check-sat)
+  include_model: false
+  include_stats: false

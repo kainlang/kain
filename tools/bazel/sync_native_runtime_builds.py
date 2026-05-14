@@ -73,6 +73,10 @@ def render_output() -> str:
     lines.append('    "native/tests/test_actor_supervision.c",')
     lines.append("]")
     lines.append("")
+    lines.append("NATIVE_RUNTIME_OWNERSHIP_TESTS = [")
+    lines.append('    "native/tests/test_ownership_memory.c",')
+    lines.append("]")
+    lines.append("")
     return "\n".join(lines)
 
 

@@ -28,6 +28,7 @@ NATIVE_CORE_RUNTIME = {
         'native/src/core/kain_runtime_actor.c',
         'native/src/core/kain_runtime_entangle.c',
         'native/src/core/kain_runtime_memory.c',
+        'native/src/core/kain_runtime_ownership.c',
         'native/src/core/kain_runtime_native_stdlib.c',
         'native/src/core/kain_native_input_system.c',
         'native/src/core/kain_native_net_system.c',
@@ -442,6 +443,7 @@ NATIVE_RUNTIME = {
         'native/src/core/kain_runtime_compatibility.c',
         'native/src/core/kain_runtime_host_bridge.c',
         'native/src/core/kain_runtime_memory.c',
+        'native/src/core/kain_runtime_ownership.c',
         'native/src/core/kain_runtime_bitfield.c',
         'native/src/core/kain_runtime_union.c',
         'native/src/core/kain_runtime_actor.c',
@@ -726,4 +728,8 @@ NATIVE_RUNTIME = {
 NATIVE_RUNTIME_ACTOR_TESTS = [
     "native/tests/test_actor_monitor_link.c",
     "native/tests/test_actor_supervision.c",
+]
+
+NATIVE_RUNTIME_OWNERSHIP_TESTS = [
+    "native/tests/test_ownership_memory.c",
 ]

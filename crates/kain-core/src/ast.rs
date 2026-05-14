@@ -1507,6 +1507,26 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Scoped readonly ownership observation: `observe ptr: ...`
+    Observe {
+        target: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
+
+    /// Scoped exclusive ownership mutation: `collapse ptr: ...`
+    Collapse {
+        target: Box<Expr>,
+        body: Box<Expr>,
+        span: Span,
+    },
+
+    /// Deterministic ownership destruction: `decay ptr`
+    Decay {
+        target: Box<Expr>,
+        span: Span,
+    },
+
     /// Cast: `value as Type`
     Cast {
         value: Box<Expr>,
@@ -1601,6 +1621,9 @@ impl Expr {
             | Expr::Uninit { span: s, .. }
             | Expr::Alloc { span: s, .. }
             | Expr::Realloc { span: s, .. }
+            | Expr::Observe { span: s, .. }
+            | Expr::Collapse { span: s, .. }
+            | Expr::Decay { span: s, .. }
             | Expr::Cast { span: s, .. }
             | Expr::Try(_, s)
             | Expr::Await(_, s)
@@ -2866,6 +2889,13 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
             if let Some(ty) = ty {
                 collect_type_names_from_type(ty, out);
             }
+        }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            collect_type_names_from_expr(target, out);
+            collect_type_names_from_expr(body, out);
+        }
+        Expr::Decay { target, .. } => {
+            collect_type_names_from_expr(target, out);
         }
         Expr::Return(Some(inner), _) | Expr::Break(Some(inner), _) => {
             collect_type_names_from_expr(inner, out);

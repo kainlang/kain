@@ -366,9 +366,9 @@ pub const OWNERSHIP_POLICY_TABLE: &[OwnershipPolicy] = &[
     ),
     OwnershipPolicy::new(
         OwnershipRegionKind::ImportedPointer,
-        ObserveMode::Unsupported,
-        CollapseMode::Unsupported,
-        DecayMode::Unsupported,
+        ObserveMode::ReadonlyBorrow,
+        CollapseMode::ScopedNoAlias,
+        DecayMode::LifetimeEnd,
     ),
 ];
 
@@ -490,6 +490,14 @@ mod tests {
         assert_eq!(mirror.observe_mode, ObserveMode::Snapshot);
         assert!(!mirror.supports_collapse());
         assert!(!mirror.supports_decay());
+    }
+
+    #[test]
+    fn imported_pointers_are_borrowable_but_not_heap_freed() {
+        let imported = OwnershipPolicy::for_region(OwnershipRegionKind::ImportedPointer);
+        assert_eq!(imported.observe_mode, ObserveMode::ReadonlyBorrow);
+        assert_eq!(imported.collapse_mode, CollapseMode::ScopedNoAlias);
+        assert_eq!(imported.decay_mode, DecayMode::LifetimeEnd);
     }
 
     #[test]

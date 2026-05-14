@@ -301,6 +301,14 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed);
  */
 void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new);
 
+/*
+ * __kain_free
+ *
+ * Release a helper-owned allocation produced by __kain_alloc/__kain_realloc.
+ * Returns 0 on success and -1 for invalid or foreign pointers.
+ */
+int __kain_free(void* ptr);
+
 #ifdef __cplusplus
 }
 #endif

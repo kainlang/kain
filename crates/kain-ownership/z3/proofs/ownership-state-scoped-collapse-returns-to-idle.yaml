@@ -1,0 +1,27 @@
+version: 1
+id: kain.ownership.proofs.ownership_state_scoped_collapse_returns_to_idle
+kind: check_smt2
+description: A balanced collapse scope that starts from Idle must end in Idle and cannot leak an exclusive token.
+tags:
+- ownership
+- state
+- collapse
+- scoped
+source:
+  path: D:\Kain-Lang\crates\kain-ownership\src\lib.rs
+  symbol: OwnershipState::begin_collapse/end_collapse
+  start_line: 137
+  reason: begin_collapse moves Idle to Collapsed, and end_collapse only returns Collapsed to Idle
+case:
+  smt2: |
+    (set-logic ALL)
+    ; states: 0=idle, 1=observed, 2=collapsed, 3=decayed
+    (declare-const final_state Int)
+    (define-fun begin_collapse_state () Int 2)
+    (define-fun end_collapse_state ((state Int)) Int (ite (= state 2) 0 state))
+    (assert (= begin_collapse_state 2))
+    (assert (= final_state (end_collapse_state begin_collapse_state)))
+    (assert (not (= final_state 0)))
+    (check-sat)
+  include_model: false
+  include_stats: false

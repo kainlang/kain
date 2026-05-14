@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 load(":native_runtime_rules.bzl", "POSIX_C_COPTS", "WINDOWS_COPTS", "declare_runtime_bundle", "platform_select")
-load(":runtime_manifest_data.bzl", "NATIVE_CORE_RUNTIME", "NATIVE_RUNTIME", "NATIVE_RUNTIME_ACTOR_TESTS")
+load(":runtime_manifest_data.bzl", "NATIVE_CORE_RUNTIME", "NATIVE_RUNTIME", "NATIVE_RUNTIME_ACTOR_TESTS", "NATIVE_RUNTIME_OWNERSHIP_TESTS")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -67,10 +67,26 @@ cc_test(
     deps = [":native_core_runtime"],
 )
 
+cc_test(
+    name = "native_test_ownership_memory",
+    srcs = [NATIVE_RUNTIME_OWNERSHIP_TESTS[0]],
+    copts = platform_select(
+        windows = WINDOWS_COPTS,
+        linux = POSIX_C_COPTS,
+        macos = POSIX_C_COPTS,
+    ),
+    defines = platform_select(
+        linux = RUNTIME_TEST_LINUX_DEFINES,
+        macos = RUNTIME_TEST_LINUX_DEFINES,
+    ),
+    deps = [":native_core_runtime"],
+)
+
 test_suite(
     name = "native_runtime_tests",
     tests = [
         ":native_test_actor_monitor_link",
         ":native_test_actor_supervision",
+        ":native_test_ownership_memory",
     ],
 )

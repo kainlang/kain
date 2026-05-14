@@ -65,7 +65,11 @@ fn verify_llvm_ir_with_repo_llvm_as(llvm: &str, test_name: &str) {
         .join("toolchain")
         .join("llvm")
         .join("bin")
-        .join(if cfg!(windows) { "llvm-as.exe" } else { "llvm-as" });
+        .join(if cfg!(windows) {
+            "llvm-as.exe"
+        } else {
+            "llvm-as"
+        });
 
     if !llvm_as.exists() {
         return;
@@ -104,6 +108,44 @@ fn verify_llvm_ir_with_repo_llvm_as(llvm: &str, test_name: &str) {
         test_name,
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn llvm_hoists_loop_local_allocas_to_function_entry() {
+    let source = r#"
+fn main() -> Int:
+    let frame = 0
+    while frame < 4:
+        let next_frame = frame + 1
+        let doubled = next_frame * 2
+        frame = doubled - next_frame
+    return frame
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    let main_start = llvm
+        .find("define i64 @main()")
+        .expect("main function should be emitted");
+    let main_rest = &llvm[main_start..];
+    let main_end = main_rest.find("\n}").expect("main function should close");
+    let main_ir = &main_rest[..main_end];
+    let first_non_entry_label = main_ir
+        .find("\nL")
+        .expect("loop lowering should emit non-entry labels");
+    let entry_region = &main_ir[..first_non_entry_label];
+    let loop_region = &main_ir[first_non_entry_label..];
+
+    assert!(entry_region.contains("%next_frame.addr_"));
+    assert!(entry_region.contains("%doubled.addr_"));
+    assert!(
+        !loop_region.contains(" = alloca "),
+        "loop body must not allocate fresh stack slots per iteration:\n{}",
+        loop_region
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "loop-alloca-hoisting");
 }
 
 #[test]
@@ -1064,6 +1106,32 @@ fn llvm_consumes_lowered_alloc_and_realloc_helpers() {
     assert!(llvm.contains(", i64 8, i32 1)"));
     assert!(llvm.contains("inttoptr i64"));
     assert!(llvm.contains("ptrtoint i8*"));
+}
+
+#[test]
+fn llvm_lowers_ownership_keywords_to_runtime_guards() {
+    let typed = typed_program_from_source(
+        "fn own(p: ptr<Int>) -> Int:\n    let read = observe p:\n        mem_load(p, \"Int\")\n    collapse p:\n        mem_store(p, read + 1, \"Int\")\n        0\n    decay p\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i32 @__kain_ownership_register_imported(i8*, i64)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_observe(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_observe(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_collapse(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_collapse(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_decay(i8*)"));
+    assert!(llvm.contains("call i32 @__kain_ownership_state(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_register_imported(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_begin_observe(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_end_observe(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_begin_collapse(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_end_collapse(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_decay(i8*"));
+    assert!(llvm.contains("call void @abort()"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "ownership-keywords");
 }
 
 #[test]

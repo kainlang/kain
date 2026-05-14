@@ -1,6 +1,6 @@
 # Low-Level Memory And Provenance
 
-Snapshot: April 12, 2026.
+Snapshot: May 14, 2026.
 
 This page covers the part of Kain that is closest to ABI reality: raw pointers,
 imported pointers, layout-sensitive lowering, and the memory helpers that the
@@ -63,19 +63,38 @@ These expression forms are the core of the memory surface:
 These forms are not just syntax. They are the expressions the backend lowers to
 helper calls, layout queries, or target-specific memory operations.
 
-## Ownership-State Kernel
+## Ownership Keywords
 
-`crates/kain-ownership` is the shared semantic home for the future
+`crates/kain-ownership` is the shared semantic home for the first-class
 `collapse`, `observe`, and `decay` memory model.
 
-The current kernel does not add surface syntax by itself. It defines the
-portable ownership lattice that parser, typechecker, interpreter, native
-runtime, and backend work should consume:
+The parser, typechecker, interpreter, LLVM backend, and native C runtime now
+consume the same portable ownership lattice:
 
 - `Idle` is the only state that can enter exclusive mutation or terminal decay
 - `Observed(n)` allows nested read access but rejects collapse and decay
 - `Collapsed` represents scoped exclusive mutation and must end before observe or decay
 - `Decayed` is terminal and cannot be made live again
+
+The surface forms are:
+
+```kain
+let value = observe ptr:
+    mem_load(ptr, "Int")
+
+collapse ptr:
+    mem_store(ptr, value + 1, "Int")
+
+decay ptr
+```
+
+`observe` and `collapse` are scoped block expressions. In v1, their bodies may
+not use `return`, `break`, or `continue`; that restriction keeps compiler-
+emitted begin/end guard calls balanced until cleanup-edge lowering exists.
+`decay` is a unary expression that transitions the region to terminal lifetime
+end. Heap allocations registered by the native memory helpers are freed through
+the ownership runtime; imported pointers are treated as borrowed lifetime-end
+regions and are not heap-freed by Kain.
 
 The policy table is conservative by design:
 
@@ -83,11 +102,15 @@ The policy table is conservative by design:
 - heap allocation can map toward readonly/noalias/free-style lowering
 - RC objects can map toward readonly/exclusive-token/release-style lowering
 - world and entangle-backed regions observe through snapshots first
-- entangled mirrors and imported pointers do not claim ownership powers they cannot prove
+- entangled mirrors do not claim collapse or decay powers they cannot prove
+- imported pointers support borrowed observe/collapse/lifetime-end semantics but
+  do not claim heap-free ownership
 
-Any future syntax for `collapse`, `observe`, or `decay` should attach to this
-kernel before claiming LLVM attributes, runtime frees, or entangle/world
-concurrency semantics.
+LLVM lowering emits checked native runtime calls for begin/end observe,
+begin/end collapse, and decay. If a pointer has no ownership registry entry, the
+LLVM backend lazily registers it as an imported region so FFI pointers can still
+participate in scoped read/exclusive-lifetime guards without transferring heap
+ownership to Kain.
 
 ## Layout Rules
 

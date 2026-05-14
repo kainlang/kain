@@ -1884,6 +1884,29 @@ impl SourceFormatter {
                     self.format_expr(size)?
                 ),
             },
+            Expr::Observe { target, body, .. } => {
+                if let Expr::Block(block, _) = body.as_ref() {
+                    let head = format!("observe {}", self.format_expr(target)?);
+                    self.format_header_with_block(&head, block)?
+                } else {
+                    return Err(KainError::runtime(
+                        "Kain formatter cannot emit non-block observe expressions in v1",
+                    ));
+                }
+            }
+            Expr::Collapse { target, body, .. } => {
+                if let Expr::Block(block, _) = body.as_ref() {
+                    let head = format!("collapse {}", self.format_expr(target)?);
+                    self.format_header_with_block(&head, block)?
+                } else {
+                    return Err(KainError::runtime(
+                        "Kain formatter cannot emit non-block collapse expressions in v1",
+                    ));
+                }
+            }
+            Expr::Decay { target, .. } => {
+                format!("decay {}", self.format_expr_with_prec(target, 13)?)
+            }
             Expr::Cast { value, target, .. } => {
                 format!(
                     "{} as {}",

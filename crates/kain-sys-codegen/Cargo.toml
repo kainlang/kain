@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 kain-actor = { path = "../kain-actor" }
 kain-core = { path = "../kain-core" }
+kain-ownership = { path = "../kain-ownership" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 inkwell = { workspace = true, optional = true }

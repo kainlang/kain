@@ -25,6 +25,7 @@ sources = [
     "native/src/core/kain_runtime_compatibility.c",
     "native/src/core/kain_runtime_host_bridge.c",
     "native/src/core/kain_runtime_memory.c",
+    "native/src/core/kain_runtime_ownership.c",
     "native/src/core/kain_runtime_bitfield.c",
     "native/src/core/kain_runtime_union.c",
     "native/src/core/kain_runtime_actor.c",
@@ -333,6 +334,14 @@ provider = "native-core"
 requirement = "required"
 status = "available"
 description = "Core allocation, retain/release, and memory management"
+
+[[services]]
+key = "memory.ownership"
+name = "Ownership State Guards"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Native collapse/observe/decay guards for helper-owned heap regions and imported pointer lifetimes"
 
 [[services]]
 key = "base.diagnostics"

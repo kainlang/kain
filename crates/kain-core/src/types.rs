@@ -13,6 +13,9 @@ use kain_actor::{
     validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
     ActorStateSlot, MessageParameter, MessageSignature,
 };
+use kain_ownership::{
+    OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
+};
 use std::collections::{HashMap, HashSet};
 
 /// Type-checked AST node
@@ -3680,8 +3683,15 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(offset, output);
         }
         Expr::MemLoad { pointer, .. }
+        | Expr::Decay {
+            target: pointer, ..
+        }
         | Expr::Cast { value: pointer, .. }
         | Expr::Comptime(pointer, _) => collect_patch_mutation_paths_from_expr(pointer, output),
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            collect_patch_mutation_paths_from_expr(target, output);
+            collect_patch_mutation_paths_from_expr(body, output);
+        }
         Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
             for (_, value) in init {
                 collect_patch_mutation_paths_from_expr(value, output);
@@ -3889,10 +3899,17 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(offset)
         }
-        Expr::MemLoad { pointer, .. } => expr_requires_best_effort_patch_mode(pointer),
+        Expr::MemLoad { pointer, .. }
+        | Expr::Decay {
+            target: pointer, ..
+        } => expr_requires_best_effort_patch_mode(pointer),
         Expr::MemStore { pointer, value, .. } => {
             expr_requires_best_effort_patch_mode(pointer)
                 || expr_requires_best_effort_patch_mode(value)
+        }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            expr_requires_best_effort_patch_mode(target)
+                || expr_requires_best_effort_patch_mode(body)
         }
         Expr::Return(value, _) | Expr::Break(value, _) => value
             .as_ref()
@@ -4112,7 +4129,13 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         Expr::PtrOffset {
             pointer, offset, ..
         } => first_stage_call_in_expr(pointer).or_else(|| first_stage_call_in_expr(offset)),
-        Expr::MemLoad { pointer, .. } => first_stage_call_in_expr(pointer),
+        Expr::MemLoad { pointer, .. }
+        | Expr::Decay {
+            target: pointer, ..
+        } => first_stage_call_in_expr(pointer),
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            first_stage_call_in_expr(target).or_else(|| first_stage_call_in_expr(body))
+        }
         Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
             .iter()
             .find_map(|(_, value)| first_stage_call_in_expr(value)),
@@ -5485,6 +5508,20 @@ fn infer_expr_type(
                     .unwrap_or(ResolvedType::Unknown),
             ),
         }),
+        Expr::Observe { target, body, span } => {
+            validate_ownership_target(env, target, OBSERVE_KEYWORD, *span)?;
+            ensure_ownership_scope_has_structured_exit(env, body, OBSERVE_KEYWORD, *span)?;
+            infer_expr_type(env, body, ctx)
+        }
+        Expr::Collapse { target, body, span } => {
+            validate_ownership_target(env, target, COLLAPSE_KEYWORD, *span)?;
+            ensure_ownership_scope_has_structured_exit(env, body, COLLAPSE_KEYWORD, *span)?;
+            infer_expr_type(env, body, ctx)
+        }
+        Expr::Decay { target, span } => {
+            validate_ownership_target(env, target, DECAY_KEYWORD, *span)?;
+            Ok(ResolvedType::Unit)
+        }
         Expr::Cast { target, .. } => resolve_type_in_env(env, target),
         Expr::Try(value, span) => {
             let value_ty = infer_expr_type(env, value, ctx)?;
@@ -5579,6 +5616,232 @@ fn infer_expr_type(
             Ok(ResolvedType::Never)
         }
         Expr::Break(_, _) | Expr::Continue(_) => Ok(ResolvedType::Never),
+    }
+}
+
+fn validate_ownership_target(
+    env: &mut TypeEnv,
+    target: &Expr,
+    operation: &str,
+    span: Span,
+) -> KainResult<()> {
+    let target_ty = infer_expr_type(env, target, None)?;
+    let policy = OwnershipPolicy::for_region(OwnershipRegionKind::HeapAllocation);
+    let supported = match operation {
+        OBSERVE_KEYWORD => policy.supports_observe(),
+        COLLAPSE_KEYWORD => policy.supports_collapse(),
+        DECAY_KEYWORD => policy.supports_decay(),
+        _ => false,
+    };
+    if !supported {
+        return Err(env.type_error(
+            format!("{operation} is not supported for raw heap ownership regions"),
+            span,
+        ));
+    }
+
+    match peel_shared_refs(&target_ty) {
+        ResolvedType::Ptr { .. } | ResolvedType::Ref { .. } | ResolvedType::Unknown => Ok(()),
+        other => Err(env.type_error(
+            format!(
+                "{operation} expects a pointer-like ownership region, found {}",
+                describe_type(other)
+            ),
+            target.span(),
+        )),
+    }
+}
+
+fn ensure_ownership_scope_has_structured_exit(
+    env: &TypeEnv,
+    body: &Expr,
+    operation: &str,
+    span: Span,
+) -> KainResult<()> {
+    if ownership_expr_contains_early_exit(body) {
+        return Err(env.type_error(
+            format!(
+                "{operation} scopes do not support return, break, or continue in v1; move the control flow outside the ownership block"
+            ),
+            span,
+        ));
+    }
+    Ok(())
+}
+
+fn ownership_block_contains_early_exit(block: &Block) -> bool {
+    block.stmts.iter().any(ownership_stmt_contains_early_exit)
+}
+
+fn ownership_stmt_contains_early_exit(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Return(_, _) | Stmt::Break(_, _) | Stmt::Continue(_) => true,
+        Stmt::Let { value, .. } => value
+            .as_ref()
+            .is_some_and(ownership_expr_contains_early_exit),
+        Stmt::Expr(expr) => ownership_expr_contains_early_exit(expr),
+        Stmt::For { iter, body, .. } => {
+            ownership_expr_contains_early_exit(iter) || ownership_block_contains_early_exit(body)
+        }
+        Stmt::While {
+            condition, body, ..
+        } => {
+            ownership_expr_contains_early_exit(condition)
+                || ownership_block_contains_early_exit(body)
+        }
+        Stmt::Loop { body, .. } => ownership_block_contains_early_exit(body),
+        Stmt::Item(_) => false,
+    }
+}
+
+fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
+    match expr {
+        Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_) => true,
+        Expr::Binary { left, right, .. } => {
+            ownership_expr_contains_early_exit(left) || ownership_expr_contains_early_exit(right)
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _)
+        | Expr::Cast { value: operand, .. }
+        | Expr::Try(operand, _)
+        | Expr::Await(operand, _)
+        | Expr::AsyncBlock(operand, _)
+        | Expr::Comptime(operand, _)
+        | Expr::Paren(operand, _) => ownership_expr_contains_early_exit(operand),
+        Expr::Call { callee, args, .. } => {
+            ownership_expr_contains_early_exit(callee)
+                || args
+                    .iter()
+                    .any(|arg| ownership_expr_contains_early_exit(&arg.value))
+        }
+        Expr::StageCall { args, .. } => args
+            .iter()
+            .any(|arg| ownership_expr_contains_early_exit(&arg.value)),
+        Expr::MacroCall { args, .. } => args.iter().any(ownership_expr_contains_early_exit),
+        Expr::MethodCall { receiver, args, .. } => {
+            ownership_expr_contains_early_exit(receiver)
+                || args
+                    .iter()
+                    .any(|arg| ownership_expr_contains_early_exit(&arg.value))
+        }
+        Expr::Field { object, .. } => ownership_expr_contains_early_exit(object),
+        Expr::Index { object, index, .. } => {
+            ownership_expr_contains_early_exit(object) || ownership_expr_contains_early_exit(index)
+        }
+        Expr::Assign { target, value, .. } => {
+            ownership_expr_contains_early_exit(target) || ownership_expr_contains_early_exit(value)
+        }
+        Expr::Struct { fields, rest, .. } => {
+            fields
+                .iter()
+                .any(|(_, value)| ownership_expr_contains_early_exit(value))
+                || rest
+                    .as_ref()
+                    .is_some_and(|value| ownership_expr_contains_early_exit(value))
+        }
+        Expr::AggregateInit { fields, .. } => fields
+            .iter()
+            .any(|(_, value)| ownership_expr_contains_early_exit(value)),
+        Expr::EnumVariant { fields, .. } => match fields {
+            EnumVariantFields::Unit => false,
+            EnumVariantFields::Tuple(values) => {
+                values.iter().any(ownership_expr_contains_early_exit)
+            }
+            EnumVariantFields::Struct(values) => values
+                .iter()
+                .any(|(_, value)| ownership_expr_contains_early_exit(value)),
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            values.iter().any(ownership_expr_contains_early_exit)
+        }
+        Expr::Range { start, end, .. } => {
+            start
+                .as_ref()
+                .is_some_and(|value| ownership_expr_contains_early_exit(value))
+                || end
+                    .as_ref()
+                    .is_some_and(|value| ownership_expr_contains_early_exit(value))
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            ownership_expr_contains_early_exit(condition)
+                || ownership_block_contains_early_exit(then_branch)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|branch| ownership_else_branch_contains_early_exit(branch))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            ownership_expr_contains_early_exit(scrutinee)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_ref()
+                        .is_some_and(ownership_expr_contains_early_exit)
+                        || ownership_expr_contains_early_exit(&arm.body)
+                })
+        }
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
+            ownership_expr_contains_early_exit(pointer)
+                || ownership_expr_contains_early_exit(offset)
+        }
+        Expr::MemLoad { pointer, .. }
+        | Expr::Decay {
+            target: pointer, ..
+        } => ownership_expr_contains_early_exit(pointer),
+        Expr::MemStore { pointer, value, .. } => {
+            ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(value)
+        }
+        Expr::Alloc { size, .. } => ownership_expr_contains_early_exit(size),
+        Expr::Realloc { pointer, size, .. } => {
+            ownership_expr_contains_early_exit(pointer) || ownership_expr_contains_early_exit(size)
+        }
+        Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+            ownership_expr_contains_early_exit(target) || ownership_expr_contains_early_exit(body)
+        }
+        Expr::SendMsg { target, data, .. } => {
+            ownership_expr_contains_early_exit(target)
+                || data
+                    .iter()
+                    .any(|(_, value)| ownership_expr_contains_early_exit(value))
+        }
+        Expr::Block(block, _) => ownership_block_contains_early_exit(block),
+        Expr::Lambda { .. } => false,
+        Expr::Spawn { init, .. } => init
+            .iter()
+            .any(|(_, value)| ownership_expr_contains_early_exit(value)),
+        Expr::JSX(_, _)
+        | Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _)
+        | Expr::SizeOfType { .. }
+        | Expr::AlignOfType { .. }
+        | Expr::Alloca { .. }
+        | Expr::Uninit { .. } => false,
+    }
+}
+
+fn ownership_else_branch_contains_early_exit(branch: &ElseBranch) -> bool {
+    match branch {
+        ElseBranch::Else(block) => ownership_block_contains_early_exit(block),
+        ElseBranch::ElseIf(condition, block, next) => {
+            ownership_expr_contains_early_exit(condition)
+                || ownership_block_contains_early_exit(block)
+                || next
+                    .as_ref()
+                    .is_some_and(|branch| ownership_else_branch_contains_early_exit(branch))
+        }
     }
 }
 

@@ -1,0 +1,27 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_observer_count_does_not_overflow_when_guard_passes
+kind: check_smt2
+description: __kain_ownership_begin_observe rejects UINT32_MAX before incrementing, so the observer count cannot wrap.
+tags:
+- native-runtime
+- ownership
+- observe
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_ownership.c
+  symbol: __kain_ownership_begin_observe
+  start_line: 174
+  reason: begin_observe returns overflow before observers += 1 when observers is UINT32_MAX
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const observers Int)
+    (define-fun uint32_max () Int 4294967295)
+    (assert (>= observers 0))
+    (assert (<= observers uint32_max))
+    (assert (not (= observers uint32_max)))
+    (define-fun next_observers () Int (+ observers 1))
+    (assert (or (< next_observers 1) (> next_observers uint32_max)))
+    (check-sat)
+  include_model: false
+  include_stats: false

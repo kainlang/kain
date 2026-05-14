@@ -104,6 +104,12 @@ pub enum TokenKind {
     Vertex,
     #[token("fragment")]
     Fragment,
+    #[token("collapse")]
+    Collapse,
+    #[token("observe")]
+    Observe,
+    #[token("decay")]
+    Decay,
 
     // === Testing ===
     #[token("test")]

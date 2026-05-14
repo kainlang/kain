@@ -1137,6 +1137,19 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             render_authored_expr_contract(object),
             render_authored_expr_contract(index)
         ),
+        Expr::Observe { target, body, .. } => format!(
+            "observe {}: {}",
+            render_authored_expr_contract(target),
+            render_authored_expr_contract(body)
+        ),
+        Expr::Collapse { target, body, .. } => format!(
+            "collapse {}: {}",
+            render_authored_expr_contract(target),
+            render_authored_expr_contract(body)
+        ),
+        Expr::Decay { target, .. } => {
+            format!("decay {}", render_authored_expr_contract(target))
+        }
         Expr::Lambda { params, body, .. } => {
             let rendered_params = params
                 .iter()

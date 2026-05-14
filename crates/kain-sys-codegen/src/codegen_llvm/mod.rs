@@ -69,6 +69,7 @@ const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_LINUX_X64_GNU,
     LLVM_TARGET_MACOS_ARM64,
 ];
+const KAIN_OWNERSHIP_ERR_NOT_FOUND_LLVM: i32 = -2;
 
 fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
     match name {
@@ -874,6 +875,93 @@ impl LlvmGenerator {
         ));
 
         Ok((stored_value, stored_ty))
+    }
+
+    fn compile_ownership_pointer(&mut self, target: &Expr) -> KainResult<String> {
+        let (ptr, ptr_ty) = self.compile_expr(target)?;
+        let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
+        let ptr_i8 = self.next_reg();
+        self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
+        self.emit_lazy_import_ownership_region(&ptr_i8);
+        Ok(ptr_i8)
+    }
+
+    fn emit_lazy_import_ownership_region(&mut self, ptr_i8: &str) {
+        let state = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i32 @__kain_ownership_state(i8* {})",
+            state, ptr_i8
+        ));
+        let needs_import = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i32 {}, {}",
+            needs_import, state, KAIN_OWNERSHIP_ERR_NOT_FOUND_LLVM
+        ));
+        let import_label = self.next_label();
+        let continue_label = self.next_label();
+        let abort_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            needs_import, import_label, continue_label
+        ));
+
+        self.emit_label(&import_label);
+        let import_status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i32 @__kain_ownership_register_imported(i8* {}, i64 0)",
+            import_status, ptr_i8
+        ));
+        let import_ok = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i32 {}, 0", import_ok, import_status));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            import_ok, continue_label, abort_label
+        ));
+
+        self.emit_label(&abort_label);
+        self.emit("  call void @abort()");
+        self.emit("  unreachable");
+        self.emit_label(&continue_label);
+    }
+
+    fn emit_checked_ownership_call(&mut self, function_name: &str, ptr_i8: &str) {
+        let status = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i32 @{}(i8* {})",
+            status, function_name, ptr_i8
+        ));
+        let ok = self.next_reg();
+        self.emit(&format!("  {} = icmp eq i32 {}, 0", ok, status));
+        let continue_label = self.next_label();
+        let abort_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            ok, continue_label, abort_label
+        ));
+        self.emit_label(&abort_label);
+        self.emit("  call void @abort()");
+        self.emit("  unreachable");
+        self.emit_label(&continue_label);
+    }
+
+    fn compile_scoped_ownership_expr(
+        &mut self,
+        target: &Expr,
+        body: &Expr,
+        begin_fn: &str,
+        end_fn: &str,
+    ) -> KainResult<(String, String)> {
+        let ptr_i8 = self.compile_ownership_pointer(target)?;
+        self.emit_checked_ownership_call(begin_fn, &ptr_i8);
+        let body_result = self.compile_expr(body)?;
+        self.emit_checked_ownership_call(end_fn, &ptr_i8);
+        Ok(body_result)
+    }
+
+    fn compile_decay_expr(&mut self, target: &Expr) -> KainResult<(String, String)> {
+        let ptr_i8 = self.compile_ownership_pointer(target)?;
+        self.emit_checked_ownership_call("__kain_ownership_decay", &ptr_i8);
+        Ok(("0".to_string(), "void".to_string()))
     }
 
     fn compile_payload_pointer_from_value(
@@ -3089,6 +3177,7 @@ impl LlvmGenerator {
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
         self.emit("declare void @KAIN_set_destructor(i8*, void(i8*)*)");
         self.emit("declare void @free(i8*)");
+        self.emit("declare void @abort()");
         self.emit("declare i1 @deep_eq(i8*, i8*)");
 
         if !self.native_entanglements.is_empty() {
@@ -3116,6 +3205,17 @@ impl LlvmGenerator {
         self.emit("; Category 3: Allocation Operations");
         self.emit("declare i8* @__kain_alloc(i64, i64, i32)");
         self.emit("declare i8* @__kain_realloc(i8*, i64, i64, i32)");
+        self.emit("");
+        self.emit("; Category 4: Ownership State Operations");
+        self.emit("declare i32 @__kain_ownership_register(i8*, i64, i64)");
+        self.emit("declare i32 @__kain_ownership_register_imported(i8*, i64)");
+        self.emit("declare i32 @__kain_ownership_update(i8*, i8*, i64)");
+        self.emit("declare i32 @__kain_ownership_begin_observe(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_observe(i8*)");
+        self.emit("declare i32 @__kain_ownership_begin_collapse(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_collapse(i8*)");
+        self.emit("declare i32 @__kain_ownership_decay(i8*)");
+        self.emit("declare i32 @__kain_ownership_state(i8*)");
 
         // StdLib
         self.emit_stdlib_externs();
@@ -4685,6 +4785,19 @@ impl LlvmGenerator {
                 "LLVM backend expected realloc_mem to be lowered into a canonical __kain_realloc helper call",
                 expr.span(),
             )),
+            Expr::Observe { target, body, .. } => self.compile_scoped_ownership_expr(
+                target,
+                body,
+                "__kain_ownership_begin_observe",
+                "__kain_ownership_end_observe",
+            ),
+            Expr::Collapse { target, body, .. } => self.compile_scoped_ownership_expr(
+                target,
+                body,
+                "__kain_ownership_begin_collapse",
+                "__kain_ownership_end_collapse",
+            ),
+            Expr::Decay { target, .. } => self.compile_decay_expr(target),
             Expr::Unary { op, operand, span } => {
                 let (val, ty) = self.compile_expr(operand)?;
                 match op {

@@ -637,6 +637,9 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::Macro => "keyword 'macro'".to_string(),
         TokenKind::Vertex => "keyword 'vertex'".to_string(),
         TokenKind::Fragment => "keyword 'fragment'".to_string(),
+        TokenKind::Collapse => "keyword 'collapse'".to_string(),
+        TokenKind::Observe => "keyword 'observe'".to_string(),
+        TokenKind::Decay => "keyword 'decay'".to_string(),
         TokenKind::Test => "keyword 'test'".to_string(),
 
         // Effect keywords

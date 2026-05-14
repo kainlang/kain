@@ -1,5 +1,5 @@
 {
-  "checksum": "d20301b669d0355476f7a5360870b647ac0f15e5356de549981cc7ceac072b97",
+  "checksum": "ca6b48f99d8e0ae7c517fe5ef89c68b5d78f910b6d4b5c7eae0587333c8f3add",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17400,6 +17400,50 @@
       "license_ids": [
         "MIT"
       ],
+      "license_file": null
+    },
+    "kain-ownership 0.1.0": {
+      "name": "kain-ownership",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_ownership",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_ownership",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.209",
+              "target": "serde"
+            },
+            {
+              "id": "thiserror 1.0.69",
+              "target": "thiserror"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
       "license_file": null
     },
     "kain-process 0.1.0": {
@@ -48064,6 +48108,7 @@
     "kain-net 0.1.0": "crates/kain-net",
     "kain-node 0.1.0": "crates/kain-node",
     "kain-omni 0.1.0": "crates/kain-omni",
+    "kain-ownership 0.1.0": "crates/kain-ownership",
     "kain-process 0.1.0": "crates/kain-process",
     "kain-python 0.1.0": "crates/kain-python",
     "kain-reflect 0.1.0": "crates/kain-reflect",
