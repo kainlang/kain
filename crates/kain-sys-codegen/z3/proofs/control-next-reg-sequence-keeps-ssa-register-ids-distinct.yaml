@@ -1,0 +1,19 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_next_reg_sequence_keeps_ssa_register_ids_distinct
+kind: check_smt2
+description: next_reg formats the current register counter and then increments it,
+  so two different call indices can never reuse the same SSA register id.
+tags:
+- llvm
+- control
+- ssa
+- registers
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: next_reg
+  start_line: 183
+  reason: distinct SSA ids are required for every emitted temp across the LLVM backend
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const base Int)\n(declare-const i Int)\n(declare-const j Int)\n(assert (>= base 0))\n(assert (>= i 0))\n(assert (>= j 0))\n(assert (distinct i j))\n(define-fun reg_i () Int (+ base i))\n(define-fun reg_j () Int (+ base j))\n(assert (= reg_i reg_j))\n(check-sat)"
+  include_model: false
+  include_stats: false

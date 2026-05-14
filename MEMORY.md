@@ -1,5 +1,72 @@
 # Kain Memory
 
+# 2026-05-14 - `crates/kain-sys-codegen` now has a durable LLVM Z3 proof pack
+
+The LLVM backend in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now has
+its own durable solver workspace at `crates/kain-sys-codegen/z3`, so future
+backend math and CFG work no longer has to start from ad hoc chat-only proofs.
+
+What changed:
+
+- Added `crates/kain-sys-codegen/z3/z3.toml` and `README.md` with focused lanes
+  for `layout`, `control`, `casts`, `memory`, `llvm`, `full`, and workspace
+  `smoke`.
+- Added 12 curated proof cases that cover the current solver-friendly LLVM seams:
+  `align_abi_size`, the struct-layout step in `abi_layout_for_ty`, string
+  literal `len + 1` headroom, `next_label`, `next_reg`, match guard-fail target
+  shape, `i1/i8/i32/i64` integer/bool cast semantics, and runtime
+  base-address-plus-size bridge preconditions.
+- Added `crates/kain-sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`,
+  which scans `src/codegen_llvm/mod.rs` and emits
+  `generated/codegen_llvm_target_inventory.{json,md}` so future agents can keep
+  mining proof targets even when the parser-based analyzer is noisy on this
+  large file.
+- Ran the pack successfully: the clean full lane proved 12/12.
+- Ran two off-lane floating-point counterexample checks and intentionally kept
+  them out of `proofs/` so the durable CI lane stays green:
+  - `double -> bool` differs from a naive non-zero float interpretation on
+    `NaN`
+  - `double -> i64` requires a finite in-range precondition and immediately
+    admits witnesses like `+oo` when that contract is absent
+
+Why it changed:
+
+- The repo already had durable solver packs for `kain-core`, GPU codegen, and
+  the native C runtime, but the LLVM lowering lane had recently produced real
+  ownership and CFG bugs without having its own proof workspace.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` is large, high churn, and
+  full of arithmetic and control-flow seams that are cheap to regress but also
+  cheap to prove once the pack exists.
+
+Validation:
+
+- `python crates/kain-sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="layout", report_name="llvm-codegen-layout-rerun")` proved 3/3
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="full", report_name="llvm-codegen-proof-pack-clean")` proved 12/12
+- `mcp__z3_local__.check_smt2(report_name="llvm-double-to-bool-nan-counterexample", ...)` returned `sat` with `x = NaN`
+- `mcp__z3_local__.check_smt2(report_name="llvm-double-to-i64-precondition-witness", ...)` returned `sat` with `x = +oo`
+
+Durable operator notes:
+
+- After touching `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`, rerun the
+  focused lane that matches the seam:
+  - `layout` for `align_abi_size`, `abi_layout_for_ty`, and literal byte counts
+  - `control` for `next_label`, `next_reg`, match CFG work, and PHI shape
+  - `casts` for integer/bool coercions
+  - `memory` for runtime bridge span contracts
+- Keep counterexample-only experiments out of `proofs/` unless the backend
+  semantics are also being hardened. Green proof lanes should stay green.
+- If a future change touches float-to-int or float-to-bool lowering, do not stop
+  at unit tests. Either reject unsupported float values earlier, or lower them
+  through explicit checked semantics and then promote those semantics into the
+  durable pack.
+
+Recommended next step:
+
+- Harden `double -> i64/i32/i8` and `double -> i1` lowering with explicit
+  finite/in-range semantics or frontend rejection, then convert the current
+  counterexample reports into new green proof cases.
+
 # 2026-05-14 - `blades/kain-example` is now the native LLVM proving ground, the caller/runtime ownership seam was hardened, and LLVM `match`/print lowering was repaired
 
 The repo now has a canonical one-file native LLVM example at `blades/kain-example/src/main.kn`, and the work to make it real flushed out three native-lane issues that are now fixed instead of worked around.

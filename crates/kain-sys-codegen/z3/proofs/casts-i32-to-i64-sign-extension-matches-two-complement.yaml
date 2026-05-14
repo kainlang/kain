@@ -1,0 +1,19 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_i32_to_i64_sign_extension_matches_two_complement
+kind: check_smt2
+description: i32 -> i64 lowering uses sext, so the low 32 bits are preserved and
+  the upper 32 bits replicate the sign bit.
+tags:
+- llvm
+- casts
+- i32
+- sext
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: cast_numeric_value
+  start_line: 1188
+  reason: i32 values widen into the 64-bit arithmetic lane through sign extension
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const x (_ BitVec 32))\n(define-fun widened () (_ BitVec 64) ((_ sign_extend 32) x))\n(define-fun signbit () (_ BitVec 1) ((_ extract 31 31) x))\n(assert (or (not (= ((_ extract 31 0) widened) x)) (and (= signbit #b0) (not (= ((_ extract 63 32) widened) #x00000000))) (and (= signbit #b1) (not (= ((_ extract 63 32) widened) #xffffffff)))))\n(check-sat)"
+  include_model: false
+  include_stats: false

@@ -1,0 +1,22 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.memory_runtime_bridge_span_stays_within_u64_domain_under_precondition
+kind: check_smt2
+description: the runtime memory bridge used by compile_runtime_mem_load,
+  compile_runtime_mem_store, and compile_tagged_payload_copy is safe when the
+  lowered base address and ABI size satisfy the same base + size headroom
+  contract already required by the native runtime pointer helpers.
+tags:
+- llvm
+- memory
+- runtime-bridge
+- pointer
+- span
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: compile_runtime_mem_load
+  start_line: 815
+  reason: the LLVM lane lowers pointers to i64 addresses and forwards ABI sizes into runtime copy helpers
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const base_address Int)\n(declare-const copy_size Int)\n(define-fun pointer_max () Int 18446744073709551615)\n(assert (>= base_address 0))\n(assert (or (= copy_size 1) (= copy_size 4) (= copy_size 8)))\n(assert (<= base_address (- pointer_max copy_size)))\n(define-fun span_end () Int (+ base_address copy_size))\n(assert (or (< span_end base_address) (> span_end pointer_max)))\n(check-sat)"
+  include_model: false
+  include_stats: false

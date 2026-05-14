@@ -1,0 +1,19 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_i1_to_i64_zero_extension_preserves_boolean_domain
+kind: check_smt2
+description: coerce_to_i64_storage and cast_numeric_value lower i1 -> i64 with zext,
+  so false becomes 0 and true becomes 1 in the widened integer domain.
+tags:
+- llvm
+- casts
+- bool
+- zext
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: coerce_to_i64_storage
+  start_line: 1132
+  reason: i1 values are widened with zext before they flow into integer storage or numeric coercions
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const b (_ BitVec 1))\n(define-fun widened () (_ BitVec 64) ((_ zero_extend 63) b))\n(assert (or (and (= b #b0) (not (= widened #x0000000000000000))) (and (= b #b1) (not (= widened #x0000000000000001)))))\n(check-sat)"
+  include_model: false
+  include_stats: false

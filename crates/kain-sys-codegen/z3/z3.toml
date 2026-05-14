@@ -1,0 +1,31 @@
+[pack]
+name = "kain.sys.codegen.llvm.proofs"
+scope = ".."
+languages = ["rust"]
+
+[solver]
+timeout_ms = 5000
+size_bits = 64
+
+[sources]
+include = ["src/**/*"]
+exclude = ["z3/**", "target/**", "node_modules/**"]
+
+[templates]
+use = ["builtin:*"]
+
+[fixtures]
+use = ["fixtures/**/*.*"]
+
+[ci]
+smoke = ["proofs/**/*.yaml"]
+full = ["proofs/**/*.*"]
+layout = ["proofs/layout-*.yaml"]
+control = ["proofs/control-*.yaml"]
+casts = ["proofs/casts-*.yaml"]
+memory = ["proofs/memory-*.yaml"]
+llvm = ["proofs/**/*.yaml"]
+
+[reports]
+path = "reports"
+keep_history = true
