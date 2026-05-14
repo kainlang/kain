@@ -4,11 +4,17 @@ fn kain_native_runtime_init() -> Int
 @extern
 fn kain_native_runtime_shutdown() -> Int
 
+@extern
+fn kain_native_runtime_heap_validate() -> Int
+
 pub fn native_runtime_init() -> Int:
     return kain_native_runtime_init()
 
 pub fn native_runtime_shutdown() -> Int:
     return kain_native_runtime_shutdown()
+
+pub fn native_runtime_heap_validate() -> Int:
+    return kain_native_runtime_heap_validate()
 
 pub fn native_runtime_with_status(status: Int) -> Int:
     if status == 0:

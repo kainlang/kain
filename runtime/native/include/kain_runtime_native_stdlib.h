@@ -15,6 +15,7 @@ extern "C" {
 
 int64_t kain_native_runtime_init(void);
 int64_t kain_native_runtime_shutdown(void);
+int64_t kain_native_runtime_heap_validate(void);
 
 void* kain_native_option_none(void);
 void* kain_native_option_some(const void* payload, int64_t payload_size);

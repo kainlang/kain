@@ -1,4 +1,8 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use kain_core::ast::{
     BinaryOp, Block, Component, Expr, Field, Function, Impl, JSXAttrValue, JSXAttribute, JSXNode,
@@ -51,6 +55,55 @@ fn typed_program_from_source(source: &str) -> TypedProgram {
         .parse()
         .expect("parser should succeed");
     types::check(&program, &mapper, "<llvm-test>").expect("typecheck should succeed")
+}
+
+fn verify_llvm_ir_with_repo_llvm_as(llvm: &str, test_name: &str) {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let llvm_as = manifest_dir
+        .join("..")
+        .join("..")
+        .join("toolchain")
+        .join("llvm")
+        .join("bin")
+        .join(if cfg!(windows) { "llvm-as.exe" } else { "llvm-as" });
+
+    if !llvm_as.exists() {
+        return;
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be valid")
+        .as_nanos();
+    let temp_dir = std::env::temp_dir().join(format!(
+        "kain-llvm-verify-{}-{}-{}",
+        test_name,
+        std::process::id(),
+        nonce
+    ));
+    fs::create_dir_all(&temp_dir).expect("temp dir should be created");
+
+    let ll_path = temp_dir.join("module.ll");
+    let bc_path = temp_dir.join("module.bc");
+    fs::write(&ll_path, llvm).expect("llvm ir should be written");
+
+    let output = Command::new(&llvm_as)
+        .arg(&ll_path)
+        .arg("-o")
+        .arg(&bc_path)
+        .output()
+        .expect("llvm-as should launch");
+
+    let _ = fs::remove_file(&ll_path);
+    let _ = fs::remove_file(&bc_path);
+    let _ = fs::remove_dir(&temp_dir);
+
+    assert!(
+        output.status.success(),
+        "llvm-as rejected generated ir for {}:\n{}",
+        test_name,
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -1671,15 +1724,84 @@ fn llvm_rejects_unsupported_expressions_instead_of_silent_dummy_values() {
 }
 
 #[test]
-fn llvm_rejects_print_until_runtime_semantics_are_exact() {
+fn llvm_lowers_println_to_stdout_write() {
     let typed =
         typed_program_from_source("fn main() -> Int:\n    println(\"llvm\")\n    return 0\n");
 
-    let err = generate_llvm(&typed).expect_err("llvm generation should fail for print/println");
-    let message = err.to_string();
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
 
-    assert!(message.contains("does not lower 'println' faithfully yet"));
-    assert!(message.contains("runtime print semantics"));
+    assert!(llvm.contains("call void @stdout_write(i8*"));
+    assert!(llvm.contains("call i8* @str_concat(i8*"));
+}
+
+#[test]
+fn llvm_lowers_enum_match_parameters_as_native_enum_pointers() {
+    let source = r#"
+enum AssetKind:
+    Script
+    Material
+
+fn classify(kind: AssetKind) -> Int:
+    match kind:
+        AssetKind::Script => 1
+        AssetKind::Material => 2
+        _ => 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("%AssetKind = type { i64, i8* }"));
+    assert!(llvm.contains("define i64 @classify(%AssetKind* %arg0)"));
+    assert!(llvm.contains("getelementptr inbounds %AssetKind, %AssetKind*"));
+}
+
+#[test]
+fn llvm_lowers_format_and_vec_macros() {
+    let source = r#"
+fn main() -> Int:
+    let values = vec!(1, 2, 3)
+    let text = format!("llvm:", len(values))
+    stdout_write(text)
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("call i8* @array_new(i64 4)"));
+    assert!(llvm.contains("call void @array_push(i8*"));
+    assert!(llvm.contains("call i8* @str_concat(i8*"));
+}
+
+#[test]
+fn llvm_match_ir_verifies_with_guarded_string_results() {
+    let source = r#"
+enum AssetKind:
+    Script
+    Material
+
+fn describe(kind: AssetKind, bias: Int) -> String:
+    match kind:
+        AssetKind::Script if bias > 0 => format!("script:", bias)
+        AssetKind::Material => "material"
+        _ => "unknown"
+
+fn main() -> Int:
+    println(describe(AssetKind::Script, 2))
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define i8* @describe(%AssetKind* %arg0, i64 %arg1)"));
+    assert!(llvm.contains("phi i8*"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "guarded-string-match");
 }
 
 #[test]

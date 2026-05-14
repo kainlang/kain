@@ -106,7 +106,7 @@ void* __kain_addr_of(void* ptr, size_t size);
  *   - Computes: ptr + (offset * stride)
  *   - Handles negative offsets
  *   - No bounds checking (unsafe operation)
- *   - Overflow behavior is target-specific (wrap or trap)
+ *   - Arithmetic overflow returns NULL and sets errno to ERANGE
  *   - Result may be misaligned
  *
  * Example Emission:
@@ -135,6 +135,7 @@ void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride);
  *   - Computes: ptr + offset
  *   - Field name is for diagnostics only, not validated
  *   - Offset is pre-computed by layout engine
+ *   - Arithmetic overflow returns NULL and sets errno to ERANGE
  *   - Result pointer may require alignment adjustment
  *   - Bitfield fields are NOT handled by this helper (see bitfield helpers)
  *
@@ -165,6 +166,7 @@ void* __kain_field_ptr(void* ptr, const char* field, size_t offset);
  *   - Identical to __kain_ptr_offset but semantically distinct
  *   - No bounds checking
  *   - Handles negative indices
+ *   - Arithmetic overflow returns NULL and sets errno to ERANGE
  *
  * Example Emission:
  *   let elem_ptr = addr_of(arr[5])

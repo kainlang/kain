@@ -1,0 +1,62 @@
+version: 1
+id: kain.native.core.proofs.native_memory_realloc_payload_size_does_not_wrap_before_header_accounting
+kind: size_mul_ok
+description: The low-level reallocation helper only computes the new payload size as
+  size times stride after rejecting size_t multiplication overflow.
+tags:
+- native-runtime
+- memory
+- realloc
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  symbol: __kain_realloc
+  start_line: 279
+  reason: new_payload_size is guarded by kain_mul_overflow_size before realloc sizing
+case:
+  declarations:
+  - name: size
+    sort:
+      kind: int
+  - name: stride
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - size
+    - 0
+  - op: ge
+    args:
+    - stride
+    - 0
+  - op: le
+    args:
+    - size
+    - size_max
+  - op: le
+    args:
+    - stride
+    - op: ite
+      args:
+      - op: eq
+        args:
+        - size
+        - 0
+      - size_max
+      - op: div
+        args:
+        - size_max
+        - size
+  factors:
+  - size
+  - stride
+  size_bits: 64
+  limit: size_max

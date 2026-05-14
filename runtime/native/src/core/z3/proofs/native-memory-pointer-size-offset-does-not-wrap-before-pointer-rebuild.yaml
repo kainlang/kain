@@ -1,0 +1,56 @@
+version: 1
+id: kain.native.core.proofs.native_memory_pointer_size_offset_does_not_wrap_before_pointer_rebuild
+kind: size_add_ok
+description: The low-level memory helper only rebuilds a pointer from base address plus
+  byte offset after proving the uintptr addition fits within the host address domain.
+tags:
+- native-runtime
+- memory
+- pointer
+- uintptr
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  symbol: kain_pointer_with_size_offset
+  start_line: 102
+  reason: base pointer plus field byte offset is overflow-checked before address rebuild
+case:
+  declarations:
+  - name: base_address
+    sort:
+      kind: int
+  - name: byte_offset
+    sort:
+      kind: int
+  - name: pointer_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - pointer_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - base_address
+    - 0
+  - op: ge
+    args:
+    - byte_offset
+    - 0
+  - op: le
+    args:
+    - base_address
+    - pointer_max
+  - op: le
+    args:
+    - byte_offset
+    - op: sub
+      args:
+      - pointer_max
+      - base_address
+  addends:
+  - base_address
+  - byte_offset
+  size_bits: 64
+  limit: pointer_max

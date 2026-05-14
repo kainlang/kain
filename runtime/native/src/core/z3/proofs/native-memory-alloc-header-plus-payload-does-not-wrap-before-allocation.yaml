@@ -1,0 +1,56 @@
+version: 1
+id: kain.native.core.proofs.native_memory_alloc_header_plus_payload_does_not_wrap_before_allocation
+kind: size_add_ok
+description: The low-level allocation helper only adds the allocation header to payload
+  bytes after proving the combined allocation size still fits size_t.
+tags:
+- native-runtime
+- memory
+- allocation
+- header
+- overflow
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_memory.c
+  symbol: __kain_alloc
+  start_line: 248
+  reason: allocation_size is guarded by kain_add_overflow_size before calloc or malloc
+case:
+  declarations:
+  - name: header_size
+    sort:
+      kind: int
+  - name: payload_size
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - header_size
+    - 16
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - payload_size
+    - 0
+  - op: le
+    args:
+    - header_size
+    - size_max
+  - op: le
+    args:
+    - payload_size
+    - op: sub
+      args:
+      - size_max
+      - header_size
+  addends:
+  - header_size
+  - payload_size
+  size_bits: 64
+  limit: size_max

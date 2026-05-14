@@ -20,6 +20,7 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #else
 #include <dirent.h>
 #include <unistd.h>
@@ -73,6 +74,18 @@ int64_t kain_native_runtime_shutdown(void) {
     kain_native_process_reset();
     kain_actor_runtime_shutdown();
     return 0;
+}
+
+int64_t kain_native_runtime_heap_validate(void) {
+#ifdef _WIN32
+    HANDLE process_heap = GetProcessHeap();
+    if (process_heap == NULL) {
+        return 0;
+    }
+    return HeapValidate(process_heap, 0, NULL) ? 1 : 0;
+#else
+    return 1;
+#endif
 }
 
 static void* kain_native_copy_payload_allocation(const void* payload, int64_t payload_size) {

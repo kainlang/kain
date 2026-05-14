@@ -26,6 +26,18 @@ pub fn format_source(source: &str) -> KainResult<String> {
     format_source_with_options(source, FormatOptions::default())
 }
 
+pub fn format_program(program: &Program) -> KainResult<String> {
+    format_program_with_options(program, FormatOptions::default())
+}
+
+pub fn format_program_with_options(
+    program: &Program,
+    options: FormatOptions,
+) -> KainResult<String> {
+    let formatter = SourceFormatter::new(options);
+    formatter.format_program(program)
+}
+
 pub fn format_source_with_options(source: &str, options: FormatOptions) -> KainResult<String> {
     let prologue = SourcePrologue::extract(source);
     let body = prologue.body();
@@ -36,8 +48,7 @@ pub fn format_source_with_options(source: &str, options: FormatOptions) -> KainR
     let tokens = Lexer::new(body).tokenize()?;
     let span_mapper = SpanMapper::new(body);
     let program = Parser::new(&tokens, &span_mapper, "<formatter>").parse()?;
-    let formatter = SourceFormatter::new(options);
-    let formatted_body = formatter.format_program(&program)?;
+    let formatted_body = format_program_with_options(&program, options)?;
     Ok(prologue.reassemble(&formatted_body))
 }
 

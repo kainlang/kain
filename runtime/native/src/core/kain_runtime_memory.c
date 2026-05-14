@@ -16,6 +16,7 @@
 
 #include "../../include/kain_runtime_memory.h"
 #include <errno.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@ typedef union KainAllocHeader {
         uint64_t magic;
         size_t payload_size;
     } metadata;
-    max_align_t alignment;
+    long double alignment;
 } KainAllocHeader;
 
 static const uint64_t KAIN_ALLOC_MAGIC = 0x4b41494e4d454d31ULL;
@@ -42,6 +43,68 @@ static int kain_add_overflow_size(size_t left, size_t right, size_t* out) {
         return 1;
     }
     *out = left + right;
+    return 0;
+}
+
+static int kain_mul_overflow_i64(int64_t left, int64_t right, int64_t* out) {
+    if (left == 0 || right == 0) {
+        *out = 0;
+        return 0;
+    }
+
+    if ((left > 0 && right > 0 && left > (INT64_MAX / right))
+        || (left > 0 && right < 0 && right < (INT64_MIN / left))
+        || (left < 0 && right > 0 && left < (INT64_MIN / right))
+        || (left < 0 && right < 0 && left < (INT64_MAX / right))) {
+        return 1;
+    }
+
+    *out = left * right;
+    return 0;
+}
+
+static int kain_add_overflow_uintptr(uintptr_t left, uintptr_t right, uintptr_t* out) {
+    if (right > (UINTPTR_MAX - left)) {
+        return 1;
+    }
+    *out = left + right;
+    return 0;
+}
+
+static int kain_sub_underflow_uintptr(uintptr_t left, uintptr_t right, uintptr_t* out) {
+    if (right > left) {
+        return 1;
+    }
+    *out = left - right;
+    return 0;
+}
+
+static int kain_pointer_with_signed_byte_offset(void* ptr, int64_t byte_offset, void** out) {
+    uintptr_t base_address = (uintptr_t)ptr;
+    uintptr_t result_address = 0;
+
+    if (byte_offset >= 0) {
+        if (kain_add_overflow_uintptr(base_address, (uintptr_t)byte_offset, &result_address)) {
+            return 1;
+        }
+    } else {
+        uint64_t magnitude = (uint64_t)(-(byte_offset + 1)) + 1;
+        if (magnitude > (uint64_t)UINTPTR_MAX
+            || kain_sub_underflow_uintptr(base_address, (uintptr_t)magnitude, &result_address)) {
+            return 1;
+        }
+    }
+
+    *out = (void*)result_address;
+    return 0;
+}
+
+static int kain_pointer_with_size_offset(void* ptr, size_t byte_offset, void** out) {
+    uintptr_t result_address = 0;
+    if (kain_add_overflow_uintptr((uintptr_t)ptr, (uintptr_t)byte_offset, &result_address)) {
+        return 1;
+    }
+    *out = (void*)result_address;
     return 0;
 }
 
@@ -96,10 +159,16 @@ void* __kain_addr_of(void* ptr, size_t size) {
  * Computes: ptr + (offset * stride)
  */
 void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {
-    /* Cast to char* for byte-level arithmetic */
-    char* base = (char*)ptr;
-    int64_t byte_offset = offset * stride;
-    return (void*)(base + byte_offset);
+    int64_t byte_offset = 0;
+    void* result = NULL;
+
+    if (kain_mul_overflow_i64(offset, stride, &byte_offset)
+        || kain_pointer_with_signed_byte_offset(ptr, byte_offset, &result)) {
+        errno = ERANGE;
+        return NULL;
+    }
+
+    return result;
 }
 
 /*
@@ -111,10 +180,14 @@ void* __kain_ptr_offset(void* ptr, int64_t offset, int64_t stride) {
 void* __kain_field_ptr(void* ptr, const char* field, size_t offset) {
     /* Field name is for diagnostics/debugging only */
     (void)field;
-    
-    /* Cast to char* for byte-level arithmetic */
-    char* base = (char*)ptr;
-    return (void*)(base + offset);
+
+    void* result = NULL;
+    if (kain_pointer_with_size_offset(ptr, offset, &result)) {
+        errno = ERANGE;
+        return NULL;
+    }
+
+    return result;
 }
 
 /*
@@ -124,10 +197,16 @@ void* __kain_field_ptr(void* ptr, const char* field, size_t offset) {
  * Semantically distinct from ptr_offset but identical implementation.
  */
 void* __kain_index_ptr(void* ptr, int64_t index, int64_t stride) {
-    /* Identical to __kain_ptr_offset but semantically represents array indexing */
-    char* base = (char*)ptr;
-    int64_t byte_offset = index * stride;
-    return (void*)(base + byte_offset);
+    int64_t byte_offset = 0;
+    void* result = NULL;
+
+    if (kain_mul_overflow_i64(index, stride, &byte_offset)
+        || kain_pointer_with_signed_byte_offset(ptr, byte_offset, &result)) {
+        errno = ERANGE;
+        return NULL;
+    }
+
+    return result;
 }
 
 /* ============================================================================

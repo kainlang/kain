@@ -1,5 +1,60 @@
 # Kain Memory
 
+# 2026-05-14 - `blades/kain-example` is now the native LLVM proving ground, the caller/runtime ownership seam was hardened, and LLVM `match`/print lowering was repaired
+
+The repo now has a canonical one-file native LLVM example at `blades/kain-example/src/main.kn`, and the work to make it real flushed out three native-lane issues that are now fixed instead of worked around.
+
+What changed:
+
+- Added `blades/kain-example/KAIN.toml` plus a broad `src/main.kn` that intentionally exercises native Kain surface area in one place: low-level memory helpers, `Option`/`Result`/`Future`, `patch`/`law`/`converge`/`world`/`entangle`/`orchestrate`, actors, filesystem, input, networking, process, native stdlib UI, native graphics, shader declarations, and heap-health checkpoints.
+- `crates/cli/src/llvm_native_stage.rs` no longer extracts shader source from mixed native+shader files by slicing raw spans. It now rebuilds shader-only source from the AST via the new formatter entrypoints in `crates/kain-core/src/formatter.rs`, which fixed mixed-file native LLVM staging for the example blade.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now retains borrowed `String` arguments before non-extern direct calls. This fixes the real ownership bug where stdlib/native wrappers and authored Kain callables released parameter locals on scope exit and could steal the caller's only live reference, which showed up as Windows heap corruption in the filesystem lane.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers `print`/`println` through `stdout_write`, lowers `vec!` and `format!` in the native LLVM lane, registers enum layouts for native enum-pointer parameters, and repairs `Expr::Match` control flow so condition blocks, guard-fail cleanup, no-match fallback, and merge/PHI blocks are emitted as valid LLVM IR instead of aliasing the merge label into the last condition arm.
+- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now includes direct coverage for `println`, enum-parameter `match`, `vec!`/`format!`, and a new `llvm-as` verifier test that exercises guarded string-returning `match` lowering. That verifier test exists because the broken `match` lowering still looked fine to string-based assertions while producing invalid LLVM IR.
+- `runtime/native/src/core/kain_runtime_memory.c` was hardened again: low-level helper allocation math still uses explicit size overflow guards, and pointer helpers now reject signed stride multiplication or uintptr address rebuild overflow instead of relying on UB-prone raw C pointer arithmetic. `runtime/native/include/kain_runtime_memory.h` now documents the `ERANGE` failure mode for helper arithmetic overflow.
+- `runtime/native/src/core/kain_runtime_native_stdlib.c`, `runtime/native/include/kain_runtime_native_stdlib.h`, and `stdlib/native/runtime.kn` now expose `native_runtime_heap_validate()` on Windows so the proving-ground example can assert heap health between major native subsystems.
+- `runtime/native/src/core/z3/z3.toml` and `README.md` now include a focused `memory` lane, and five durable `native-memory-*` proof cases now cover low-level allocation-header math plus pointer-address rebuild arithmetic.
+- `blades/kain-example/src/main.kn` now uses the newly-repaired native LLVM surface directly: enum `match`, numeric `for` over `range`, `vec!`, `format!`, `println`, and a direct impl method call all live inside the executable lane instead of being commented as future work.
+
+Why it changed:
+
+- The first full pass at `blades/kain-example` reliably reproduced a Windows heap corruption (`0xC0000374`) only when stdlib/native filesystem wrappers were called inside the larger authored file shape. That was the key signal that the issue was in LLVM ownership lowering, not just in the C runtime.
+- The same effort exposed that the low-level C memory helpers still performed signed multiplication and pointer-address addition directly in C, which is the wrong place to tolerate UB in a compiler-owned runtime ABI floor.
+- The next proving-ground pass then exposed a second backend-only failure: enum `match` examples that frontend-checked correctly still emitted invalid LLVM IR because the last arm reused the merge label as a condition block, guard-fail paths skipped scope cleanup, and no-match fallbacks could contribute wrongly typed PHI values such as integer `0` for `i8*`.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen retains_borrowed_string_arguments_before_non_extern_calls -- --nocapture`
+- `cargo build -p cli --bin kain --bin kn`
+- `target\\debug\\kain.exe check blades\\kain-example\\src\\main.kn --target llvm`
+- `target\\debug\\kain.exe blades\\kain-example\\src\\main.kn -t llvm -o target\\kain-example\\kain_example.ll`
+- `target\\kain-example\\kain_example.exe`
+- repeated `target\\kain-example\\kain_example.exe` runs returned `0`
+- `target\\debug\\kain.exe runtime\\fixtures\\llvm_heap_memory\\main.kn -t llvm -o target\\codex-kain-example-probes\\llvm_heap_memory.ll`
+- `target\\codex-kain-example-probes\\llvm_heap_memory.exe`
+- `mcp__z3_local__.run_proof_pack(path=\"D:\\Kain-Lang\\runtime\\native\\src\\core\", lane=\"memory\")` proved 5/5
+- `mcp__z3_local__.run_proof_pack(path=\"D:\\Kain-Lang\\runtime\\native\\src\\core\", lane=\"full\", report_name=\"native-core-full-with-memory\")` proved 33/33
+
+Additional validation from the follow-up LLVM-lowering repair:
+
+- `cargo test -p kain-sys-codegen llvm_generates_match_patterns_for_ranges_or_and_literals -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_lowers_enum_match_parameters_as_native_enum_pointers -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_lowers_println_to_stdout_write -- --nocapture`
+- `cargo test -p kain-sys-codegen llvm_match_ir_verifies_with_guarded_string_results -- --nocapture`
+- `target\\debug\\kain.exe docs\\examples\\01_types_structs_enums_patterns.kn -t llvm -o target\\codex-kain-example-probes\\match_example.ll`
+- `toolchain\\llvm\\bin\\llvm-as.exe target\\codex-kain-example-probes\\match_example.ll -o target\\codex-kain-example-probes\\match_example.bc`
+- `toolchain\\llvm\\bin\\llvm-as.exe target\\kain-example\\kain_example.ll -o target\\kain-example\\kain_example.bc`
+- `cmd /c "start /wait "" target\\kain-example\\kain_example.exe & echo EXITCODE:%ERRORLEVEL%"`
+- repeated `cmd /c "start /wait "" target\\kain-example\\kain_example.exe & echo EXITCODE:%ERRORLEVEL%"` runs returned `EXITCODE:0`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="full", report_name="native-core-full-after-match-lowering-fix")` proved 33/33
+
+Durable operator notes:
+
+- If a native LLVM-only heap corruption shows up after a stdlib/native call, inspect `compile_direct_call` in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before assuming the C runtime is wrong. The current contract is that non-extern callees own parameter locals and release them on scope exit, so borrowed `String` arguments must be retained at the callsite.
+- Treat `blades/kain-example/src/main.kn` as the first defacto native regression file, not as throwaway sample code. When it fails, either the language example drifted or the native lane regressed; both are real bugs.
+- If a `match`-heavy native LLVM file compiles through parsing/typechecking but dies during link or LLVM verification, inspect `Expr::Match` lowering before assuming the authored source is wrong. The known failure class was merge-block reuse plus missing guard-fail cleanup, and the durable tripwire is the `llvm_match_ir_verifies_with_guarded_string_results` test plus `llvm-as` verification of emitted `.ll`.
+- On this Windows workstation, use `cmd /c "start /wait "" <exe> & echo EXITCODE:%ERRORLEVEL%"` to verify generated native executable exits. `Start-Process` can misreport `-2147483645` for this lane even when the executable really returns `0`.
+
 # 2026-05-14 - Bazel now uses a shared D-drive cache plus throttled interactive defaults on this workstation
 
 The Bazel lane is now tuned for this Windows workstation to stop pinning the whole machine during Rust-heavy builds and tests, while still keeping a one-flag escape hatch for deliberate max-throughput runs.

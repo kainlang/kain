@@ -2,8 +2,9 @@ use crate::{
     compile_realtime_app_bundle, compile_runtime_contract_bundle, compile_shader_artifact_bundle,
     CompileTarget,
 };
-use kain_core::ast::Item;
+use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
+use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
@@ -80,7 +81,16 @@ pub fn stage_native_backend_artifacts(
         .collect::<Vec<_>>();
 
     let shader_bundle_path = if source_declares_shader_item(source) {
-        match compile_shader_artifact_bundle(source) {
+        let extracted_shader_source;
+        let shader_source = match shader_artifact_source(source) {
+            Some(source) => {
+                extracted_shader_source = source;
+                extracted_shader_source.as_str()
+            }
+            None => source,
+        };
+
+        match compile_shader_artifact_bundle(shader_source) {
             Ok(bundle_output) => {
                 let shader_path = shader_bundle_artifact_path(output_path);
                 write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;
@@ -131,6 +141,49 @@ fn item_declares_shader_item(item: &Item) -> bool {
             .map(|items| items.iter().any(item_declares_shader_item))
             .unwrap_or(false),
         _ => false,
+    }
+}
+
+fn shader_artifact_source(source: &str) -> Option<String> {
+    let tokens = Lexer::new(source).tokenize().ok()?;
+    let mapper = SpanMapper::new(source);
+    let program = Parser::new(&tokens, &mapper, "<native-backend-shader-extract>")
+        .parse()
+        .ok()?;
+    let shader_items = filter_shader_items(&program.items);
+    if shader_items.is_empty() {
+        return None;
+    }
+
+    let shader_program = Program {
+        items: shader_items,
+        span: program.span,
+    };
+    format_program(&shader_program).ok()
+}
+
+fn filter_shader_items(items: &[Item]) -> Vec<Item> {
+    items
+        .iter()
+        .filter_map(filter_shader_item)
+        .collect::<Vec<_>>()
+}
+
+fn filter_shader_item(item: &Item) -> Option<Item> {
+    match item {
+        Item::Shader(shader) => Some(Item::Shader(shader.clone())),
+        Item::Mod(module) => {
+            let inline = module.inline.as_ref()?;
+            let filtered_inline = filter_shader_items(inline);
+            if filtered_inline.is_empty() {
+                return None;
+            }
+
+            let mut filtered_module = module.clone();
+            filtered_module.inline = Some(filtered_inline);
+            Some(Item::Mod(filtered_module))
+        }
+        _ => None,
     }
 }
 
@@ -319,6 +372,30 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         )
         .expect("residency json");
         assert!(residency_json.contains("SampleCompute"));
+    }
+
+    #[test]
+    fn shader_artifact_source_extracts_shaders_from_native_stdlib_source() {
+        let source = r#"
+shader fragment SampleFragment(uv: Vec2) -> Vec4:
+    uniform accent: Vec3 @0
+    return vec4(1.0, 1.0, 1.0, 1.0)
+
+fn main() -> Int:
+    let status = native_runtime_init()
+    let entanglements = native_entangle_registered_count()
+    let _shutdown = native_runtime_shutdown()
+    return status + entanglements
+"#;
+
+        let extracted = super::shader_artifact_source(source)
+            .expect("mixed native and shader source should have extracted shader source");
+        let bundle = crate::compile_shader_artifact_bundle(&extracted)
+            .expect("extracted shader-only source should compile to a shader bundle");
+
+        assert!(extracted.contains("shader fragment SampleFragment"));
+        assert!(!extracted.contains("native_runtime_init"));
+        assert!(bundle.bundle_json.contains("SampleFragment"));
     }
 
     #[test]

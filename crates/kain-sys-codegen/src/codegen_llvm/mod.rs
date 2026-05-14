@@ -2699,6 +2699,13 @@ impl LlvmGenerator {
             } else if let TypedItem::Enum(e) = item {
                 // Emit Enum definition: { tag, payload* }
                 self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
+                self.struct_defs.insert(
+                    e.ast.name.clone(),
+                    vec![
+                        ("tag".to_string(), "i64".to_string()),
+                        ("payload".to_string(), "i8*".to_string()),
+                    ],
+                );
 
                 // Emit Variant Payload Structs
                 for (variant_name, payload_types) in &e.variant_payload_types {
@@ -3883,21 +3890,25 @@ impl LlvmGenerator {
         }
     }
 
-    fn emit_scope_exit(&mut self) {
-        if let Some(vars) = self.scopes.pop() {
-            for var_name in vars.iter().rev() {
-                if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
-                    if self.borrowed_locals.contains(var_name) {
-                        continue;
-                    }
-                    // Release if it's a pointer or struct
-                    if ty == "i8*" || ty.starts_with("%") {
-                        let tmp = self.next_reg();
-                        self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
-                        self.emit_release(&tmp, &ty);
-                    }
+    fn emit_scope_cleanup_for_vars(&mut self, vars: &[String]) {
+        for var_name in vars.iter().rev() {
+            if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
+                if self.borrowed_locals.contains(var_name) {
+                    continue;
+                }
+                // Release if it's a pointer or struct
+                if ty == "i8*" || ty.starts_with("%") {
+                    let tmp = self.next_reg();
+                    self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
+                    self.emit_release(&tmp, &ty);
                 }
             }
+        }
+    }
+
+    fn emit_scope_exit(&mut self) {
+        if let Some(vars) = self.scopes.pop() {
+            self.emit_scope_cleanup_for_vars(&vars);
         }
     }
 
@@ -3920,6 +3931,20 @@ impl LlvmGenerator {
                     self.emit_release(&tmp, &ty);
                 }
             }
+        }
+    }
+
+    fn match_fallback_value_for_type(&self, ty: &str) -> Option<String> {
+        if ty == "double" {
+            Some("0.0".to_string())
+        } else if ty.ends_with('*') {
+            Some("null".to_string())
+        } else if ty.starts_with('i') {
+            Some("0".to_string())
+        } else if ty.starts_with('%') || ty.starts_with('[') || ty.starts_with('{') {
+            Some("zeroinitializer".to_string())
+        } else {
+            None
         }
     }
 
@@ -4291,6 +4316,10 @@ impl LlvmGenerator {
 
             let (val, ty) = self.compile_expr(&arg.value)?;
 
+            if !is_extern && ty == "i8*" && !self.is_new_object(&arg.value) {
+                self.emit(&format!("  call void @rc_retain(i8* {})", val));
+            }
+
             let needs_cast_to_i64 = (ty == "i8*" || ty.starts_with('%'))
                 && ((func_name == "push" && index == 1)
                     || (func_name == "array_push" && index == 1)
@@ -4364,6 +4393,115 @@ impl LlvmGenerator {
         Ok((value, ty))
     }
 
+    fn compile_expr_as_string_value(&mut self, expr: &Expr) -> KainResult<(String, bool)> {
+        let (val, ty) = self.compile_expr(expr)?;
+        let (text, _) = self.stringify_value(&val, &ty)?;
+        let release_after_use = ty != "i8*" || self.is_new_object(expr);
+        Ok((text, release_after_use))
+    }
+
+    fn compile_stdout_write_call(
+        &mut self,
+        intrinsic_name: &str,
+        args: &[kain_core::ast::CallArg],
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        if args.len() != 1 {
+            return Err(KainError::codegen(
+                format!("{intrinsic_name} expects exactly one argument"),
+                span,
+            ));
+        }
+
+        let (mut text, mut release_text) = self.compile_expr_as_string_value(&args[0].value)?;
+        if intrinsic_name == "println" {
+            let (newline, _) = self.compile_string_literal("\n");
+            let with_newline = self.concat_strings(&text, &newline);
+            if release_text {
+                self.emit_release(&text, "i8*");
+            }
+            self.emit_release(&newline, "i8*");
+            text = with_newline;
+            release_text = true;
+        }
+
+        self.emit(&format!("  call void @stdout_write(i8* {})", text));
+        if release_text {
+            self.emit_release(&text, "i8*");
+        }
+        Ok(("0".into(), "i64".into()))
+    }
+
+    fn compile_macro_call(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        match name {
+            "vec" => {
+                let arr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @array_new(i64 {})",
+                    arr,
+                    args.len().max(4)
+                ));
+                for item in args {
+                    let (val, ty) = self.compile_expr(item)?;
+                    let stored = self.coerce_to_i64_storage(&val, &ty);
+                    self.emit(&format!("  call void @array_push(i8* {}, i64 {})", arr, stored));
+                }
+                Ok((arr, "i8*".into()))
+            }
+            "format" | "__kain_write_fmt" | "__kain_writeln_fmt" => {
+                let format_args = if matches!(name, "__kain_write_fmt" | "__kain_writeln_fmt") {
+                    if args.len() != 2 {
+                        return Err(KainError::codegen(
+                            format!("{name}! expects destination and message"),
+                            span,
+                        ));
+                    }
+                    &args[1..]
+                } else {
+                    args
+                };
+
+                let (mut acc, _) = self.compile_string_literal("");
+                for arg in format_args {
+                    let (text, release_text) = self.compile_expr_as_string_value(arg)?;
+                    let next = self.concat_strings(&acc, &text);
+                    self.emit_release(&acc, "i8*");
+                    if release_text {
+                        self.emit_release(&text, "i8*");
+                    }
+                    acc = next;
+                }
+
+                if name == "__kain_writeln_fmt" {
+                    let (newline, _) = self.compile_string_literal("\n");
+                    let next = self.concat_strings(&acc, &newline);
+                    self.emit_release(&acc, "i8*");
+                    self.emit_release(&newline, "i8*");
+                    acc = next;
+                }
+
+                Ok((acc, "i8*".into()))
+            }
+            "type_name" => Err(KainError::codegen(
+                "LLVM backend does not lower type_name! faithfully yet",
+                span,
+            )),
+            "panic" => Err(KainError::codegen(
+                "LLVM backend does not lower panic! faithfully yet",
+                span,
+            )),
+            _ => Err(KainError::codegen(
+                format!("Unsupported LLVM macro call: {name}!"),
+                span,
+            )),
+        }
+    }
+
     fn compile_expr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
         match expr {
             Expr::Int(n, _) => Ok((format!("{}", n), "i64".to_string())),
@@ -4373,12 +4511,17 @@ impl LlvmGenerator {
             Expr::FString(parts, _) => {
                 let (mut acc, _) = self.compile_string_literal("");
                 for part in parts {
-                    let (val, ty) = self.compile_expr(part)?;
-                    let (text, _) = self.stringify_value(&val, &ty)?;
-                    acc = self.concat_strings(&acc, &text);
+                    let (text, release_text) = self.compile_expr_as_string_value(part)?;
+                    let next = self.concat_strings(&acc, &text);
+                    self.emit_release(&acc, "i8*");
+                    if release_text {
+                        self.emit_release(&text, "i8*");
+                    }
+                    acc = next;
                 }
                 Ok((acc, "i8*".to_string()))
             }
+            Expr::MacroCall { name, args, span } => self.compile_macro_call(name, args, *span),
             Expr::None(_) => {
                 let value = self.next_reg();
                 self.emit(&format!("  {} = call i8* @kain_native_option_none()", value));
@@ -4750,6 +4893,16 @@ impl LlvmGenerator {
                     "  {} = bitcast i8* {} to {}",
                     struct_ptr, mem_reg, ptr_ty
                 ));
+                if def
+                    .iter()
+                    .any(|(_, field_ty)| field_ty == "i8*" || field_ty.starts_with('%'))
+                {
+                    let dtor_name = format!("dtor_{}", name);
+                    self.emit(&format!(
+                        "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
+                        mem_reg, dtor_name
+                    ));
+                }
                 let mut provided: HashMap<String, Expr> = fields.iter().cloned().collect();
                 for (i, (field_name, field_ty)) in def.iter().enumerate() {
                     let (val, val_ty) = if let Some(expr) = provided.remove(field_name) {
@@ -5649,13 +5802,7 @@ impl LlvmGenerator {
                     }
 
                     if name == "print" || name == "println" {
-                        return Err(KainError::codegen(
-                            format!(
-                                "LLVM backend does not lower '{}' faithfully yet; runtime print semantics are still unsupported",
-                                name
-                            ),
-                            *span,
-                        ));
+                        return self.compile_stdout_write_call(name, args, *span);
                     }
                 }
 
@@ -5715,6 +5862,11 @@ impl LlvmGenerator {
                 self.emit(&format!(
                     "  {} = bitcast i8* {} to {}",
                     enum_ptr, mem_reg, ptr_ty
+                ));
+                let dtor_name = format!("dtor_{}", enum_name);
+                self.emit(&format!(
+                    "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
+                    mem_reg, dtor_name
                 ));
 
                 // Store Tag
@@ -5828,27 +5980,24 @@ impl LlvmGenerator {
                 };
 
                 let label_end = self.next_label();
+                let label_no_match = self.next_label();
+                let mut condition_labels = Vec::new();
                 let mut arm_labels = Vec::new();
-                let mut next_labels = Vec::new();
-                for i in 0..arms.len() {
+                for _ in 0..arms.len() {
+                    condition_labels.push(self.next_label());
                     arm_labels.push(self.next_label());
-                    next_labels.push(if i + 1 < arms.len() {
-                        self.next_label()
-                    } else {
-                        label_end.clone()
-                    });
                 }
 
                 if arms.is_empty() {
-                    self.emit(&format!("  br label %{}", label_end));
+                    self.emit(&format!("  br label %{}", label_no_match));
                 } else {
-                    self.emit(&format!("  br label %{}", next_labels[0]));
+                    self.emit(&format!("  br label %{}", condition_labels[0]));
                 }
 
                 let mut incoming = Vec::new();
 
                 for (i, arm) in arms.iter().enumerate() {
-                    self.emit_label(&next_labels[i]);
+                    self.emit_label(&condition_labels[i]);
                     let cond = self.compile_pattern_condition(
                         &arm.pattern,
                         &val,
@@ -5859,9 +6008,9 @@ impl LlvmGenerator {
 
                     let branch_true = arm_labels[i].clone();
                     let branch_false = if i + 1 < arms.len() {
-                        next_labels[i + 1].clone()
+                        condition_labels[i + 1].clone()
                     } else {
-                        label_end.clone()
+                        label_no_match.clone()
                     };
                     self.emit(&format!(
                         "  br i1 {}, label %{}, label %{}",
@@ -5879,6 +6028,8 @@ impl LlvmGenerator {
                         arm.span,
                     )?;
 
+                    let bound_vars = self.scopes.last().cloned().unwrap_or_default();
+
                     if let Some(guard) = &arm.guard {
                         let (guard_val, guard_ty) = self.compile_expr(guard)?;
                         if guard_ty != "i1" {
@@ -5888,15 +6039,19 @@ impl LlvmGenerator {
                             ));
                         }
                         let guard_pass = self.next_label();
-                        let guard_fail = if i + 1 < arms.len() {
-                            next_labels[i + 1].clone()
+                        let guard_fail = self.next_label();
+                        let guard_false_target = if i + 1 < arms.len() {
+                            condition_labels[i + 1].clone()
                         } else {
-                            label_end.clone()
+                            label_no_match.clone()
                         };
                         self.emit(&format!(
                             "  br i1 {}, label %{}, label %{}",
                             guard_val, guard_pass, guard_fail
                         ));
+                        self.emit_label(&guard_fail);
+                        self.emit_scope_cleanup_for_vars(&bound_vars);
+                        self.emit(&format!("  br label %{}", guard_false_target));
                         self.emit_label(&guard_pass);
                     }
 
@@ -5906,6 +6061,33 @@ impl LlvmGenerator {
                     self.emit_scope_exit();
                     self.emit(&format!("  br label %{}", label_end));
                     incoming.push((res_val, res_ty, arm_end_block));
+                }
+
+                let res_ty = if let Some((_, ty, _)) = incoming.first() {
+                    let res_ty = ty.clone();
+                    let consistent = incoming.iter().all(|(_, candidate_ty, _)| *candidate_ty == res_ty);
+                    if !consistent {
+                        return Err(KainError::codegen(
+                            "LLVM match arms produced inconsistent result types",
+                            scrutinee.span(),
+                        ));
+                    }
+                    Some(res_ty)
+                } else {
+                    None
+                };
+
+                self.emit_label(&label_no_match);
+                if let Some(res_ty) = res_ty.clone() {
+                    if let Some(default_value) = self.match_fallback_value_for_type(&res_ty) {
+                        incoming.push((default_value, res_ty, label_no_match.clone()));
+                        self.emit(&format!("  br label %{}", label_end));
+                    } else {
+                        self.emit("  unreachable");
+                    }
+                } else {
+                    incoming.push(("0".into(), "i64".into(), label_no_match.clone()));
+                    self.emit(&format!("  br label %{}", label_end));
                 }
 
                 self.emit_label(&label_end);
@@ -5981,5 +6163,35 @@ fn main() -> Int:
         assert!(llvm.contains("declare i64 @piano_audio_note_on(i64 %arg0)"));
         assert!(llvm.contains("call i8* @piano_audio_status()"));
         assert!(llvm.contains("call i64 @piano_audio_note_on(i64 60)"));
+    }
+
+    #[test]
+    fn retains_borrowed_string_arguments_before_non_extern_calls() {
+        let source = r#"
+fn sink(path: String) -> Int:
+    return 0
+
+fn main() -> Int:
+    let dir = "root"
+    let status = sink(dir)
+    if dir == "root":
+        return status
+    return 1
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-owned-call-arg-test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &mapper, "<llvm-owned-call-arg-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+        let call_index = llvm
+            .find("call i64 @sink(i8*")
+            .expect("sink call should be present in LLVM");
+        let window_start = call_index.saturating_sub(160);
+        let window = &llvm[window_start..call_index];
+
+        assert!(window.contains("call void @rc_retain(i8*"));
     }
 }

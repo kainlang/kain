@@ -11,6 +11,7 @@ sources = [
     "native/src/core/kain_runtime_async.c",
     "native/src/core/kain_runtime_actor.c",
     "native/src/core/kain_runtime_entangle.c",
+    "native/src/core/kain_runtime_memory.c",
     "native/src/core/kain_runtime_native_stdlib.c",
     "native/src/core/kain_native_input_system.c",
     "native/src/core/kain_native_net_system.c",
