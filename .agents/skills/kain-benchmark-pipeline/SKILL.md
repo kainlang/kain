@@ -1,0 +1,47 @@
+---
+name: kain-benchmark-pipeline
+description: Use when adding, changing, running, or reviewing the Kain vs Rust LLVM benchmark lane under benchmark/, including paired .kn/.rs cases, benchmark/benchmarks.json, benchmark/run.py, generated HTML reports, and fairness/maturity notes for Kain pressure tests.
+---
+
+# Kain Benchmark Pipeline
+
+## Contract
+
+- `benchmark/benchmarks.json` is the source of truth for the suite, cases, source paths, maturity labels, and fairness notes.
+- Every benchmark case must have paired source files:
+  - `benchmark/cases/<case>/main.kn`
+  - `benchmark/cases/<case>/main.rs`
+- Case programs must not use external language dependencies. Rust may use `std`; Kain may use language/runtime builtins and local imports.
+- The Python runner may use the standard library for orchestration, timing, JSON, and HTML output.
+- Generated outputs belong under `benchmark/out/` and should stay ignored except `benchmark/out/.gitignore`.
+
+## Runner
+
+- Main command: `python benchmark/run.py`
+- Focus one case: `python benchmark/run.py --case contention_wall --runs 3 --warmups 1`
+- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\Kain-Lang\target\debug\kain.exe`
+- The runner prefers a direct Bazel-built `kain.exe` because the Windows PowerShell launcher can mis-handle forwarded `-o`.
+- Reports are written to:
+  - `benchmark/out/reports/latest.html`
+  - `benchmark/out/reports/latest.json`
+  - timestamped `benchmark/out/reports/<stamp>.html`
+
+## Case Design
+
+- Keep benchmark constants local inside `main` or helper functions. Current Kain LLVM codegen may not resolve top-level `const` in small standalone benchmark functions.
+- Include deterministic checksum/exit-code validation so benchmarked work cannot disappear silently.
+- If Kain does not yet expose the exact runtime primitive needed, keep the case but mark `maturity` as `proxy`, `semantic-proxy`, or `dispatch-skeleton` in `benchmarks.json`.
+- Never claim a proxy is a completed win. Use `fairness_note` to explain the semantic gap.
+
+## Current Pressure Cases
+
+- `contention_wall`: Rust uses 100 OS threads and `AtomicI64`; Kain currently uses a zero-lock `collapse` proxy over the same total increment count.
+- `ghost_mirror`: Rust uses std TCP loopback for a 1 MiB payload; Kain uses entangle-backed in-process world mirroring plus helper-owned payload mutation.
+- `evolutionary_loop`: Rust uses runtime feature detection; Kain uses `converge`/`orchestrate` dispatch syntax as the future autotuning slot.
+- `ownership_memory`: direct `collapse`/`observe`/`decay` smoke against Rust `Box` ownership.
+
+## Validation
+
+- `python -m py_compile benchmark/run.py`
+- `python benchmark/run.py --runs 3 --warmups 1`
+- Inspect `benchmark/out/reports/latest.html` and `latest.json` before summarizing results.

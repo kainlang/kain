@@ -1,5 +1,43 @@
 # Kain Memory
 
+# 2026-05-14 - `benchmark/` now has a paired Kain LLVM vs Rust LLVM pressure-test lane
+
+The new `benchmark/` workspace is a manifest-driven benchmark lane for comparing dependency-free Kain LLVM examples against paired Rust LLVM examples. It is intentionally honest about maturity: some cases are direct implemented comparisons, while others are pressure-test proxies for Kain runtime features that are not fully exposed to user LLVM code yet.
+
+What changed:
+
+- Added `benchmark/benchmarks.json` as the data source for cases, source paths, maturity labels, and fairness notes.
+- Added `benchmark/run.py`, a Python stdlib-only runner that resolves a direct Kain compiler, builds Kain `.kn` to LLVM/native executables, builds Rust with `rustc`, times warmups and samples, and writes `benchmark/out/reports/latest.html` plus `latest.json`.
+- Added paired Kain/Rust cases for `contention_wall`, `ghost_mirror`, `evolutionary_loop`, and `ownership_memory`.
+- Added `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future agents can extend the lane without rediscovering the runner contract.
+
+Current benchmark interpretation:
+
+- `contention_wall` is a proxy: Rust uses 100 OS threads and `AtomicI64`; Kain uses a zero-lock `collapse` ownership chunk over the same total increment count because Kain LLVM does not yet expose user-level OS-thread fanout for shared collapse regions.
+- `ghost_mirror` is a semantic proxy: Rust uses std TCP loopback for a 1 MiB payload; Kain uses in-process entangle mirroring plus helper-owned payload mutation, not a two-process transport.
+- `evolutionary_loop` is a dispatch skeleton: Rust uses runtime feature detection; Kain expresses the future autotuning slot through `converge` and `orchestrate`, but does not yet race AVX-512/native lanes.
+- `ownership_memory` is direct: Kain `collapse`/`observe`/`decay` over a helper-owned heap cell versus Rust `Box` ownership.
+
+Validation:
+
+- `python -m py_compile benchmark\\run.py`
+- `python benchmark\\run.py --case ownership_memory --runs 1 --warmups 0`
+- `python benchmark\\run.py --case evolutionary_loop --runs 1 --warmups 0`
+- `python benchmark\\run.py --case ghost_mirror --runs 1 --warmups 0`
+- `python benchmark\\run.py --case contention_wall --runs 1 --warmups 0`
+- `python benchmark\\run.py --runs 3 --warmups 1`
+
+Latest compact run:
+
+- `contention_wall`: Kain median ~828.686 ms, Rust median ~1569.326 ms, Kain won the current proxy.
+- `ghost_mirror`: Kain median ~77.823 ms, Rust median ~40.087 ms, Rust won.
+- `evolutionary_loop`: Kain median ~155.916 ms, Rust median ~24.992 ms, Rust won.
+- `ownership_memory`: Kain median ~80.633 ms, Rust median ~12.505 ms, Rust won.
+
+Recommended next step:
+
+- Add real Kain-native OS-thread or actor-join support for the contention case, and add a Kain two-process entangle transport benchmark before using these numbers as marketing proof. Until then, keep the `maturity` and `fairness_note` fields blunt.
+
 # 2026-05-14 - Native LLVM workbench 711-frame crash traced to loop-local allocas and fixed
 
 The interactive `blades/kain-example` Win32/GL workbench no longer crashes at the deterministic 711-frame mark. `samply` reproduced the original failure as Windows stack overflow (`0xc00000fd`), and the generated LLVM IR showed the root cause: `alloca` instructions were being emitted inside long-running loop blocks in `@main`, causing per-frame stack growth.

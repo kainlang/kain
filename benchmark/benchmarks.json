@@ -1,0 +1,43 @@
+{
+  "suite": "kain-vs-rust-llvm",
+  "default_warmups": 2,
+  "default_runs": 7,
+  "cases": [
+    {
+      "id": "contention_wall",
+      "title": "Contention Wall",
+      "description": "Rust drives 100 OS threads through one shared AtomicI64. Kain currently has no user-level OS-thread fanout in LLVM, so this is the zero-lock collapse proxy over the same total increment count.",
+      "maturity": "proxy",
+      "fairness_note": "Do not read this as a completed concurrency win. It is the benchmark shape Kain must graduate toward once collapse can be shared safely across spawned workers.",
+      "kain": "cases/contention_wall/main.kn",
+      "rust": "cases/contention_wall/main.rs"
+    },
+    {
+      "id": "ghost_mirror",
+      "title": "Ghost Mirror",
+      "description": "Rust mirrors a 1 MiB payload through a std TCP loopback channel. Kain mirrors authority state with entangle and mutates a 1 MiB helper-owned buffer in-process.",
+      "maturity": "semantic-proxy",
+      "fairness_note": "Kain entangle is currently in-process world mirroring, not a two-process transport. This case measures serialization/transport tax versus compiler-owned mirror semantics.",
+      "kain": "cases/ghost_mirror/main.kn",
+      "rust": "cases/ghost_mirror/main.rs"
+    },
+    {
+      "id": "evolutionary_loop",
+      "title": "Evolutionary Loop",
+      "description": "Rust uses runtime feature detection to choose a math lane. Kain expresses the same decision as converge/orchestrate lanes.",
+      "maturity": "dispatch-skeleton",
+      "fairness_note": "Current Kain converge records and selects lanes; it does not yet race AVX-512 kernels or autotune silicon. This benchmark is the durable harness slot for that future backend.",
+      "kain": "cases/evolutionary_loop/main.kn",
+      "rust": "cases/evolutionary_loop/main.rs"
+    },
+    {
+      "id": "ownership_memory",
+      "title": "Scoped Ownership Memory Cell",
+      "description": "A smaller first-class ownership smoke benchmark: Kain uses collapse/observe/decay over a helper-owned heap cell; Rust uses an owned Box mutation and drop.",
+      "maturity": "implemented",
+      "fairness_note": "This is a direct memory-lifecycle smoke, not a contention test.",
+      "kain": "cases/ownership_memory/main.kn",
+      "rust": "cases/ownership_memory/main.rs"
+    }
+  ]
+}
