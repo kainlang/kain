@@ -1,5 +1,51 @@
 # Kain Memory
 
+# 2026-05-13 - `collapse`, `observe`, and `decay` are a good ownership subsystem but not a drop-in final keyword pass
+
+The proposed memory triad is directionally right for Kain's native story, but the solver pass and repo sweep showed it does not blend into the current `world`/`entangle`/LLVM pipeline as simple last-minute top-level keywords.
+
+What changed:
+
+- Researched `collapse`, `observe`, and `decay` against the current parser, AST, typechecker, interpreter runtime, LLVM backend, native helper ABI, and RC/destructor substrate.
+- Proved three direct-fit counterexamples with Z3:
+  - `observe` conflicts with the current entangle propagation model because authority writes immediately mutate mirrors in place.
+  - `collapse` as a whole-world exclusive/noalias promise conflicts with the current shared runtime representation where world state is cloned into multiple handles.
+  - `decay` as immediate return-to-OS conflicts with the existing RC substrate when weak references are still outstanding.
+- Proved a guarded ownership lattice is internally coherent if:
+  - `collapse` requires zero observers and no destroyed state
+  - `observe` is only legal outside collapsed/destroyed state
+  - `decay` requires zero strong refs, zero weak refs, zero observers, and no active collapse
+
+Why it changed:
+
+- The current language split matters: compiler-owned intent items live as top-level declarations, while low-level memory work lives as expression-level forms. The triad matches the second category more naturally than the first.
+- `crates/kain-sys-codegen` currently emits no `noalias`, `readonly`, `alias.scope`, `llvm.lifetime.*`, or `llvm.invariant.*` markers, so the LLVM-side guarantees the triad wants are not present yet.
+- The native runtime already has a useful destruction substrate through `rc_release` and custom destructors, but there is no surfaced Kain-level ownership state machine or canonical `free`/`decay` helper path yet.
+
+Formal proof gathered with Z3:
+
+- `mcp__z3_local__.find_counterexample` found a live model for `observe_active = true` plus in-place entangle mirror writes.
+- `mcp__z3_local__.find_counterexample` found a live model for `collapse_active = true` with `alias_count = 2`.
+- `mcp__z3_local__.find_counterexample` found a live model for `decay_now = true` with `strong_refs = 0` and `weak_refs = 1`.
+- `mcp__z3_local__.check_smt2` proved `unsat` for mixed guarded states where collapsed or decayed memory still has observers, and for a decay precondition that still carries strong refs, weak refs, observers, or collapsed state.
+
+Design decisions:
+
+- Treat `collapse`, `observe`, and `decay` as one ownership-state subsystem, not as three isolated peer crates with duplicated state logic.
+- Prefer a shared crate such as `crates/kain-ownership` or `crates/kain-memory-state`, then expose thin syntax/lowering hooks for the three surface forms.
+- Prefer expression/block-scoped semantics over new top-level intent-item declarations. That keeps them aligned with the existing low-level memory model rather than forcing them into the `patch`/`law`/`world` item family.
+- `observe` likely needs snapshot, freeze, or epoch semantics across an entangled component. `collapse` likely needs an explicit exclusive token. `decay` should be expressed as a zero-outstanding-capability transition, not as a blind free.
+
+Current risks:
+
+- Adding the triad as pure parser keywords without a shared ownership model would create semantic drift between `kain-core`, `kain-entangle`, the interpreter, the native runtime, and LLVM lowering.
+- The interpreter still models low-level pointer and memory forms mostly as pass-through values, so non-native lanes cannot honestly simulate this triad yet.
+- Splitting into three crates too early would likely duplicate diagnostics, token-state rules, and lowering policy instead of giving the compiler one ownership truth.
+
+Recommended next step:
+
+- Build one proof-backed ownership crate first, wire it into low-level memory expressions, and only then decide whether the surface syntax should read as `collapse`, `observe`, and `decay` keywords or as ownership blocks/helpers.
+
 # 2026-05-13 - Native core runtime proof pack expanded into graphics, realtime, services, and stdlib hotspots
 
 The native C core runtime proof pack under `runtime/native/src/core/z3` is now materially broader, and two real overflow models in live C code were eliminated instead of being left as hypothetical review notes.
