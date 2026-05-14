@@ -1,5 +1,55 @@
 # Kain Memory
 
+# 2026-05-14 - Bazel now uses a shared D-drive cache plus throttled interactive defaults on this workstation
+
+The Bazel lane is now tuned for this Windows workstation to stop pinning the whole machine during Rust-heavy builds and tests, while still keeping a one-flag escape hatch for deliberate max-throughput runs.
+
+What changed:
+
+- `.bazelrc` moved the disk cache from the repo-local `.bazel-cache/disk` path to the shared `D:/Kain-Bazel/disk-cache` path alongside the existing output base, repository cache, and temp roots.
+- `.bazelrc` now inherits `PATH` and `PATHEXT` into Bazel test environments so Windows subprocess-based Rust tests can find tools like `rustc`.
+- The default local Bazel resource profile is now throttled for interactive work:
+  - `--jobs=HOST_CPUS*.625`
+  - `--loading_phase_threads=HOST_CPUS*.5`
+  - `--local_resources=cpu=HOST_CPUS*.625`
+  - `--local_resources=memory=HOST_RAM*.75`
+  - `--local_test_jobs=HOST_CPUS*.25`
+- `.bazelrc` also now exposes `--config=maxperf` to opt back into full-host Bazel scheduling when the operator explicitly wants it.
+- Root `BUILD.bazel` now exposes more top-level crate aliases (`kain_blades`, `kain_codebase`, `kain_entangle`) and splits the top-level Bazel suites into:
+  - `//:developer_smoke_tests` for the currently green Rust lane
+  - `//:workspace_diagnostic_tests` for known source/runtime failures that Bazel now surfaces honestly
+
+Why it changed:
+
+- The earlier `build --jobs=HOST_CPUS` default let Bazel saturate the full 8c/16t host, which made Windows interactivity and Codex sessions noticeably worse during Rust-heavy work.
+- Several crates were failing under Bazel for Windows-environment reasons rather than real source failures. Inheriting `PATH` and `PATHEXT` fixed those false negatives and let the root smoke lane become a real green lane.
+- Keeping the disk cache on the shared `D:/Kain-Bazel` root means multiple runs and work surfaces reuse the same artifacts instead of each workspace warming its own isolated cache.
+
+Validation:
+
+- `bazel test //:key_crate_tests --config=dev`
+- `bazel test //:developer_smoke_tests --config=dev`
+- `bazel test //crates/kain-build:unit_test --config=dev`
+- `bazel test //crates/kain-core:unit_test --config=dev`
+- `bazel test //runtime:native_runtime_tests --config=dev`
+- `bazel test //crates/cli:unit_test --config=dev --test_timeout=1200`
+
+Current state:
+
+- `//:developer_smoke_tests` is green under Bazel on this host.
+- `//crates/kain-core:unit_test` fails for three source-level tests:
+  - `language_features::tests::default_profile_keeps_struct_literals_disabled`
+  - `realtime_app_bundle::tests::emits_bundle_owned_camera_and_presentation_metadata_for_viewports`
+  - `realtime_app_bundle::tests::emits_realtime_bundle_with_viewport_scene_binding`
+- `//runtime:native_runtime_tests` now reaches real C runtime failures instead of dying in analysis; `native_test_actor_monitor_link` still fails its crash-propagation assertion.
+- `//crates/cli:unit_test` also now runs to completion under Bazel and exposes two real failures instead of timing out on missing tool lookup:
+  - `import_c::tests::test_import_with_target`
+  - `selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout`
+
+Recommended next step:
+
+- If interactive performance is still too spiky, lower the default CPU fraction one more notch to `HOST_CPUS*.5` before touching anything else. The current profile is intentionally conservative enough to leave headroom, but the next clean knob is CPU, not cache layout.
+
 # 2026-05-13 - Bazel Rust workspace lane builds the main CLIs with D-drive cache/temp roots
 
 The repo now has a generated `rules_rust` Bazel lane for workspace crates, with root aliases for the main developer binaries. This is meant to reduce repeated Cargo rebuild pain while keeping Cargo metadata as the source of truth.

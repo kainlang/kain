@@ -33,8 +33,15 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 ## D-drive cache contract
 
 - Keep Bazel heavy outputs off `C:`.
-- `.bazelrc` should keep `--output_user_root`, `--repository_cache`, repo/action/test temp env, and disk cache on `D:` or inside the D-drive workspace.
+- `.bazelrc` should keep `--output_user_root`, `--repository_cache`, repo/action/test temp env, and disk cache on `D:`. The current shared disk cache path is `D:/Kain-Bazel/disk-cache`.
 - If these paths change, rerun `bazel info output_base` and confirm it reports `D:/kain-bazel/output-user-root/...`.
+- Keep the default lane interactive by budgeting local resources instead of blindly using all host threads. The current machine profile is:
+  - `--jobs=HOST_CPUS*.625`
+  - `--loading_phase_threads=HOST_CPUS*.5`
+  - `--local_resources=cpu=HOST_CPUS*.625`
+  - `--local_resources=memory=HOST_RAM*.75`
+  - `--local_test_jobs=HOST_CPUS*.25`
+- When you explicitly want to push harder, use `--config=maxperf`.
 
 ## Generator rules
 
@@ -45,5 +52,7 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 
 ## Known host notes
 
-- Windows may emit a noisy `rules_swift` local-config error: `name 'arch' is not defined`. With `--keep_going`, Rust targets can still complete; do not chase it unless it blocks the requested target.
-- `bazel test //:crate_tests --config=dev` is currently diagnostic, not required green. Known failures include source-level `kain-core` unit assumptions and a `cli` unit-test process exit under Bazel.
+- Windows Bazel tests need `PATH` and `PATHEXT` inherited so subprocess-driven tests can find tools like `rustc`.
+- Windows may emit a noisy `rules_swift` local-config error: `name 'arch' is not defined`. The repo now also carries a `rules_swift` patch for the missing-`SDKROOT` path, but this analysis noise can still appear. With `--keep_going`, Rust targets can still complete; do not chase it unless it blocks the requested target.
+- `bazel test //:developer_smoke_tests --config=dev` is the current green Rust suite on this host.
+- `bazel test //:workspace_diagnostic_tests --config=dev` is intentionally diagnostic. Known failures include source-level `kain-core`, `cli`, and `runtime:native_test_actor_monitor_link` failures.

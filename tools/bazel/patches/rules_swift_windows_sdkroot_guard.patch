@@ -1,0 +1,54 @@
+diff --git a/swift/internal/swift_autoconfiguration.bzl b/swift/internal/swift_autoconfiguration.bzl
+index 64f425a..3f2db60 100644
+--- a/swift/internal/swift_autoconfiguration.bzl
++++ b/swift/internal/swift_autoconfiguration.bzl
+@@ -308,7 +308,7 @@ def _get_python_bin(repository_ctx):
+     return None
+ 
+ def _create_windows_toolchain(*, repository_ctx):
+-    """Creates BUILD targets for the Swift toolchain on Linux.
++    """Creates BUILD targets for the Swift toolchain on Windows.
+ 
+     Args:
+       repository_ctx: The repository rule context.
+@@ -319,6 +319,13 @@ def _create_windows_toolchain(*, repository_ctx):
+ Swift toolchain.
+ """
+ 
++    sdkroot = repository_ctx.os.environ.get("SDKROOT", "").strip()
++    if not sdkroot:
++        return """\
++# No 'SDKROOT' environment variable found in the repository rule environment.
++# Not auto-generating a Windows Swift toolchain.
++"""
++
+     root = path_to_swiftc.dirname.dirname
+     enabled_features = [
+         SWIFT_FEATURE_CODEVIEW_DEBUG_INFO,
+@@ -336,7 +343,7 @@ def _create_windows_toolchain(*, repository_ctx):
+         _get_python_bin(repository_ctx),
+         "-c",
+         "import os, plistlib; " +
+-        "print(plistlib.loads(open(os.path.join(r'{}', '..', '..', '..', 'Info.plist'), 'rb').read(), fmt=plistlib.FMT_XML)['DefaultProperties']['XCTEST_VERSION'])".format(repository_ctx.os.environ["SDKROOT"]),
++        "print(plistlib.loads(open(os.path.join(r'{}', '..', '..', '..', 'Info.plist'), 'rb').read(), fmt=plistlib.FMT_XML)['DefaultProperties']['XCTEST_VERSION'])".format(sdkroot),
+     ])
+ 
+     env = {
+@@ -373,7 +380,7 @@ toolchain(
+         features = ", ".join(['"{}"'.format(feature) for feature in enabled_features] + ['"-{}"'.format(feature) for feature in disabled_features]),
+         root = root,
+         env = env,
+-        sdkroot = repository_ctx.os.environ["SDKROOT"].replace("\\", "/"),
++        sdkroot = sdkroot.replace("\\", "/"),
+         toolchain_type = SWIFT_TOOLCHAIN_TYPE,
+         xctest_version = xctest_version.stdout.rstrip(),
+         version_file = version_file,
+@@ -406,7 +413,7 @@ def _swift_autoconfiguration_impl(repository_ctx):
+     )
+ 
+ swift_autoconfiguration = repository_rule(
+-    environ = ["CC", "PATH", "ProgramData", "Path"],
++    environ = ["CC", "PATH", "ProgramData", "Path", "SDKROOT"],
+     implementation = _swift_autoconfiguration_impl,
+     local = True,
+ )
