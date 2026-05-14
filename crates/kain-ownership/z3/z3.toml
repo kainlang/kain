@@ -1,0 +1,34 @@
+[pack]
+name = "kain.ownership.proofs"
+scope = ".."
+languages = ["rust"]
+
+[solver]
+timeout_ms = 5000
+size_bits = 64
+
+[sources]
+include = ["**/*"]
+exclude = ["z3/**", "target/**", "node_modules/**"]
+
+[templates]
+use = ["builtin:*", "local:templates/*.yaml"]
+
+[fixtures]
+use = ["fixtures/**/*.*"]
+
+[ci]
+smoke = ["proofs/**/*.yaml"]
+full = ["proofs/**/*.*"]
+state = ["proofs/ownership-state-*.yaml"]
+policy = ["proofs/ownership-policy-*.yaml"]
+
+[reports]
+path = "reports"
+keep_history = true
+
+[engines]
+
+[engines.libclang]
+compile_flags = []
+include_paths = []

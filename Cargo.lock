@@ -3032,6 +3032,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-ownership"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "kain-process"
 version = "0.1.0"
 dependencies = [

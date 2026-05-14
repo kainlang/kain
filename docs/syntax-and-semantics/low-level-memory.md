@@ -63,6 +63,32 @@ These expression forms are the core of the memory surface:
 These forms are not just syntax. They are the expressions the backend lowers to
 helper calls, layout queries, or target-specific memory operations.
 
+## Ownership-State Kernel
+
+`crates/kain-ownership` is the shared semantic home for the future
+`collapse`, `observe`, and `decay` memory model.
+
+The current kernel does not add surface syntax by itself. It defines the
+portable ownership lattice that parser, typechecker, interpreter, native
+runtime, and backend work should consume:
+
+- `Idle` is the only state that can enter exclusive mutation or terminal decay
+- `Observed(n)` allows nested read access but rejects collapse and decay
+- `Collapsed` represents scoped exclusive mutation and must end before observe or decay
+- `Decayed` is terminal and cannot be made live again
+
+The policy table is conservative by design:
+
+- stack/local allocation can map toward readonly/noalias/lifetime-end lowering
+- heap allocation can map toward readonly/noalias/free-style lowering
+- RC objects can map toward readonly/exclusive-token/release-style lowering
+- world and entangle-backed regions observe through snapshots first
+- entangled mirrors and imported pointers do not claim ownership powers they cannot prove
+
+Any future syntax for `collapse`, `observe`, or `decay` should attach to this
+kernel before claiming LLVM attributes, runtime frees, or entangle/world
+concurrency semantics.
+
 ## Layout Rules
 
 `crates/kain-core/src/low_level_memory.rs` is the layout engine for Kain

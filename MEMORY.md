@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-14 - `crates/kain-ownership` landed as the proof-backed memory ownership kernel
+
+The first vertical slice of the `collapse` / `observe` / `decay` ownership model now exists as a dedicated semantic crate instead of remaining a design note.
+
+What changed:
+
+- Added `crates/kain-ownership` to the workspace with a portable ownership-state lattice: `Idle`, `Observed(n)`, `Collapsed`, and `Decayed`.
+- Added conservative region policy for local alloca, heap allocations, RC objects, world state, entangled authority endpoints, entangled mirrors, and imported pointers.
+- Added lowering hints for future LLVM/native work, including readonly, noalias, lifetime-end, runtime guard, snapshot, and release/free implications.
+- Added `crates/kain-ownership/z3` with focused lanes for state and policy proofs.
+- Added `.agents/skills/kain-ownership-system/SKILL.md` so future agents have a targeted guide for this pipeline.
+
+Design decisions:
+
+- The new crate is intentionally a semantic kernel only. It does not add parser syntax or backend lowering yet.
+- `observe` over world and entangle-backed regions is snapshot-first in v1. Direct live readonly aliasing would be dishonest until epoch/freeze semantics exist.
+- `collapse` only succeeds from `Idle`; observed regions reject it.
+- `decay` only succeeds from `Idle`; observed, collapsed, or already-decayed regions reject it.
+- Entangled mirrors and imported pointers are deliberately conservative: no collapse or decay powers are claimed.
+
+Formal proof gathered with Z3:
+
+- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\kain-ownership", lane="full", report_name="kain-ownership-initial-full-after-line-anchors")`
+- Result: 4/4 proved, 0 counterexamples, 0 unknown, 0 errors.
+
+Validation:
+
+- `cargo fmt -p kain-ownership`
+- `cargo test -p kain-ownership --target-dir target\codex-kain-ownership -- --nocapture`
+
+Recommended next step:
+
+- Wire `kain-core` parser/AST/typechecker support for intrinsic-style `observe`, `collapse`, and `decay` expressions against this crate before adding LLVM/native lowering.
+
 # 2026-05-14 - `crates/kain-sys-codegen` now has a durable LLVM Z3 proof pack
 
 The LLVM backend in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now has
