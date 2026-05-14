@@ -8,9 +8,13 @@ Use this pack for small, sharp proof obligations that future agents should be ab
 - scheduler queue-depth accounting
 - actor ID and sentinel invariants
 - supervision restart-limit arithmetic
+- graphics file-read growth math and per-session capacity counters
 - HTTP request/response body span and allocation arithmetic
 - process spec capacity bounds and buffer-growth arithmetic
 - entangle registry bounds and null-terminated text copy fits
+- realtime graphics binding-array bounds
+- service registry helper copy bounds
+- native stdlib builder, patch-journal, and path-copy arithmetic
 - low-level native runtime arithmetic that protects Kain ABI contracts
 
 The pack intentionally lives under `runtime/native/src/core/z3` because the first proof targets are the low-level C ABI floor. Treat these as runtime substrate proofs for Kain-owned semantics: they protect the native execution lane without moving language meaning out of `crates/kain-core`, `crates/kain-actor`, or authored `.kn` stdlib surfaces.
@@ -20,9 +24,13 @@ Common commands:
 ```powershell
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane actor
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane graphics
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane net
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane process
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane entangle
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane realtime
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane services
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane stdlib
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane full
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --workspace --project-root D:\Kain-Lang --lane smoke
 ```
@@ -37,6 +45,6 @@ Pack layout:
 
 Lane notes:
 
-- `actor`, `net`, `process`, and `entangle` are focused subsystem reruns.
+- `actor`, `graphics`, `net`, `process`, `entangle`, `realtime`, `services`, and `stdlib` are focused subsystem reruns.
 - `native` is the aggregate native-runtime lane for every `native-*` proof.
 - `full` proves the whole pack, and workspace `smoke` proves discovery plus orchestration.

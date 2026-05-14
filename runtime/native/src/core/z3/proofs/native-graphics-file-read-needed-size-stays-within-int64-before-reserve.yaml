@@ -1,0 +1,61 @@
+version: 1
+id: kain.native.core.proofs.native_graphics_file_read_needed_size_stays_within_int64_before_reserve
+kind: size_add_ok
+description: Graphics file loading only computes needed = total + read after rejecting any
+  wrapped addition and any result above the int64_t ABI return limit, while each fread
+  chunk is bounded by the 4 KiB stack buffer.
+tags:
+- native-runtime
+- graphics
+- io
+- buffer-growth
+- abi
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
+  symbol: kain_native_graphics_read_file_bytes
+  start_line: 378
+  reason: total + read must fit within INT64_MAX before reserve and public return
+case:
+  declarations:
+  - name: total
+    sort:
+      kind: int
+  - name: read
+    sort:
+      kind: int
+  - name: max_result
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_result
+    - 9223372036854775807
+  - op: ge
+    args:
+    - total
+    - 0
+  - op: le
+    args:
+    - total
+    - max_result
+  - op: gt
+    args:
+    - read
+    - 0
+  - op: le
+    args:
+    - read
+    - 4096
+  - op: le
+    args:
+    - read
+    - op: sub
+      args:
+      - max_result
+      - total
+  addends:
+  - total
+  - read
+  size_bits: 64
+  limit: max_result

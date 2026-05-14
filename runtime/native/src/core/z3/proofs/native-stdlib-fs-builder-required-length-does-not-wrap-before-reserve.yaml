@@ -1,0 +1,60 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_fs_builder_required_length_does_not_wrap_before_reserve
+kind: size_add_ok
+description: The native stdlib text builder only computes length + additional + 1 after
+  rejecting both the body growth sum and the trailing null-byte addition from wrapping
+  size_t.
+tags:
+- native-runtime
+- stdlib
+- filesystem
+- buffer-growth
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
+  symbol: kain_native_fs_builder_reserve
+  start_line: 964
+  reason: required_length and required_length + 1 are overflow-checked before reserve
+case:
+  declarations:
+  - name: length
+    sort:
+      kind: int
+  - name: additional
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - length
+    - 0
+  - op: ge
+    args:
+    - additional
+    - 0
+  - op: le
+    args:
+    - length
+    - size_max
+  - op: le
+    args:
+    - additional
+    - op: sub
+      args:
+      - op: sub
+        args:
+        - size_max
+        - length
+      - 1
+  addends:
+  - length
+  - additional
+  - 1
+  size_bits: 64
+  limit: size_max

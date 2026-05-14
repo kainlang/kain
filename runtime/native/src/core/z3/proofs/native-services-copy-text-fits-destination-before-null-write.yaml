@@ -1,0 +1,52 @@
+version: 1
+id: kain.native.core.proofs.native_services_copy_text_fits_destination_before_null_write
+kind: size_add_ok
+description: Service text copy clamps the source length to out_size - 1 before memcpy and
+  the trailing null write, preserving destination space for the terminator.
+tags:
+- native-runtime
+- services
+- string-copy
+- bounds
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_services.c
+  symbol: kain_copy_text
+  start_line: 26
+  reason: length is clamped below out_size before memcpy(out, text, length) and out[length] = 0
+case:
+  declarations:
+  - name: len
+    sort:
+      kind: int
+  - name: out_size
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - size_max
+    - 18446744073709551615
+  - op: ge
+    args:
+    - len
+    - 0
+  - op: gt
+    args:
+    - out_size
+    - 0
+  - op: le
+    args:
+    - out_size
+    - size_max
+  - op: lt
+    args:
+    - len
+    - out_size
+  addends:
+  - len
+  - 1
+  size_bits: 64
+  limit: out_size

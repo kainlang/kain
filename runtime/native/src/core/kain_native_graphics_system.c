@@ -6,6 +6,7 @@
 #include "../../include/kain_runtime_base.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -142,6 +143,14 @@ static void kain_native_graphics_free_bytes(uint8_t** bytes) {
     }
     free(*bytes);
     *bytes = NULL;
+}
+
+static int kain_native_graphics_size_add_overflows(size_t left, size_t right) {
+    return left > (SIZE_MAX - right);
+}
+
+static int kain_native_graphics_size_exceeds_i64(size_t value) {
+    return value > (size_t)INT64_MAX;
 }
 
 static void kain_native_graphics_release_session_resources(
@@ -346,6 +355,9 @@ static int64_t kain_native_graphics_decode_hex(
     if (byte_count == 0u) {
         return 0;
     }
+    if (kain_native_graphics_size_exceeds_i64(byte_count)) {
+        return -1;
+    }
     bytes = (uint8_t*)malloc(byte_count);
     if (!bytes) {
         return -1;
@@ -388,11 +400,26 @@ static int64_t kain_native_graphics_read_file_bytes(
     for (;;) {
         size_t read = fread(stack_buffer, 1, sizeof(stack_buffer), file);
         if (read > 0u) {
-            size_t needed = total + read;
+            size_t needed;
+            if (kain_native_graphics_size_add_overflows(total, read)) {
+                free(bytes);
+                fclose(file);
+                return -1;
+            }
+            needed = total + read;
+            if (kain_native_graphics_size_exceeds_i64(needed)) {
+                free(bytes);
+                fclose(file);
+                return -1;
+            }
             if (needed > capacity) {
                 size_t next_capacity = capacity ? capacity : sizeof(stack_buffer);
                 uint8_t* resized;
                 while (next_capacity < needed) {
+                    if (next_capacity > (SIZE_MAX / 2u)) {
+                        next_capacity = needed;
+                        break;
+                    }
                     next_capacity *= 2u;
                 }
                 resized = (uint8_t*)realloc(bytes, next_capacity);

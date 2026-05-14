@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_graphics_draw_command_count_stays_within_capacity
+kind: find_counterexample
+description: Draw submission only increments draw_command_count while it is still below
+  the fixed per-session draw-command capacity, so the next count cannot exceed that
+  capacity.
+tags:
+- native-runtime
+- graphics
+- draw
+- capacity
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
+  symbol: kain_native_graphics_draw_mesh
+  start_line: 1146
+  reason: draw_command_count increments only after the max-draw-commands guard
+case:
+  declarations:
+  - name: draw_command_count
+    sort:
+      kind: int
+  - name: max_draw_commands
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_draw_commands
+    - 8192
+  - op: ge
+    args:
+    - draw_command_count
+    - 0
+  - op: lt
+    args:
+    - draw_command_count
+    - max_draw_commands
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - draw_command_count
+      - 1
+    - max_draw_commands

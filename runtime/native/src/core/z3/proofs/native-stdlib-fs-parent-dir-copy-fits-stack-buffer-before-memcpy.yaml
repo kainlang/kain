@@ -1,0 +1,42 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_fs_parent_dir_copy_fits_stack_buffer_before_memcpy
+kind: size_add_ok
+description: Parent-directory creation only copies length + 1 bytes into its 4096-byte
+  stack buffer when the source path length is strictly smaller than that buffer capacity.
+tags:
+- native-runtime
+- stdlib
+- filesystem
+- string-copy
+- bounds
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
+  symbol: kain_native_fs_create_parent_dirs
+  start_line: 1081
+  reason: length < sizeof(buffer) is enforced before memcpy(buffer, path, length + 1)
+case:
+  declarations:
+  - name: length
+    sort:
+      kind: int
+  - name: buffer_capacity
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - buffer_capacity
+    - 4096
+  - op: ge
+    args:
+    - length
+    - 0
+  - op: lt
+    args:
+    - length
+    - buffer_capacity
+  addends:
+  - length
+  - 1
+  size_bits: 64
+  limit: buffer_capacity

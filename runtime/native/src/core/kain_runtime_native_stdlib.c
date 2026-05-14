@@ -25,6 +25,10 @@
 #include <unistd.h>
 #endif
 
+static int kain_native_size_add_overflows(size_t left, size_t right) {
+    return left > (SIZE_MAX - right);
+}
+
 void* kain_alloc_rc(size_t size, long long type_tag);
 
 #define KAIN_NATIVE_TAG_OPTION_NONE 0
@@ -958,21 +962,42 @@ static void kain_native_fs_builder_free(KainNativeFsTextBuilder* builder) {
 }
 
 static int kain_native_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t additional) {
-    size_t needed = builder->length + additional + 1;
+    size_t required_length;
+    size_t needed;
+    size_t next_capacity;
+    char* grown;
+    if (builder == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (kain_native_size_add_overflows(builder->length, additional)) {
+        errno = EOVERFLOW;
+        return -1;
+    }
+    required_length = builder->length + additional;
+    if (kain_native_size_add_overflows(required_length, 1u)) {
+        errno = EOVERFLOW;
+        return -1;
+    }
+    needed = required_length + 1u;
     if (needed <= builder->capacity) {
         return 0;
     }
-    while (builder->capacity < needed) {
-        builder->capacity *= 2;
-    }
-    {
-        char* grown = (char*)realloc(builder->data, builder->capacity);
-        if (grown == 0) {
-            errno = ENOMEM;
-            return -1;
+    next_capacity = builder->capacity ? builder->capacity : 1024u;
+    while (next_capacity < needed) {
+        if (next_capacity > (SIZE_MAX / 2u)) {
+            next_capacity = needed;
+            break;
         }
-        builder->data = grown;
+        next_capacity *= 2u;
     }
+    grown = (char*)realloc(builder->data, next_capacity);
+    if (grown == 0) {
+        errno = ENOMEM;
+        return -1;
+    }
+    builder->data = grown;
+    builder->capacity = next_capacity;
     return 0;
 }
 

@@ -1,0 +1,44 @@
+version: 1
+id: kain.native.core.proofs.native_graphics_buffer_count_stays_within_capacity
+kind: find_counterexample
+description: Graphics buffer creation only increments buffer_count while it is still below
+  the fixed per-session buffer capacity, so the next count cannot exceed that capacity.
+tags:
+- native-runtime
+- graphics
+- buffers
+- capacity
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_native_graphics_system.c
+  symbol: kain_native_graphics_buffer_create
+  start_line: 667
+  reason: buffer_count increments only after the max-buffers guard
+case:
+  declarations:
+  - name: buffer_count
+    sort:
+      kind: int
+  - name: max_buffers
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_buffers
+    - 4096
+  - op: ge
+    args:
+    - buffer_count
+    - 0
+  - op: lt
+    args:
+    - buffer_count
+    - max_buffers
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - buffer_count
+      - 1
+    - max_buffers

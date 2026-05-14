@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_patch_journal_count_stays_within_capacity
+kind: find_counterexample
+description: Patch recording only increments the native patch journal count while it is
+  still below the fixed journal capacity, so the next count cannot exceed that capacity.
+tags:
+- native-runtime
+- stdlib
+- patch
+- journal
+- capacity
+source:
+  path: D:\Kain-Lang\runtime\native\src\core\kain_runtime_native_stdlib.c
+  symbol: kain_native_patch_record_i64
+  start_line: 700
+  reason: g_kain_native_patch_journal_count increments only after the journal-capacity guard
+case:
+  declarations:
+  - name: journal_count
+    sort:
+      kind: int
+  - name: max_entries
+    sort:
+      kind: int
+  constraints:
+  - op: eq
+    args:
+    - max_entries
+    - 256
+  - op: ge
+    args:
+    - journal_count
+    - 0
+  - op: lt
+    args:
+    - journal_count
+    - max_entries
+  claim:
+    op: le
+    args:
+    - op: add
+      args:
+      - journal_count
+      - 1
+    - max_entries

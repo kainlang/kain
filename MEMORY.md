@@ -1,5 +1,100 @@
 # Kain Memory
 
+# 2026-05-13 - Native core runtime proof pack expanded into graphics, realtime, services, and stdlib hotspots
+
+The native C core runtime proof pack under `runtime/native/src/core/z3` is now materially broader, and two real overflow models in live C code were eliminated instead of being left as hypothetical review notes.
+
+What changed:
+
+- Hardened `runtime/native/src/core/kain_native_graphics_system.c` so `kain_native_graphics_read_file_bytes` rejects wrapped `total + read` growth, refuses file sizes above the public `int64_t` ABI limit, and stops doubling capacity once it must grow directly to `needed`.
+- Hardened `runtime/native/src/core/kain_runtime_native_stdlib.c` so `kain_native_fs_builder_reserve` rejects wrapped `length + additional + 1` arithmetic, tolerates zero-capacity callers, and stops doubling once it must grow directly to `needed`.
+- Added new durable proof cases under `runtime/native/src/core/z3/proofs` for graphics file-read growth, graphics buffer and draw-command capacity counters, realtime binding-array bounds, service text-copy bounds, stdlib fs-builder growth, stdlib patch-journal growth, and stdlib parent-dir stack-buffer copy bounds.
+- Added focused proof-pack lanes `graphics`, `realtime`, `services`, and `stdlib` in `runtime/native/src/core/z3/z3.toml`, and documented them in the pack README.
+
+Why it changed:
+
+- Z3 produced real pre-fix witnesses for unchecked runtime growth math:
+  `z3/reports/20260513T235032Z-native-graphics-read-file-needed-size-prepatch.json`
+  `z3/reports/20260513T235032Z-native-fs-builder-needed-size-prepatch.json`
+- Those witnesses showed the prior code admitted 64-bit wraparound models even before considering allocator behavior, so the right move was to harden the arithmetic and then prove the guarded formulas.
+
+Formal proof gathered with Z3:
+
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="graphics")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="stdlib")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="realtime")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="services")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core", lane="full")`
+
+The final full-pack report is `runtime/native/src/core/z3/reports/20260513T235833Z-native-core-full-expansion.json`, and it proved 28/28 native-core runtime obligations with zero counterexamples.
+
+Validation:
+
+- `powershell -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+
+Design decisions:
+
+- The graphics file loader now treats the signed ABI return range as part of the safety contract, not as a separate caller concern. If the runtime cannot report a positive byte count in `int64_t`, it fails before allocating and copying more bytes.
+- The stdlib text builder now prefers exact-to-needed growth once doubling would cross the `SIZE_MAX / 2` seam. That keeps the implementation simple while proving the dangerous arithmetic branch away.
+- The new proof cases are pack-local and explicit rather than chat-only solver checks, so future agents can rerun focused runtime lanes without rediscovering these seams.
+
+Current risks:
+
+- The native core pack still has no focused proof lane for graphics hex decode return-range guards or for global session-id exhaustion over arbitrarily many create/destroy cycles; those are the next arithmetic seams worth formalizing if graphics session churn becomes a priority.
+
+Recommended next step:
+
+- Add pack-local extraction templates for graphics/runtime utility patterns so future passes can auto-suggest `count < max => count + 1 <= max` and guarded `len + extra + 1` obligations across new C helpers instead of requiring fully manual proof-case authoring.
+
+# 2026-05-13 - Essential blade library ecosystem landed and cross-blade runtime imports were fixed
+
+The `blades/` folder is no longer just `kain-json` plus `kain-mcp`. It now has a first reusable Kain-library layer that future runnable blades can depend on directly, and the runtime/import path was fixed so sibling blade imports work even when a blade runs from its own `src` directory.
+
+What changed:
+
+- Added essential library blades: `kain-fmt`, `kain-log`, `kain-fsx`, `kain-config`, `kain-process-kit`, `kain-http`, `kain-actor-kit`, and `kain-interop-kit`.
+- Upgraded `blades/kain-json` from a tiny demo into a reusable JSON helper blade with `kain_json.kn` helpers and a real `kain_library` manifest.
+- Rewired `blades/kain-mcp` to depend on the shared blade layer instead of keeping all formatting/config/process/path helpers local.
+- Renamed the process wrapper blade from `kain-process` to `kain-process-kit` to avoid colliding with the existing Rust crate blade named `kain-process`.
+- Fixed `blade::discover_blade_module_roots_from` so it merges module roots from ancestor workspaces. This is the key behavior that lets `kain run blades/<blade>` resolve sibling blade imports when the interpreter current directory is `blades/<blade>/src`.
+- Added regression coverage in `crates/kain-blades` for ancestor-workspace module-root discovery and in `crates/kain-run` for executing a blade that imports a sibling blade dependency.
+
+Design decisions:
+
+- These new blades are intentionally thin authoring-core wrappers over existing stdlib/native capabilities, not competing second runtimes.
+- `kain-mcp` is the first proof consumer for the shared ecosystem, so common helpers should migrate outward into library blades before new MCP-local helpers are invented.
+- The Kain-facing process wrapper keeps the `kain_process.kn` module name for ergonomic imports, while the blade/package identity is `kain-process-kit` to stay unambiguous in workspace graphs.
+
+Validation:
+
+- `kain blades list .`
+- `kain blades graph .`
+- `kain check blades/kain-fmt`
+- `kain check blades/kain-json`
+- `kain check blades/kain-fsx`
+- `kain check blades/kain-config`
+- `kain check blades/kain-log`
+- `kain check blades/kain-http`
+- `kain check blades/kain-actor-kit`
+- `kain check blades/kain-interop-kit`
+- `kain check blades/kain-process-kit`
+- `kain check blades/kain-mcp`
+- `cargo test -p blade discovers_ancestor_workspace_module_roots_from_inside_a_blade`
+- `cargo test -p kain-run executes_kain_blade_with_sibling_blade_dependency`
+- `cargo run -p cli -- run blades/kain-json`
+- `cargo run -p cli -- run blades/kain-process-kit`
+- `cargo run -p cli -- run blades/kain-http`
+- `cargo run -p cli -- blades run kain-mcp --dry-run`
+
+Current risks:
+
+- `kain blades check .` still reports unrelated pre-existing missing generated paths for `kade-desktop` and the Fabric DCC suite apps. That workspace-level failure is not caused by the new essential blades.
+- The PATH-installed `C:\Users\Admin\.cargo\bin\kain.exe` can lag behind the checked-out workspace code. For blade import/runtime validation after blade-system changes, prefer `cargo run -p cli -- ...` or a freshly rebuilt local CLI binary.
+
+Recommended next step:
+
+- Build a second wave on top of this authoring core: `kain-schema`, `kain-cli`, `kain-template`, and likely `kain-toml` next, while continuing to move reusable logic out of `kain-mcp` and future blades into the shared library layer.
+
 # 2026-05-13 - raw PTX/CUDA compute backend added beside canonical SPIR-V
 
 Kain now has a first vertical CUDA backend slice without depending on `nvcc` or
@@ -39,22 +134,22 @@ Design decisions:
 
 Formal proof gathered with Z3:
 
-- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\gpu", lane="ptx")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\gpu", lane="ptx")`
   proved 5/5 PTX obligations: dispatch-thread-id lowering, group-index
   flattening, parameter alignment, runtime/codegen parameter-order equivalence,
   and storage-buffer byte-range safety.
-- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\gpu", lane="full")`
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\gpu", lane="full")`
   proved 11/11 combined SPIR-V/PTX GPU codegen obligations.
 
 Validation:
 
 - `cargo fmt -p kain-core -p gpu -p kain-driver -p cli -p kain-gpu-runtime -p kain-build -p kain-omni`
-- `cargo test -p gpu --test ptx_codegen --target-dir target\codex-ptx-tests -- --nocapture`
-- `cargo test -p cli cuda --target-dir target\codex-ptx-tests -- --nocapture`
-- `cargo test -p kain-driver compile_shader_artifact_bundle --target-dir target\codex-ptx-tests -- --nocapture`
-- `cargo test -p kain-gpu-runtime ptx_dispatch_group_count_rounds_up --target-dir target\codex-ptx-tests -- --nocapture`
-- `cargo test -p kain-gpu-runtime nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available --target-dir target\codex-ptx-tests -- --nocapture`
-- `cargo check -p gpu -p kain-driver -p cli -p kain-gpu-runtime --target-dir target\codex-ptx-check`
+- `cargo test -p gpu --test ptx_codegen --target-dir target\\codex-ptx-tests -- --nocapture`
+- `cargo test -p cli cuda --target-dir target\\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-driver compile_shader_artifact_bundle --target-dir target\\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-gpu-runtime ptx_dispatch_group_count_rounds_up --target-dir target\\codex-ptx-tests -- --nocapture`
+- `cargo test -p kain-gpu-runtime nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available --target-dir target\\codex-ptx-tests -- --nocapture`
+- `cargo check -p gpu -p kain-driver -p cli -p kain-gpu-runtime --target-dir target\\codex-ptx-check`
 
 Current hardware note:
 
@@ -102,6 +197,50 @@ Validation:
   `0.613 s`
 - Direct MCP `initialize` smoke against the same command from
   `C:\Users\Admin` returned the first `Content-Length` frame in about `0.594 s`
+
+# 2026-05-13 - `kain build` now uses a Rust-style planned artifact graph
+
+The Kain build surface now routes normal file, project, Rust-output, and
+native-ui builds through `crates/kain-build` instead of keeping separate CLI
+branches for each artifact family. The design goal is Rust/Cargo-grade build
+quality with stronger lane isolation and explicit artifact identity.
+
+What changed:
+
+- `kain-build` owns typed build planning for Kain file builds, project builds,
+  Rust artifact emission, native-ui app materialization, Blade workspaces,
+  Cargo adapters, C sidecars, GPU artifacts, Fabric validation/runs, and
+  explicit Node/Bun/custom tasks.
+- Canonical build artifacts now default to
+  `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...`; cache stamps remain
+  under `.kain/cache/build`, and reports remain under `.kain/reports/build`.
+- Build reports and artifact manifests include the build lane, host, target,
+  and SHA-256 output identities. Cargo invocations use isolated
+  `CARGO_TARGET_DIR` roots and harvest `compiler-artifact` JSON messages.
+- `kain build --lane bootstrap|dev|release|dist|selfhost` is the user-facing
+  lane selector. Release-like lanes map Cargo work to release profile while
+  `dev` and `bootstrap` stay debug-oriented.
+- Native app and GPU-runtime helper builds now pass isolated Cargo target dirs
+  instead of writing through ambient Cargo defaults.
+- `crates/kain-build/z3` is the durable proof pack for output-collision,
+  lane-isolation, and bounded DAG-cycle invariants.
+
+Design decisions:
+
+- Treat `.kain/out` as the canonical artifact contract. Source-adjacent or
+  explicit output paths are materialized copies/views unless a manifest has a
+  deliberate override.
+- Keep build semantics in `kain-build`; CLI code should parse arguments, call
+  planner/executor APIs, and print reports.
+- If a future adapter needs Cargo, set `CARGO_TARGET_DIR` and parse Cargo JSON
+  artifacts rather than checking for folder existence.
+
+Validation:
+
+- `cargo check -p kain-build --target-dir target\codex-kain-build-system`
+- `cargo test -p kain-build --target-dir target\codex-kain-build-system -- --nocapture`
+- `cargo check -p kain-commands -p cli --target-dir target\codex-kain-build-system-cli`
+- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\kain-build", lane="build")`
 
 # 2026-05-13 - `kain_mcp` now boots directly from compiled `kain.exe` without the Python shim
 
@@ -1123,12 +1262,12 @@ What changed:
 
 - The `gpu-compute` blade emits three Kain-authored shader artifacts: `gpu_step`, `nebula_field`, and `spectral_lattice`, with SPIR-V, HLSL, reflection JSON, and shader bundle outputs validated by the smoke runner.
 - The synthetic Cargo blade now depends on `blade` and `kain-fs`, builds `blade_singularity_atlas`, discovers the Blade workspace graph, reads GPU artifacts through `kain-fs`, and renders an atlas report as SVG, PPM, JSON, and HTML under `outputs/singularity-atlas`.
-- `scripts/run_blades_smoke.py` now executes the built binary from `.kain/build`, validates the atlas output, checks the expected compute keys, and still proves cache reuse and clean lab cache rebuilds.
+- `scripts/run_blades_smoke.py` now executes the built binary from `.kain/out`, validates the atlas output, checks the expected compute keys, and still proves cache reuse and clean lab cache rebuilds.
 
 Design decisions:
 
 - Keep executable smoke artifacts produced by real Blade build tasks. The lab runner may validate and run them, but it should not become a replacement build system.
-- Runtime admire/report outputs can live under `outputs/` when they are produced by the built executable; build artifacts, stamps, and build reports still belong under `.kain/build`, `.kain/cache/build`, and `.kain/reports/build`.
+- Runtime admire/report outputs can live under `outputs/` when they are produced by the built executable; build artifacts, stamps, and build reports now belong under `.kain/out`, `.kain/cache/build`, and `.kain/reports/build`.
 - Current GPU artifact generation accepts sample-based Float math in these smoke shaders; avoid unsupported `Float(index)`-style casts until the shader compiler surface explicitly supports them.
 
 Validation:
@@ -1393,7 +1532,7 @@ What changed:
 
 Design decisions:
 
-- Build products are workspace-local and disposable: `.kain/build/<profile>/<target>/...` for canonical artifacts, `.kain/cache/build/stamps` for fingerprints, and `.kain/reports/build` for build reports/events.
+- Build products are workspace-local and disposable: `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...` for canonical artifacts, `.kain/cache/build/stamps` for fingerprints, and `.kain/reports/build` for build reports/events.
 - `kain-blades` still owns discovery and manifest resolution; `kain-build` owns build graph planning and execution. Callers should not rescan `blades/*`, `apps/*`, or `crates/*`, and labs should not carry custom build scripts for artifacts the build graph can own.
 - Fabric GPU manifests are validated by default and only run when `--include-vulkan` is passed, because local machines may not have a working Vulkan compute runtime.
 - Safe clean is intentionally narrow: `--clean` removes only workspace-local `.kain` artifact/cache/report roots.
