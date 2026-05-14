@@ -1,5 +1,30 @@
 # Kain Memory
 
+# 2026-05-14 - Native net, async, and process handle registries now use hashed sidecars and bitset allocators
+
+The native runtime's hottest fixed-capacity registries now avoid linear scans:
+
+- `runtime/native/src/core/kain_native_net_system.c` uses SplitMix-style ID hashing, power-of-two probe tables, and occupancy bits for connections, listeners, HTTP requests, responses, and servers.
+- `runtime/native/src/core/kain_runtime_async.c` uses the same sidecar pattern for task and timer lookup, and `kain_task_await` / `kain_async_sleep` now call the internal executor directly instead of bouncing through the public poll wrapper.
+- `runtime/native/src/core/kain_native_process_system.c` uses the same sidecar pattern for process specs and process handles, with bitset-based free-slot selection and occupancy-based counts.
+- The low-bit decoder stays shared with the already-proved actor occupancy path; new probe-bound proofs live under `runtime/native/src/core/z3/proofs-experimental/`.
+
+Validation:
+
+- Z3 MCP `check_smt2` returned `unsat` for `net-handle-index-probe-bounds`, `async-handle-index-probe-bounds`, and `process-handle-index-probe-bounds`.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_native_net_system.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_async.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_native_process_system.c`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
+- `bash runtime/conformance/net_runtime/run_tests.sh --verbose`
+- `bash runtime/conformance/process_runtime/run_tests.sh --verbose`
+
+Scratch benchmark:
+
+- `target/codex_runtime_registry_hotpath_benchmark.exe`
+- lookup path: about `4.74x` faster than the old linear scan
+- free-slot path: about `13.21x` faster than the old linear scan
+
 # 2026-05-14 - Benchmark lane now runs release compiler + benchmark-native tuning
 
 The paired Kain-vs-Rust benchmark lane now prefers a release-built `kain.exe`

@@ -10,6 +10,7 @@
 #include "../../include/kain_runtime_async.h"
 #include "../../include/kain_runtime_base.h"
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -22,6 +23,25 @@
 #define KAIN_ASYNC_SOURCE_PATH "runtime/native/src/core/kain_runtime_async.c"
 #define KAIN_ASYNC_MAX_TASKS 256
 #define KAIN_ASYNC_MAX_TIMERS 256
+#define KAIN_ASYNC_SLOT_WORD_BITS 64u
+#define KAIN_ASYNC_TASK_WORD_COUNT (KAIN_ASYNC_MAX_TASKS / KAIN_ASYNC_SLOT_WORD_BITS)
+#define KAIN_ASYNC_TIMER_WORD_COUNT (KAIN_ASYNC_MAX_TIMERS / KAIN_ASYNC_SLOT_WORD_BITS)
+#define KAIN_ASYNC_TASK_INDEX_CAPACITY 512u
+#define KAIN_ASYNC_TASK_INDEX_MASK (KAIN_ASYNC_TASK_INDEX_CAPACITY - 1u)
+#define KAIN_ASYNC_TIMER_INDEX_CAPACITY 512u
+#define KAIN_ASYNC_TIMER_INDEX_MASK (KAIN_ASYNC_TIMER_INDEX_CAPACITY - 1u)
+#if (KAIN_ASYNC_MAX_TASKS % KAIN_ASYNC_SLOT_WORD_BITS) != 0
+#error "KAIN_ASYNC_MAX_TASKS must be divisible by 64 for occupancy-word indexing."
+#endif
+#if (KAIN_ASYNC_MAX_TIMERS % KAIN_ASYNC_SLOT_WORD_BITS) != 0
+#error "KAIN_ASYNC_MAX_TIMERS must be divisible by 64 for occupancy-word indexing."
+#endif
+#if (KAIN_ASYNC_TASK_INDEX_CAPACITY & KAIN_ASYNC_TASK_INDEX_MASK) != 0
+#error "KAIN_ASYNC_TASK_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_ASYNC_TIMER_INDEX_CAPACITY & KAIN_ASYNC_TIMER_INDEX_MASK) != 0
+#error "KAIN_ASYNC_TIMER_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
 
 #if defined(_MSC_VER)
 #define KAIN_THREAD_LOCAL __declspec(thread)
@@ -82,6 +102,10 @@ typedef struct {
 
 static KainAsyncTaskRecord g_async_tasks[KAIN_ASYNC_MAX_TASKS];
 static KainAsyncTimerRecord g_async_timers[KAIN_ASYNC_MAX_TIMERS];
+static uint64_t g_async_task_occupancy_words[KAIN_ASYNC_TASK_WORD_COUNT];
+static uint64_t g_async_timer_occupancy_words[KAIN_ASYNC_TIMER_WORD_COUNT];
+static uint32_t g_async_task_index[KAIN_ASYNC_TASK_INDEX_CAPACITY];
+static uint32_t g_async_timer_index[KAIN_ASYNC_TIMER_INDEX_CAPACITY];
 static KainAsyncMutex g_async_global_lock;
 static KainTaskId g_async_next_task_id = 1;
 static KainTimerId g_async_next_timer_id = 1;
@@ -186,6 +210,10 @@ static void kain_async_set_diag(
 static void kain_async_runtime_init_impl(void) {
     memset(g_async_tasks, 0, sizeof(g_async_tasks));
     memset(g_async_timers, 0, sizeof(g_async_timers));
+    memset(g_async_task_occupancy_words, 0, sizeof(g_async_task_occupancy_words));
+    memset(g_async_timer_occupancy_words, 0, sizeof(g_async_timer_occupancy_words));
+    memset(g_async_task_index, 0, sizeof(g_async_task_index));
+    memset(g_async_timer_index, 0, sizeof(g_async_timer_index));
     kain_async_mutex_init(&g_async_global_lock);
     g_async_next_task_id = 1;
     g_async_next_timer_id = 1;
@@ -213,8 +241,137 @@ static void kain_async_ensure_initialized(void) {
 #endif
 }
 
+/*
+ * Proofs:
+ * - runtime/native/src/core/z3/proofs-experimental/async-handle-index-probe-bounds.smt2
+ * - runtime/native/src/core/z3/proofs-experimental/actor-table-debruijn-hash-distinct.smt2
+ *
+ * The solver owns the index math for both task and timer registries: masked
+ * probes must stay in bounds, and the one-hot low-bit decoder is shared with
+ * the already-proved actor occupancy path.
+ */
+static uint64_t kain_async_mix_id(uint64_t id) {
+    uint64_t x = id;
+    x ^= x >> 30u;
+    x *= UINT64_C(0xbf58476d1ce4e5b9);
+    x ^= x >> 27u;
+    x *= UINT64_C(0x94d049bb133111eb);
+    x ^= x >> 31u;
+    return x;
+}
+
+static uint64_t kain_async_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_async_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];
+}
+
+static uint32_t kain_async_index_start_slot(uint64_t id, uint32_t mask) {
+    return (uint32_t)(kain_async_mix_id(id) & mask);
+}
+
+static int kain_async_index_insert(
+    uint32_t* index_table,
+    uint32_t index_capacity,
+    uint32_t index_mask,
+    uint64_t id,
+    uint32_t slot
+) {
+    uint32_t start_index = kain_async_index_start_slot(id, index_mask);
+    uint32_t encoded_slot = slot + 1u;
+    uint32_t probe;
+    for (probe = 0u; probe < index_capacity; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & index_mask;
+        uint32_t candidate = index_table[candidate_index];
+        if (candidate == 0u || candidate == encoded_slot) {
+            index_table[candidate_index] = encoded_slot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_async_find_free_task_slot(uint32_t* out_slot) {
+    uint32_t word_index;
+    if (out_slot == 0) {
+        return 0;
+    }
+    for (word_index = 0u; word_index < KAIN_ASYNC_TASK_WORD_COUNT; ++word_index) {
+        uint64_t free_mask = ~g_async_task_occupancy_words[word_index];
+        if (free_mask != 0u) {
+            *out_slot = word_index * KAIN_ASYNC_SLOT_WORD_BITS + (uint32_t)kain_async_low_bit_index_u64(
+                kain_async_isolate_low_bit_u64(free_mask)
+            );
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_async_find_free_timer_slot(uint32_t* out_slot) {
+    uint32_t word_index;
+    if (out_slot == 0) {
+        return 0;
+    }
+    for (word_index = 0u; word_index < KAIN_ASYNC_TIMER_WORD_COUNT; ++word_index) {
+        uint64_t free_mask = ~g_async_timer_occupancy_words[word_index];
+        if (free_mask != 0u) {
+            *out_slot = word_index * KAIN_ASYNC_SLOT_WORD_BITS + (uint32_t)kain_async_low_bit_index_u64(
+                kain_async_isolate_low_bit_u64(free_mask)
+            );
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void kain_async_rebuild_task_index(void) {
+    uint32_t slot;
+    memset(g_async_task_index, 0, sizeof(g_async_task_index));
+    for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
+        if (g_async_tasks[slot].in_use) {
+            (void)kain_async_index_insert(
+                g_async_task_index,
+                KAIN_ASYNC_TASK_INDEX_CAPACITY,
+                KAIN_ASYNC_TASK_INDEX_MASK,
+                (uint64_t)g_async_tasks[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_async_rebuild_timer_index(void) {
+    uint32_t slot;
+    memset(g_async_timer_index, 0, sizeof(g_async_timer_index));
+    for (slot = 0u; slot < KAIN_ASYNC_MAX_TIMERS; ++slot) {
+        if (g_async_timers[slot].in_use) {
+            (void)kain_async_index_insert(
+                g_async_timer_index,
+                KAIN_ASYNC_TIMER_INDEX_CAPACITY,
+                KAIN_ASYNC_TIMER_INDEX_MASK,
+                (uint64_t)g_async_timers[slot].id,
+                slot
+            );
+        }
+    }
+}
+
 static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
-    size_t i;
+    uint32_t start_index;
+    uint32_t probe;
     KainAsyncTaskRecord* record = NULL;
 
     if (task_id == KAIN_TASK_ID_INVALID) {
@@ -223,9 +380,19 @@ static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
 
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
-    for (i = 0; i < KAIN_ASYNC_MAX_TASKS; i++) {
-        if (g_async_tasks[i].in_use && g_async_tasks[i].id == task_id) {
-            record = &g_async_tasks[i];
+    start_index = kain_async_index_start_slot((uint64_t)task_id, KAIN_ASYNC_TASK_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_ASYNC_TASK_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TASK_INDEX_MASK;
+        uint32_t encoded_slot = g_async_task_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            break;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_ASYNC_MAX_TASKS &&
+            g_async_tasks[slot].in_use &&
+            g_async_tasks[slot].id == task_id) {
+            record = &g_async_tasks[slot];
             break;
         }
     }
@@ -234,35 +401,45 @@ static KainAsyncTaskRecord* kain_async_find_task(KainTaskId task_id) {
 }
 
 static KainAsyncTaskRecord* kain_async_allocate_task_record(void) {
-    size_t i;
+    uint32_t slot;
+    uint64_t bit;
     KainAsyncTaskRecord* record = NULL;
 
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
-    for (i = 0; i < KAIN_ASYNC_MAX_TASKS; i++) {
-        if (!g_async_tasks[i].in_use) {
-            record = &g_async_tasks[i];
+    if (kain_async_find_free_task_slot(&slot)) {
+        record = &g_async_tasks[slot];
+        memset(record, 0, sizeof(*record));
+        record->in_use = 1;
+        record->id = g_async_next_task_id++;
+        record->state = KAIN_TASK_STATE_READY;
+        record->handle.id = record->id;
+        record->handle.owner = record;
+        kain_async_mutex_init(&record->lock);
+        kain_async_cond_init(&record->cond);
+
+        atomic_init(&record->runtime_state.poll_count, 0);
+        atomic_init(&record->runtime_state.wake_count, 0);
+        atomic_init(&record->runtime_state.timer_count, 0);
+        atomic_init(&record->runtime_state.wake_requested, 0);
+        atomic_init(&record->runtime_state.timer_fired, 0);
+        atomic_init(&record->runtime_state.cancelled, 0);
+        atomic_init(&record->runtime_state.state_snapshot, KAIN_TASK_STATE_READY);
+        record->runtime_state.task_id = record->id;
+
+        record->future_context.wake_handle = &record->handle;
+        record->future_context.runtime_data = &record->runtime_state;
+        bit = UINT64_C(1) << (slot & 63u);
+        g_async_task_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] |= bit;
+        if (!kain_async_index_insert(
+                g_async_task_index,
+                KAIN_ASYNC_TASK_INDEX_CAPACITY,
+                KAIN_ASYNC_TASK_INDEX_MASK,
+                (uint64_t)record->id,
+                slot)) {
+            g_async_task_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~bit;
             memset(record, 0, sizeof(*record));
-            record->in_use = 1;
-            record->id = g_async_next_task_id++;
-            record->state = KAIN_TASK_STATE_READY;
-            record->handle.id = record->id;
-            record->handle.owner = record;
-            kain_async_mutex_init(&record->lock);
-            kain_async_cond_init(&record->cond);
-
-            atomic_init(&record->runtime_state.poll_count, 0);
-            atomic_init(&record->runtime_state.wake_count, 0);
-            atomic_init(&record->runtime_state.timer_count, 0);
-            atomic_init(&record->runtime_state.wake_requested, 0);
-            atomic_init(&record->runtime_state.timer_fired, 0);
-            atomic_init(&record->runtime_state.cancelled, 0);
-            atomic_init(&record->runtime_state.state_snapshot, KAIN_TASK_STATE_READY);
-            record->runtime_state.task_id = record->id;
-
-            record->future_context.wake_handle = &record->handle;
-            record->future_context.runtime_data = &record->runtime_state;
-            break;
+            record = NULL;
         }
     }
     kain_async_mutex_unlock(&g_async_global_lock);
@@ -270,29 +447,30 @@ static KainAsyncTaskRecord* kain_async_allocate_task_record(void) {
 }
 
 static KainAsyncTimerRecord* kain_async_allocate_timer_record(void) {
-    size_t i;
+    uint32_t slot;
+    uint64_t bit;
     KainAsyncTimerRecord* record = NULL;
 
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
-    for (i = 0; i < KAIN_ASYNC_MAX_TIMERS; i++) {
-        if (!g_async_timers[i].in_use) {
-            record = &g_async_timers[i];
-            memset(record, 0, sizeof(*record));
-            record->in_use = 1;
-            record->id = g_async_next_timer_id++;
-            atomic_init(&record->cancelled, 0);
-            atomic_init(&record->fired, 0);
-            atomic_init(&record->started, 0);
-            break;
-        }
+    if (kain_async_find_free_timer_slot(&slot)) {
+        record = &g_async_timers[slot];
+        memset(record, 0, sizeof(*record));
+        record->in_use = 1;
+        record->id = g_async_next_timer_id++;
+        atomic_init(&record->cancelled, 0);
+        atomic_init(&record->fired, 0);
+        atomic_init(&record->started, 0);
+        bit = UINT64_C(1) << (slot & 63u);
+        g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] |= bit;
     }
     kain_async_mutex_unlock(&g_async_global_lock);
     return record;
 }
 
 static KainAsyncTimerRecord* kain_async_find_timer(KainTimerId timer_id) {
-    size_t i;
+    uint32_t start_index;
+    uint32_t probe;
     KainAsyncTimerRecord* record = NULL;
 
     if (timer_id == KAIN_TIMER_ID_INVALID) {
@@ -301,9 +479,19 @@ static KainAsyncTimerRecord* kain_async_find_timer(KainTimerId timer_id) {
 
     kain_async_ensure_initialized();
     kain_async_mutex_lock(&g_async_global_lock);
-    for (i = 0; i < KAIN_ASYNC_MAX_TIMERS; i++) {
-        if (g_async_timers[i].in_use && g_async_timers[i].id == timer_id) {
-            record = &g_async_timers[i];
+    start_index = kain_async_index_start_slot((uint64_t)timer_id, KAIN_ASYNC_TIMER_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_ASYNC_TIMER_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_ASYNC_TIMER_INDEX_MASK;
+        uint32_t encoded_slot = g_async_timer_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            break;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_ASYNC_MAX_TIMERS &&
+            g_async_timers[slot].in_use &&
+            g_async_timers[slot].id == timer_id) {
+            record = &g_async_timers[slot];
             break;
         }
     }
@@ -698,7 +886,7 @@ int kain_task_await(
             return -1;
         }
 
-        poll_result = kain_task_poll(task_id, &local_result, diag);
+        poll_result = kain_async_execute_task(task, &local_result, diag);
         if (poll_result == KAIN_POLL_READY) {
             if (result) {
                 *result = local_result;
@@ -813,11 +1001,33 @@ KainTimerId kain_timer_register(
 
     timer->wake_handle = wake_handle;
     timer->delay_ms = delay_ms;
+    if (!kain_async_index_insert(
+            g_async_timer_index,
+            KAIN_ASYNC_TIMER_INDEX_CAPACITY,
+            KAIN_ASYNC_TIMER_INDEX_MASK,
+            (uint64_t)timer->id,
+            (uint32_t)(timer - g_async_timers))) {
+        uint32_t slot = (uint32_t)(timer - g_async_timers);
+        g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
+        memset(timer, 0, sizeof(*timer));
+        kain_async_rebuild_timer_index();
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TIMER_FAILED,
+            "Async timer table full",
+            "No additional timers can be allocated."
+        );
+        return KAIN_TIMER_ID_INVALID;
+    }
 
 #ifdef _WIN32
     timer->thread_handle = CreateThread(NULL, 0, kain_async_timer_thread_proc, timer, 0, NULL);
     if (!timer->thread_handle) {
-        timer->in_use = 0;
+        uint32_t slot = (uint32_t)(timer - g_async_timers);
+        g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
+        memset(timer, 0, sizeof(*timer));
+        kain_async_rebuild_timer_index();
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -830,7 +1040,10 @@ KainTimerId kain_timer_register(
     CloseHandle(timer->thread_handle);
 #else
     if (pthread_create(&timer->thread_handle, NULL, kain_async_timer_thread_proc, timer) != 0) {
-        timer->in_use = 0;
+        uint32_t slot = (uint32_t)(timer - g_async_timers);
+        g_async_timer_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~(UINT64_C(1) << (slot & 63u));
+        memset(timer, 0, sizeof(*timer));
+        kain_async_rebuild_timer_index();
         kain_async_set_diag(
             diag,
             KAIN_DIAG_SEVERITY_ERROR,
@@ -904,7 +1117,7 @@ KainTaskId kain_async_sleep(
     task->result = NULL;
     atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_READY, memory_order_release);
 
-    if (kain_task_poll(task->id, &result, diag) == KAIN_POLL_ERROR) {
+    if (kain_async_execute_task(task, &result, diag) == KAIN_POLL_ERROR) {
         kain_task_cancel(task->id, NULL);
         return KAIN_TASK_ID_INVALID;
     }

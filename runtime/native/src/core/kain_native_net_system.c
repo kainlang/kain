@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +93,7 @@ typedef struct KainNativeHttpServer {
     char host[KAIN_NATIVE_NET_MAX_KEY];
     KainNativeHttpRoute routes[KAIN_NATIVE_NET_MAX_ROUTES];
     int64_t route_count;
+    uint64_t pending_request_slots;
 } KainNativeHttpServer;
 
 typedef struct KainNativeParsedUrl {
@@ -107,6 +109,46 @@ static KainNativeTcpListener g_listeners[KAIN_NATIVE_NET_MAX_LISTENERS];
 static KainNativeHttpRequest g_requests[KAIN_NATIVE_NET_MAX_HTTP_REQUESTS];
 static KainNativeHttpResponse g_responses[KAIN_NATIVE_NET_MAX_HTTP_RESPONSES];
 static KainNativeHttpServer g_servers[KAIN_NATIVE_NET_MAX_HTTP_SERVERS];
+static uint64_t g_connection_occupancy_bits = 0u;
+static uint64_t g_listener_occupancy_bits = 0u;
+static uint64_t g_request_occupancy_bits = 0u;
+static uint64_t g_response_occupancy_bits = 0u;
+static uint64_t g_server_occupancy_bits = 0u;
+#define KAIN_NATIVE_NET_CONNECTION_VALID_MASK UINT64_MAX
+#define KAIN_NATIVE_NET_LISTENER_VALID_MASK UINT64_C(0x000000000000ffff)
+#define KAIN_NATIVE_NET_REQUEST_VALID_MASK UINT64_MAX
+#define KAIN_NATIVE_NET_RESPONSE_VALID_MASK UINT64_MAX
+#define KAIN_NATIVE_NET_SERVER_VALID_MASK UINT64_C(0x000000000000ffff)
+#define KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY 128u
+#define KAIN_NATIVE_NET_CONNECTION_INDEX_MASK (KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY - 1u)
+#define KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY 32u
+#define KAIN_NATIVE_NET_LISTENER_INDEX_MASK (KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY - 1u)
+#define KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY 128u
+#define KAIN_NATIVE_NET_REQUEST_INDEX_MASK (KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY - 1u)
+#define KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY 128u
+#define KAIN_NATIVE_NET_RESPONSE_INDEX_MASK (KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY - 1u)
+#define KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY 32u
+#define KAIN_NATIVE_NET_SERVER_INDEX_MASK (KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY - 1u)
+#if (KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY & KAIN_NATIVE_NET_CONNECTION_INDEX_MASK) != 0
+#error "KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY & KAIN_NATIVE_NET_LISTENER_INDEX_MASK) != 0
+#error "KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY & KAIN_NATIVE_NET_REQUEST_INDEX_MASK) != 0
+#error "KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY & KAIN_NATIVE_NET_RESPONSE_INDEX_MASK) != 0
+#error "KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY & KAIN_NATIVE_NET_SERVER_INDEX_MASK) != 0
+#error "KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+static uint32_t g_connection_index[KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY];
+static uint32_t g_listener_index[KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY];
+static uint32_t g_request_index[KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY];
+static uint32_t g_response_index[KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY];
+static uint32_t g_server_index[KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY];
 static int64_t g_next_connection_id = 1;
 static int64_t g_next_listener_id = 1;
 static int64_t g_next_request_id = 1;
@@ -160,6 +202,159 @@ static int kain_native_net_parse_content_length_header(const char* text, size_t*
 
     *out_length = (size_t)parsed;
     return 1;
+}
+
+/*
+ * Proofs:
+ * - runtime/native/src/core/z3/proofs-experimental/net-handle-index-probe-bounds.smt2
+ * - runtime/native/src/core/z3/proofs-experimental/actor-table-debruijn-hash-distinct.smt2
+ *
+ * The solver owns two trust boundaries here: masked probe indices must remain
+ * inside each sidecar handle table, and the de Bruijn low-bit decode is shared
+ * with the already-proved actor occupancy path.
+ */
+static uint64_t kain_native_net_mix_id(int64_t id) {
+    uint64_t x = (uint64_t)id;
+    x ^= x >> 30u;
+    x *= UINT64_C(0xbf58476d1ce4e5b9);
+    x ^= x >> 27u;
+    x *= UINT64_C(0x94d049bb133111eb);
+    x ^= x >> 31u;
+    return x;
+}
+
+static uint64_t kain_native_net_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_native_net_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];
+}
+
+static uint32_t kain_native_net_index_start_slot(int64_t id, uint32_t mask) {
+    return (uint32_t)(kain_native_net_mix_id(id) & mask);
+}
+
+static int kain_native_net_index_insert(
+    uint32_t* index_table,
+    uint32_t index_capacity,
+    uint32_t index_mask,
+    int64_t id,
+    uint32_t slot
+) {
+    uint32_t start_index = kain_native_net_index_start_slot(id, index_mask);
+    uint32_t encoded_slot = slot + 1u;
+    uint32_t probe;
+    for (probe = 0u; probe < index_capacity; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & index_mask;
+        uint32_t candidate = index_table[candidate_index];
+        if (candidate == 0u || candidate == encoded_slot) {
+            index_table[candidate_index] = encoded_slot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_native_net_find_free_slot_u64(uint64_t occupancy_bits, uint64_t valid_mask, uint32_t* out_slot) {
+    uint64_t free_mask = (~occupancy_bits) & valid_mask;
+    if (out_slot == 0 || free_mask == 0u) {
+        return 0;
+    }
+    *out_slot = (uint32_t)kain_native_net_low_bit_index_u64(
+        kain_native_net_isolate_low_bit_u64(free_mask)
+    );
+    return 1;
+}
+
+static void kain_native_net_rebuild_connection_index(void) {
+    uint32_t slot;
+    memset(g_connection_index, 0, sizeof(g_connection_index));
+    for (slot = 0u; slot < KAIN_NATIVE_NET_MAX_CONNECTIONS; ++slot) {
+        if (g_connections[slot].in_use) {
+            (void)kain_native_net_index_insert(
+                g_connection_index,
+                KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY,
+                KAIN_NATIVE_NET_CONNECTION_INDEX_MASK,
+                g_connections[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_net_rebuild_listener_index(void) {
+    uint32_t slot;
+    memset(g_listener_index, 0, sizeof(g_listener_index));
+    for (slot = 0u; slot < KAIN_NATIVE_NET_MAX_LISTENERS; ++slot) {
+        if (g_listeners[slot].in_use) {
+            (void)kain_native_net_index_insert(
+                g_listener_index,
+                KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY,
+                KAIN_NATIVE_NET_LISTENER_INDEX_MASK,
+                g_listeners[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_net_rebuild_request_index(void) {
+    uint32_t slot;
+    memset(g_request_index, 0, sizeof(g_request_index));
+    for (slot = 0u; slot < KAIN_NATIVE_NET_MAX_HTTP_REQUESTS; ++slot) {
+        if (g_requests[slot].in_use) {
+            (void)kain_native_net_index_insert(
+                g_request_index,
+                KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY,
+                KAIN_NATIVE_NET_REQUEST_INDEX_MASK,
+                g_requests[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_net_rebuild_response_index(void) {
+    uint32_t slot;
+    memset(g_response_index, 0, sizeof(g_response_index));
+    for (slot = 0u; slot < KAIN_NATIVE_NET_MAX_HTTP_RESPONSES; ++slot) {
+        if (g_responses[slot].in_use) {
+            (void)kain_native_net_index_insert(
+                g_response_index,
+                KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY,
+                KAIN_NATIVE_NET_RESPONSE_INDEX_MASK,
+                g_responses[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_net_rebuild_server_index(void) {
+    uint32_t slot;
+    memset(g_server_index, 0, sizeof(g_server_index));
+    for (slot = 0u; slot < KAIN_NATIVE_NET_MAX_HTTP_SERVERS; ++slot) {
+        if (g_servers[slot].in_use) {
+            (void)kain_native_net_index_insert(
+                g_server_index,
+                KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY,
+                KAIN_NATIVE_NET_SERVER_INDEX_MASK,
+                g_servers[slot].id,
+                slot
+            );
+        }
+    }
 }
 
 #ifdef _WIN32
@@ -362,125 +557,275 @@ static int kain_native_net_append_bytes(unsigned char** buffer, size_t* length, 
 }
 
 static KainNativeTcpConnection* kain_native_net_connection(int64_t id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_CONNECTIONS; ++index) {
-        if (g_connections[index].in_use && g_connections[index].id == id) {
-            return &g_connections[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_net_index_start_slot(id, KAIN_NATIVE_NET_CONNECTION_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_NET_CONNECTION_INDEX_MASK;
+        uint32_t encoded_slot = g_connection_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_NET_MAX_CONNECTIONS &&
+            g_connections[slot].in_use &&
+            g_connections[slot].id == id) {
+            return &g_connections[slot];
         }
     }
     return 0;
 }
 
 static KainNativeTcpConnection* kain_native_net_alloc_connection(SOCKET socket_handle) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_CONNECTIONS; ++index) {
-        if (!g_connections[index].in_use) {
-            memset(&g_connections[index], 0, sizeof(g_connections[index]));
-            g_connections[index].in_use = 1;
-            g_connections[index].id = g_next_connection_id++;
-            g_connections[index].socket_handle = socket_handle;
-            return &g_connections[index];
-        }
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_net_find_free_slot_u64(
+            g_connection_occupancy_bits,
+            KAIN_NATIVE_NET_CONNECTION_VALID_MASK,
+            &slot)) {
+        return 0;
     }
-    return 0;
+    memset(&g_connections[slot], 0, sizeof(g_connections[slot]));
+    g_connections[slot].in_use = 1;
+    g_connections[slot].id = g_next_connection_id++;
+    g_connections[slot].socket_handle = socket_handle;
+    bit = UINT64_C(1) << slot;
+    g_connection_occupancy_bits |= bit;
+    if (!kain_native_net_index_insert(
+            g_connection_index,
+            KAIN_NATIVE_NET_CONNECTION_INDEX_CAPACITY,
+            KAIN_NATIVE_NET_CONNECTION_INDEX_MASK,
+            g_connections[slot].id,
+            slot)) {
+        g_connection_occupancy_bits &= ~bit;
+        memset(&g_connections[slot], 0, sizeof(g_connections[slot]));
+        return 0;
+    }
+    return &g_connections[slot];
 }
 
 static KainNativeTcpListener* kain_native_net_listener(int64_t id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_LISTENERS; ++index) {
-        if (g_listeners[index].in_use && g_listeners[index].id == id) {
-            return &g_listeners[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_net_index_start_slot(id, KAIN_NATIVE_NET_LISTENER_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_NET_LISTENER_INDEX_MASK;
+        uint32_t encoded_slot = g_listener_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_NET_MAX_LISTENERS &&
+            g_listeners[slot].in_use &&
+            g_listeners[slot].id == id) {
+            return &g_listeners[slot];
         }
     }
     return 0;
 }
 
 static KainNativeTcpListener* kain_native_net_alloc_listener(SOCKET socket_handle, int64_t local_port) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_LISTENERS; ++index) {
-        if (!g_listeners[index].in_use) {
-            memset(&g_listeners[index], 0, sizeof(g_listeners[index]));
-            g_listeners[index].in_use = 1;
-            g_listeners[index].id = g_next_listener_id++;
-            g_listeners[index].socket_handle = socket_handle;
-            g_listeners[index].local_port = local_port;
-            return &g_listeners[index];
-        }
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_net_find_free_slot_u64(
+            g_listener_occupancy_bits,
+            KAIN_NATIVE_NET_LISTENER_VALID_MASK,
+            &slot)) {
+        return 0;
     }
-    return 0;
+    memset(&g_listeners[slot], 0, sizeof(g_listeners[slot]));
+    g_listeners[slot].in_use = 1;
+    g_listeners[slot].id = g_next_listener_id++;
+    g_listeners[slot].socket_handle = socket_handle;
+    g_listeners[slot].local_port = local_port;
+    bit = UINT64_C(1) << slot;
+    g_listener_occupancy_bits |= bit;
+    if (!kain_native_net_index_insert(
+            g_listener_index,
+            KAIN_NATIVE_NET_LISTENER_INDEX_CAPACITY,
+            KAIN_NATIVE_NET_LISTENER_INDEX_MASK,
+            g_listeners[slot].id,
+            slot)) {
+        g_listener_occupancy_bits &= ~bit;
+        memset(&g_listeners[slot], 0, sizeof(g_listeners[slot]));
+        return 0;
+    }
+    return &g_listeners[slot];
 }
 
 static KainNativeHttpRequest* kain_native_net_request(int64_t id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_REQUESTS; ++index) {
-        if (g_requests[index].in_use && g_requests[index].id == id) {
-            return &g_requests[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_net_index_start_slot(id, KAIN_NATIVE_NET_REQUEST_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_NET_REQUEST_INDEX_MASK;
+        uint32_t encoded_slot = g_request_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_NET_MAX_HTTP_REQUESTS &&
+            g_requests[slot].in_use &&
+            g_requests[slot].id == id) {
+            return &g_requests[slot];
         }
     }
     return 0;
 }
 
 static KainNativeHttpRequest* kain_native_net_alloc_request(int incoming) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_REQUESTS; ++index) {
-        if (!g_requests[index].in_use) {
-            memset(&g_requests[index], 0, sizeof(g_requests[index]));
-            g_requests[index].in_use = 1;
-            g_requests[index].incoming = incoming;
-            g_requests[index].id = g_next_request_id++;
-            g_requests[index].socket_handle = INVALID_SOCKET;
-            g_requests[index].timeout_ms = 30000;
-            return &g_requests[index];
-        }
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_net_find_free_slot_u64(
+            g_request_occupancy_bits,
+            KAIN_NATIVE_NET_REQUEST_VALID_MASK,
+            &slot)) {
+        return 0;
     }
-    return 0;
+    memset(&g_requests[slot], 0, sizeof(g_requests[slot]));
+    g_requests[slot].in_use = 1;
+    g_requests[slot].incoming = incoming;
+    g_requests[slot].id = g_next_request_id++;
+    g_requests[slot].socket_handle = INVALID_SOCKET;
+    g_requests[slot].timeout_ms = 30000;
+    bit = UINT64_C(1) << slot;
+    g_request_occupancy_bits |= bit;
+    if (!kain_native_net_index_insert(
+            g_request_index,
+            KAIN_NATIVE_NET_REQUEST_INDEX_CAPACITY,
+            KAIN_NATIVE_NET_REQUEST_INDEX_MASK,
+            g_requests[slot].id,
+            slot)) {
+        g_request_occupancy_bits &= ~bit;
+        memset(&g_requests[slot], 0, sizeof(g_requests[slot]));
+        return 0;
+    }
+    return &g_requests[slot];
 }
 
 static KainNativeHttpResponse* kain_native_net_response(int64_t id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_RESPONSES; ++index) {
-        if (g_responses[index].in_use && g_responses[index].id == id) {
-            return &g_responses[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_net_index_start_slot(id, KAIN_NATIVE_NET_RESPONSE_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_NET_RESPONSE_INDEX_MASK;
+        uint32_t encoded_slot = g_response_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_NET_MAX_HTTP_RESPONSES &&
+            g_responses[slot].in_use &&
+            g_responses[slot].id == id) {
+            return &g_responses[slot];
         }
     }
     return 0;
 }
 
 static KainNativeHttpResponse* kain_native_net_alloc_response(void) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_RESPONSES; ++index) {
-        if (!g_responses[index].in_use) {
-            memset(&g_responses[index], 0, sizeof(g_responses[index]));
-            g_responses[index].in_use = 1;
-            g_responses[index].id = g_next_response_id++;
-            return &g_responses[index];
-        }
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_net_find_free_slot_u64(
+            g_response_occupancy_bits,
+            KAIN_NATIVE_NET_RESPONSE_VALID_MASK,
+            &slot)) {
+        return 0;
     }
-    return 0;
+    memset(&g_responses[slot], 0, sizeof(g_responses[slot]));
+    g_responses[slot].in_use = 1;
+    g_responses[slot].id = g_next_response_id++;
+    bit = UINT64_C(1) << slot;
+    g_response_occupancy_bits |= bit;
+    if (!kain_native_net_index_insert(
+            g_response_index,
+            KAIN_NATIVE_NET_RESPONSE_INDEX_CAPACITY,
+            KAIN_NATIVE_NET_RESPONSE_INDEX_MASK,
+            g_responses[slot].id,
+            slot)) {
+        g_response_occupancy_bits &= ~bit;
+        memset(&g_responses[slot], 0, sizeof(g_responses[slot]));
+        return 0;
+    }
+    return &g_responses[slot];
 }
 
 static KainNativeHttpServer* kain_native_net_server(int64_t id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_SERVERS; ++index) {
-        if (g_servers[index].in_use && g_servers[index].id == id) {
-            return &g_servers[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_net_index_start_slot(id, KAIN_NATIVE_NET_SERVER_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_NET_SERVER_INDEX_MASK;
+        uint32_t encoded_slot = g_server_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_NET_MAX_HTTP_SERVERS &&
+            g_servers[slot].in_use &&
+            g_servers[slot].id == id) {
+            return &g_servers[slot];
         }
     }
     return 0;
 }
 
 static KainNativeHttpServer* kain_native_net_alloc_server(void) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_SERVERS; ++index) {
-        if (!g_servers[index].in_use) {
-            memset(&g_servers[index], 0, sizeof(g_servers[index]));
-            g_servers[index].in_use = 1;
-            g_servers[index].id = g_next_server_id++;
-            g_servers[index].socket_handle = INVALID_SOCKET;
-            return &g_servers[index];
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_net_find_free_slot_u64(
+            g_server_occupancy_bits,
+            KAIN_NATIVE_NET_SERVER_VALID_MASK,
+            &slot)) {
+        return 0;
+    }
+    memset(&g_servers[slot], 0, sizeof(g_servers[slot]));
+    g_servers[slot].in_use = 1;
+    g_servers[slot].id = g_next_server_id++;
+    g_servers[slot].socket_handle = INVALID_SOCKET;
+    bit = UINT64_C(1) << slot;
+    g_server_occupancy_bits |= bit;
+    if (!kain_native_net_index_insert(
+            g_server_index,
+            KAIN_NATIVE_NET_SERVER_INDEX_CAPACITY,
+            KAIN_NATIVE_NET_SERVER_INDEX_MASK,
+            g_servers[slot].id,
+            slot)) {
+        g_server_occupancy_bits &= ~bit;
+        memset(&g_servers[slot], 0, sizeof(g_servers[slot]));
+        return 0;
+    }
+    return &g_servers[slot];
+}
+
+static void kain_native_net_clear_request_from_server_queue(KainNativeHttpRequest* request) {
+    if (request != 0 && request->server_id > 0) {
+        KainNativeHttpServer* server = kain_native_net_server(request->server_id);
+        if (server != 0) {
+            uint32_t slot = (uint32_t)(request - g_requests);
+            server->pending_request_slots &= ~(UINT64_C(1) << slot);
         }
     }
-    return 0;
 }
 
 static void kain_native_net_set_header(KainNativeNetHeader* headers, int64_t* header_count, const char* key, const char* value) {
@@ -1092,6 +1437,16 @@ int64_t kain_native_net_reset(void) {
     memset(g_requests, 0, sizeof(g_requests));
     memset(g_responses, 0, sizeof(g_responses));
     memset(g_servers, 0, sizeof(g_servers));
+    memset(g_connection_index, 0, sizeof(g_connection_index));
+    memset(g_listener_index, 0, sizeof(g_listener_index));
+    memset(g_request_index, 0, sizeof(g_request_index));
+    memset(g_response_index, 0, sizeof(g_response_index));
+    memset(g_server_index, 0, sizeof(g_server_index));
+    g_connection_occupancy_bits = 0u;
+    g_listener_occupancy_bits = 0u;
+    g_request_occupancy_bits = 0u;
+    g_response_occupancy_bits = 0u;
+    g_server_occupancy_bits = 0u;
     g_next_connection_id = 1;
     g_next_listener_id = 1;
     g_next_request_id = 1;
@@ -1231,21 +1586,29 @@ int64_t kain_native_tcp_write_hex(int64_t connection_id, const char* payload_hex
 
 int64_t kain_native_tcp_close(int64_t connection_id) {
     KainNativeTcpConnection* connection = kain_native_net_connection(connection_id);
+    uint32_t slot;
     if (connection == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-connection", "TCP connection not found");
     }
+    slot = (uint32_t)(connection - g_connections);
     kain_native_net_socket_close(connection->socket_handle);
+    g_connection_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(connection, 0, sizeof(*connection));
+    kain_native_net_rebuild_connection_index();
     return kain_native_net_ok();
 }
 
 int64_t kain_native_tcp_listener_close(int64_t listener_id) {
     KainNativeTcpListener* listener = kain_native_net_listener(listener_id);
+    uint32_t slot;
     if (listener == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-listener", "TCP listener not found");
     }
+    slot = (uint32_t)(listener - g_listeners);
     kain_native_net_socket_close(listener->socket_handle);
+    g_listener_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(listener, 0, sizeof(*listener));
+    kain_native_net_rebuild_listener_index();
     return kain_native_net_ok();
 }
 
@@ -1378,24 +1741,33 @@ const char* kain_native_http_response_body_hex(int64_t response_id) {
 
 int64_t kain_native_http_request_destroy(int64_t request_id) {
     KainNativeHttpRequest* request = kain_native_net_request(request_id);
+    uint32_t slot;
     if (request == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-request", "HTTP request not found");
     }
+    slot = (uint32_t)(request - g_requests);
+    kain_native_net_clear_request_from_server_queue(request);
     free(request->body);
     if (request->socket_handle != INVALID_SOCKET) {
         kain_native_net_socket_close(request->socket_handle);
     }
+    g_request_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(request, 0, sizeof(*request));
+    kain_native_net_rebuild_request_index();
     return kain_native_net_ok();
 }
 
 int64_t kain_native_http_response_destroy(int64_t response_id) {
     KainNativeHttpResponse* response = kain_native_net_response(response_id);
+    uint32_t slot;
     if (response == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-response", "HTTP response not found");
     }
+    slot = (uint32_t)(response - g_responses);
     free(response->body);
+    g_response_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(response, 0, sizeof(*response));
+    kain_native_net_rebuild_response_index();
     return kain_native_net_ok();
 }
 
@@ -1536,6 +1908,7 @@ int64_t kain_native_http_server_pump(int64_t server_id, int64_t timeout_ms) {
     }
     request->server_id = server_id;
     request->socket_handle = accepted;
+    server->pending_request_slots |= UINT64_C(1) << (uint32_t)(request - g_requests);
     if (!kain_native_net_parse_http_request(request, request_bytes, request_length)) {
         free(request_bytes);
         kain_native_http_request_destroy(request->id);
@@ -1548,13 +1921,24 @@ int64_t kain_native_http_server_pump(int64_t server_id, int64_t timeout_ms) {
 }
 
 int64_t kain_native_http_server_next_request(int64_t server_id) {
-    size_t index;
-    for (index = 0u; index < KAIN_NATIVE_NET_MAX_HTTP_REQUESTS; ++index) {
-        if (g_requests[index].in_use && g_requests[index].incoming && g_requests[index].server_id == server_id && !g_requests[index].dequeued && !g_requests[index].responded) {
-            g_requests[index].dequeued = 1;
+    KainNativeHttpServer* server = kain_native_net_server(server_id);
+    uint64_t pending_mask;
+    if (server == 0) {
+        kain_native_net_ok();
+        return 0;
+    }
+    pending_mask = server->pending_request_slots & g_request_occupancy_bits;
+    while (pending_mask != 0u) {
+        uint64_t low_bit = kain_native_net_isolate_low_bit_u64(pending_mask);
+        uint32_t slot = (uint32_t)kain_native_net_low_bit_index_u64(low_bit);
+        KainNativeHttpRequest* request = &g_requests[slot];
+        server->pending_request_slots &= ~low_bit;
+        if (request->in_use && request->incoming && request->server_id == server_id && !request->dequeued && !request->responded) {
+            request->dequeued = 1;
             kain_native_net_ok();
-            return g_requests[index].id;
+            return request->id;
         }
+        pending_mask &= ~low_bit;
     }
     kain_native_net_ok();
     return 0;
@@ -1694,13 +2078,18 @@ int64_t kain_native_http_respond_hex(int64_t incoming_request_id, int64_t status
 
 int64_t kain_native_http_server_close(int64_t server_id) {
     KainNativeHttpServer* server = kain_native_net_server(server_id);
+    uint32_t slot;
     if (server == 0) {
         return kain_native_net_fail(KAIN_NATIVE_NET_INVALID_HANDLE, "invalid-server", "HTTP server not found");
     }
+    slot = (uint32_t)(server - g_servers);
     if (server->socket_handle != INVALID_SOCKET) {
         kain_native_net_socket_close(server->socket_handle);
     }
+    server->pending_request_slots = 0u;
+    g_server_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(server, 0, sizeof(*server));
+    kain_native_net_rebuild_server_index();
     return kain_native_net_ok();
 }
 

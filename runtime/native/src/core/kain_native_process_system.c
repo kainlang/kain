@@ -74,6 +74,23 @@ typedef struct KainNativeProcessHandle {
 
 static KainNativeProcessSpec g_specs[KAIN_NATIVE_PROCESS_MAX_SPECS];
 static KainNativeProcessHandle g_processes[KAIN_NATIVE_PROCESS_MAX_PROCESSES];
+static uint64_t g_spec_occupancy_bits = 0u;
+static uint64_t g_process_occupancy_bits = 0u;
+#define KAIN_NATIVE_PROCESS_SLOT_WORD_BITS 64u
+#define KAIN_NATIVE_PROCESS_SPEC_VALID_MASK UINT64_MAX
+#define KAIN_NATIVE_PROCESS_PROCESS_VALID_MASK UINT64_MAX
+#define KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY 128u
+#define KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK (KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY - 1u)
+#define KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY 128u
+#define KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK (KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY - 1u)
+#if (KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY & KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK) != 0
+#error "KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+#if (KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY & KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK) != 0
+#error "KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY must be a power of two for masked probing."
+#endif
+static uint32_t g_spec_index[KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY];
+static uint32_t g_process_index[KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY];
 static int64_t g_next_spec_id = 1;
 static int64_t g_next_process_id = 1;
 static int64_t g_last_status = KAIN_NATIVE_PROCESS_OK;
@@ -211,21 +228,163 @@ static int kain_native_process_mode_from_text(
     return 0;
 }
 
+/*
+ * Proofs:
+ * - runtime/native/src/core/z3/proofs-experimental/process-handle-index-probe-bounds.smt2
+ * - runtime/native/src/core/z3/proofs-experimental/actor-table-debruijn-hash-distinct.smt2
+ *
+ * The solver owns the handle-registry math: masked probes must stay in bounds,
+ * and the one-hot low-bit decoder is shared with the already-proved actor
+ * occupancy path.
+ */
+static uint64_t kain_native_process_mix_id(uint64_t id) {
+    uint64_t x = id;
+    x ^= x >> 30u;
+    x *= UINT64_C(0xbf58476d1ce4e5b9);
+    x ^= x >> 27u;
+    x *= UINT64_C(0x94d049bb133111eb);
+    x ^= x >> 31u;
+    return x;
+}
+
+static uint64_t kain_native_process_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_native_process_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];
+}
+
+static uint32_t kain_native_process_index_start_slot(uint64_t id, uint32_t mask) {
+    return (uint32_t)(kain_native_process_mix_id(id) & mask);
+}
+
+static int kain_native_process_index_insert(
+    uint32_t* index_table,
+    uint32_t index_capacity,
+    uint32_t index_mask,
+    uint64_t id,
+    uint32_t slot
+) {
+    uint32_t start_index = kain_native_process_index_start_slot(id, index_mask);
+    uint32_t encoded_slot = slot + 1u;
+    uint32_t probe;
+    for (probe = 0u; probe < index_capacity; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & index_mask;
+        uint32_t candidate = index_table[candidate_index];
+        if (candidate == 0u || candidate == encoded_slot) {
+            index_table[candidate_index] = encoded_slot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_native_process_find_free_spec_slot(uint32_t* out_slot) {
+    if (out_slot == 0 || g_spec_occupancy_bits == UINT64_MAX) {
+        return 0;
+    }
+    *out_slot = (uint32_t)kain_native_process_low_bit_index_u64(
+        kain_native_process_isolate_low_bit_u64(~g_spec_occupancy_bits)
+    );
+    return 1;
+}
+
+static int kain_native_process_find_free_process_slot(uint32_t* out_slot) {
+    if (out_slot == 0 || g_process_occupancy_bits == UINT64_MAX) {
+        return 0;
+    }
+    *out_slot = (uint32_t)kain_native_process_low_bit_index_u64(
+        kain_native_process_isolate_low_bit_u64(~g_process_occupancy_bits)
+    );
+    return 1;
+}
+
+static void kain_native_process_rebuild_spec_index(void) {
+    uint32_t slot;
+    memset(g_spec_index, 0, sizeof(g_spec_index));
+    for (slot = 0u; slot < KAIN_NATIVE_PROCESS_MAX_SPECS; ++slot) {
+        if (g_specs[slot].in_use) {
+            (void)kain_native_process_index_insert(
+                g_spec_index,
+                KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY,
+                KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK,
+                (uint64_t)g_specs[slot].id,
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_process_rebuild_process_index(void) {
+    uint32_t slot;
+    memset(g_process_index, 0, sizeof(g_process_index));
+    for (slot = 0u; slot < KAIN_NATIVE_PROCESS_MAX_PROCESSES; ++slot) {
+        if (g_processes[slot].in_use) {
+            (void)kain_native_process_index_insert(
+                g_process_index,
+                KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY,
+                KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK,
+                (uint64_t)g_processes[slot].id,
+                slot
+            );
+        }
+    }
+}
+
 static KainNativeProcessSpec* kain_native_process_spec_lookup(int64_t spec_id) {
-    int index;
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
-        if (g_specs[index].in_use && g_specs[index].id == spec_id) {
-            return &g_specs[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (spec_id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_process_index_start_slot((uint64_t)spec_id, KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK;
+        uint32_t encoded_slot = g_spec_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_PROCESS_MAX_SPECS &&
+            g_specs[slot].in_use &&
+            g_specs[slot].id == spec_id) {
+            return &g_specs[slot];
         }
     }
     return 0;
 }
 
 static KainNativeProcessHandle* kain_native_process_lookup(int64_t process_id) {
-    int index;
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
-        if (g_processes[index].in_use && g_processes[index].id == process_id) {
-            return &g_processes[index];
+    uint32_t start_index;
+    uint32_t probe;
+    if (process_id <= 0) {
+        return 0;
+    }
+    start_index = kain_native_process_index_start_slot((uint64_t)process_id, KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK);
+    for (probe = 0u; probe < KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK;
+        uint32_t encoded_slot = g_process_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_PROCESS_MAX_PROCESSES &&
+            g_processes[slot].in_use &&
+            g_processes[slot].id == process_id) {
+            return &g_processes[slot];
         }
     }
     return 0;
@@ -377,9 +536,11 @@ static const char* kain_native_process_encode_hex(const unsigned char* bytes, si
 }
 
 static void kain_native_process_release_handle(KainNativeProcessHandle* process, int terminate_running_process) {
+    uint32_t slot;
     if (process == 0 || !process->in_use) {
         return;
     }
+    slot = (uint32_t)(process - g_processes);
 #ifdef _WIN32
     if (terminate_running_process && process->process_handle != 0 && !process->exited) {
         TerminateProcess(process->process_handle, 1u);
@@ -429,10 +590,12 @@ static void kain_native_process_release_handle(KainNativeProcessHandle* process,
 #else
     (void)terminate_running_process;
 #endif
+    g_process_occupancy_bits &= ~(UINT64_C(1) << slot);
     kain_native_process_capture_free(&process->stdout_capture);
     kain_native_process_capture_free(&process->stderr_capture);
     kain_native_process_capture_free(&process->pty_capture);
     memset(process, 0, sizeof(*process));
+    kain_native_process_rebuild_process_index();
 }
 
 #ifdef _WIN32
@@ -1636,6 +1799,10 @@ int64_t kain_native_process_reset(void) {
     }
     memset(g_specs, 0, sizeof(g_specs));
     memset(g_processes, 0, sizeof(g_processes));
+    memset(g_spec_index, 0, sizeof(g_spec_index));
+    memset(g_process_index, 0, sizeof(g_process_index));
+    g_spec_occupancy_bits = 0u;
+    g_process_occupancy_bits = 0u;
     g_next_spec_id = 1;
     g_next_process_id = 1;
     return kain_native_process_ok();
@@ -1650,8 +1817,9 @@ int64_t kain_native_process_platform_available(void) {
 }
 
 int64_t kain_native_process_spec_create(const char* executable) {
-    int index;
     KainNativeProcessSpec* spec = 0;
+    uint32_t slot;
+    uint64_t bit;
     if (kain_native_process_text_empty(executable)) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_INVALID_ARGUMENT,
@@ -1659,19 +1827,14 @@ int64_t kain_native_process_spec_create(const char* executable) {
             "process executable cannot be empty"
         );
     }
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
-        if (!g_specs[index].in_use) {
-            spec = &g_specs[index];
-            break;
-        }
-    }
-    if (spec == 0) {
+    if (!kain_native_process_find_free_spec_slot(&slot)) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
             "capacity",
             "process specification registry is full"
         );
     }
+    spec = &g_specs[slot];
     memset(spec, 0, sizeof(*spec));
     spec->in_use = 1;
     spec->id = g_next_spec_id++;
@@ -1680,12 +1843,29 @@ int64_t kain_native_process_spec_create(const char* executable) {
     spec->stdout_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
     spec->stderr_mode = KAIN_NATIVE_PROCESS_STDIO_INHERIT;
     kain_native_process_copy(spec->executable, sizeof(spec->executable), executable);
+    bit = UINT64_C(1) << slot;
+    g_spec_occupancy_bits |= bit;
+    if (!kain_native_process_index_insert(
+            g_spec_index,
+            KAIN_NATIVE_PROCESS_SPEC_INDEX_CAPACITY,
+            KAIN_NATIVE_PROCESS_SPEC_INDEX_MASK,
+            (uint64_t)spec->id,
+            slot)) {
+        g_spec_occupancy_bits &= ~bit;
+        memset(spec, 0, sizeof(*spec));
+        return kain_native_process_fail(
+            KAIN_NATIVE_PROCESS_CAPACITY_EXCEEDED,
+            "capacity",
+            "process specification registry is full"
+        );
+    }
     kain_native_process_ok();
     return spec->id;
 }
 
 int64_t kain_native_process_spec_destroy(int64_t spec_id) {
     KainNativeProcessSpec* spec = kain_native_process_spec_lookup(spec_id);
+    uint32_t slot;
     if (spec == 0) {
         return kain_native_process_fail(
             KAIN_NATIVE_PROCESS_INVALID_SPEC,
@@ -1693,19 +1873,19 @@ int64_t kain_native_process_spec_destroy(int64_t spec_id) {
             "process specification id is not active"
         );
     }
+    slot = (uint32_t)(spec - g_specs);
+    g_spec_occupancy_bits &= ~(UINT64_C(1) << slot);
     memset(spec, 0, sizeof(*spec));
+    kain_native_process_rebuild_spec_index();
     return kain_native_process_ok();
 }
 
 int64_t kain_native_process_spec_count(void) {
-    int index;
-    int64_t count = 0;
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_SPECS; index++) {
-        if (g_specs[index].in_use) {
-            count += 1;
-        }
-    }
-    return count;
+    uint64_t value = g_spec_occupancy_bits;
+    value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
+    value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
+    value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    return (int64_t)((value * UINT64_C(0x0101010101010101)) >> 56u);
 }
 
 int64_t kain_native_process_spec_add_arg(int64_t spec_id, const char* argument) {
@@ -1879,16 +2059,27 @@ int64_t kain_native_process_spec_set_stderr_mode(int64_t spec_id, const char* mo
 }
 
 static KainNativeProcessHandle* kain_native_process_allocate_slot(void) {
-    int index;
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
-        if (!g_processes[index].in_use) {
-            memset(&g_processes[index], 0, sizeof(g_processes[index]));
-            g_processes[index].in_use = 1;
-            g_processes[index].id = g_next_process_id++;
-            return &g_processes[index];
-        }
+    uint32_t slot;
+    uint64_t bit;
+    if (!kain_native_process_find_free_process_slot(&slot)) {
+        return 0;
     }
-    return 0;
+    memset(&g_processes[slot], 0, sizeof(g_processes[slot]));
+    g_processes[slot].in_use = 1;
+    g_processes[slot].id = g_next_process_id++;
+    bit = UINT64_C(1) << slot;
+    g_process_occupancy_bits |= bit;
+    if (!kain_native_process_index_insert(
+            g_process_index,
+            KAIN_NATIVE_PROCESS_PROCESS_INDEX_CAPACITY,
+            KAIN_NATIVE_PROCESS_PROCESS_INDEX_MASK,
+            (uint64_t)g_processes[slot].id,
+            slot)) {
+        g_process_occupancy_bits &= ~bit;
+        memset(&g_processes[slot], 0, sizeof(g_processes[slot]));
+        return 0;
+    }
+    return &g_processes[slot];
 }
 
 int64_t kain_native_process_spawn(int64_t spec_id) {
@@ -1967,14 +2158,11 @@ int64_t kain_native_process_spawn_pty(int64_t spec_id, int64_t columns, int64_t 
 }
 
 int64_t kain_native_process_count(void) {
-    int index;
-    int64_t count = 0;
-    for (index = 0; index < KAIN_NATIVE_PROCESS_MAX_PROCESSES; index++) {
-        if (g_processes[index].in_use) {
-            count += 1;
-        }
-    }
-    return count;
+    uint64_t value = g_process_occupancy_bits;
+    value = value - ((value >> 1u) & UINT64_C(0x5555555555555555));
+    value = (value & UINT64_C(0x3333333333333333)) + ((value >> 2u) & UINT64_C(0x3333333333333333));
+    value = (value + (value >> 4u)) & UINT64_C(0x0f0f0f0f0f0f0f0f);
+    return (int64_t)((value * UINT64_C(0x0101010101010101)) >> 56u);
 }
 
 int64_t kain_native_process_close(int64_t process_id) {
