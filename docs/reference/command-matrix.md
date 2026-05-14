@@ -95,9 +95,15 @@ These flags live at the top level of `kain` / `kn`:
 | Flag | Meaning |
 | --- | --- |
 | `--targets` | comma-separated target override list |
+| `--lane bootstrap|dev|release|dist|selfhost` | lane-scoped build output/cache identity |
 | `--ue5` | build a UE5 plugin from the manifest |
 | `--rust` | build Rust artifacts from the manifest |
 | `--embed` | embed original KAIN source in generated C++ |
+
+File, manifest, Rust-output, and native-ui build paths are planned through
+`crates/kain-build` and use `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...`
+as the canonical artifact schema. Explicit `-o` or `--out` paths are copied or
+materialized views of that canonical graph, not separate artifact identities.
 
 ### `build native-ui`
 

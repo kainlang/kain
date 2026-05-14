@@ -1,0 +1,53 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "kain",
+    actual = "//crates/cli:kain",
+)
+
+alias(
+    name = "kn",
+    actual = "//crates/cli:kn",
+)
+
+alias(
+    name = "blade",
+    actual = "//crates/cli:blade",
+)
+
+alias(
+    name = "kain_core",
+    actual = "//crates/kain-core:kain-core",
+)
+
+alias(
+    name = "kain_build",
+    actual = "//crates/kain-build:kain-build",
+)
+
+alias(
+    name = "native_core_runtime",
+    actual = "//runtime:native_core_runtime",
+)
+
+alias(
+    name = "native_runtime",
+    actual = "//runtime:native_runtime",
+)
+
+test_suite(
+    name = "crate_tests",
+    tests = [
+        "//crates/kain-core:unit_test",
+        "//crates/kain-build:unit_test",
+        "//crates/kain-commands:unit_test",
+        "//crates/cli:unit_test",
+    ],
+)
+
+test_suite(
+    name = "native_runtime_tests",
+    tests = [
+        "//runtime:native_runtime_tests",
+    ],
+)

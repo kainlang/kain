@@ -27,7 +27,7 @@ lz4_flex = { version = "0.11.1", features = [
     "safe-encode",
     "std",
 ], default-features = false }
-zstd = "0.12.4"
+zstd = { version = "0.12.4", default-features = false }
 
 naive-cityhash = "0.2.0"
 ordered-float.workspace = true

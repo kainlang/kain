@@ -5,6 +5,7 @@
 **/debug/
 tidus/
 **/debug/**
+/.playground
 /smoketest/3D/
 reference/
 /reference
@@ -136,3 +137,7 @@ zender
 # Native runtime build artifacts
 *.obj.fingerprint
 *.obj.d
+
+# Bazel local state
+/bazel-*
+/.bazel-cache/

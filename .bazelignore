@@ -1,0 +1,6 @@
+.git
+.playground
+.tmp
+target
+tmp
+runtime/3rdparty/skia-core

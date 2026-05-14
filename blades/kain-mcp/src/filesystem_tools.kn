@@ -1,12 +1,12 @@
 use common::build_error_payload
 use common::build_tool_result
+use common::ensure_parent_dir
+use common::is_text_like_file
 use common::optional_bool_param
 use common::optional_int_param
 use common::optional_string_param
+use common::resolve_from_base
 use common::truncate_text
-use kain_fsx::fsx_is_text_like_file
-use kain_fsx::fsx_resolve_from_base
-use kain_fsx::fsx_write_text_with_parent
 use runtime_settings::McpRuntimeSettings
 
 fn should_skip_entry(entry: Any, include_hidden: Bool, skip_dirs: Array<String>) -> Bool:
@@ -41,7 +41,7 @@ fn append_directory_entries(results: Array<Any>, current_path: String, recursive
 
 pub fn handle_fs_list_directory(settings: McpRuntimeSettings, params: Any) -> Any:
     let requested_path = optional_string_param(params, "path", ".")
-    let resolved_path = fsx_resolve_from_base(settings.repo_root, requested_path)
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
     if !path_is_dir(resolved_path):
         let payload = build_error_payload("Path is not a directory: " + resolved_path)
         return build_tool_result("Directory not found: " + requested_path, payload, true, true)
@@ -66,7 +66,7 @@ pub fn handle_fs_list_directory(settings: McpRuntimeSettings, params: Any) -> An
 
 pub fn handle_fs_read_file(settings: McpRuntimeSettings, params: Any) -> Any:
     let requested_path = optional_string_param(params, "path", "")
-    let resolved_path = fsx_resolve_from_base(settings.repo_root, requested_path)
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
     if !file_exists(resolved_path):
         let payload = build_error_payload("Could not find file: " + resolved_path)
         return build_tool_result("File not found: " + requested_path, payload, true, true)
@@ -81,7 +81,7 @@ pub fn handle_fs_read_file(settings: McpRuntimeSettings, params: Any) -> Any:
     json_object_set(structured, "content", limited)
     json_object_set(structured, "truncated", truncated)
     json_object_set(structured, "maxBytes", max_bytes)
-    json_object_set(structured, "textLike", fsx_is_text_like_file(resolved_path))
+    json_object_set(structured, "textLike", is_text_like_file(resolved_path))
 
     return build_tool_result("Read " + resolved_path, structured, true, false)
 
@@ -91,7 +91,7 @@ pub fn handle_fs_write_file(settings: McpRuntimeSettings, params: Any) -> Any:
         return build_tool_result("Filesystem writes are disabled for this MCP session.", payload, true, true)
 
     let requested_path = optional_string_param(params, "path", "")
-    let resolved_path = fsx_resolve_from_base(settings.repo_root, requested_path)
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
     let overwrite = optional_bool_param(params, "overwrite", true)
     let existed_before = file_exists(resolved_path)
     if existed_before and !overwrite:
@@ -99,7 +99,8 @@ pub fn handle_fs_write_file(settings: McpRuntimeSettings, params: Any) -> Any:
         return build_tool_result("Refused to overwrite " + resolved_path, payload, true, true)
 
     let content = json_get_string(params, "content")
-    let _written = fsx_write_text_with_parent(resolved_path, content)
+    let _parent = ensure_parent_dir(resolved_path)
+    write_file(resolved_path, content)
 
     let structured = json_object_new()
     json_object_set(structured, "path", resolved_path)
@@ -114,7 +115,7 @@ pub fn handle_fs_make_directory(settings: McpRuntimeSettings, params: Any) -> An
         return build_tool_result("Filesystem writes are disabled for this MCP session.", payload, true, true)
 
     let requested_path = optional_string_param(params, "path", "")
-    let resolved_path = fsx_resolve_from_base(settings.repo_root, requested_path)
+    let resolved_path = resolve_from_base(settings.repo_root, requested_path)
     create_dir_all(resolved_path)
 
     let structured = json_object_new()

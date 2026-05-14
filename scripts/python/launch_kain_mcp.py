@@ -355,21 +355,55 @@ def upsert_sync_attempt(stamp_path: Path, existing: dict) -> dict:
     return next_stamp
 
 
+def process_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            synchronize = 0x00100000
+            process = kernel32.OpenProcess(synchronize, False, pid)
+            if not process:
+                return False
+            try:
+                wait_result = kernel32.WaitForSingleObject(process, 0)
+                return wait_result == 0x00000102
+            finally:
+                kernel32.CloseHandle(process)
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
 def try_acquire_sync_lock(lock_path: Path, stale_lock_seconds: int) -> bool:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     now = int(time.time())
     if lock_path.exists():
-        try:
-            age = now - int(lock_path.stat().st_mtime)
-        except OSError:
-            age = 0
-        if stale_lock_seconds > 0 and age > stale_lock_seconds:
+        lock_payload = read_json_file(lock_path)
+        lock_pid = lock_payload.get("pid") if isinstance(lock_payload, dict) else None
+        if isinstance(lock_pid, int) and not process_is_running(lock_pid):
             try:
                 lock_path.unlink()
             except OSError:
                 return False
         else:
-            return False
+            try:
+                age = now - int(lock_path.stat().st_mtime)
+            except OSError:
+                age = 0
+            if stale_lock_seconds > 0 and age > stale_lock_seconds:
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    return False
+            else:
+                return False
 
     payload = {
         "pid": os.getpid(),
@@ -401,7 +435,7 @@ def preflight_binary_for_blade(repo_root: Path, blade_root: Path, policy: dict, 
         return True
 
     timeout_seconds = int(sync_policy.get("preflight_timeout_seconds", 20))
-    command = [kain_bin, "run", "plan", "--json", str(blade_root)]
+    command = [kain_bin, "check", str(blade_root)]
     try:
         result = subprocess.run(
             command,

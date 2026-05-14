@@ -194,7 +194,7 @@ def assert_blade_build(
     if not native_output.exists():
         raise RuntimeError(f"native sidecar was not materialized: {native_output}")
 
-    gpu_outputs = sorted((lab_root / ".kain" / "build").rglob("*.spv"))
+    gpu_outputs = sorted((lab_root / ".kain" / "out").rglob("*.spv"))
     expected_spirv = {"gpu_step.spv", "nebula_field.spv", "spectral_lattice.spv"}
     actual_spirv = {path.name for path in gpu_outputs}
     if not expected_spirv.issubset(actual_spirv):

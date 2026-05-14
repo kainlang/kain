@@ -45,19 +45,34 @@ fn handle_tool_call(settings: McpRuntimeSettings, registry: ToolRegistry, raw_re
 fn route_request(settings: McpRuntimeSettings, registry: ToolRegistry, raw_request: String) -> String:
     let request = json_parse(raw_request)
     let method = json_get_string(request, "method")
+    let expects_response = json_has(request, "id")
     if method == "initialize":
+        if !expects_response:
+            return ""
         return initialize_response(registry, raw_request)
     if method == "notifications/initialized":
-        return build_jsonrpc_success(raw_request, json_parse("null"))
+        return ""
+    if method == "exit":
+        return ""
     if method == "shutdown":
+        if !expects_response:
+            return ""
         return build_jsonrpc_success(raw_request, json_parse("null"))
     if method == "ping":
+        if !expects_response:
+            return ""
         return build_jsonrpc_success(raw_request, json_object_new())
     if method == "tools/list":
+        if !expects_response:
+            return ""
         let result = build_tools_list_result(registry)
         return build_jsonrpc_success(raw_request, result)
     if method == "tools/call":
+        if !expects_response:
+            return ""
         return handle_tool_call(settings, registry, raw_request)
+    if !expects_response:
+        return ""
     return build_jsonrpc_error(raw_request, -32601, "Method not found: " + method)
 
 fn main() -> Int:
@@ -71,6 +86,7 @@ fn main() -> Int:
         if len(raw_request) == 0:
             break
         let response = route_request(settings, registry, raw_request)
-        write_response_frame(response)
+        if len(response) > 0:
+            write_response_frame(response)
 
     return 0

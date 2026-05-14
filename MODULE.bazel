@@ -1,0 +1,38 @@
+module(
+    name = "kain",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_rust", version = "0.70.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = ["1.95.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.annotation(
+    crate = "pyo3-build-config",
+    build_script_env = {
+        "PYO3_PYTHON": "C:/Users/Admin/AppData/Local/Programs/Python/Python310/python.exe",
+    },
+)
+crate.annotation(
+    crate = "zstd-sys",
+    build_script_rundir = "external/rules_rust++crate+crates__zstd-sys-2.0.16-zstd.1.5.7",
+)
+crate.from_cargo(
+    name = "crates",
+    cargo_config = "//:.cargo/config.toml",
+    cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
+    manifests = ["//:Cargo.toml"],
+    supported_platform_triples = [
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+        "wasm32-unknown-unknown",
+    ],
+)
+use_repo(crate, "crates")

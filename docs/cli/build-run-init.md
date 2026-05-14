@@ -26,6 +26,7 @@ Useful flags:
 - `-o/--output`
 - `-t/--target`
 - `--targets` for comma-delimited multi-target builds
+- `--lane bootstrap|dev|release|dist|selfhost` for lane-scoped output and cache identity
 - `--ue5` for the UE5 plugin packaging path
 - `--rust` for Rust-oriented output materialization
 - `--embed` to embed Kain source markers in generated C++
@@ -36,7 +37,10 @@ Useful flags:
 2. manifest mode, where the command reads `KAIN.toml` from the project root
 
 If `input` is omitted, the build uses `KAIN.toml` and emits the configured
-targets or packages.
+targets or packages. Normal file, project, Rust-output, and native-ui builds
+route through the `kain-build` planner/executor and write canonical artifacts
+under `.kain/out/<host>/<lane>/<target>/<unit>/<task>/...`; explicit `-o`
+copies are materialization conveniences, not the source of artifact identity.
 
 ### `build --ue5`
 

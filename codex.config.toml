@@ -1,9 +1,0 @@
-# Repo-local Codex MCP config for this checkout.
-# Codex does not interpolate `${KAIN_REPO_ROOT}` in this lane, so keep the blade path repo-relative.
-
-[mcp_servers.kain_mcp]
-startup_timeout_sec = 60
-command = "kain"
-args = ["run", "blades/kain-mcp"]
-cwd = "."
-enabled = true

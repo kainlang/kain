@@ -20,7 +20,15 @@ pub fn select_protocol_version(requested: String) -> String:
 
 pub fn build_tools_list_result(registry: ToolRegistry) -> Any:
     let result = json_object_new()
-    json_object_set(result, "tools", registry.tools)
+    let public_tools = json_array_new()
+    for spec in registry.tools:
+        let public_spec = json_object_new()
+        json_object_set(public_spec, "name", json_get_string(spec, "name"))
+        json_object_set(public_spec, "title", json_get_string(spec, "title"))
+        json_object_set(public_spec, "description", json_get_string(spec, "description"))
+        json_object_set(public_spec, "inputSchema", json_get(spec, "inputSchema"))
+        json_array_push(public_tools, public_spec)
+    json_object_set(result, "tools", public_tools)
     return result
 
 pub fn build_initialize_result(registry: ToolRegistry, requested_protocol: String) -> Any:

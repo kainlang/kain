@@ -1,12 +1,15 @@
 {
   "mcpServers": {
     "kain-mcp": {
-      "command": "kain",
+      "command": "C:\\Users\\Admin\\AppData\\Local\\Programs\\Python\\Python310\\python.exe",
       "args": [
-        "run",
-        "blades/kain-mcp"
+        "scripts/python/launch_kain_mcp.py"
       ],
-      "cwd": "."
+      "cwd": ".",
+      "env": {
+        "KAIN_REPO_ROOT": ".",
+        "KAIN_NO_BANNER": "1"
+      }
     }
   }
 }

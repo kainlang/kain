@@ -22,9 +22,10 @@ use once_cell::sync::Lazy;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+use std::io::{self, BufRead, BufReader, Read};
 use std::process::Command;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub type EnvExtensionRegistrar = fn(&mut Env);
 
@@ -38,9 +39,31 @@ static RUNTIME_FS_TRANSACTIONS: Lazy<RwLock<HashMap<i64, kain_fs::FsTransaction>
     Lazy::new(|| RwLock::new(HashMap::new()));
 static RUNTIME_INPUT_SESSIONS: Lazy<RwLock<HashMap<i64, InputSession>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
+static RUNTIME_STDIN_READER: Lazy<Mutex<BufReader<io::Stdin>>> =
+    Lazy::new(|| Mutex::new(BufReader::new(io::stdin())));
 static RUNTIME_FS_NEXT_WATCHER_ID: AtomicI64 = AtomicI64::new(1);
 static RUNTIME_FS_NEXT_TRANSACTION_ID: AtomicI64 = AtomicI64::new(1);
 static RUNTIME_INPUT_NEXT_SESSION_ID: AtomicI64 = AtomicI64::new(1);
+
+fn runtime_read_stdin_line() -> String {
+    let mut line = String::new();
+    if let Ok(mut reader) = RUNTIME_STDIN_READER.lock() {
+        let _ = reader.read_line(&mut line);
+    }
+    line.trim_end().to_string()
+}
+
+fn runtime_read_stdin_exact(length: usize) -> KainResult<String> {
+    let mut reader = RUNTIME_STDIN_READER
+        .lock()
+        .map_err(|_| KainError::runtime("stdin lock poisoned"))?;
+    let mut buffer = vec![0u8; length];
+    reader
+        .read_exact(&mut buffer)
+        .map_err(|err| KainError::runtime(format!("stdin_read_exact failed: {}", err)))?;
+    String::from_utf8(buffer)
+        .map_err(|err| KainError::runtime(format!("stdin_read_exact utf8 failed: {}", err)))
+}
 
 fn lowered_impl_function_names(type_name: &str, method_name: &str) -> [String; 2] {
     [
@@ -2405,11 +2428,7 @@ impl Env {
 
         // === I/O ===
         self.define_native("read_line", |_env, _args| {
-            use std::io::{self, BufRead};
-            let stdin = io::stdin();
-            let mut line = String::new();
-            stdin.lock().read_line(&mut line).ok();
-            Ok(Value::String(line.trim_end().to_string()))
+            Ok(Value::String(runtime_read_stdin_line()))
         });
 
         self.define_native("stdout_write", |_env, args| {
@@ -2434,7 +2453,6 @@ impl Env {
         });
 
         self.define_native("stdin_read_exact", |_env, args| {
-            use std::io::{self, Read};
             if args.len() != 1 {
                 return Err(KainError::runtime(
                     "stdin_read_exact: expected 1 argument (length)",
@@ -2453,15 +2471,7 @@ impl Env {
                     ))
                 }
             };
-            let mut stdin = io::stdin().lock();
-            let mut buffer = vec![0u8; length];
-            stdin
-                .read_exact(&mut buffer)
-                .map_err(|err| KainError::runtime(format!("stdin_read_exact failed: {}", err)))?;
-            let text = String::from_utf8(buffer).map_err(|err| {
-                KainError::runtime(format!("stdin_read_exact utf8 failed: {}", err))
-            })?;
-            Ok(Value::String(text))
+            Ok(Value::String(runtime_read_stdin_exact(length)?))
         });
 
         self.define_native("kain_input_reset", |_env, _args| {
