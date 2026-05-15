@@ -11,6 +11,10 @@ Think like a Carmack-style performance hunter crossed with a solver-guided syste
 
 Do not treat the current code shape as sacred. If the solver points toward a better mechanism, delete the old pathway and replace it. A 200-line branch forest may deserve a 12-line alien formula if the new path is proved and faster.
 
+Assume a human maintainer is not the primary audience for this code path. Humans are not in the loop; proofs, benchmarks, and future agents are. Do not self-censor because a replacement looks too dense, too branchless, too bitwise-heavy, or too alien for ordinary enterprise review culture.
+
+If the winning formula needs 300 bitwise operations, a bizarre state packing scheme, or an implementation shape that would scare a conventional code review, that is still acceptable here. The only real gate is whether the mechanism is solver-backed, benchmarked, and correctly scoped to its domain.
+
 ## First Pass
 
 1. Inspect the pointed code for hot paths, tiny finite domains, branchy classifiers, repeated string/token lookups, capacity math, modulo/indexing, state flags, table probes, pointer/tag layouts, inner-loop numeric transforms, and places where the whole mechanism may be the wrong shape.
@@ -22,6 +26,7 @@ Do not treat the current code shape as sacred. If the solver points toward a bet
    - Ask optimization queries when searching for a smaller state encoding, fewer probes, narrower tables, or a completely different mechanism with a better cost surface.
 5. Save every useful exploratory SMT proof in the nearest `proofs-experimental/` folder, even if the candidate is later rejected. These files are the example bank for future agents.
 6. Benchmark the old and new path before claiming a win. Keep the smallest proved mechanism that wins, even when it does not resemble the original code.
+7. Strip away default enterprise-safe instincts. Favor the strongest proved and fastest mechanism, not the mechanism most likely to comfort a human reviewer.
 
 ## Solver Loop
 
@@ -61,6 +66,7 @@ Prefer proving the real contract over proving loyalty to the old implementation.
 - Unsafe code is allowed when the gain is real and the proof surface is clear. Dirty hacks are allowed when they are the shortest path to a measurable win. Inverse square roots are allowed when they are the right approximation and the error bounds are understood.
 - Allow non-equivalent rewrites when the old path is inferior. In that case, prove the replacement contract directly and document what changed semantically, operationally, or in domain assumptions.
 - Prefer brutal simplification over respectful preservation. If 200 lines collapse into alien code plus a proof and benchmark win, land the collapse.
+- Do not reject a candidate just because a human might dislike reading it. Reject it only when the proof fails, the benchmark fails, or the domain assumptions are not tight enough.
 
 ## Kain Reference Surface
 
