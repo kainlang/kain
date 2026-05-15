@@ -23,6 +23,7 @@ Current basic language-edge cases:
 - `call_chain`: small-function call graph in a hot loop.
 - `memory_stream`: sequential helper-owned buffer write/read.
 - `alloc_churn`: many small allocation/lifetime cycles.
+- `scalar_mix`: hot scalar loop with top-level const expressions and a checksum guard.
 - `struct_method`: aggregate construction plus explicit score function over fields.
 - `option_result`: tagged Option/Result creation, branching, and unwrap.
 

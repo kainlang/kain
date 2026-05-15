@@ -1,0 +1,16 @@
+const ITERATIONS: Int = 2000000
+const ADDEND: Int = 17
+const OFFSET: Int = ADDEND + 5
+const MODULUS: Int = 1000000007
+const EXPECTED: Int = 42986000
+
+fn main() -> Int:
+    var acc: Int = 0
+    var i: Int = 0
+    while i < ITERATIONS:
+        acc = (acc + i + OFFSET) % MODULUS
+        i = i + 1
+
+    if acc != EXPECTED:
+        return 1
+    return 0

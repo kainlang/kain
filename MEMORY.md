@@ -86,6 +86,8 @@ Validation:
 - `cargo test -p kain-build --target-dir target\codex-llvm-const shader_artifact_source_extracts_kain_example_shaders_without_native_body -- --nocapture`
 - `cargo test -p cli --target-dir target\codex-llvm-const shader_artifact_source_extracts_kain_example_shaders_without_native_body -- --nocapture`
 - `target\codex-llvm-const\debug\kain.exe build blades\kain-example\src\main.kn -t llvm -o target\codex-llvm-const\kain_example_const.ll`
+- `python benchmark/run.py --case scalar_mix --runs 3 --warmups 1 --kain-exe target\codex-llvm-const\debug\kain.exe`
+- `benchmark/out/reports/latest.json` now records the `scalar_mix` benchmark with top-level consts compiled and run successfully on both Kain and Rust.
 
 Durable proof added:
 
