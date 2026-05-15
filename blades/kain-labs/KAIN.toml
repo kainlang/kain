@@ -41,6 +41,10 @@ inputs = [
   "src/graphics.kn",
   "src/ui_helpers.kn",
   "src/kernels.kn",
+  "native/kquantum_vulkan_bridge.h",
+  "native/kquantum_vulkan_bridge.c",
+  "native/shaders/kquantum_particles.vert",
+  "native/shaders/kquantum_particles.frag",
   "config/quantum_modes.toml",
 ]
 
@@ -54,3 +58,10 @@ inputs = ["src/kernels.kn"]
 [manifests]
 mode_catalog = "config/quantum_modes.toml"
 reference = "reference/KQuantum.tsx"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "kquantum_vulkan_bridge"
+header = "native/kquantum_vulkan_bridge.h"
+shared_lib = ".kain/native/kquantum_vulkan_bridge.obj"

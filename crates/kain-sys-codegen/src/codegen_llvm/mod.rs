@@ -2894,6 +2894,88 @@ impl LlvmGenerator {
         Ok(())
     }
 
+    fn prescan_item_signatures(&mut self, items: &[TypedItem]) -> KainResult<()> {
+        for item in items {
+            match item {
+                TypedItem::Function(func) => {
+                    let (params, ret_ty) = self.function_codegen_signature(func)?;
+                    self.functions.insert(func.ast.name.clone(), ret_ty);
+                    self.function_params.insert(func.ast.name.clone(), params);
+                    if Self::function_is_extern(func) {
+                        self.extern_functions.insert(func.ast.name.clone());
+                    } else {
+                        self.defined_functions.insert(func.ast.name.clone());
+                    }
+                }
+                TypedItem::Patch(patch) => {
+                    self.register_callable_signature(
+                        &patch.ast.name,
+                        &patch.resolved_type,
+                        patch.ast.span,
+                    )?;
+                }
+                TypedItem::Law(law) => {
+                    self.register_callable_signature(&law.ast.name, &law.resolved_type, law.ast.span)?;
+                }
+                TypedItem::Converge(converge) => {
+                    self.register_callable_signature(
+                        &converge.ast.name,
+                        &converge.resolved_type,
+                        converge.ast.span,
+                    )?;
+                }
+                TypedItem::Orchestrate(orchestrate) => {
+                    self.register_callable_signature(
+                        &orchestrate.ast.name,
+                        &orchestrate.resolved_type,
+                        orchestrate.ast.span,
+                    )?;
+                }
+                TypedItem::Impl(imp) => {
+                    if let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type {
+                        for method in &imp.ast.methods {
+                            let mut ret_ty = method
+                                .return_type
+                                .as_ref()
+                                .map(|ty| self.map_type_from_ast(ty))
+                                .unwrap_or_else(|| "void".to_string());
+                            if ret_ty == "void" {
+                                ret_ty = "i64".to_string();
+                            }
+                            self.functions
+                                .insert(format!("{}_{}", name, method.name), ret_ty);
+                        }
+                    }
+                }
+                TypedItem::Mod(module) => {
+                    self.prescan_item_signatures(&module.items)?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_typed_items(&mut self, items: &[TypedItem]) -> KainResult<()> {
+        for item in items {
+            match item {
+                TypedItem::Function(func) => self.compile_function(func)?,
+                TypedItem::Patch(patch) => self.compile_patch(patch)?,
+                TypedItem::Law(law) => self.compile_law(law)?,
+                TypedItem::Converge(converge) => self.compile_converge(converge)?,
+                TypedItem::World(world) => self.compile_world_initializer(world)?,
+                TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
+                TypedItem::Component(component) => self.compile_component(component)?,
+                TypedItem::Impl(imp) => self.compile_impl(imp)?,
+                TypedItem::Actor(actor) => self.compile_actor(actor)?,
+                TypedItem::Const(constant) => self.compile_const_initializer(constant)?,
+                TypedItem::Mod(module) => self.compile_typed_items(&module.items)?,
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     fn collect_native_entanglements(&mut self, items: &[TypedItem]) {
         for item in items {
             match item {
@@ -3209,54 +3291,8 @@ impl LlvmGenerator {
 
         self.register_const_globals(&program.items);
 
-        // 2b. Pre-scan functions to register return types
-        for item in &program.items {
-            if let TypedItem::Function(func) = item {
-                let (params, ret_ty) = self.function_codegen_signature(func)?;
-                self.functions.insert(func.ast.name.clone(), ret_ty);
-                self.function_params.insert(func.ast.name.clone(), params);
-                if Self::function_is_extern(func) {
-                    self.extern_functions.insert(func.ast.name.clone());
-                } else {
-                    self.defined_functions.insert(func.ast.name.clone());
-                }
-            } else if let TypedItem::Patch(patch) = item {
-                self.register_callable_signature(
-                    &patch.ast.name,
-                    &patch.resolved_type,
-                    patch.ast.span,
-                )?;
-            } else if let TypedItem::Law(law) = item {
-                self.register_callable_signature(&law.ast.name, &law.resolved_type, law.ast.span)?;
-            } else if let TypedItem::Converge(converge) = item {
-                self.register_callable_signature(
-                    &converge.ast.name,
-                    &converge.resolved_type,
-                    converge.ast.span,
-                )?;
-            } else if let TypedItem::Orchestrate(orchestrate) = item {
-                self.register_callable_signature(
-                    &orchestrate.ast.name,
-                    &orchestrate.resolved_type,
-                    orchestrate.ast.span,
-                )?;
-            } else if let TypedItem::Impl(imp) = item {
-                if let kain_core::ast::Type::Named { name, .. } = &imp.ast.target_type {
-                    for method in &imp.ast.methods {
-                        let mut ret_ty = method
-                            .return_type
-                            .as_ref()
-                            .map(|ty| self.map_type_from_ast(ty))
-                            .unwrap_or_else(|| "void".to_string());
-                        if ret_ty == "void" {
-                            ret_ty = "i64".to_string();
-                        }
-                        self.functions
-                            .insert(format!("{}_{}", name, method.name), ret_ty);
-                    }
-                }
-            }
-        }
+        // 2b. Pre-scan functions to register return types.
+        self.prescan_item_signatures(&program.items)?;
 
         // 2c. Register StdLib functions
         let stdlib = kain_core::stdlib::StdLib::new();
@@ -3271,22 +3307,7 @@ impl LlvmGenerator {
         self.compile_entangle_registration_function();
 
         // 4. Compile Items
-        for item in &program.items {
-            match item {
-                TypedItem::Function(func) => self.compile_function(func)?,
-                TypedItem::Patch(patch) => self.compile_patch(patch)?,
-                TypedItem::Law(law) => self.compile_law(law)?,
-                TypedItem::Converge(converge) => self.compile_converge(converge)?,
-                TypedItem::World(world) => self.compile_world_initializer(world)?,
-                TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
-                TypedItem::Component(component) => self.compile_component(component)?,
-                TypedItem::Impl(imp) => self.compile_impl(imp)?,
-                TypedItem::Actor(actor) => self.compile_actor(actor)?,
-                TypedItem::Const(constant) => self.compile_const_initializer(constant)?,
-                // Structs and enums were emitted during the type pre-scan.
-                _ => {}
-            }
-        }
+        self.compile_typed_items(&program.items)?;
 
         // 5. Emit String Constants
         // Clone strings to avoid borrow issues
@@ -6739,6 +6760,35 @@ fn main() -> Int:
             .parse()
             .expect("parse");
         let typed = types::check(&ast, &mapper, "<llvm-extern-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+
+        assert!(llvm.contains("declare i8* @piano_audio_status()"));
+        assert!(llvm.contains("declare i64 @piano_audio_note_on(i64 %arg0)"));
+        assert!(llvm.contains("call i8* @piano_audio_status()"));
+        assert!(llvm.contains("call i64 @piano_audio_note_on(i64 60)"));
+    }
+
+    #[test]
+    fn lowers_extern_cffi_declarations_inside_generated_modules() {
+        let source = r#"
+mod c:
+    mod piano_audio:
+        @extern fn piano_audio_status(arg1: Void) -> String
+        @extern fn piano_audio_note_on(midi_note: Int) -> Int
+
+use c::piano_audio
+
+fn main() -> Int:
+    let status = piano_audio_status(())
+    return piano_audio_note_on(60)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-extern-module-test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &mapper, "<llvm-extern-module-test>").expect("typecheck");
         let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
             .expect("utf8 llvm output");
 

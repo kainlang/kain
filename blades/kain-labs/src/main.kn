@@ -1,3 +1,4 @@
+use c::kquantum_vulkan_bridge
 use graphics::create_quantum_mesh
 use graphics::create_quantum_pipeline
 use graphics::quantum_palette_hex
@@ -60,6 +61,15 @@ use ui_helpers::set_metric_text
 const KQUANTUM_PARTICLE_COUNT: Int = 262144
 const KQUANTUM_FLUID_CELLS: Int = 262144
 const KQUANTUM_NAME: String = "kquantum-native-gpu-lab"
+const KQUANTUM_VULKAN_FRAME_BUDGET: Int = 96
+
+struct VulkanWindowProof:
+    probe: Int
+    status: Int
+    frames: Int
+    particles_drawn: Int
+    backend: String
+    message: String
 
 component App():
     render <panel title="KQuantum Native GPU Lab" />
@@ -126,12 +136,38 @@ orchestrate quantum_compile_pipeline(value: Int) -> Int:
     return biased
 
 fn output_root() -> String:
-    return "blades/kain-labs/.kain/run"
+    return ".kain/run"
 
 fn output_path(name: String) -> String:
     return output_root() + "/" + name
 
-fn write_lab_report(mode_id: Int, backend: String, particles: Int, frame_count: Int, draw_count: Int) -> String:
+fn vulkan_shader_path(name: String) -> String:
+    return ".kain/gpu/vulkan_window/" + name
+
+fn launch_vulkan_particle_window(mode_id: Int, particles: Int) -> VulkanWindowProof:
+    fs_create_dir_all(output_root())
+    let probe = kqvulkan_probe(())
+    let status = kqvulkan_run_particle_window(
+        "KQuantum Vulkan C FFI Particle Field",
+        1280,
+        820,
+        particles,
+        KQUANTUM_VULKAN_FRAME_BUDGET,
+        mode_id,
+        vulkan_shader_path("kquantum_particles.vert.spv"),
+        vulkan_shader_path("kquantum_particles.frag.spv")
+    )
+    let _report = kqvulkan_write_report(output_path("kquantum_vulkan_report.txt"))
+    return VulkanWindowProof {
+        probe: probe,
+        status: status,
+        frames: kqvulkan_frames_presented(()),
+        particles_drawn: kqvulkan_particles_drawn(()),
+        backend: "vulkan-win32-cffi",
+        message: "see .kain/run/kquantum_vulkan_report.txt"
+    }
+
+fn write_lab_report(mode_id: Int, backend: String, particles: Int, frame_count: Int, draw_count: Int, vulkan_status: Int, vulkan_frames: Int, vulkan_particles_drawn: Int, vulkan_message: String) -> String:
     fs_create_dir_all(output_root())
     let report = "KQUANTUM NATIVE GPU LAB\n"
     report = report + "=======================\n"
@@ -143,6 +179,11 @@ fn write_lab_report(mode_id: Int, backend: String, particles: Int, frame_count: 
     report = report + "fluid.cells=" + str(KQUANTUM_FLUID_CELLS) + "\n"
     report = report + "frames=" + str(frame_count) + "\n"
     report = report + "draw.commands=" + str(draw_count) + "\n"
+    report = report + "foreign_abi.bridge=c::kquantum_vulkan_bridge\n"
+    report = report + "vulkan.window.status=" + str(vulkan_status) + "\n"
+    report = report + "vulkan.window.frames=" + str(vulkan_frames) + "\n"
+    report = report + "vulkan.window.particles_drawn=" + str(vulkan_particles_drawn) + "\n"
+    report = report + "vulkan.window.message=" + vulkan_message + "\n"
     report = report + "z3.fluid.index=unsat\n"
     report = report + "z3.particle.index=unsat\n"
     fs_write_text(output_path("kquantum_report.txt"), report)
@@ -177,6 +218,7 @@ fn main() -> Int:
     let authority = QuantumAuthority { mode: mode_navier_stokes(), particle_count: KQUANTUM_PARTICLE_COUNT, chaos: 64, optics: 91 }
     let mirror = QuantumMirror { mirrored_mode: mode_navier_stokes(), mirrored_particle_count: KQUANTUM_PARTICLE_COUNT, mirrored_chaos: 64, mirrored_optics: 91 }
     let daemon = spawn QuantumPulseDaemon(total_frames = 0)
+    let vulkan_window = launch_vulkan_particle_window(authority.mode, authority.particle_count)
 
     let graphics_session = native_graphics_session_create("kquantum.graphics", 1024, 1024)
     let vulkan_available = native_graphics_backend_available("vulkan")
@@ -315,9 +357,9 @@ fn main() -> Int:
 
         let _viewport_title = native_ui_node_set_text(session, viewport_title, mode_label(selected_mode) + " // " + mode_category(selected_mode))
         let _viewport_desc = native_ui_node_set_text(session, viewport_desc, mode_description(selected_mode))
-        let _status_text = native_ui_node_set_text(session, status, "KQuantum native GPU lane // frame " + str(frame_counter) + " // " + mode_label(selected_mode))
+        let _status_text = native_ui_node_set_text(session, status, "KQuantum native GPU lane // frame " + str(frame_counter) + " // Vulkan frames " + str(vulkan_window.frames))
 
-        let _metric_a = set_metric_text(session, metric_a, "backend", backend_name + " available=" + bool_word(vulkan_available == 1))
+        let _metric_a = set_metric_text(session, metric_a, "vulkan", vulkan_window.backend + " frames=" + str(vulkan_window.frames))
         let _metric_b = set_metric_int(session, metric_b, "particles", particle_count)
         let _metric_c = set_metric_int(session, metric_c, "fluid.cells", KQUANTUM_FLUID_CELLS)
         let _metric_d = set_metric_int(session, metric_d, "draw.commands", draw_count)
@@ -325,10 +367,10 @@ fn main() -> Int:
         let _metric_f = set_metric_int(session, metric_f, "exports", export_count)
         let _metric_g = set_metric_text(session, metric_g, "entangled", bool_word(mirrored))
 
-        let _strip_a = render_status_strip(session, strip_a, micro_font, "SPIR-V: quantum_particle_advection + velocity_field + pressure_project + feedback_composite", 1, selected_mode)
+        let _strip_a = render_status_strip(session, strip_a, micro_font, "VULKAN: Win32 surface + swapchain + point-list pipeline through C FFI // " + vulkan_window.message, bool_int(vulkan_window.status == 0), selected_mode)
         let _strip_b = render_status_strip(session, strip_b, micro_font, "K-SCRIPT lane: force.y += sin(p.x * 0.5 + t) * 2.0", 1, selected_mode)
         let _strip_c = render_status_strip(session, strip_c, micro_font, "AUDIO: bass/treble reactive controls are staged as GPU control buffers", bool_int(chaos_level > 64), selected_mode)
-        let _strip_d = render_status_strip(session, strip_d, micro_font, "OUTPUT: VAT/GLB/report surface writes blades/kain-labs/.kain/run/kquantum_report.txt", bool_int(export_count > 0), selected_mode)
+        let _strip_d = render_status_strip(session, strip_d, micro_font, "OUTPUT: VAT/GLB/report surface writes .kain/run/kquantum_report.txt", bool_int(export_count > 0), selected_mode)
 
         let _root_render = ui_render_box(session, root, "fill")
         let _topbar_render = ui_render_box(session, topbar, "fill")
@@ -397,7 +439,7 @@ fn main() -> Int:
                     chaos_level = set_chaos(authority, 16)
                 interactions = interactions + 1
             if button_activated(session, action_export) == 1:
-                report = write_lab_report(selected_mode, backend_name, particle_count, frame_counter, draw_count)
+                report = write_lab_report(selected_mode, backend_name, particle_count, frame_counter, draw_count, vulkan_window.status, vulkan_window.frames, vulkan_window.particles_drawn, vulkan_window.message)
                 export_count = export_count + 1
                 interactions = interactions + 1
 
@@ -408,9 +450,10 @@ fn main() -> Int:
     let frame_hash = native_ui_host_frame_hash(session)
     let final_draw_count = native_graphics_draw_command_count(graphics_session)
     let pipeline_result = quantum_compile_pipeline(particle_count)
-    let final_report = write_lab_report(selected_mode, native_graphics_active_backend(graphics_session), particle_count, frame_counter, final_draw_count)
+    let final_report = write_lab_report(selected_mode, native_graphics_active_backend(graphics_session), particle_count, frame_counter, final_draw_count, vulkan_window.status, vulkan_window.frames, vulkan_window.particles_drawn, vulkan_window.message)
     let ui_ok = generation == committed and frame_hash != 0 and native_ui_state_count(session) >= 20 and interactions >= 4
     let graphics_ok = mesh > 0 and pipeline > 0 and final_draw_count >= 1 and present_status >= 0
+    let vulkan_ok = vulkan_window.probe == 1 and vulkan_window.status == 0 and vulkan_window.frames >= 1 and vulkan_window.particles_drawn >= particle_count
     let entangle_ok = native_entangle_registered_count() >= 4 and native_entangle_propagation_count() >= 1
     let law_ok = particle_count_valid(particle_count) and mode_valid(selected_mode)
     let pipeline_ok = pipeline_result >= particle_count
@@ -425,6 +468,8 @@ fn main() -> Int:
         return 21
     if graphics_ok == false:
         return 22
+    if vulkan_ok == false:
+        return 27
     if entangle_ok == false:
         return 23
     if law_ok == false:

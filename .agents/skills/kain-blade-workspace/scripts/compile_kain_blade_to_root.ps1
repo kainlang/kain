@@ -11,6 +11,7 @@ param(
     [ValidateSet("blade-root", "repo-root")]
     [string]$OutputPlacement = "blade-root",
     [string]$ArtifactRoot,
+    [string]$RuntimeManifestPath,
     [switch]$Run,
     [switch]$VerifyLlvm
 )
@@ -145,6 +146,8 @@ function Move-GeneratedBuildSidecars {
         [System.IO.Path]::ChangeExtension($OutputExe, ".bc"),
         [System.IO.Path]::ChangeExtension($OutputExe, ".ilk"),
         [System.IO.Path]::ChangeExtension($OutputExe, ".pdb"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".lib"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".exp"),
         [System.IO.Path]::ChangeExtension($OutputExe, ".runtime_contract.json"),
         [System.IO.Path]::ChangeExtension($OutputExe, ".realtime_app.json")
     )
@@ -207,8 +210,19 @@ if (!(Test-Path $artifactDir)) {
 }
 
 $resolvedKain = Resolve-KainBinary -Requested $KainBin
+$runtimeManifestForBuild = if ($RuntimeManifestPath) {
+    if ([System.IO.Path]::IsPathRooted($RuntimeManifestPath)) {
+        Resolve-Path $RuntimeManifestPath
+    } else {
+        Resolve-Path (Join-Path $repoRoot $RuntimeManifestPath)
+    }
+} else {
+    Resolve-Path (Join-Path $repoRoot "runtime\native_core_runtime.toml")
+}
+$previousRuntimeManifestPath = $env:KAIN_RUNTIME_MANIFEST_PATH
+$env:KAIN_RUNTIME_MANIFEST_PATH = $runtimeManifestForBuild.Path
 
-Push-Location $repoRoot
+Push-Location $bladeRoot
 try {
     & $resolvedKain check $entryPath.Path --target llvm
     if ($LASTEXITCODE -ne 0) {
@@ -248,4 +262,9 @@ try {
 }
 finally {
     Pop-Location
+    if ($null -ne $previousRuntimeManifestPath) {
+        $env:KAIN_RUNTIME_MANIFEST_PATH = $previousRuntimeManifestPath
+    } else {
+        Remove-Item Env:\KAIN_RUNTIME_MANIFEST_PATH -ErrorAction SilentlyContinue
+    }
 }

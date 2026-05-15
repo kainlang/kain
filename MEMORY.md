@@ -1,5 +1,90 @@
 # Kain Memory
 
+# 2026-05-15 - KQuantum now drives a real Vulkan particle window through C FFI
+
+`blades/kain-labs` now has a blade-local Win32 Vulkan bridge for KQuantum instead of only metadata-level native graphics reporting. Kain still owns the app, UI, worlds, entangle state, actors, reports, and orchestration; the C bridge owns the platform Vulkan surface/swapchain/pipeline ABI and is imported through `[c_ffi]`.
+
+What changed:
+
+- Added `blades/kain-labs/native/kquantum_vulkan_bridge.c/.h`, which dynamically loads `vulkan-1.dll`, creates a Win32 Vulkan instance/surface/device/swapchain/render pass/point-list pipeline, loads SPIR-V shaders from `.kain/gpu/vulkan_window/`, and renders procedural 3D particles.
+- Added GLSL window shaders under `blades/kain-labs/native/shaders/` plus `build-vulkan-bridge.ps1`; outputs stay under `.kain/gpu/vulkan_window/` and `.kain/native/`.
+- `src/main.kn` now launches the Vulkan window through `use c::kquantum_vulkan_bridge`, records counters in `.kain/run/kquantum_vulkan_report.txt`, shows Vulkan status in the native UI, and keeps all Kain runtime reports relative to the blade root (`.kain/run`).
+- The C FFI import header intentionally exposes only numeric/status/report functions. C-owned `const char*` accessors caused a heap-corruption crash when called from Kain, so text diagnostics now cross the boundary through report files until foreign string ownership is explicitly modeled.
+- Patched `.agents/skills/kain-blade-workspace/scripts/compile_kain_blade_to_root.ps1` to run check/compile from the blade root, default blade builds to `runtime/native_core_runtime.toml`, and move `.lib`/`.exp` linker sidecars under `.kain/out/<exe>/`.
+- Patched `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` so LLVM signature pre-scan and item lowering recurse into generated `mod c: mod <library>:` blocks; without this, `[c_ffi]` externs could exist in augmented source but not be declared/lowered in LLVM.
+
+Validation:
+
+- `.\blades\kain-labs\run.ps1 -SkipShaderCompile` builds with the Bazel-backed compiler, leaves `blades/kain-labs/kain-labs.exe`, runs the Kain app, writes `.kain/run/kquantum_report.txt`, and reports `vulkan.window.frames=96`, `vulkan.window.particles_drawn=25165824`, `last_error=ok`.
+- `spirv-val --target-env vulkan1.3` accepts `.kain/gpu/kquantum_kernels/kernels.spv`, `.kain/gpu/vulkan_window/kquantum_particles.vert.spv`, and `.kain/gpu/vulkan_window/kquantum_particles.frag.spv`.
+- Direct C Vulkan harness under `.kain/native/` reports `probe=1 rc=0 frames=16 drawn=4194304`.
+- Added durable solver source at `blades/kain-labs/native/z3/kquantum_vulkan_bridge_bounds.smt2`; Z3 MCP returned four `unsat` checks for particle budget, draw-counter overflow, safe swapchain cleanup index, and shader byte/word bounds.
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm")` proved `14/14`.
+- `cargo test -p kain-sys-codegen lowers_extern_cffi_declarations --target-dir target\codex-kquantum-vulkan-llvm -- --nocapture` passes, including the generated-module C FFI extern regression.
+- UI screenshot proof exists at `blades/kain-labs/.kain/run/kquantum_ui.bmp`, 1440x860, about 4.95 MB, with nonzero sampled payload bytes.
+- `samply --help` confirms this Windows host can load profiles but cannot record new profiles; no fresh samply profile was possible here.
+
+Current notes:
+
+- Bazel still prints the known Windows `rules_swift` local-config `name 'arch' is not defined` analysis noise, but `//:kain` completes under `--keep_going`.
+- The C FFI cache hash already includes the header SHA. If an old `.kain/cache/c_ffi/<hash>` directory still shows removed symbols, check the newest hash before assuming active stale bindings.
+
+# 2026-05-15 - Benchmark lane now covers Kain, Rust, JavaScript, and Python
+
+The benchmark pipeline under `benchmark/` is now a multi-language lane instead of a Kain-vs-Rust-only lane.
+
+What changed:
+
+- `benchmark/benchmarks.json` now declares Kain, Rust, JavaScript, and Python source paths for each normal case, with language notes where a lane is intentionally a proxy.
+- Added dependency-free `main.js` and `main.py` implementations for all 14 current cases.
+- `benchmark/run.py` now supports `--languages`, builds/checks Node and CPython lanes, pins Kain benchmark links to `runtime/native_core_runtime.toml`, writes `latest.llm.md` plus JSON, and removes stale HTML output.
+- Added the native Kain benchmark console at `benchmark/blades/kain-benchmark`, with the executable built to `benchmark/kain-benchmark.exe`. The console previews the latest LLM report and can run quick/full benchmark passes through the native process system.
+- `stdlib/native/ui.kn::ui_event_kind_is` now avoids direct whole-string equality on extern-backed event strings; it compares length and characters so `&String` event values do not trip the checker.
+- The blade compile helper now runs Kain from the discovered blade root during check/compile, which lets nested blade workspaces such as `benchmark/blades/kain-benchmark` resolve sibling source modules.
+
+Validation:
+
+- `python -m py_compile benchmark/run.py`
+- JS and Python syntax checks across all benchmark cases
+- `python benchmark/run.py --languages javascript,python --runs 1 --warmups 0 --timeout 300`
+- `python benchmark/run.py --case scalar_mix --languages kain,rust,javascript,python --runs 1 --warmups 0 --timeout 300`
+- `.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm`
+- `benchmark\kain-benchmark.exe` exits 0 under `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES=8` and writes a 3.7 MB screenshot under `benchmark/blades/kain-benchmark/.kain/run/`.
+
+Current notes:
+
+- `contention_wall` JavaScript/Python are explicit scalar proxies. Do not present those as equivalent worker/thread contention results.
+- If Kain benchmark links try to use the broad `runtime/native_runtime.toml`, they may trip optional vendor source drift such as missing Yoga debug sources. Keep ordinary benchmark file builds on `runtime/native_core_runtime.toml`.
+- The Win32/GL screenshot readback still appears flipped/mirrored in viewers; use it as nonblank render proof unless working directly on screenshot orientation.
+- `samply --help` works on this Windows host, but recording is not supported here; it can only load existing profiles.
+
+# 2026-05-15 - Native compiled UI hot reload now has a cross-platform runtime lane
+
+The native compiled-UI/runtime bundle lane now has a real live-reload spine in C instead of only generation markers.
+
+What changed:
+
+- Added `runtime/native/include/kain_ui_hot_reload.h` and `runtime/native/src/ui/kain_ui_hot_reload.c` as the public/runtime implementation for compiled-bundle hot reload control.
+- The API is cross-platform by design. File-backed live reload watches `KAIN_NATIVE_UI_BUNDLE` everywhere, while the low-latency control plane uses shared-memory backends behind one API instead of hardcoding Windows IPC into the architecture.
+- `runtime/native/include/kain_ui_runtime.h` and `runtime/native/src/ui/kain_ui_runtime.c` now expose bundle reload options/reporting plus state transfer across reloads. Focus, active edit targets, hovered targets, editable values, and dirty state now survive bundle swaps when component ids or `persistent_layout_id` values match.
+- `runtime/native/src/platform/win32/kain_runtime_viewport_win32.c` and `runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c` now boot the reload controller, poll it in-frame, apply new compiled bundles without closing the process, and update the live native window title when the reloaded bundle changes it.
+- `runtime/conformance/ui_runtime/test_ui_runtime_reload.c` is the new durable smoke for both state-preserving reload and the shared hot-reload channel round trip.
+- `runtime/native/src/ui/z3/proofs-experimental/kain_ui_hot_reload_ring_invariants.smt2` captures the ring invariants used by the shared event lane. The checked claims were: `seq & 127 == seq mod 128` and wrapped append ranges never exceed the 128-slot ring capacity.
+
+Validation:
+
+- Z3 MCP `check_smt2` returned `unsat` for the hot-reload ring mask/range proof pack (`native_ui_hot_reload_ring_invariants_fixed`).
+- `bash runtime/conformance/ui_runtime/compile_tests.sh`
+- `runtime/conformance/ui_runtime/bin/test_ui_runtime_reload.exe`
+- `clang -I runtime/native/include -Wall -Wextra -std=c11 -D_CRT_SECURE_NO_WARNINGS -c runtime/native/src/platform/win32/kain_runtime_viewport_win32.c`
+- `clang -I runtime/native/include -Wall -Wextra -std=c11 -D_CRT_SECURE_NO_WARNINGS -c runtime/native/src/platform/win32/kain_runtime_sculpt_win32.c`
+
+Current notes:
+
+- `test_ui_runtime_reload.exe` passes and proves the new reload/state-transfer lane directly.
+- `test_ui_runtime_parity.exe` and `test_native_ui_system_host_services.exe` are still failing in this environment, but those failures are in older fixture/live-host paths and are not specific to the new reload API surface.
+- The optional shared-memory control plane now hangs off `KAIN_NATIVE_UI_HOT_RELOAD_CHANNEL`; use that for explicit live-reload orchestration, but keep the file-watch path healthy because it is the portable baseline on non-Windows hosts.
+
 # 2026-05-15 - Blade builds now stay blade-local
 
 The `kain-blade-workspace` skill and helper script now enforce blade-local build hygiene.
