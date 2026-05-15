@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-14 - Benchmark lane expanded to 14 cases with recursion, string search, and array scans
+
+The paired Kain-vs-Rust benchmark lane now covers 14 cases after adding:
+
+- `recursive_sum`: recursive call-stack lowering in a tight loop.
+- `string_ops`: substring search and string length/indexing over top-level string consts.
+- `array_scan`: nested fixed-array indexing and weighted accumulation.
+
+Design notes:
+
+- The new string case intentionally stays on the compiler's proven surface: top-level string consts, `find_substring`, `len`, and `char_at`. It avoids the earlier string-builder shape that was tripping standalone benchmark compilation.
+- The new array case uses the same untyped array-literal pattern already seen in the working example tree.
+
+Validation:
+
+- `python benchmark/run.py --runs 3 --warmups 1`
+
+Latest report:
+
+- `benchmark/out/reports/latest.html`
+- `contention_wall` now wins even harder under the fair lane, while the new core-parity cases currently favor Rust. That is useful signal, not a failure: it shows the compiler/runtime gap is still concentrated in ordinary lowering, not just the ownership path.
+
 # 2026-05-14 - Native net, async, and process handle registries now use hashed sidecars and bitset allocators
 
 The native runtime's hottest fixed-capacity registries now avoid linear scans:
@@ -3271,3 +3293,23 @@ Validation:
 - Z3 MCP `prove_or_witness(kind="check_smt2")` proved a reduced one-hot branchless selector claim with `unsat`.
 
 Updated the skill to explicitly allow Carmack-style performance hunting: unsafe code, dirty hacks, and inverse-square-root tricks are permitted when they are measured, bounded, and still proven or benchmarked before landing.
+
+# 2026-05-14 - LLVM hot-path lowering pass for benchmark gaps
+
+Using the `z3-black-magic-optimizer` workflow, the LLVM backend now removes helper-call overhead from two hot surfaces:
+
+- Raw `mem_load` / `mem_store` lower directly to typed LLVM `load` / `store` through an `i8*` pointer cast with `align 1`, avoiding `__kain_mem_load` / `__kain_mem_store` calls in tight loops.
+- Native `Option` / `Result` boxes now inline constructor, tag-test, and payload-load IR for the canonical tagged layout (`tag`, `payload_size`, payload bytes). Future await still uses `kain_native_future_await_payload_copy` because futures use a different runtime layout.
+- Tiny non-looping LLVM callables are emitted with an `alwaysinline` attribute group, giving the optimizer a better shot at flattening benchmark helper functions without changing linkage.
+- The LLVM type mapper now recognizes capital `Void`, fixing the existing extern C FFI void-argument test failure.
+
+Proof and validation:
+
+- Added `runtime/native/src/core/z3/proofs-experimental/tagged-box-direct-copy-8b.smt2`.
+- Z3 MCP result for that proof is `unsat`, validating the 8-byte little-endian payload copy identity used by direct tagged-box payload moves.
+- `cargo test -p kain-sys-codegen` passes.
+
+Benchmark lesson:
+
+- `option_result` generated IR no longer calls option/result/tagged helper functions, but the benchmark remains allocation-bound because the loop still boxes every `Some` / `Ok` / `Err` / `None`. Rust scalar-replaces this away, so the next real win is unboxed Option/Result lowering or escape-analysis-driven box elimination.
+- `memory_stream` now emits direct load/store IR and a 5-run spot check reported Kain median `77.419 ms` vs Rust `11.132 ms` (`benchmark/out/reports/20260515T005259Z.html`). The repeated ~75 ms Kain floor across unrelated cases suggests process/runtime startup and the full native runtime linkage are now the dominant benchmark tax, not just individual helper calls.

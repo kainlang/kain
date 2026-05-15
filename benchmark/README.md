@@ -24,6 +24,9 @@ Current basic language-edge cases:
 - `memory_stream`: sequential helper-owned buffer write/read.
 - `alloc_churn`: many small allocation/lifetime cycles.
 - `scalar_mix`: hot scalar loop with top-level const expressions and a checksum guard.
+- `recursive_sum`: recursive call-stack lowering in a tight loop.
+- `string_ops`: repeated substring search plus string length/indexing over top-level string consts.
+- `array_scan`: nested fixed-array indexing and weighted accumulation.
 - `struct_method`: aggregate construction plus explicit score function over fields.
 - `option_result`: tagged Option/Result creation, branching, and unwrap.
 

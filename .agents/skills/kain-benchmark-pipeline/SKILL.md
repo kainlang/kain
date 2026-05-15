@@ -49,6 +49,10 @@ description: Use when adding, changing, running, or reviewing the Kain vs Rust L
 - `alloc_churn`: many small allocation/write/read/lifetime-end cycles.
 - `struct_method`: aggregate construction plus explicit `score_pair(pair)` field access. Avoid receiver method field access until that native codegen gap is fixed.
 - `option_result`: Option/Result tagged value creation, branching, and unwrap paths.
+- `scalar_mix`: top-level const lowering and a checksum guard.
+- `recursive_sum`: recursion and call-stack lowering in a tight loop.
+- `string_ops`: ASCII substring search plus string length/indexing over top-level string consts.
+- `array_scan`: fixed-array indexing and weighted accumulation.
 
 ## Validation
 

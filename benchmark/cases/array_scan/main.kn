@@ -1,0 +1,19 @@
+fn main() -> Int:
+    let iterations: Int = 500000
+    let modulus: Int = 1000000007
+    let expected: Int = 103499994
+    let values = [1, 2, 3, 4, 5, 6, 7, 8]
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        var inner: Int = 0
+        var index: Int = 0
+        while index < len(values):
+            inner = (inner + values[index] * (index + 1)) % modulus
+            index = index + 1
+        acc = (acc + inner + (i % 7)) % modulus
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

@@ -85,6 +85,33 @@
       "rust": "cases/scalar_mix/main.rs"
     },
     {
+      "id": "recursive_sum",
+      "title": "Recursive Sum",
+      "description": "Recursive integer aggregation in a hot loop. This catches call-stack lowering, recursion overhead, and tail-call assumptions without external dependencies.",
+      "maturity": "implemented",
+      "fairness_note": "Both sides use the same pure recursive helper and identical loop counts; no runtime libraries beyond std builtins are involved.",
+      "kain": "cases/recursive_sum/main.kn",
+      "rust": "cases/recursive_sum/main.rs"
+    },
+    {
+      "id": "string_ops",
+      "title": "String Ops",
+      "description": "Repeated substring search and string length/indexing over top-level string consts. This probes text lowering and branchy search loops without external dependencies.",
+      "maturity": "implemented",
+      "fairness_note": "Both sides stay on ASCII-only text and pure std/string builtins so search semantics remain directly comparable.",
+      "kain": "cases/string_ops/main.kn",
+      "rust": "cases/string_ops/main.rs"
+    },
+    {
+      "id": "array_scan",
+      "title": "Array Scan",
+      "description": "Nested array indexing and weighted accumulation over a fixed integer list. This stresses bounds handling, indexing, and simple loop lowering.",
+      "maturity": "implemented",
+      "fairness_note": "Both sides use fixed local arrays and the same loop counts; there are no imported containers or external dependencies.",
+      "kain": "cases/array_scan/main.kn",
+      "rust": "cases/array_scan/main.rs"
+    },
+    {
       "id": "struct_method",
       "title": "Struct Method Dispatch",
       "description": "Construct small records and call an instance method in a hot loop. This catches aggregate layout and method-call lowering.",
