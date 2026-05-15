@@ -14,7 +14,6 @@ zender/
 smoketest/3D/
 !/smoketest/3D/intent_forge_quartet/
 !/smoketest/3D/intent_forge_quartet/.gitignore
-!/smoketest/3D/intent_forge_quartet/README.md
 !/smoketest/3D/intent_forge_quartet/launch_native_app.sh
 !/smoketest/3D/intent_forge_quartet/run_smoke.py
 !/smoketest/3D/intent_forge_quartet/smoke.kn

@@ -1,6 +1,0 @@
-// Localization seed for locale bundle routing, subtitle timing, and regional asset selection.
-
-kernel localization_bundle_resolve:
-    stage = "localization_bundle"
-    domain = "localization"
-    intent = "Resolve locale catalogs, subtitle timing, and regional asset/audio variants into presentation-ready bundles."

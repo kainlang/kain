@@ -1,6 +1,0 @@
-// Frame telemetry and budget profiling seed for runtime observability.
-
-kernel telemetry_frame_profile_resolve:
-    stage = "telemetry_frame_profile"
-    domain = "telemetry"
-    intent = "Resolve frame, job, and delivery telemetry into budget-aware diagnostics and operator review channels."

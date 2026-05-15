@@ -1,6 +1,0 @@
-// Remote-streaming seed for thin-client sessions, quality adaptation, and operator authority control.
-
-kernel remote_stream_session_resolve:
-    stage = "remote_streaming"
-    domain = "streaming"
-    intent = "Resolve remote session state, frame budgets, and operator authority into adaptive cloud and thin-client stream routes."

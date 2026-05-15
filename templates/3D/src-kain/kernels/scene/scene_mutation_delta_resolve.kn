@@ -1,6 +1,0 @@
-// Scene-mutation delta seed for transactional scene edits, dependency-safe deltas, replay-safe state transitions, and audit-visible mutation receipts.
-
-kernel scene_mutation_delta_resolve:
-    stage = "scene_mutation"
-    domain = "scene_mutation"
-    intent = "Resolve scene mutation deltas, command-linked transactions, replication-safe state updates, and audit-visible mutation receipts."

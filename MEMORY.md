@@ -31,7 +31,7 @@ Validation:
 Current notes:
 
 - The broad `cargo test -p cli` suite is still not fully green in this checkout because of pre-existing unrelated failures outside this refactor (`import_c::tests::test_import_with_target` and `selfhost::tests::indent_repaired_block_matches_nested_selfhost_layout`).
-- Historical `win32-gl` references still remain in old memory entries and archived Z3 assumption files; those are no longer part of the active runtime contract.
+- Historical `win32-gl` references still remain in old memory entries; the active runtime tree only keeps the conformance assertion that the legacy presenter must now be rejected.
 
 # 2026-05-15 - `blades/vulkain` is now the raw reusable Vulkan blade package
 

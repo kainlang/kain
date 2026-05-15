@@ -1,6 +1,0 @@
-// Camera rig packet resolution seed for viewport, stage, XR, replay, and delivery-safe capture orchestration.
-
-kernel camera_rig_packet_resolve:
-    stage = "camera_rig_packets"
-    domain = "camera"
-    intent = "Resolve camera rigs, lens profiles, capture packets, tracked-camera sync, and delivery-bound camera routes."

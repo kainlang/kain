@@ -1,6 +1,0 @@
-// Gameplay framework seed for runtime rulesets, event routing, and mission-state resolution.
-
-kernel gameplay_state_resolve:
-    stage = "gameplay_state"
-    domain = "gameplay"
-    intent = "Resolve gameplay rulesets, mission state, and event routing into runtime-safe authored state transitions."

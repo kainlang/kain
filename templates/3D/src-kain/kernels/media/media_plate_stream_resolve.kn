@@ -1,6 +1,0 @@
-// SPIR-V seed for media clip decode, plate routing, and transcode-safe playback across viewport and editorial lanes.
-
-kernel media_plate_stream_resolve:
-    stage = "media_stream"
-    domain = "media"
-    intent = "Resolve clip decode plans, plate timing, and proxy-master routes into editor, stage, review, and delivery-safe media packets."

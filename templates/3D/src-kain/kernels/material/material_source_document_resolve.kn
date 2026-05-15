@@ -1,6 +1,0 @@
-// Material-source document resolution seed for authored material documents, layer stacks, shader hooks, and preview-safe compilation lanes.
-
-kernel material_source_document_resolve:
-    stage = "material_source_documents"
-    domain = "material_source"
-    intent = "Resolve source-level material documents, layer authoring state, shader hook graphs, and preview-safe compile packets."
