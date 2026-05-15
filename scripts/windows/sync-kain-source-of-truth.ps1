@@ -566,7 +566,7 @@ $stampPath = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_STAMP_PATH)) {
 $counterPath = Resolve-StatePath -StateRoot $stateRoot -SyncPolicy $syncPolicy -Key "build_counter_relative_path" -DefaultRelative "state/build_counter.json"
 $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPolicy -Key "runtime_stamp_files" -DefaultValue @(
         "runtime/kain_runtime.c",
-        "runtime/native_runtime.toml",
+        "runtime/native_core_runtime.toml",
         "blades/kain-mcp/config/runtime_policy.json"
     ))
 
@@ -613,7 +613,7 @@ $resourceMap = [ordered]@{
     "KAIN_REPO_ROOT" = $repoRoot
     "KAIN_STDLIB_PATH" = (Join-Path $repoRoot "stdlib")
     "KAIN_RUNTIME_C_PATH" = (Join-Path $repoRoot "runtime\kain_runtime.c")
-    "KAIN_RUNTIME_MANIFEST_PATH" = (Join-Path $repoRoot "runtime\native_runtime.toml")
+    "KAIN_RUNTIME_MANIFEST_PATH" = (Join-Path $repoRoot "runtime\native_core_runtime.toml")
     "KAIN_SYNC_ROOT" = $stateRoot
     "KAIN_SYNC_STAMP_PATH" = $stampPath
     "KAIN_SYNC_LOCK_PATH" = $lockPath

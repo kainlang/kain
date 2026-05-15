@@ -1,7 +1,0 @@
-version = 1
-
-[[annotations]]
-path = ["tika-mimetypes.xml"]
-precedence = "closest"
-SPDX-FileCopyrightText = "None"
-SPDX-License-Identifier = "Apache-2.0"

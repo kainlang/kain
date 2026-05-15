@@ -7,17 +7,15 @@
 
 typedef enum {
     KAIN_RENDERER_BACKEND_UNKNOWN = 0,
-    KAIN_RENDERER_BACKEND_BGFX,
-    KAIN_RENDERER_BACKEND_FILAMENT,
-    KAIN_RENDERER_BACKEND_DILIGENT,
-    KAIN_RENDERER_BACKEND_FORGE,
+    KAIN_RENDERER_BACKEND_VULKAN,
+    KAIN_RENDERER_BACKEND_D3D12,
 } KainRendererBackendKind;
 
 typedef struct {
     KainRendererBackendKind kind;
     const char* id;
     const char* display_name;
-    const char* vendor_name;
+    const char* runtime_name;
     const char* service_key;
     const char* summary;
     int available;

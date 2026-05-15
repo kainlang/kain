@@ -211,7 +211,7 @@ static int test_overflow_bindings_clamp(void) {
     if (!check_true(bundle.primary_material.resource_binding_count == KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS, "material bindings clamped")) return 0;
     if (!check_true(bundle.primary_compute.resource_binding_count == KAIN_RUNTIME_GRAPHICS_MAX_BINDINGS, "compute bindings clamped")) return 0;
     if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation), "validate_overflow_bindings")) return 0;
-    if (!check_true(validation.gl_lane_ready == 1, "validation.gl_lane_ready(overflow)")) return 0;
+    if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready(overflow)")) return 0;
     return 1;
 }
 

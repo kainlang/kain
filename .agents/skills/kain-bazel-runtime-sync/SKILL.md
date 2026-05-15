@@ -17,9 +17,9 @@ Use this skill when the task touches Bazel support for the native runtime bundle
 ## Default target contract
 
 - `runtime/native_core_runtime.toml` is the lean/default runtime manifest.
-- `runtime/native_runtime.toml` is the broad app/vendor manifest.
+- `runtime/native_runtime.toml` is the lean compatibility mirror of the core manifest.
 - `//runtime:native_runtime` should stay aligned with the lean default lane unless there is a deliberate architecture change.
-- `//runtime:native_full_runtime` is the broad manifest target.
+- `//runtime:native_full_runtime` is only a legacy-named compatibility mirror target over the same lean source set.
 
 ## Required workflow
 
@@ -34,8 +34,8 @@ Use this skill when the task touches Bazel support for the native runtime bundle
 
 ## Windows notes
 
-- The validated Windows/MSVC Bazel lane is the lean core runtime plus the actor C tests.
-- `//runtime:native_full_runtime` is intentionally Windows-incompatible today because the broad manifest still contains QuickJS/vendor and related sources that are not Bazel-clean under MSVC.
+- The validated Windows/MSVC Bazel lane is `bazel build //runtime:all` plus `bazel test //runtime:native_runtime_tests`.
+- `//runtime:native_full_runtime` should resolve to the same lean runtime data as `//runtime:native_runtime`; do not repurpose it into a second vendor lane.
 - If `<stdatomic.h>` fails under Bazel MSVC, check that `runtime/native_runtime_rules.bzl` still passes `/experimental:c11atomics`.
 
 ## Editing rules

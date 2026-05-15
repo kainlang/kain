@@ -519,7 +519,7 @@ def build_resource_map(
     resource_map = {
         "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
         "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "kain_runtime.c"),
-        "KAIN_RUNTIME_MANIFEST_PATH": str(context.repo_root / "runtime" / "native_runtime.toml"),
+        "KAIN_RUNTIME_MANIFEST_PATH": str(context.repo_root / "runtime" / "native_core_runtime.toml"),
         "KAIN_CLANG_PATH": str(bundled_clang_path),
     }
     if python_path is not None:

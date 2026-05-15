@@ -111,12 +111,6 @@ static const KainNativeGraphicsBackendDescriptor g_backends[] = {
         1
     },
     {
-        "opengl",
-        "opengl requires a platform viewport executor; this raw kernel only records authored commands",
-        1,
-        0
-    },
-    {
         "vulkan",
         "vulkan is a declared native backend target, but no direct Vulkan executor is attached yet",
         1,

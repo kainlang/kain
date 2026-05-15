@@ -83,8 +83,13 @@ fn ascend_to_runtime_workspace_root(start: &Path) -> Option<PathBuf> {
 }
 
 fn is_runtime_workspace_root(path: &Path) -> bool {
+    let has_runtime_manifest = path
+        .join("runtime")
+        .join("native_core_runtime.toml")
+        .is_file()
+        || path.join("runtime").join("native_runtime.toml").is_file();
     path.join("Cargo.toml").is_file()
-        && path.join("runtime").join("native_runtime.toml").is_file()
+        && has_runtime_manifest
         && path
             .join("runtime")
             .join("compile_native_runtime.sh")
@@ -411,7 +416,7 @@ mod tests {
             .expect("nested dirs");
         std::fs::write(repo_root.join("Cargo.toml"), "[workspace]\n").expect("workspace manifest");
         std::fs::write(
-            repo_root.join("runtime").join("native_runtime.toml"),
+            repo_root.join("runtime").join("native_core_runtime.toml"),
             "sources = []\n",
         )
         .expect("runtime manifest");

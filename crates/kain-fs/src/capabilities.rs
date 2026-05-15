@@ -304,7 +304,7 @@ mod tests {
         let mut sandbox = FsSandbox::project_sandbox(temp.path());
         sandbox.mount("runtime", temp.path(), true);
         let error = sandbox
-            .authorize(FsCapability::Write, "fs://runtime/native_runtime.toml")
+            .authorize(FsCapability::Write, "fs://runtime/native_core_runtime.toml")
             .expect_err("read only");
         assert_eq!(error.kind, FsErrorKind::AccessDenied);
     }

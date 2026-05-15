@@ -396,7 +396,7 @@ $stampPath = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_STAMP_PATH)) {
 }
 $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPolicy -Key "runtime_stamp_files" -DefaultValue @(
         "runtime/kain_runtime.c",
-        "runtime/native_runtime.toml",
+        "runtime/native_core_runtime.toml",
         "blades/kain-mcp/config/runtime_policy.json"
     ))
 
@@ -406,7 +406,7 @@ $resolvedPythonPath = Resolve-Python312Path
 $env:KAIN_REPO_ROOT = $repoRoot
 $env:KAIN_STDLIB_PATH = (Join-Path $repoRoot "stdlib")
 $env:KAIN_RUNTIME_C_PATH = (Join-Path $repoRoot "runtime\kain_runtime.c")
-$env:KAIN_RUNTIME_MANIFEST_PATH = (Join-Path $repoRoot "runtime\native_runtime.toml")
+$env:KAIN_RUNTIME_MANIFEST_PATH = (Join-Path $repoRoot "runtime\native_core_runtime.toml")
 $env:KAIN_SYNC_ROOT = $stateRoot
 $env:KAIN_SYNC_STAMP_PATH = $stampPath
 $env:KAIN_BAZEL_CONFIG = $resolvedConfig

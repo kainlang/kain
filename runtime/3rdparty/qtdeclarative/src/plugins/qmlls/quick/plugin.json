@@ -1,8 +1,0 @@
-{
-    "name": "QmlLSQuick",
-    "author": "Qt",
-    "description": "Provide QmlLS utilities for QtQuick",
-    "version": "1.0",
-    "isInternal": true,
-    "Keys" : [ "quick" ]
-}

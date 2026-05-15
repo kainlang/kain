@@ -1,7 +1,0 @@
-version = 1
-
-[[annotations]]
-path = ["**"]
-precedence = "closest"
-SPDX-FileCopyrightText = ["Copyright © 2009 Nokia Corporation"]
-SPDX-License-Identifier = "MIT"

@@ -40,6 +40,11 @@ The runtime uses the table to decide:
 That is why the table is more than a list of names. It is the decision point
 between declared capability and live capability.
 
+The active production registry is the lean 31-service catalog. Service keys
+that used to name runtime-owned vendor trees such as `ui.layout.yoga`,
+`ui.backend.imgui`, `gfx.backend.bgfx`, `script.quickjs`, or the old audio/wasm
+vendor lanes are archived history now, not supported runtime surface.
+
 `io.net` now points at the owned `kain_native_net_*` function table on the
 native core lane instead of the older vendor/libuv stub table. It currently
 provides TCP and HTTP/1.1 primitives, with Windows HTTPS client support through
@@ -56,12 +61,15 @@ functions return explicit unsupported diagnostics.
 ### Base
 
 - `base.memory`
+- `memory.ownership`
 - `base.diagnostics`
 
 ### Contract And Reflection
 
 - `contract`
 - `reflection`
+- `runtime.inspection`
+- `device.reflection`
 
 ### Actor And Async
 
@@ -69,72 +77,40 @@ functions return explicit unsupported diagnostics.
 - `actor.registry`
 - `async.runtime`
 - `async.timers`
-- `io.loop`
-- `io.fs`
 - `io.net`
 - `io.process`
-- `io.timers`
 
 ### Platform
 
 - `platform.app-host`
 - `platform.input`
-- `platform.window`
-
-### Graphics / Scene / Runtime Inspection
-
 - `gfx.viewport`
-- `gfx.backend.bgfx`
-- `gfx.backend.filament`
-- `gfx.backend.diligent`
-- `gfx.backend.forge`
-- `gfx.shader`
-- `gfx.material`
+
+### Graphics / Scene
+
+- `gfx.raw-native`
+- `gfx.shader.spirv`
+- `gfx.backend.vulkan`
+- `gfx.backend.d3d12`
 - `gfx.compute`
 - `scene.runtime`
 - `scene.query`
 - `scene.mutation`
-- `runtime.inspection`
-- `device.reflection`
 
 ### UI
 
 - `ui.bundle`
 - `ui.component`
-- `ui.layout.yoga`
-- `ui.render.skia`
-- `ui.backend.imgui`
-- `ui.backend.rmlui`
-- `ui.backend.slint`
-- `ui.backend.qt`
-- `ui.surface.browser.cef`
-- `ui.devtools`
 
 ### Assets
 
 - `asset.gltf`
-- `asset.image.bimg`
-- `asset.texture.bimg`
 - `asset.ingestion`
 - `asset.realtime`
 
-### Host Bridge / Script / Audio
+### Host Bridge / Compatibility
 
 - `host.bridge`
-- `script.quickjs`
-- `audio.backend`
-- `audio.graph`
-- `audio.device`
-- `audio.assets`
-
-### WASM / Allocators / Compatibility
-
-- `wasm.runtime.light`
-- `wasm.runtime.full`
-- `wasm.module`
-- `wasm.wasi`
-- `allocator.mimalloc`
-- `allocator.rpmalloc`
 - `compatibility`
 
 ## Provider Lanes
@@ -151,4 +127,6 @@ The service registry can attribute a service to:
 ## Migration Note
 
 Legacy masks in the older contract header are transition scaffolding. The new
-service table is the direction of travel.
+service table is the direction of travel, and archived vendor service keys
+should stay archived unless they return as blade/package-owned capabilities
+above the runtime ABI floor.

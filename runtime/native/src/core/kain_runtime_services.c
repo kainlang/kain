@@ -2,7 +2,6 @@
 #include "../../include/kain_runtime_base.h"
 #include "../../include/kain_native_net_system.h"
 #include "../../include/kain_native_process_system.h"
-#include "../../include/kain_runtime_vendor_lane.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -172,31 +171,28 @@ static void kain_service_descriptor_copy(
     kain_service_descriptor_refresh_key_metadata(destination);
 }
 
-static const KainServiceKeyAlias g_kain_native_runtime_service_aliases[] = {
-    {"native.app-host", KAIN_SERVICE_KEY_PLATFORM_APP_HOST},
-    {"native.input", KAIN_SERVICE_KEY_PLATFORM_INPUT},
-    {"native.viewport", KAIN_SERVICE_KEY_GFX_VIEWPORT},
-    {"native.graphics", KAIN_SERVICE_KEY_GFX_RAW_NATIVE},
-    {"native.scene", KAIN_SERVICE_KEY_SCENE_RUNTIME},
-    {"native.scene.query", KAIN_SERVICE_KEY_SCENE_QUERY},
-    {"native.scene.mutation", KAIN_SERVICE_KEY_SCENE_MUTATION},
-    {"native.runtime.inspection", KAIN_SERVICE_KEY_RUNTIME_INSPECTION},
-    {"native.device.reflection", KAIN_SERVICE_KEY_DEVICE_REFLECTION},
-    {"native.asset.gltf", KAIN_SERVICE_KEY_ASSET_GLTF},
-    {"native.asset.ingestion", KAIN_SERVICE_KEY_ASSET_INGESTION},
-    {"native.ui.compiled-bundle", KAIN_SERVICE_KEY_UI_BUNDLE},
-    {"native.compute", KAIN_SERVICE_KEY_GFX_COMPUTE},
-    {"native.shader.spirv", KAIN_SERVICE_KEY_GFX_SHADER_SPIRV},
-    {"native.vulkan", KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN},
-    {"native.dx12", KAIN_SERVICE_KEY_GFX_BACKEND_D3D12},
-    {"native.d3d12", KAIN_SERVICE_KEY_GFX_BACKEND_D3D12},
-};
-
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
 static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_BASE_MEMORY,
         "Base Memory Services",
         "Core allocation, retain/release, and memory management",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_REQUIRED,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_MEMORY_OWNERSHIP,
+        "Ownership State Guards",
+        "Native collapse/observe/decay guards for helper-owned heap regions and imported pointer lifetimes",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_REQUIRED,
@@ -226,7 +222,7 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_PLATFORM_APP_HOST,
         "Native App Host",
-        "Win32 application host and window management",
+        "Raw Win32 app/window host substrate without baked presenters or app policy",
         KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
         KAIN_SERVICE_STATUS_AVAILABLE,
         KAIN_SERVICE_REQUIREMENT_REQUIRED,
@@ -246,8 +242,48 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_GFX_VIEWPORT,
         "Native Viewport",
-        "Platform window handles and presenter attachment contract; concrete compatibility presenters now live in blade-owned packages",
+        "Platform window handles and presenter attachment contract; concrete presenters now live in blades or packages",
         KAIN_SERVICE_PROVIDER_PLATFORM_WIN32,
+        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_RAW_NATIVE,
+        "Raw Native Graphics",
+        "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_SHADER_SPIRV,
+        "SPIR-V Shader Modules",
+        "Canonical native shader payload registration for Kain-authored graphics and compute pipelines",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN,
+        "Vulkan Backend Target",
+        "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
+        KAIN_SERVICE_STATUS_DEGRADED,
+        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
+        KAIN_RUNTIME_ABI_VERSION_CURRENT,
+        NULL
+    },
+    {
+        KAIN_SERVICE_KEY_GFX_BACKEND_D3D12,
+        "DirectX 12 Backend Target",
+        "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime",
+        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
         KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
@@ -286,32 +322,12 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
     {
         KAIN_SERVICE_KEY_ASSET_GLTF,
         "glTF Asset Loader",
-        "glTF 2.0 asset loading and parsing",
+        "The legacy runtime-owned glTF loader was removed from the active runtime; authored packages or blade-owned loaders must satisfy this seam",
         KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
+        KAIN_SERVICE_STATUS_DEGRADED,
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
-    },
-    {
-        KAIN_SERVICE_KEY_ASSET_IMAGE_BIMG,
-        "bimg Image Runtime",
-        "Image decoding and staging lane reserved for renderer-facing asset ingestion",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_BIMG ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_asset_image_bimg_service
-    },
-    {
-        KAIN_SERVICE_KEY_ASSET_TEXTURE_BIMG,
-        "bimg Texture Runtime",
-        "Texture container and mip/format staging lane reserved for renderer asset flow",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_BIMG ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_asset_texture_bimg_service
     },
     {
         KAIN_SERVICE_KEY_ASSET_INGESTION,
@@ -342,86 +358,6 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
-    },
-    {
-        KAIN_SERVICE_KEY_UI_LAYOUT_YOGA,
-        "Yoga Layout Engine",
-        "Canonical layout execution lane for retained UI tree sizing and placement",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_YOGA ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_layout_yoga_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_RENDER_SKIA,
-        "Skia Render Engine",
-        "Bridge-backed 2D, vector, and text render substrate for Kain UI paint contracts",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_SKIA ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_render_skia_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_BACKEND_IMGUI,
-        "ImGui Host Backend",
-        "Tooling and devtools backend for inspectors, overlays, and runtime diagnostics",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_IMGUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_backend_imgui_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_BACKEND_RMLUI,
-        "RmlUi Host Backend",
-        "Bridge-backed document-style retained UI backend for markup-driven Kain surfaces",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_RMLUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_backend_rmlui_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_BACKEND_SLINT,
-        "Slint Host Backend",
-        "Bridge-backed declarative native UI backend for Kain semantic surface routing",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_SLINT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_backend_slint_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_BACKEND_QT,
-        "Qt Shell Backend",
-        "External Qt shell and docking backend driven through qml/qmlscene runtime probes",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_QT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_backend_qt_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_SURFACE_BROWSER_CEF,
-        "CEF Browser Surface",
-        "Bridge-backed browser panel and document surface lane for Kain UI contracts",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_CEF ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_surface_browser_cef_service
-    },
-    {
-        KAIN_SERVICE_KEY_UI_DEVTOOLS,
-        "UI Devtools",
-        "Runtime inspection, patch tracing, and tooling overlay service family",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_IMGUI ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_ui_devtools_service
     },
     {
         KAIN_SERVICE_KEY_REFLECTION,
@@ -494,26 +430,6 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         NULL
     },
     {
-        KAIN_SERVICE_KEY_IO_LOOP,
-        "IO Loop",
-        "Vendor-backed event loop and wake delivery substrate",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_io_loop_service
-    },
-    {
-        KAIN_SERVICE_KEY_IO_FS,
-        "IO Filesystem",
-        "Vendor-backed filesystem operations and async file dispatch",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_io_fs_service
-    },
-    {
         KAIN_SERVICE_KEY_IO_NET,
         "IO Network",
         "Native TCP and HTTP/1.1 networking primitives",
@@ -534,16 +450,6 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         (void*)&g_kain_native_process_function_table
     },
     {
-        KAIN_SERVICE_KEY_IO_TIMERS,
-        "IO Timers",
-        "Vendor-backed timer wheel and deadline wake integration",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_LIBUV ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_io_timers_service
-    },
-    {
         KAIN_SERVICE_KEY_GFX_COMPUTE,
         "Compute Runtime",
         "Compute bundle validation, dispatch planning, and native runtime handoff",
@@ -552,86 +458,6 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_SERVICE_REQUIREMENT_OPTIONAL,
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_RAW_NATIVE,
-        "Raw Native Graphics",
-        "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_SHADER_SPIRV,
-        "SPIR-V Shader Modules",
-        "Canonical native shader payload registration for Kain-authored graphics and compute pipelines",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_AVAILABLE,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN,
-        "Vulkan Backend Target",
-        "Kain-visible Vulkan backend selection and capability probe; direct command execution is not attached in this runtime build",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_D3D12,
-        "DirectX 12 Backend Target",
-        "Kain-visible DirectX 12 backend selection and capability probe; direct command execution is not attached in this runtime build",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        NULL
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_BGFX,
-        "bgfx Renderer Backend",
-        "Cross-platform baseline renderer backend for viewport, swapchain, and debug draw",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_BGFX ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_gfx_backend_bgfx_service
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT,
-        "Filament Renderer Backend",
-        "Bridge-backed premium scene, material, and lighting presentation lane",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_FILAMENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_gfx_backend_filament_service
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT,
-        "Diligent Renderer Backend",
-        "Bridge-backed explicit render-graph and compute-oriented renderer lane",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_DILIGENT ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_gfx_backend_diligent_service
-    },
-    {
-        KAIN_SERVICE_KEY_GFX_BACKEND_FORGE,
-        "The Forge Renderer Backend",
-        "Bridge-backed low-level cross-platform renderer substrate",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_FORGE ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_gfx_backend_forge_service
     },
     {
         KAIN_SERVICE_KEY_UI_COMPONENT,
@@ -663,117 +489,12 @@ static const KainServiceDescriptor g_kain_native_runtime_service_catalog[] = {
         KAIN_RUNTIME_ABI_VERSION_CURRENT,
         NULL
     },
-    {
-        KAIN_SERVICE_KEY_SCRIPT_QUICKJS,
-        "QuickJS Script Runtime",
-        "Embedded JavaScript runtime for host automation and dynamic scripting",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_QUICKJS ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_script_quickjs_service
-    },
-    {
-        KAIN_SERVICE_KEY_AUDIO_BACKEND,
-        "Audio Backend",
-        "Vendor-backed device and backend abstraction for realtime audio",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_audio_backend_service
-    },
-    {
-        KAIN_SERVICE_KEY_AUDIO_GRAPH,
-        "Audio Graph",
-        "Vendor-backed audio graph and node processing substrate",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_audio_graph_service
-    },
-    {
-        KAIN_SERVICE_KEY_AUDIO_DEVICE,
-        "Audio Device",
-        "Vendor-backed playback and capture device lifecycle",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_audio_device_service
-    },
-    {
-        KAIN_SERVICE_KEY_AUDIO_ASSETS,
-        "Audio Assets",
-        "Vendor-backed audio asset decoding and resource loading",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_MINIAUDIO ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_audio_assets_service
-    },
-    {
-        KAIN_SERVICE_KEY_WASM_RUNTIME_LIGHT,
-        "WASM Runtime Light",
-        "Lightweight WebAssembly runtime for small sandboxed modules",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_WASM3 ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_wasm_runtime_light_service
-    },
-    {
-        KAIN_SERVICE_KEY_WASM_RUNTIME_FULL,
-        "WASM Runtime Full",
-        "Full WebAssembly runtime lane activated through the WAMR bridge",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_wasm_runtime_full_service
-    },
-    {
-        KAIN_SERVICE_KEY_WASM_MODULE,
-        "WASM Module",
-        "Kain-owned WebAssembly module loading and execution seam",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_WASM3 ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_wasm_module_service
-    },
-    {
-        KAIN_SERVICE_KEY_WASM_WASI,
-        "WASM WASI",
-        "WASI-flavored runtime lane activated through the WAMR bridge",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_WAMR ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_wasm_wasi_service
-    },
-    {
-        KAIN_SERVICE_KEY_ALLOCATOR_MIMALLOC,
-        "Allocator Mimalloc",
-        "Mimalloc-backed allocation lane for Kain runtime experiments",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_MIMALLOC ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_allocator_mimalloc_service
-    },
-    {
-        KAIN_SERVICE_KEY_ALLOCATOR_RPMALLOC,
-        "Allocator Rpmalloc",
-        "Rpmalloc-backed allocation lane for Kain runtime experiments",
-        KAIN_SERVICE_PROVIDER_NATIVE_CORE,
-        KAIN_VENDOR_HAS_RPMALLOC ? KAIN_SERVICE_STATUS_AVAILABLE : KAIN_SERVICE_STATUS_DEGRADED,
-        KAIN_SERVICE_REQUIREMENT_OPTIONAL,
-        KAIN_RUNTIME_ABI_VERSION_CURRENT,
-        (void*)&g_kain_vendor_allocator_rpmalloc_service
-    },
 };
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 /* Global service registry singleton */
 static KainServiceRegistry g_service_registry = {0};
@@ -1051,7 +772,54 @@ static int kain_service_registry_register_or_refresh_descriptor(
     return kain_service_registry_register_descriptor(registry, descriptor);
 }
 
-static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* registry) {
+static int kain_service_registry_probe_native_net_service(
+    const KainServiceDescriptor* service,
+    int* out_probe_passed
+) {
+    const KainNativeNetFunctionTable* function_table;
+
+    if (!service || !out_probe_passed) {
+        return 0;
+    }
+    if (service->function_table != (void*)&g_kain_native_net_function_table) {
+        return 0;
+    }
+
+    function_table = (const KainNativeNetFunctionTable*)service->function_table;
+    if (!function_table || !function_table->platform_available) {
+        return 0;
+    }
+
+    *out_probe_passed = function_table->platform_available() ? 1 : 0;
+    return 1;
+}
+
+static int kain_service_registry_probe_native_process_service(
+    const KainServiceDescriptor* service,
+    int* out_probe_passed
+) {
+    const KainNativeProcessFunctionTable* function_table;
+
+    if (!service || !out_probe_passed) {
+        return 0;
+    }
+    if (service->function_table != (void*)&g_kain_native_process_function_table) {
+        return 0;
+    }
+
+    function_table =
+        (const KainNativeProcessFunctionTable*)service->function_table;
+    if (!function_table || !function_table->platform_available) {
+        return 0;
+    }
+
+    *out_probe_passed = function_table->platform_available() ? 1 : 0;
+    return 1;
+}
+
+static void kain_service_registry_refresh_runtime_probe_statuses(
+    KainServiceRegistry* registry
+) {
     int i;
 
     if (!registry) {
@@ -1060,19 +828,26 @@ static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* r
 
     for (i = 0; i < registry->service_count; ++i) {
         KainServiceDescriptor* service = &registry->services[i];
-        const KainVendorServiceFunctionTable* function_table;
         int probe_passed;
+        int probed = 0;
 
         if (!service->function_table) {
             continue;
         }
 
-        function_table = (const KainVendorServiceFunctionTable*)service->function_table;
-        if (!function_table || !function_table->probe) {
+        if (kain_service_registry_probe_native_net_service(service, &probe_passed)) {
+            probed = 1;
+        } else if (kain_service_registry_probe_native_process_service(
+                       service,
+                       &probe_passed
+                   )) {
+            probed = 1;
+        }
+
+        if (!probed) {
             continue;
         }
 
-        probe_passed = function_table->probe() ? 1 : 0;
         if (probe_passed) {
             service->status = KAIN_SERVICE_STATUS_AVAILABLE;
         } else if (service->status == KAIN_SERVICE_STATUS_AVAILABLE) {
@@ -1103,7 +878,7 @@ int kain_service_registry_register_native_runtime_services(
         }
     }
 
-    kain_service_registry_refresh_vendor_statuses(registry);
+    kain_service_registry_refresh_runtime_probe_statuses(registry);
 
     return (int)(sizeof(g_kain_native_runtime_service_catalog) / sizeof(g_kain_native_runtime_service_catalog[0]));
 }

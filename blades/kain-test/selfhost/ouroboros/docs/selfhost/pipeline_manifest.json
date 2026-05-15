@@ -18,7 +18,7 @@
     "owned_realtime_app_output": "{repo_root}/src/.selfhost/phase0/out/kain_core_selfhost.realtime_app.json",
     "owned_native_output": "{repo_root}/src/.selfhost/phase0/out/kainc",
     "owned_ouroboros_output": "{repo_root}/src/.selfhost/ouroboros/kain_core_selfhost.stage2.ll",
-    "native_runtime_manifest": "{repo_root}/runtime/native_runtime.toml",
+    "native_runtime_manifest": "{repo_root}/runtime/native_core_runtime.toml",
     "native_runtime_build_script": "{repo_root}/runtime/compile_native_runtime.sh"
   },
   "crate_slices": {
@@ -319,7 +319,7 @@
     },
     {
       "id": "owned-native",
-      "description": "Build or reuse the native C runtime bundle from runtime/native_runtime.toml and link the hand-written bootstrap lane into a runnable native kainc binary.",
+      "description": "Build or reuse the lean native C runtime bundle from runtime/native_core_runtime.toml and link the hand-written bootstrap lane into a runnable native kainc binary.",
       "failure_policy": "stop_on_failure",
       "continue_on_failure": false,
       "dependencies": [

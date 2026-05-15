@@ -252,7 +252,6 @@ const char* kain_scene_query_status_name(KainSceneQueryStatus status) {
 
 const char* kain_runtime_backend_kind_name(KainRuntimeBackendKind kind) {
     switch (kind) {
-        case KAIN_RUNTIME_BACKEND_OPENGL: return "opengl";
         case KAIN_RUNTIME_BACKEND_VULKAN: return "vulkan";
         case KAIN_RUNTIME_BACKEND_D3D12: return "d3d12";
         case KAIN_RUNTIME_BACKEND_METAL: return "metal";

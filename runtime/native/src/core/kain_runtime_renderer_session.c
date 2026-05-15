@@ -1,5 +1,4 @@
 #include "../../include/kain_runtime_renderer_session.h"
-#include "../../include/kain_runtime_vendor_lane.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -40,21 +39,21 @@ kain_renderer_session_resolve_requested_backend(
 
 static const KainRendererBackendDescriptor*
 kain_renderer_session_resolve_active_backend(
-    const KainRendererBackendDescriptor* requested_descriptor,
-    char* diagnostic,
-    size_t diagnostic_cap
+    const KainRendererBackendDescriptor* requested_descriptor
 ) {
     const KainRendererBackendDescriptor* fallback_descriptor =
         kain_renderer_backend_default();
 
-    (void)diagnostic;
-    (void)diagnostic_cap;
-
+    if (requested_descriptor && requested_descriptor->available) {
+        return requested_descriptor;
+    }
+    if (fallback_descriptor && fallback_descriptor->available) {
+        return fallback_descriptor;
+    }
     if (requested_descriptor) {
         return requested_descriptor;
     }
-
-    return fallback_descriptor ? fallback_descriptor : requested_descriptor;
+    return fallback_descriptor;
 }
 
 static KainRendererSceneExecutorKind kain_renderer_session_executor_for_platform(
@@ -65,7 +64,6 @@ static KainRendererSceneExecutorKind kain_renderer_session_executor_for_platform
 
     switch (platform_kind) {
         case KAIN_PLATFORM_KIND_WIN32:
-            return KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE;
         case KAIN_PLATFORM_KIND_LINUX:
             return KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE;
         default:
@@ -95,10 +93,6 @@ int kain_runtime_renderer_session_boot(
 ) {
     const KainRendererBackendDescriptor* requested_descriptor;
     const KainRendererBackendDescriptor* active_descriptor;
-    const KainVendorServiceDescriptor* vendor_service = NULL;
-    const KainVendorServiceFunctionTable* function_table = NULL;
-    int probe_passed = 0;
-    int start_passed = 0;
     int graphics_bundle_valid = 0;
 
     if (!session) {
@@ -111,21 +105,17 @@ int kain_runtime_renderer_session_boot(
         graphics_bundle != NULL && graphics_bundle->loaded;
     session->graphics_bundle_valid =
         graphics_validation != NULL &&
-        (graphics_validation->gl_lane_ready ||
+        (graphics_validation->graphics_lane_ready ||
          graphics_validation->has_render_scene ||
          graphics_validation->has_viewport3d);
-
     if (session->graphics_bundle_valid) {
         graphics_bundle_valid = 1;
     }
 
     requested_descriptor =
         kain_renderer_session_resolve_requested_backend(requested_backend_id);
-    active_descriptor = kain_renderer_session_resolve_active_backend(
-        requested_descriptor,
-        session->diagnostic,
-        sizeof(session->diagnostic)
-    );
+    active_descriptor =
+        kain_renderer_session_resolve_active_backend(requested_descriptor);
 
     if (!requested_descriptor || !active_descriptor) {
         session->status = KAIN_RENDERER_SESSION_STATUS_FAILED;
@@ -134,19 +124,19 @@ int kain_runtime_renderer_session_boot(
             sizeof(session->summary),
             "renderer session could not resolve any backend descriptor"
         );
-        if (!session->diagnostic[0]) {
-            kain_renderer_session_copy_text(
-                session->diagnostic,
-                sizeof(session->diagnostic),
-                "renderer backend catalog is empty or invalid"
-            );
-        }
+        kain_renderer_session_copy_text(
+            session->diagnostic,
+            sizeof(session->diagnostic),
+            "renderer backend catalog is empty or invalid"
+        );
         return 0;
     }
 
     session->requested_backend_kind = requested_descriptor->kind;
     session->active_backend_kind = active_descriptor->kind;
-    session->vendor_declared_available = active_descriptor->available;
+    session->backend_declared_available = active_descriptor->available;
+    session->backend_probe_passed = active_descriptor->available ? 1 : 0;
+    session->backend_session_ready = active_descriptor->available ? 1 : 0;
     kain_renderer_session_copy_text(
         session->requested_backend_id,
         sizeof(session->requested_backend_id),
@@ -162,39 +152,17 @@ int kain_runtime_renderer_session_boot(
         sizeof(session->active_service_key),
         active_descriptor->service_key
     );
+    kain_renderer_session_copy_text(
+        session->backend_runtime_name,
+        sizeof(session->backend_runtime_name),
+        active_descriptor->runtime_name
+    );
+    kain_renderer_session_copy_text(
+        session->backend_version,
+        sizeof(session->backend_version),
+        "runtime-owned"
+    );
 
-    vendor_service = kain_vendor_service_lookup(active_descriptor->service_key);
-    if (vendor_service) {
-        function_table = vendor_service->function_table;
-    }
-    if (vendor_service) {
-        session->vendor_declared_available =
-            session->vendor_declared_available && vendor_service->available;
-    }
-
-    if (function_table) {
-        kain_renderer_session_copy_text(
-            session->vendor_runtime_name,
-            sizeof(session->vendor_runtime_name),
-            function_table->runtime_name
-        );
-        kain_renderer_session_copy_text(
-            session->vendor_version,
-            sizeof(session->vendor_version),
-            function_table->version_string ? function_table->version_string() : NULL
-        );
-        if (function_table->probe) {
-            probe_passed = function_table->probe() ? 1 : 0;
-        }
-        if (probe_passed && function_table->start) {
-            start_passed = function_table->start() ? 1 : 0;
-        } else {
-            start_passed = probe_passed;
-        }
-    }
-
-    session->vendor_probe_passed = probe_passed;
-    session->vendor_start_passed = start_passed;
     session->executor_kind = kain_renderer_session_executor_for_platform(
         platform_kind,
         graphics_bundle_valid
@@ -202,7 +170,6 @@ int kain_runtime_renderer_session_boot(
     session->scene_execution_available =
         session->executor_kind != KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY;
     session->used_compatibility_executor =
-        session->executor_kind == KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_GL ||
         session->executor_kind == KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE;
 
     if (graphics_bundle && graphics_bundle->primary_scene[0]) {
@@ -213,33 +180,36 @@ int kain_runtime_renderer_session_boot(
         );
     }
 
-    if (probe_passed && start_passed) {
-        if (session->used_compatibility_executor) {
-            session->status = KAIN_RENDERER_SESSION_STATUS_DEGRADED;
-        } else {
-            session->status = KAIN_RENDERER_SESSION_STATUS_READY;
-        }
-    } else {
-        session->status = session->scene_execution_available
+    if (session->scene_execution_available) {
+        session->status = session->used_compatibility_executor
             ? KAIN_RENDERER_SESSION_STATUS_DEGRADED
-            : KAIN_RENDERER_SESSION_STATUS_FAILED;
-        if (!session->diagnostic[0]) {
-            if (!session->vendor_declared_available) {
-                snprintf(
-                    session->diagnostic,
-                    sizeof(session->diagnostic),
-                    "backend `%s` is not active on this host",
-                    active_descriptor->id
-                );
-            } else {
-                snprintf(
-                    session->diagnostic,
-                    sizeof(session->diagnostic),
-                    "backend `%s` did not expose a usable vendor session on this host",
-                    active_descriptor->id
-                );
-            }
-        }
+            : KAIN_RENDERER_SESSION_STATUS_READY;
+    } else {
+        session->status = KAIN_RENDERER_SESSION_STATUS_FAILED;
+    }
+
+    if (requested_descriptor != active_descriptor) {
+        snprintf(
+            session->diagnostic,
+            sizeof(session->diagnostic),
+            "requested backend `%s` is not active on this host; routed through `%s`",
+            requested_descriptor->id,
+            active_descriptor->id
+        );
+    } else if (!session->backend_declared_available) {
+        snprintf(
+            session->diagnostic,
+            sizeof(session->diagnostic),
+            "backend `%s` is not active on this host",
+            active_descriptor->id
+        );
+    } else if (session->used_compatibility_executor) {
+        snprintf(
+            session->diagnostic,
+            sizeof(session->diagnostic),
+            "scene execution is currently routed through the Kain compatibility executor while `%s` owns backend identity and diagnostics",
+            active_descriptor->id
+        );
     }
 
     if (session->status == KAIN_RENDERER_SESSION_STATUS_FAILED &&
@@ -265,33 +235,11 @@ int kain_runtime_renderer_session_boot(
         session->scene_name[0] ? session->scene_name : ""
     );
 
-    if (!session->diagnostic[0] && session->used_compatibility_executor) {
-        snprintf(
-            session->diagnostic,
-            sizeof(session->diagnostic),
-            "scene execution is currently routed through the Kain compatibility executor while `%s` owns backend identity and diagnostics",
-            active_descriptor->id
-        );
-    }
-
     return session->scene_execution_available;
 }
 
 void kain_runtime_renderer_session_shutdown(KainRuntimeRendererSession* session) {
-    const KainVendorServiceDescriptor* vendor_service;
-
-    if (!session || !session->vendor_start_passed || !session->active_service_key[0]) {
-        return;
-    }
-
-    vendor_service = kain_vendor_service_lookup(session->active_service_key);
-    if (!vendor_service ||
-        !vendor_service->function_table ||
-        !vendor_service->function_table->shutdown) {
-        return;
-    }
-
-    vendor_service->function_table->shutdown();
+    (void)session;
 }
 
 const char* kain_runtime_renderer_session_status_name(
@@ -314,10 +262,6 @@ const char* kain_runtime_renderer_scene_executor_name(
     KainRendererSceneExecutorKind executor_kind
 ) {
     switch (executor_kind) {
-        case KAIN_RENDERER_SCENE_EXECUTOR_VENDOR_DIRECT:
-            return "vendor-direct";
-        case KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_GL:
-            return "compatibility-gl";
         case KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE:
             return "compatibility-software";
         case KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY:
@@ -328,10 +272,10 @@ const char* kain_runtime_renderer_scene_executor_name(
     }
 }
 
-int kain_runtime_renderer_session_should_use_gl_compat(
+int kain_runtime_renderer_session_should_use_compatibility_executor(
     const KainRuntimeRendererSession* session
 ) {
-    return 0;
+    return session != NULL && session->used_compatibility_executor;
 }
 
 void kain_runtime_renderer_session_format_summary(

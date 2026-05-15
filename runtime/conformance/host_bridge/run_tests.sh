@@ -90,12 +90,22 @@ TEST_BINARIES=(
 )
 
 COMMON_SOURCES=(
+    "$NATIVE_SRC/core/kain_runtime_core.c"
     "$NATIVE_SRC/core/kain_runtime_version.c"
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_services.c"
+    "$NATIVE_SRC/core/kain_runtime_actor.c"
+    "$NATIVE_SRC/core/kain_native_net_system.c"
+    "$NATIVE_SRC/core/kain_native_process_system.c"
     "$NATIVE_SRC/core/kain_runtime_host_bridge.c"
-    "$NATIVE_SRC/vendor/kain_runtime_vendor_lane.c"
 )
+
+COMMON_LDFLAGS=()
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
+    COMMON_LDFLAGS=(-lws2_32 -lwinhttp)
+else
+    COMMON_LDFLAGS=(-lpthread -lm)
+fi
 
 TOTAL_TESTS=0
 PASSED_TESTS=0
@@ -115,10 +125,11 @@ for binary in "${TEST_BINARIES[@]}"; do
     run_with_timeout "$COMPILE_TIMEOUT_SEC" "host bridge compilation" \
         "$C_COMPILER" \
         -I"$NATIVE_INCLUDE" \
-        -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -DKAIN_RUNTIME_VENDOR_STUBS_ONLY=1 \
+        -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L \
         "${COMMON_SOURCES[@]}" \
         "$SCRIPT_DIR/${binary}.c" \
-        -o "$SCRIPT_DIR/$binary"
+        -o "$SCRIPT_DIR/$binary" \
+        "${COMMON_LDFLAGS[@]}"
     compile_status=$?
     set -e
     if [[ $compile_status -ne 0 ]]; then

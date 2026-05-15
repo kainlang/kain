@@ -24,13 +24,9 @@ RUNTIME_TEST_LINUX_DEFINES = [
 ]
 
 declare_runtime_bundle("native_core_runtime", NATIVE_CORE_RUNTIME)
-declare_runtime_bundle(
-    "native_full_runtime",
-    NATIVE_RUNTIME,
-    target_compatible_with = platform_select(
-        windows = ["@platforms//:incompatible"],
-    ),
-)
+# Keep the legacy-named target so older Bazel entrypoints still resolve, but
+# point it at the same lean mirror data as the active runtime lane.
+declare_runtime_bundle("native_full_runtime", NATIVE_RUNTIME)
 
 alias(
     name = "native_runtime",

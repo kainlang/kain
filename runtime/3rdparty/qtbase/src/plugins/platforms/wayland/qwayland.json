@@ -1,7 +1,0 @@
-{
-    "Keys": [
-        "wayland",
-        "wayland-egl",
-        "wayland-brcm"
-    ]
-}

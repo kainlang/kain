@@ -1,36 +1,342 @@
 name = "kain-native-core-runtime"
 
-# Lean runtime manifest for normal LLVM/direct-C file builds.
-# Keep this focused on the ABI needed by the core language, native stdlib,
-# actors, entanglement, and intent helpers. The broader native_runtime.toml
-# remains the opt-in app/UI/vendor bundle.
+# Canonical production runtime manifest.
+# This lane is intentionally vendor-free: no vendored source trees, no baked
+# compatibility presenters, no OpenGL runtime host, and no hardcoded app/demo
+# lanes. It keeps only the Kain-owned ABI floor, runtime services, and raw
+# platform helpers needed by LLVM/direct-C/native builds.
 sources = [
     "native/src/core/kain_runtime_core.c",
     "native/src/core/kain_runtime_version.c",
     "native/src/core/kain_runtime_diagnostics.c",
-    "native/src/core/kain_runtime_async.c",
-    "native/src/core/kain_runtime_actor.c",
+    "native/src/core/kain_runtime_services.c",
+    "native/src/core/kain_runtime_contract.c",
     "native/src/core/kain_runtime_entangle.c",
-    "native/src/core/kain_runtime_memory.c",
-    "native/src/core/kain_runtime_ownership.c",
     "native/src/core/kain_runtime_native_stdlib.c",
     "native/src/core/kain_native_input_system.c",
     "native/src/core/kain_native_net_system.c",
     "native/src/core/kain_native_process_system.c",
     "native/src/core/kain_native_graphics_system.c",
+    "native/src/core/kain_runtime_renderer_backend.c",
+    "native/src/core/kain_runtime_renderer_session.c",
+    "native/src/core/kain_runtime_scene.c",
+    "native/src/core/kain_runtime_reflection.c",
+    "native/src/core/kain_runtime_realtime.c",
+    "native/src/core/kain_runtime_async.c",
+    "native/src/core/kain_runtime_compatibility.c",
+    "native/src/core/kain_runtime_host_bridge.c",
+    "native/src/core/kain_runtime_memory.c",
+    "native/src/core/kain_runtime_ownership.c",
+    "native/src/core/kain_runtime_bitfield.c",
+    "native/src/core/kain_runtime_union.c",
+    "native/src/core/kain_runtime_actor.c",
+    "native/src/platform/kain_runtime_platform.c",
+    "native/src/ui/kain_ui_compiled_bundle.c",
     "native/src/ui/kain_native_ui_system.c",
     "native/src/ui/kain_native_ui_host_adapter.c",
+    "native/src/ui/kain_ui_runtime.c",
+    "native/src/ui/kain_ui_hot_reload.c",
 ]
 
 windows_sources = [
+    "native/src/platform/win32/kain_win32_app_host.c",
+    "native/src/platform/win32/kain_win32_input_host.c",
     "native/src/platform/win32/kain_runtime_win32_shared.c",
 ]
+
+linux_sources = [
+    "native/src/platform/linux/kain_runtime_linux_shared.c",
+]
+
+macos_sources = []
 
 include_dirs = [
     "native/include",
 ]
 
+windows_defines = [
+    "WIN32_LEAN_AND_MEAN",
+    "_WIN32_WINNT=0x0A00",
+    "_CRT_DECLARE_NONSTDC_NAMES=0",
+]
+
+linux_defines = [
+    "_GNU_SOURCE",
+    "_POSIX_C_SOURCE=200112",
+    "_FILE_OFFSET_BITS=64",
+]
+
+[version]
+runtime_major = 0
+runtime_minor = 1
+runtime_patch = 0
+abi_major = 0
+abi_minor = 1
+abi_patch = 0
+
+[metadata]
+description = "KAIN native C runtime for compiled programs"
+target_platforms = ["windows", "linux", "macos"]
+active_platforms = ["windows", "linux"]
+runtime_lane = "raw-native"
+compatibility_class = "experimental"
+
+[[services]]
+key = "base.memory"
+name = "Base Memory Services"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Core allocation, retain/release, and memory management"
+
+[[services]]
+key = "memory.ownership"
+name = "Ownership State Guards"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Native collapse/observe/decay guards for helper-owned heap regions and imported pointer lifetimes"
+
+[[services]]
+key = "base.diagnostics"
+name = "Base Diagnostics"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Structured diagnostics and error reporting"
+
+[[services]]
+key = "contract"
+name = "Runtime Contract"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Runtime contract bundle loading and validation"
+
+[[services]]
+key = "platform.app-host"
+name = "Native App Host"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Raw Win32 app/window host substrate without baked presenters or app policy"
+
+[[services]]
+key = "platform.input"
+name = "Native Input"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Canonical Kain input sessions, semantic actions, replay traces, and native platform event handling"
+
+[[services]]
+key = "gfx.viewport"
+name = "Native Viewport"
+provider = "platform-win32"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows"]
+description = "Platform window handles and presenter attachment contract; concrete presenters now live in blades or packages"
+
+[[services]]
+key = "gfx.raw-native"
+name = "Raw Native Graphics"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands"
+
+[[services]]
+key = "gfx.shader.spirv"
+name = "SPIR-V Shader Modules"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical native shader payload registration for Kain-authored graphics and compute pipelines"
+
+[[services]]
+key = "gfx.backend.vulkan"
+name = "Vulkan Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime"
+
+[[services]]
+key = "gfx.backend.d3d12"
+name = "DirectX 12 Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows"]
+description = "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime"
+
+[[services]]
+key = "scene.runtime"
+name = "Scene Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Stable native scene handles and runtime-owned scene state access"
+
+[[services]]
+key = "scene.query"
+name = "Scene Query"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Picking, raycast, bounds, visibility, and selection query contracts"
+
+[[services]]
+key = "scene.mutation"
+name = "Scene Mutation"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Transactional scene mutation requests and receipts"
+
+[[services]]
+key = "asset.gltf"
+name = "glTF Asset Loader"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+description = "The legacy runtime-owned glTF loader was removed from the active runtime; authored packages or blade-owned loaders must satisfy this seam"
+
+[[services]]
+key = "asset.ingestion"
+name = "Asset Ingestion"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical descriptor-driven entry path for assets and emitted bundles"
+
+[[services]]
+key = "asset.realtime"
+name = "Realtime Bundle Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Realtime bundle loading and scene management"
+
+[[services]]
+key = "ui.bundle"
+name = "Compiled UI Bundle"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compiled UI bundle loading and overlay rendering"
+
+[[services]]
+key = "reflection"
+name = "Reflection Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Reflection payload loading and runtime type lookup"
+
+[[services]]
+key = "runtime.inspection"
+name = "Runtime Inspection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-owned scene, resource, and binding inspection queries"
+
+[[services]]
+key = "device.reflection"
+name = "Device Reflection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Backend, GPU, display, and hotplug capability descriptors"
+
+[[services]]
+key = "actor.runtime"
+name = "Actor Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Actor spawn, mailbox, lifecycle, and scheduling"
+
+[[services]]
+key = "actor.registry"
+name = "Actor Registry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Named actor registration and lookup"
+
+[[services]]
+key = "async.runtime"
+name = "Async Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Task/future execution, wake/poll, and cancellation"
+
+[[services]]
+key = "async.timers"
+name = "Async Timers"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Timer registration and wake delivery"
+
+[[services]]
+key = "io.net"
+name = "IO Network"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Native TCP and HTTP/1.1 networking primitives"
+
+[[services]]
+key = "io.process"
+name = "IO Process"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux"]
+description = "Native child-process, pipe, and PTY session management"
+
+[[services]]
+key = "gfx.compute"
+name = "Compute Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compute bundle validation, dispatch planning, and native runtime handoff"
+
+[[services]]
+key = "ui.component"
+name = "UI Component Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Component state, invalidation, focus, and event routing"
+
+[[services]]
+key = "compatibility"
+name = "Compatibility and Hot Reload"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Version validation, migration, hot reload, and snapshot flow"
+
+[[services]]
+key = "host.bridge"
+name = "Host Bridge"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Plugin and foreign service integration"
+
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "opengl32", "shell32", "ws2_32", "winhttp"]
-linux = []
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp"]
+linux = ["pthread", "dl", "rt", "m"]
 macos = []

@@ -12,7 +12,19 @@ mkdir -p "$OUTPUT_DIR"
 
 echo "Compiling KAIN Runtime Service Registry conformance test..."
 
+LDFLAGS=""
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
+    LDFLAGS="-lws2_32 -lwinhttp -luser32 -lgdi32"
+else
+    LDFLAGS="-lpthread -lm"
+fi
+
 # Compile all required runtime sources
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/kain_runtime_core.o" \
+    "$RUNTIME_DIR/native/src/core/kain_runtime_core.c"
+
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
     -o "$OUTPUT_DIR/kain_runtime_version.o" \
@@ -27,6 +39,21 @@ clang -c \
     -I"$RUNTIME_DIR/native/include" \
     -o "$OUTPUT_DIR/kain_runtime_services.o" \
     "$RUNTIME_DIR/native/src/core/kain_runtime_services.c"
+
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/kain_runtime_actor.o" \
+    "$RUNTIME_DIR/native/src/core/kain_runtime_actor.c"
+
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/kain_native_net_system.o" \
+    "$RUNTIME_DIR/native/src/core/kain_native_net_system.c"
+
+clang -c \
+    -I"$RUNTIME_DIR/native/include" \
+    -o "$OUTPUT_DIR/kain_native_process_system.o" \
+    "$RUNTIME_DIR/native/src/core/kain_native_process_system.c"
 
 clang -c \
     -I"$RUNTIME_DIR/native/include" \
@@ -48,12 +75,16 @@ clang -c \
 clang \
     -o "$OUTPUT_DIR/test_service_registry" \
     "$OUTPUT_DIR/test_service_registry.o" \
+    "$OUTPUT_DIR/kain_runtime_core.o" \
     "$OUTPUT_DIR/kain_runtime_version.o" \
     "$OUTPUT_DIR/kain_runtime_diagnostics.o" \
     "$OUTPUT_DIR/kain_runtime_services.o" \
+    "$OUTPUT_DIR/kain_runtime_actor.o" \
+    "$OUTPUT_DIR/kain_native_net_system.o" \
+    "$OUTPUT_DIR/kain_native_process_system.o" \
     "$OUTPUT_DIR/kain_runtime_contract.o" \
     "$OUTPUT_DIR/kain_runtime_win32_shared.o" \
-    -lopengl32
+    $LDFLAGS
 
 echo "✅ Compilation successful!"
 echo "Output: $OUTPUT_DIR/test_service_registry"

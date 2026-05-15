@@ -213,8 +213,8 @@ static int test_optional_service_downgrade_reporting(void) {
         return 1;
     }
 
-    if (result.required_services_available != 3) {
-        printf("  FAIL: expected 3 required services available, got %d\n", result.required_services_available);
+    if (result.required_services_available != 4) {
+        printf("  FAIL: expected 4 required services available, got %d\n", result.required_services_available);
         return 1;
     }
 

@@ -6,13 +6,14 @@ This page is the user-facing summary of the native C runtime contract layer.
 
 The runtime contract pipeline is:
 
-1. `runtime/native_runtime.toml`
-2. `runtime/native/src/core/kain_runtime_contract.c`
-3. `runtime/native/include/kain_runtime_contract.h`
-4. `runtime/native/include/kain_runtime_services.h`
-5. `runtime/native/include/kain_runtime_version.h`
-6. `runtime/native/include/kain_runtime_win32.h`
-7. `runtime/native/SERVICE_TABLE_MAPPING.md`
+1. `runtime/native_core_runtime.toml`
+2. `runtime/native_runtime.toml` as the lean compatibility mirror for older discovery paths
+3. `runtime/native/src/core/kain_runtime_contract.c`
+4. `runtime/native/include/kain_runtime_contract.h`
+5. `runtime/native/include/kain_runtime_services.h`
+6. `runtime/native/include/kain_runtime_version.h`
+7. `runtime/native/include/kain_runtime_win32.h`
+8. `runtime/native/SERVICE_TABLE_MAPPING.md`
 
 ## What The Contract Layer Owns
 
@@ -28,6 +29,7 @@ The runtime contract pipeline is:
 At startup, the native lane uses the contract layer to:
 
 1. load the manifest-driven runtime configuration
+   The canonical production source is `runtime/native_core_runtime.toml`.
 2. compare the manifest against the generated headers and runtime version
 3. reject incompatible combinations before execution begins
 4. select the service families and capability masks that are available on the
@@ -45,4 +47,4 @@ runtime and the emitted bundle agree before execution starts.
 ## Practical Rule
 
 If the manifest, headers, and runtime implementation disagree, trust the
-manifest and the implementation in `runtime/native/src/core/`.
+canonical core manifest and the implementation in `runtime/native/src/core/`.

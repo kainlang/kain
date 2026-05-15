@@ -1,97 +1,29 @@
 #include "../../../include/kain_runtime_win32.h"
 
 #ifdef _WIN32
-static const KainViewportProfile g_kain_viewport_profiles[] = {
-    {
-        "default_viewport",
-        "Default Viewport",
-        "",
-        {0.03f, 0.04f, 0.06f, 1.0f},
-        {0.04f, 0.05f, 0.07f, 1.0f},
-        {0.20f, 0.22f, 0.26f, 1.0f},
-        {0.86f, 0.90f, 1.00f, 1.0f},
-        {10.0f, 18.0f, -10.0f, 1.0f},
-        {0.24f, 0.68f, 1.00f},
-        {1.00f, 0.76f, 0.36f},
-        1440,
-        900,
-        8.8,
-        1.9,
-        6.4,
-        18.4,
-        0.0021,
-        1.76,
-        0.018,
-        180
-    }
-};
-
-static const size_t g_kain_viewport_profile_count =
-    sizeof(g_kain_viewport_profiles) / sizeof(g_kain_viewport_profiles[0]);
-
-static int kain_viewport_profile_matches_alias(const char* alias_list, const char* id) {
-    const char* cursor = alias_list;
-    size_t id_length;
-
-    if (!alias_list || !alias_list[0] || !id || !id[0]) {
-        return 0;
-    }
-
-    id_length = strlen(id);
-    while (*cursor) {
-        const char* token_start;
-        const char* token_end;
-        size_t token_length;
-
-        while (*cursor == ' ' || *cursor == ',' || *cursor == ';' || *cursor == '|') {
-            ++cursor;
-        }
-        if (!*cursor) {
-            break;
-        }
-
-        token_start = cursor;
-        token_end = cursor;
-        while (*token_end && *token_end != ',' && *token_end != ';' && *token_end != '|') {
-            ++token_end;
-        }
-        while (token_end > token_start && token_end[-1] == ' ') {
-            --token_end;
-        }
-
-        token_length = (size_t)(token_end - token_start);
-        if (token_length == id_length && _strnicmp(token_start, id, id_length) == 0) {
-            return 1;
-        }
-
-        cursor = token_end;
-        if (*cursor) {
-            ++cursor;
-        }
-    }
-
-    return 0;
-}
-
 char* kain_env_dup(const char* name) {
     char* value = NULL;
     if (!name || !name[0]) return NULL;
 #ifdef _WIN32
-    size_t length = 0;
-    if (_dupenv_s(&value, &length, name) != 0 || !value || !value[0]) {
-        free(value);
-        return NULL;
+    {
+        size_t length = 0;
+        if (_dupenv_s(&value, &length, name) != 0 || !value || !value[0]) {
+            free(value);
+            return NULL;
+        }
+        return value;
     }
-    return value;
 #else
-    const char* source = getenv(name);
-    size_t length;
-    if (!source || !source[0]) return NULL;
-    length = strlen(source);
-    value = (char*)malloc(length + 1);
-    if (!value) return NULL;
-    memcpy(value, source, length + 1);
-    return value;
+    {
+        const char* source = getenv(name);
+        size_t length;
+        if (!source || !source[0]) return NULL;
+        length = strlen(source);
+        value = (char*)malloc(length + 1);
+        if (!value) return NULL;
+        memcpy(value, source, length + 1);
+        return value;
+    }
 #endif
 }
 
@@ -184,9 +116,11 @@ int kain_env_flag(const char* name, int fallback) {
     char* value = kain_env_dup(name);
     int result = fallback;
     if (!value || !value[0]) return fallback;
-    if (_stricmp(value, "1") == 0 || _stricmp(value, "true") == 0 || _stricmp(value, "yes") == 0 || _stricmp(value, "on") == 0) {
+    if (_stricmp(value, "1") == 0 || _stricmp(value, "true") == 0 ||
+        _stricmp(value, "yes") == 0 || _stricmp(value, "on") == 0) {
         result = 1;
-    } else if (_stricmp(value, "0") == 0 || _stricmp(value, "false") == 0 || _stricmp(value, "no") == 0 || _stricmp(value, "off") == 0) {
+    } else if (_stricmp(value, "0") == 0 || _stricmp(value, "false") == 0 ||
+               _stricmp(value, "no") == 0 || _stricmp(value, "off") == 0) {
         result = 0;
     }
     kain_env_free(value);
@@ -211,6 +145,79 @@ double kain_env_double(const char* name, double fallback) {
     return result;
 }
 
+void kain_win32_frame_timer_begin(
+    LARGE_INTEGER* perf_freq,
+    LARGE_INTEGER* prev_counter,
+    double* fps_accumulator,
+    int* fps_frames,
+    double* frame_fps
+) {
+    if (fps_accumulator) {
+        *fps_accumulator = 0.0;
+    }
+    if (fps_frames) {
+        *fps_frames = 0;
+    }
+    if (frame_fps) {
+        *frame_fps = 0.0;
+    }
+    if (perf_freq) {
+        QueryPerformanceFrequency(perf_freq);
+    }
+    if (prev_counter) {
+        QueryPerformanceCounter(prev_counter);
+    }
+}
+
+double kain_win32_frame_timer_step(
+    LARGE_INTEGER* perf_freq,
+    LARGE_INTEGER* prev_counter,
+    double* fps_accumulator,
+    int* fps_frames,
+    double* frame_fps,
+    double min_dt,
+    double max_dt
+) {
+    LARGE_INTEGER current_counter;
+    double delta = min_dt;
+
+    if (!perf_freq || !prev_counter) {
+        return min_dt;
+    }
+    if (min_dt <= 0.0) {
+        min_dt = 0.001;
+    }
+    if (max_dt < min_dt) {
+        max_dt = min_dt;
+    }
+    if (perf_freq->QuadPart <= 0) {
+        QueryPerformanceFrequency(perf_freq);
+    }
+    QueryPerformanceCounter(&current_counter);
+    if (perf_freq->QuadPart > 0 && prev_counter->QuadPart > 0) {
+        delta = (double)(current_counter.QuadPart - prev_counter->QuadPart) /
+            (double)perf_freq->QuadPart;
+    }
+    prev_counter->QuadPart = current_counter.QuadPart;
+    if (delta < min_dt) {
+        delta = min_dt;
+    } else if (delta > max_dt) {
+        delta = max_dt;
+    }
+    if (fps_accumulator) {
+        *fps_accumulator += delta;
+    }
+    if (fps_frames) {
+        *fps_frames += 1;
+    }
+    if (frame_fps && fps_accumulator && fps_frames && *fps_accumulator >= 1.0) {
+        *frame_fps = (double)(*fps_frames) / *fps_accumulator;
+        *fps_accumulator = 0.0;
+        *fps_frames = 0;
+    }
+    return delta;
+}
+
 void native_config_string(char* key, char* value) {
     kain_env_set_string(key, value);
 }
@@ -225,24 +232,6 @@ void native_config_float(char* key, double value) {
 
 void native_config_flag(char* key, long long enabled) {
     kain_env_set_flag(key, enabled != 0);
-}
-
-const KainViewportProfile* kain_find_viewport_profile(const char* id) {
-    size_t index;
-    if (!id || !id[0]) {
-        return &g_kain_viewport_profiles[0];
-    }
-    for (index = 0; index < g_kain_viewport_profile_count; ++index) {
-        if (_stricmp(g_kain_viewport_profiles[index].id, id) == 0) {
-            return &g_kain_viewport_profiles[index];
-        }
-    }
-    for (index = 0; index < g_kain_viewport_profile_count; ++index) {
-        if (kain_viewport_profile_matches_alias(g_kain_viewport_profiles[index].scene_aliases, id)) {
-            return &g_kain_viewport_profiles[index];
-        }
-    }
-    return &g_kain_viewport_profiles[0];
 }
 
 KainVec3 kain_vec3_make(double x, double y, double z) {

@@ -13,8 +13,6 @@
 
 typedef enum {
     KAIN_RENDERER_SCENE_EXECUTOR_UNKNOWN = 0,
-    KAIN_RENDERER_SCENE_EXECUTOR_VENDOR_DIRECT,
-    KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_GL,
     KAIN_RENDERER_SCENE_EXECUTOR_COMPATIBILITY_SOFTWARE,
     KAIN_RENDERER_SCENE_EXECUTOR_DIAGNOSTICS_ONLY,
 } KainRendererSceneExecutorKind;
@@ -32,9 +30,9 @@ typedef struct {
     KainRendererBackendKind active_backend_kind;
     KainRendererSceneExecutorKind executor_kind;
     KainRendererSessionStatus status;
-    int vendor_declared_available;
-    int vendor_probe_passed;
-    int vendor_start_passed;
+    int backend_declared_available;
+    int backend_probe_passed;
+    int backend_session_ready;
     int graphics_bundle_loaded;
     int graphics_bundle_valid;
     int scene_execution_available;
@@ -42,8 +40,8 @@ typedef struct {
     char requested_backend_id[KAIN_RUNTIME_RENDERER_SESSION_MAX_ID];
     char active_backend_id[KAIN_RUNTIME_RENDERER_SESSION_MAX_ID];
     char active_service_key[KAIN_RUNTIME_RENDERER_SESSION_MAX_NAME];
-    char vendor_runtime_name[KAIN_RUNTIME_RENDERER_SESSION_MAX_NAME];
-    char vendor_version[KAIN_RUNTIME_RENDERER_SESSION_MAX_NAME];
+    char backend_runtime_name[KAIN_RUNTIME_RENDERER_SESSION_MAX_NAME];
+    char backend_version[KAIN_RUNTIME_RENDERER_SESSION_MAX_NAME];
     char scene_name[KAIN_RUNTIME_RENDERER_SESSION_MAX_SCENE];
     char summary[KAIN_RUNTIME_RENDERER_SESSION_MAX_SUMMARY];
     char diagnostic[KAIN_RUNTIME_RENDERER_SESSION_MAX_DIAGNOSTIC];
@@ -64,7 +62,7 @@ const char* kain_runtime_renderer_session_status_name(
 const char* kain_runtime_renderer_scene_executor_name(
     KainRendererSceneExecutorKind executor_kind
 );
-int kain_runtime_renderer_session_should_use_gl_compat(
+int kain_runtime_renderer_session_should_use_compatibility_executor(
     const KainRuntimeRendererSession* session
 );
 void kain_runtime_renderer_session_format_summary(

@@ -13,8 +13,9 @@ Use these files first:
 - `runtime/native/include/`
 - `runtime/README.md`
 
-The canonical entrypoint is `runtime/native_runtime.toml`, not the legacy
-umbrella C file.
+The canonical entrypoint is `runtime/native_core_runtime.toml`. The sibling
+`runtime/native_runtime.toml` now exists only as a lean compatibility mirror
+for older tooling and discovery paths.
 
 ## What The Native Runtime Owns
 
@@ -24,9 +25,9 @@ The runtime is the ABI floor for:
 - service discovery and capability reporting
 - reflection payload loading
 - actor and async runtime primitives
-- platform boundary reporting
-- graphics, viewport, material, shader, and compute services
-- UI bundle and component runtime
+- raw platform app-host/input/window boundary reporting
+- raw graphics kernel, backend target descriptors, shader registration, and compute services
+- UI bundle and component runtime over a passive native UI ABI
 - asset ingestion and realtime bundle consumption
 - compatibility and hot-reload policies
 
@@ -37,9 +38,9 @@ such as:
 
 - base memory and diagnostics
 - contract and reflection
-- actor and async
-- platform host/input/window
-- graphics and rendering
+- actor, async, network, and process
+- platform host/input/window seams
+- raw graphics, scene, and backend-target seams
 - UI bundle/component
 - asset and realtime
 - host bridge
@@ -50,7 +51,9 @@ such as:
 The native runtime starts by stitching the manifest, contract layer, and
 service table together:
 
-1. load `runtime/native_runtime.toml`
+1. load `runtime/native_core_runtime.toml`
+   Older tooling may still discover `runtime/native_runtime.toml`, but that
+   file should resolve to the same lean runtime surface.
 2. validate the contract against the native headers and version metadata
 3. resolve the service families that the current lane needs
 4. publish the reflection and capability payloads

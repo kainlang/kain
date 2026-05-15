@@ -46,10 +46,10 @@ powershell -ExecutionPolicy Bypass -File runtime\validate_native_runtime.ps1
 
 ## Bazel Runtime Lane
 
-The repo also has a Bazel-native runtime lane that mirrors the manifest split:
+The repo also has a Bazel-native runtime lane that now resolves to the same lean catalog in both manifest shapes:
 
 - `//runtime:native_runtime` is the lean default Bazel runtime target and currently aliases `native_core_runtime.toml`.
-- `//runtime:native_full_runtime` is the broad manifest-backed Bazel target for app/vendor work.
+- `//runtime:native_full_runtime` is now a compatibility mirror target, not a vendor/app lane.
 
 Regenerate the Bazel manifest data any time `runtime/native_core_runtime.toml` or
 `runtime/native_runtime.toml` changes:
@@ -63,8 +63,8 @@ bazel test //runtime:native_runtime_tests
 
 Current Windows contract:
 
-- The validated Windows/MSVC Bazel lane is the lean core runtime plus the actor C tests.
-- `//runtime:native_full_runtime` is intentionally not part of the Windows default Bazel lane yet because the broad manifest still includes QuickJS/vendor and related sources that are not Bazel-clean under MSVC.
+- The validated Windows/MSVC Bazel proof lane is `bazel build //runtime:all` plus `bazel test //runtime:native_runtime_tests`.
+- `//runtime:native_full_runtime` no longer carries vendored runtime code; it exists so older discovery paths still resolve to the same lean runtime source set as `//runtime:native_runtime`.
 
 ## Important Distinction
 

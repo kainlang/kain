@@ -41,7 +41,7 @@ default_cli_command = "kain selfhost bootstrap"
 default_wrapper = "src/build_selfhost.sh"
 
 [selfhost.runtime]
-manifest_path = "runtime/native_runtime.toml"
+manifest_path = "runtime/native_core_runtime.toml"
 compile_script = "runtime/compile_native_runtime.sh"
 build_mode = "reuse_or_build"
 artifact_root = "generated/native_runtime"

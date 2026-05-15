@@ -33,21 +33,23 @@ COMMON_CFLAGS=(
     -Wextra
     -std=c11
     -D_POSIX_C_SOURCE=200809L
-    -DKAIN_RUNTIME_VENDOR_STUBS_ONLY=1
     -I"$NATIVE_INCLUDE"
 )
 
 COMMON_SOURCES=(
+    "$NATIVE_SRC/core/kain_runtime_core.c"
     "$NATIVE_SRC/core/kain_runtime_version.c"
     "$NATIVE_SRC/core/kain_runtime_diagnostics.c"
     "$NATIVE_SRC/core/kain_runtime_services.c"
+    "$NATIVE_SRC/core/kain_runtime_actor.c"
+    "$NATIVE_SRC/core/kain_native_net_system.c"
+    "$NATIVE_SRC/core/kain_native_process_system.c"
     "$NATIVE_SRC/core/kain_runtime_contract.c"
-    "$NATIVE_SRC/vendor/kain_runtime_vendor_lane.c"
 )
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
     PLATFORM_CFLAGS=(-D_CRT_SECURE_NO_WARNINGS)
-    PLATFORM_LDFLAGS=(-lws2_32 -luser32 -lgdi32 -lopengl32)
+    PLATFORM_LDFLAGS=(-lws2_32 -lwinhttp -luser32 -lgdi32)
     COMMON_SOURCES+=("$NATIVE_SRC/platform/win32/kain_runtime_win32_shared.c")
 else
     PLATFORM_CFLAGS=()

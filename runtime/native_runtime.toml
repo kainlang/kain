@@ -1,9 +1,8 @@
 name = "kain-native-runtime"
 
-# Core Runtime Sources
-# These provide the foundational runtime services and ABI.
-# Keep these at the manifest top level so the CLI native bundle loader
-# can resolve them directly during LLVM/native executable linking.
+# Compatibility mirror of the canonical lean runtime manifest.
+# Keep this file vendor-free so older discovery paths cannot silently pull the
+# archived vendor/app lane back into ordinary native builds.
 sources = [
     "native/src/core/kain_runtime_core.c",
     "native/src/core/kain_runtime_version.c",
@@ -29,260 +28,28 @@ sources = [
     "native/src/core/kain_runtime_bitfield.c",
     "native/src/core/kain_runtime_union.c",
     "native/src/core/kain_runtime_actor.c",
-    "native/src/vendor/kain_runtime_vendor_lane.c",
-    "native/src/vendor/kain_runtime_vendor_graphics_bridge.cpp",
-    "native/src/vendor/kain_runtime_vendor_ui_bridge.cpp",
-    "native/src/asset/kain_asset_gltf.c",
     "native/src/platform/kain_runtime_platform.c",
     "native/src/ui/kain_ui_compiled_bundle.c",
     "native/src/ui/kain_native_ui_system.c",
     "native/src/ui/kain_native_ui_host_adapter.c",
     "native/src/ui/kain_ui_runtime.c",
     "native/src/ui/kain_ui_hot_reload.c",
-    "3rdparty/quickjs/cutils.c",
-    "3rdparty/quickjs/dtoa.c",
-    "3rdparty/quickjs/libregexp.c",
-    "3rdparty/quickjs/libunicode.c",
-    "3rdparty/quickjs/quickjs.c",
-    "3rdparty/miniaudio/miniaudio.c",
-    "3rdparty/imgui/imgui.cpp",
-    "3rdparty/imgui/imgui_draw.cpp",
-    "3rdparty/imgui/imgui_tables.cpp",
-    "3rdparty/imgui/imgui_widgets.cpp",
-    "3rdparty/yoga/yoga/YGConfig.cpp",
-    "3rdparty/yoga/yoga/YGEnums.cpp",
-    "3rdparty/yoga/yoga/YGNode.cpp",
-    "3rdparty/yoga/yoga/YGNodeLayout.cpp",
-    "3rdparty/yoga/yoga/YGNodeStyle.cpp",
-    "3rdparty/yoga/yoga/YGPixelGrid.cpp",
-    "3rdparty/yoga/yoga/YGValue.cpp",
-    "3rdparty/yoga/yoga/algorithm/AbsoluteLayout.cpp",
-    "3rdparty/yoga/yoga/algorithm/Baseline.cpp",
-    "3rdparty/yoga/yoga/algorithm/Cache.cpp",
-    "3rdparty/yoga/yoga/algorithm/CalculateLayout.cpp",
-    "3rdparty/yoga/yoga/algorithm/FlexLine.cpp",
-    "3rdparty/yoga/yoga/algorithm/PixelGrid.cpp",
-    "3rdparty/yoga/yoga/config/Config.cpp",
-    "3rdparty/yoga/yoga/debug/AssertFatal.cpp",
-    "3rdparty/yoga/yoga/debug/Log.cpp",
-    "3rdparty/yoga/yoga/event/event.cpp",
-    "3rdparty/yoga/yoga/node/LayoutResults.cpp",
-    "3rdparty/yoga/yoga/node/Node.cpp",
-    "3rdparty/bx/src/amalgamated.cpp",
-    "3rdparty/bgfx/src/amalgamated.cpp",
-    "3rdparty/bimg/src/image.cpp",
-    "3rdparty/bimg/src/image_cubemap_filter.cpp",
-    "3rdparty/bimg/src/image_decode.cpp",
-    "3rdparty/bimg/src/image_encode.cpp",
-    "3rdparty/bimg/src/image_gnf.cpp",
-    "3rdparty/bimg/3rdparty/etc1/etc1.cpp",
-    "3rdparty/bimg/3rdparty/etc2/ProcessRGB.cpp",
-    "3rdparty/bimg/3rdparty/etc2/Tables.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/alpha.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/clusterfit.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/colourblock.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/colourfit.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/colourset.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/maths.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/rangefit.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/singlecolourfit.cpp",
-    "3rdparty/bimg/3rdparty/libsquish/squish.cpp",
-    "3rdparty/bimg/3rdparty/pvrtc/BitScale.cpp",
-    "3rdparty/bimg/3rdparty/pvrtc/MortonTable.cpp",
-    "3rdparty/bimg/3rdparty/pvrtc/PvrTcDecoder.cpp",
-    "3rdparty/bimg/3rdparty/pvrtc/PvrTcEncoder.cpp",
-    "3rdparty/bimg/3rdparty/pvrtc/PvrTcPacket.cpp",
-    "3rdparty/bimg/3rdparty/edtaa3/edtaa3func.cpp",
-    "3rdparty/bimg/3rdparty/iqa/source/convolve.c",
-    "3rdparty/bimg/3rdparty/iqa/source/decimate.c",
-    "3rdparty/bimg/3rdparty/iqa/source/math_utils.c",
-    "3rdparty/bimg/3rdparty/iqa/source/ms_ssim.c",
-    "3rdparty/bimg/3rdparty/iqa/source/mse.c",
-    "3rdparty/bimg/3rdparty/iqa/source/psnr.c",
-    "3rdparty/bimg/3rdparty/iqa/source/ssim.c",
-    "3rdparty/bimg/3rdparty/nvtt/nvtt.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc6h/zoh.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc6h/zoh_utils.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc6h/zohone.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc6h/zohtwo.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode0.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode1.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode2.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode3.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode4.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode5.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode6.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_mode7.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/bc7/avpcl_utils.cpp",
-    "3rdparty/bimg/3rdparty/nvtt/nvmath/fitting.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_averages_and_directions.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_block_sizes.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_color_quantize.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_color_unquantize.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_compress_symbolic.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_compute_variance.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_decompress_symbolic.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_diagnostic_trace.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_entry.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_find_best_partitioning.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_ideal_endpoints_and_weights.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_image.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_integer_sequence.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_mathlib.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_mathlib_softfloat.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_partition_tables.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_percentile_tables.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_pick_best_endpoint_format.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_quantization.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_symbolic_physical.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_weight_align.cpp",
-    "3rdparty/bimg/3rdparty/astc-encoder/source/astcenc_weight_quant_xfer_tables.cpp",
-    "3rdparty/wasm3/source/m3_bind.c",
-    "3rdparty/wasm3/source/m3_code.c",
-    "3rdparty/wasm3/source/m3_compile.c",
-    "3rdparty/wasm3/source/m3_core.c",
-    "3rdparty/wasm3/source/m3_env.c",
-    "3rdparty/wasm3/source/m3_exec.c",
-    "3rdparty/wasm3/source/m3_function.c",
-    "3rdparty/wasm3/source/m3_info.c",
-    "3rdparty/wasm3/source/m3_module.c",
-    "3rdparty/wasm3/source/m3_parse.c",
-    "3rdparty/mimalloc/src/alloc.c",
-    "3rdparty/mimalloc/src/alloc-aligned.c",
-    "3rdparty/mimalloc/src/alloc-posix.c",
-    "3rdparty/mimalloc/src/arena.c",
-    "3rdparty/mimalloc/src/bitmap.c",
-    "3rdparty/mimalloc/src/heap.c",
-    "3rdparty/mimalloc/src/init.c",
-    "3rdparty/mimalloc/src/libc.c",
-    "3rdparty/mimalloc/src/options.c",
-    "3rdparty/mimalloc/src/os.c",
-    "3rdparty/mimalloc/src/page.c",
-    "3rdparty/mimalloc/src/random.c",
-    "3rdparty/mimalloc/src/segment.c",
-    "3rdparty/mimalloc/src/segment-map.c",
-    "3rdparty/mimalloc/src/stats.c",
-    "3rdparty/mimalloc/src/prim/prim.c",
-    "3rdparty/rpmalloc/rpmalloc/rpmalloc.c",
 ]
 
 windows_sources = [
     "native/src/platform/win32/kain_win32_app_host.c",
     "native/src/platform/win32/kain_win32_input_host.c",
-    "native/src/platform/win32/kain_runtime_win32_graphics.c",
     "native/src/platform/win32/kain_runtime_win32_shared.c",
-    "3rdparty/libuv/src/win/async.c",
-    "3rdparty/libuv/src/win/core.c",
-    "3rdparty/libuv/src/win/detect-wakeup.c",
-    "3rdparty/libuv/src/win/dl.c",
-    "3rdparty/libuv/src/win/error.c",
-    "3rdparty/libuv/src/win/fs.c",
-    "3rdparty/libuv/src/win/fs-event.c",
-    "3rdparty/libuv/src/win/getaddrinfo.c",
-    "3rdparty/libuv/src/win/getnameinfo.c",
-    "3rdparty/libuv/src/win/handle.c",
-    "3rdparty/libuv/src/win/loop-watcher.c",
-    "3rdparty/libuv/src/win/pipe.c",
-    "3rdparty/libuv/src/win/thread.c",
-    "3rdparty/libuv/src/win/poll.c",
-    "3rdparty/libuv/src/win/process.c",
-    "3rdparty/libuv/src/win/process-stdio.c",
-    "3rdparty/libuv/src/win/signal.c",
-    "3rdparty/libuv/src/win/snprintf.c",
-    "3rdparty/libuv/src/win/stream.c",
-    "3rdparty/libuv/src/win/tcp.c",
-    "3rdparty/libuv/src/win/tty.c",
-    "3rdparty/libuv/src/win/udp.c",
-    "3rdparty/libuv/src/win/util.c",
-    "3rdparty/libuv/src/win/winapi.c",
-    "3rdparty/libuv/src/win/winsock.c",
 ]
 
 linux_sources = [
     "native/src/platform/linux/kain_runtime_linux_shared.c",
-    "native/src/platform/linux/kain_runtime_linux_graphics.c",
-    "3rdparty/libuv/src/fs-poll.c",
-    "3rdparty/libuv/src/idna.c",
-    "3rdparty/libuv/src/inet.c",
-    "3rdparty/libuv/src/random.c",
-    "3rdparty/libuv/src/strscpy.c",
-    "3rdparty/libuv/src/strtok.c",
-    "3rdparty/libuv/src/thread-common.c",
-    "3rdparty/libuv/src/threadpool.c",
-    "3rdparty/libuv/src/timer.c",
-    "3rdparty/libuv/src/uv-common.c",
-    "3rdparty/libuv/src/uv-data-getter-setters.c",
-    "3rdparty/libuv/src/version.c",
-    "3rdparty/libuv/src/unix/async.c",
-    "3rdparty/libuv/src/unix/core.c",
-    "3rdparty/libuv/src/unix/dl.c",
-    "3rdparty/libuv/src/unix/fs.c",
-    "3rdparty/libuv/src/unix/getaddrinfo.c",
-    "3rdparty/libuv/src/unix/getnameinfo.c",
-    "3rdparty/libuv/src/unix/linux.c",
-    "3rdparty/libuv/src/unix/loop-watcher.c",
-    "3rdparty/libuv/src/unix/loop.c",
-    "3rdparty/libuv/src/unix/pipe.c",
-    "3rdparty/libuv/src/unix/poll.c",
-    "3rdparty/libuv/src/unix/process.c",
-    "3rdparty/libuv/src/unix/procfs-exepath.c",
-    "3rdparty/libuv/src/unix/proctitle.c",
-    "3rdparty/libuv/src/unix/random-devurandom.c",
-    "3rdparty/libuv/src/unix/random-getrandom.c",
-    "3rdparty/libuv/src/unix/random-sysctl-linux.c",
-    "3rdparty/libuv/src/unix/signal.c",
-    "3rdparty/libuv/src/unix/stream.c",
-    "3rdparty/libuv/src/unix/tcp.c",
-    "3rdparty/libuv/src/unix/thread.c",
-    "3rdparty/libuv/src/unix/tty.c",
-    "3rdparty/libuv/src/unix/udp.c",
 ]
 
 macos_sources = []
 
 include_dirs = [
     "native/include",
-    "3rdparty/libuv/include",
-    "3rdparty/libuv/src",
-    "3rdparty/bgfx/include",
-    "3rdparty/bgfx/src",
-    "3rdparty/bgfx/3rdparty",
-    "3rdparty/bgfx/3rdparty/khronos",
-    "3rdparty/bx/include",
-    "3rdparty/bx/3rdparty",
-    "3rdparty/bimg/include",
-    "3rdparty/bimg/src",
-    "3rdparty/bimg/3rdparty",
-    "3rdparty/bimg/3rdparty/astc-encoder/include",
-    "3rdparty/bimg/3rdparty/astc-encoder/source",
-    "3rdparty/bimg/3rdparty/nvtt",
-    "3rdparty/bimg/3rdparty/iqa/include",
-    "3rdparty/bimg/3rdparty/tinyexr",
-    "3rdparty/bimg/3rdparty/tinyexr/deps",
-    "3rdparty/quickjs",
-    "3rdparty/miniaudio",
-    "3rdparty/imgui",
-    "3rdparty/yoga",
-    "3rdparty/wasm3/source",
-    "3rdparty/mimalloc/include",
-    "3rdparty/mimalloc/src",
-    "3rdparty/rpmalloc/rpmalloc",
-]
-
-defines = [
-    "BX_CONFIG_DEBUG=0",
-    "BGFX_CONFIG_MULTITHREADED=0",
-    "BGFX_CONFIG_RENDERER_OPENGL=21",
-    "BGFX_CONFIG_RENDERER_OPENGLES=0",
-    "BGFX_CONFIG_RENDERER_VULKAN=0",
-    "BGFX_CONFIG_RENDERER_WEBGPU=0",
-    "BGFX_CONFIG_RENDERER_DIRECT3D11=0",
-    "BGFX_CONFIG_RENDERER_DIRECT3D12=0",
-    "BGFX_CONFIG_RENDERER_METAL=0",
-    "BGFX_CONFIG_RENDERER_AGC=0",
-    "BGFX_CONFIG_RENDERER_GNM=0",
-    "BGFX_CONFIG_RENDERER_NVN=0",
 ]
 
 windows_defines = [
@@ -297,12 +64,6 @@ linux_defines = [
     "_FILE_OFFSET_BITS=64",
 ]
 
-[[archive_groups]]
-name = "vendor-runtime"
-source_prefixes = ["3rdparty/"]
-
-# Runtime Version and ABI Metadata
-# These values must match the constants defined in runtime/native/include/kain_runtime_version.h
 [version]
 runtime_major = 0
 runtime_minor = 1
@@ -311,17 +72,13 @@ abi_major = 0
 abi_minor = 1
 abi_patch = 0
 
-# Runtime Metadata
 [metadata]
 description = "KAIN native C runtime for compiled programs"
 target_platforms = ["windows", "linux", "macos"]
-active_platforms = ["windows", "linux"]  # Native core runtime currently compiles on Windows and Linux
+active_platforms = ["windows", "linux"]
 runtime_lane = "raw-native"
-compatibility_class = "experimental"  # experimental, stable, production
+compatibility_class = "experimental"
 
-# Runtime Services Declaration
-# These services are registered at runtime initialization and used for capability discovery
-# Service keys must match the constants defined in runtime/native/include/kain_runtime_services.h
 [[services]]
 key = "base.memory"
 name = "Base Memory Services"
@@ -361,7 +118,7 @@ provider = "platform-win32"
 requirement = "required"
 status = "available"
 platforms = ["windows"]
-description = "Win32 application host and window management"
+description = "Raw Win32 app/window host substrate without baked presenters or app policy"
 
 [[services]]
 key = "platform.input"
@@ -376,10 +133,10 @@ description = "Canonical Kain input sessions, semantic actions, replay traces, a
 key = "gfx.viewport"
 name = "Native Viewport"
 provider = "platform-win32"
-requirement = "required"
-status = "available"
+requirement = "optional"
+status = "degraded"
 platforms = ["windows"]
-description = "Win32 viewport host and OpenGL rendering"
+description = "Platform window handles and presenter attachment contract; concrete presenters now live in blades or packages"
 
 [[services]]
 key = "gfx.raw-native"
@@ -404,7 +161,7 @@ provider = "native-core"
 requirement = "optional"
 status = "degraded"
 platforms = ["windows", "linux"]
-description = "Kain-visible Vulkan backend selection and capability probe; direct command execution is not attached in this runtime build"
+description = "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime"
 
 [[services]]
 key = "gfx.backend.d3d12"
@@ -413,43 +170,7 @@ provider = "native-core"
 requirement = "optional"
 status = "degraded"
 platforms = ["windows"]
-description = "Kain-visible DirectX 12 backend selection and capability probe; direct command execution is not attached in this runtime build"
-
-[[services]]
-key = "gfx.backend.bgfx"
-name = "bgfx Renderer Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Cross-platform baseline renderer backend for viewport, swapchain, and debug draw"
-
-[[services]]
-key = "gfx.backend.filament"
-name = "Filament Renderer Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Premium scene, material, and lighting presentation lane activated through the vendor bridge"
-
-[[services]]
-key = "gfx.backend.diligent"
-name = "Diligent Renderer Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Explicit render-graph and compute-oriented renderer lane activated through the vendor bridge"
-
-[[services]]
-key = "gfx.backend.forge"
-name = "The Forge Renderer Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Low-level cross-platform renderer substrate activated through the vendor bridge seam"
+description = "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime"
 
 [[services]]
 key = "scene.runtime"
@@ -480,26 +201,8 @@ key = "asset.gltf"
 name = "glTF Asset Loader"
 provider = "native-core"
 requirement = "optional"
-status = "available"
-description = "glTF 2.0 asset loading and parsing"
-
-[[services]]
-key = "asset.image.bimg"
-name = "bimg Image Runtime"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Image decoding and staging lane reserved for renderer-facing asset ingestion"
-
-[[services]]
-key = "asset.texture.bimg"
-name = "bimg Texture Runtime"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Texture container and mip/format staging lane reserved for renderer asset flow"
+status = "degraded"
+description = "The legacy runtime-owned glTF loader was removed from the active runtime; authored packages or blade-owned loaders must satisfy this seam"
 
 [[services]]
 key = "asset.ingestion"
@@ -525,79 +228,6 @@ requirement = "optional"
 status = "available"
 description = "Compiled UI bundle loading and overlay rendering"
 
-[[services]]
-key = "ui.layout.yoga"
-name = "Yoga Layout Engine"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Canonical layout execution lane for retained UI tree sizing and placement"
-
-[[services]]
-key = "ui.render.skia"
-name = "Skia Render Engine"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "2D, vector, and text render substrate activated through the vendor bridge"
-
-[[services]]
-key = "ui.backend.imgui"
-name = "ImGui Host Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Tooling and devtools backend for inspectors, overlays, and runtime diagnostics"
-
-[[services]]
-key = "ui.backend.rmlui"
-name = "RmlUi Host Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Document-style retained UI backend activated through the vendor bridge"
-
-[[services]]
-key = "ui.backend.slint"
-name = "Slint Host Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Declarative native UI backend activated through the vendor bridge"
-
-[[services]]
-key = "ui.backend.qt"
-name = "Qt Shell Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Desktop shell and docking backend activated through the external Qt runtime probe"
-
-[[services]]
-key = "ui.surface.browser.cef"
-name = "CEF Browser Surface"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Browser-backed panel and document surface lane activated through the vendor bridge"
-
-[[services]]
-key = "ui.devtools"
-name = "UI Devtools"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Runtime inspection, patch tracing, and tooling overlay service family"
-
-# Future/Planned Services (not yet implemented)
 [[services]]
 key = "reflection"
 name = "Reflection Runtime"
@@ -655,31 +285,13 @@ status = "available"
 description = "Timer registration and wake delivery"
 
 [[services]]
-key = "io.loop"
-name = "IO Loop"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed event loop and wake delivery substrate"
-
-[[services]]
-key = "io.fs"
-name = "IO Filesystem"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed filesystem operations and async file dispatch"
-
-[[services]]
 key = "io.net"
 name = "IO Network"
 provider = "native-core"
 requirement = "optional"
 status = "available"
 platforms = ["windows", "linux"]
-description = "Vendor-backed TCP, UDP, and name-resolution primitives"
+description = "Native TCP and HTTP/1.1 networking primitives"
 
 [[services]]
 key = "io.process"
@@ -688,32 +300,7 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 platforms = ["windows", "linux"]
-description = "Vendor-backed process spawning, pipes, and child lifecycle management"
-
-[[services]]
-key = "io.timers"
-name = "IO Timers"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed timer wheel and deadline wake integration"
-
-[[services]]
-key = "gfx.shader"
-name = "Shader Runtime"
-provider = "native-core"
-requirement = "optional"
-status = "planned"
-description = "Shader artifact loading and validation"
-
-[[services]]
-key = "gfx.material"
-name = "Material Runtime"
-provider = "native-core"
-requirement = "optional"
-status = "planned"
-description = "Material instance management and resource binding"
+description = "Native child-process, pipe, and PTY session management"
 
 [[services]]
 key = "gfx.compute"
@@ -729,7 +316,7 @@ name = "UI Component Runtime"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-description = "Component state, invalidation, and event routing"
+description = "Component state, invalidation, focus, and event routing"
 
 [[services]]
 key = "compatibility"
@@ -737,7 +324,7 @@ name = "Compatibility and Hot Reload"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-description = "Version validation, migration, and hot reload support"
+description = "Version validation, migration, hot reload, and snapshot flow"
 
 [[services]]
 key = "host.bridge"
@@ -747,107 +334,7 @@ requirement = "optional"
 status = "available"
 description = "Plugin and foreign service integration"
 
-[[services]]
-key = "script.quickjs"
-name = "QuickJS Script Runtime"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Embedded JavaScript runtime for host automation and dynamic scripting"
-
-[[services]]
-key = "audio.backend"
-name = "Audio Backend"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed device and backend abstraction for realtime audio"
-
-[[services]]
-key = "audio.graph"
-name = "Audio Graph"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed audio graph and node processing substrate"
-
-[[services]]
-key = "audio.device"
-name = "Audio Device"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed playback and capture device lifecycle"
-
-[[services]]
-key = "audio.assets"
-name = "Audio Assets"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Vendor-backed audio asset decoding and resource loading"
-
-[[services]]
-key = "wasm.runtime.light"
-name = "WASM Runtime Light"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Lightweight WebAssembly runtime for small sandboxed modules"
-
-[[services]]
-key = "wasm.runtime.full"
-name = "WASM Runtime Full"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Full WebAssembly runtime lane activated through the vendor bridge"
-
-[[services]]
-key = "wasm.module"
-name = "WASM Module"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Kain-owned WebAssembly module loading and execution seam"
-
-[[services]]
-key = "wasm.wasi"
-name = "WASM WASI"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "WASI-flavored runtime lane activated through the vendor bridge"
-
-[[services]]
-key = "allocator.mimalloc"
-name = "Allocator Mimalloc"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Mimalloc-backed allocation lane for Kain runtime experiments"
-
-[[services]]
-key = "allocator.rpmalloc"
-name = "Allocator Rpmalloc"
-provider = "native-core"
-requirement = "optional"
-status = "available"
-platforms = ["windows", "linux"]
-description = "Rpmalloc-backed allocation lane for Kain runtime experiments"
-
-# Platform-Specific Link Dependencies
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "ws2_32", "winhttp", "psapi", "advapi32", "iphlpapi", "userenv", "dbghelp", "ole32", "shell32"]
-linux = ["pthread", "dl", "rt", "m", "GL", "EGL", "X11", "Xext"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp"]
+linux = ["pthread", "dl", "rt", "m"]
 macos = []

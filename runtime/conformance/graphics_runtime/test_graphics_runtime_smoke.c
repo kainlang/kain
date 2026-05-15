@@ -399,13 +399,13 @@ static int test_graphics_bundle_from_json(void) {
     if (!check_contains(bundle.primary_shader_ref_keys, "shader::terrain::compute", "bundle.primary_shader_ref_keys")) return 0;
 
     if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation), "validate_bundle")) return 0;
-    if (!check_true(validation.gl_lane_ready == 1, "validation.gl_lane_ready")) return 0;
+    if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready")) return 0;
     if (!check_true(validation.compute_metadata_valid == 1, "validation.compute_metadata_valid")) return 0;
     if (!check_true(validation.has_compute_artifacts == 1, "validation.has_compute_artifacts")) return 0;
     if (!check_true(validation.has_material_bindings == 1, "validation.has_material_bindings")) return 0;
     if (!check_true(validation.material_binding_valid == 1, "validation.material_binding_valid")) return 0;
     if (!check_true(validation.compute_plan_valid == 1, "validation.compute_plan_valid")) return 0;
-    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&bundle) == 1, "gl_surface_supports_graphics_bundle")) return 0;
+    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle")) return 0;
     if (!check_contains(validation.reason, "ready", "validation.reason")) return 0;
 
     kain_runtime_graphics_format_summary(&bundle, summary, sizeof(summary));
@@ -438,10 +438,10 @@ static int test_graphics_material_and_compute_snapshot_persistence(void) {
     if (!check_true(snapshot.primary_compute.workgroup_size[0] == 8, "snapshot.primary_compute.workgroup_size[0]")) return 0;
     if (!check_true(snapshot.primary_compute.dispatch_size[0] == 16, "snapshot.primary_compute.dispatch_size[0]")) return 0;
     if (!check_true(kain_runtime_graphics_validate_bundle(&snapshot, &validation), "validate_snapshot_bundle")) return 0;
-    if (!check_true(validation.gl_lane_ready == 1, "validation.gl_lane_ready(snapshot)")) return 0;
+    if (!check_true(validation.graphics_lane_ready == 1, "validation.graphics_lane_ready(snapshot)")) return 0;
     if (!check_true(validation.material_binding_valid == 1, "validation.material_binding_valid(snapshot)")) return 0;
     if (!check_true(validation.compute_plan_valid == 1, "validation.compute_plan_valid(snapshot)")) return 0;
-    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&snapshot) == 1, "gl_surface_supports_graphics_bundle(snapshot)")) return 0;
+    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&snapshot) == 1, "viewport_supports_graphics_bundle(snapshot)")) return 0;
 
     kain_runtime_graphics_format_summary(&snapshot, summary, sizeof(summary));
     if (!check_contains(summary, "shader refs v/f/c=1/1/1", "snapshot summary shader refs")) return 0;
@@ -471,7 +471,7 @@ static int test_graphics_bundle_from_path(void) {
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&bundle) == 1, "gl_surface_supports_graphics_bundle(path)")) {
+    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(path)")) {
         remove(temp_path);
         return 0;
     }
@@ -516,7 +516,7 @@ static int test_graphics_bundle_from_env(void) {
         remove(temp_path);
         return 0;
     }
-    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&bundle) == 1, "gl_surface_supports_graphics_bundle(env)")) {
+    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 1, "viewport_supports_graphics_bundle(env)")) {
         _putenv_s(KAIN_RUNTIME_GRAPHICS_ENV, "");
         remove(temp_path);
         return 0;
@@ -541,13 +541,13 @@ static int test_graphics_invalid_and_rejected_target(void) {
     if (!check_true(kain_runtime_graphics_validate_bundle(&bundle, &validation) == 0, "validate_rust_bundle")) {
         return 0;
     }
-    if (!check_true(validation.gl_lane_ready == 0, "validation.gl_lane_ready(rust)")) {
+    if (!check_true(validation.graphics_lane_ready == 0, "validation.graphics_lane_ready(rust)")) {
         return 0;
     }
     if (!check_contains(validation.reason, "llvm", "validation.reason(rust)")) {
         return 0;
     }
-    if (!check_true(kain_win32_gl_surface_supports_graphics_bundle(&bundle) == 0, "gl_surface_supports_graphics_bundle(rust)")) {
+    if (!check_true(kain_runtime_viewport_supports_graphics_bundle(&bundle) == 0, "viewport_supports_graphics_bundle(rust)")) {
         return 0;
     }
     return 1;
@@ -569,7 +569,7 @@ static int test_graphics_rejects_incomplete_material_plan(void) {
     if (!check_true(validation.material_binding_valid == 0, "validation.material_binding_valid(invalid material)")) {
         return 0;
     }
-    if (!check_true(validation.gl_lane_ready == 0, "validation.gl_lane_ready(invalid material)")) {
+    if (!check_true(validation.graphics_lane_ready == 0, "validation.graphics_lane_ready(invalid material)")) {
         return 0;
     }
     if (!check_contains(validation.reason, "material binding plan", "validation.reason(invalid material)")) {
@@ -594,7 +594,7 @@ static int test_graphics_rejects_incomplete_compute_plan(void) {
     if (!check_true(validation.compute_plan_valid == 0, "validation.compute_plan_valid(invalid compute)")) {
         return 0;
     }
-    if (!check_true(validation.gl_lane_ready == 0, "validation.gl_lane_ready(invalid compute)")) {
+    if (!check_true(validation.graphics_lane_ready == 0, "validation.graphics_lane_ready(invalid compute)")) {
         return 0;
     }
     if (!check_contains(validation.reason, "compute dispatch plan", "validation.reason(invalid compute)")) {

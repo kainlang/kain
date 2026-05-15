@@ -1,5 +1,8 @@
 #include "../../include/kain_runtime_contract.h"
 #include "../../include/kain_runtime_services.h"
+#ifndef _WIN32
+#include <strings.h>
+#endif
 
 typedef struct {
     const char* key;
@@ -8,51 +11,63 @@ typedef struct {
 } KainRuntimeServiceSpec;
 
 static const KainRuntimeServiceSpec g_kain_runtime_service_specs[] = {
-    {KAIN_SERVICE_KEY_PLATFORM_APP_HOST, KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST, 1},
-    {KAIN_SERVICE_KEY_PLATFORM_INPUT, KAIN_RUNTIME_SERVICE_NATIVE_INPUT, 1},
-    {KAIN_SERVICE_KEY_GFX_VIEWPORT, KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT, 1},
+    {KAIN_SERVICE_KEY_BASE_MEMORY, KAIN_RUNTIME_SERVICE_BASE_MEMORY, 1},
+    {KAIN_SERVICE_KEY_MEMORY_OWNERSHIP, KAIN_RUNTIME_SERVICE_MEMORY_OWNERSHIP, 1},
+    {KAIN_SERVICE_KEY_BASE_DIAGNOSTICS, KAIN_RUNTIME_SERVICE_BASE_DIAGNOSTICS, 1},
+    {KAIN_SERVICE_KEY_CONTRACT, KAIN_RUNTIME_SERVICE_CONTRACT, 1},
+    {KAIN_SERVICE_KEY_PLATFORM_APP_HOST, KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST, 0},
+    {KAIN_SERVICE_KEY_PLATFORM_INPUT, KAIN_RUNTIME_SERVICE_NATIVE_INPUT, 0},
+    {KAIN_SERVICE_KEY_GFX_VIEWPORT, KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT, 0},
+    {KAIN_SERVICE_KEY_GFX_RAW_NATIVE, KAIN_RUNTIME_SERVICE_GFX_RAW_NATIVE, 0},
+    {KAIN_SERVICE_KEY_GFX_SHADER_SPIRV, KAIN_RUNTIME_SERVICE_GFX_SHADER_SPIRV, 0},
+    {KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN, KAIN_RUNTIME_SERVICE_GFX_BACKEND_VULKAN, 0},
+    {KAIN_SERVICE_KEY_GFX_BACKEND_D3D12, KAIN_RUNTIME_SERVICE_GFX_BACKEND_D3D12, 0},
     {KAIN_SERVICE_KEY_SCENE_RUNTIME, KAIN_RUNTIME_SERVICE_SCENE_RUNTIME, 0},
     {KAIN_SERVICE_KEY_SCENE_QUERY, KAIN_RUNTIME_SERVICE_SCENE_QUERY, 0},
     {KAIN_SERVICE_KEY_SCENE_MUTATION, KAIN_RUNTIME_SERVICE_SCENE_MUTATION, 0},
-    {KAIN_SERVICE_KEY_RUNTIME_INSPECTION, KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION, 0},
-    {KAIN_SERVICE_KEY_DEVICE_REFLECTION, KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION, 0},
     {KAIN_SERVICE_KEY_ASSET_GLTF, KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF, 0},
     {KAIN_SERVICE_KEY_ASSET_INGESTION, KAIN_RUNTIME_SERVICE_ASSET_INGESTION, 0},
+    {KAIN_SERVICE_KEY_ASSET_REALTIME, KAIN_RUNTIME_SERVICE_ASSET_REALTIME, 0},
     {KAIN_SERVICE_KEY_UI_BUNDLE, KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED, 0},
-    {KAIN_SERVICE_KEY_GFX_COMPUTE, KAIN_RUNTIME_SERVICE_GFX_COMPUTE, 0},
-    {KAIN_SERVICE_KEY_IO_LOOP, KAIN_RUNTIME_SERVICE_IO_LOOP, 0},
-    {KAIN_SERVICE_KEY_IO_FS, KAIN_RUNTIME_SERVICE_IO_FS, 0},
+    {KAIN_SERVICE_KEY_REFLECTION, KAIN_RUNTIME_SERVICE_REFLECTION, 0},
+    {KAIN_SERVICE_KEY_RUNTIME_INSPECTION, KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION, 0},
+    {KAIN_SERVICE_KEY_DEVICE_REFLECTION, KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION, 0},
+    {KAIN_SERVICE_KEY_ACTOR_RUNTIME, KAIN_RUNTIME_SERVICE_ACTOR_RUNTIME, 0},
+    {KAIN_SERVICE_KEY_ACTOR_REGISTRY, KAIN_RUNTIME_SERVICE_ACTOR_REGISTRY, 0},
+    {KAIN_SERVICE_KEY_ASYNC_RUNTIME, KAIN_RUNTIME_SERVICE_ASYNC_RUNTIME, 0},
+    {KAIN_SERVICE_KEY_ASYNC_TIMERS, KAIN_RUNTIME_SERVICE_ASYNC_TIMERS, 0},
     {KAIN_SERVICE_KEY_IO_NET, KAIN_RUNTIME_SERVICE_IO_NET, 0},
     {KAIN_SERVICE_KEY_IO_PROCESS, KAIN_RUNTIME_SERVICE_IO_PROCESS, 0},
-    {KAIN_SERVICE_KEY_IO_TIMERS, KAIN_RUNTIME_SERVICE_IO_TIMERS, 0},
-    {KAIN_SERVICE_KEY_SCRIPT_QUICKJS, KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS, 0},
-    {KAIN_SERVICE_KEY_AUDIO_BACKEND, KAIN_RUNTIME_SERVICE_AUDIO_BACKEND, 0},
-    {KAIN_SERVICE_KEY_AUDIO_GRAPH, KAIN_RUNTIME_SERVICE_AUDIO_GRAPH, 0},
-    {KAIN_SERVICE_KEY_AUDIO_DEVICE, KAIN_RUNTIME_SERVICE_AUDIO_DEVICE, 0},
-    {KAIN_SERVICE_KEY_AUDIO_ASSETS, KAIN_RUNTIME_SERVICE_AUDIO_ASSETS, 0},
-    {KAIN_SERVICE_KEY_WASM_RUNTIME_LIGHT, KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT, 0},
-    {KAIN_SERVICE_KEY_WASM_RUNTIME_FULL, KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL, 0},
-    {KAIN_SERVICE_KEY_WASM_MODULE, KAIN_RUNTIME_SERVICE_WASM_MODULE, 0},
-    {KAIN_SERVICE_KEY_WASM_WASI, KAIN_RUNTIME_SERVICE_WASM_WASI, 0},
-    {KAIN_SERVICE_KEY_ALLOCATOR_MIMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC, 0},
-    {KAIN_SERVICE_KEY_ALLOCATOR_RPMALLOC, KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC, 0},
-    {KAIN_SERVICE_KEY_GFX_BACKEND_BGFX, KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX, 0},
-    {KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT, KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT, 0},
-    {KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT, KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT, 0},
-    {KAIN_SERVICE_KEY_ASSET_IMAGE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
-    {KAIN_SERVICE_KEY_ASSET_TEXTURE_BIMG, KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG, 0},
-    {KAIN_SERVICE_KEY_UI_LAYOUT_YOGA, KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA, 0},
-    {KAIN_SERVICE_KEY_UI_RENDER_SKIA, KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA, 0},
-    {KAIN_SERVICE_KEY_UI_BACKEND_IMGUI, KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI, 0},
-    {KAIN_SERVICE_KEY_UI_BACKEND_RMLUI, KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI, 0},
-    {KAIN_SERVICE_KEY_UI_BACKEND_SLINT, KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT, 0},
-    {KAIN_SERVICE_KEY_UI_BACKEND_QT, KAIN_RUNTIME_SERVICE_UI_BACKEND_QT, 0},
-    {KAIN_SERVICE_KEY_UI_SURFACE_BROWSER_CEF, KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF, 0},
-    {KAIN_SERVICE_KEY_UI_DEVTOOLS, KAIN_RUNTIME_SERVICE_UI_DEVTOOLS, 0},
+    {KAIN_SERVICE_KEY_GFX_COMPUTE, KAIN_RUNTIME_SERVICE_GFX_COMPUTE, 0},
+    {KAIN_SERVICE_KEY_UI_COMPONENT, KAIN_RUNTIME_SERVICE_UI_COMPONENT, 0},
+    {KAIN_SERVICE_KEY_COMPATIBILITY, KAIN_RUNTIME_SERVICE_COMPATIBILITY, 0},
+    {KAIN_SERVICE_KEY_HOST_BRIDGE, KAIN_RUNTIME_SERVICE_HOST_BRIDGE, 0},
 };
 
 static const size_t g_kain_runtime_service_spec_count =
     sizeof(g_kain_runtime_service_specs) / sizeof(g_kain_runtime_service_specs[0]);
+
+static int kain_runtime_contract_keys_equal(const char* left, const char* right) {
+    if (!left || !right) {
+        return 0;
+    }
+#ifdef _WIN32
+    return _stricmp(left, right) == 0;
+#else
+    return strcasecmp(left, right) == 0;
+#endif
+}
+
+static int kain_runtime_contract_target_is_raw_native(
+    const KainRuntimeContractBundle* bundle
+) {
+    if (!bundle || !bundle->target[0]) {
+        return 0;
+    }
+
+    return kain_runtime_contract_keys_equal(bundle->target, "llvm") ||
+           kain_runtime_contract_keys_equal(bundle->target, "c");
+}
 
 static const char* kain_runtime_contract_find_substring(
     const char* start,
@@ -236,7 +251,10 @@ static const KainRuntimeServiceSpec* kain_runtime_contract_find_service_spec(con
     }
     canonical_key = kain_runtime_contract_canonical_service_key(key);
     for (i = 0; i < g_kain_runtime_service_spec_count; ++i) {
-        if (_stricmp(g_kain_runtime_service_specs[i].key, canonical_key) == 0) {
+        if (kain_runtime_contract_keys_equal(
+                g_kain_runtime_service_specs[i].key,
+                canonical_key
+            )) {
             return &g_kain_runtime_service_specs[i];
         }
     }
@@ -396,103 +414,28 @@ static void kain_runtime_contract_analyze_services(
 }
 
 static void kain_runtime_contract_finalize(KainRuntimeContractBundle* bundle) {
+    const int expected_core_service_count =
+        kain_runtime_contract_count_bits(KAIN_RUNTIME_SERVICE_CORE_MASK);
+
     if (!bundle) {
         return;
     }
 
-    bundle->target_is_llvm = bundle->target[0] && _stricmp(bundle->target, "llvm") == 0;
-    bundle->has_native_app_host =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_APP_HOST) != 0;
-    bundle->has_native_input =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_INPUT) != 0;
-    bundle->has_native_viewport =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_VIEWPORT) != 0;
-    bundle->has_native_asset_gltf =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_ASSET_GLTF) != 0;
-    bundle->has_native_ui_compiled_bundle =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_NATIVE_UI_COMPILED) != 0;
-    bundle->has_gfx_compute =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_COMPUTE) != 0;
-    bundle->has_scene_runtime =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_RUNTIME) != 0;
-    bundle->has_scene_queries =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_QUERY) != 0;
-    bundle->has_scene_mutation =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCENE_MUTATION) != 0;
-    bundle->has_runtime_inspection =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_RUNTIME_INSPECTION) != 0;
-    bundle->has_device_reflection =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_DEVICE_REFLECTION) != 0;
-    bundle->has_asset_ingestion =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_INGESTION) != 0;
-    bundle->has_io_loop =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_LOOP) != 0;
-    bundle->has_io_fs =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_FS) != 0;
-    bundle->has_io_net =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_NET) != 0;
-    bundle->has_io_process =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_PROCESS) != 0;
-    bundle->has_io_timers =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_IO_TIMERS) != 0;
-    bundle->has_script_quickjs =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_SCRIPT_QUICKJS) != 0;
-    bundle->has_audio_backend =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_BACKEND) != 0;
-    bundle->has_audio_graph =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_GRAPH) != 0;
-    bundle->has_audio_device =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_DEVICE) != 0;
-    bundle->has_audio_assets =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_AUDIO_ASSETS) != 0;
-    bundle->has_wasm_runtime_light =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_LIGHT) != 0;
-    bundle->has_wasm_runtime_full =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_RUNTIME_FULL) != 0;
-    bundle->has_wasm_module =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_MODULE) != 0;
-    bundle->has_wasm_wasi =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_WASM_WASI) != 0;
-    bundle->has_allocator_mimalloc =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_MIMALLOC) != 0;
-    bundle->has_allocator_rpmalloc =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ALLOCATOR_RPMALLOC) != 0;
-    bundle->has_gfx_backend_bgfx =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_BGFX) != 0;
-    bundle->has_gfx_backend_filament =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_FILAMENT) != 0;
-    bundle->has_gfx_backend_diligent =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_GFX_BACKEND_DILIGENT) != 0;
-    bundle->has_asset_texture_bimg =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_ASSET_TEXTURE_BIMG) != 0;
-    bundle->has_ui_layout_yoga =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_LAYOUT_YOGA) != 0;
-    bundle->has_ui_render_skia =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_RENDER_SKIA) != 0;
-    bundle->has_ui_backend_imgui =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_IMGUI) != 0;
-    bundle->has_ui_backend_rmlui =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_RMLUI) != 0;
-    bundle->has_ui_backend_slint =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_SLINT) != 0;
-    bundle->has_ui_backend_qt =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_BACKEND_QT) != 0;
-    bundle->has_ui_surface_browser_cef =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_SURFACE_BROWSER_CEF) != 0;
-    bundle->has_ui_devtools =
-        (bundle->service_mask & KAIN_RUNTIME_SERVICE_UI_DEVTOOLS) != 0;
+    bundle->target_is_llvm = kain_runtime_contract_keys_equal(bundle->target, "llvm");
     bundle->core_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_CORE_MASK
     );
     bundle->optional_service_count = kain_runtime_contract_count_bits(
         bundle->service_mask & KAIN_RUNTIME_SERVICE_OPTIONAL_MASK
     );
-    bundle->missing_core_service_count = 3 - bundle->core_service_count;
+    bundle->missing_core_service_count =
+        expected_core_service_count - bundle->core_service_count;
     if (bundle->missing_core_service_count < 0) {
         bundle->missing_core_service_count = 0;
     }
     bundle->valid_for_raw_native =
-        bundle->target_is_llvm && bundle->core_service_count == 3;
+        kain_runtime_contract_target_is_raw_native(bundle) &&
+        bundle->core_service_count == expected_core_service_count;
 }
 
 void kain_runtime_contract_init(KainRuntimeContractBundle* bundle) {
@@ -831,13 +774,13 @@ int kain_runtime_contract_validate_startup(
         return 1;
     }
 
-    if (!bundle->target_is_llvm) {
+    if (!kain_runtime_contract_target_is_raw_native(bundle)) {
         if (validation->strict_mode) {
             validation->fatal_error = 1;
             snprintf(
                 validation->fatal_message,
                 sizeof(validation->fatal_message),
-                "Runtime contract target mismatch. Expected llvm, got %s.",
+                "Runtime contract target mismatch. Expected raw-native c/llvm, got %s.",
                 bundle->target[0] ? bundle->target : "unknown"
             );
             return 0;
@@ -845,7 +788,7 @@ int kain_runtime_contract_validate_startup(
         snprintf(
             services_buffer,
             sizeof(services_buffer),
-            "Runtime contract target is %s instead of llvm; continuing because %s=0.",
+            "Runtime contract target is %s instead of raw-native c/llvm; continuing because %s=0.",
             bundle->target[0] ? bundle->target : "unknown",
             KAIN_RUNTIME_CONTRACT_STRICT_ENV
         );

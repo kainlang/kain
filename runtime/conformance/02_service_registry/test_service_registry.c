@@ -349,7 +349,7 @@ int test_required_service_validation(void) {
 
 int test_contract_integration(void) {
     KainServiceRegistry* registry;
-    const int expected_service_count = 24;
+    const int expected_service_count = 31;
     
     printf("\nTest 7: Contract Integration\n");
     
@@ -382,13 +382,27 @@ int test_contract_integration(void) {
         return 0;
     }
     
-    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_GFX_VIEWPORT)) {
-        TEST_FAIL("gfx.viewport should be available");
+    if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_VIEWPORT) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("gfx.viewport should be degraded");
         return 0;
     }
     
-    if (!kain_service_registry_is_available(registry, KAIN_SERVICE_KEY_ASSET_GLTF)) {
-        TEST_FAIL("asset.gltf should be available");
+    if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_ASSET_GLTF) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("asset.gltf should be degraded");
+        return 0;
+    }
+
+    if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("gfx.backend.vulkan should be degraded");
+        return 0;
+    }
+
+    if (kain_service_registry_get_status(registry, KAIN_SERVICE_KEY_GFX_BACKEND_D3D12) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("gfx.backend.d3d12 should be degraded");
         return 0;
     }
     

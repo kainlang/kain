@@ -477,7 +477,7 @@ int test_startup_mismatch_detection(void) {
  */
 int test_global_registry_integration(void) {
     KainServiceRegistry* global_registry;
-    const int expected_service_count = 24;
+    const int expected_service_count = 31;
     
     printf("Test 7: Global Service Registry Integration\n");
     
@@ -532,6 +532,16 @@ int test_global_registry_integration(void) {
 
     if (!kain_service_registry_is_available(global_registry, KAIN_SERVICE_KEY_DEVICE_REFLECTION)) {
         TEST_FAIL("device.reflection should be available");
+    }
+
+    if (kain_service_registry_get_status(global_registry, KAIN_SERVICE_KEY_GFX_VIEWPORT) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("gfx.viewport should be degraded");
+    }
+
+    if (kain_service_registry_get_status(global_registry, KAIN_SERVICE_KEY_ASSET_GLTF) !=
+            KAIN_SERVICE_STATUS_DEGRADED) {
+        TEST_FAIL("asset.gltf should be degraded");
     }
     
     printf("  Global registry services: %d\n", global_registry->service_count);

@@ -290,9 +290,13 @@ pub fn emit_runtime_contract_bundle(
 
     let mut required_capabilities = collect_runtime_capabilities(&summary, target);
     required_capabilities.sort_by(|left, right| left.key.cmp(&right.key));
+    required_capabilities.dedup_by(|left, right| left.key == right.key);
 
     let mut service_bindings = runtime_service_bindings_for_target(&summary, target);
     service_bindings.sort_by(|left, right| left.service.cmp(&right.service));
+    service_bindings.dedup_by(|left, right| {
+        left.service == right.service && left.provider == right.provider && left.lane == right.lane
+    });
 
     // Emit full reflection payload for LLVM and Rust targets
     let reflection_payload = if matches!(
@@ -554,11 +558,13 @@ fn collect_runtime_capabilities(
                 "runtime/native",
                 Some("Program targets the raw native runtime lane."),
             ));
-            capabilities.push(runtime_capability(
-                "native.viewport-host",
-                "runtime/native",
-                Some("Viewport/app-host runtime services are expected in the native lane."),
-            ));
+            if raw_native_needs_platform_host(summary) {
+                capabilities.push(runtime_capability(
+                    "native.viewport-host",
+                    "runtime/native",
+                    Some("Program requires raw native window, input, and presenter-attachment substrate."),
+                ));
+            }
         }
         _ => {}
     }
@@ -577,11 +583,10 @@ fn runtime_service_bindings_for_target(
             runtime_service_binding("host.ui-native", "kain-ui-native", "rust-native"),
         ],
         CompileTarget::C | CompileTarget::Llvm => vec![
-            runtime_service_binding("platform.app-host", "runtime/native", "raw-native"),
-            runtime_service_binding("platform.input", "runtime/native", "raw-native"),
-            runtime_service_binding("gfx.viewport", "runtime/native", "raw-native"),
-            runtime_service_binding("asset.gltf", "runtime/native", "raw-native"),
-            runtime_service_binding("ui.bundle", "runtime/native", "raw-native"),
+            runtime_service_binding("base.memory", "runtime/native", "raw-native"),
+            runtime_service_binding("memory.ownership", "runtime/native", "raw-native"),
+            runtime_service_binding("base.diagnostics", "runtime/native", "raw-native"),
+            runtime_service_binding("contract", "runtime/native", "raw-native"),
         ],
         CompileTarget::Js | CompileTarget::Ts | CompileTarget::Wasm | CompileTarget::Hybrid => {
             vec![runtime_service_binding("host.web", "web", "web")]
@@ -591,6 +596,36 @@ fn runtime_service_bindings_for_target(
         }
         _ => Vec::new(),
     };
+
+    if summary.actors > 0 {
+        match target {
+            CompileTarget::Rust => {
+                bindings.push(runtime_service_binding(
+                    "actor.runtime",
+                    "kain-core",
+                    "rust-native",
+                ));
+                bindings.push(runtime_service_binding(
+                    "actor.registry",
+                    "kain-core",
+                    "rust-native",
+                ));
+            }
+            CompileTarget::C | CompileTarget::Llvm => {
+                bindings.push(runtime_service_binding(
+                    "actor.runtime",
+                    "runtime/native",
+                    "raw-native",
+                ));
+                bindings.push(runtime_service_binding(
+                    "actor.registry",
+                    "runtime/native",
+                    "raw-native",
+                ));
+            }
+            _ => {}
+        }
+    }
 
     if summary.async_tasks > 0 {
         match target {
@@ -619,6 +654,42 @@ fn runtime_service_bindings_for_target(
                 ));
             }
             _ => {}
+        }
+    }
+
+    if matches!(target, CompileTarget::C | CompileTarget::Llvm) {
+        if raw_native_needs_ui_bundle(summary) {
+            bindings.push(runtime_service_binding(
+                "ui.bundle",
+                "runtime/native",
+                "raw-native",
+            ));
+        }
+        if summary.components > 0 {
+            bindings.push(runtime_service_binding(
+                "ui.component",
+                "runtime/native",
+                "raw-native",
+            ));
+        }
+        if raw_native_needs_platform_host(summary) {
+            bindings.push(runtime_service_binding(
+                "platform.app-host",
+                "runtime/native",
+                "raw-native",
+            ));
+            bindings.push(runtime_service_binding(
+                "platform.input",
+                "runtime/native",
+                "raw-native",
+            ));
+        }
+        if summary.world_viewport3d > 0 {
+            bindings.push(runtime_service_binding(
+                "gfx.viewport",
+                "runtime/native",
+                "raw-native",
+            ));
         }
     }
 
@@ -717,6 +788,14 @@ fn runtime_service_bindings_for_target(
     }
 
     bindings
+}
+
+fn raw_native_needs_platform_host(summary: &ItemSummary) -> bool {
+    summary.world_native_ui > 0 || summary.world_viewport3d > 0
+}
+
+fn raw_native_needs_ui_bundle(summary: &ItemSummary) -> bool {
+    summary.components > 0 || summary.world_native_ui > 0
 }
 
 fn runtime_capability(key: &str, source: &str, detail: Option<&str>) -> RuntimeCapability {
@@ -1862,6 +1941,100 @@ component App():
             .migration_hints
             .iter()
             .any(|hint| hint.contains("reflection payload")));
+    }
+
+    #[test]
+    fn emits_lean_service_bindings_for_empty_raw_native_program() {
+        let bundle =
+            emit_runtime_contract_bundle(&TypedProgram { items: Vec::new() }, CompileTarget::Llvm);
+
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "base.memory"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "memory.ownership"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "base.diagnostics"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "contract"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "platform.app-host"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "platform.input"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "gfx.viewport"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "ui.bundle"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "asset.gltf"));
+        assert!(!bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "native.viewport-host"));
+    }
+
+    #[test]
+    fn emits_raw_native_host_services_only_when_world_surface_requires_them() {
+        let source = r#"
+component App():
+    render <panel title="Studio" />
+
+world NativeAuthority:
+    surface native_ui => App
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+
+        let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Llvm);
+        assert!(bundle
+            .required_capabilities
+            .iter()
+            .any(|capability| capability.key == "native.viewport-host"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "platform.app-host"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "platform.input"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "ui.bundle"));
+        assert!(bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "ui.component"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "gfx.viewport"));
+        assert!(!bundle
+            .service_bindings
+            .iter()
+            .any(|binding| binding.service == "asset.gltf"));
     }
 
     #[test]

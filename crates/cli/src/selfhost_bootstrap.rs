@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const DEFAULT_BOOTSTRAP_MANIFEST: &str = "src/KAIN.toml";
-const DEFAULT_RUNTIME_MANIFEST: &str = "runtime/native_runtime.toml";
+const DEFAULT_RUNTIME_MANIFEST: &str = "runtime/native_core_runtime.toml";
 const DEFAULT_RUNTIME_BUILD_SCRIPT: &str = "runtime/compile_native_runtime.sh";
 const DEFAULT_COMBINED_SOURCE_PATH: &str =
     "src/.selfhost/bootstrap/combined/kain_core_bootstrap.kn";
@@ -1418,7 +1418,7 @@ mod tests {
         fs::write(repo_root.join("src/core/a.kn"), "fn a():\n    pass\n").expect("a");
         fs::write(repo_root.join("src/core/b.kn"), "fn b():\n    pass\n").expect("b");
         fs::write(
-            repo_root.join("runtime/native_runtime.toml"),
+            repo_root.join("runtime/native_core_runtime.toml"),
             "name = \"runtime\"\n",
         )
         .expect("runtime manifest");
@@ -1445,7 +1445,7 @@ module_search_paths = ["src/core"]
 mode = "thin_host"
 
 [selfhost.runtime]
-manifest_path = "runtime/native_runtime.toml"
+manifest_path = "runtime/native_core_runtime.toml"
 compile_script = "runtime/compile_native_runtime.sh"
 cache_root = "generated/native_runtime/cache"
 
@@ -1472,7 +1472,7 @@ ouroboros_llvm_path = "src/.selfhost/stage2.ll"
         );
         assert_eq!(
             contract.runtime_manifest_path,
-            repo_root.join("runtime/native_runtime.toml")
+            repo_root.join("runtime/native_core_runtime.toml")
         );
         assert_eq!(
             contract.runtime_build_script_path,
@@ -1508,7 +1508,7 @@ ouroboros_llvm_path = "src/.selfhost/stage2.ll"
         )
         .expect("second");
         fs::write(
-            repo_root.join("runtime/native_runtime.toml"),
+            repo_root.join("runtime/native_core_runtime.toml"),
             "name = \"runtime\"\n",
         )
         .expect("runtime manifest");
@@ -1556,11 +1556,9 @@ source_order = ["src/core/first.kn", "src/core/second.kn"]
     #[test]
     fn windows_default_runtime_link_libs_do_not_force_opengl() {
         if cfg!(windows) {
-            assert!(
-                !super::default_native_runtime_link_libs()
-                    .iter()
-                    .any(|value| value == "opengl32")
-            );
+            assert!(!super::default_native_runtime_link_libs()
+                .iter()
+                .any(|value| value == "opengl32"));
         }
     }
 }

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "native_runtime": {
     "root": "runtime",
-    "manifest_path": "runtime/native_runtime.toml",
+    "manifest_path": "runtime/native_core_runtime.toml",
     "metadata_path": "runtime/native_runtime_metadata.json",
     "tracker_path": "runtime/NATIVE_RUNTIME_COMPLETION_TRACKER.md",
     "spec_tasks_path": ".kiro/specs/kain-native-runtime-completion/tasks.md"
@@ -18,7 +18,7 @@
       "depends_on_services": ["base.diagnostics", "contract"],
       "depends_on_components": [],
       "inputs": [
-        "runtime/native_runtime.toml",
+        "runtime/native_core_runtime.toml",
         "runtime/native_runtime_metadata.json",
         "runtime/NATIVE_RUNTIME_COMPLETION_TRACKER.md",
         ".kiro/specs/kain-native-runtime-completion/tasks.md"
@@ -45,7 +45,7 @@
       "depends_on_services": ["base.diagnostics", "contract"],
       "depends_on_components": ["shared.runtime-abi-model"],
       "inputs": [
-        "runtime/native_runtime.toml",
+        "runtime/native_core_runtime.toml",
         "runtime/native_runtime_metadata.json",
         "runtime/parallel/config/runtime_pairing_manifest.json"
       ],

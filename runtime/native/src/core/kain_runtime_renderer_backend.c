@@ -1,6 +1,5 @@
 #include "../../include/kain_runtime_renderer_backend.h"
 #include "../../include/kain_runtime_services.h"
-#include "../../include/kain_runtime_vendor_lane.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -14,40 +13,26 @@
 
 static const KainRendererBackendDescriptor g_kain_renderer_backend_catalog[] = {
     {
-        KAIN_RENDERER_BACKEND_BGFX,
-        "bgfx",
-        "bgfx Runtime",
-        "bgfx",
-        KAIN_SERVICE_KEY_GFX_BACKEND_BGFX,
-        "Cross-platform baseline renderer backend for viewport, swapchain, and debug-draw work",
-        KAIN_VENDOR_HAS_BGFX
+        KAIN_RENDERER_BACKEND_VULKAN,
+        "vulkan",
+        "Vulkan Backend Target",
+        "runtime-native",
+        KAIN_SERVICE_KEY_GFX_BACKEND_VULKAN,
+        "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime",
+        1
     },
     {
-        KAIN_RENDERER_BACKEND_FILAMENT,
-        "filament",
-        "Filament Renderer",
-        "filament-core",
-        KAIN_SERVICE_KEY_GFX_BACKEND_FILAMENT,
-        "Premium scene, lighting, and material presentation lane",
-        KAIN_VENDOR_HAS_FILAMENT
-    },
-    {
-        KAIN_RENDERER_BACKEND_DILIGENT,
-        "diligent",
-        "Diligent Renderer",
-        "diligentcore",
-        KAIN_SERVICE_KEY_GFX_BACKEND_DILIGENT,
-        "Explicit render-graph, compute, and pipeline-control lane",
-        KAIN_VENDOR_HAS_DILIGENT
-    },
-    {
-        KAIN_RENDERER_BACKEND_FORGE,
-        "forge",
-        "The Forge Renderer",
-        "the-forge",
-        KAIN_SERVICE_KEY_GFX_BACKEND_FORGE,
-        "Low-level cross-platform renderer substrate staged for a future Kain-owned backend lane",
-        KAIN_VENDOR_HAS_FORGE
+        KAIN_RENDERER_BACKEND_D3D12,
+        "d3d12",
+        "DirectX 12 Backend Target",
+        "runtime-native",
+        KAIN_SERVICE_KEY_GFX_BACKEND_D3D12,
+        "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime",
+#ifdef _WIN32
+        1
+#else
+        0
+#endif
     },
 };
 

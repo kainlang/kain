@@ -2565,7 +2565,7 @@ int kain_runtime_graphics_validate_bundle(
     validation->residency_valid = residency_valid;
     validation->has_compute_schedule_contract = has_compute_schedule_contract;
     validation->compute_schedule_valid = compute_schedule_valid;
-    validation->gl_lane_ready = bundle->loaded &&
+    validation->graphics_lane_ready = bundle->loaded &&
         bundle->schema_version == 1 &&
         validation->target_is_llvm &&
         has_render_scene &&
@@ -2611,7 +2611,7 @@ int kain_runtime_graphics_validate_bundle(
         strncpy_s(
             validation->reason,
             sizeof(validation->reason),
-            "current GL lane requires target llvm",
+            "current native graphics lane requires target llvm",
             _TRUNCATE
         );
         return 0;
@@ -2710,10 +2710,22 @@ int kain_runtime_graphics_validate_bundle(
     strncpy_s(
         validation->reason,
         sizeof(validation->reason),
-        "graphics bundle ready for the current GL lane",
+        "graphics bundle ready for the current native graphics lane",
         _TRUNCATE
     );
     return 1;
+}
+
+int kain_runtime_viewport_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle) {
+    KainRuntimeGraphicsValidation validation;
+
+    if (!bundle) {
+        return 0;
+    }
+    if (!kain_runtime_graphics_validate_bundle(bundle, &validation)) {
+        return 0;
+    }
+    return validation.graphics_lane_ready;
 }
 
 int kain_runtime_graphics_load_from_json(const char* json, KainRuntimeGraphicsBundle* bundle) {

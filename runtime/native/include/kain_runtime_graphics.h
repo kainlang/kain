@@ -254,7 +254,7 @@ typedef struct {
     int has_compute_artifacts;
     int material_binding_valid;
     int compute_plan_valid;
-    int gl_lane_ready;
+    int graphics_lane_ready;
     int compute_metadata_valid;
     int tensor_metadata_valid;
     int stream_metadata_valid;
@@ -349,6 +349,6 @@ int kain_runtime_graphics_execute_primary_compute(
     double total_time,
     KainRuntimeGraphicsExecutionState* state
 );
-int kain_win32_gl_surface_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle);
+int kain_runtime_viewport_supports_graphics_bundle(const KainRuntimeGraphicsBundle* bundle);
 
 #endif

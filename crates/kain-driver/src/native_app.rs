@@ -62,7 +62,7 @@ impl Default for NativeAppBundleConfig {
     }
 }
 
-/// Runtime version metadata loaded from native_runtime.toml
+/// Runtime version metadata loaded from the native runtime manifest.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RuntimeVersionMetadata {
     pub runtime_major: u32,
@@ -80,10 +80,14 @@ pub struct RuntimeVersionMetadata {
 }
 
 impl RuntimeVersionMetadata {
-    /// Load runtime version metadata from native_runtime.toml
+    /// Load runtime version metadata from the canonical native runtime manifest.
     pub fn load_from_runtime_manifest() -> Result<Self, KainError> {
         let manifest_path = find_native_runtime_manifest()
-            .ok_or_else(|| KainError::runtime("Could not locate runtime/native_runtime.toml"))?;
+            .ok_or_else(|| {
+                KainError::runtime(
+                    "Could not locate runtime/native_core_runtime.toml or a compatible runtime/native_runtime.toml"
+                )
+            })?;
 
         let manifest_source = fs::read_to_string(&manifest_path).map_err(|err| {
             KainError::runtime(format!(
@@ -168,9 +172,11 @@ fn find_native_runtime_manifest() -> Option<PathBuf> {
     // Try relative to current directory
     if let Ok(mut dir) = std::env::current_dir() {
         for _ in 0..10 {
-            let candidate = dir.join("runtime").join("native_runtime.toml");
-            if candidate.exists() {
-                return Some(candidate);
+            for suffix in native_runtime_manifest_candidate_suffixes() {
+                let candidate = dir.join(suffix);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
             }
             match dir.parent() {
                 Some(parent) => dir = parent.to_path_buf(),
@@ -183,9 +189,11 @@ fn find_native_runtime_manifest() -> Option<PathBuf> {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
             loop {
-                let candidate = dir.join("runtime").join("native_runtime.toml");
-                if candidate.exists() {
-                    return Some(candidate);
+                for suffix in native_runtime_manifest_candidate_suffixes() {
+                    let candidate = dir.join(suffix);
+                    if candidate.exists() {
+                        return Some(candidate);
+                    }
                 }
                 if !dir.pop() {
                     break;
@@ -195,6 +203,14 @@ fn find_native_runtime_manifest() -> Option<PathBuf> {
     }
 
     None
+}
+
+fn native_runtime_manifest_candidate_suffixes() -> &'static [&'static str] {
+    &[
+        "runtime/native_core_runtime.toml",
+        "runtime/native_runtime.toml",
+        "runtime/native/runtime.toml",
+    ]
 }
 
 #[derive(Debug, Clone)]
