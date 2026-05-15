@@ -1,4 +1,0 @@
-use kain_core::error::KainError
-
-pub type KainResult<T> = Result<T, KainError>
-

@@ -1,3 +1,0 @@
-fn main() -> Result<(), Box<impl Error>>:
-    kain_ui_native__run_app(KainUiNativeAppConfig__default_())
-

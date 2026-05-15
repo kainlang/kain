@@ -1,0 +1,12 @@
+{
+  "macro_count": 49,
+  "trait_def_count": 1,
+  "trait_impl_count": 30,
+  "dyn_usage_count": 3,
+  "initial_slice": [
+    "kain-core",
+    "kain-import"
+  ],
+  "builtin_count": 62,
+  "reserved_word_count": 175
+}

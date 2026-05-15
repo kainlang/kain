@@ -1,0 +1,15 @@
+enum crate__foo__bar__PathProbe041:
+    Leaf
+    Node(String)
+    Rich { path: String, span: Span }
+
+fn flatten_probe_041(value: crate__foo__bar__PathProbe041, span: Span) -> Option<String>:
+    match value:
+        crate__foo__bar__PathProbe041::Leaf => none
+        crate__foo__bar__PathProbe041::Node(path) => Some(path)
+        crate__foo__bar__PathProbe041::Rich { path: path, span: rich_span } =>
+            Some(path.trim_start_matches(crate__prefix__value))
+
+impl PathOwner041:
+    fn Self___normalize(_self: &Self_, value: String) -> String:
+        value.strip_prefix(needle_41)

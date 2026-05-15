@@ -1,3 +1,0 @@
-fn main() -> Result<(), Box<impl Error>>:
-    kain_fast3d_runtime__run_fast3d_cli()
-

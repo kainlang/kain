@@ -1,0 +1,105 @@
+{
+  "generated_file_count": 334,
+  "categories": [
+    {
+      "category": "selfhost_core",
+      "output_dir": "selfhost_core",
+      "count": 70,
+      "themes": [
+        "span-heavy transforms",
+        "ast rewrite helpers",
+        "typed branch fallbacks",
+        "match-heavy logic"
+      ],
+      "generated_files": [
+        "selfhost_core/core_probe_001.kn",
+        "selfhost_core/core_probe_002.kn",
+        "selfhost_core/core_probe_003.kn",
+        "selfhost_core/core_probe_004.kn",
+        "selfhost_core/core_probe_005.kn"
+      ]
+    },
+    {
+      "category": "selfhost_ui",
+      "output_dir": "selfhost_ui",
+      "count": 65,
+      "themes": [
+        "VNode",
+        "eval_jsx",
+        "reconcile",
+        "child flattening",
+        "attribute lookup"
+      ],
+      "generated_files": [
+        "selfhost_ui/ui_probe_001.kn",
+        "selfhost_ui/ui_probe_002.kn",
+        "selfhost_ui/ui_probe_003.kn",
+        "selfhost_ui/ui_probe_004.kn",
+        "selfhost_ui/ui_probe_005.kn"
+      ]
+    },
+    {
+      "category": "selfhost_memory",
+      "output_dir": "selfhost_memory",
+      "count": 65,
+      "themes": [
+        "pointer helpers",
+        "bitfields",
+        "union lowering",
+        "field layout metadata",
+        "recursive type lowering"
+      ],
+      "generated_files": [
+        "selfhost_memory/memory_probe_001.kn",
+        "selfhost_memory/memory_probe_002.kn",
+        "selfhost_memory/memory_probe_003.kn",
+        "selfhost_memory/memory_probe_004.kn",
+        "selfhost_memory/memory_probe_005.kn"
+      ]
+    },
+    {
+      "category": "selfhost_traits",
+      "output_dir": "selfhost_traits",
+      "count": 65,
+      "themes": [
+        "Display",
+        "Default",
+        "impl helpers",
+        "self receiver fidelity",
+        "formatted output"
+      ],
+      "generated_files": [
+        "selfhost_traits/traits_probe_001.kn",
+        "selfhost_traits/traits_probe_002.kn",
+        "selfhost_traits/traits_probe_003.kn",
+        "selfhost_traits/traits_probe_004.kn",
+        "selfhost_traits/traits_probe_005.kn"
+      ]
+    },
+    {
+      "category": "selfhost_paths",
+      "output_dir": "selfhost_paths",
+      "count": 65,
+      "themes": [
+        "crate__foo__bar",
+        "Self_",
+        "nested module names",
+        "path flattening",
+        "sanitization fallout"
+      ],
+      "generated_files": [
+        "selfhost_paths/paths_probe_001.kn",
+        "selfhost_paths/paths_probe_002.kn",
+        "selfhost_paths/paths_probe_003.kn",
+        "selfhost_paths/paths_probe_004.kn",
+        "selfhost_paths/paths_probe_005.kn"
+      ]
+    }
+  ],
+  "god_files": [
+    "selfhost_core_god.kn",
+    "selfhost_runtime_god.kn",
+    "selfhost_span_god.kn",
+    "selfhost_ui_god.kn"
+  ]
+}
