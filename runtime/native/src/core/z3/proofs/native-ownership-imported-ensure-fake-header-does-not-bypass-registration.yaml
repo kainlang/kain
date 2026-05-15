@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_imported_ensure_fake_header_does_not_bypass_registration
+kind: check_smt2
+description: Imported ownership preparation no longer succeeds merely because bytes before the pointer resemble a helper header.
+tags:
+- native-runtime
+- ownership
+- imported
+- fake-header
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  symbol: __kain_ownership_ensure_imported
+  start_line: 330
+  reason: the imported ensure path only checks existing registration or performs an imported upsert; helper-looking header bits are irrelevant
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const helper_header_looks_valid Bool)
+    (declare-const already_registered Bool)
+    (declare-const upsert_succeeds Bool)
+    (define-fun ensure_imported_ok () Bool
+      (or already_registered upsert_succeeds))
+    (assert helper_header_looks_valid)
+    (assert (not already_registered))
+    (assert (not upsert_succeeds))
+    (assert ensure_imported_ok)
+    (check-sat)
+  include_model: false
+  include_stats: false

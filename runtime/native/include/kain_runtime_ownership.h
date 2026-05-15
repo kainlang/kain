@@ -40,12 +40,26 @@ enum {
 
 int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size);
 int __kain_ownership_register_imported(void* ptr, size_t size);
+int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token);
+int __kain_ownership_ensure_imported(const void* ptr);
+int __kain_ownership_helper_allocation_state(const void* ptr, uint16_t slot_token);
+int __kain_ownership_relocate_helper_allocation(
+    void* old_ptr,
+    void* new_ptr,
+    size_t size,
+    uint16_t slot_token
+);
 int __kain_ownership_update(void* old_ptr, void* new_ptr, size_t size);
 int __kain_ownership_begin_observe(const void* ptr);
 int __kain_ownership_end_observe(const void* ptr);
 int __kain_ownership_begin_collapse(void* ptr);
 int __kain_ownership_end_collapse(void* ptr);
 int __kain_ownership_decay(void* ptr);
+int __kain_ownership_begin_observe_helper(const void* ptr);
+int __kain_ownership_end_observe_helper(const void* ptr);
+int __kain_ownership_begin_collapse_helper(void* ptr);
+int __kain_ownership_end_collapse_helper(void* ptr);
+int __kain_ownership_decay_helper(void* ptr);
 int __kain_ownership_state(const void* ptr);
 
 #ifdef __cplusplus

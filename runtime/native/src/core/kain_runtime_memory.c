@@ -21,16 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef union KainAllocHeader {
-    struct {
-        uint64_t magic;
-        size_t payload_size;
-    } metadata;
-    long double alignment;
-} KainAllocHeader;
-
-static const uint64_t KAIN_ALLOC_MAGIC = 0x4b41494e4d454d31ULL;
-
 static int kain_mul_overflow_size(size_t left, size_t right, size_t* out) {
     if (left != 0 && right > (SIZE_MAX / left)) {
         return 1;
@@ -107,18 +97,6 @@ static int kain_pointer_with_size_offset(void* ptr, size_t byte_offset, void** o
     }
     *out = (void*)result_address;
     return 0;
-}
-
-static void* kain_payload_from_header(KainAllocHeader* header) {
-    return (void*)(header + 1);
-}
-
-static KainAllocHeader* kain_header_from_payload(void* ptr) {
-    return ((KainAllocHeader*)ptr) - 1;
-}
-
-static int kain_validate_helper_header(KainAllocHeader* header) {
-    return header != NULL && header->metadata.magic == KAIN_ALLOC_MAGIC;
 }
 
 /* ============================================================================
@@ -250,6 +228,7 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
     size_t payload_size = 0;
     size_t allocation_size = 0;
     KainAllocHeader* header = NULL;
+    uint16_t slot_token = 0u;
 
     if (kain_mul_overflow_size(size, stride, &payload_size)
         || kain_add_overflow_size(sizeof(KainAllocHeader), payload_size, &allocation_size)) {
@@ -266,18 +245,18 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
         return NULL;
     }
 
-    header->metadata.magic = KAIN_ALLOC_MAGIC;
     header->metadata.payload_size = payload_size;
-    void* payload = kain_payload_from_header(header);
-    if (__kain_ownership_register(
+    void* payload = __kain_alloc_payload_from_header(header);
+    if (__kain_ownership_register_helper_allocation(
             payload,
-            KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-            payload_size
+            payload_size,
+            &slot_token
         ) != KAIN_OWNERSHIP_OK) {
-        header->metadata.magic = 0;
+        header->metadata.magic_and_slot = 0;
         free(header);
         return NULL;
     }
+    __kain_alloc_header_set_magic_and_slot(header, slot_token);
     return payload;
 }
 
@@ -294,26 +273,25 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
 
     size_t new_payload_size = 0;
     size_t allocation_size = 0;
-    KainAllocHeader* old_header = kain_header_from_payload(ptr);
+    KainAllocHeader* old_header = __kain_alloc_header_from_payload(ptr);
     KainAllocHeader* new_header = NULL;
     size_t old_payload_size = 0;
+    uint16_t slot_token = 0u;
 
-    if (!kain_validate_helper_header(old_header)) {
+    if (!__kain_alloc_header_is_valid(old_header)) {
         errno = EINVAL;
         return NULL;
     }
 
     old_payload_size = old_header->metadata.payload_size;
-
-    int ownership_state = __kain_ownership_state(ptr);
-    if (ownership_state != KAIN_OWNERSHIP_STATE_IDLE
-        && ownership_state != KAIN_OWNERSHIP_ERR_NOT_FOUND) {
-        errno = EBUSY;
+    slot_token = __kain_alloc_header_slot_token(old_header);
+    if (slot_token == 0u) {
+        errno = EINVAL;
         return NULL;
     }
-    if (ownership_state == KAIN_OWNERSHIP_ERR_NOT_FOUND
-        && __kain_ownership_register(ptr, KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION, old_payload_size)
-            != KAIN_OWNERSHIP_OK) {
+    int ownership_state = __kain_ownership_helper_allocation_state(ptr, slot_token);
+    if (ownership_state != KAIN_OWNERSHIP_STATE_IDLE) {
+        errno = ownership_state == KAIN_OWNERSHIP_ERR_NOT_FOUND ? EINVAL : EBUSY;
         return NULL;
     }
 
@@ -328,19 +306,20 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         return NULL;
     }
 
-    new_header->metadata.magic = KAIN_ALLOC_MAGIC;
     new_header->metadata.payload_size = new_payload_size;
+    __kain_alloc_header_set_magic_and_slot(new_header, slot_token);
 
     if (zeroed_new && new_payload_size > old_payload_size) {
         memset(
-            ((char*)kain_payload_from_header(new_header)) + old_payload_size,
+            ((char*)__kain_alloc_payload_from_header(new_header)) + old_payload_size,
             0,
             new_payload_size - old_payload_size
         );
     }
 
-    void* payload = kain_payload_from_header(new_header);
-    if (__kain_ownership_update(ptr, payload, new_payload_size) != KAIN_OWNERSHIP_OK) {
+    void* payload = __kain_alloc_payload_from_header(new_header);
+    if (__kain_ownership_relocate_helper_allocation(ptr, payload, new_payload_size, slot_token)
+        != KAIN_OWNERSHIP_OK) {
         return payload;
     }
 
@@ -352,13 +331,13 @@ int __kain_free(void* ptr) {
         return 0;
     }
 
-    KainAllocHeader* header = kain_header_from_payload(ptr);
-    if (!kain_validate_helper_header(header)) {
+    KainAllocHeader* header = __kain_alloc_header_from_payload(ptr);
+    if (!__kain_alloc_header_is_valid(header)) {
         errno = EINVAL;
         return -1;
     }
 
-    header->metadata.magic = 0;
+    header->metadata.magic_and_slot = 0;
     header->metadata.payload_size = 0;
     free(header);
     return 0;

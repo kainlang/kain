@@ -22,6 +22,9 @@
 #if (KAIN_OWNERSHIP_MAX_REGIONS % KAIN_OWNERSHIP_WORD_BITS) != 0
 #error "KAIN_OWNERSHIP_MAX_REGIONS must be divisible by 64 for occupancy-word indexing."
 #endif
+#if KAIN_OWNERSHIP_MAX_REGIONS > UINT16_MAX
+#error "KAIN_OWNERSHIP_MAX_REGIONS must fit in the helper allocation slot token."
+#endif
 #if (KAIN_OWNERSHIP_INDEX_CAPACITY & KAIN_OWNERSHIP_INDEX_MASK) != 0
 #error "KAIN_OWNERSHIP_INDEX_CAPACITY must be a power of two for masked probing."
 #endif
@@ -188,7 +191,57 @@ static int kain_ownership_region_is_heap(const KainOwnershipRegion* region) {
     return region->kind == KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
 }
 
-static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size_t size) {
+static int kain_ownership_status_for_busy_region(const KainOwnershipRegion* region) {
+    if (region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
+        return KAIN_OWNERSHIP_ERR_DECAYED;
+    }
+    if (region->state == KAIN_OWNERSHIP_STATE_COLLAPSED) {
+        return KAIN_OWNERSHIP_ERR_COLLAPSED;
+    }
+    if (region->state == KAIN_OWNERSHIP_STATE_OBSERVED || region->observers != 0) {
+        return KAIN_OWNERSHIP_ERR_OBSERVED;
+    }
+    return KAIN_OWNERSHIP_ERR_INVALID;
+}
+
+static int kain_ownership_helper_slot_from_token_unlocked(const void* ptr, uint16_t slot_token) {
+    if (ptr == NULL || slot_token == 0u) {
+        return -1;
+    }
+
+    uint32_t slot = (uint32_t)slot_token - 1u;
+    if (slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return -1;
+    }
+
+    KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    if (!region->occupied || region->ptr != ptr || !kain_ownership_region_is_heap(region)) {
+        return -1;
+    }
+
+    return (int)slot;
+}
+
+static int kain_ownership_find_helper_slot_unlocked(const void* ptr) {
+    if (ptr == NULL) {
+        return -1;
+    }
+
+    KainAllocHeader* header = __kain_alloc_header_from_payload(ptr);
+    return kain_ownership_helper_slot_from_token_unlocked(
+        ptr,
+        __kain_alloc_header_slot_token(header)
+    );
+}
+
+static int kain_ownership_upsert_unlocked(
+    void* ptr,
+    int64_t region_kind,
+    size_t size,
+    int state,
+    uint32_t observers,
+    int* out_slot
+) {
     int is_new_slot = 0;
     if (ptr == NULL) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
@@ -207,8 +260,8 @@ static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size
     region->ptr = ptr;
     region->size = size;
     region->kind = region_kind;
-    region->state = KAIN_OWNERSHIP_STATE_IDLE;
-    region->observers = 0;
+    region->state = state;
+    region->observers = observers;
     region->occupied = 1;
     if (is_new_slot) {
         uint32_t word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
@@ -222,25 +275,119 @@ static int kain_ownership_register_unlocked(void* ptr, int64_t region_kind, size
             return kain_ownership_fail(index_status);
         }
     }
+    if (out_slot != NULL) {
+        *out_slot = slot;
+    }
     return KAIN_OWNERSHIP_OK;
 }
 
 int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size) {
     kain_ownership_lock();
-    int status = kain_ownership_register_unlocked(ptr, region_kind, size);
+    int status = kain_ownership_upsert_unlocked(
+        ptr,
+        region_kind,
+        size,
+        KAIN_OWNERSHIP_STATE_IDLE,
+        0u,
+        NULL
+    );
     kain_ownership_unlock();
     return status;
 }
 
 int __kain_ownership_register_imported(void* ptr, size_t size) {
     kain_ownership_lock();
-    int status = kain_ownership_register_unlocked(
+    int status = kain_ownership_upsert_unlocked(
         ptr,
         KAIN_OWNERSHIP_REGION_IMPORTED_POINTER,
-        size
+        size,
+        KAIN_OWNERSHIP_STATE_IDLE,
+        0u,
+        NULL
     );
     kain_ownership_unlock();
     return status;
+}
+
+int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token) {
+    int slot = -1;
+    kain_ownership_lock();
+    int status = kain_ownership_upsert_unlocked(
+        ptr,
+        KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
+        size,
+        KAIN_OWNERSHIP_STATE_IDLE,
+        0u,
+        &slot
+    );
+    kain_ownership_unlock();
+    if (status == KAIN_OWNERSHIP_OK && out_slot_token != NULL) {
+        *out_slot_token = (uint16_t)((uint32_t)slot + 1u);
+    }
+    return status;
+}
+
+int __kain_ownership_ensure_imported(const void* ptr) {
+    if (ptr == NULL) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+    }
+
+    kain_ownership_lock();
+    int slot = kain_ownership_find_slot(ptr);
+    int status = slot >= 0
+        ? KAIN_OWNERSHIP_OK
+        : kain_ownership_upsert_unlocked(
+            (void*)ptr,
+            KAIN_OWNERSHIP_REGION_IMPORTED_POINTER,
+            0,
+            KAIN_OWNERSHIP_STATE_IDLE,
+            0u,
+            NULL
+        );
+    kain_ownership_unlock();
+    return status;
+}
+
+int __kain_ownership_helper_allocation_state(const void* ptr, uint16_t slot_token) {
+    kain_ownership_lock();
+    int slot = kain_ownership_helper_slot_from_token_unlocked(ptr, slot_token);
+    int status = slot < 0 ? KAIN_OWNERSHIP_ERR_NOT_FOUND : KAIN_OWNERSHIP_REGIONS[slot].state;
+    kain_ownership_unlock();
+    return status;
+}
+
+int __kain_ownership_relocate_helper_allocation(
+    void* old_ptr,
+    void* new_ptr,
+    size_t size,
+    uint16_t slot_token
+) {
+    if (new_ptr == NULL) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+    }
+
+    kain_ownership_lock();
+    int slot = kain_ownership_helper_slot_from_token_unlocked(old_ptr, slot_token);
+    if (slot < 0) {
+        kain_ownership_unlock();
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+
+    KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+    if (region->state != KAIN_OWNERSHIP_STATE_IDLE || region->observers != 0u) {
+        int status = kain_ownership_fail(kain_ownership_status_for_busy_region(region));
+        kain_ownership_unlock();
+        return status;
+    }
+
+    region->ptr = new_ptr;
+    region->size = size;
+    region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
+    if (new_ptr != old_ptr) {
+        kain_ownership_rebuild_pointer_index_unlocked();
+    }
+    kain_ownership_unlock();
+    return KAIN_OWNERSHIP_OK;
 }
 
 static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t size) {
@@ -248,27 +395,31 @@ static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t s
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
     }
     if (old_ptr == NULL) {
-        return kain_ownership_register_unlocked(
+        return kain_ownership_upsert_unlocked(
             new_ptr,
             KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-            size
+            size,
+            KAIN_OWNERSHIP_STATE_IDLE,
+            0u,
+            NULL
         );
     }
 
     int slot = kain_ownership_find_slot(old_ptr);
     if (slot < 0) {
-        return kain_ownership_register_unlocked(
+        return kain_ownership_upsert_unlocked(
             new_ptr,
             KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-            size
+            size,
+            KAIN_OWNERSHIP_STATE_IDLE,
+            0u,
+            NULL
         );
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
     if (region->state != KAIN_OWNERSHIP_STATE_IDLE || region->observers != 0) {
-        return kain_ownership_fail(region->state == KAIN_OWNERSHIP_STATE_DECAYED
-            ? KAIN_OWNERSHIP_ERR_DECAYED
-            : KAIN_OWNERSHIP_ERR_OBSERVED);
+        return kain_ownership_fail(kain_ownership_status_for_busy_region(region));
     }
 
     region->ptr = new_ptr;
@@ -285,8 +436,7 @@ int __kain_ownership_update(void* old_ptr, void* new_ptr, size_t size) {
     return status;
 }
 
-static int kain_ownership_begin_observe_unlocked(const void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
+static int kain_ownership_begin_observe_slot_unlocked(int slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -307,15 +457,33 @@ static int kain_ownership_begin_observe_unlocked(const void* ptr) {
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_begin_observe_registered_unlocked(const void* ptr) {
+    int slot = kain_ownership_find_slot(ptr);
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    return kain_ownership_begin_observe_slot_unlocked(slot);
+}
+
+static int kain_ownership_begin_observe_helper_unlocked(const void* ptr) {
+    return kain_ownership_begin_observe_slot_unlocked(kain_ownership_find_helper_slot_unlocked(ptr));
+}
+
 int __kain_ownership_begin_observe(const void* ptr) {
     kain_ownership_lock();
-    int status = kain_ownership_begin_observe_unlocked(ptr);
+    int status = kain_ownership_begin_observe_registered_unlocked(ptr);
     kain_ownership_unlock();
     return status;
 }
 
-static int kain_ownership_end_observe_unlocked(const void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
+int __kain_ownership_begin_observe_helper(const void* ptr) {
+    kain_ownership_lock();
+    int status = kain_ownership_begin_observe_helper_unlocked(ptr);
+    kain_ownership_unlock();
+    return status;
+}
+
+static int kain_ownership_end_observe_slot_unlocked(int slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -332,15 +500,33 @@ static int kain_ownership_end_observe_unlocked(const void* ptr) {
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_end_observe_registered_unlocked(const void* ptr) {
+    int slot = kain_ownership_find_slot(ptr);
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    return kain_ownership_end_observe_slot_unlocked(slot);
+}
+
+static int kain_ownership_end_observe_helper_unlocked(const void* ptr) {
+    return kain_ownership_end_observe_slot_unlocked(kain_ownership_find_helper_slot_unlocked(ptr));
+}
+
 int __kain_ownership_end_observe(const void* ptr) {
     kain_ownership_lock();
-    int status = kain_ownership_end_observe_unlocked(ptr);
+    int status = kain_ownership_end_observe_registered_unlocked(ptr);
     kain_ownership_unlock();
     return status;
 }
 
-static int kain_ownership_begin_collapse_unlocked(void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
+int __kain_ownership_end_observe_helper(const void* ptr) {
+    kain_ownership_lock();
+    int status = kain_ownership_end_observe_helper_unlocked(ptr);
+    kain_ownership_unlock();
+    return status;
+}
+
+static int kain_ownership_begin_collapse_slot_unlocked(int slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -360,15 +546,33 @@ static int kain_ownership_begin_collapse_unlocked(void* ptr) {
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_begin_collapse_registered_unlocked(void* ptr) {
+    int slot = kain_ownership_find_slot(ptr);
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    return kain_ownership_begin_collapse_slot_unlocked(slot);
+}
+
+static int kain_ownership_begin_collapse_helper_unlocked(void* ptr) {
+    return kain_ownership_begin_collapse_slot_unlocked(kain_ownership_find_helper_slot_unlocked(ptr));
+}
+
 int __kain_ownership_begin_collapse(void* ptr) {
     kain_ownership_lock();
-    int status = kain_ownership_begin_collapse_unlocked(ptr);
+    int status = kain_ownership_begin_collapse_registered_unlocked(ptr);
     kain_ownership_unlock();
     return status;
 }
 
-static int kain_ownership_end_collapse_unlocked(void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
+int __kain_ownership_begin_collapse_helper(void* ptr) {
+    kain_ownership_lock();
+    int status = kain_ownership_begin_collapse_helper_unlocked(ptr);
+    kain_ownership_unlock();
+    return status;
+}
+
+static int kain_ownership_end_collapse_slot_unlocked(int slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -382,15 +586,33 @@ static int kain_ownership_end_collapse_unlocked(void* ptr) {
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_end_collapse_registered_unlocked(void* ptr) {
+    int slot = kain_ownership_find_slot(ptr);
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    return kain_ownership_end_collapse_slot_unlocked(slot);
+}
+
+static int kain_ownership_end_collapse_helper_unlocked(void* ptr) {
+    return kain_ownership_end_collapse_slot_unlocked(kain_ownership_find_helper_slot_unlocked(ptr));
+}
+
 int __kain_ownership_end_collapse(void* ptr) {
     kain_ownership_lock();
-    int status = kain_ownership_end_collapse_unlocked(ptr);
+    int status = kain_ownership_end_collapse_registered_unlocked(ptr);
     kain_ownership_unlock();
     return status;
 }
 
-static int kain_ownership_decay_unlocked(void* ptr) {
-    int slot = kain_ownership_find_slot(ptr);
+int __kain_ownership_end_collapse_helper(void* ptr) {
+    kain_ownership_lock();
+    int status = kain_ownership_end_collapse_helper_unlocked(ptr);
+    kain_ownership_unlock();
+    return status;
+}
+
+static int kain_ownership_decay_slot_unlocked(void* ptr, int slot) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
@@ -418,9 +640,28 @@ static int kain_ownership_decay_unlocked(void* ptr) {
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_decay_registered_unlocked(void* ptr) {
+    int slot = kain_ownership_find_slot(ptr);
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    return kain_ownership_decay_slot_unlocked(ptr, slot);
+}
+
+static int kain_ownership_decay_helper_unlocked(void* ptr) {
+    return kain_ownership_decay_slot_unlocked(ptr, kain_ownership_find_helper_slot_unlocked(ptr));
+}
+
 int __kain_ownership_decay(void* ptr) {
     kain_ownership_lock();
-    int status = kain_ownership_decay_unlocked(ptr);
+    int status = kain_ownership_decay_registered_unlocked(ptr);
+    kain_ownership_unlock();
+    return status;
+}
+
+int __kain_ownership_decay_helper(void* ptr) {
+    kain_ownership_lock();
+    int status = kain_ownership_decay_helper_unlocked(ptr);
     kain_ownership_unlock();
     return status;
 }

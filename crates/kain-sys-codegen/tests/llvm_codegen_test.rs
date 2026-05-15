@@ -1192,20 +1192,51 @@ fn llvm_lowers_ownership_keywords_to_runtime_guards() {
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("declare i32 @__kain_ownership_register_imported(i8*, i64)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_ensure_imported(i8*)"));
     assert!(llvm.contains("declare i32 @__kain_ownership_begin_observe(i8*)"));
     assert!(llvm.contains("declare i32 @__kain_ownership_end_observe(i8*)"));
     assert!(llvm.contains("declare i32 @__kain_ownership_begin_collapse(i8*)"));
     assert!(llvm.contains("declare i32 @__kain_ownership_end_collapse(i8*)"));
     assert!(llvm.contains("declare i32 @__kain_ownership_decay(i8*)"));
-    assert!(llvm.contains("call i32 @__kain_ownership_state(i8*"));
-    assert!(llvm.contains("call i32 @__kain_ownership_register_imported(i8*"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_observe_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_observe_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_collapse_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_collapse_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_decay_helper(i8*)"));
+    assert!(llvm.contains("call i32 @__kain_ownership_ensure_imported(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_begin_observe(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_end_observe(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_begin_collapse(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_end_collapse(i8*"));
     assert!(llvm.contains("call i32 @__kain_ownership_decay(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
     assert!(llvm.contains("call void @abort()"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ownership-keywords");
+}
+
+#[test]
+fn llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path() {
+    let typed = typed_program_from_source(
+        "fn own_local() -> Int:\n    let mut cell: ptr<Int> = alloc_zeroed(sizeof_type(\"Int\"), \"Int\")\n    collapse cell:\n        mem_store(cell, 7, \"Int\")\n        0\n    let read = observe cell:\n        mem_load(cell, \"Int\")\n    decay cell\n    return read\n",
+    );
+
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_observe_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_observe_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_begin_collapse_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_end_collapse_helper(i8*)"));
+    assert!(llvm.contains("declare i32 @__kain_ownership_decay_helper(i8*)"));
+    assert!(llvm.contains("call i32 @__kain_ownership_begin_observe_helper(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_end_observe_helper(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_begin_collapse_helper(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_end_collapse_helper(i8*"));
+    assert!(llvm.contains("call i32 @__kain_ownership_decay_helper(i8*"));
+    assert!(!llvm.contains("call i32 @__kain_ownership_ensure_imported(i8*"));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "ownership-helper-fast-path");
 }
 
 #[test]

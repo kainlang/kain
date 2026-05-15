@@ -47,6 +47,9 @@ struct ConstGlobalInfo {
     init_fn_name: String,
     ty: String,
     requires_runtime_init: bool,
+    is_known_string: bool,
+    string_byte_len: Option<usize>,
+    string_literal: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -55,6 +58,12 @@ struct NativeEntangleBinding {
     mirror: String,
     policy: String,
     type_name: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OwnershipPointerProvenance {
+    ImportedOrUnknown,
+    HelperOwned,
 }
 
 const LLVM_TARGET_WINDOWS_X64_MSVC: LlvmTargetDescriptor = LlvmTargetDescriptor {
@@ -80,7 +89,6 @@ const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_LINUX_X64_GNU,
     LLVM_TARGET_MACOS_ARM64,
 ];
-const KAIN_OWNERSHIP_ERR_NOT_FOUND_LLVM: i32 = -2;
 const KAIN_NATIVE_TAGGED_HEADER_BYTES: i64 = 16;
 const KAIN_NATIVE_TAG_OPTION_NONE_LLVM: i64 = 0;
 const KAIN_NATIVE_TAG_OPTION_SOME_LLVM: i64 = 1;
@@ -127,12 +135,18 @@ struct LlvmGenerator {
     label_count: usize,
     /// Maps variable names to (stack_ptr, type)
     locals: HashMap<String, (String, String)>,
+    /// Pointer-like locals whose provenance is solver-proved helper-owned and may
+    /// use the helper-header ownership fast path without imported registration.
+    helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
     /// Locals that are borrowed views and must not be released on scope exit.
     borrowed_locals: HashSet<String>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
     /// Tracks function parameter LLVM types for call-site lowering.
     function_params: HashMap<String, Vec<String>>,
+    /// Tracks which direct-call parameters are language-level strings and can be
+    /// treated as borrowed aliases instead of refcount-owned call-frame locals.
+    string_function_params: HashMap<String, Vec<bool>>,
     /// Functions that were emitted as extern declarations.
     extern_functions: HashSet<String>,
     /// Callable names defined by the lowered program itself, including target stdlib wrappers.
@@ -155,8 +169,11 @@ struct LlvmGenerator {
     target: &'static LlvmTargetDescriptor,
     world_globals: HashMap<String, WorldGlobalInfo>,
     const_globals: HashMap<String, ConstGlobalInfo>,
+    string_locals: HashSet<String>,
+    string_length_values: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
     current_patch_name: Option<String>,
+    const_init_blocks: HashMap<String, String>,
     /// Byte offset immediately after the current function's `entry:` label.
     ///
     /// LLVM permits `alloca` outside the entry block, but those allocations
@@ -164,6 +181,12 @@ struct LlvmGenerator {
     /// native UI frame loops must reuse fixed local slots instead of consuming
     /// more stack every iteration.
     entry_alloca_insert_offset: Option<usize>,
+    /// Byte offset after entry allocas where one-time entry preamble work such
+    /// as hoisted const initializers can be inserted.
+    entry_preamble_insert_offset: Option<usize>,
+    /// Top-level const globals whose runtime init was already hoisted into the
+    /// current function entry preamble.
+    entry_hoisted_const_inits: HashSet<String>,
 }
 
 impl LlvmGenerator {
@@ -173,9 +196,11 @@ impl LlvmGenerator {
             reg_count: 0,
             label_count: 0,
             locals: HashMap::new(),
+            helper_owned_pointer_locals: HashMap::new(),
             borrowed_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
+            string_function_params: HashMap::new(),
             extern_functions: HashSet::new(),
             defined_functions: HashSet::new(),
             strings: HashMap::new(),
@@ -191,9 +216,14 @@ impl LlvmGenerator {
             target: resolve_host_llvm_target_descriptor(),
             world_globals: HashMap::new(),
             const_globals: HashMap::new(),
+            string_locals: HashSet::new(),
+            string_length_values: HashMap::new(),
             native_entanglements: Vec::new(),
             current_patch_name: None,
+            const_init_blocks: HashMap::new(),
             entry_alloca_insert_offset: None,
+            entry_preamble_insert_offset: None,
+            entry_hoisted_const_inits: HashSet::new(),
         }
     }
 
@@ -207,6 +237,7 @@ impl LlvmGenerator {
         self.current_block = label.to_string();
         if label == "entry" {
             self.entry_alloca_insert_offset = Some(self.output.len());
+            self.entry_preamble_insert_offset = Some(self.output.len());
         }
     }
 
@@ -215,6 +246,19 @@ impl LlvmGenerator {
         if let Some(offset) = self.entry_alloca_insert_offset {
             self.output.insert_str(offset, &line);
             self.entry_alloca_insert_offset = Some(offset + line.len());
+            if let Some(preamble_offset) = self.entry_preamble_insert_offset {
+                self.entry_preamble_insert_offset = Some(preamble_offset + line.len());
+            }
+        } else {
+            self.output.push_str(&line);
+        }
+    }
+
+    fn emit_entry_preamble_line(&mut self, line: &str) {
+        let line = format!("  {}\n", line);
+        if let Some(offset) = self.entry_preamble_insert_offset {
+            self.output.insert_str(offset, &line);
+            self.entry_preamble_insert_offset = Some(offset + line.len());
         } else {
             self.output.push_str(&line);
         }
@@ -504,6 +548,289 @@ impl LlvmGenerator {
                 }
             }
         }
+    }
+
+    fn ast_type_is_string(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Named { name, .. } if name == "String" || name == "str"
+        )
+    }
+
+    fn resolved_type_is_string(ty: &ResolvedType) -> bool {
+        matches!(ty, ResolvedType::String)
+    }
+
+    fn record_helper_owned_pointer_local(
+        &mut self,
+        name: &str,
+        provenance: OwnershipPointerProvenance,
+    ) {
+        if provenance == OwnershipPointerProvenance::HelperOwned {
+            self.helper_owned_pointer_locals
+                .insert(name.to_string(), OwnershipPointerProvenance::HelperOwned);
+        } else {
+            self.helper_owned_pointer_locals.remove(name);
+        }
+    }
+
+    fn ownership_pointer_provenance_for_expr(
+        &self,
+        expr: &Expr,
+    ) -> OwnershipPointerProvenance {
+        match expr {
+            Expr::Ident(name, _) => self
+                .helper_owned_pointer_locals
+                .get(name)
+                .copied()
+                .unwrap_or(OwnershipPointerProvenance::ImportedOrUnknown),
+            Expr::Paren(inner, _) => self.ownership_pointer_provenance_for_expr(inner),
+            Expr::Cast { value, .. } => self.ownership_pointer_provenance_for_expr(value),
+            Expr::Call { callee, args, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) if name == "__kain_alloc" => {
+                    OwnershipPointerProvenance::HelperOwned
+                }
+                Expr::Ident(name, _) if name == "__kain_realloc" => {
+                    if args.is_empty() {
+                        OwnershipPointerProvenance::ImportedOrUnknown
+                    } else if matches!(args[0].value, Expr::None(_)) {
+                        OwnershipPointerProvenance::HelperOwned
+                    } else {
+                        self.ownership_pointer_provenance_for_expr(&args[0].value)
+                    }
+                }
+                _ => OwnershipPointerProvenance::ImportedOrUnknown,
+            },
+            _ => OwnershipPointerProvenance::ImportedOrUnknown,
+        }
+    }
+
+    fn extract_string_literal(expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::String(value, _) => Some(value.clone()),
+            Expr::Paren(inner, _) => Self::extract_string_literal(inner),
+            _ => None,
+        }
+    }
+
+    fn is_known_string_ident(&self, name: &str) -> bool {
+        self.string_locals.contains(name)
+            || self
+                .const_globals
+                .get(name)
+                .map(|info| info.is_known_string)
+                .unwrap_or(false)
+    }
+
+    fn expr_is_known_string(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::String(..) | Expr::FString(..) => true,
+            Expr::Paren(inner, _) => self.expr_is_known_string(inner),
+            Expr::Ident(name, _) => self.is_known_string_ident(name),
+            Expr::Binary {
+                left, op, right, ..
+            } => *op == BinaryOp::Add
+                && (self.expr_is_known_string(left) || self.expr_is_known_string(right)),
+            _ => false,
+        }
+    }
+
+    fn compile_string_data_pointer_for_byte_view(&mut self, expr: &Expr) -> KainResult<String> {
+        match expr {
+            Expr::String(value, _) => Ok(self.compile_static_c_string_literal(value)),
+            Expr::Paren(inner, _) => self.compile_string_data_pointer_for_byte_view(inner),
+            Expr::Ident(name, _) => {
+                if let Some(literal) = self
+                    .const_globals
+                    .get(name)
+                    .and_then(|info| info.string_literal.clone())
+                {
+                    return Ok(self.compile_static_c_string_literal(&literal));
+                }
+                let (value, value_ty) = self.compile_expr(expr)?;
+                if value_ty != "i8*" {
+                    return Err(KainError::codegen(
+                        format!("expected string pointer for byte view, found {}", value_ty),
+                        expr.span(),
+                    ));
+                }
+                Ok(value)
+            }
+            _ => {
+                let (value, value_ty) = self.compile_expr(expr)?;
+                if value_ty != "i8*" {
+                    return Err(KainError::codegen(
+                        format!("expected string pointer for byte view, found {}", value_ty),
+                        expr.span(),
+                    ));
+                }
+                Ok(value)
+            }
+        }
+    }
+
+    fn compile_string_length_value(&mut self, expr: &Expr) -> KainResult<Option<String>> {
+        match expr {
+            Expr::String(value, _) => return Ok(Some(value.len().to_string())),
+            Expr::Paren(inner, _) => return self.compile_string_length_value(inner),
+            Expr::Ident(name, _) => {
+                if let Some(length_reg) = self.string_length_values.get(name) {
+                    return Ok(Some(length_reg.clone()));
+                }
+                if let Some(info) = self.const_globals.get(name) {
+                    if let Some(string_len) = info.string_byte_len {
+                        return Ok(Some(string_len.to_string()));
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        if !self.expr_is_known_string(expr) {
+            return Ok(None);
+        }
+
+        let ptr = self.compile_string_data_pointer_for_byte_view(expr)?;
+        let len = self.next_reg();
+        self.emit(&format!("  {} = call i64 @strlen(i8* {})", len, ptr));
+        Ok(Some(len))
+    }
+
+    fn compile_expr_as_i64(&mut self, expr: &Expr) -> KainResult<String> {
+        let (value, value_ty) = self.compile_expr(expr)?;
+        if value_ty == "i64" {
+            return Ok(value);
+        }
+        self.cast_numeric_value(value, &value_ty, "i64")
+    }
+
+    fn decompose_char_at_call<'a>(&self, expr: &'a Expr) -> Option<(&'a Expr, &'a Expr)> {
+        match expr {
+            Expr::Paren(inner, _) => self.decompose_char_at_call(inner),
+            Expr::Call { callee, args, .. } => match callee.as_ref() {
+                Expr::Ident(name, _) if name == "char_at" && args.len() == 2 => {
+                    Some((&args[0].value, &args[1].value))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn compile_char_at_string_equality_fast_path(
+        &mut self,
+        left: &Expr,
+        right: &Expr,
+    ) -> KainResult<Option<String>> {
+        let Some((left_text, left_index_expr)) = self.decompose_char_at_call(left) else {
+            return Ok(None);
+        };
+        let Some((right_text, right_index_expr)) = self.decompose_char_at_call(right) else {
+            return Ok(None);
+        };
+        if !self.expr_is_known_string(left_text) || !self.expr_is_known_string(right_text) {
+            return Ok(None);
+        }
+
+        let left_ptr = self.compile_string_data_pointer_for_byte_view(left_text)?;
+        let right_ptr = self.compile_string_data_pointer_for_byte_view(right_text)?;
+        let Some(left_len) = self.compile_string_length_value(left_text)? else {
+            return Ok(None);
+        };
+        let Some(right_len) = self.compile_string_length_value(right_text)? else {
+            return Ok(None);
+        };
+        let left_index = self.compile_expr_as_i64(left_index_expr)?;
+        let right_index = self.compile_expr_as_i64(right_index_expr)?;
+
+        let left_non_negative = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 0",
+            left_non_negative, left_index
+        ));
+        let left_below_len = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp slt i64 {}, {}",
+            left_below_len, left_index, left_len
+        ));
+        let left_valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            left_valid, left_non_negative, left_below_len
+        ));
+
+        let right_non_negative = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp sge i64 {}, 0",
+            right_non_negative, right_index
+        ));
+        let right_below_len = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp slt i64 {}, {}",
+            right_below_len, right_index, right_len
+        ));
+        let right_valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            right_valid, right_non_negative, right_below_len
+        ));
+
+        let left_invalid = self.next_reg();
+        self.emit(&format!("  {} = xor i1 {}, 1", left_invalid, left_valid));
+        let right_invalid = self.next_reg();
+        self.emit(&format!("  {} = xor i1 {}, 1", right_invalid, right_valid));
+        let both_invalid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            both_invalid, left_invalid, right_invalid
+        ));
+        let both_valid = self.next_reg();
+        self.emit(&format!(
+            "  {} = and i1 {}, {}",
+            both_valid, left_valid, right_valid
+        ));
+
+        let start_block = self.current_block.clone();
+        let load_block = self.next_label();
+        let merge_block = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            both_valid, load_block, merge_block
+        ));
+
+        self.emit_label(&load_block);
+        let left_byte_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            left_byte_ptr, left_ptr, left_index
+        ));
+        let left_byte = self.next_reg();
+        self.emit(&format!("  {} = load i8, i8* {}, align 1", left_byte, left_byte_ptr));
+        let right_byte_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            right_byte_ptr, right_ptr, right_index
+        ));
+        let right_byte = self.next_reg();
+        self.emit(&format!(
+            "  {} = load i8, i8* {}, align 1",
+            right_byte, right_byte_ptr
+        ));
+        let byte_eq = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i8 {}, {}",
+            byte_eq, left_byte, right_byte
+        ));
+        let load_end_block = self.current_block.clone();
+        self.emit(&format!("  br label %{}", merge_block));
+
+        self.emit_label(&merge_block);
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i1 [ {}, %{} ], [ {}, %{} ]",
+            result, both_invalid, start_block, byte_eq, load_end_block
+        ));
+        Ok(Some(result))
     }
 
     fn map_type(&self, ty: &kain_core::types::ResolvedType) -> String {
@@ -1127,48 +1454,37 @@ impl LlvmGenerator {
         Ok((stored_value, stored_ty))
     }
 
-    fn compile_ownership_pointer(&mut self, target: &Expr) -> KainResult<String> {
+    fn compile_ownership_pointer(
+        &mut self,
+        target: &Expr,
+    ) -> KainResult<(String, OwnershipPointerProvenance)> {
+        let provenance = self.ownership_pointer_provenance_for_expr(target);
         let (ptr, ptr_ty) = self.compile_expr(target)?;
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let ptr_i8 = self.next_reg();
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-        self.emit_lazy_import_ownership_region(&ptr_i8);
-        Ok(ptr_i8)
+        if provenance != OwnershipPointerProvenance::HelperOwned {
+            self.emit_lazy_import_ownership_region(&ptr_i8);
+        }
+        Ok((ptr_i8, provenance))
     }
 
     fn emit_lazy_import_ownership_region(&mut self, ptr_i8: &str) {
-        let state = self.next_reg();
+        let prepare_status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i32 @__kain_ownership_state(i8* {})",
-            state, ptr_i8
+            "  {} = call i32 @__kain_ownership_ensure_imported(i8* {})",
+            prepare_status, ptr_i8
         ));
-        let needs_import = self.next_reg();
+        let prepare_ok = self.next_reg();
         self.emit(&format!(
-            "  {} = icmp eq i32 {}, {}",
-            needs_import, state, KAIN_OWNERSHIP_ERR_NOT_FOUND_LLVM
+            "  {} = icmp eq i32 {}, 0",
+            prepare_ok, prepare_status
         ));
-        let import_label = self.next_label();
         let continue_label = self.next_label();
         let abort_label = self.next_label();
         self.emit(&format!(
             "  br i1 {}, label %{}, label %{}",
-            needs_import, import_label, continue_label
-        ));
-
-        self.emit_label(&import_label);
-        let import_status = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i32 @__kain_ownership_register_imported(i8* {}, i64 0)",
-            import_status, ptr_i8
-        ));
-        let import_ok = self.next_reg();
-        self.emit(&format!(
-            "  {} = icmp eq i32 {}, 0",
-            import_ok, import_status
-        ));
-        self.emit(&format!(
-            "  br i1 {}, label %{}, label %{}",
-            import_ok, continue_label, abort_label
+            prepare_ok, continue_label, abort_label
         ));
 
         self.emit_label(&abort_label);
@@ -1201,10 +1517,22 @@ impl LlvmGenerator {
         &mut self,
         target: &Expr,
         body: &Expr,
-        begin_fn: &str,
-        end_fn: &str,
+        imported_begin_fn: &str,
+        helper_begin_fn: &str,
+        imported_end_fn: &str,
+        helper_end_fn: &str,
     ) -> KainResult<(String, String)> {
-        let ptr_i8 = self.compile_ownership_pointer(target)?;
+        let (ptr_i8, provenance) = self.compile_ownership_pointer(target)?;
+        let begin_fn = if provenance == OwnershipPointerProvenance::HelperOwned {
+            helper_begin_fn
+        } else {
+            imported_begin_fn
+        };
+        let end_fn = if provenance == OwnershipPointerProvenance::HelperOwned {
+            helper_end_fn
+        } else {
+            imported_end_fn
+        };
         self.emit_checked_ownership_call(begin_fn, &ptr_i8);
         let body_result = self.compile_expr(body)?;
         self.emit_checked_ownership_call(end_fn, &ptr_i8);
@@ -1212,8 +1540,13 @@ impl LlvmGenerator {
     }
 
     fn compile_decay_expr(&mut self, target: &Expr) -> KainResult<(String, String)> {
-        let ptr_i8 = self.compile_ownership_pointer(target)?;
-        self.emit_checked_ownership_call("__kain_ownership_decay", &ptr_i8);
+        let (ptr_i8, provenance) = self.compile_ownership_pointer(target)?;
+        let decay_fn = if provenance == OwnershipPointerProvenance::HelperOwned {
+            "__kain_ownership_decay_helper"
+        } else {
+            "__kain_ownership_decay"
+        };
+        self.emit_checked_ownership_call(decay_fn, &ptr_i8);
         Ok(("0".to_string(), "void".to_string()))
     }
 
@@ -2899,8 +3232,34 @@ impl LlvmGenerator {
             match item {
                 TypedItem::Function(func) => {
                     let (params, ret_ty) = self.function_codegen_signature(func)?;
+                    let (resolved_params, _) = if Self::function_is_extern(func) {
+                        self.extern_callable_signature(
+                            &func.resolved_type,
+                            &func.ast.name,
+                            func.ast.span,
+                        )?
+                    } else {
+                        self.callable_signature(&func.resolved_type, &func.ast.name, func.ast.span)?
+                    };
                     self.functions.insert(func.ast.name.clone(), ret_ty);
                     self.function_params.insert(func.ast.name.clone(), params);
+                    self.string_function_params.insert(
+                        func.ast.name.clone(),
+                        func.ast
+                            .params
+                            .iter()
+                            .enumerate()
+                            .map(|(index, param)| {
+                                (!matches!(param.ty, Type::Infer(_))
+                                    && Self::ast_type_is_string(&param.ty))
+                                    || (matches!(param.ty, Type::Infer(_))
+                                        && resolved_params
+                                            .get(index)
+                                            .map(Self::resolved_type_is_string)
+                                            .unwrap_or(false))
+                            })
+                            .collect(),
+                    );
                     if Self::function_is_extern(func) {
                         self.extern_functions.insert(func.ast.name.clone());
                     } else {
@@ -3060,6 +3419,11 @@ impl LlvmGenerator {
         let symbol_name = Self::sanitize_symbol_fragment(name);
         let initializer = self.llvm_constant_initializer_for_expr(&constant.ast.value, &llvm_ty);
         let requires_runtime_init = initializer.is_none();
+        let string_literal = if Self::resolved_type_is_string(&constant.ty) {
+            Self::extract_string_literal(&constant.ast.value)
+        } else {
+            None
+        };
 
         let info = ConstGlobalInfo {
             global_symbol: format!("@__kain_const_{}", symbol_name),
@@ -3067,6 +3431,9 @@ impl LlvmGenerator {
             init_fn_name: format!("__kain_init_const_{}", symbol_name),
             ty: llvm_ty.clone(),
             requires_runtime_init,
+            is_known_string: Self::resolved_type_is_string(&constant.ty),
+            string_byte_len: string_literal.as_ref().map(|value| value.len()),
+            string_literal,
         };
 
         if let Some(initializer) = initializer {
@@ -3110,8 +3477,15 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
         self.current_return_type = Some("void".to_string());
 
         self.emit(&format!("define void @{}() {{", info.init_fn_name));
@@ -3154,7 +3528,28 @@ impl LlvmGenerator {
 
     fn emit_const_init_call_if_needed(&mut self, info: &ConstGlobalInfo) {
         if info.requires_runtime_init {
+            if self.entry_preamble_insert_offset.is_some() {
+                if self
+                    .entry_hoisted_const_inits
+                    .insert(info.global_symbol.clone())
+                {
+                    self.emit_entry_preamble_line(&format!("call void @{}()", info.init_fn_name));
+                }
+                self.const_init_blocks
+                    .insert(info.global_symbol.clone(), "__entry_preamble".to_string());
+                return;
+            }
+            if self
+                .const_init_blocks
+                .get(&info.global_symbol)
+                .map(|block| block == &self.current_block)
+                .unwrap_or(false)
+            {
+                return;
+            }
             self.emit(&format!("  call void @{}()", info.init_fn_name));
+            self.const_init_blocks
+                .insert(info.global_symbol.clone(), self.current_block.clone());
         }
     }
 
@@ -3352,8 +3747,15 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
         self.current_return_type = Some("i32".to_string());
         self.actor_return_label = None;
         self.actor_return_slot = None;
@@ -3467,6 +3869,7 @@ impl LlvmGenerator {
             // Setup scope for handler locals.
             self.scopes.push(Vec::new());
             self.locals.clear();
+            self.helper_owned_pointer_locals.clear();
             self.locals
                 .insert("self".to_string(), (self_ptr.clone(), struct_ty.clone()));
 
@@ -3551,6 +3954,7 @@ impl LlvmGenerator {
         self.emit("declare i8* @to_string(i64)");
         self.emit("declare i8* @str_concat(i8*, i8*)");
         self.emit("declare i64 @clock_wrapper()");
+        self.emit("declare i64 @strlen(i8*)");
         self.emit("declare i8* @KAIN_alloc(i64)");
         self.emit("declare void @rc_retain(i8*)");
         self.emit("declare void @rc_release(i8*)");
@@ -3626,12 +4030,18 @@ impl LlvmGenerator {
         self.emit("; Category 4: Ownership State Operations");
         self.emit("declare i32 @__kain_ownership_register(i8*, i64, i64)");
         self.emit("declare i32 @__kain_ownership_register_imported(i8*, i64)");
+        self.emit("declare i32 @__kain_ownership_ensure_imported(i8*)");
         self.emit("declare i32 @__kain_ownership_update(i8*, i8*, i64)");
         self.emit("declare i32 @__kain_ownership_begin_observe(i8*)");
         self.emit("declare i32 @__kain_ownership_end_observe(i8*)");
         self.emit("declare i32 @__kain_ownership_begin_collapse(i8*)");
         self.emit("declare i32 @__kain_ownership_end_collapse(i8*)");
         self.emit("declare i32 @__kain_ownership_decay(i8*)");
+        self.emit("declare i32 @__kain_ownership_begin_observe_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_observe_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_begin_collapse_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_end_collapse_helper(i8*)");
+        self.emit("declare i32 @__kain_ownership_decay_helper(i8*)");
         self.emit("declare i32 @__kain_ownership_state(i8*)");
 
         // StdLib
@@ -3722,9 +4132,16 @@ impl LlvmGenerator {
     fn compile_component(&mut self, component: &TypedComponent) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
 
         let name = &component.ast.name;
         let defs = self.component_defs.get(name).cloned().unwrap_or_else(|| {
@@ -3801,9 +4218,15 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
 
         let self_ty = format!("%{}*", target_name);
         let mut ret_type = method
@@ -3866,6 +4289,13 @@ impl LlvmGenerator {
                 addr_reg
             ));
             self.locals.insert(param.name.clone(), (addr_reg, p_ty));
+            if Self::ast_type_is_string(&param.ty) {
+                self.string_locals.insert(param.name.clone());
+                let length_reg = self.next_reg();
+                self.emit(&format!("  {} = call i64 @strlen(i8* %arg{})", length_reg, i + 1));
+                self.string_length_values
+                    .insert(param.name.clone(), length_reg);
+            }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
@@ -3892,6 +4322,10 @@ impl LlvmGenerator {
         }
 
         self.reg_count = 0;
+        self.string_length_values.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
         self.current_return_type = Some("void".to_string());
         self.emit("define void @__kain_register_entanglements() {");
         self.emit_label("entry");
@@ -3940,15 +4374,27 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
 
         let (param_types, mut ret_type) =
             self.callable_signature(resolved_type, callable_name, span)?;
         if let Some(return_type) = explicit_return_type {
             ret_type = self.map_type_from_ast(return_type);
         }
+        let borrowed_string_params = self
+            .string_function_params
+            .get(callable_name)
+            .cloned()
+            .unwrap_or_default();
         let param_type_strings = self.ast_param_codegen_types(params, &param_types)?;
         self.current_return_type = Some(ret_type.clone());
 
@@ -4003,6 +4449,22 @@ impl LlvmGenerator {
                 param_ty, index, param_ty, addr_reg
             ));
             self.locals.insert(param.name.clone(), (addr_reg, param_ty));
+            if (!matches!(param.ty, Type::Infer(_)) && Self::ast_type_is_string(&param.ty))
+                || (matches!(param.ty, Type::Infer(_))
+                    && param_types
+                        .get(index)
+                        .map(Self::resolved_type_is_string)
+                        .unwrap_or(false))
+            {
+                self.string_locals.insert(param.name.clone());
+                let length_reg = self.next_reg();
+                self.emit(&format!("  {} = call i64 @strlen(i8* %arg{})", length_reg, index));
+                self.string_length_values
+                    .insert(param.name.clone(), length_reg);
+                if borrowed_string_params.get(index).copied().unwrap_or(false) {
+                    self.borrowed_locals.insert(param.name.clone());
+                }
+            }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
@@ -4105,9 +4567,16 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
 
         let (param_types, mut ret_type) = self.callable_signature(
             &converge.resolved_type,
@@ -4255,8 +4724,15 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.helper_owned_pointer_locals.clear();
         self.borrowed_locals.clear();
+        self.string_locals.clear();
+        self.string_length_values.clear();
         self.scopes.clear();
+        self.const_init_blocks.clear();
+        self.entry_alloca_insert_offset = None;
+        self.entry_preamble_insert_offset = None;
+        self.entry_hoisted_const_inits.clear();
         self.current_return_type = Some("void".to_string());
 
         let Some(world_info) = self.world_globals.get(&world.ast.name).cloned() else {
@@ -4569,6 +5045,7 @@ impl LlvmGenerator {
                         } else {
                             self.compile_expr(val_expr)?
                         };
+                        self.string_length_values.remove(name);
                         let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                         self.reg_count += 1;
 
@@ -4585,7 +5062,10 @@ impl LlvmGenerator {
                             }
                         }
 
+                        let local_pointer_provenance =
+                            self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
+                        self.record_helper_owned_pointer_local(name, local_pointer_provenance);
                         if let Some(scope) = self.scopes.last_mut() {
                             scope.push(name.clone());
                         }
@@ -4848,10 +5328,17 @@ impl LlvmGenerator {
         func_name: &str,
         args: &[kain_core::ast::CallArg],
     ) -> KainResult<(String, String)> {
+        if func_name == "len" && args.len() == 1 {
+            if let Some(length_value) = self.compile_string_length_value(&args[0].value)? {
+                return Ok((length_value, "i64".to_string()));
+            }
+        }
+
         let mut compiled_args = Vec::new();
         let mut arg_types = Vec::new();
         let is_extern = self.extern_functions.contains(func_name);
         let param_types = self.function_params.get(func_name).cloned();
+        let borrowed_string_params = self.string_function_params.get(func_name).cloned();
 
         for (index, arg) in args.iter().enumerate() {
             let param_ty = param_types
@@ -4859,6 +5346,11 @@ impl LlvmGenerator {
                 .and_then(|types| types.get(index))
                 .cloned()
                 .unwrap_or_default();
+            let passes_borrowed_string = borrowed_string_params
+                .as_ref()
+                .and_then(|flags| flags.get(index))
+                .copied()
+                .unwrap_or(false);
 
             if is_extern && param_ty == "void" {
                 continue;
@@ -4866,7 +5358,11 @@ impl LlvmGenerator {
 
             let (val, ty) = self.compile_expr(&arg.value)?;
 
-            if !is_extern && ty == "i8*" && !self.is_new_object(&arg.value) {
+            if !is_extern
+                && ty == "i8*"
+                && !self.is_new_object(&arg.value)
+                && !passes_borrowed_string
+            {
                 self.emit(&format!("  call void @rc_retain(i8* {})", val));
             }
 
@@ -5245,13 +5741,17 @@ impl LlvmGenerator {
                 target,
                 body,
                 "__kain_ownership_begin_observe",
+                "__kain_ownership_begin_observe_helper",
                 "__kain_ownership_end_observe",
+                "__kain_ownership_end_observe_helper",
             ),
             Expr::Collapse { target, body, .. } => self.compile_scoped_ownership_expr(
                 target,
                 body,
                 "__kain_ownership_begin_collapse",
+                "__kain_ownership_begin_collapse_helper",
                 "__kain_ownership_end_collapse",
+                "__kain_ownership_end_collapse_helper",
             ),
             Expr::Decay { target, .. } => self.compile_decay_expr(target),
             Expr::Unary { op, operand, span } => {
@@ -5310,7 +5810,12 @@ impl LlvmGenerator {
                 Expr::Ident(name, _) => {
                     if let Some((addr, ty)) = self.locals.get(name).cloned() {
                         let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
+                        self.string_length_values.remove(name);
                         self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
+                        self.record_helper_owned_pointer_local(
+                            name,
+                            self.ownership_pointer_provenance_for_expr(value),
+                        );
                         Ok((rhs, rhs_ty))
                     } else {
                         Err(KainError::codegen(
@@ -6025,6 +6530,19 @@ impl LlvmGenerator {
             Expr::Binary {
                 left, op, right, ..
             } => {
+                if *op == BinaryOp::Eq || *op == BinaryOp::Ne {
+                    if let Some(result) =
+                        self.compile_char_at_string_equality_fast_path(left, right)?
+                    {
+                        if *op == BinaryOp::Ne {
+                            let inverted = self.next_reg();
+                            self.emit(&format!("  {} = xor i1 {}, 1", inverted, result));
+                            return Ok((inverted, "i1".to_string()));
+                        }
+                        return Ok((result, "i1".to_string()));
+                    }
+                }
+
                 let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
                 if *op == BinaryOp::Add && (lhs_ty == "i8*" || rhs_ty == "i8*") {

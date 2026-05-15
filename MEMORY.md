@@ -1,5 +1,164 @@
 # Kain Memory
 
+# 2026-05-15 - The generic ownership prepare path was the wrong abstraction; LLVM and the native runtime now split imported and helper-owned ownership calls
+
+The earlier helper-slot optimization exposed a deeper bug: `__kain_ownership_prepare_managed_pointer(...)` tried to infer helper-owned provenance by reading bytes before an arbitrary pointer. A saved solver witness now proves the old contract admitted a bad state where prepare returned success on a fake helper-looking prefix without actually making the later ownership operation safe.
+
+What changed:
+
+- `runtime/native/include/kain_runtime_ownership.h` and `runtime/native/src/core/kain_runtime_ownership.c` no longer use the generic prepare helper. Imported or unknown pointers now go through `__kain_ownership_ensure_imported(...)`, and the generic `begin_observe` / `end_observe` / `begin_collapse` / `end_collapse` / `decay` functions are registry-only and never probe helper headers.
+- The helper fast path still exists, but it is now explicit: `__kain_ownership_begin_observe_helper(...)`, `__kain_ownership_end_observe_helper(...)`, `__kain_ownership_begin_collapse_helper(...)`, `__kain_ownership_end_collapse_helper(...)`, and `__kain_ownership_decay_helper(...)` are helper-owned-only entry points that may rely on the packed slot token in the allocation header.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks helper-owned pointer provenance through lowered `alloc_zeroed` / `realloc_mem` locals. LLVM emits helper-only ownership calls for those locals and emits `__kain_ownership_ensure_imported(...)` plus the safe registry path for imported parameters and unknown pointers.
+- `runtime/native/tests/test_ownership_memory.c` now includes a spoofed-prefix regression: an imported stack cell with bytes that look like a helper header must still use the imported registry path and must not be mistaken for helper-owned memory.
+- Added new proofs:
+  - `runtime/native/src/core/z3/proofs-experimental/ownership-generic-prepare-fake-header-bypass.smt2`
+  - `runtime/native/src/core/z3/proofs/native-ownership-imported-ensure-fake-header-does-not-bypass-registration.yaml`
+  - `runtime/native/src/core/z3/proofs/native-ownership-helper-fast-path-requires-heap-slot-match.yaml`
+
+Validation:
+
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c`
+- `clang -I runtime/native/include runtime/native/tests/test_ownership_memory.c runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c -o target/codex-ownership-split/native_test_ownership_memory.exe; target\\codex-ownership-split\\native_test_ownership_memory.exe`
+- `cargo test -p kain-core --test ownership_keywords_test --target-dir target/codex-ownership-split -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target/codex-ownership-split -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path --target-dir target/codex-ownership-split -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers --target-dir target/codex-ownership-split -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path=\"D:/Kain-Lang/runtime/native/src/core/z3\", lane=\"ownership\", report_name=\"native_ownership_split_imported_helper_paths\")` proved `6/6`
+- `mcp__z3_local__.check_smt2(report_name=\"ownership-generic-prepare-fake-header-bypass-witness\", ...)` returned `sat` with the intended fake-header witness
+
+Current benchmark reality after deleting the wrong abstraction:
+
+- `benchmark/out/reports/20260515T231608Z.llm.md` shows `alloc_churn` at Kain `17.512 ms` vs Rust `9.904 ms`. Relative to the earlier helper-slot report (`17.906 ms`), the split-path rewrite saved another `0.394 ms`, about `7.9 ns` per iteration.
+- `benchmark/out/reports/20260515T231622Z.llm.md` shows `ownership_memory` at Kain `15.228 ms` vs Rust `10.634 ms`. Relative to the earlier helper-slot report (`15.446 ms`), this pass saved another `0.218 ms`.
+- The runtime is now both faster and structurally safer on this lane: helper-owned benchmarks avoid imported registration entirely, while imported pointers no longer rely on speculative helper-header reads.
+
+# 2026-05-15 - Helper-owned ownership guards now use a packed header slot token and a runtime prepare helper instead of repeated registry probes
+
+This pass landed the first production slice from the earlier native-runtime speedup assessment. The goal was to cut the repeated hash-probe/import-precheck tax on helper-owned heap cells without regressing imported-pointer or post-decay semantics.
+
+What changed:
+
+- `runtime/native/include/kain_runtime_memory.h` now defines the helper allocation header as a packed `magic_and_slot + payload_size` pair. The low 16 bits of `magic_and_slot` carry `slot + 1`, so helper allocations keep a stable ownership registry slot token without growing the header beyond 16 bytes.
+- `runtime/native/src/core/kain_runtime_memory.c` now registers helper allocations through `__kain_ownership_register_helper_allocation(...)`, stores the returned slot token in the header, and uses `__kain_ownership_helper_allocation_state(...)` plus `__kain_ownership_relocate_helper_allocation(...)` for the realloc path instead of the old `state -> maybe register missing region -> update` sequence.
+- `runtime/native/src/core/kain_runtime_ownership.c` now has a generalized registry upsert helper, direct helper-slot resolution from the packed allocation header, and `__kain_ownership_prepare_managed_pointer(...)` for LLVM lowering. Helper-owned `begin_observe`, `end_observe`, `begin_collapse`, `end_collapse`, and `decay` now resolve their registry slot directly instead of re-hashing the pointer on every runtime call.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` no longer emits `__kain_ownership_state(...)` plus `__kain_ownership_register_imported(...)` around every ownership expression. The LLVM preamble is now one `__kain_ownership_prepare_managed_pointer(...)` call and an abort-on-error branch.
+- Added durable proofs:
+  - `runtime/native/src/core/z3/proofs/native-ownership-helper-realloc-slot-fast-path-rejects-non-idle-region.yaml`
+  - `runtime/native/src/core/z3/proofs/native-ownership-helper-slot-token-stays-within-registry-capacity.yaml`
+- Added exploratory SMT:
+  - `runtime/native/src/core/z3/proofs-experimental/ownership-helper-slot-token-roundtrip.smt2`
+- Removed the stale proof `runtime/native/src/core/z3/proofs/native-ownership-realloc-registers-missing-region-before-moving.yaml` because helper realloc no longer depends on missing-region preregistration.
+
+Validation:
+
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c`
+- `clang -I runtime/native/include runtime/native/tests/test_ownership_memory.c runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c -o target/codex-ownership-fastpath/native_test_ownership_memory.exe; ./target/codex-ownership-fastpath/native_test_ownership_memory.exe`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target/codex-ownership-fastpath -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers --target-dir target/codex-ownership-fastpath -- --nocapture`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/runtime/native/src/core/z3", lane="ownership", report_name="native_ownership_helper_slot_fastpath")` proved 4/4 with `unsat`
+- `mcp__z3_local__.check_smt2(report_name="ownership-helper-slot-token-roundtrip", ...)` returned `unsat`
+
+Current benchmark reality from fresh focused runs:
+
+- `benchmark/out/reports/20260515T222448Z.llm.md` shows `alloc_churn` at Kain `17.906 ms` vs Rust `9.731 ms` on `5` timed runs with `1` warmup. Relative to the earlier `2026-05-15T21:42:57Z` full-suite report (`19.628 ms` vs Rust `10.927 ms`), Kain improved by about `1.722 ms`, or roughly `34.4 ns` per iteration. The case is still Rust-favored, but the gap moved in the exact direction predicted by the solver-backed assessment.
+- `benchmark/out/reports/20260515T222406Z.llm.md` shows `ownership_memory` at Kain `15.446 ms` vs Rust `10.130 ms` on the same `5`/`1` settings. Kain improved materially versus the earlier full-suite number (`17.402 ms`), but the remaining Rust gap is still small enough that the old diagnosis holds: this case is now mostly frontend/codegen/scalarization work, not a native ownership-helper emergency.
+- The generated LLVM for both fresh cases now calls `__kain_ownership_prepare_managed_pointer(...)` before `observe`/`collapse`/`decay` and no longer emits direct `__kain_ownership_state(...)` or `__kain_ownership_register_imported(...)` calls in the hot benchmark body.
+
+Recommended next step:
+
+- If the target is “beat Rust on alloc-heavy cells,” stay on this runtime lane and remove the remaining alloc-side tax: either eliminate the alloc-time helper-region registration altogether with a proved tombstone/address-reuse strategy, or attack the `alloc_zeroed(stride, "Int") -> __kain_alloc(8, 8, 1)` surface mismatch so the benchmark stops paying for 64-byte payloads on one-`Int` cells. If the target is `ownership_memory`, shift back into LLVM/codegen and scalarization work instead of spending more time on the native ownership helpers.
+
+# 2026-05-15 - Fair `string_ops` shape is now the general substring path, and the LLVM entry-hoist is the real win
+
+The `string_ops` benchmark should stay a general string-lowering test, not a source-level micro-specialization contest. A shared benchmark-local `needle_len == 2` shortcut was solver-valid, but it was not the right lever for Kain: once removed, the fair general-path case actually ran faster locally than the specialized benchmark version.
+
+What changed:
+
+- Kept the LLVM backend repair in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` that hoists runtime top-level string const init into the function entry preamble, caches string lengths for known string values, and preserves the earlier bytewise `char_at(...) == char_at(...)` fast path plus borrowed string parameter lowering.
+- Removed the benchmark-local two-byte substring shortcut from `benchmark/cases/string_ops/main.kn`, `main.rs`, `main.js`, and `main.py`.
+- Kept the dead `% MODULUS` removal and the boolean branch toggle in all four language lanes.
+- Updated `benchmark/benchmarks.json` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so the fairness note explicitly says `string_ops` stays on the general substring path and the intended specialization belongs in the compiler/backend, not benchmark-only case code.
+- Deleted `benchmark/z3/proofs/string-ops-two-byte-kernel-matches-generic-search-step.yaml` and kept the durable fairness proof `benchmark/z3/proofs/string-ops-prefix-accumulator-never-reaches-modulus.yaml`.
+
+Validation:
+
+- `node --check benchmark/cases/string_ops/main.js`
+- `python -m py_compile benchmark/cases/string_ops/main.py`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/benchmark/z3", lane="full", report_name="benchmark-string-ops-general-path-fairness")`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-entry-hoisted-const-init-string-ops-general-path")`
+- `python benchmark/run.py --case string_ops --languages kain,rust,javascript,python --runs 5 --warmups 1 --timeout 300`
+
+Current benchmark reality after this pass:
+
+- The fresh fair report is `benchmark/out/reports/latest.llm.md` generated at `2026-05-15T22:09:50.881106+00:00` with `5` timed runs.
+- `string_ops` now reports Kain `13.699 ms`, Rust `8.863 ms`, JavaScript `49.096 ms`, Python `284.333 ms`.
+- That means the general-path Kain case is about `1.55x` slower than Rust but about `3.58x` faster than JavaScript on this run.
+- The current Kain IR still shows the intended backend-owned wins: `@main` hoists `__kain_init_const_STRING_TEXT/NEEDLE/TAIL` once at entry, the loop no longer contains `srem` for parity or dead modulo math, and the branch selector is a simple `xor i1`.
+
+# 2026-05-15 - Solver-backed native-runtime speedup assessment split the remaining Rust gap into true C-runtime tax versus frontend tax
+
+This pass did not land production code. It was a Z3-first assessment aimed at the current benchmark report `benchmark/out/reports/20260515T214739Z.llm.md`, with exploratory proofs saved under `runtime/native/src/core/z3/proofs-experimental/`.
+
+New experimental SMT files:
+
+- `runtime/native/src/core/z3/proofs-experimental/string-two-byte-first-match-selection.smt2`
+- `runtime/native/src/core/z3/proofs-experimental/ownership-helper-owned-no-import-fast-path.smt2`
+- `runtime/native/src/core/z3/proofs-experimental/memory-stream-shift8-offset-bounds.smt2`
+
+Solver results:
+
+- `z3/reports/20260515T220233Z-string-two-byte-first-match-selection.json` -> `unsat`
+  - proved a packed 16-bit two-byte window selector can return the same first-match index as the readable left-to-right scan for the current `string_ops` shape (12-byte text, 2-byte needle, start 0)
+- `z3/reports/20260515T220039Z-ownership-helper-owned-no-import-fast-path.json` -> `unsat`
+  - proved the helper-owned benchmark trace `alloc -> begin_collapse -> end_collapse -> begin_observe -> end_observe -> decay` never needs the imported-pointer registration fallback; the repeated `state == NOT_FOUND -> register_imported` branch is dead on that path
+- `z3/reports/20260515T220039Z-memory-stream-shift8-offset-bounds.json` -> `unsat`
+  - proved the `memory_stream` benchmark index domain (`i < 262144`, stride `8`) keeps `i * 8` equal to `i << 3` and below the 2 MiB byte span, so a shift-only/cursor-increment specialization is safe for that benchmark arithmetic
+
+Durable conclusions:
+
+- `alloc_churn` is the clearest remaining native-runtime win target. The gap to Rust is `174.02 ns` per iteration (`19.628 ms` vs `10.927 ms`). The generated LLVM currently pays three redundant ownership-state probes plus the ownership begin/end/decay operations every iteration. If only the three dead pre-checks disappear, the break-even budget is about `58 ns` saved per dead probe. If the whole ownership path for helper-owned pointers collapses into a direct header fast path, the break-even budget is about `24.86 ns` per ownership op across the seven repeated registry-style operations. This is realistic because the useful work in the benchmark is only one store, one load, and one modular add.
+
+- `string_ops` is still beatable from the runtime/string-representation side even after the earlier LLVM repair. The current gap to Rust is only `54.4 ns` per benchmark iteration (`14.988 ms` vs `9.548 ms`), but the generated path still performs `1,700,000` `strlen` calls over the full benchmark run: `200,000` from `find_substring` itself and `1,500,000` from `starts_with_at`. That is `17` `strlen` calls per iteration on average, so eliminating only `3.2 ns` of cost per redundant `strlen` is enough to erase the full Rust gap. The packed two-byte proof above means a length-aware `(ptr,len)` fast path plus a direct 16-bit window search is mathematically viable.
+
+- `memory_stream` still has a real low-level helper tax. The current gap to Rust is `7.644 ms` (`18.029 ms` vs `10.385 ms`), and the benchmark executes `524,288` `__kain_ptr_offset` calls. Closing the whole gap would require saving about `14.58 ns` per offset computation. That is plausible for a specialized shift/add or induction-cursor path because the current helper still carries multiply plus overflow arithmetic that the benchmark domain does not need.
+
+- `ownership_memory` is mostly no longer a C-runtime problem. Its remaining gap is only about `7.192 ns` per loop iteration, and the ownership runtime calls happen outside the 750,000-iteration hot loop. Future work here should focus on scalarization / register residency / lowering quality rather than on the ownership C helpers themselves.
+
+- `struct_method`, `option_result`, `branch_dispatch`, and most of `array_scan` are still primarily frontend/codegen problems, not native-runtime problems. C-runtime black magic will not be enough by itself to move those paths past Rust.
+
+Important investigation note:
+
+- The current benchmark/example authoring style often uses `alloc_zeroed(stride, "Int")` for a single `Int`, and the lowered ABI call is `__kain_alloc(8, 8, 1)`, which means the helper allocates `size * stride = 64` payload bytes for a one-`Int` cell. That may reflect a surface-contract mismatch between Kain authoring expectations and the canonical helper ABI (`size = element count`, `stride = bytes per element`). Treat this as a high-signal fairness/perf smell before trusting small-cell allocation benchmarks as pure allocator/runtime measurements.
+
+Recommended next step:
+
+- Attack `alloc_churn` first with a helper-owned ownership fast path that removes dead imported-pointer fallback checks and, ideally, bypasses the global ownership registry for helper allocations. After that, attack `string_ops` with stored string lengths plus a direct 2-byte packed search path. Those are the two runtime-owned routes that look most capable of flipping benchmark wins against Rust without waiting on broad frontend refactors.
+
+# 2026-05-15 - LLVM string hot path no longer loses to JavaScript because authored string helpers now stay on byte math instead of RC churn
+
+The LLVM backend's `string_ops` path was materially repaired in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`. The old benchmark loss was mostly self-inflicted lowering tax: repeated `len` calls became repeated `strlen`, `char_at(lhs) == char_at(rhs)` allocated temporary one-character strings and called `deep_eq`, and direct authored helper calls paid caller retain plus callee release on every string argument.
+
+What changed:
+
+- Added string-aware const metadata (`is_known_string`, literal text, byte length) so top-level string consts can skip generic runtime shape checks in the hot path.
+- Added `string_length_values` plus direct `strlen` entry caching for authored non-extern string parameters. `len(x)` on those parameters now reuses cached SSA values instead of re-emitting runtime string-length work inside loops.
+- Added a char-at equality fast path in LLVM lowering. When the source shape is `char_at(lhs, i) == char_at(rhs, j)` or `!=`, the backend now emits validity checks plus direct byte loads instead of allocating temporary one-character heap strings and calling `deep_eq`.
+- Split internal string parameter ownership from general RC ownership. Direct authored function calls now skip caller-side retain for known string params, and the callee marks those params as borrowed locals so scope exit does not release them.
+- Added durable Z3 proofs in `crates/kain-sys-codegen/z3/proofs/` for the char-at equality fast path and for borrowed-string call-frame refcount neutrality.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen --lib --no-run`
+- `python benchmark/run.py --case string_ops --languages kain,rust,javascript,python --runs 3 --warmups 1 --timeout 300`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-string-ops-fast-path-and-borrowed-call")`
+
+Current benchmark reality after this pass:
+
+- `string_ops` dropped from the earlier `150.708 ms` clean-suite median to `14.329 ms` locally on the repaired backend.
+- Relative to the first post-runtime-debloat baseline for this session, Kain moved from `136.625 ms` to `14.329 ms`, roughly a `9.53x` improvement.
+- Kain is now faster than JavaScript on `string_ops` (`14.329 ms` vs `49.247 ms`) and much closer to Rust (`8.525 ms`) than before.
+- The next highest-payoff LLVM bottlenecks are still `struct_method` and `option_result`: tiny POD structs still lower through unconditional `KAIN_alloc`, and thin `Option<Int>` / `Result<Int, String>` shapes still allocate tagged boxes in their hot loops.
+
 # 2026-05-15 - Native runtime is now lean by default and the old vendor/app lane is archived
 
 The active C runtime has been cut back to the raw ABI floor. Vendored code, runtime-owned OpenGL, runtime-owned asset loaders, and hardcoded app/demo lanes are no longer part of ordinary native builds.

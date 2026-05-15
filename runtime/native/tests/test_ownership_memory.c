@@ -175,6 +175,85 @@ static int test_imported_region_transitions(void) {
     return 1;
 }
 
+typedef struct SpoofedHelperPrefixCell {
+    uint64_t fake_magic_and_slot;
+    size_t fake_payload_size;
+    int value;
+} SpoofedHelperPrefixCell;
+
+static int test_imported_path_ignores_spoofed_helper_header(void) {
+    printf("\n=== Test 3: imported path ignores spoofed helper header bytes ===\n");
+
+    SpoofedHelperPrefixCell spoofed = {0};
+    spoofed.fake_magic_and_slot = __kain_alloc_header_magic_with_slot(1u);
+    spoofed.fake_payload_size = sizeof(int);
+    spoofed.value = 19;
+
+    if (!expect_status(
+            "ensure imported for spoofed pointer",
+            __kain_ownership_ensure_imported(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "helper fast path rejects spoofed imported pointer",
+            __kain_ownership_begin_observe_helper(&spoofed.value),
+            KAIN_OWNERSHIP_ERR_NOT_FOUND
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "generic observe uses imported registry path",
+            __kain_ownership_begin_observe(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "generic end observe uses imported registry path",
+            __kain_ownership_end_observe(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "generic collapse uses imported registry path",
+            __kain_ownership_begin_collapse(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "generic end collapse uses imported registry path",
+            __kain_ownership_end_collapse(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "generic decay uses imported registry path",
+            __kain_ownership_decay(&spoofed.value),
+            KAIN_OWNERSHIP_OK
+        )) {
+        return 0;
+    }
+    if (!expect_status(
+            "spoofed imported pointer reaches decayed state",
+            __kain_ownership_state(&spoofed.value),
+            KAIN_OWNERSHIP_STATE_DECAYED
+        )) {
+        return 0;
+    }
+    if (spoofed.value != 19) {
+        printf("FAIL: spoofed imported decay mutated local storage\n");
+        return 0;
+    }
+
+    printf("PASS: imported registry path ignores spoofed helper-looking prefixes\n");
+    return 1;
+}
+
 int main(void) {
     int passed = 0;
     int total = 0;
@@ -183,6 +262,8 @@ int main(void) {
     passed += test_heap_region_transitions();
     total++;
     passed += test_imported_region_transitions();
+    total++;
+    passed += test_imported_path_ignores_spoofed_helper_header();
 
     printf("\nOwnership memory runtime tests: %d/%d passed\n", passed, total);
     return passed == total ? 0 : 1;

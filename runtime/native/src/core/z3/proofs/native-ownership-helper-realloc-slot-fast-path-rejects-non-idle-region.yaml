@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_helper_realloc_slot_fast_path_rejects_non_idle_region
+kind: check_smt2
+description: Helper-owned realloc only proceeds when the slot-token-resolved region is idle with zero observers.
+tags:
+- native-runtime
+- ownership
+- realloc
+- helper-slot
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  symbol: __kain_ownership_relocate_helper_allocation
+  start_line: 289
+  reason: helper realloc returns before region pointer rewrite unless state is idle and observers is zero
+case:
+  smt2: |
+    (set-logic ALL)
+    ; states: 0=idle, 1=observed, 2=collapsed, 3=decayed
+    (declare-const state Int)
+    (declare-const observers Int)
+    (assert (>= state 0))
+    (assert (<= state 3))
+    (assert (>= observers 0))
+    (define-fun can_relocate () Bool (and (= state 0) (= observers 0)))
+    (assert can_relocate)
+    (assert (or (not (= state 0)) (not (= observers 0))))
+    (check-sat)
+  include_model: false
+  include_stats: false

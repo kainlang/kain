@@ -26,6 +26,51 @@
 extern "C" {
 #endif
 
+typedef union KainAllocHeader {
+    struct {
+        uint64_t magic_and_slot;
+        size_t payload_size;
+    } metadata;
+    long double alignment;
+} KainAllocHeader;
+
+#define KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK UINT64_C(0x000000000000ffff)
+#define KAIN_ALLOC_HEADER_MAGIC_TAG UINT64_C(0x4b41494e4d450000)
+
+static inline uint64_t __kain_alloc_header_magic_with_slot(uint16_t slot_token) {
+    return KAIN_ALLOC_HEADER_MAGIC_TAG | (uint64_t)slot_token;
+}
+
+static inline void __kain_alloc_header_set_magic_and_slot(
+    KainAllocHeader* header,
+    uint16_t slot_token
+) {
+    header->metadata.magic_and_slot = __kain_alloc_header_magic_with_slot(slot_token);
+}
+
+static inline uint16_t __kain_alloc_header_slot_token(const KainAllocHeader* header) {
+    if (header == NULL) {
+        return 0u;
+    }
+    if ((header->metadata.magic_and_slot & ~KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK)
+        != KAIN_ALLOC_HEADER_MAGIC_TAG) {
+        return 0u;
+    }
+    return (uint16_t)(header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK);
+}
+
+static inline int __kain_alloc_header_is_valid(const KainAllocHeader* header) {
+    return __kain_alloc_header_slot_token(header) != 0u;
+}
+
+static inline void* __kain_alloc_payload_from_header(KainAllocHeader* header) {
+    return (void*)(header + 1);
+}
+
+static inline KainAllocHeader* __kain_alloc_header_from_payload(const void* ptr) {
+    return ((KainAllocHeader*)ptr) - 1;
+}
+
 /* ============================================================================
  * Category 1: Pointer and Address Operations
  * ============================================================================ */

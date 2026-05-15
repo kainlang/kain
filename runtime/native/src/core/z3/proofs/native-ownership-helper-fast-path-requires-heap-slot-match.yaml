@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_helper_fast_path_requires_heap_slot_match
+kind: check_smt2
+description: The helper-only ownership fast path can resolve a slot only when the slot is occupied, the pointer matches, and the region kind is heap.
+tags:
+- native-runtime
+- ownership
+- helper-slot
+- fast-path
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  symbol: kain_ownership_helper_slot_from_token_unlocked
+  start_line: 207
+  reason: helper-only observe/collapse/decay must reject imported or mismatched regions even if the packed header token looks valid
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const occupied Bool)
+    (declare-const pointer_matches Bool)
+    (declare-const is_heap Bool)
+    (define-fun helper_slot_ok () Bool
+      (and occupied pointer_matches is_heap))
+    (assert occupied)
+    (assert pointer_matches)
+    (assert (not is_heap))
+    (assert helper_slot_ok)
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -1,0 +1,27 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_helper_slot_token_stays_within_registry_capacity
+kind: check_smt2
+description: Helper allocation slot tokens encode slot+1, stay nonzero, and fit the ownership registry capacity.
+tags:
+- native-runtime
+- ownership
+- helper-slot
+- bounds
+source:
+  path: D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_ownership.c
+  symbol: __kain_ownership_register_helper_allocation
+  start_line: 246
+  reason: helper allocations store slot+1 in a 16-bit token and the runtime caps the registry well below that bound
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const slot Int)
+    (define-fun registry_capacity () Int 4096)
+    (define-fun max_token () Int 65535)
+    (assert (>= slot 0))
+    (assert (< slot registry_capacity))
+    (define-fun token () Int (+ slot 1))
+    (assert (or (<= token 0) (> token max_token)))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -35,22 +35,18 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 - `crates/kain-core/src/types.rs`: validates pointer-like targets and rejects unbalanced scoped exits.
 - `crates/kain-core/src/runtime.rs`: implements interpreter-visible ownership guards.
 - `crates/kain-core/src/runtime_contract.rs`: emits the `memory.ownership` capability when functions use ownership expressions.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: lowers ownership expressions to checked native runtime calls and lazily imports untracked pointers as imported regions.
+- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: lowers ownership expressions to checked native runtime calls. The current hot path is split by provenance: helper-owned allocations use `__kain_ownership_*_helper(...)`, while imported or unknown pointers first go through `__kain_ownership_ensure_imported(...)` and then use the safe registry-only ownership calls.
 - `runtime/native/include/kain_runtime_ownership.h` and `runtime/native/src/core/kain_runtime_ownership.c`: native ownership ABI and guarded registry.
-- `runtime/native/src/core/kain_runtime_memory.c`: heap allocation/realloc/free registration bridge.
+- `runtime/native/include/kain_runtime_memory.h` and `runtime/native/src/core/kain_runtime_memory.c`: helper allocation header shape, heap allocation/realloc/free bridge, and the packed helper slot-token fast path.
 
 ## Native Registry Hot Path
 
-- `kain_runtime_ownership.c` uses a serialized global registry, but pointer
-  lookup is no longer a full linear scan. It has an 8192-entry masked pointer
-  index driven by a SplitMix-style pointer mixer.
-- Free region discovery uses 64-bit occupancy words plus a de Bruijn low-bit
-  decoder. If `KAIN_OWNERSHIP_MAX_REGIONS` changes, revisit the occupancy word
-  count, pointer-index capacity, and experimental SMT proofs together.
-- Realloc/update rebuilds the pointer index after changing a region pointer.
-  Keep that rebuild unless a deletion/tombstone scheme is added and proved.
-- The current experimental arithmetic proofs live in
-  `runtime/native/src/core/z3/proofs-experimental/ownership-*.smt2`.
+- `kain_runtime_ownership.c` uses a serialized global registry, but pointer lookup is no longer a full linear scan. It has an 8192-entry masked pointer index driven by a SplitMix-style pointer mixer.
+- Helper-owned heap allocations now cache `slot + 1` in the low 16 bits of the allocation header's `magic_and_slot` word. That keeps the header at 16 bytes and lets helper-only `observe`/`collapse`/`decay` resolve helper-owned regions directly instead of re-hashing the pointer on every runtime call.
+- Imported or stack/FFI pointers must stay on the registry-only path. Do not reintroduce helper-header probing on generic ownership calls: the solver already found a witness where a fake helper-looking prefix can make a generic prepare step succeed without making the later ownership operation safe.
+- Free region discovery uses 64-bit occupancy words plus a de Bruijn low-bit decoder. If `KAIN_OWNERSHIP_MAX_REGIONS` changes, revisit the occupancy word count, pointer-index capacity, and experimental SMT proofs together.
+- Realloc/update rebuilds the pointer index after changing a region pointer. Keep that rebuild unless a deletion/tombstone scheme is added and proved.
+- The current experimental arithmetic proofs live in `runtime/native/src/core/z3/proofs-experimental/ownership-*.smt2`.
 
 ## Workflow
 
@@ -67,6 +63,9 @@ description: Use when adding, changing, debugging, validating, or reviewing Kain
 - `cargo test -p kain-ownership --target-dir target\codex-ownership-check -- --nocapture`
 - `cargo test -p kain-core --test ownership_keywords_test --target-dir target\codex-ownership-check -- --nocapture`
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards --target-dir target\codex-ownership-check -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers --target-dir target\codex-ownership-check -- --nocapture`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c`
+- `clang -I runtime/native/include runtime/native/tests/test_ownership_memory.c runtime/native/src/core/kain_runtime_memory.c runtime/native/src/core/kain_runtime_ownership.c -o target/codex-ownership-check/native_test_ownership_memory.exe; target\codex-ownership-check\native_test_ownership_memory.exe`
 - `py -3 tools/bazel/sync_native_runtime_builds.py --check`
 - `bazel test //runtime:native_test_ownership_memory`
 - `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership", lane="full")`
