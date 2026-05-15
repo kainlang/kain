@@ -673,7 +673,9 @@ impl LlvmGenerator {
                     if method == "unwrap" && !args.is_empty() {
                         return Err(KainError::codegen("unwrap expects no arguments", *span));
                     }
-                    return Ok(self.compile_tagged_value_payload_copy(&boxed_value, target_ty));
+                    let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
+                    self.emit_release_if_new_object_expr(receiver, &boxed_value, &boxed_ty);
+                    return Ok(result);
                 }
             }
             Expr::MethodCall {
@@ -735,6 +737,7 @@ impl LlvmGenerator {
                         default_value,
                         default_block
                     ));
+                    self.emit_release_if_new_object_expr(receiver, &boxed_value, &boxed_ty);
                     return Ok((merged, target_ty.to_string()));
                 }
             }
@@ -1403,12 +1406,14 @@ impl LlvmGenerator {
                 span,
             ));
         }
-        self.compile_tagged_payload_copy(
+        let result = self.compile_tagged_payload_copy(
             &future_value,
             target_ty,
             "kain_native_future_await_payload_copy",
             span,
-        )
+        )?;
+        self.emit_release_if_new_object_expr(future_expr, &future_value, &future_ty);
+        Ok(result)
     }
 
     fn compile_try_for_target_type(
@@ -1456,7 +1461,9 @@ impl LlvmGenerator {
         }
 
         self.emit_label(&payload_label);
-        Ok(self.compile_tagged_value_payload_copy(&boxed_value, target_ty))
+        let result = self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
+        self.emit_release_if_new_object_expr(value_expr, &boxed_value, &boxed_ty);
+        Ok(result)
     }
 
     fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> String {
@@ -4400,6 +4407,12 @@ impl LlvmGenerator {
         }
     }
 
+    fn emit_release_if_new_object_expr(&mut self, expr: &Expr, val: &str, ty: &str) {
+        if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
+            self.emit_release(val, ty);
+        }
+    }
+
     fn emit_scope_cleanup_for_vars(&mut self, vars: &[String]) {
         for var_name in vars.iter().rev() {
             if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
@@ -4461,9 +4474,11 @@ impl LlvmGenerator {
     fn is_new_object(&self, expr: &Expr) -> bool {
         match expr {
             Expr::String(..) => true,
+            Expr::None(..) => true,
             Expr::Array(..) => true,
             Expr::Tuple(..) => true,
             Expr::Struct { .. } => true,
+            Expr::EnumVariant { .. } => true,
             Expr::Call { .. } => true, // Function calls return owned values
             Expr::Binary { op, .. } => *op == BinaryOp::Add, // String concat
             Expr::If { .. } => true,   // If expressions return new objects (Phi result)
@@ -4583,7 +4598,7 @@ impl LlvmGenerator {
                         self.compile_expr(e)?
                     };
 
-                    if ty == "i8*" {
+                    if ty == "i8*" && !self.is_new_object(e) {
                         self.emit(&format!("  call void @rc_retain(i8* {})", val));
                     }
 
@@ -6189,6 +6204,7 @@ impl LlvmGenerator {
                                 &[KAIN_NATIVE_TAG_OPTION_SOME_LLVM],
                                 false,
                             );
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok((result, "i1".to_string()));
                         }
                         "is_none" => {
@@ -6200,6 +6216,7 @@ impl LlvmGenerator {
                                 &[KAIN_NATIVE_TAG_OPTION_NONE_LLVM],
                                 true,
                             );
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok((result, "i1".to_string()));
                         }
                         "is_ok" => {
@@ -6211,6 +6228,7 @@ impl LlvmGenerator {
                                 &[KAIN_NATIVE_TAG_RESULT_OK_LLVM],
                                 false,
                             );
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok((result, "i1".to_string()));
                         }
                         "is_err" => {
@@ -6222,6 +6240,7 @@ impl LlvmGenerator {
                                 &[KAIN_NATIVE_TAG_RESULT_ERR_LLVM],
                                 false,
                             );
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok((result, "i1".to_string()));
                         }
                         "ok" => {
@@ -6273,6 +6292,7 @@ impl LlvmGenerator {
                                 some_value.0,
                                 some_block
                             ));
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok((result, "i8*".to_string()));
                         }
                         "unwrap" | "expect" => {
@@ -6285,7 +6305,9 @@ impl LlvmGenerator {
                             if method == "unwrap" && !args.is_empty() {
                                 return Err(KainError::codegen("unwrap expects no arguments", *span));
                             }
-                            return Ok(self.compile_tagged_value_payload_copy(&obj_val, "i64"));
+                            let result = self.compile_tagged_value_payload_copy(&obj_val, "i64");
+                            self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
+                            return Ok(result);
                         }
                         _ => {}
                     }

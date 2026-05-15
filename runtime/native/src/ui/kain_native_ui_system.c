@@ -24,6 +24,82 @@ static const char* kain_native_ui_return_string(const char* source) {
     return string_new((char*)(source ? source : g_empty_string));
 }
 
+static uint64_t kain_native_ui_hash_text(uint64_t hash, const char* text);
+static uint64_t kain_native_ui_hash_node_key(int64_t node_id, const char* key);
+
+static uint64_t kain_native_ui_isolate_low_bit_u64(uint64_t value) {
+    return value & (0u - value);
+}
+
+static unsigned int kain_native_ui_low_bit_index_u64(uint64_t one_hot) {
+    static const unsigned char debruijn_index[64] = {
+        0, 1, 48, 2, 57, 49, 28, 3,
+        61, 58, 50, 42, 38, 29, 17, 4,
+        62, 55, 59, 36, 53, 51, 43, 22,
+        45, 39, 33, 30, 24, 18, 12, 5,
+        63, 47, 56, 27, 60, 41, 37, 16,
+        54, 35, 52, 21, 44, 32, 23, 11,
+        46, 26, 40, 15, 34, 20, 31, 10,
+        25, 14, 19, 9, 13, 8, 7, 6
+    };
+    return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];
+}
+
+static uint64_t kain_native_ui_mix_u64(uint64_t value) {
+    value ^= value >> 30u;
+    value *= UINT64_C(0xbf58476d1ce4e5b9);
+    value ^= value >> 27u;
+    value *= UINT64_C(0x94d049bb133111eb);
+    value ^= value >> 31u;
+    return value;
+}
+
+static uint32_t kain_native_ui_index_start_slot_u64(uint64_t hash, uint32_t mask) {
+    return (uint32_t)(hash & mask);
+}
+
+static int kain_native_ui_index_insert(
+    uint32_t* index_table,
+    uint32_t index_capacity,
+    uint32_t index_mask,
+    uint64_t hash,
+    uint32_t slot
+) {
+    uint32_t start_index = kain_native_ui_index_start_slot_u64(hash, index_mask);
+    uint32_t encoded_slot = slot + 1u;
+    uint32_t probe;
+    for (probe = 0u; probe < index_capacity; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & index_mask;
+        uint32_t candidate = index_table[candidate_index];
+        if (candidate == 0u || candidate == encoded_slot) {
+            index_table[candidate_index] = encoded_slot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int kain_native_ui_find_free_slot_u64(
+    const uint64_t* occupancy_bits,
+    uint32_t word_count,
+    uint32_t* out_slot
+) {
+    uint32_t word;
+    if (!occupancy_bits || !out_slot) {
+        return 0;
+    }
+    for (word = 0u; word < word_count; ++word) {
+        uint64_t free_mask = ~occupancy_bits[word];
+        if (free_mask != 0u) {
+            *out_slot = (word * 64u) + kain_native_ui_low_bit_index_u64(
+                kain_native_ui_isolate_low_bit_u64(free_mask)
+            );
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static KainNativeUiSession* kain_native_ui_find_session(int64_t session_id) {
     int64_t index;
     if (session_id <= 0) {
@@ -38,52 +114,108 @@ static KainNativeUiSession* kain_native_ui_find_session(int64_t session_id) {
 }
 
 static KainNativeUiNode* kain_native_ui_find_node(KainNativeUiSession* session, int64_t node_id) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || node_id <= 0) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_NODES; index += 1) {
-        if (session->nodes[index].in_use && session->nodes[index].id == node_id) {
-            return &session->nodes[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_mix_u64((uint64_t)node_id),
+        KAIN_NATIVE_UI_NODE_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_NODE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_NODE_INDEX_MASK;
+        uint32_t encoded_slot = session->node_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_NODES &&
+            session->nodes[slot].in_use &&
+            session->nodes[slot].id == node_id) {
+            return &session->nodes[slot];
         }
     }
     return NULL;
 }
 
 static KainNativeUiResource* kain_native_ui_find_resource(KainNativeUiSession* session, int64_t resource_id) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || resource_id <= 0) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_RESOURCES; index += 1) {
-        if (session->resources[index].in_use && session->resources[index].id == resource_id) {
-            return &session->resources[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_mix_u64((uint64_t)resource_id),
+        KAIN_NATIVE_UI_RESOURCE_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_RESOURCE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_RESOURCE_INDEX_MASK;
+        uint32_t encoded_slot = session->resource_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_RESOURCES &&
+            session->resources[slot].in_use &&
+            session->resources[slot].id == resource_id) {
+            return &session->resources[slot];
         }
     }
     return NULL;
 }
 
 static KainNativeUiMenu* kain_native_ui_find_menu(KainNativeUiSession* session, int64_t menu_id) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || menu_id <= 0) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_MENUS; index += 1) {
-        if (session->menus[index].in_use && session->menus[index].id == menu_id) {
-            return &session->menus[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_mix_u64((uint64_t)menu_id),
+        KAIN_NATIVE_UI_MENU_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_MENU_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_MENU_INDEX_MASK;
+        uint32_t encoded_slot = session->menu_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_MENUS &&
+            session->menus[slot].in_use &&
+            session->menus[slot].id == menu_id) {
+            return &session->menus[slot];
         }
     }
     return NULL;
 }
 
 static KainNativeUiDialog* kain_native_ui_find_dialog(KainNativeUiSession* session, int64_t dialog_id) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || dialog_id <= 0) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_DIALOGS; index += 1) {
-        if (session->dialogs[index].in_use && session->dialogs[index].id == dialog_id) {
-            return &session->dialogs[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_mix_u64((uint64_t)dialog_id),
+        KAIN_NATIVE_UI_DIALOG_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_DIALOG_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_DIALOG_INDEX_MASK;
+        uint32_t encoded_slot = session->dialog_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_DIALOGS &&
+            session->dialogs[slot].in_use &&
+            session->dialogs[slot].id == dialog_id) {
+            return &session->dialogs[slot];
         }
     }
     return NULL;
@@ -121,6 +253,12 @@ static uint64_t kain_native_ui_hash_text(uint64_t hash, const char* text) {
         cursor += 1;
     }
     return hash;
+}
+
+static uint64_t kain_native_ui_hash_node_key(int64_t node_id, const char* key) {
+    uint64_t hash = kain_native_ui_mix_u64((uint64_t)node_id ^ UINT64_C(0x9e3779b97f4a7c15));
+    hash = kain_native_ui_hash_text(hash, key);
+    return kain_native_ui_mix_u64(hash);
 }
 
 static int64_t kain_native_ui_positive_hash(uint64_t hash) {
@@ -241,22 +379,35 @@ static void kain_native_ui_touch_node(KainNativeUiSession* session, KainNativeUi
 }
 
 static KainNativeUiStyleRecord* kain_native_ui_find_style(KainNativeUiSession* session, int64_t node_id, const char* key) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || !key) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_STYLES; index += 1) {
-        if (session->styles[index].in_use &&
-            session->styles[index].node_id == node_id &&
-            strcmp(session->styles[index].key, key) == 0) {
-            return &session->styles[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_hash_node_key(node_id, key),
+        KAIN_NATIVE_UI_STYLE_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_STYLE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_STYLE_INDEX_MASK;
+        uint32_t encoded_slot = session->style_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_STYLES &&
+            session->styles[slot].in_use &&
+            session->styles[slot].node_id == node_id &&
+            strcmp(session->styles[slot].key, key) == 0) {
+            return &session->styles[slot];
         }
     }
     return NULL;
 }
 
 static KainNativeUiStyleRecord* kain_native_ui_ensure_style(KainNativeUiSession* session, int64_t node_id, const char* key) {
-    int64_t index;
+    uint32_t slot;
     KainNativeUiStyleRecord* existing = kain_native_ui_find_style(session, node_id, key);
     if (existing) {
         return existing;
@@ -264,36 +415,61 @@ static KainNativeUiStyleRecord* kain_native_ui_ensure_style(KainNativeUiSession*
     if (!session || !key || session->style_count >= KAIN_NATIVE_UI_MAX_STYLES) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_STYLES; index += 1) {
-        if (!session->styles[index].in_use) {
-            memset(&session->styles[index], 0, sizeof(session->styles[index]));
-            session->styles[index].in_use = 1;
-            session->styles[index].node_id = node_id;
-            kain_native_ui_copy_text(session->styles[index].key, sizeof(session->styles[index].key), key);
-            session->style_count += 1;
-            return &session->styles[index];
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->style_occupancy_bits,
+            KAIN_NATIVE_UI_STYLE_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return NULL;
     }
-    return NULL;
+    memset(&session->styles[slot], 0, sizeof(session->styles[slot]));
+    session->styles[slot].in_use = 1;
+    session->styles[slot].node_id = node_id;
+    kain_native_ui_copy_text(session->styles[slot].key, sizeof(session->styles[slot].key), key);
+    session->style_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->style_index,
+            KAIN_NATIVE_UI_STYLE_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_STYLE_INDEX_MASK,
+            kain_native_ui_hash_node_key(node_id, key),
+            slot)) {
+        session->style_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->styles[slot], 0, sizeof(session->styles[slot]));
+        return NULL;
+    }
+    session->style_count += 1;
+    return &session->styles[slot];
 }
 
 static KainNativeUiStateRecord* kain_native_ui_find_state(KainNativeUiSession* session, int64_t node_id, const char* key) {
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || !key) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_STATE; index += 1) {
-        if (session->state[index].in_use &&
-            session->state[index].node_id == node_id &&
-            strcmp(session->state[index].key, key) == 0) {
-            return &session->state[index];
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_hash_node_key(node_id, key),
+        KAIN_NATIVE_UI_STATE_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_STATE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_STATE_INDEX_MASK;
+        uint32_t encoded_slot = session->state_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return NULL;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_STATE &&
+            session->state[slot].in_use &&
+            session->state[slot].node_id == node_id &&
+            strcmp(session->state[slot].key, key) == 0) {
+            return &session->state[slot];
         }
     }
     return NULL;
 }
 
 static KainNativeUiStateRecord* kain_native_ui_ensure_state(KainNativeUiSession* session, int64_t node_id, const char* key) {
-    int64_t index;
+    uint32_t slot;
     KainNativeUiStateRecord* existing = kain_native_ui_find_state(session, node_id, key);
     if (existing) {
         return existing;
@@ -301,17 +477,128 @@ static KainNativeUiStateRecord* kain_native_ui_ensure_state(KainNativeUiSession*
     if (!session || !key || session->state_count >= KAIN_NATIVE_UI_MAX_STATE) {
         return NULL;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_STATE; index += 1) {
-        if (!session->state[index].in_use) {
-            memset(&session->state[index], 0, sizeof(session->state[index]));
-            session->state[index].in_use = 1;
-            session->state[index].node_id = node_id;
-            kain_native_ui_copy_text(session->state[index].key, sizeof(session->state[index].key), key);
-            session->state_count += 1;
-            return &session->state[index];
+    if (!kain_native_ui_find_free_slot_u64(
+            session->state_occupancy_bits,
+            KAIN_NATIVE_UI_STATE_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return NULL;
+    }
+    memset(&session->state[slot], 0, sizeof(session->state[slot]));
+    session->state[slot].in_use = 1;
+    session->state[slot].node_id = node_id;
+    kain_native_ui_copy_text(session->state[slot].key, sizeof(session->state[slot].key), key);
+    session->state_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->state_index,
+            KAIN_NATIVE_UI_STATE_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_STATE_INDEX_MASK,
+            kain_native_ui_hash_node_key(node_id, key),
+            slot)) {
+        session->state_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->state[slot], 0, sizeof(session->state[slot]));
+        return NULL;
+    }
+    session->state_count += 1;
+    return &session->state[slot];
+}
+
+static void kain_native_ui_rebuild_node_index(KainNativeUiSession* session) {
+    uint32_t slot;
+    if (!session) {
+        return;
+    }
+    memset(session->node_index, 0, sizeof(session->node_index));
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_NODES; ++slot) {
+        if (session->nodes[slot].in_use) {
+            (void)kain_native_ui_index_insert(
+                session->node_index,
+                KAIN_NATIVE_UI_NODE_INDEX_CAPACITY,
+                KAIN_NATIVE_UI_NODE_INDEX_MASK,
+                kain_native_ui_mix_u64((uint64_t)session->nodes[slot].id),
+                slot
+            );
         }
     }
-    return NULL;
+}
+
+static void kain_native_ui_rebuild_stable_key_index(KainNativeUiSession* session) {
+    uint32_t slot;
+    if (!session) {
+        return;
+    }
+    memset(session->stable_key_index, 0, sizeof(session->stable_key_index));
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_NODES; ++slot) {
+        if (session->nodes[slot].in_use && session->nodes[slot].stable_key[0]) {
+            (void)kain_native_ui_index_insert(
+                session->stable_key_index,
+                KAIN_NATIVE_UI_STABLE_KEY_INDEX_CAPACITY,
+                KAIN_NATIVE_UI_STABLE_KEY_INDEX_MASK,
+                kain_native_ui_hash_text(UINT64_C(1469598103934665603), session->nodes[slot].stable_key),
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_ui_rebuild_style_index(KainNativeUiSession* session) {
+    uint32_t slot;
+    if (!session) {
+        return;
+    }
+    memset(session->style_index, 0, sizeof(session->style_index));
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_STYLES; ++slot) {
+        if (session->styles[slot].in_use) {
+            (void)kain_native_ui_index_insert(
+                session->style_index,
+                KAIN_NATIVE_UI_STYLE_INDEX_CAPACITY,
+                KAIN_NATIVE_UI_STYLE_INDEX_MASK,
+                kain_native_ui_hash_node_key(session->styles[slot].node_id, session->styles[slot].key),
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_ui_rebuild_state_index(KainNativeUiSession* session) {
+    uint32_t slot;
+    if (!session) {
+        return;
+    }
+    memset(session->state_index, 0, sizeof(session->state_index));
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_STATE; ++slot) {
+        if (session->state[slot].in_use) {
+            (void)kain_native_ui_index_insert(
+                session->state_index,
+                KAIN_NATIVE_UI_STATE_INDEX_CAPACITY,
+                KAIN_NATIVE_UI_STATE_INDEX_MASK,
+                kain_native_ui_hash_node_key(session->state[slot].node_id, session->state[slot].key),
+                slot
+            );
+        }
+    }
+}
+
+static void kain_native_ui_release_node_payloads(KainNativeUiSession* session, int64_t node_id) {
+    uint32_t slot;
+    if (!session) {
+        return;
+    }
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_STYLES; ++slot) {
+        if (session->styles[slot].in_use && session->styles[slot].node_id == node_id) {
+            session->style_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+            memset(&session->styles[slot], 0, sizeof(session->styles[slot]));
+            session->style_count -= 1;
+        }
+    }
+    for (slot = 0u; slot < KAIN_NATIVE_UI_MAX_STATE; ++slot) {
+        if (session->state[slot].in_use && session->state[slot].node_id == node_id) {
+            session->state_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+            memset(&session->state[slot], 0, sizeof(session->state[slot]));
+            session->state_count -= 1;
+        }
+    }
+    kain_native_ui_rebuild_style_index(session);
+    kain_native_ui_rebuild_state_index(session);
 }
 
 static KainNativeUiDrawCommand* kain_native_ui_append_draw_command(KainNativeUiSession* session, const char* kind) {
@@ -625,7 +912,7 @@ int64_t kain_native_ui_last_presented_frame(int64_t session_id) {
 }
 
 int64_t kain_native_ui_node_create(int64_t session_id, const char* kind) {
-    int64_t index;
+    uint32_t slot;
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
@@ -633,41 +920,80 @@ int64_t kain_native_ui_node_create(int64_t session_id, const char* kind) {
     if (session->node_count >= KAIN_NATIVE_UI_MAX_NODES) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_NODES; index += 1) {
-        if (!session->nodes[index].in_use) {
-            memset(&session->nodes[index], 0, sizeof(session->nodes[index]));
-            session->nodes[index].in_use = 1;
-            session->nodes[index].id = session->next_node_id++;
-            session->nodes[index].flags = KAIN_NATIVE_UI_NODE_FOCUSABLE | KAIN_NATIVE_UI_NODE_INTERACTIVE;
-            kain_native_ui_copy_text(session->nodes[index].kind, sizeof(session->nodes[index].kind), kind);
-            session->node_count += 1;
-            kain_native_ui_touch_node(session, &session->nodes[index], 1);
-            return session->nodes[index].id;
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->node_occupancy_bits,
+            KAIN_NATIVE_UI_NODE_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    memset(&session->nodes[slot], 0, sizeof(session->nodes[slot]));
+    session->nodes[slot].in_use = 1;
+    session->nodes[slot].id = session->next_node_id++;
+    session->nodes[slot].flags = KAIN_NATIVE_UI_NODE_FOCUSABLE | KAIN_NATIVE_UI_NODE_INTERACTIVE;
+    kain_native_ui_copy_text(session->nodes[slot].kind, sizeof(session->nodes[slot].kind), kind);
+    session->node_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->node_index,
+            KAIN_NATIVE_UI_NODE_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_NODE_INDEX_MASK,
+            kain_native_ui_mix_u64((uint64_t)session->nodes[slot].id),
+            slot)) {
+        session->node_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->nodes[slot], 0, sizeof(session->nodes[slot]));
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    session->node_count += 1;
+    kain_native_ui_touch_node(session, &session->nodes[slot], 1);
+    return session->nodes[slot].id;
 }
 
 int64_t kain_native_ui_node_destroy(int64_t session_id, int64_t node_id) {
     int64_t index;
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     KainNativeUiNode* node = kain_native_ui_find_node(session, node_id);
+    uint32_t node_slot;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     if (!node) {
         return KAIN_NATIVE_UI_INVALID_NODE;
     }
+    node_slot = (uint32_t)(node - session->nodes);
     for (index = 0; index < KAIN_NATIVE_UI_MAX_NODES; index += 1) {
         if (session->nodes[index].in_use && session->nodes[index].parent_id == node_id) {
             session->nodes[index].parent_id = 0;
         }
     }
+    if (node->parent_id > 0) {
+        KainNativeUiNode* parent = kain_native_ui_find_node(session, node->parent_id);
+        if (parent && parent->child_count > 0) {
+            parent->child_count -= 1;
+        }
+    }
     if (session->focused_node_id == node_id) {
         session->focused_node_id = 0;
     }
+    if (session->ime_active_node_id == node_id) {
+        session->ime_active_node_id = 0;
+        session->ime_text[0] = '\0';
+    }
+    if (session->drag_active_node_id == node_id) {
+        session->drag_active_node_id = 0;
+        session->drag_drop_target_id = 0;
+        session->drag_payload[0] = '\0';
+    }
+    if (session->drag_drop_target_id == node_id) {
+        session->drag_drop_target_id = 0;
+    }
+    if (session->active_event.target_node_id == node_id) {
+        session->active_event.target_node_id = 0;
+    }
+    kain_native_ui_release_node_payloads(session, node_id);
+    session->node_occupancy_bits[node_slot / 64u] &= ~(UINT64_C(1) << (node_slot % 64u));
     memset(node, 0, sizeof(*node));
     session->node_count -= 1;
+    kain_native_ui_rebuild_node_index(session);
+    kain_native_ui_rebuild_stable_key_index(session);
     return KAIN_NATIVE_UI_OK;
 }
 
@@ -697,6 +1023,19 @@ int64_t kain_native_ui_node_set_parent(int64_t session_id, int64_t node_id, int6
     }
     if (parent_id > 0 && !kain_native_ui_find_node(session, parent_id)) {
         return KAIN_NATIVE_UI_INVALID_NODE;
+    }
+    if (parent_id > 0) {
+        int64_t cursor = parent_id;
+        while (cursor > 0) {
+            if (cursor == node_id) {
+                return KAIN_NATIVE_UI_INVALID_ARGUMENT;
+            }
+            new_parent = kain_native_ui_find_node(session, cursor);
+            if (!new_parent) {
+                break;
+            }
+            cursor = new_parent->parent_id;
+        }
     }
     old_parent = kain_native_ui_find_node(session, node->parent_id);
     new_parent = kain_native_ui_find_node(session, parent_id);
@@ -802,6 +1141,7 @@ int64_t kain_native_ui_node_set_stable_key(int64_t session_id, int64_t node_id, 
     }
     kain_native_ui_copy_text(node->stable_key, sizeof(node->stable_key), stable_key);
     kain_native_ui_touch_node(session, node, 8);
+    kain_native_ui_rebuild_stable_key_index(session);
     return KAIN_NATIVE_UI_OK;
 }
 
@@ -812,13 +1152,27 @@ const char* kain_native_ui_node_stable_key(int64_t session_id, int64_t node_id) 
 
 int64_t kain_native_ui_node_find_by_stable_key(int64_t session_id, const char* stable_key) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
-    int64_t index;
+    uint32_t start_index;
+    uint32_t probe;
     if (!session || !stable_key || !stable_key[0]) {
         return 0;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_NODES; index += 1) {
-        if (session->nodes[index].in_use && strcmp(session->nodes[index].stable_key, stable_key) == 0) {
-            return session->nodes[index].id;
+    start_index = kain_native_ui_index_start_slot_u64(
+        kain_native_ui_hash_text(UINT64_C(1469598103934665603), stable_key),
+        KAIN_NATIVE_UI_STABLE_KEY_INDEX_MASK
+    );
+    for (probe = 0u; probe < KAIN_NATIVE_UI_STABLE_KEY_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (start_index + probe) & KAIN_NATIVE_UI_STABLE_KEY_INDEX_MASK;
+        uint32_t encoded_slot = session->stable_key_index[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_NATIVE_UI_MAX_NODES &&
+            session->nodes[slot].in_use &&
+            strcmp(session->nodes[slot].stable_key, stable_key) == 0) {
+            return session->nodes[slot].id;
         }
     }
     return 0;
@@ -1201,7 +1555,7 @@ int64_t kain_native_ui_resource_create(
     int64_t byte_length
 ) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
-    int64_t index;
+    uint32_t slot;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
@@ -1211,22 +1565,33 @@ int64_t kain_native_ui_resource_create(
     if (session->resource_count >= KAIN_NATIVE_UI_MAX_RESOURCES) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_RESOURCES; index += 1) {
-        if (!session->resources[index].in_use) {
-            KainNativeUiResource* resource = &session->resources[index];
-            memset(resource, 0, sizeof(*resource));
-            resource->in_use = 1;
-            resource->id = session->next_resource_id++;
-            resource->width = width;
-            resource->height = height;
-            resource->byte_length = byte_length;
-            kain_native_ui_copy_text(resource->resource_type, sizeof(resource->resource_type), resource_type);
-            kain_native_ui_copy_text(resource->key, sizeof(resource->key), key);
-            session->resource_count += 1;
-            return resource->id;
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->resource_occupancy_bits,
+            KAIN_NATIVE_UI_RESOURCE_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    memset(&session->resources[slot], 0, sizeof(session->resources[slot]));
+    session->resources[slot].in_use = 1;
+    session->resources[slot].id = session->next_resource_id++;
+    session->resources[slot].width = width;
+    session->resources[slot].height = height;
+    session->resources[slot].byte_length = byte_length;
+    kain_native_ui_copy_text(session->resources[slot].resource_type, sizeof(session->resources[slot].resource_type), resource_type);
+    kain_native_ui_copy_text(session->resources[slot].key, sizeof(session->resources[slot].key), key);
+    session->resource_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->resource_index,
+            KAIN_NATIVE_UI_RESOURCE_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_RESOURCE_INDEX_MASK,
+            kain_native_ui_mix_u64((uint64_t)session->resources[slot].id),
+            slot)) {
+        session->resource_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->resources[slot], 0, sizeof(session->resources[slot]));
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    session->resource_count += 1;
+    return session->resources[slot].id;
 }
 
 int64_t kain_native_ui_font_create(int64_t session_id, const char* key, const char* family, double size) {
@@ -1685,25 +2050,36 @@ const char* kain_native_ui_drag_payload(int64_t session_id) {
 
 int64_t kain_native_ui_menu_create(int64_t session_id, const char* key) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
-    int64_t index;
+    uint32_t slot;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     if (session->menu_count >= KAIN_NATIVE_UI_MAX_MENUS) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_MENUS; index += 1) {
-        if (!session->menus[index].in_use) {
-            KainNativeUiMenu* menu = &session->menus[index];
-            memset(menu, 0, sizeof(*menu));
-            menu->in_use = 1;
-            menu->id = session->next_menu_id++;
-            kain_native_ui_copy_text(menu->key, sizeof(menu->key), key);
-            session->menu_count += 1;
-            return menu->id;
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->menu_occupancy_bits,
+            KAIN_NATIVE_UI_MENU_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    memset(&session->menus[slot], 0, sizeof(session->menus[slot]));
+    session->menus[slot].in_use = 1;
+    session->menus[slot].id = session->next_menu_id++;
+    kain_native_ui_copy_text(session->menus[slot].key, sizeof(session->menus[slot].key), key);
+    session->menu_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->menu_index,
+            KAIN_NATIVE_UI_MENU_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_MENU_INDEX_MASK,
+            kain_native_ui_mix_u64((uint64_t)session->menus[slot].id),
+            slot)) {
+        session->menu_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->menus[slot], 0, sizeof(session->menus[slot]));
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    session->menu_count += 1;
+    return session->menus[slot].id;
 }
 
 int64_t kain_native_ui_menu_add_item(
@@ -1715,7 +2091,7 @@ int64_t kain_native_ui_menu_add_item(
 ) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
     KainNativeUiMenu* menu = kain_native_ui_find_menu(session, menu_id);
-    int64_t index;
+    uint32_t slot;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
@@ -1725,22 +2101,23 @@ int64_t kain_native_ui_menu_add_item(
     if (session->menu_item_count >= KAIN_NATIVE_UI_MAX_MENU_ITEMS) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_MENU_ITEMS; index += 1) {
-        if (!session->menu_items[index].in_use) {
-            KainNativeUiMenuItem* item = &session->menu_items[index];
-            memset(item, 0, sizeof(*item));
-            item->in_use = 1;
-            item->id = session->next_menu_item_id++;
-            item->menu_id = menu_id;
-            item->command_id = command_id;
-            kain_native_ui_copy_text(item->key, sizeof(item->key), key);
-            kain_native_ui_copy_text(item->label, sizeof(item->label), label);
-            menu->item_count += 1;
-            session->menu_item_count += 1;
-            return item->id;
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->menu_item_occupancy_bits,
+            KAIN_NATIVE_UI_MENU_ITEM_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    memset(&session->menu_items[slot], 0, sizeof(session->menu_items[slot]));
+    session->menu_items[slot].in_use = 1;
+    session->menu_items[slot].id = session->next_menu_item_id++;
+    session->menu_items[slot].menu_id = menu_id;
+    session->menu_items[slot].command_id = command_id;
+    kain_native_ui_copy_text(session->menu_items[slot].key, sizeof(session->menu_items[slot].key), key);
+    kain_native_ui_copy_text(session->menu_items[slot].label, sizeof(session->menu_items[slot].label), label);
+    session->menu_item_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    menu->item_count += 1;
+    session->menu_item_count += 1;
+    return session->menu_items[slot].id;
 }
 
 int64_t kain_native_ui_menu_open(int64_t session_id, int64_t menu_id, double x, double y) {
@@ -1807,28 +2184,39 @@ int64_t kain_native_ui_menu_item_command(int64_t session_id, int64_t menu_id, in
 
 int64_t kain_native_ui_dialog_request(int64_t session_id, const char* kind, const char* title, const char* message) {
     KainNativeUiSession* session = kain_native_ui_find_session(session_id);
-    int64_t index;
+    uint32_t slot;
     if (!session) {
         return KAIN_NATIVE_UI_INVALID_SESSION;
     }
     if (session->dialog_count >= KAIN_NATIVE_UI_MAX_DIALOGS) {
         return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    for (index = 0; index < KAIN_NATIVE_UI_MAX_DIALOGS; index += 1) {
-        if (!session->dialogs[index].in_use) {
-            KainNativeUiDialog* dialog = &session->dialogs[index];
-            memset(dialog, 0, sizeof(*dialog));
-            dialog->in_use = 1;
-            dialog->id = session->next_dialog_id++;
-            kain_native_ui_copy_text(dialog->kind, sizeof(dialog->kind), kind);
-            kain_native_ui_copy_text(dialog->title, sizeof(dialog->title), title);
-            kain_native_ui_copy_text(dialog->message, sizeof(dialog->message), message);
-            session->dialog_count += 1;
-            session->active_dialog_id = dialog->id;
-            return dialog->id;
-        }
+    if (!kain_native_ui_find_free_slot_u64(
+            session->dialog_occupancy_bits,
+            KAIN_NATIVE_UI_DIALOG_OCCUPANCY_WORD_COUNT,
+            &slot)) {
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
     }
-    return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    memset(&session->dialogs[slot], 0, sizeof(session->dialogs[slot]));
+    session->dialogs[slot].in_use = 1;
+    session->dialogs[slot].id = session->next_dialog_id++;
+    kain_native_ui_copy_text(session->dialogs[slot].kind, sizeof(session->dialogs[slot].kind), kind);
+    kain_native_ui_copy_text(session->dialogs[slot].title, sizeof(session->dialogs[slot].title), title);
+    kain_native_ui_copy_text(session->dialogs[slot].message, sizeof(session->dialogs[slot].message), message);
+    session->dialog_occupancy_bits[slot / 64u] |= UINT64_C(1) << (slot % 64u);
+    if (!kain_native_ui_index_insert(
+            session->dialog_index,
+            KAIN_NATIVE_UI_DIALOG_INDEX_CAPACITY,
+            KAIN_NATIVE_UI_DIALOG_INDEX_MASK,
+            kain_native_ui_mix_u64((uint64_t)session->dialogs[slot].id),
+            slot)) {
+        session->dialog_occupancy_bits[slot / 64u] &= ~(UINT64_C(1) << (slot % 64u));
+        memset(&session->dialogs[slot], 0, sizeof(session->dialogs[slot]));
+        return KAIN_NATIVE_UI_CAPACITY_EXCEEDED;
+    }
+    session->dialog_count += 1;
+    session->active_dialog_id = session->dialogs[slot].id;
+    return session->dialogs[slot].id;
 }
 
 int64_t kain_native_ui_dialog_active(int64_t session_id) {

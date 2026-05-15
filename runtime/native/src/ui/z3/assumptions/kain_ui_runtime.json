@@ -1,0 +1,4270 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "candidates[index] && _stricmp(value, candidates["
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 91,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "if",
+      "text": "if (candidates[index] && _stricmp(value, candidates[index]) == 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "issue_count",
+        "role": "count-like",
+        "type": "!report || report->"
+      },
+      "id": "if.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 192,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 192,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 192
+      },
+      "symbol": "if",
+      "text": "if (!report || report->issue_count >= KAIN_UI_RUNTIME_MAX_ISSUES) {",
+      "variables": [
+        "issue_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focusable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 296,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 296,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 296
+      },
+      "symbol": "if",
+      "text": "if (focusable_count > 0) {",
+      "variables": [
+        "focusable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "editable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 299,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "if",
+      "text": "if (editable_count > 0) {",
+      "variables": [
+        "editable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "root_index",
+        "role": "index-like",
+        "type": "bundle->has_root_id &&"
+      },
+      "id": "if.parameter-role.5",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 397,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 397,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 397
+      },
+      "symbol": "if",
+      "text": "if (bundle->has_root_id && root_index < 0) {",
+      "variables": [
+        "root_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "parent_index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "parent_index < 0",
+      "id": "if.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 411,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 411,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 411
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (parent_index < 0) {",
+      "variables": [
+        "parent_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "parent_index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.7",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 411,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 411,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 411
+      },
+      "symbol": "if",
+      "text": "if (parent_index < 0) {",
+      "variables": [
+        "parent_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focusable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.8",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 425,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 425,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 425
+      },
+      "symbol": "if",
+      "text": "if (focusable_count == 0) {",
+      "variables": [
+        "focusable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "editable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.9",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 434,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 434,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 434
+      },
+      "symbol": "if",
+      "text": "if (editable_count == 0) {",
+      "variables": [
+        "editable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focusable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.10",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 452,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 452,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 452
+      },
+      "symbol": "if",
+      "text": "if (focusable_count > 0) {",
+      "variables": [
+        "focusable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "editable_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.11",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 455,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 455,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 455
+      },
+      "symbol": "if",
+      "text": "if (editable_count > 0) {",
+      "variables": [
+        "editable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "!state || index < 0 ||"
+      },
+      "id": "if.parameter-role.12",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 498,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 498,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 498
+      },
+      "symbol": "if",
+      "text": "if (!state || index < 0 || index >= state->component_count) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "component_count",
+        "role": "count-like",
+        "type": "!state || state->"
+      },
+      "id": "if.parameter-role.13",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 539,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 539,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 539
+      },
+      "symbol": "if",
+      "text": "if (!state || state->component_count <= 0) {",
+      "variables": [
+        "component_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.14",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 589,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 589,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 589
+      },
+      "symbol": "if",
+      "text": "if (len == 0) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.15",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 603,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 603,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 603
+      },
+      "symbol": "if",
+      "text": "if (index < 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_append_text(component, event->text)",
+      "id": "if.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 622,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 622,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 622
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_append_text(component, event->text)) {",
+      "variables": [
+        "component",
+        "event",
+        "kain_ui_runtime_append_text",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->key_code == KAIN_UI_RUNTIME_KEY_BACKSPACE || event->key_code == KAIN_UI_RUNTIME_KEY_DELETE",
+      "id": "if.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 633,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 105,
+        "end_line": 633,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 633
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (event->key_code == KAIN_UI_RUNTIME_KEY_BACKSPACE || event->key_code == KAIN_UI_RUNTIME_KEY_DELETE) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_KEY_BACKSPACE",
+        "KAIN_UI_RUNTIME_KEY_DELETE",
+        "event",
+        "key_code"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_delete_last_char(component)",
+      "id": "if.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 634,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 634,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 634
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_delete_last_char(component)) {",
+      "variables": [
+        "component",
+        "kain_ui_runtime_delete_last_char"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_delete_last_char(component)",
+      "id": "if.guard-condition.20",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 634,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 634,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 634
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_delete_last_char(component)) {",
+      "variables": [
+        "component",
+        "kain_ui_runtime_delete_last_char"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->key_code == KAIN_UI_RUNTIME_KEY_ENTER",
+      "id": "if.guard-condition.19",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 642,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 642,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 642
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (event->key_code == KAIN_UI_RUNTIME_KEY_ENTER) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_KEY_ENTER",
+        "event",
+        "key_code"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_clear_focus(state)",
+      "id": "if.guard-condition.21",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 659,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_clear_focus(state)) {",
+      "variables": [
+        "kain_ui_runtime_clear_focus",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->target_component_id != 0ull",
+      "id": "if.guard-condition.22",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 668,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 668,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 668
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (event->target_component_id != 0ull) {",
+      "variables": [
+        "event",
+        "target_component_id",
+        "ull"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_request_focus(state, event->target_component_id)",
+      "id": "if.guard-condition.23",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 669,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 669,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 669
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_request_focus(state, event->target_component_id)) {",
+      "variables": [
+        "event",
+        "kain_ui_runtime_request_focus",
+        "state",
+        "target_component_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_request_focus(state, event->target_component_id)",
+      "id": "if.guard-condition.24",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 669,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 669,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 669
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_request_focus(state, event->target_component_id)) {",
+      "variables": [
+        "event",
+        "kain_ui_runtime_request_focus",
+        "state",
+        "target_component_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "focus_index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "focus_index < 0",
+      "id": "if.guard-condition.25",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 681,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 681,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 681
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focus_index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.29",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 681,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 681,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 681
+      },
+      "symbol": "if",
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)",
+      "id": "if.guard-condition.26",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 685,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 685,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 685
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index",
+        "kain_ui_runtime_set_focus_by_index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focus_index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.30",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 685,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 685,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 685
+      },
+      "symbol": "if",
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "focus_index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "focus_index < 0",
+      "id": "if.guard-condition.27",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 692,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 692,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 692
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focus_index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.31",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 692,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 692,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 692
+      },
+      "symbol": "if",
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)",
+      "id": "if.guard-condition.28",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 696,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 696,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 696
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index",
+        "kain_ui_runtime_set_focus_by_index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "focus_index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.32",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 696,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 696,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 696
+      },
+      "symbol": "if",
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_clear_focus(state)",
+      "id": "if.guard-condition.33",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 724,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 724,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 724
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_ui_runtime_clear_focus(state)) {",
+      "variables": [
+        "kain_ui_runtime_clear_focus",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "if.return-condition.34",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 833,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 833,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 833
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "if.return-condition.35",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 852,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 852,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 852
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "if.return-condition.36",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 868,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 868,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 868
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "if.return-condition.37",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 884,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 884,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 884
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "active",
+      "expression": "active",
+      "id": "if.guard-condition.38",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 972,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 972,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 972
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (active) {",
+      "variables": [
+        "active"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "active->dirty",
+      "id": "if.guard-condition.39",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 975,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 975,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 975
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (active->dirty) {",
+      "variables": [
+        "active",
+        "dirty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "active->dirty",
+      "id": "if.guard-condition.40",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 975,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 975,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 975
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (active->dirty) {",
+      "variables": [
+        "active",
+        "dirty"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "index < 0",
+      "id": "kain-ui-runtime-active-component.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 603,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 603,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 603
+      },
+      "symbol": "kain_ui_runtime_active_component",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (index < 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "kain-ui-runtime-active-component.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 606,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 606,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 606
+      },
+      "symbol": "kain_ui_runtime_active_component",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!component || !text || !text[0]",
+      "id": "kain-ui-runtime-append-text.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 559,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 39,
+        "end_line": 559,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 559
+      },
+      "symbol": "kain_ui_runtime_append_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!component || !text || !text[0]) {",
+      "variables": [
+        "component",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "room",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "room == 0",
+      "id": "kain-ui-runtime-append-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 566,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 566,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 566
+      },
+      "symbol": "kain_ui_runtime_append_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (room == 0) {",
+      "variables": [
+        "room"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "append_len",
+          "room"
+        ],
+        "op": "gt"
+      },
+      "expression": "append_len > room",
+      "id": "kain-ui-runtime-append-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 569,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 569,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 569
+      },
+      "symbol": "kain_ui_runtime_append_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (append_len > room) {",
+      "variables": [
+        "append_len",
+        "room"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-clear-focus.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 908,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 908,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 908
+      },
+      "symbol": "kain_ui_runtime_clear_focus",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state->focused_component_id && !state->active_edit_component_id",
+      "id": "kain-ui-runtime-clear-focus.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 912,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 912,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 912
+      },
+      "symbol": "kain_ui_runtime_clear_focus",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state->focused_component_id && !state->active_edit_component_id) {",
+      "variables": [
+        "active_edit_component_id",
+        "focused_component_id",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_cap",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-ui-runtime-copy-string.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 162,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 162,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 162
+      },
+      "symbol": "kain_ui_runtime_copy_string",
+      "text": "static void kain_ui_runtime_copy_string(char* out, size_t out_cap, const char* value) {",
+      "variables": [
+        "out_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "out_cap",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!out || out_cap == 0",
+      "id": "kain-ui-runtime-copy-string.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 163,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 163,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 163
+      },
+      "symbol": "kain_ui_runtime_copy_string",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out || out_cap == 0) {",
+      "variables": [
+        "out",
+        "out_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "value"
+        ],
+        "op": "not"
+      },
+      "expression": "!value",
+      "id": "kain-ui-runtime-copy-string.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 167,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 167,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 167
+      },
+      "symbol": "kain_ui_runtime_copy_string",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "component"
+        ],
+        "op": "not"
+      },
+      "expression": "!component",
+      "id": "kain-ui-runtime-delete-last-char.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 584,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "kain_ui_runtime_delete_last_char",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!component) {",
+      "variables": [
+        "component"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "len",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "len == 0",
+      "id": "kain-ui-runtime-delete-last-char.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 589,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 589,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 589
+      },
+      "symbol": "kain_ui_runtime_delete_last_char",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (len == 0) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-find-first-editable.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 878,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 878,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 878
+      },
+      "symbol": "kain_ui_runtime_find_first_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].editable",
+      "id": "kain-ui-runtime-find-first-editable.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 883,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 883,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 883
+      },
+      "symbol": "kain_ui_runtime_find_first_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "kain-ui-runtime-find-first-editable.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 884,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 884,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 884
+      },
+      "symbol": "kain_ui_runtime_find_first_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-find-first-focusable.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 862,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 862,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 862
+      },
+      "symbol": "kain_ui_runtime_find_first_focusable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].focusable || state->components[index].editable",
+      "id": "kain-ui-runtime-find-first-focusable.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 867,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 867,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 867
+      },
+      "symbol": "kain_ui_runtime_find_first_focusable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].focusable || state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "focusable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->components[index]",
+      "id": "kain-ui-runtime-find-first-focusable.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 868,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 868,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 868
+      },
+      "symbol": "kain_ui_runtime_find_first_focusable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return &state->components[index];",
+      "variables": [
+        "components",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->focused_component_id",
+      "id": "kain-ui-runtime-find-focused-index.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 522,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 522,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 522
+      },
+      "symbol": "kain_ui_runtime_find_focused_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->focused_component_id) {",
+      "variables": [
+        "focused_component_id",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].id == state->focused_component_id",
+      "id": "kain-ui-runtime-find-focused-index.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 527,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 527,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 527
+      },
+      "symbol": "kain_ui_runtime_find_focused_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].id == state->focused_component_id) {",
+      "variables": [
+        "components",
+        "focused_component_id",
+        "id",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "start_index",
+        "role": "index-like",
+        "type": "int"
+      },
+      "id": "kain-ui-runtime-find-next-focusable-index.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 535,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 115,
+        "end_line": 535,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 535
+      },
+      "symbol": "kain_ui_runtime_find_next_focusable_index",
+      "text": "static int kain_ui_runtime_find_next_focusable_index(const KainUiRuntimeState* state, int start_index, int step) {",
+      "variables": [
+        "start_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || state->component_count <= 0",
+      "id": "kain-ui-runtime-find-next-focusable-index.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 539,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 539,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 539
+      },
+      "symbol": "kain_ui_runtime_find_next_focusable_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || state->component_count <= 0) {",
+      "variables": [
+        "component_count",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].focusable || state->components[index].editable",
+      "id": "kain-ui-runtime-find-next-focusable-index.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 546,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 546,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 546
+      },
+      "symbol": "kain_ui_runtime_find_next_focusable_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].focusable || state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "focusable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!bundle || !bundle->loaded",
+      "id": "kain-ui-runtime-find-node-index.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 219,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 219,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 219
+      },
+      "symbol": "kain_ui_runtime_find_node_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!bundle || !bundle->loaded) {",
+      "variables": [
+        "bundle",
+        "loaded"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "bundle->nodes[index].id == id",
+      "id": "kain-ui-runtime-find-node-index.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 224,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 37,
+        "end_line": 224,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 224
+      },
+      "symbol": "kain_ui_runtime_find_node_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (bundle->nodes[index].id == id) {",
+      "variables": [
+        "bundle",
+        "id",
+        "index",
+        "nodes"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-has-capability.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 990,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 990,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 990
+      },
+      "symbol": "kain_ui_runtime_has_capability",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(state->capability_flags & capability_mask) == capability_mask",
+      "id": "kain-ui-runtime-has-capability.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 994,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 994,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 994
+      },
+      "symbol": "kain_ui_runtime_has_capability",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return (state->capability_flags & capability_mask) == capability_mask;",
+      "variables": [
+        "capability_flags",
+        "capability_mask",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_kain_ui_kind_profiles[index].kind == kind",
+      "id": "kain-ui-runtime-lookup-kind-profile.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 75,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 75,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 75
+      },
+      "symbol": "kain_ui_runtime_lookup_kind_profile",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_kain_ui_kind_profiles[index].kind == kind) {",
+      "variables": [
+        "g_kain_ui_kind_profiles",
+        "index",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "node"
+        ],
+        "op": "not"
+      },
+      "expression": "!node",
+      "id": "kain-ui-runtime-node-is-editable.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 142,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 142,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 142
+      },
+      "symbol": "kain_ui_runtime_node_is_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!node) {",
+      "variables": [
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "profile->editable",
+      "id": "kain-ui-runtime-node-is-editable.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 147,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 147,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 147
+      },
+      "symbol": "kain_ui_runtime_node_is_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (profile->editable) {",
+      "variables": [
+        "editable",
+        "profile"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_string_is_one_of(node->tag, g_kain_ui_editable_tags, sizeof(g_kain_ui_editable_tags) / sizeof(g_kain_ui_editable_tags[0]))",
+      "id": "kain-ui-runtime-node-is-editable.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 151,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 146,
+        "end_line": 151,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 151
+      },
+      "symbol": "kain_ui_runtime_node_is_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_string_is_one_of(node->tag, g_kain_ui_editable_tags, sizeof(g_kain_ui_editable_tags) / sizeof(g_kain_ui_editable_tags[0]))) {",
+      "variables": [
+        "g_kain_ui_editable_tags",
+        "kain_ui_runtime_string_is_one_of",
+        "node",
+        "tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_string_is_one_of(node->layout_kind, g_kain_ui_editable_layouts, sizeof(g_kain_ui_editable_layouts) / sizeof(g_kain_ui_editable_layouts[0]))",
+      "id": "kain-ui-runtime-node-is-editable.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 155,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 163,
+        "end_line": 155,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 155
+      },
+      "symbol": "kain_ui_runtime_node_is_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_string_is_one_of(node->layout_kind, g_kain_ui_editable_layouts, sizeof(g_kain_ui_editable_layouts) / sizeof(g_kain_ui_editable_layouts[0]))) {",
+      "variables": [
+        "g_kain_ui_editable_layouts",
+        "kain_ui_runtime_string_is_one_of",
+        "layout_kind",
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "node->kind == KAIN_UI_COMPILED_NODE_ELEMENT && node->tag[0] && _stricmp(node->tag, \"input\") == 0",
+      "id": "kain-ui-runtime-node-is-editable.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 159,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 105,
+        "end_line": 159,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 159
+      },
+      "symbol": "kain_ui_runtime_node_is_editable",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return node->kind == KAIN_UI_COMPILED_NODE_ELEMENT && node->tag[0] && _stricmp(node->tag, \"input\") == 0;",
+      "variables": [
+        "KAIN_UI_COMPILED_NODE_ELEMENT",
+        "_stricmp",
+        "input",
+        "kind",
+        "node",
+        "tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "node"
+        ],
+        "op": "not"
+      },
+      "expression": "!node",
+      "id": "kain-ui-runtime-node-is-focusable.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 119,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 119,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 119
+      },
+      "symbol": "kain_ui_runtime_node_is_focusable",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!node) {",
+      "variables": [
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "profile->focusable",
+      "id": "kain-ui-runtime-node-is-focusable.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 124,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 124,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 124
+      },
+      "symbol": "kain_ui_runtime_node_is_focusable",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (profile->focusable) {",
+      "variables": [
+        "focusable",
+        "profile"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_string_is_one_of(node->tag, g_kain_ui_focusable_tags, sizeof(g_kain_ui_focusable_tags) / sizeof(g_kain_ui_focusable_tags[0]))",
+      "id": "kain-ui-runtime-node-is-focusable.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 128,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 149,
+        "end_line": 128,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 128
+      },
+      "symbol": "kain_ui_runtime_node_is_focusable",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_string_is_one_of(node->tag, g_kain_ui_focusable_tags, sizeof(g_kain_ui_focusable_tags) / sizeof(g_kain_ui_focusable_tags[0]))) {",
+      "variables": [
+        "g_kain_ui_focusable_tags",
+        "kain_ui_runtime_string_is_one_of",
+        "node",
+        "tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_string_is_one_of(node->layout_kind, g_kain_ui_focusable_tags, sizeof(g_kain_ui_focusable_tags) / sizeof(g_kain_ui_focusable_tags[0]))",
+      "id": "kain-ui-runtime-node-is-focusable.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 132,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 157,
+        "end_line": 132,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 132
+      },
+      "symbol": "kain_ui_runtime_node_is_focusable",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_string_is_one_of(node->layout_kind, g_kain_ui_focusable_tags, sizeof(g_kain_ui_focusable_tags) / sizeof(g_kain_ui_focusable_tags[0]))) {",
+      "variables": [
+        "g_kain_ui_focusable_tags",
+        "kain_ui_runtime_string_is_one_of",
+        "layout_kind",
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "node"
+        ],
+        "op": "not"
+      },
+      "expression": "!node",
+      "id": "kain-ui-runtime-node-role.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 102,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 102,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 102
+      },
+      "symbol": "kain_ui_runtime_node_role",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!node) {",
+      "variables": [
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node->tag[0] && _stricmp(node->tag, \"overlay\") == 0",
+      "id": "kain-ui-runtime-node-role.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 107,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 107,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 107
+      },
+      "symbol": "kain_ui_runtime_node_role",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (node->tag[0] && _stricmp(node->tag, \"overlay\") == 0) {",
+      "variables": [
+        "_stricmp",
+        "node",
+        "overlay",
+        "tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "node->layout_kind[0] && _stricmp(node->layout_kind, \"editor\") == 0",
+      "id": "kain-ui-runtime-node-role.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 110,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "kain_ui_runtime_node_role",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (node->layout_kind[0] && _stricmp(node->layout_kind, \"editor\") == 0) {",
+      "variables": [
+        "_stricmp",
+        "editor",
+        "layout_kind",
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "profile->role",
+      "id": "kain-ui-runtime-node-role.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 113,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 113,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 113
+      },
+      "symbol": "kain_ui_runtime_node_role",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return profile->role;",
+      "variables": [
+        "profile",
+        "role"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->bundle.loaded",
+      "id": "kain-ui-runtime-rebuild-components.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 475,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 39,
+        "end_line": 475,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 475
+      },
+      "symbol": "kain_ui_runtime_rebuild_components",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->bundle.loaded) {",
+      "variables": [
+        "bundle",
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(kain_ui_runtime_build_component_state(",
+      "id": "kain-ui-runtime-rebuild-components.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 481,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 481,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 481
+      },
+      "symbol": "kain_ui_runtime_rebuild_components",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_build_component_state(",
+      "variables": [
+        "kain_ui_runtime_build_component_state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-ui-runtime-refresh-state-capabilities.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 282,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 282,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 282
+      },
+      "symbol": "kain_ui_runtime_refresh_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].focusable",
+      "id": "kain-ui-runtime-refresh-state-capabilities.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 288,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 288,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 288
+      },
+      "symbol": "kain_ui_runtime_refresh_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].focusable) {",
+      "variables": [
+        "components",
+        "focusable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].editable",
+      "id": "kain-ui-runtime-refresh-state-capabilities.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 291,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 291,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 291
+      },
+      "symbol": "kain_ui_runtime_refresh_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "focusable_count",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "focusable_count > 0",
+      "id": "kain-ui-runtime-refresh-state-capabilities.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 296,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 296,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 296
+      },
+      "symbol": "kain_ui_runtime_refresh_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (focusable_count > 0) {",
+      "variables": [
+        "focusable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "editable_count",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "editable_count > 0",
+      "id": "kain-ui-runtime-refresh-state-capabilities.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 299,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 299,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 299
+      },
+      "symbol": "kain_ui_runtime_refresh_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (editable_count > 0) {",
+      "variables": [
+        "editable_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-request-focus.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 894,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 894,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 894
+      },
+      "symbol": "kain_ui_runtime_request_focus",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].id == component_id",
+      "id": "kain-ui-runtime-request-focus.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 899,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 899,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 899
+      },
+      "symbol": "kain_ui_runtime_request_focus",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].id == component_id) {",
+      "variables": [
+        "component_id",
+        "components",
+        "id",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              {
+                "args": [
+                  "state"
+                ],
+                "op": "not"
+              },
+              {
+                "args": [
+                  "event"
+                ],
+                "op": "not"
+              }
+            ],
+            "op": "or"
+          },
+          {
+            "args": [
+              "result"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !event || !result",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 654,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 654,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 654
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !event || !result) {",
+      "variables": [
+        "event",
+        "result",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_BLUR",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 658,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 658,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 658
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_BLUR) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_BLUR",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_clear_focus(state)",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 659,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_clear_focus(state)) {",
+      "variables": [
+        "kain_ui_runtime_clear_focus",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_FOCUS_REQUEST || event->kind == KAIN_UI_RUNTIME_EVENT_POINTER_DOWN",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 667,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 111,
+        "end_line": 667,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 667
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_FOCUS_REQUEST || event->kind == KAIN_UI_RUNTIME_EVENT_POINTER_DOWN) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_FOCUS_REQUEST",
+        "KAIN_UI_RUNTIME_EVENT_POINTER_DOWN",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->target_component_id != 0ull",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 668,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 668,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 668
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->target_component_id != 0ull) {",
+      "variables": [
+        "event",
+        "target_component_id",
+        "ull"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_request_focus(state, event->target_component_id)",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 669,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 669,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 669
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_request_focus(state, event->target_component_id)) {",
+      "variables": [
+        "event",
+        "kain_ui_runtime_request_focus",
+        "state",
+        "target_component_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_FOCUS_NEXT",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 680,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 680,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 680
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_FOCUS_NEXT) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_FOCUS_NEXT",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "focus_index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "focus_index < 0",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 681,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 681,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 681
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 685,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 685,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 685
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index",
+        "kain_ui_runtime_set_focus_by_index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "focus_index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "focus_index < 0",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 692,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 692,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 692
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (focus_index < 0) {",
+      "variables": [
+        "focus_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)",
+      "id": "kain-ui-runtime-route-focus-event.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 696,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 696,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 696
+      },
+      "symbol": "kain_ui_runtime_route_focus_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (focus_index >= 0 && kain_ui_runtime_set_focus_by_index(state, focus_index)) {",
+      "variables": [
+        "focus_index",
+        "kain_ui_runtime_set_focus_by_index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              {
+                "args": [
+                  "state"
+                ],
+                "op": "not"
+              },
+              {
+                "args": [
+                  "event"
+                ],
+                "op": "not"
+              }
+            ],
+            "op": "or"
+          },
+          {
+            "args": [
+              "result"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !event || !result",
+      "id": "kain-ui-runtime-route-key-non-text-event.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 708,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 708,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 708
+      },
+      "symbol": "kain_ui_runtime_route_key_non_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !event || !result) {",
+      "variables": [
+        "event",
+        "result",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_KEY_DOWN && event->key_code == KAIN_UI_RUNTIME_KEY_TAB",
+      "id": "kain-ui-runtime-route-key-non-text-event.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 712,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 99,
+        "end_line": 712,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 712
+      },
+      "symbol": "kain_ui_runtime_route_key_non_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_KEY_DOWN && event->key_code == KAIN_UI_RUNTIME_KEY_TAB) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_KEY_DOWN",
+        "KAIN_UI_RUNTIME_KEY_TAB",
+        "event",
+        "key_code",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_EDIT_COMMIT",
+      "id": "kain-ui-runtime-route-key-non-text-event.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 719,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 56,
+        "end_line": 719,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 719
+      },
+      "symbol": "kain_ui_runtime_route_key_non_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_EDIT_COMMIT) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_EDIT_COMMIT",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_EDIT_CANCEL",
+      "id": "kain-ui-runtime-route-key-non-text-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 723,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 56,
+        "end_line": 723,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 723
+      },
+      "symbol": "kain_ui_runtime_route_key_non_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_EDIT_CANCEL) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_EDIT_CANCEL",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_clear_focus(state)",
+      "id": "kain-ui-runtime-route-key-non-text-event.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 724,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 724,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 724
+      },
+      "symbol": "kain_ui_runtime_route_key_non_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_clear_focus(state)) {",
+      "variables": [
+        "kain_ui_runtime_clear_focus",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              {
+                "args": [
+                  "state"
+                ],
+                "op": "not"
+              },
+              {
+                "args": [
+                  "event"
+                ],
+                "op": "not"
+              }
+            ],
+            "op": "or"
+          },
+          {
+            "args": [
+              "result"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !event || !result",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 612,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 612,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 612
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !event || !result) {",
+      "variables": [
+        "event",
+        "result",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!component || !component->editable",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 617,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 617,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 617
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!component || !component->editable) {",
+      "variables": [
+        "component",
+        "editable"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_TEXT_INPUT",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 621,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 621,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 621
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_TEXT_INPUT) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_TEXT_INPUT",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_append_text(component, event->text)",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 622,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 622,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 622
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_append_text(component, event->text)) {",
+      "variables": [
+        "component",
+        "event",
+        "kain_ui_runtime_append_text",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->kind == KAIN_UI_RUNTIME_EVENT_KEY_DOWN",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 632,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 632,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 632
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->kind == KAIN_UI_RUNTIME_EVENT_KEY_DOWN) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_EVENT_KEY_DOWN",
+        "event",
+        "kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->key_code == KAIN_UI_RUNTIME_KEY_BACKSPACE || event->key_code == KAIN_UI_RUNTIME_KEY_DELETE",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 633,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 105,
+        "end_line": 633,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 633
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->key_code == KAIN_UI_RUNTIME_KEY_BACKSPACE || event->key_code == KAIN_UI_RUNTIME_KEY_DELETE) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_KEY_BACKSPACE",
+        "KAIN_UI_RUNTIME_KEY_DELETE",
+        "event",
+        "key_code"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_ui_runtime_delete_last_char(component)",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 634,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 51,
+        "end_line": 634,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 634
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_ui_runtime_delete_last_char(component)) {",
+      "variables": [
+        "component",
+        "kain_ui_runtime_delete_last_char"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->key_code == KAIN_UI_RUNTIME_KEY_ENTER",
+      "id": "kain-ui-runtime-route-text-event.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 642,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 642,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 642
+      },
+      "symbol": "kain_ui_runtime_route_text_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->key_code == KAIN_UI_RUNTIME_KEY_ENTER) {",
+      "variables": [
+        "KAIN_UI_RUNTIME_KEY_ENTER",
+        "event",
+        "key_code"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "int"
+      },
+      "id": "kain-ui-runtime-set-focus-by-index.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 495,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 495,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 495
+      },
+      "symbol": "kain_ui_runtime_set_focus_by_index",
+      "text": "static int kain_ui_runtime_set_focus_by_index(KainUiRuntimeState* state, int index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || index < 0 || index >= state->component_count",
+      "id": "kain-ui-runtime-set-focus-by-index.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 498,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 498,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 498
+      },
+      "symbol": "kain_ui_runtime_set_focus_by_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || index < 0 || index >= state->component_count) {",
+      "variables": [
+        "component_count",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state->components[index].focusable && !state->components[index].editable",
+      "id": "kain-ui-runtime-set-focus-by-index.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 502,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 81,
+        "end_line": 502,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 502
+      },
+      "symbol": "kain_ui_runtime_set_focus_by_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state->components[index].focusable && !state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "focusable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->focused_component_id != focus_id",
+      "id": "kain-ui-runtime-set-focus-by-index.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 507,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 47,
+        "end_line": 507,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 507
+      },
+      "symbol": "kain_ui_runtime_set_focus_by_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->focused_component_id != focus_id) {",
+      "variables": [
+        "focus_id",
+        "focused_component_id",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->components[index].editable",
+      "id": "kain-ui-runtime-set-focus-by-index.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 511,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 511,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 511
+      },
+      "symbol": "kain_ui_runtime_set_focus_by_index",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->components[index].editable) {",
+      "variables": [
+        "components",
+        "editable",
+        "index",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->loaded",
+      "id": "kain-ui-runtime-state-capabilities.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 998,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 998,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 998
+      },
+      "symbol": "kain_ui_runtime_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->loaded) {",
+      "variables": [
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "state->capability_flags",
+      "id": "kain-ui-runtime-state-capabilities.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 1002,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 1002,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 1002
+      },
+      "symbol": "kain_ui_runtime_state_capabilities",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return state->capability_flags;",
+      "variables": [
+        "capability_flags",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-ui-runtime-state-init.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 739,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 739,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 739
+      },
+      "symbol": "kain_ui_runtime_state_init",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "bundle"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !bundle",
+      "id": "kain-ui-runtime-state-load-bundle.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 756,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 756,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 756
+      },
+      "symbol": "kain_ui_runtime_state_load_bundle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !bundle) {",
+      "variables": [
+        "bundle",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state->bundle.loaded",
+      "id": "kain-ui-runtime-state-load-bundle.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 763,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 763,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 763
+      },
+      "symbol": "kain_ui_runtime_state_load_bundle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state->bundle.loaded) {",
+      "variables": [
+        "bundle",
+        "loaded",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "env_name"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !env_name",
+      "id": "kain-ui-runtime-state-load-from-env.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 808,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 808,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 808
+      },
+      "symbol": "kain_ui_runtime_state_load_from_env",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!state || !env_name) {",
+      "variables": [
+        "env_name",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_ui_compiled_bundle_load_from_env(env_name, &bundle)",
+      "id": "kain-ui-runtime-state-load-from-env.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 813,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 813,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 813
+      },
+      "symbol": "kain_ui_runtime_state_load_from_env",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!kain_ui_compiled_bundle_load_from_env(env_name, &bundle)) {",
+      "variables": [
+        "bundle",
+        "env_name",
+        "kain_ui_compiled_bundle_load_from_env"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "json"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !json",
+      "id": "kain-ui-runtime-state-load-from-json.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 776,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 776,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 776
+      },
+      "symbol": "kain_ui_runtime_state_load_from_json",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!state || !json) {",
+      "variables": [
+        "json",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_ui_compiled_bundle_load_from_json(json, &bundle)",
+      "id": "kain-ui-runtime-state-load-from-json.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 781,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 781,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 781
+      },
+      "symbol": "kain_ui_runtime_state_load_from_json",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!kain_ui_compiled_bundle_load_from_json(json, &bundle)) {",
+      "variables": [
+        "bundle",
+        "json",
+        "kain_ui_compiled_bundle_load_from_json"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "path"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!state || !path",
+      "id": "kain-ui-runtime-state-load-from-path.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 792,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 792,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 792
+      },
+      "symbol": "kain_ui_runtime_state_load_from_path",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!state || !path) {",
+      "variables": [
+        "path",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_ui_compiled_bundle_load_from_path(path, &bundle)",
+      "id": "kain-ui-runtime-state-load-from-path.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 797,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 797,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 797
+      },
+      "symbol": "kain_ui_runtime_state_load_from_path",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!kain_ui_compiled_bundle_load_from_path(path, &bundle)) {",
+      "variables": [
+        "bundle",
+        "kain_ui_compiled_bundle_load_from_path",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "candidate_count",
+        "role": "count-like",
+        "type": "size_t"
+      },
+      "id": "kain-ui-runtime-string-is-one-of.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 83,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 120,
+        "end_line": 83,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 83
+      },
+      "symbol": "kain_ui_runtime_string_is_one_of",
+      "text": "static int kain_ui_runtime_string_is_one_of(const char* value, const char* const* candidates, size_t candidate_count) {",
+      "variables": [
+        "candidate_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "candidate_count",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-ui-runtime-string-is-one-of.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 83,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 120,
+        "end_line": 83,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 83
+      },
+      "symbol": "kain_ui_runtime_string_is_one_of",
+      "text": "static int kain_ui_runtime_string_is_one_of(const char* value, const char* const* candidates, size_t candidate_count) {",
+      "variables": [
+        "candidate_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!value || !value[0] || !candidates",
+      "id": "kain-ui-runtime-string-is-one-of.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 86,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "kain_ui_runtime_string_is_one_of",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!value || !value[0] || !candidates) {",
+      "variables": [
+        "candidates",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "candidates[index] && _stricmp(value, candidates[index]) == 0",
+      "id": "kain-ui-runtime-string-is-one-of.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 91,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 91,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 91
+      },
+      "symbol": "kain_ui_runtime_string_is_one_of",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (candidates[index] && _stricmp(value, candidates[index]) == 0) {",
+      "variables": [
+        "_stricmp",
+        "candidates",
+        "index",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "report"
+        ],
+        "op": "not"
+      },
+      "expression": "!report",
+      "id": "kain-ui-runtime-validation-init-inner.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 176,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 176,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+        "start_col": 1,
+        "start_line": 176
+      },
+      "symbol": "kain_ui_runtime_validation_init_inner",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!report) {",
+      "variables": [
+        "report"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "c43cf3dc8100f0a09225665ae82fba2ac22be87320656541aaf62c4802ab426f",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_ui_runtime.c",
+  "version": 1
+}

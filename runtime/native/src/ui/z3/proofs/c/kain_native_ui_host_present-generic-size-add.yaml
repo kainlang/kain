@@ -12,8 +12,8 @@ source:
   language: c
   symbol: kain_native_ui_host_present
   signature: int64_t kain_native_ui_host_present(int64_t session_id) {
-  start_line: 488
-  end_line: 520
+  start_line: 847
+  end_line: 879
   template_id: generic-size-add
   template_origin: builtin
   template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml

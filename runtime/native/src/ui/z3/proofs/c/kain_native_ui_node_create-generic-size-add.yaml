@@ -13,8 +13,8 @@ source:
   symbol: kain_native_ui_node_create
   signature: int64_t kain_native_ui_node_create(int64_t session_id, const char* kind)
     {
-  start_line: 555
-  end_line: 577
+  start_line: 914
+  end_line: 948
   template_id: generic-size-add
   template_origin: builtin
   template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml

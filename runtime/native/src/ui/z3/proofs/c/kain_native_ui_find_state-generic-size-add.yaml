@@ -13,8 +13,8 @@ source:
   symbol: kain_native_ui_find_state
   signature: static KainNativeUiStateRecord* kain_native_ui_find_state(KainNativeUiSession*
     session, int64_t node_id, const char* key) {
-  start_line: 208
-  end_line: 221
+  start_line: 443
+  end_line: 469
   template_id: generic-size-add
   template_origin: builtin
   template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml

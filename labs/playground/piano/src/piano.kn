@@ -1,0 +1,202 @@
+fn piano_cache_dir() -> String:
+    return "native/piano_cache"
+
+fn piano_sample_rate() -> Int:
+    return 48000
+
+fn bool_text(flag: Bool) -> String:
+    if flag:
+        return "yes"
+    return "no"
+
+fn piano_boot_status_text() -> String:
+    return f"audio=offline|reason=boot-pending|error=none|sample_rate={piano_sample_rate()}|recording=no|loop_playing=no|notes=0|loop_ms=0|cache={piano_cache_dir()}"
+
+fn boot_audio() -> Bool:
+    return piano_audio_init(piano_cache_dir(), piano_sample_rate()) == 1
+
+world PianoLab:
+    state audio_ready: Bool = false
+    state audio_status: String = piano_boot_status_text()
+    state status_line: String = "Ready the keyboard. Audio boots on first touch."
+    state detail_line: String = "Kain owns the surface; C owns the sound."
+    state loop_line: String = "loop notes: 0 | loop ms: 0 | audio ready: no"
+    state last_note: String = "none"
+    state note_count: Int = 0
+    state recording: Bool = false
+    state loop_playing: Bool = false
+    state loop_note_count: Int = 0
+    state loop_duration_ms: Int = 0
+    state action_total: Int = 0
+    state action_log: Array<String> = []
+    surface native_ui => App
+
+patch sync_view(piano: PianoLab, reason: String) -> String:
+    piano.audio_status = piano_audio_status(())
+    piano.status_line = f"{reason} | {piano.audio_status}"
+    piano.detail_line = f"last note: {piano.last_note} | taps: {piano.note_count} | actions: {piano.action_total} | recording: {bool_text(piano.recording)} | loop playing: {bool_text(piano.loop_playing)}"
+    piano.loop_line = f"loop notes: {piano.loop_note_count} | loop ms: {piano.loop_duration_ms} | audio ready: {bool_text(piano.audio_ready)}"
+    return piano.status_line
+
+patch log_action(piano: PianoLab, message: String) -> Int:
+    piano.action_total = piano.action_total + 1
+    piano.action_log.push(f"{piano.action_total}. {message}")
+    return piano.action_total
+
+patch ensure_audio(piano: PianoLab) -> Bool:
+    if !piano.audio_ready:
+        piano.audio_ready = boot_audio()
+    piano.audio_status = piano_audio_status(())
+    if piano.audio_ready:
+        return true
+    sync_view(piano, "Audio engine unavailable")
+    return false
+
+patch play_key(piano: PianoLab, label: String, midi_note: Int) -> Int:
+    if !ensure_audio(piano):
+        log_action(piano, f"audio boot failed for {label}")
+        sync_view(piano, "Audio engine unavailable")
+        return piano.note_count
+
+    if piano_audio_note_on(midi_note) == 1:
+        piano.last_note = label
+        piano.note_count = piano.note_count + 1
+        log_action(piano, f"tap {label}")
+        sync_view(piano, f"Played {label}")
+    else:
+        log_action(piano, f"failed {label}")
+        sync_view(piano, f"Audio call failed for {label}")
+    return piano.note_count
+
+patch start_recording(piano: PianoLab) -> Bool:
+    if !ensure_audio(piano):
+        log_action(piano, "record boot failed")
+        sync_view(piano, "Audio engine unavailable")
+        return false
+
+    if piano_audio_start_recording(()) == 1:
+        piano.recording = true
+        piano.loop_playing = false
+        piano.loop_note_count = 0
+        piano.loop_duration_ms = 0
+        log_action(piano, "record armed")
+        sync_view(piano, "Recording loop")
+        return true
+
+    log_action(piano, "record arm failed")
+    sync_view(piano, "Unable to arm loop recording")
+    return false
+
+patch stop_recording(piano: PianoLab) -> Int:
+    if !ensure_audio(piano):
+        log_action(piano, "record stop failed")
+        sync_view(piano, "Audio engine unavailable")
+        return 0
+
+    let captured: Int = piano_audio_stop_recording(())
+    piano.recording = false
+    piano.loop_playing = false
+    piano.loop_note_count = captured
+    piano.loop_duration_ms = piano_audio_loop_duration_ms(())
+    log_action(piano, f"record stopped with {captured} notes")
+    sync_view(piano, "Loop captured")
+    return captured
+
+patch start_loop(piano: PianoLab) -> Bool:
+    if !ensure_audio(piano):
+        log_action(piano, "loop boot failed")
+        sync_view(piano, "Audio engine unavailable")
+        return false
+
+    if piano_audio_start_loop_playback(()) == 1:
+        piano.loop_playing = true
+        piano.recording = false
+        log_action(piano, "loop playing")
+        sync_view(piano, "Loop cycling")
+        return true
+
+    piano.loop_playing = false
+    log_action(piano, "loop unavailable")
+    sync_view(piano, "No captured loop yet")
+    return false
+
+patch stop_loop(piano: PianoLab) -> Bool:
+    if !ensure_audio(piano):
+        log_action(piano, "loop stop boot failed")
+        sync_view(piano, "Audio engine unavailable")
+        return false
+
+    piano_audio_stop_loop_playback(())
+    piano.loop_playing = false
+    log_action(piano, "loop stopped")
+    sync_view(piano, "Loop stopped")
+    return true
+
+patch clear_loop(piano: PianoLab) -> Bool:
+    if !ensure_audio(piano):
+        log_action(piano, "clear boot failed")
+        sync_view(piano, "Audio engine unavailable")
+        return false
+
+    piano_audio_clear_loop(())
+    piano.recording = false
+    piano.loop_playing = false
+    piano.loop_note_count = 0
+    piano.loop_duration_ms = 0
+    log_action(piano, "loop cleared")
+    sync_view(piano, "Loop cleared")
+    return true
+
+fn handle_record_loop():
+    start_recording(PianoLab)
+
+fn handle_stop_recording():
+    stop_recording(PianoLab)
+
+fn handle_play_loop():
+    start_loop(PianoLab)
+
+fn handle_stop_loop():
+    stop_loop(PianoLab)
+
+fn handle_clear_loop():
+    clear_loop(PianoLab)
+
+fn handle_c4():
+    play_key(PianoLab, "C4", 60)
+
+fn handle_d4():
+    play_key(PianoLab, "D4", 62)
+
+fn handle_e4():
+    play_key(PianoLab, "E4", 64)
+
+fn handle_f4():
+    play_key(PianoLab, "F4", 65)
+
+fn handle_g4():
+    play_key(PianoLab, "G4", 67)
+
+fn handle_a4():
+    play_key(PianoLab, "A4", 69)
+
+fn handle_b4():
+    play_key(PianoLab, "B4", 71)
+
+fn handle_c5():
+    play_key(PianoLab, "C5", 72)
+
+fn handle_csharp4():
+    play_key(PianoLab, "C#4", 61)
+
+fn handle_dsharp4():
+    play_key(PianoLab, "D#4", 63)
+
+fn handle_fsharp4():
+    play_key(PianoLab, "F#4", 66)
+
+fn handle_gsharp4():
+    play_key(PianoLab, "G#4", 68)
+
+fn handle_asharp4():
+    play_key(PianoLab, "A#4", 70)

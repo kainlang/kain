@@ -13,8 +13,8 @@ source:
   symbol: kain_native_ui_node_destroy
   signature: int64_t kain_native_ui_node_destroy(int64_t session_id, int64_t node_id)
     {
-  start_line: 579
-  end_line: 600
+  start_line: 950
+  end_line: 998
   template_id: generic-size-add
   template_origin: builtin
   template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml

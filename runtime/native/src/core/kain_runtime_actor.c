@@ -112,6 +112,7 @@ static KainActorId kain_actor_restart_child(KainActorState_Internal* child, Kain
 static void kain_actor_escalate_to_supervisor(KainActorState_Internal* child);
 static void kain_actor_close_mailbox(KainActorState_Internal* actor);
 static void kain_actor_registry_clear(void);
+static void kain_actor_runtime_ensure_initialized(void);
 static void kain_actor_finalize_exit_state(
     KainActorState_Internal* actor,
     KainActorExitReason bootstrap_exit_reason
@@ -168,6 +169,12 @@ void kain_actor_runtime_init(void) {
     }
 
     g_actor_runtime_initialized = 1;
+}
+
+static void kain_actor_runtime_ensure_initialized(void) {
+    if (!g_actor_runtime_initialized) {
+        kain_actor_runtime_init();
+    }
 }
 
 KainActorAbiDescriptor kain_actor_abi_descriptor(void) {
@@ -536,9 +543,7 @@ KainActorId kain_actor_spawn(
     const KainActorSpawnConfig* config,
     KainDiagnostic* diag
 ) {
-    if (!g_actor_runtime_initialized) {
-        kain_actor_runtime_init();
-    }
+    kain_actor_runtime_ensure_initialized();
 
     if (config == NULL || config->bootstrap_fn == NULL) {
         if (diag != NULL) {
@@ -1399,6 +1404,8 @@ int kain_actor_registry_register(
     KainActorId actor_id,
     KainDiagnostic* diag
 ) {
+    kain_actor_runtime_ensure_initialized();
+
     if (name == NULL || actor_id == KAIN_ACTOR_ID_INVALID) {
         return -1;
     }
@@ -1458,6 +1465,8 @@ int kain_actor_registry_register(
 }
 
 KainActorId kain_actor_registry_lookup(const char* name) {
+    kain_actor_runtime_ensure_initialized();
+
     if (name == NULL) {
         return KAIN_ACTOR_ID_INVALID;
     }
@@ -1497,6 +1506,8 @@ int kain_actor_registry_unregister(
     const char* name,
     KainDiagnostic* diag
 ) {
+    kain_actor_runtime_ensure_initialized();
+
     (void)diag;
 
     if (name == NULL) {

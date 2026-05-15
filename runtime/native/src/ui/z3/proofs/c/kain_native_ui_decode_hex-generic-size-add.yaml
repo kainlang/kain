@@ -12,8 +12,8 @@ source:
   symbol: kain_native_ui_decode_hex
   signature: static int64_t kain_native_ui_decode_hex(const char* bytes_hex, uint8_t**
     out_bytes) {
-  start_line: 270
-  end_line: 314
+  start_line: 629
+  end_line: 673
   template_id: generic-size-add
   template_origin: builtin
   template_path: C:\Dev\polytools\z3-mcp\src\z3_mcp\templates\languages\generic.yaml

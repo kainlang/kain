@@ -957,7 +957,9 @@ static LRESULT CALLBACK kain_native_ui_win32_gl_window_proc(
             return 0;
         case WM_DESTROY:
             state->session->host_should_close = 1;
+            state->session->open = 0;
             state->hwnd = NULL;
+            state->window_created = 0;
             PostQuitMessage(0);
             return 0;
         case WM_ERASEBKGND:
@@ -971,7 +973,7 @@ static int kain_native_ui_win32_gl_ensure_window(KainNativeUiWin32GlState* state
     RECT rect;
     WNDCLASSA window_class;
     const char* window_title;
-    if (!state || !state->session) {
+    if (!state || !state->session || state->session->host_should_close || !state->session->open) {
         return 0;
     }
     if (state->window_created && state->hwnd) {
@@ -1026,10 +1028,14 @@ static int kain_native_ui_win32_gl_ensure_window(KainNativeUiWin32GlState* state
     return 1;
 }
 
-static void kain_native_ui_win32_gl_pump_messages(void) {
+static void kain_native_ui_win32_gl_pump_messages(KainNativeUiWin32GlState* state) {
     MSG msg;
     while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
         if (msg.message == WM_QUIT) {
+            if (state && state->session) {
+                state->session->host_should_close = 1;
+                state->session->open = 0;
+            }
             continue;
         }
         TranslateMessage(&msg);
@@ -1084,7 +1090,7 @@ int64_t kain_native_ui_win32_gl_pump(KainNativeUiSession* session) {
     if (!kain_native_ui_win32_gl_ensure_window(state)) {
         return KAIN_NATIVE_UI_INVALID_ARGUMENT;
     }
-    kain_native_ui_win32_gl_pump_messages();
+    kain_native_ui_win32_gl_pump_messages(state);
     kain_native_ui_win32_gl_process_menu(state);
     kain_native_ui_win32_gl_process_dialog(state);
     return KAIN_NATIVE_UI_OK;
@@ -1098,7 +1104,7 @@ int64_t kain_native_ui_win32_gl_present(KainNativeUiSession* session) {
     if (!kain_native_ui_win32_gl_ensure_window(state)) {
         return KAIN_NATIVE_UI_INVALID_ARGUMENT;
     }
-    kain_native_ui_win32_gl_pump_messages();
+    kain_native_ui_win32_gl_pump_messages(state);
     kain_native_ui_win32_gl_process_menu(state);
     kain_native_ui_win32_gl_process_dialog(state);
     kain_native_ui_win32_gl_render(state);
@@ -1110,6 +1116,8 @@ void kain_native_ui_win32_gl_shutdown(KainNativeUiSession* session) {
     if (!state) {
         return;
     }
+    session->open = 0;
+    session->host_should_close = 1;
     if (state->surface.dc || state->surface.glrc) {
         kain_native_ui_win32_gl_destroy_textures(state);
         kain_win32_gl_surface_shutdown(state->hwnd, &state->surface);

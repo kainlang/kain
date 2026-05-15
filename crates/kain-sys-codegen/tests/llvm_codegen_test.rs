@@ -757,6 +757,36 @@ fn main() -> Int:
     assert!(!llvm.contains("call i64 @kain_native_result_is_err"));
     assert!(llvm.contains("call i8* @kain_native_future_ready_from_value"));
     assert!(llvm.contains("call i64 @kain_native_future_await_payload_copy"));
+
+    let maybe_start = llvm
+        .find("define i8* @maybe(i1 %arg0)")
+        .expect("maybe function should be emitted");
+    let maybe_rest = &llvm[maybe_start..];
+    let maybe_end = maybe_rest
+        .find("\n}\n")
+        .expect("maybe function should terminate");
+    let maybe_ir = &maybe_rest[..maybe_end];
+    assert!(
+        !maybe_ir.contains("call void @rc_retain(i8*"),
+        "fresh tagged return should not retain in maybe():\n{}",
+        maybe_ir
+    );
+
+    let main_start = llvm
+        .find("define i64 @main()")
+        .expect("main function should be emitted");
+    let main_rest = &llvm[main_start..];
+    let main_end = main_rest
+        .find("\n}\n")
+        .expect("main function should terminate");
+    let main_ir = &main_rest[..main_end];
+    let tagged_temp_release_count = main_ir.matches("call void @rc_release(i8*").count();
+    assert!(
+        tagged_temp_release_count >= 5,
+        "expected tagged temporary releases in main, found {}:\n{}",
+        tagged_temp_release_count,
+        main_ir
+    );
 }
 
 #[test]
