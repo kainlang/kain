@@ -313,6 +313,37 @@ shader compute storage_mix_smoke(id: UVec3) -> Vec4:
 }
 
 #[test]
+fn spirv_edge_case_multi_entry_storage_buffer_types_are_decorated_once() {
+    let src = r#"
+shader compute first_entry(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let i = id.x
+    let v = src[i]
+    dst[i] = vec4(v.x + 1.0, v.y, v.z, 1.0)
+    return dst[i]
+
+shader compute second_entry(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let i = id.x
+    let v = src[i]
+    dst[i] = vec4(v.x, v.y + 1.0, v.z, 1.0)
+    return dst[i]
+"#;
+
+    assert_valid_spirv_case("multi_entry_storage_buffer_types_once", src);
+}
+
+#[test]
 fn spirv_edge_case_loop_cfg_and_continue_paths() {
     let src = r#"
 shader compute loop_cfg_smoke(id: UVec3) -> Vec4:

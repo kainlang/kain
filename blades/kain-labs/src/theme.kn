@@ -1,0 +1,72 @@
+use modes::mode_category
+
+pub fn accent_r(mode_id: Int) -> Float:
+    if mode_category(mode_id) == "ELEMENTAL":
+        return 1.0
+    if mode_category(mode_id) == "QUANTUM":
+        return 0.55
+    if mode_category(mode_id) == "HYDRO":
+        return 0.05
+    return 0.0
+
+pub fn accent_g(mode_id: Int) -> Float:
+    if mode_category(mode_id) == "ELEMENTAL":
+        return 0.36
+    if mode_category(mode_id) == "QUANTUM":
+        return 0.35
+    if mode_category(mode_id) == "HYDRO":
+        return 0.72
+    return 1.0
+
+pub fn accent_b(mode_id: Int) -> Float:
+    if mode_category(mode_id) == "ELEMENTAL":
+        return 0.04
+    if mode_category(mode_id) == "QUANTUM":
+        return 1.0
+    if mode_category(mode_id) == "HYDRO":
+        return 1.0
+    return 0.80
+
+pub fn apply_shell_theme(session_id: Int, root: Int, topbar: Int, left: Int, viewport: Int, right: Int, status: Int) -> Int:
+    let _root = ui_style_color_rgba(session_id, root, "fill", 0.0, 0.0, 0.0, 1.0)
+    let _top = ui_style_color_rgba(session_id, topbar, "fill", 0.02, 0.06, 0.07, 0.96)
+    let _left = ui_style_color_rgba(session_id, left, "fill", 0.015, 0.018, 0.024, 0.98)
+    let _view = ui_style_color_rgba(session_id, viewport, "fill", 0.005, 0.006, 0.010, 1.0)
+    let _right = ui_style_color_rgba(session_id, right, "fill", 0.018, 0.018, 0.023, 0.98)
+    return ui_style_color_rgba(session_id, status, "fill", 0.02, 0.06, 0.07, 0.96)
+
+pub fn apply_text_theme(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.78, 1.0, 0.94, 1.0)
+
+pub fn apply_dim_text_theme(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.30, 0.62, 0.58, 1.0)
+
+pub fn apply_title_theme(session_id: Int, node_id: Int) -> Int:
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.92, 1.0, 0.98, 1.0)
+
+pub fn apply_mode_button_theme(session_id: Int, node_id: Int, mode_id: Int, selected_mode: Int) -> Int:
+    let r = accent_r(mode_id)
+    let g = accent_g(mode_id)
+    let b = accent_b(mode_id)
+    if mode_id == selected_mode:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", r * 0.32, g * 0.32, b * 0.32, 0.92)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.95, 1.0, 0.98, 1.0)
+    let _dark = ui_style_color_rgba(session_id, node_id, "fill", 0.025, 0.025, 0.032, 0.96)
+    return ui_style_color_rgba(session_id, node_id, "ink", r * 0.68, g * 0.68, b * 0.68, 1.0)
+
+pub fn apply_action_theme(session_id: Int, node_id: Int, selected_mode: Int) -> Int:
+    let r = accent_r(selected_mode)
+    let g = accent_g(selected_mode)
+    let b = accent_b(selected_mode)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", r * 0.22, g * 0.22, b * 0.22, 0.84)
+    return ui_style_color_rgba(session_id, node_id, "ink", 0.94, 1.0, 0.98, 1.0)
+
+pub fn apply_signal_theme(session_id: Int, node_id: Int, selected_mode: Int, active: Int) -> Int:
+    let r = accent_r(selected_mode)
+    let g = accent_g(selected_mode)
+    let b = accent_b(selected_mode)
+    if active != 0:
+        let _fill = ui_style_color_rgba(session_id, node_id, "fill", r * 0.62, g * 0.62, b * 0.62, 0.90)
+        return ui_style_color_rgba(session_id, node_id, "ink", 0.0, 0.0, 0.0, 1.0)
+    let _fill = ui_style_color_rgba(session_id, node_id, "fill", 0.035, 0.044, 0.052, 0.95)
+    return ui_style_color_rgba(session_id, node_id, "ink", r, g, b, 1.0)

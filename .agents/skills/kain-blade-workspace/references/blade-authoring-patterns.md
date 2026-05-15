@@ -11,6 +11,7 @@ Load this reference when creating, extending, or debugging a Kain blade workspac
 - `blades/kain-example/src/episode_layout.kn`: compact data-like layout functions for native UI coordinates.
 - `blades/kain-example/src/episode_theme.kn`: style functions that keep UI color policy out of main control flow.
 - `blades/kain-example/src/episode_graphics.kn`: native graphics helper shape for buffers, SPIR-V modules, pipelines, and draw submission.
+- `blades/kain-labs`: reference-driven native GPU lab workspace. Use its KQuantum app as the example for recreating a `reference/*.tsx` design with data-driven mode config, compact native UI modules, native graphics, SPIR-V kernels, Z3 dispatch proofs, `spirv-val`, and a root executable proof.
 
 ## Minimal Runnable Manifest
 
@@ -147,6 +148,7 @@ Use GPU only when it materially helps. When authoring shader/compute code:
 - Use the `kain-spirv-codegen-validation` skill if backend behavior changes.
 - Run focused GPU tests and Z3 proof lanes for storage layout, vector constructor, local-size, or index math.
 - Validate emitted SPIR-V with the repo's `spirv-val`-backed test path when possible.
+- If `spirv-val` reports duplicate decorations across a multi-entry shader module, inspect module-scoped type/decorator caching in `crates/gpu/src/codegen_spirv.rs` before working around it in blade source.
 
 ## Root-Cause Compile Debugging
 

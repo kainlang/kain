@@ -18,6 +18,8 @@ use std::collections::{HashMap, HashSet};
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
     let mut builder = Builder::new();
     let mut emitted_shaders = 0_u32;
+    let mut storage_buffer_type_cache: HashMap<String, u32> = HashMap::new();
+    let mut uniform_wrapper_type_cache: HashMap<String, u32> = HashMap::new();
 
     // Set capabilities and memory model
     builder.capability(Capability::Shader);
@@ -26,7 +28,12 @@ pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
 
     for item in &program.items {
         if let TypedItem::Shader(shader) = item {
-            emit_shader(&mut builder, shader)?;
+            emit_shader(
+                &mut builder,
+                shader,
+                &mut storage_buffer_type_cache,
+                &mut uniform_wrapper_type_cache,
+            )?;
             emitted_shaders += 1;
         }
     }
@@ -74,7 +81,12 @@ struct VarBinding {
     is_ptr: bool,
 }
 
-fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
+fn emit_shader(
+    b: &mut Builder,
+    shader: &TypedShader,
+    storage_buffer_type_cache: &mut HashMap<String, u32>,
+    uniform_wrapper_type_cache: &mut HashMap<String, u32>,
+) -> KainResult<()> {
     let exec_model = match shader.ast.stage {
         ShaderStage::Vertex => ExecutionModel::Vertex,
         ShaderStage::Fragment => ExecutionModel::Fragment,
@@ -93,8 +105,6 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
     let mut ctx_vars = HashMap::new();
     let mut struct_uniforms = HashSet::new();
     let mut storage_buffers = HashSet::new();
-    let mut storage_buffer_type_cache: HashMap<String, u32> = HashMap::new();
-    let mut uniform_wrapper_type_cache: HashMap<String, u32> = HashMap::new();
     let mut compute_input_params: Vec<(String, Type)> = Vec::new();
     let mut local_size_values: [u32; 3] = [8, 8, 1];
 
@@ -224,7 +234,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
                     get_or_create_storage_buffer_type(
                         b,
                         &uniform.ty,
-                        &mut storage_buffer_type_cache,
+                        &mut *storage_buffer_type_cache,
                     ),
                 )
             } else {
@@ -233,7 +243,7 @@ fn emit_shader(b: &mut Builder, shader: &TypedShader) -> KainResult<()> {
                     get_or_create_uniform_wrapper_type(
                         b,
                         &uniform.ty,
-                        &mut uniform_wrapper_type_cache,
+                        &mut *uniform_wrapper_type_cache,
                     ),
                 )
             };

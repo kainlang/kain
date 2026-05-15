@@ -1,0 +1,27 @@
+pub fn quantum_palette_hex() -> String:
+    return "000000FF140024FF4A00E0FF8E2DE2FF00FFCCFFFF3D0000FFFF8800FFFFFFFF"
+
+pub fn quantum_vertex_hex() -> String:
+    return "00000000010000000200000003000000"
+
+pub fn quantum_index_hex() -> String:
+    return "000000000100000002000000000000000200000003000000"
+
+pub fn quantum_spirv_magic_hex() -> String:
+    return "03022307"
+
+pub fn create_quantum_mesh(session_id: Int, label: String) -> Int:
+    let vertex_buffer = native_graphics_buffer_create_from_hex(session_id, "vertex", label + ".vertices", quantum_vertex_hex(), 12)
+    let index_buffer = native_graphics_buffer_create_from_hex(session_id, "index", label + ".indices", quantum_index_hex(), 4)
+    return native_graphics_mesh_create(session_id, label, vertex_buffer, index_buffer, 4, 6)
+
+pub fn create_quantum_pipeline(session_id: Int, backend_id: String) -> Int:
+    let vertex_shader = native_graphics_shader_spirv_from_hex(session_id, "kquantum.viewport.vertex", "vertex", "main", quantum_spirv_magic_hex())
+    let fragment_shader = native_graphics_shader_spirv_from_hex(session_id, "kquantum.viewport.fragment", "fragment", "main", quantum_spirv_magic_hex())
+    return native_graphics_pipeline_create(session_id, "kquantum.particle.pipeline", vertex_shader, fragment_shader, backend_id)
+
+pub fn submit_quantum_draw(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int:
+    let _begin = native_graphics_begin_frame(session_id, 16.0)
+    let _draw = native_graphics_draw_mesh(session_id, pipeline_id, mesh_id, instance_count)
+    let _end = native_graphics_end_frame(session_id)
+    return native_graphics_present(session_id)

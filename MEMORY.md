@@ -1,5 +1,84 @@
 # Kain Memory
 
+# 2026-05-15 - KQuantum native GPU lab blade
+
+`blades/kain-labs` is now a real Kain blade workspace for reference-driven native lab apps. The first lab recreates `blades/kain-labs/reference/KQuantum.tsx` as a Kain-authored native GPU particle/fluid simulator shell with a dense native UI, mode catalog, native graphics path, and SPIR-V compute kernels.
+
+What changed:
+
+- Added `blades/kain-labs/KAIN.toml`, `config/quantum_modes.toml`, and focused modules under `src/` for layout, theme, modes, native UI helpers, graphics helpers, GPU kernels, and the main KQuantum runtime.
+- `src/main.kn` intentionally exercises expressive Kain features: `component`, `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, native UI, native graphics, filesystem output, runtime init/shutdown, and a root executable proof.
+- `src/kernels.kn` defines four compute kernels: particle advection, velocity field, fluid pressure projection, and feedback composite. The fluid index contract is `x < 256`, `y < 256`, `z < 4`; using particle-count bounds for `id.x` was proven unsafe by Z3 before the fixed contract proved `unsat`.
+- Patched `crates/gpu/src/codegen_spirv.rs` so SPIR-V storage/uniform wrapper type caches are module-scoped across multiple shader entries. This fixes duplicate `ArrayStride` decorations when several compute shaders share `StorageBuffer<Vec4>`.
+- Added `spirv_edge_case_multi_entry_storage_buffer_types_are_decorated_once` in `crates/gpu/tests/spirv_smoke.rs` as the focused regression.
+
+Validation:
+
+- `mcp__z3_local__.check_smt2` proved the fixed KQuantum fluid cell index and linear particle dispatch bounds `unsat`; the first unconstrained-fluid attempt returned a real counterexample and is preserved in `z3/reports/`.
+- `.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry blades\kain-labs\src\main.kn -OutputName kain-labs.exe -VerifyLlvm` produced `D:\Kain-Lang\kain-labs.exe`.
+- `kain gpu-artifacts blades\kain-labs\src\kernels.kn -o target\kain-labs\kquantum_kernels` generated `.spv`, reflection JSON, and Rust host wrappers; `spirv-val target\kain-labs\kquantum_kernels\kernels.spv` passes after the codegen cache fix.
+- The focused test binary run passed: `spirv_smoke_test.exe spirv_edge_case_multi_entry_storage_buffer_types_are_decorated_once --exact`.
+- Running `kain-labs.exe` with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH=target\kain-labs\kquantum.bmp` exits `0`, writes `target/kain-labs/kquantum_report.txt`, and captures a 4.95 MB BMP.
+
+Current notes:
+
+- `bazel test //crates/gpu:spirv_smoke_test --test_filter=...` still executes the whole Rust test binary in this checkout and fails on pre-existing SPIR-V smoke cases already documented below (`.xyz`, `group_index`, tuple/vector arithmetic, constructor-style casts). Use the exact test binary invocation for this focused regression until that broader lane is cleaned up.
+- The native UI BMP capture confirms rendering but appears vertically flipped/mirrored through the current Win32/GL screenshot readback path. Treat this as a screenshot-host quirk unless working specifically on UI capture orientation.
+- `samply --help` works, but this Windows host can only load saved profiles; it cannot record a fresh CPU profile.
+
+# 2026-05-15 - Native UI runtime now uses indexed sidecars, bitset free-slot scans, and harder Win32/GL close semantics
+
+The raw native UI kernel in `runtime/native/src/ui/kain_native_ui_system.c` and `runtime/native/src/ui/kain_native_ui_host_win32_gl.c` now has a much harder low-level spine.
+
+What changed:
+
+- Nodes, stable keys, styles, state cells, resources, menus, and dialogs now use power-of-two hash sidecars instead of repeated full-array linear scans on every lookup.
+- Free-slot allocation for nodes/styles/state/resources/menus/menu-items/dialogs now uses occupancy bitsets plus a de Bruijn low-bit decode helper instead of scanning every slot for the next hole.
+- `kain_native_ui_node_destroy()` now clears parent child counts, focus/IME/drag/event references, and the node's style/state payloads before rebuilding the affected indices, so repeated create/destroy churn no longer leaks logical occupancy.
+- `kain_native_ui_node_set_parent()` now rejects parent cycles instead of allowing a node to be reparented under one of its own descendants.
+- The Win32/GL host now treats `WM_CLOSE`, `WM_DESTROY`, `WM_QUIT`, and explicit shutdown consistently: close marks the session closed, `ensure_window()` refuses to recreate after shutdown intent, and screenshot auto-exit can close cleanly without a recreate race.
+
+Proof and validation:
+
+- `cargo check -p kain-ui-native --target-dir target\\codex-kain-ui-native-check`
+- `mcp__z3_local__.check_smt2` returned `unsat` for `runtime/native/src/ui/z3/proofs-experimental/ui-low-bit-debruijn-signature-unique.smt2`, proving the de Bruijn multiplier used by `kain_native_ui_low_bit_index_u64()` yields distinct 6-bit signatures for all 64 one-hot inputs.
+- Promoted that invariant into the curated UI pack at `runtime/native/src/ui/z3/proofs/c/kain_native_ui_low_bit_index_u64-debruijn-signature-unique.yaml`.
+- `mcp__z3_local__.run_proof_pack(path=\"D:/Kain-Lang/runtime/native/src/ui/z3\", lane=\"smoke\")` now reports 2 proved UI cases. The remaining 10 counterexamples are older unconstrained generic overflow templates, not regressions introduced by this pass.
+- Added a direct C runtime smoke at `runtime/native/src/ui/z3/fixtures/native_ui_runtime_index_smoke.c`. It compiles and passes in both:
+  - software mode: direct runtime validation of the new sidecars, stable-key lookup, style/state cleanup, menu/dialog/resource handling, cycle rejection, and repeated create/destroy churn
+  - live `win32-gl` mode: real window create/present/auto-exit with screenshot capture at `target\\codex-native-ui-win32-smoke\\native_ui_runtime_index_smoke.bmp`
+- `samply --help` confirms the local Windows build can load saved profiles but cannot record new CPU samples on this host, so no native UI profile capture was possible here.
+
+Current blocker outside the runtime changes:
+
+- The higher-level `kain build` smokes for `smoketest/native-ui/pilot` and `runtime/fixtures/native_ui_runtime_systems` are currently blocked in this checkout by Kain build-lane identifier resolution failures (`ui_frame_begin` / `ui_node_from_stable_key`) before the produced executable stage. The direct C harness was added specifically so runtime-native validation can continue while that compiler/build issue is fixed separately.
+
+Recommended next step:
+
+- Replace the legacy UI `generic-size-add` proof placeholders with domain-aware `range_check` or `check_smt2` claims tied to real guards and capacities, so the UI Z3 lane becomes a trustworthy green/red surface instead of mostly reporting trivial unconstrained counterexamples.
+
+# 2026-05-15 - Native runtime now lazily boots the actor scheduler on first actor use
+
+The native startup path no longer eagerly pays the pooled actor scheduler cost for every executable. `kain_native_runtime_init()` still resets net/process sidecars, but actor runtime bring-up now happens on first actor spawn or actor-registry touch instead of process start.
+
+Why this mattered:
+
+- `memory_stream` was carrying a shared startup floor even though it never touched actors.
+- The lazy-init path removes that cost from pure compute benchmarks while preserving actor behavior once the subsystem is actually used.
+
+Validation:
+
+- `mcp__z3_local__.check_smt2` returned `unsat` for `runtime/native/src/core/z3/proofs-experimental/actor-runtime-lazy-init-state-machine.smt2`.
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_actor.c`
+- `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_native_stdlib.c`
+- `python benchmark/run.py --case memory_stream --runs 5 --warmups 1 --timeout 180`
+- `python benchmark/run.py --case option_result --runs 5 --warmups 1 --timeout 180`
+
+Benchmark read:
+
+- `memory_stream` improved versus the eager-init build on the same machine, but still remains Rust-dominated.
+- `option_result` is still allocation-bound and remains far from Rust; lazy actor startup is not the limiting factor there.
+
 # 2026-05-14 - Benchmark lane expanded to 14 cases with recursion, string search, and array scans
 
 The paired Kain-vs-Rust benchmark lane now covers 14 cases after adding:
