@@ -100,9 +100,9 @@ If a blade has `reference/`, treat it as the design/spec corpus:
 - If the reference uses an unsupported capability, patch the missing language/runtime path when that is the real bottleneck.
 - Do not replace a referenced UI with a prose explanation or generic dashboard.
 
-## Root Executable Loop
+## Blade-Local Executable Loop
 
-Use the bundled script from repo root. It prefers Bazel and runs the direct `bazel-bin/crates/cli/kain.exe` artifact:
+Use the bundled script from repo root. It prefers Bazel, runs the direct `bazel-bin/crates/cli/kain.exe` artifact, places the `.exe` in the blade root, and moves compiler sidecars into the blade's `.kain/out/<exe-name>/` folder:
 
 ```powershell
 .\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry blades\my-blade\src\main.kn -OutputName my-blade.exe -Run
@@ -115,25 +115,27 @@ bazel build //:kain --config=dev
 $bazelBin = (bazel info bazel-bin --config=dev | Select-Object -Last 1).Trim()
 $kainBin = Join-Path $bazelBin "crates\cli\kain.exe"
 & $kainBin check blades\my-blade\src\main.kn --target llvm
-& $kainBin blades\my-blade\src\main.kn -t llvm -o my-blade.exe
-.\my-blade.exe
+& $kainBin blades\my-blade\src\main.kn -t llvm -o blades\my-blade\my-blade.exe
+.\blades\my-blade\my-blade.exe
 ```
 
-Use `-BazelConfig release` for hotter compiler builds. Use `-CompilerBuild auto` only when the host may not have Bazel; `auto` can fall back to existing Cargo artifacts. Do not prefer PATH launcher shims for scripted compile proof because forwarding Kain's own `-o` flag through wrappers can be ambiguous.
+Use `-BazelConfig release` for hotter compiler builds. Use `-CompilerBuild auto` only when the host may not have Bazel; `auto` can fall back to existing Cargo artifacts. Do not prefer PATH launcher shims for scripted compile proof because forwarding Kain's own `-o` flag through wrappers can be ambiguous. Use `-OutputPlacement repo-root` only when the user explicitly asks for a repo-root executable.
 
 If the compiler writes `.ll` next to the requested output, validate it:
 
 ```powershell
-toolchain\llvm\bin\llvm-as.exe target\my-blade\my-blade.ll -o target\my-blade\my-blade.bc
+toolchain\llvm\bin\llvm-as.exe blades\my-blade\my-blade.ll -o blades\my-blade\.kain\out\my-blade\my-blade.bc
 ```
+
+After validation, move generated `.ll`, `.bc`, `.pdb`, `.ilk`, `*.runtime_contract.json`, and `*.realtime_app.json` into `blades/<blade>/.kain/out/<exe-name>/`. The `.exe` should stay directly in `blades/<blade>/` for zero-hunt manual testing.
 
 ## UI Proof Loop
 
 For native UI:
 
 - Use `blades/kain-example/run-ui.ps1` as the proven script pattern.
-- Compile to root `.exe`, but keep screenshot/profile artifacts under `target/<blade-name>/`.
-- Set `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH` to a BMP path.
+- Compile to `blades/<blade>/<blade>.exe`, but keep screenshot/profile artifacts under `blades/<blade>/.kain/run/`.
+- Set `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH` to a BMP path under `blades/<blade>/.kain/run/`.
 - Set `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES` for noninteractive validation.
 - Run the executable, assert exit code 0, assert screenshot exists, and assert it is larger than 1024 bytes.
 - Use the screenshot tool or image viewer if visual quality matters.
@@ -145,6 +147,7 @@ Use GPU only when it materially helps. When authoring shader/compute code:
 
 - Keep shader math inside the currently proven compiler surface unless expanding the backend is part of the task.
 - Build native executable proof and shader artifact proof.
+- Write generated shader artifacts under `blades/<blade>/.kain/gpu/<kernel-name>/`, never repo-root `target/<blade>/`.
 - Use the `kain-spirv-codegen-validation` skill if backend behavior changes.
 - Run focused GPU tests and Z3 proof lanes for storage layout, vector constructor, local-size, or index math.
 - Validate emitted SPIR-V with the repo's `spirv-val`-backed test path when possible.

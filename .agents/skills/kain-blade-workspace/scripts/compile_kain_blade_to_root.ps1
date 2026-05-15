@@ -8,6 +8,9 @@ param(
     [string]$CompilerBuild = "bazel",
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
+    [ValidateSet("blade-root", "repo-root")]
+    [string]$OutputPlacement = "blade-root",
+    [string]$ArtifactRoot,
     [switch]$Run,
     [switch]$VerifyLlvm
 )
@@ -106,6 +109,56 @@ function Resolve-KainBinary {
     return (Resolve-Path $built).Path
 }
 
+function Find-BladeRoot {
+    param([string]$StartDir)
+
+    $current = (Resolve-Path $StartDir).Path
+    $repo = (Resolve-Path $repoRoot).Path
+
+    while ($current -and $current.StartsWith($repo, [System.StringComparison]::OrdinalIgnoreCase)) {
+        if (Test-Path (Join-Path $current "KAIN.toml")) {
+            return $current
+        }
+
+        $parent = Split-Path -Parent $current
+        if (!$parent -or $parent -eq $current) {
+            break
+        }
+        $current = $parent
+    }
+
+    return (Split-Path -Parent (Split-Path -Parent (Resolve-Path $StartDir).Path))
+}
+
+function Move-GeneratedBuildSidecars {
+    param(
+        [string]$OutputExe,
+        [string]$ArtifactDir
+    )
+
+    if (!(Test-Path $ArtifactDir)) {
+        New-Item -ItemType Directory -Force -Path $ArtifactDir | Out-Null
+    }
+
+    $sidecars = @(
+        [System.IO.Path]::ChangeExtension($OutputExe, ".ll"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".bc"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".ilk"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".pdb"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".runtime_contract.json"),
+        [System.IO.Path]::ChangeExtension($OutputExe, ".realtime_app.json")
+    )
+
+    foreach ($sidecar in $sidecars) {
+        if (Test-Path $sidecar) {
+            $destination = Join-Path $ArtifactDir ([System.IO.Path]::GetFileName($sidecar))
+            if ((Resolve-Path $sidecar).Path -ne $destination) {
+                Move-Item -LiteralPath $sidecar -Destination $destination -Force
+            }
+        }
+    }
+}
+
 $entryPath = if ([System.IO.Path]::IsPathRooted($Entry)) {
     Resolve-Path $Entry
 } else {
@@ -124,14 +177,33 @@ if (![System.IO.Path]::GetExtension($OutputName)) {
     $OutputName = "$OutputName.exe"
 }
 
+$bladeRoot = Find-BladeRoot -StartDir (Split-Path -Parent $entryPath.Path)
+$artifactRootPath = if ($ArtifactRoot) {
+    if ([System.IO.Path]::IsPathRooted($ArtifactRoot)) {
+        $ArtifactRoot
+    } else {
+        Join-Path $bladeRoot $ArtifactRoot
+    }
+} else {
+    Join-Path $bladeRoot ".kain\out"
+}
+
+$outputStem = [System.IO.Path]::GetFileNameWithoutExtension($OutputName)
+$artifactDir = Join-Path $artifactRootPath $outputStem
+
 $outputExe = if ([System.IO.Path]::IsPathRooted($OutputName)) {
     $OutputName
-} else {
+} elseif ($OutputPlacement -eq "repo-root") {
     Join-Path $repoRoot $OutputName
+} else {
+    Join-Path $bladeRoot $OutputName
 }
 $outputDir = Split-Path -Parent $outputExe
 if ($outputDir -and !(Test-Path $outputDir)) {
     New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+}
+if (!(Test-Path $artifactDir)) {
+    New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 }
 
 $resolvedKain = Resolve-KainBinary -Requested $KainBin
@@ -149,18 +221,20 @@ try {
     }
 
     if (!(Test-Path $outputExe)) {
-        throw "Expected root executable was not created: $outputExe"
+        throw "Expected blade executable was not created: $outputExe"
     }
 
     $llvmPath = [System.IO.Path]::ChangeExtension($outputExe, ".ll")
     if ($VerifyLlvm -and (Test-Path $llvmPath)) {
         $llvmAs = Join-Path $repoRoot "toolchain\llvm\bin\llvm-as.exe"
-        $bcPath = [System.IO.Path]::ChangeExtension($outputExe, ".bc")
+        $bcPath = Join-Path $artifactDir ([System.IO.Path]::GetFileName([System.IO.Path]::ChangeExtension($outputExe, ".bc")))
         & $llvmAs $llvmPath -o $bcPath
         if ($LASTEXITCODE -ne 0) {
             throw "llvm-as verification failed with exit code $LASTEXITCODE"
         }
     }
+
+    Move-GeneratedBuildSidecars -OutputExe $outputExe -ArtifactDir $artifactDir
 
     if ($Run) {
         & $outputExe
@@ -169,7 +243,8 @@ try {
         }
     }
 
-    Write-Host "[PASS] Kain entry compiled to root executable: $outputExe"
+    Write-Host "[PASS] Kain entry compiled to blade executable: $outputExe"
+    Write-Host "[PASS] Local build artifacts: $artifactDir"
 }
 finally {
     Pop-Location

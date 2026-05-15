@@ -1,11 +1,11 @@
 ---
 name: kain-blade-workspace
-description: Use when creating, extending, compiling, or debugging a runnable Kain blade workspace or Kain-authored app/file under D:\Kain-Lang, especially when the task asks for a new blade, a desired `.kn` file, reference-driven recreation from a `reference/` folder, native LLVM executable output in the repo root, native UI, graphics, GPU/SPIR-V shader work, or fixing Kain compiler/runtime/bootstrap blockers exposed by blade compilation.
+description: Use when creating, extending, compiling, or debugging a runnable Kain blade workspace or Kain-authored app/file under D:\Kain-Lang, especially when the task asks for a new blade, a desired `.kn` file, reference-driven recreation from a `reference/` folder, native LLVM executable output in the blade root, local `.kain` build artifacts, native UI, graphics, GPU/SPIR-V shader work, or fixing Kain compiler/runtime/bootstrap blockers exposed by blade compilation.
 ---
 
 # Kain Blade Workspace
 
-Use this skill to turn a requested Kain idea into a real blade workspace and a root-level executable proof. Pair it with `kain-engineer` for Kain language details. Use `kain-blades-system` only when changing the blade resolver/build system itself. Use `kain-spirv-codegen-validation`, `kain-ui-native-pipeline`, `kain-3d-pipeline`, or native runtime skills when the bottleneck enters those systems.
+Use this skill to turn a requested Kain idea into a real blade workspace with the runnable executable in that blade's root folder and all generated artifacts under that blade's `.kain/` directory. Pair it with `kain-engineer` for Kain language details. Use `kain-blades-system` only when changing the blade resolver/build system itself. Use `kain-spirv-codegen-validation`, `kain-ui-native-pipeline`, `kain-3d-pipeline`, or native runtime skills when the bottleneck enters those systems.
 
 ## Required Workflow
 
@@ -15,8 +15,8 @@ Use this skill to turn a requested Kain idea into a real blade workspace and a r
 4. If the requested blade already exists, preserve its identity and work inside it. If it has a `reference/` folder, read the relevant reference files first and recreate the requested Kain file from those references as faithfully as possible, including UI/layout/style/interaction details.
 5. If the blade does not exist, create `blades/<blade-name>/KAIN.toml`, `src/main.kn`, and focused helper modules under `src/`. Prefer manifest data and local config files over hardcoded routes, modes, large string tables, or file lists.
 6. Author expressive Kain. Use modules, top-level constants, named helper functions, `world`, `entangle`, `actor`, `component`, native UI, native graphics, filesystem, process, net, and ownership features when they fit. Do not collapse everything into "function and let soup."
-7. Compile the selected entry to a repo-root executable for easy manual testing. Use `scripts/compile_kain_blade_to_root.ps1` when possible; it defaults to a direct Bazel-built `//:kain` compiler artifact instead of stale Cargo binaries or launcher shims.
-8. Run the executable. For UI/interactivity, capture a screenshot and verify it is non-empty. If `samply` can record on the host, use it for runtime/performance evidence; if it cannot, record that limitation.
+7. Compile the selected entry to the blade root, not the repo root: `blades/<blade-name>/<blade-name>.exe`. Keep `.ll`, `.bc`, `.pdb`, `.ilk`, runtime contract JSON, realtime app JSON, SPIR-V artifacts, screenshots, profiles, and scratch outputs under `blades/<blade-name>/.kain/`. Use `scripts/compile_kain_blade_to_root.ps1` when possible; it defaults to a direct Bazel-built `//:kain` compiler artifact instead of stale Cargo binaries or launcher shims.
+8. Run the executable from the blade root. For UI/interactivity, capture a screenshot under the blade's `.kain/` directory and verify it is non-empty. If `samply` can record on the host, store the profile under `.kain/`; if it cannot, record that limitation.
 9. If compilation fails because Kain, the runtime, bootstrap, stdlib, native UI, graphics, GPU, or build lane is missing real capability, patch the root cause instead of giving up or dumbing the Kain file down. Add the smallest durable regression proof/test for the owning subsystem.
 10. Update `ARCHITECTURE.md`, `MEMORY.md`, and any relevant Kain skill when the work adds a meaningful pipeline, subsystem behavior, recurring gotcha, or validation lane.
 
@@ -39,11 +39,11 @@ bazel build //:kain --config=dev
 $bazelBin = (bazel info bazel-bin --config=dev | Select-Object -Last 1).Trim()
 $kainBin = Join-Path $bazelBin "crates\cli\kain.exe"
 & $kainBin check blades\<blade-name>\src\main.kn --target llvm
-& $kainBin blades\<blade-name>\src\main.kn -t llvm -o <blade-name>.exe
-.\<blade-name>.exe
+& $kainBin blades\<blade-name>\src\main.kn -t llvm -o blades\<blade-name>\<blade-name>.exe
+.\blades\<blade-name>\<blade-name>.exe
 ```
 
-Prefer explicit root-level executable names such as `kain_<feature>.exe`, `<blade-name>.exe`, or the user-requested app name. Leave the `.exe` in `D:\Kain-Lang\` unless the user requested a different location. Keep generated `.ll`, `.bc`, screenshots, profiles, and scratch outputs under `target/<blade-name>/`. Use `--config=release` / `-BazelConfig release` when compiler performance or benchmark-quality native tuning matters.
+Prefer explicit blade-root executable names such as `blades/<blade-name>/<blade-name>.exe` or the user-requested app name inside the blade root. Do not scatter blade build outputs into repo-root `target/` or repo-root `.kain/` unless the user explicitly asks for a shared workspace artifact. Keep generated `.ll`, `.bc`, `.pdb`, `.ilk`, runtime JSON, screenshots, profiles, shader artifacts, and scratch outputs under `blades/<blade-name>/.kain/`. Use `--config=release` / `-BazelConfig release` when compiler performance or benchmark-quality native tuning matters.
 
 For UI blades, mirror the `blades/kain-example/run-ui.ps1` proof style: check, compile, verify LLVM IR when useful, run with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH`, set an auto-exit frame budget for noninteractive proof, and assert the screenshot exists and has real size.
 
@@ -65,4 +65,4 @@ For low-level runtime, allocation, index, buffer, ABI, state-machine, ownership,
 
 ## Quality Bar
 
-Create compact, real software. UI should be killer-no-filler: dense, intentional, minimal panes, no bloated boxes, no placeholder explainware. Kain source should show the language off honestly: named concepts, cohesive modules, reusable library blades, data-driven manifests, and a built executable the user can run immediately from the repo root.
+Create compact, real software. UI should be killer-no-filler: dense, intentional, minimal panes, no bloated boxes, no placeholder explainware. Kain source should show the language off honestly: named concepts, cohesive modules, reusable library blades, data-driven manifests, local `.kain/` artifacts, and a built executable the user can run immediately from the blade root.

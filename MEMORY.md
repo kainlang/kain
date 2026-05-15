@@ -1,5 +1,24 @@
 # Kain Memory
 
+# 2026-05-15 - Blade builds now stay blade-local
+
+The `kain-blade-workspace` skill and helper script now enforce blade-local build hygiene.
+
+What changed:
+
+- `compile_kain_blade_to_root.ps1` now defaults to `-OutputPlacement blade-root`, so `blades/<blade>/src/main.kn` compiles to `blades/<blade>/<blade>.exe` instead of repo-root `<blade>.exe`.
+- The helper moves compiler/linker sidecars (`.ll`, `.bc`, `.pdb`, `.ilk`, runtime contract JSON, realtime app JSON) into `blades/<blade>/.kain/out/<exe-name>/`.
+- The skill reference now requires SPIR-V artifacts under `blades/<blade>/.kain/gpu/<kernel-name>/` and UI/runtime screenshots or reports under `blades/<blade>/.kain/run/`; agents should not use repo-root `target/<blade>/` for blade-local work unless explicitly requested.
+- KQuantum now writes its report to `blades/kain-labs/.kain/run/kquantum_report.txt`, and the validated executable is `blades/kain-labs/kain-labs.exe`.
+
+Validation:
+
+- `$env:CARGO_BAZEL_REPIN='true'; bazel fetch //:kain --config=dev` was needed because existing Cargo manifest drift made `Cargo.Bazel.lock` stale.
+- `bazel build //:kain --config=dev` passes after the repin; the usual Windows `rules_swift` `name 'arch' is not defined` noise still appears but does not block the target.
+- `.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry blades\kain-labs\src\main.kn -OutputName kain-labs.exe -VerifyLlvm` passes and leaves only `kain-labs.exe` in the blade root.
+- `kain gpu-artifacts blades\kain-labs\src\kernels.kn -o blades\kain-labs\.kain\gpu\kquantum_kernels` plus `spirv-val` passes.
+- Running `blades\kain-labs\kain-labs.exe` with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH=blades\kain-labs\.kain\run\kquantum.bmp` exits `0` and writes blade-local run artifacts.
+
 # 2026-05-15 - Foreign ABI core and C FFI v2 raw API classification
 
 `kain-c-ffi` now has a shared ABI brain instead of owning scalar/pointer policy locally. The new `crates/kain-foreign-abi` crate models foreign ABI types, normalized C scalar tables, pointer/callback/aggregate bridge classes, external raw-pointer ownership tags, safety reports, and a local Z3 pack.

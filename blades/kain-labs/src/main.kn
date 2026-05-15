@@ -126,7 +126,7 @@ orchestrate quantum_compile_pipeline(value: Int) -> Int:
     return biased
 
 fn output_root() -> String:
-    return "target/kain-labs"
+    return "blades/kain-labs/.kain/run"
 
 fn output_path(name: String) -> String:
     return output_root() + "/" + name
@@ -328,7 +328,7 @@ fn main() -> Int:
         let _strip_a = render_status_strip(session, strip_a, micro_font, "SPIR-V: quantum_particle_advection + velocity_field + pressure_project + feedback_composite", 1, selected_mode)
         let _strip_b = render_status_strip(session, strip_b, micro_font, "K-SCRIPT lane: force.y += sin(p.x * 0.5 + t) * 2.0", 1, selected_mode)
         let _strip_c = render_status_strip(session, strip_c, micro_font, "AUDIO: bass/treble reactive controls are staged as GPU control buffers", bool_int(chaos_level > 64), selected_mode)
-        let _strip_d = render_status_strip(session, strip_d, micro_font, "OUTPUT: VAT/GLB/report surface writes target/kain-labs/kquantum_report.txt", bool_int(export_count > 0), selected_mode)
+        let _strip_d = render_status_strip(session, strip_d, micro_font, "OUTPUT: VAT/GLB/report surface writes blades/kain-labs/.kain/run/kquantum_report.txt", bool_int(export_count > 0), selected_mode)
 
         let _root_render = ui_render_box(session, root, "fill")
         let _topbar_render = ui_render_box(session, topbar, "fill")
