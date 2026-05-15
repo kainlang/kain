@@ -12,7 +12,7 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 - `MODULE.bazel` owns `rules_rust`, crate-universe, Rust toolchain, and crate annotations.
 - `Cargo.Bazel.lock` is the crate-universe lockfile.
 - `tools/bazel/sync_rust_builds.py` is the Cargo-metadata-to-`BUILD.bazel` generator.
-- Crate-local `BUILD.bazel` files under `crates/`, `apps/`, and `runtime/parallel/rust/` are generated output. Do not hand-edit them.
+- Crate-local `BUILD.bazel` files under `crates/`, promoted `apps/`, and `runtime/parallel/rust/` are generated output. Do not hand-edit them.
 - Root `BUILD.bazel` owns convenience aliases such as `//:kain`, `//:kn`, and `//:blade`.
 
 ## Required workflow
@@ -54,6 +54,7 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 ## Generator rules
 
 - Cargo manifests remain source of truth; generated `BUILD.bazel` files should be reproducible.
+- Keep throwaway local test apps out of the root Cargo workspace unless they are intentionally promoted into the core Bazel lane. If a one-off experiment disappears from disk but stays in `Cargo.toml`, both `cargo metadata` and crate-universe repins will break.
 - Binaries/tests in a package with a normal library target must depend on `:<package>` because Bazel does not inherit Cargo's implicit same-package library visibility.
 - Keep local path deps explicit and use `all_crate_deps(...)` for external crate-universe deps.
 - Keep build-script handling in the generator and crate annotations, not one-off edits in generated files.
@@ -61,6 +62,6 @@ Use this skill when the task touches Bazel support for Rust workspace crates.
 ## Known host notes
 
 - Windows Bazel tests need `PATH` and `PATHEXT` inherited so subprocess-driven tests can find tools like `rustc`.
-- Windows may emit a noisy `rules_swift` local-config error: `name 'arch' is not defined`. The repo now also carries a `rules_swift` patch for the missing-`SDKROOT` path, but this analysis noise can still appear. With `--keep_going`, Rust targets can still complete; do not chase it unless it blocks the requested target.
+- `MODULE.bazel` now carries a two-patch `rules_swift` override on Windows: one guards the missing-`SDKROOT` path, and the second fixes the generated Windows toolchain stanza so it no longer emits `target_compatible_with = APPLE_PLATFORMS_CONSTRAINTS[arch]`. If the old `name 'arch' is not defined` analysis error returns, treat it as override drift rather than accepted noise.
 - `bazel test //:developer_smoke_tests --config=dev` is the current green Rust suite on this host.
 - `bazel test //:workspace_diagnostic_tests --config=dev` is intentionally diagnostic. Known failures include source-level `kain-core`, `cli`, and `runtime:native_test_actor_monitor_link` failures.

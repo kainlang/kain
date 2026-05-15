@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-15 - Bazel Rust lane no longer carries the dead test app or Windows Swift `arch` noise
+
+The root Rust/Bazel lane is now tighter and cleaner: the dead `apps/kade-desktop/controller` workspace member is gone, and the Windows `rules_swift` local-config override now fixes both the missing-`SDKROOT` path and the bogus `APPLE_PLATFORMS_CONSTRAINTS[arch]` emission for the generated Windows Swift toolchain stanza.
+
+What changed:
+
+- Removed `apps/kade-desktop/controller` from the root Cargo workspace in `Cargo.toml`, which also pruned the stale package entry from `Cargo.lock` and crate-universe state in `Cargo.Bazel.lock`.
+- Extended the `rules_swift` single-version override in `MODULE.bazel` to apply two ordered patches:
+  - `tools/bazel/patches/rules_swift_windows_sdkroot_guard.patch`
+  - `tools/bazel/patches/rules_swift_windows_toolchain_target_compat.patch`
+- The new second patch fixes `swift/internal/swift_autoconfiguration.bzl` so the generated Windows toolchain uses explicit Windows x86_64 constraints instead of the undefined `APPLE_PLATFORMS_CONSTRAINTS[arch]`.
+- Regenerated Rust BUILD metadata with `tools/bazel/sync_rust_builds.py` after the workspace cleanup.
+
+Validation:
+
+- `$env:CARGO_BAZEL_REPIN='1'; bazel fetch //:kain --config=dev`
+- `python tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `cargo metadata --no-deps --format-version 1`
+- `bazel build //:kain //:kn //:blade --config=dev`
+
+Current notes:
+
+- The old Windows `rules_swift` `name 'arch' is not defined` analysis noise is gone after the patch-stack fix. If it reappears, assume patch drift first.
+- The root Cargo workspace should stay reserved for promoted/core Rust packages. Temporary experiments belong in blades or other non-workspace surfaces unless they are intentionally part of the always-on Bazel lane.
+
 # 2026-05-15 - Runtime-owned OpenGL presenter lane was evicted into `blades/opengl`
 
 The native runtime no longer owns a live OpenGL presenter. Win32/WGL compatibility now lives as a blade-owned package under `blades/opengl`, while `runtime/native` keeps only the passive host substrate and generic UI ABI.

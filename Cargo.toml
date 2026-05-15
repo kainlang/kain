@@ -48,7 +48,6 @@ members = [
     "crates/web",
     "crates/kain-sys-codegen",
     "crates/cli",
-    "apps/kade-desktop/controller",
     "runtime/parallel/rust/kain-runtime-parallel",
     # "crates/browser" # Uncomment when ready to integrate
 

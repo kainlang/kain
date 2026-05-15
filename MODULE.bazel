@@ -11,7 +11,10 @@ single_version_override(
     module_name = "rules_swift",
     version = "3.1.2",
     patch_strip = 1,
-    patches = ["//:tools/bazel/patches/rules_swift_windows_sdkroot_guard.patch"],
+    patches = [
+        "//:tools/bazel/patches/rules_swift_windows_sdkroot_guard.patch",
+        "//:tools/bazel/patches/rules_swift_windows_toolchain_target_compat.patch",
+    ],
 )
 
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")

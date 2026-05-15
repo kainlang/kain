@@ -1,5 +1,5 @@
 {
-  "checksum": "5830143020b7449a79c6128a3a8c9bfa9caa46072d030128edb46705dd8d46bc",
+  "checksum": "45cc436c7d02d74c604d2b45d1701ca1f7e543c563b8956459f4585f1c313492",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -15843,71 +15843,6 @@
       "license_ids": [
         "MIT"
       ],
-      "license_file": null
-    },
-    "kade-desktop-controller 0.1.0": {
-      "name": "kade-desktop-controller",
-      "version": "0.1.0",
-      "package_url": null,
-      "repository": null,
-      "targets": [
-        {
-          "Library": {
-            "crate_name": "kade_desktop_controller",
-            "crate_root": "src/lib.rs",
-            "srcs": {
-              "allow_empty": true,
-              "include": [
-                "**/*.rs"
-              ]
-            }
-          }
-        }
-      ],
-      "library_target_name": "kade_desktop_controller",
-      "common_attrs": {
-        "compile_data_glob": [
-          "**"
-        ],
-        "deps": {
-          "common": [
-            {
-              "id": "chrono 0.4.43",
-              "target": "chrono"
-            },
-            {
-              "id": "clap 4.5.57",
-              "target": "clap"
-            },
-            {
-              "id": "serde 1.0.209",
-              "target": "serde"
-            },
-            {
-              "id": "serde_json 1.0.143",
-              "target": "serde_json"
-            },
-            {
-              "id": "thiserror 1.0.69",
-              "target": "thiserror"
-            }
-          ],
-          "selects": {}
-        },
-        "deps_dev": {
-          "common": [
-            {
-              "id": "tempfile 3.25.0",
-              "target": "tempfile"
-            }
-          ],
-          "selects": {}
-        },
-        "edition": "2021",
-        "version": "0.1.0"
-      },
-      "license": null,
-      "license_ids": [],
       "license_file": null
     },
     "kain-3d 0.1.0": {
@@ -48126,7 +48061,6 @@
     "blade 0.1.0": "crates/kain-blades",
     "cli 0.1.0": "crates/cli",
     "gpu 0.1.0": "crates/gpu",
-    "kade-desktop-controller 0.1.0": "apps/kade-desktop/controller",
     "kain-3d 0.1.0": "crates/kain-3D",
     "kain-actor 0.1.0": "crates/kain-actor",
     "kain-asm 0.1.0": "crates/kain-asm",
