@@ -65,6 +65,10 @@ For Vulkan or D3D-style bridges, dogfood the actual window path from Kain, then 
 
 `blades/vulkain` is the current reference for the minimal raw package pattern: keep the Kain surface tiny, compile bridge/shader artifacts under `.kain/`, and let consuming blades own higher-level intent. On Windows, if the bridge is a blade-local DLL, stage that DLL beside the blade-root exe for direct testing even though link-time should prefer the sibling `.lib`.
 
+If a blade-local runner is written in PowerShell, prefer explicit `RuntimeInformation::IsOSPlatform(...)` checks over `$IsWindows` / `$IsMacOS`; strict hosts in this repo do not guarantee those convenience variables exist.
+
+If `bazel build //:kain` is blocked by unrelated workspace breakage but an already-built Bazel `kain.exe` exists, it is acceptable for a blade-local `run.ps1` to reuse that compiler through `-KainBin` or `$env:KAIN_BIN` instead of regressing to repo-root artifacts or pretending the blade itself is broken. `blades/vulkain/run.ps1` is the reference pattern.
+
 ## Failure Policy
 
 Do not stop at "Kain cannot compile this." Triage the failure into one of these buckets:

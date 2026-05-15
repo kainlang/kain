@@ -15,11 +15,23 @@ $gpuOut = Join-Path $bladeRoot ".kain\gpu\basic_window"
 $nativeOut = Join-Path $bladeRoot ".kain\native"
 $runOut = Join-Path $bladeRoot ".kain\run"
 
+function Test-VulkainHostWindows {
+    return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
+}
+
+function Test-VulkainHostMacOs {
+    return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::OSX
+    )
+}
+
 function Get-VulkainDynamicLibraryName([string]$BaseName) {
-    if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    if (Test-VulkainHostWindows) {
         return "$BaseName.dll"
     }
-    if ($IsMacOS) {
+    if (Test-VulkainHostMacOs) {
         return "lib$BaseName.dylib"
     }
     return "lib$BaseName.so"
@@ -106,7 +118,7 @@ $clangArgs = @(
     "-luser32"
 )
 
-if ($IsWindows -or $env:OS -eq "Windows_NT") {
+if (Test-VulkainHostWindows) {
     $clangArgs += "-Wl,/IMPLIB:$importLibraryPath"
 }
 

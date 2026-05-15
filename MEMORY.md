@@ -43,6 +43,9 @@ What changed:
 - `src/vulkain.kn` is intentionally tiny: `vulkain_probe`, `vulkain_frames_presented`, `vulkain_vertices_drawn`, `vulkain_run_window`, and `vulkain_write_report`. This blade is the reference pattern for “raw package first, policy later.”
 - `build-vulkain.ps1` now keeps all blade-local outputs under `.kain/`: SPIR-V in `.kain/gpu/basic_window/`, bridge DLL/import-lib in `.kain/native/`, and reports in `.kain/run/`. It also links `user32` explicitly for the Win32 window path.
 - `run.ps1` now compiles `blades/vulkain/vulkain.exe`, copies `vulkain_bridge.dll` beside the root exe for easy testing, and runs the exe from the blade root so relative shader paths resolve correctly.
+- `build-vulkain.ps1` now uses explicit `RuntimeInformation::IsOSPlatform(...)` checks instead of `$IsWindows` / `$IsMacOS`, because strict PowerShell hosts in this repo do not guarantee those convenience variables exist.
+- `run.ps1` now accepts `-KainBin` / `$env:KAIN_BIN` and will reuse an already-built Bazel `kain.exe` when one is present. This keeps the blade on the Bazel compiler path even if `bazel build //:kain` is temporarily blocked by unrelated workspace breakage.
+- The blade root no longer needs tracked runtime sidecars. `vulkain.runtime_contract.json` and `vulkain.realtime_app.json` now live under `.kain/out/vulkain/`, leaving the root focused on `vulkain.exe` plus the staged bridge DLL.
 - Patched `crates/cli/src/main.rs` so Windows C FFI link resolution prefers a sibling import library (`.lib`) when a blade declares a shared library (`.dll`). Without this, LLVM/native link steps tried to feed the DLL itself to the linker and failed with `LNK1107`.
 
 Validation:
@@ -52,11 +55,13 @@ Validation:
 - `spirv-val --target-env vulkan1.3` accepts both `.kain/gpu/basic_window/vulkain_basic.vert.spv` and `.kain/gpu/basic_window/vulkain_basic.frag.spv`.
 - Z3 MCP returned five `unsat` checks for `blades/vulkain/native/z3/vulkain_bridge_bounds.smt2` after tightening the shader-size claim into a real accepted-word-count invariant.
 - `samply --help` still confirms the Windows host can load profiles but cannot record them.
+- Fresh 2026-05-15 rerun: deleting `blades/vulkain/.kain/native_runtime/cache` still leads to a clean rebuild (`16 compiled`) and a clean launch (`frames=240 vertices=720`), which proves the blade-local runtime cache redirection is healthy after the script fixes.
 
 Current notes:
 
 - The MCP screenshot enumerator did not surface the short-lived Vulkan window during validation even though the executable presented all frames and wrote a clean report; use the frame/report proof as the reliable artifact here unless the window-capture tooling is extended for this path.
 - The current frontend import-scan still dislikes multiline `pub fn` signatures in blade helper modules. Keep exported helper signatures on one line unless you are fixing that parser path directly.
+- The current `bazel build //:kain` lane is blocked by unrelated workspace issues in this checkout (`crates/unreal/unreal_asset_registry/src/objects/md5_hash.rs` missing), and the Cargo CLI lane is also blocked by unrelated workspace manifest drift (`apps/kade-desktop/controller/Cargo.toml` missing). `blades/vulkain/run.ps1` therefore reuses an existing Bazel-built compiler artifact when available instead of pretending those unrelated breakages are Vulkan-blade problems.
 
 # 2026-05-15 - KQuantum now drives a real Vulkan particle window through C FFI
 
