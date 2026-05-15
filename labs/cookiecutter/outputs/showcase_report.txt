@@ -1,7 +1,0 @@
-COOKIE CUTTER KAIN LAB
-======================
-root=labs/cookiecutter/outputs
-quine.bytes=67
-life.cells=180
-mandelbrot.lines=24
-lisp.ok=yes

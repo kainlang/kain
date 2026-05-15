@@ -1,5 +1,0 @@
-LISP
-define_make_adder=<closure#0>
-(add-seven 35)=42
-(list 1 2 3 4)=[1 2 3 4]
-(hash ... )={language: "kain", score: 42}

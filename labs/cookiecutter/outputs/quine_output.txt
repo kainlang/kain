@@ -1,3 +1,0 @@
-fn main() -> Int:
-    println("COOKIE CUTTER / KAIN")
-    return 0

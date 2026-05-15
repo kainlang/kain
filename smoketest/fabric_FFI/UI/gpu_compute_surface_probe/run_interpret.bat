@@ -1,7 +1,0 @@
-@echo off
-setlocal
-pushd "%~dp0..\..\.."
-cargo run -q -p cli --bin kain -- smoketest/UI/gpu_compute_surface_probe/smoke.kn -t interpret
-set "EXIT_CODE=%ERRORLEVEL%"
-popd
-exit /b %EXIT_CODE%
