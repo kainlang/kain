@@ -81,6 +81,11 @@ const LLVM_TARGET_DESCRIPTOR_REGISTRY: &[LlvmTargetDescriptor] = &[
     LLVM_TARGET_MACOS_ARM64,
 ];
 const KAIN_OWNERSHIP_ERR_NOT_FOUND_LLVM: i32 = -2;
+const KAIN_NATIVE_TAGGED_HEADER_BYTES: i64 = 16;
+const KAIN_NATIVE_TAG_OPTION_NONE_LLVM: i64 = 0;
+const KAIN_NATIVE_TAG_OPTION_SOME_LLVM: i64 = 1;
+const KAIN_NATIVE_TAG_RESULT_OK_LLVM: i64 = 2;
+const KAIN_NATIVE_TAG_RESULT_ERR_LLVM: i64 = 3;
 
 fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
     match name {
@@ -480,7 +485,7 @@ impl LlvmGenerator {
             "Float" | "f64" | "double" => "double".into(),
             "Bool" | "bool" => "i1".into(),
             "String" | "str" => "i8*".into(),
-            "Unit" | "()" | "void" => "void".into(),
+            "Unit" | "Void" | "()" | "void" => "void".into(),
             "KainActorId" => "i64".into(),
             "KainActorExitReason" => "i32".into(),
             "KainActorState" => "i32".into(),
@@ -668,12 +673,7 @@ impl LlvmGenerator {
                     if method == "unwrap" && !args.is_empty() {
                         return Err(KainError::codegen("unwrap expects no arguments", *span));
                     }
-                    return self.compile_tagged_payload_copy(
-                        &boxed_value,
-                        target_ty,
-                        "kain_native_tagged_payload_copy",
-                        *span,
-                    );
+                    return Ok(self.compile_tagged_value_payload_copy(&boxed_value, target_ty));
                 }
             }
             Expr::MethodCall {
@@ -690,16 +690,14 @@ impl LlvmGenerator {
                 }
                 let (boxed_value, boxed_ty) = self.compile_expr(receiver)?;
                 if boxed_ty == "i8*" {
-                    let is_success_i64 = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = call i64 @kain_native_tagged_is_success(i8* {})",
-                        is_success_i64, boxed_value
-                    ));
-                    let is_success = self.next_reg();
-                    self.emit(&format!(
-                        "  {} = icmp ne i64 {}, 0",
-                        is_success, is_success_i64
-                    ));
+                    let is_success = self.compile_tagged_value_is_tag(
+                        &boxed_value,
+                        &[
+                            KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                            KAIN_NATIVE_TAG_RESULT_OK_LLVM,
+                        ],
+                        false,
+                    );
                     let payload_label = self.next_label();
                     let default_label = self.next_label();
                     let merge_label = self.next_label();
@@ -709,12 +707,8 @@ impl LlvmGenerator {
                     ));
 
                     self.emit_label(&payload_label);
-                    let (payload_value, payload_ty) = self.compile_tagged_payload_copy(
-                        &boxed_value,
-                        target_ty,
-                        "kain_native_tagged_payload_copy",
-                        *span,
-                    )?;
+                    let (payload_value, payload_ty) =
+                        self.compile_tagged_value_payload_copy(&boxed_value, target_ty);
                     let payload_block = self.current_block.clone();
                     self.emit(&format!("  br label %{}", merge_label));
 
@@ -749,12 +743,13 @@ impl LlvmGenerator {
 
         if matches!(expr, Expr::None(_)) {
             if target_ty == "i8*" {
-                let value = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @kain_native_option_none()",
-                    value
-                ));
-                return Ok((value, target_ty.to_string()));
+                let value = self.compile_tagged_box_from_payload(
+                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    None,
+                    None,
+                    0,
+                );
+                return Ok(value);
             }
             return Ok((self.zero_value_for_ty(target_ty), target_ty.to_string()));
         }
@@ -865,37 +860,242 @@ impl LlvmGenerator {
         }
     }
 
+    fn emit_tagged_value_tag_load(&mut self, boxed_value: &str) -> String {
+        let tag_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to i64*",
+            tag_ptr, boxed_value
+        ));
+        let tag = self.next_reg();
+        self.emit(&format!("  {} = load i64, i64* {}, align 1", tag, tag_ptr));
+        tag
+    }
+
+    fn emit_tagged_value_payload_ptr(&mut self, boxed_value: &str) -> String {
+        let payload_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 {}",
+            payload_ptr, boxed_value, KAIN_NATIVE_TAGGED_HEADER_BYTES
+        ));
+        payload_ptr
+    }
+
+    fn compile_tagged_value_is_tag(
+        &mut self,
+        boxed_value: &str,
+        match_tags: &[i64],
+        null_value: bool,
+    ) -> String {
+        let is_null = self.next_reg();
+        self.emit(&format!(
+            "  {} = icmp eq i8* {}, null",
+            is_null, boxed_value
+        ));
+
+        let null_label = self.next_label();
+        let tagged_label = self.next_label();
+        let merge_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            is_null, null_label, tagged_label
+        ));
+
+        self.emit_label(&null_label);
+        self.emit(&format!("  br label %{}", merge_label));
+
+        self.emit_label(&tagged_label);
+        let tag = self.emit_tagged_value_tag_load(boxed_value);
+        let mut tagged_result: Option<String> = None;
+        for expected in match_tags {
+            let cmp = self.next_reg();
+            self.emit(&format!("  {} = icmp eq i64 {}, {}", cmp, tag, expected));
+            tagged_result = Some(match tagged_result {
+                Some(previous) => {
+                    let combined = self.next_reg();
+                    self.emit(&format!("  {} = or i1 {}, {}", combined, previous, cmp));
+                    combined
+                }
+                None => cmp,
+            });
+        }
+        let tagged_result = tagged_result.unwrap_or_else(|| "0".to_string());
+        self.emit(&format!("  br label %{}", merge_label));
+
+        self.emit_label(&merge_label);
+        let result = self.next_reg();
+        self.emit(&format!(
+            "  {} = phi i1 [ {}, %{} ], [ {}, %{} ]",
+            result,
+            if null_value { "1" } else { "0" },
+            null_label,
+            tagged_result,
+            tagged_label
+        ));
+        result
+    }
+
+    fn compile_tagged_value_payload_copy(
+        &mut self,
+        boxed_value: &str,
+        target_ty: &str,
+    ) -> (String, String) {
+        if target_ty == "void" {
+            return ("0".to_string(), "i64".to_string());
+        }
+
+        let payload_ptr = self.emit_tagged_value_payload_ptr(boxed_value);
+        let typed_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to {}*",
+            typed_ptr, payload_ptr, target_ty
+        ));
+        let loaded = self.next_reg();
+        self.emit(&format!(
+            "  {} = load {}, {}* {}, align 1",
+            loaded, target_ty, target_ty, typed_ptr
+        ));
+        (loaded, target_ty.to_string())
+    }
+
+    fn compile_tagged_box_from_payload(
+        &mut self,
+        tag: i64,
+        payload_ptr: Option<&str>,
+        payload_ty: Option<&str>,
+        payload_size: usize,
+    ) -> (String, String) {
+        let allocation_size = KAIN_NATIVE_TAGGED_HEADER_BYTES as usize + payload_size;
+        let boxed_value = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @KAIN_alloc(i64 {})",
+            boxed_value, allocation_size
+        ));
+
+        let tag_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to i64*",
+            tag_ptr, boxed_value
+        ));
+        self.emit(&format!("  store i64 {}, i64* {}, align 1", tag, tag_ptr));
+
+        let payload_size_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 8",
+            payload_size_ptr, boxed_value
+        ));
+        let payload_size_i64_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to i64*",
+            payload_size_i64_ptr, payload_size_ptr
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}, align 1",
+            payload_size as i64, payload_size_i64_ptr
+        ));
+
+        if payload_size > 0 {
+            let Some(payload_ptr) = payload_ptr else {
+                return (boxed_value, "i8*".to_string());
+            };
+            let Some(payload_ty) = payload_ty else {
+                return (boxed_value, "i8*".to_string());
+            };
+            let payload_dst = self.emit_tagged_value_payload_ptr(&boxed_value);
+            let payload_src_typed = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast i8* {} to {}*",
+                payload_src_typed, payload_ptr, payload_ty
+            ));
+            let payload_value = self.next_reg();
+            self.emit(&format!(
+                "  {} = load {}, {}* {}, align 1",
+                payload_value, payload_ty, payload_ty, payload_src_typed
+            ));
+            let payload_dst_typed = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast i8* {} to {}*",
+                payload_dst_typed, payload_dst, payload_ty
+            ));
+            self.emit(&format!(
+                "  store {} {}, {}* {}, align 1",
+                payload_ty, payload_value, payload_ty, payload_dst_typed
+            ));
+        }
+
+        (boxed_value, "i8*".to_string())
+    }
+
+    fn compile_tagged_box_from_value(
+        &mut self,
+        tag: i64,
+        payload_value: &str,
+        payload_ty: &str,
+        payload_size: usize,
+    ) -> (String, String) {
+        let allocation_size = KAIN_NATIVE_TAGGED_HEADER_BYTES as usize + payload_size;
+        let boxed_value = self.next_reg();
+        self.emit(&format!(
+            "  {} = call i8* @KAIN_alloc(i64 {})",
+            boxed_value, allocation_size
+        ));
+
+        let tag_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to i64*",
+            tag_ptr, boxed_value
+        ));
+        self.emit(&format!("  store i64 {}, i64* {}, align 1", tag, tag_ptr));
+
+        let payload_size_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds i8, i8* {}, i64 8",
+            payload_size_ptr, boxed_value
+        ));
+        let payload_size_i64_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = bitcast i8* {} to i64*",
+            payload_size_i64_ptr, payload_size_ptr
+        ));
+        self.emit(&format!(
+            "  store i64 {}, i64* {}, align 1",
+            payload_size as i64, payload_size_i64_ptr
+        ));
+
+        if payload_size > 0 {
+            let payload_dst = self.emit_tagged_value_payload_ptr(&boxed_value);
+            let payload_dst_typed = self.next_reg();
+            self.emit(&format!(
+                "  {} = bitcast i8* {} to {}*",
+                payload_dst_typed, payload_dst, payload_ty
+            ));
+            self.emit(&format!(
+                "  store {} {}, {}* {}, align 1",
+                payload_ty, payload_value, payload_ty, payload_dst_typed
+            ));
+        }
+
+        (boxed_value, "i8*".to_string())
+    }
+
     fn compile_runtime_mem_load(
         &mut self,
         pointer: &Expr,
         load_ty: &str,
-        span: Span,
+        _span: Span,
     ) -> KainResult<(String, String)> {
         let (ptr, ptr_ty) = self.compile_expr(pointer)?;
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
-        let (load_size, _) = self.abi_layout_for_ty(load_ty, span)?;
-
         let ptr_i8 = self.next_reg();
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-
-        let temp_ptr = self.next_reg();
-        self.emit_entry_alloca(&temp_ptr, load_ty);
-
-        let temp_i8 = self.next_reg();
+        let typed_ptr = self.next_reg();
         self.emit(&format!(
-            "  {} = bitcast {}* {} to i8*",
-            temp_i8, load_ty, temp_ptr
+            "  {} = bitcast i8* {} to {}*",
+            typed_ptr, ptr_i8, load_ty
         ));
-
-        self.emit(&format!(
-            "  call void @__kain_mem_load(i8* {}, i8* {}, i64 {})",
-            ptr_i8, temp_i8, load_size
-        ));
-
         let loaded = self.next_reg();
         self.emit(&format!(
-            "  {} = load {}, {}* {}",
-            loaded, load_ty, load_ty, temp_ptr
+            "  {} = load {}, {}* {}, align 1",
+            loaded, load_ty, load_ty, typed_ptr
         ));
         Ok((loaded, load_ty.to_string()))
     }
@@ -904,32 +1104,21 @@ impl LlvmGenerator {
         &mut self,
         pointer: &Expr,
         value: &Expr,
-        span: Span,
+        _span: Span,
     ) -> KainResult<(String, String)> {
         let (ptr, ptr_ty) = self.compile_expr(pointer)?;
         let ptr_i64 = self.coerce_to_i64_storage(&ptr, &ptr_ty);
         let (stored_value, stored_ty) = self.compile_expr(value)?;
-        let (store_size, _) = self.abi_layout_for_ty(&stored_ty, span)?;
-
         let ptr_i8 = self.next_reg();
         self.emit(&format!("  {} = inttoptr i64 {} to i8*", ptr_i8, ptr_i64));
-
-        let temp_ptr = self.next_reg();
-        self.emit_entry_alloca(&temp_ptr, &stored_ty);
+        let typed_ptr = self.next_reg();
         self.emit(&format!(
-            "  store {} {}, {}* {}",
-            stored_ty, stored_value, stored_ty, temp_ptr
+            "  {} = bitcast i8* {} to {}*",
+            typed_ptr, ptr_i8, stored_ty
         ));
-
-        let temp_i8 = self.next_reg();
         self.emit(&format!(
-            "  {} = bitcast {}* {} to i8*",
-            temp_i8, stored_ty, temp_ptr
-        ));
-
-        self.emit(&format!(
-            "  call void @__kain_mem_store(i8* {}, i8* {}, i64 {})",
-            ptr_i8, temp_i8, store_size
+            "  store {} {}, {}* {}, align 1",
+            stored_ty, stored_value, stored_ty, typed_ptr
         ));
 
         Ok((stored_value, stored_ty))
@@ -1099,18 +1288,16 @@ impl LlvmGenerator {
         fields: &kain_core::ast::EnumVariantFields,
         span: Span,
     ) -> KainResult<Option<(String, String)>> {
-        let constructor = match (enum_name, variant) {
+        match (enum_name, variant) {
             ("Option", "None") => {
-                let result = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @kain_native_option_none()",
-                    result
-                ));
-                return Ok(Some((result, "i8*".to_string())));
+                return Ok(Some(self.compile_tagged_box_from_payload(
+                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    None,
+                    None,
+                    0,
+                )));
             }
-            ("Option", "Some") => "kain_native_option_some",
-            ("Result", "Ok") => "kain_native_result_ok",
-            ("Result", "Err") => "kain_native_result_err",
+            ("Option", "Some") | ("Result", "Ok") | ("Result", "Err") => {}
             _ => return Ok(None),
         };
 
@@ -1127,12 +1314,18 @@ impl LlvmGenerator {
         let (payload_value, payload_ty) = self.compile_expr(&values[0])?;
         let (payload_ptr, payload_size) =
             self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
-        let result = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i8* @{}(i8* {}, i64 {})",
-            result, constructor, payload_ptr, payload_size
-        ));
-        Ok(Some((result, "i8*".to_string())))
+        let tag = match (enum_name, variant) {
+            ("Option", "Some") => KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+            ("Result", "Ok") => KAIN_NATIVE_TAG_RESULT_OK_LLVM,
+            ("Result", "Err") => KAIN_NATIVE_TAG_RESULT_ERR_LLVM,
+            _ => unreachable!(),
+        };
+        Ok(Some(self.compile_tagged_box_from_payload(
+            tag,
+            Some(&payload_ptr),
+            Some(&payload_ty),
+            payload_size,
+        )))
     }
 
     fn compile_native_variant_function_call(
@@ -1152,12 +1345,12 @@ impl LlvmGenerator {
                 let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
                 let (payload_ptr, payload_size) =
                     self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
-                let result = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @kain_native_option_some(i8* {}, i64 {})",
-                    result, payload_ptr, payload_size
-                ));
-                Ok(Some((result, "i8*".to_string())))
+                Ok(Some(self.compile_tagged_box_from_payload(
+                    KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                    Some(&payload_ptr),
+                    Some(&payload_ty),
+                    payload_size,
+                )))
             }
             "Ok" | "Err" => {
                 if args.len() != 1 {
@@ -1166,20 +1359,20 @@ impl LlvmGenerator {
                         span,
                     ));
                 }
-                let constructor = if func_name == "Ok" {
-                    "kain_native_result_ok"
-                } else {
-                    "kain_native_result_err"
-                };
                 let (payload_value, payload_ty) = self.compile_expr(&args[0].value)?;
                 let (payload_ptr, payload_size) =
                     self.compile_payload_pointer_from_value(&payload_value, &payload_ty, span)?;
-                let result = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i8* @{}(i8* {}, i64 {})",
-                    result, constructor, payload_ptr, payload_size
-                ));
-                Ok(Some((result, "i8*".to_string())))
+                let tag = if func_name == "Ok" {
+                    KAIN_NATIVE_TAG_RESULT_OK_LLVM
+                } else {
+                    KAIN_NATIVE_TAG_RESULT_ERR_LLVM
+                };
+                Ok(Some(self.compile_tagged_box_from_payload(
+                    tag,
+                    Some(&payload_ptr),
+                    Some(&payload_ty),
+                    payload_size,
+                )))
             }
             _ => Ok(None),
         }
@@ -1235,13 +1428,14 @@ impl LlvmGenerator {
             ));
         }
 
-        let success_i64 = self.next_reg();
-        self.emit(&format!(
-            "  {} = call i64 @kain_native_tagged_is_success(i8* {})",
-            success_i64, boxed_value
-        ));
-        let success = self.next_reg();
-        self.emit(&format!("  {} = icmp ne i64 {}, 0", success, success_i64));
+        let success = self.compile_tagged_value_is_tag(
+            &boxed_value,
+            &[
+                KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                KAIN_NATIVE_TAG_RESULT_OK_LLVM,
+            ],
+            false,
+        );
 
         let payload_label = self.next_label();
         let residual_label = self.next_label();
@@ -1262,12 +1456,7 @@ impl LlvmGenerator {
         }
 
         self.emit_label(&payload_label);
-        self.compile_tagged_payload_copy(
-            &boxed_value,
-            target_ty,
-            "kain_native_tagged_payload_copy",
-            span,
-        )
+        Ok(self.compile_tagged_value_payload_copy(&boxed_value, target_ty))
     }
 
     fn coerce_to_i64_storage(&mut self, val: &str, ty: &str) -> String {
@@ -1872,12 +2061,8 @@ impl LlvmGenerator {
                         VariantPatternFields::Unit => return Ok(()),
                         VariantPatternFields::Tuple(patterns) if patterns.len() == 1 => {
                             let target_ty = "i64";
-                            let (payload_value, payload_ty) = self.compile_tagged_payload_copy(
-                                scrutinee_val,
-                                target_ty,
-                                "kain_native_tagged_payload_copy",
-                                span,
-                            )?;
+                            let (payload_value, payload_ty) =
+                                self.compile_tagged_value_payload_copy(scrutinee_val, target_ty);
                             return self.bind_local_pattern_value(
                                 &patterns[0],
                                 payload_value,
@@ -3419,6 +3604,9 @@ impl LlvmGenerator {
 
         // StdLib
         self.emit_stdlib_externs();
+        self.emit("");
+        self.emit("; Inline hint for tiny hot helpers");
+        self.emit("attributes #0 = { alwaysinline }");
     }
 
     fn emit_stdlib_externs(&mut self) {
@@ -3606,12 +3794,18 @@ impl LlvmGenerator {
             ));
         }
 
+        let inline_attr = if self.should_force_inline_callable(&method.name, &method.body) {
+            " #0"
+        } else {
+            ""
+        };
         self.emit(&format!(
-            "define {} @{}_{}({}) {{",
+            "define {} @{}_{}({}){} {{",
             ret_type,
             target_name,
             method.name,
-            params.join(", ")
+            params.join(", "),
+            inline_attr
         ));
         self.emit_label("entry");
 
@@ -3692,6 +3886,17 @@ impl LlvmGenerator {
         self.current_return_type = None;
     }
 
+    fn should_force_inline_callable(&self, callable_name: &str, body: &Block) -> bool {
+        callable_name != "main"
+            && body.stmts.len() <= 12
+            && !body.stmts.iter().any(|stmt| {
+                matches!(
+                    stmt,
+                    Stmt::While { .. } | Stmt::For { .. } | Stmt::Loop { .. } | Stmt::Item(_)
+                )
+            })
+    }
+
     fn compile_named_callable(
         &mut self,
         callable_name: &str,
@@ -3733,9 +3938,14 @@ impl LlvmGenerator {
             param_str.push_str(&format!("{} %arg{}", param_ty, index));
         }
 
+        let inline_attr = if self.should_force_inline_callable(callable_name, body) {
+            " #0"
+        } else {
+            ""
+        };
         self.emit(&format!(
-            "define {} @{}({}) {{",
-            ret_type, llvm_name, param_str
+            "define {} @{}({}){} {{",
+            ret_type, llvm_name, param_str, inline_attr
         ));
         self.emit_label("entry");
 
@@ -4826,9 +5036,12 @@ impl LlvmGenerator {
             }
             Expr::MacroCall { name, args, span } => self.compile_macro_call(name, args, *span),
             Expr::None(_) => {
-                let value = self.next_reg();
-                self.emit(&format!("  {} = call i8* @kain_native_option_none()", value));
-                Ok((value, "i8*".to_string()))
+                Ok(self.compile_tagged_box_from_payload(
+                    KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                    None,
+                    None,
+                    0,
+                ))
             }
             Expr::Try(value, span) => self.compile_try_for_target_type(value, "i64", *span),
             Expr::Await(value, span) => self.compile_await_for_target_type(value, "i64", *span),
@@ -5747,9 +5960,12 @@ impl LlvmGenerator {
             }
             Expr::Ident(name, span) => {
                 if name == "None" {
-                    let value = self.next_reg();
-                    self.emit(&format!("  {} = call i8* @kain_native_option_none()", value));
-                    Ok((value, "i8*".to_string()))
+                    Ok(self.compile_tagged_box_from_payload(
+                        KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                        None,
+                        None,
+                        0,
+                    ))
                 } else if let Some((ptr, ty)) = self.locals.get(name).cloned() {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
@@ -5968,62 +6184,94 @@ impl LlvmGenerator {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("is_some expects no arguments", *span));
                             }
-                            let status = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = call i64 @kain_native_option_is_some(i8* {})",
-                                status, obj_val
-                            ));
-                            let result = self.next_reg();
-                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            let result = self.compile_tagged_value_is_tag(
+                                &obj_val,
+                                &[KAIN_NATIVE_TAG_OPTION_SOME_LLVM],
+                                false,
+                            );
                             return Ok((result, "i1".to_string()));
                         }
                         "is_none" => {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("is_none expects no arguments", *span));
                             }
-                            let status = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = call i64 @kain_native_option_is_none(i8* {})",
-                                status, obj_val
-                            ));
-                            let result = self.next_reg();
-                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            let result = self.compile_tagged_value_is_tag(
+                                &obj_val,
+                                &[KAIN_NATIVE_TAG_OPTION_NONE_LLVM],
+                                true,
+                            );
                             return Ok((result, "i1".to_string()));
                         }
                         "is_ok" => {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("is_ok expects no arguments", *span));
                             }
-                            let status = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = call i64 @kain_native_result_is_ok(i8* {})",
-                                status, obj_val
-                            ));
-                            let result = self.next_reg();
-                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            let result = self.compile_tagged_value_is_tag(
+                                &obj_val,
+                                &[KAIN_NATIVE_TAG_RESULT_OK_LLVM],
+                                false,
+                            );
                             return Ok((result, "i1".to_string()));
                         }
                         "is_err" => {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("is_err expects no arguments", *span));
                             }
-                            let status = self.next_reg();
-                            self.emit(&format!(
-                                "  {} = call i64 @kain_native_result_is_err(i8* {})",
-                                status, obj_val
-                            ));
-                            let result = self.next_reg();
-                            self.emit(&format!("  {} = icmp ne i64 {}, 0", result, status));
+                            let result = self.compile_tagged_value_is_tag(
+                                &obj_val,
+                                &[KAIN_NATIVE_TAG_RESULT_ERR_LLVM],
+                                false,
+                            );
                             return Ok((result, "i1".to_string()));
                         }
                         "ok" => {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("Result.ok expects no arguments", *span));
                             }
+                            let is_ok = self.compile_tagged_value_is_tag(
+                                &obj_val,
+                                &[KAIN_NATIVE_TAG_RESULT_OK_LLVM],
+                                false,
+                            );
+                            let ok_label = self.next_label();
+                            let none_label = self.next_label();
+                            let merge_label = self.next_label();
+                            self.emit(&format!(
+                                "  br i1 {}, label %{}, label %{}",
+                                is_ok, ok_label, none_label
+                            ));
+
+                            self.emit_label(&none_label);
+                            let none_value = self.compile_tagged_box_from_payload(
+                                KAIN_NATIVE_TAG_OPTION_NONE_LLVM,
+                                None,
+                                None,
+                                0,
+                            );
+                            let none_block = self.current_block.clone();
+                            self.emit(&format!("  br label %{}", merge_label));
+
+                            self.emit_label(&ok_label);
+                            let (payload, payload_ty) =
+                                self.compile_tagged_value_payload_copy(&obj_val, "i8*");
+                            let some_value = self.compile_tagged_box_from_value(
+                                KAIN_NATIVE_TAG_OPTION_SOME_LLVM,
+                                &payload,
+                                &payload_ty,
+                                8,
+                            );
+                            let some_block = self.current_block.clone();
+                            self.emit(&format!("  br label %{}", merge_label));
+
+                            self.emit_label(&merge_label);
                             let result = self.next_reg();
                             self.emit(&format!(
-                                "  {} = call i8* @kain_native_result_ok_option(i8* {})",
-                                result, obj_val
+                                "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+                                result,
+                                none_value.0,
+                                none_block,
+                                some_value.0,
+                                some_block
                             ));
                             return Ok((result, "i8*".to_string()));
                         }
@@ -6037,12 +6285,7 @@ impl LlvmGenerator {
                             if method == "unwrap" && !args.is_empty() {
                                 return Err(KainError::codegen("unwrap expects no arguments", *span));
                             }
-                            return self.compile_tagged_payload_copy(
-                                &obj_val,
-                                "i64",
-                                "kain_native_tagged_payload_copy",
-                                *span,
-                            );
+                            return Ok(self.compile_tagged_value_payload_copy(&obj_val, "i64"));
                         }
                         _ => {}
                     }

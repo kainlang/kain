@@ -1,0 +1,2080 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&session->menus[index]",
+      "id": "if.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 72,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 72,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 72
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &session->menus[index];",
+      "variables": [
+        "index",
+        "menus",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&session->dialogs[index]",
+      "id": "if.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 88,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 88,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 88
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &session->dialogs[index];",
+      "variables": [
+        "dialogs",
+        "index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&session->resources[index]",
+      "id": "if.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 123,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 123,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 123
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &session->resources[index];",
+      "variables": [
+        "index",
+        "resources",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(float)record->f64_value",
+      "id": "if.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 147,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 147,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 147
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return (float)record->f64_value;",
+      "variables": [
+        "f64_value",
+        "float",
+        "record"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(float)record->i64_value",
+      "id": "if.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 150,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 150,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 150
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return (float)record->i64_value;",
+      "variables": [
+        "float",
+        "i64_value",
+        "record"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "out_path",
+          {
+            "args": [
+              "out_path_cap",
+              0
+            ],
+            "op": "gt"
+          }
+        ],
+        "op": "and"
+      },
+      "expression": "out_path && out_path_cap > 0",
+      "id": "if.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 214,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 36,
+        "end_line": 214,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 214
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (out_path && out_path_cap > 0) {",
+      "variables": [
+        "out_path",
+        "out_path_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&state->textures[index]",
+      "id": "if.return-condition.7",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 301,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 301,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 301
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return &state->textures[index];",
+      "variables": [
+        "index",
+        "state",
+        "textures"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "file"
+        ],
+        "op": "not"
+      },
+      "expression": "!file",
+      "id": "if.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 454,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 454,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 454
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!file) {",
+      "variables": [
+        "file"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(fwrite(header, 1, sizeof(header), file) != sizeof(header) ||",
+      "id": "if.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 459,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 459,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 459
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (fwrite(header, 1, sizeof(header), file) != sizeof(header) ||",
+      "variables": [
+        "file",
+        "fwrite",
+        "header"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "font_height != state->surface.font_pixel_height || !state->surface.font_ready",
+      "id": "if.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 549,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 549,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 549
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (font_height != state->surface.font_pixel_height || !state->surface.font_ready) {",
+      "variables": [
+        "font_height",
+        "font_pixel_height",
+        "font_ready",
+        "state",
+        "surface"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "resource"
+        ],
+        "op": "not"
+      },
+      "expression": "!resource",
+      "id": "if.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 579,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 579,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 579
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!resource) {",
+      "variables": [
+        "resource"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "strcmp(resource->resource_type, \"texture\") == 0",
+      "id": "if.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 595,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 595,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 595
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (strcmp(resource->resource_type, \"texture\") == 0) {",
+      "variables": [
+        "resource",
+        "resource_type",
+        "strcmp",
+        "texture"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "texture_id",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "texture_id != 0",
+      "id": "if.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 597,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (texture_id != 0) {",
+      "variables": [
+        "texture_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "texture_id",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "texture_id != 0",
+      "id": "if.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 597,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (texture_id != 0) {",
+      "variables": [
+        "texture_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "popup"
+        ],
+        "op": "not"
+      },
+      "expression": "!popup",
+      "id": "if.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 659,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!popup) {",
+      "variables": [
+        "popup"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(state->session->menu_items[item_index].in_use &&",
+      "id": "if.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 665,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 665,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 665
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (state->session->menu_items[item_index].in_use &&",
+      "variables": [
+        "in_use",
+        "item_index",
+        "menu_items",
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "strcmp(dialog->kind, \"confirm\") == 0",
+      "id": "if.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 735,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 735,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 735
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (strcmp(dialog->kind, \"confirm\") == 0) {",
+      "variables": [
+        "confirm",
+        "dialog",
+        "kind",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "if.guard-condition.18",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 775,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 775,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 775
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!RegisterClassA(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS",
+      "id": "if.guard-condition.19",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 988,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 988,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 988
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!RegisterClassA(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {",
+      "variables": [
+        "ERROR_CLASS_ALREADY_EXISTS",
+        "GetLastError",
+        "RegisterClassA",
+        "window_class"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-ui-win32-gl-attach.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1042,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 1042,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1042
+      },
+      "symbol": "kain_native_ui_win32_gl_attach",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->host_state",
+      "id": "kain-native-ui-win32-gl-attach.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1045,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 1045,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1045
+      },
+      "symbol": "kain_native_ui_win32_gl_attach",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->host_state) {",
+      "variables": [
+        "host_state",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-native-ui-win32-gl-attach.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1049,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 1049,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1049
+      },
+      "symbol": "kain_native_ui_win32_gl_attach",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "backend_id && strcmp(backend_id, \"auto\") == 0",
+      "id": "kain-native-ui-win32-gl-attach.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1073,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 1073,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1073
+      },
+      "symbol": "kain_native_ui_win32_gl_attach",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (backend_id && strcmp(backend_id, \"auto\") == 0) {",
+      "variables": [
+        "auto",
+        "backend_id",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-native-ui-win32-gl-clipboard-set-text.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1132,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 1132,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1132
+      },
+      "symbol": "kain_native_ui_win32_gl_clipboard_set_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!OpenClipboard(state->hwnd)",
+      "id": "kain-native-ui-win32-gl-clipboard-set-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1135,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 1135,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1135
+      },
+      "symbol": "kain_native_ui_win32_gl_clipboard_set_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!OpenClipboard(state->hwnd)) {",
+      "variables": [
+        "OpenClipboard",
+        "hwnd",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "memory"
+        ],
+        "op": "not"
+      },
+      "expression": "!memory",
+      "id": "kain-native-ui-win32-gl-clipboard-set-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1141,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 1141,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1141
+      },
+      "symbol": "kain_native_ui_win32_gl_clipboard_set_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!memory) {",
+      "variables": [
+        "memory"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "locked"
+        ],
+        "op": "not"
+      },
+      "expression": "!locked",
+      "id": "kain-native-ui-win32-gl-clipboard-set-text.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1146,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 1146,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1146
+      },
+      "symbol": "kain_native_ui_win32_gl_clipboard_set_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!locked) {",
+      "variables": [
+        "locked"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!SetClipboardData(CF_TEXT, memory)",
+      "id": "kain-native-ui-win32-gl-clipboard-set-text.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1153,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 1153,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1153
+      },
+      "symbol": "kain_native_ui_win32_gl_clipboard_set_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!SetClipboardData(CF_TEXT, memory)) {",
+      "variables": [
+        "CF_TEXT",
+        "SetClipboardData",
+        "memory"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_text_cap",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-native-ui-win32-gl-copy-text.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 52,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 103,
+        "end_line": 52,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 52
+      },
+      "symbol": "kain_native_ui_win32_gl_copy_text",
+      "text": "static void kain_native_ui_win32_gl_copy_text(char* out_text, size_t out_text_cap, const char* text) {",
+      "variables": [
+        "out_text_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out_text"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "out_text_cap",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!out_text || out_text_cap == 0",
+      "id": "kain-native-ui-win32-gl-copy-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 53,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 53,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 53
+      },
+      "symbol": "kain_native_ui_win32_gl_copy_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out_text || out_text_cap == 0) {",
+      "variables": [
+        "out_text",
+        "out_text_cap"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "text"
+        ],
+        "op": "not"
+      },
+      "expression": "!text",
+      "id": "kain-native-ui-win32-gl-copy-text.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 56,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 56,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 56
+      },
+      "symbol": "kain_native_ui_win32_gl_copy_text",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!text) {",
+      "variables": [
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-native-ui-win32-gl-destroy-textures.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 499,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 499,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 499
+      },
+      "symbol": "kain_native_ui_win32_gl_destroy_textures",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->textures[index].in_use && state->textures[index].texture_id != 0",
+      "id": "kain-native-ui-win32-gl-destroy-textures.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 503,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 503,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 503
+      },
+      "symbol": "kain_native_ui_win32_gl_destroy_textures",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->textures[index].in_use && state->textures[index].texture_id != 0) {",
+      "variables": [
+        "in_use",
+        "index",
+        "state",
+        "texture_id",
+        "textures"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->session",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 974,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 974,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 974
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->session) {",
+      "variables": [
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->window_created && state->hwnd",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 977,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 977,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 977
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->window_created && state->hwnd) {",
+      "variables": [
+        "hwnd",
+        "state",
+        "window_created"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state->class_registered",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 981,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 981,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 981
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state->class_registered) {",
+      "variables": [
+        "class_registered",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!RegisterClassA(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 988,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 988,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 988
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!RegisterClassA(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {",
+      "variables": [
+        "ERROR_CLASS_ALREADY_EXISTS",
+        "GetLastError",
+        "RegisterClassA",
+        "window_class"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state->hwnd",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1015,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 1015,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1015
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state->hwnd) {",
+      "variables": [
+        "hwnd",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_win32_gl_surface_boot(state->hwnd, &state->surface, 16)",
+      "id": "kain-native-ui-win32-gl-ensure-window.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1018,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 69,
+        "end_line": 1018,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1018
+      },
+      "symbol": "kain_native_ui_win32_gl_ensure_window",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_win32_gl_surface_boot(state->hwnd, &state->surface, 16)) {",
+      "variables": [
+        "hwnd",
+        "kain_win32_gl_surface_boot",
+        "state",
+        "surface"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "value && value[0]",
+      "id": "kain-native-ui-win32-gl-int-env.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 201,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 201,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 201
+      },
+      "symbol": "kain_native_ui_win32_gl_int_env",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (value && value[0]) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "session"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!session || !state",
+      "id": "kain-native-ui-win32-gl-present.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1095,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 1095,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1095
+      },
+      "symbol": "kain_native_ui_win32_gl_present",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || !state) {",
+      "variables": [
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_native_ui_win32_gl_ensure_window(state)",
+      "id": "kain-native-ui-win32-gl-present.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1098,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 1098,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1098
+      },
+      "symbol": "kain_native_ui_win32_gl_present",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_native_ui_win32_gl_ensure_window(state)) {",
+      "variables": [
+        "kain_native_ui_win32_gl_ensure_window",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || state->session->active_dialog_id <= 0",
+      "id": "kain-native-ui-win32-gl-process-dialog.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 722,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 722,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 722
+      },
+      "symbol": "kain_native_ui_win32_gl_process_dialog",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || state->session->active_dialog_id <= 0) {",
+      "variables": [
+        "active_dialog_id",
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!dialog || dialog->response_ready",
+      "id": "kain-native-ui-win32-gl-process-dialog.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 726,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 726,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 726
+      },
+      "symbol": "kain_native_ui_win32_gl_process_dialog",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!dialog || dialog->response_ready) {",
+      "variables": [
+        "dialog",
+        "response_ready"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->dialog_auto_response != 0",
+      "id": "kain-native-ui-win32-gl-process-dialog.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 729,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 729,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 729
+      },
+      "symbol": "kain_native_ui_win32_gl_process_dialog",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->dialog_auto_response != 0) {",
+      "variables": [
+        "dialog_auto_response",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "strcmp(dialog->kind, \"confirm\") == 0",
+      "id": "kain-native-ui-win32-gl-process-dialog.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 735,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 735,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 735
+      },
+      "symbol": "kain_native_ui_win32_gl_process_dialog",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (strcmp(dialog->kind, \"confirm\") == 0) {",
+      "variables": [
+        "confirm",
+        "dialog",
+        "kind",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || state->session->active_menu_id <= 0",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 645,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 645,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 645
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || state->session->active_menu_id <= 0) {",
+      "variables": [
+        "active_menu_id",
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!menu || !menu->open",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 649,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 649,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 649
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!menu || !menu->open) {",
+      "variables": [
+        "menu",
+        "open"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->menu_auto_command > 0",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 653,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 36,
+        "end_line": 653,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 653
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->menu_auto_command > 0) {",
+      "variables": [
+        "menu_auto_command",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "popup"
+        ],
+        "op": "not"
+      },
+      "expression": "!popup",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 659,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!popup) {",
+      "variables": [
+        "popup"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(state->session->menu_items[item_index].in_use &&",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 665,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 665,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 665
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->session->menu_items[item_index].in_use &&",
+      "variables": [
+        "in_use",
+        "item_index",
+        "menu_items",
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "command_result",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "command_result > 0",
+      "id": "kain-native-ui-win32-gl-process-menu.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 690,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 690,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 690
+      },
+      "symbol": "kain_native_ui_win32_gl_process_menu",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (command_result > 0) {",
+      "variables": [
+        "command_result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "session"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "state"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!session || !state",
+      "id": "kain-native-ui-win32-gl-pump.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1081,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 1081,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1081
+      },
+      "symbol": "kain_native_ui_win32_gl_pump",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || !state) {",
+      "variables": [
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_native_ui_win32_gl_ensure_window(state)",
+      "id": "kain-native-ui-win32-gl-pump.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1084,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 1084,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1084
+      },
+      "symbol": "kain_native_ui_win32_gl_pump",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_native_ui_win32_gl_ensure_window(state)) {",
+      "variables": [
+        "kain_native_ui_win32_gl_ensure_window",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)",
+      "id": "kain-native-ui-win32-gl-pump-messages.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1031,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 1031,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1031
+      },
+      "symbol": "kain_native_ui_win32_gl_pump_messages",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {",
+      "variables": [
+        "NULL",
+        "PM_REMOVE",
+        "PeekMessageA",
+        "msg"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "msg.message == WM_QUIT",
+      "id": "kain-native-ui-win32-gl-pump-messages.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1032,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 1032,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1032
+      },
+      "symbol": "kain_native_ui_win32_gl_pump_messages",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (msg.message == WM_QUIT) {",
+      "variables": [
+        "WM_QUIT",
+        "message",
+        "msg"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!state || !state->hwnd || !state->surface.dc",
+      "id": "kain-native-ui-win32-gl-render.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 627,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 627,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 627
+      },
+      "symbol": "kain_native_ui_win32_gl_render",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state || !state->hwnd || !state->surface.dc) {",
+      "variables": [
+        "dc",
+        "hwnd",
+        "state",
+        "surface"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "state"
+        ],
+        "op": "not"
+      },
+      "expression": "!state",
+      "id": "kain-native-ui-win32-gl-shutdown.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1110,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 1110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1110
+      },
+      "symbol": "kain_native_ui_win32_gl_shutdown",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!state) {",
+      "variables": [
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->surface.dc || state->surface.glrc",
+      "id": "kain-native-ui-win32-gl-shutdown.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1113,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 1113,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1113
+      },
+      "symbol": "kain_native_ui_win32_gl_shutdown",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->surface.dc || state->surface.glrc) {",
+      "variables": [
+        "dc",
+        "glrc",
+        "state",
+        "surface"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->hwnd && IsWindow(state->hwnd)",
+      "id": "kain-native-ui-win32-gl-shutdown.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1117,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 1117,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1117
+      },
+      "symbol": "kain_native_ui_win32_gl_shutdown",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->hwnd && IsWindow(state->hwnd)) {",
+      "variables": [
+        "IsWindow",
+        "hwnd",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->class_registered && state->instance",
+      "id": "kain-native-ui-win32-gl-shutdown.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1120,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 50,
+        "end_line": 1120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1120
+      },
+      "symbol": "kain_native_ui_win32_gl_shutdown",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (state->class_registered && state->instance) {",
+      "variables": [
+        "class_registered",
+        "instance",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&session->styles[index]",
+      "id": "strcmp.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 107,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 107,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 107
+      },
+      "symbol": "strcmp",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return &session->styles[index];",
+      "variables": [
+        "index",
+        "session",
+        "styles"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "target",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "target > 0",
+      "id": "switch.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 829,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 829,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 829
+      },
+      "symbol": "switch",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (target > 0) {",
+      "variables": [
+        "target"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "state->session->ime_active_node_id > 0",
+      "id": "switch.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 906,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 906,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 906
+      },
+      "symbol": "switch",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (state->session->ime_active_node_id > 0) {",
+      "variables": [
+        "ime_active_node_id",
+        "session",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "msg.message == WM_QUIT",
+      "id": "while.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1032,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 1032,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+        "start_col": 1,
+        "start_line": 1032
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (msg.message == WM_QUIT) {",
+      "variables": [
+        "WM_QUIT",
+        "message",
+        "msg"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "669f53d40b0add13c2902131040f1532cbf47799dd21996480f51c9f3527462a",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\ui\\kain_native_ui_host_win32_gl.c",
+  "version": 1
+}

@@ -1,0 +1,4669 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "capacity",
+        "role": "capacity-like",
+        "type": "!dest ||"
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 87,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "if",
+      "text": "if (!dest || capacity == 0u) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "*"
+      },
+      "id": "if.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 156,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 156,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 156
+      },
+      "symbol": "if",
+      "text": "if (*count >= capacity) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": null
+      },
+      "id": "if.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 167,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 167,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 167
+      },
+      "symbol": "if",
+      "text": "if (index < 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "*"
+      },
+      "id": "if.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 173,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 173,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 173
+      },
+      "symbol": "if",
+      "text": "if (*count > 0) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "trace_text_length",
+        "role": "length-like",
+        "type": "!session || !event || session->"
+      },
+      "id": "if.parameter-role.5",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 213,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 97,
+        "end_line": 213,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 213
+      },
+      "symbol": "if",
+      "text": "if (!session || !event || session->trace_text_length >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - 1u) {",
+      "variables": [
+        "trace_text_length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "used >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - session->trace_text_length",
+      "id": "if.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 231,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 231,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 231
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (used >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - session->trace_text_length) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_TRACE_TEXT",
+        "session",
+        "trace_text_length",
+        "used"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "axis_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.7",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 251,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 57,
+        "end_line": 251,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 251
+      },
+      "symbol": "if",
+      "text": "if (session->axis_count >= KAIN_NATIVE_INPUT_MAX_AXES) {",
+      "variables": [
+        "axis_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_name_remove(session->actions_down, &session->action_down_count, action)",
+      "id": "if.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 267,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 97,
+        "end_line": 267,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 267
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_native_input_name_remove(session->actions_down, &session->action_down_count, action)) {",
+      "variables": [
+        "action",
+        "action_down_count",
+        "actions_down",
+        "kain_native_input_name_remove",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->text_commit_count < KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS",
+      "id": "if.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 307,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 307,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 307
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (session->text_commit_count < KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS",
+        "session",
+        "text_commit_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "axis_binding",
+      "expression": "axis_binding",
+      "id": "if.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 319,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 319,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 319
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (axis_binding) {",
+      "variables": [
+        "axis_binding"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "cursor",
+        "role": "cursor-like",
+        "type": "*"
+      },
+      "id": "if.parameter-role.11",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 343,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 343,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 343
+      },
+      "symbol": "if",
+      "text": "if (*cursor == '|') {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "field",
+          "max_fields"
+        ],
+        "op": "lt"
+      },
+      "expression": "field < max_fields",
+      "id": "if.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 347,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 347,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 347
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (field < max_fields) {",
+      "variables": [
+        "field",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"action binding requires event kind, code, and action\")",
+      "id": "if.return-condition.13",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 418,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 143,
+        "end_line": 418,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 418
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"action binding requires event kind, code, and action\");",
+      "variables": [
+        "KAIN_NATIVE_INPUT_INVALID_ARGUMENT",
+        "action",
+        "binding",
+        "code",
+        "event",
+        "invalid_argument",
+        "kain_native_input_fail",
+        "kind",
+        "requires"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "binding_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.14",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 420,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 420,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 420
+      },
+      "symbol": "if",
+      "text": "if (session->binding_count >= KAIN_NATIVE_INPUT_MAX_BINDINGS) {",
+      "variables": [
+        "binding_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"axis binding requires event kind, code, and axis\")",
+      "id": "if.return-condition.15",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 449,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 139,
+        "end_line": 449,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 449
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"axis binding requires event kind, code, and axis\");",
+      "variables": [
+        "KAIN_NATIVE_INPUT_INVALID_ARGUMENT",
+        "axis",
+        "binding",
+        "code",
+        "event",
+        "invalid_argument",
+        "kain_native_input_fail",
+        "kind",
+        "requires"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "binding_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.16",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 451,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 451,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 451
+      },
+      "symbol": "if",
+      "text": "if (session->binding_count >= KAIN_NATIVE_INPUT_MAX_BINDINGS) {",
+      "variables": [
+        "binding_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"input event requires source kind and event kind\")",
+      "id": "if.return-condition.17",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 482,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 138,
+        "end_line": 482,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 482
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return kain_native_input_fail(KAIN_NATIVE_INPUT_INVALID_ARGUMENT, \"invalid_argument\", \"input event requires source kind and event kind\");",
+      "variables": [
+        "KAIN_NATIVE_INPUT_INVALID_ARGUMENT",
+        "event",
+        "input",
+        "invalid_argument",
+        "kain_native_input_fail",
+        "kind",
+        "requires",
+        "source"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "pending_event_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.18",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 484,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 484,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 484
+      },
+      "symbol": "if",
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "pending_event_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "pending_event_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.19",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 522,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 522,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 522
+      },
+      "symbol": "if",
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "pending_event_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "frame_event_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.20",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 550,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 550,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 550
+      },
+      "symbol": "if",
+      "text": "if (session->frame_event_count > 0) {",
+      "variables": [
+        "frame_event_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "!session || event_index < 0 ||"
+      },
+      "id": "if.parameter-role.21",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 586,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 80,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "if",
+      "text": "if (!session || event_index < 0 || event_index >= session->frame_event_count) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->axes[i].value",
+      "id": "if.return-condition.22",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 643,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 643,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 643
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return session->axes[i].value;",
+      "variables": [
+        "axes",
+        "i",
+        "session",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "!session || index < 0 ||"
+      },
+      "id": "if.parameter-role.23",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 659,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "if",
+      "text": "if (!session || index < 0 || index >= session->text_commit_count) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS",
+      "id": "if.guard-condition.24",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 694,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_EVENTS",
+        "pending_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "pending_event_count",
+        "role": "count-like",
+        "type": "session->"
+      },
+      "id": "if.parameter-role.27",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 694,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "if",
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "pending_event_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->sequence >= session->next_sequence",
+      "id": "if.guard-condition.25",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 701,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 701,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 701
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (event->sequence >= session->next_sequence) {",
+      "variables": [
+        "event",
+        "next_sequence",
+        "sequence",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"action\")",
+      "id": "if.guard-condition.26",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 711,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 711,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 711
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"action\")) {",
+      "variables": [
+        "action",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-action-down.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 623,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 80,
+        "end_line": 623,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 623
+      },
+      "symbol": "kain_native_input_action_down",
+      "text": "int64_t kain_native_input_action_down(int64_t session_id, const char* action) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!session) return 0",
+      "id": "kain-native-input-action-down.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 625,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 625,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 625
+      },
+      "symbol": "kain_native_input_action_down",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) return 0;",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_name_index(session->actions_down, session->action_down_count, action) >= 0 ? 1 : 0",
+      "id": "kain-native-input-action-down.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 626,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 109,
+        "end_line": 626,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 626
+      },
+      "symbol": "kain_native_input_action_down",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_name_index(session->actions_down, session->action_down_count, action) >= 0 ? 1 : 0;",
+      "variables": [
+        "action",
+        "action_down_count",
+        "actions_down",
+        "kain_native_input_name_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-action-pressed.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 617,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 617,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 617
+      },
+      "symbol": "kain_native_input_action_pressed",
+      "text": "int64_t kain_native_input_action_pressed(int64_t session_id, const char* action) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!session) return 0",
+      "id": "kain-native-input-action-pressed.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 619,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 619,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 619
+      },
+      "symbol": "kain_native_input_action_pressed",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) return 0;",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_name_index(session->actions_pressed, session->action_pressed_count, action) >= 0 ? 1 : 0",
+      "id": "kain-native-input-action-pressed.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 620,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 115,
+        "end_line": 620,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 620
+      },
+      "symbol": "kain_native_input_action_pressed",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_name_index(session->actions_pressed, session->action_pressed_count, action) >= 0 ? 1 : 0;",
+      "variables": [
+        "action",
+        "action_pressed_count",
+        "actions_pressed",
+        "kain_native_input_name_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-action-released.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 629,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 629,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 629
+      },
+      "symbol": "kain_native_input_action_released",
+      "text": "int64_t kain_native_input_action_released(int64_t session_id, const char* action) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!session) return 0",
+      "id": "kain-native-input-action-released.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 631,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 631,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 631
+      },
+      "symbol": "kain_native_input_action_released",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) return 0;",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_name_index(session->actions_released, session->action_released_count, action) >= 0 ? 1 : 0",
+      "id": "kain-native-input-action-released.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 632,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 117,
+        "end_line": 632,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 632
+      },
+      "symbol": "kain_native_input_action_released",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_name_index(session->actions_released, session->action_released_count, action) >= 0 ? 1 : 0;",
+      "variables": [
+        "action",
+        "action_released_count",
+        "actions_released",
+        "kain_native_input_name_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || kain_native_input_text_empty(axis)",
+      "id": "kain-native-input-axis-add.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 242,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 242,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 242
+      },
+      "symbol": "kain_native_input_axis_add",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || kain_native_input_text_empty(axis)) {",
+      "variables": [
+        "axis",
+        "kain_native_input_text_empty",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(session->axes[i].axis, axis)",
+      "id": "kain-native-input-axis-add.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 246,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 246,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 246
+      },
+      "symbol": "kain_native_input_axis_add",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(session->axes[i].axis, axis)) {",
+      "variables": [
+        "axes",
+        "axis",
+        "i",
+        "kain_native_input_text_equal",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->axis_count >= KAIN_NATIVE_INPUT_MAX_AXES",
+      "id": "kain-native-input-axis-add.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 251,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 57,
+        "end_line": 251,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 251
+      },
+      "symbol": "kain_native_input_axis_add",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->axis_count >= KAIN_NATIVE_INPUT_MAX_AXES) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_AXES",
+        "axis_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-axis-value.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 635,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 76,
+        "end_line": 635,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 635
+      },
+      "symbol": "kain_native_input_axis_value",
+      "text": "double kain_native_input_axis_value(int64_t session_id, const char* axis) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || kain_native_input_text_empty(axis)",
+      "id": "kain-native-input-axis-value.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 638,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 638,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 638
+      },
+      "symbol": "kain_native_input_axis_value",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || kain_native_input_text_empty(axis)) {",
+      "variables": [
+        "axis",
+        "kain_native_input_text_empty",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(session->axes[i].axis, axis)",
+      "id": "kain-native-input-axis-value.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 642,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 642,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 642
+      },
+      "symbol": "kain_native_input_axis_value",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(session->axes[i].axis, axis)) {",
+      "variables": [
+        "axes",
+        "axis",
+        "i",
+        "kain_native_input_text_equal",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->axes[i].value",
+      "id": "kain-native-input-axis-value.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 643,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 643,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 643
+      },
+      "symbol": "kain_native_input_axis_value",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return session->axes[i].value;",
+      "variables": [
+        "axes",
+        "i",
+        "session",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-begin-frame.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 541,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 541,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 541
+      },
+      "symbol": "kain_native_input_begin_frame",
+      "text": "int64_t kain_native_input_begin_frame(int64_t session_id, double delta_ms) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-begin-frame.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 544,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 544,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 544
+      },
+      "symbol": "kain_native_input_begin_frame",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->frame_event_count > 0",
+      "id": "kain-native-input-begin-frame.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 550,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 550,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 550
+      },
+      "symbol": "kain_native_input_begin_frame",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->frame_event_count > 0) {",
+      "variables": [
+        "frame_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->frame_index",
+      "id": "kain-native-input-begin-frame.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 563,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 563,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 563
+      },
+      "symbol": "kain_native_input_begin_frame",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return session->frame_index;",
+      "variables": [
+        "frame_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!binding || !event || !binding->in_use",
+      "id": "kain-native-input-binding-matches.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 181,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 181,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 181
+      },
+      "symbol": "kain_native_input_binding_matches",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!binding || !event || !binding->in_use) {",
+      "variables": [
+        "binding",
+        "event",
+        "in_use"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_native_input_text_empty(binding->source_kind",
+      "id": "kain-native-input-binding-matches.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 184,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 56,
+        "end_line": 184,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 184
+      },
+      "symbol": "kain_native_input_binding_matches",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_native_input_text_empty(binding->source_kind)",
+      "variables": [
+        "binding",
+        "kain_native_input_text_empty",
+        "source_kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_text_equal(binding->event_kind, event->event_kind)",
+      "id": "kain-native-input-binding-matches.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 189,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 76,
+        "end_line": 189,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 189
+      },
+      "symbol": "kain_native_input_binding_matches",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_text_equal(binding->event_kind, event->event_kind)",
+      "variables": [
+        "binding",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "capacity",
+        "role": "capacity-like",
+        "type": "size_t"
+      },
+      "id": "kain-native-input-copy.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 86,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "kain_native_input_copy",
+      "text": "static void kain_native_input_copy(char* dest, size_t capacity, const char* source) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "capacity",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-native-input-copy.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 86,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 86,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 86
+      },
+      "symbol": "kain_native_input_copy",
+      "text": "static void kain_native_input_copy(char* dest, size_t capacity, const char* source) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "dest"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "capacity",
+              0
+            ],
+            "op": "eq"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!dest || capacity == 0u",
+      "id": "kain-native-input-copy.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 87,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 87,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 87
+      },
+      "symbol": "kain_native_input_copy",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!dest || capacity == 0u) {",
+      "variables": [
+        "capacity",
+        "dest",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "source"
+        ],
+        "op": "not"
+      },
+      "expression": "!source",
+      "id": "kain-native-input-copy.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 90,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 90,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 90
+      },
+      "symbol": "kain_native_input_copy",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!source) {",
+      "variables": [
+        "source"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-action.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 607,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 607,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 607
+      },
+      "symbol": "kain_native_input_event_action",
+      "text": "const char* kain_native_input_event_action(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-action.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 607,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 607,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 607
+      },
+      "symbol": "kain_native_input_event_action",
+      "text": "const char* kain_native_input_event_action(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-action.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 607,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 86,
+        "end_line": 607,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 607
+      },
+      "symbol": "kain_native_input_event_action",
+      "text": "const char* kain_native_input_event_action(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(event ? event->action : g_empty_string)",
+      "id": "kain-native-input-event-action.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 609,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 73,
+        "end_line": 609,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 609
+      },
+      "symbol": "kain_native_input_event_action",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(event ? event->action : g_empty_string);",
+      "variables": [
+        "action",
+        "event",
+        "g_empty_string",
+        "kain_native_input_string"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-code.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 602,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 602,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 602
+      },
+      "symbol": "kain_native_input_event_code",
+      "text": "const char* kain_native_input_event_code(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-code.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 602,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 602,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 602
+      },
+      "symbol": "kain_native_input_event_code",
+      "text": "const char* kain_native_input_event_code(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-code.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 602,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 602,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 602
+      },
+      "symbol": "kain_native_input_event_code",
+      "text": "const char* kain_native_input_event_code(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(event ? event->code : g_empty_string)",
+      "id": "kain-native-input-event-code.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 604,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 604,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 604
+      },
+      "symbol": "kain_native_input_event_code",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(event ? event->code : g_empty_string);",
+      "variables": [
+        "code",
+        "event",
+        "g_empty_string",
+        "kain_native_input_string"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-count.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 575,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 575,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 575
+      },
+      "symbol": "kain_native_input_event_count",
+      "text": "int64_t kain_native_input_event_count(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-event-count.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 577,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 577,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 577
+      },
+      "symbol": "kain_native_input_event_count",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->frame_event_count",
+      "id": "kain-native-input-event-count.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 581,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 581,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 581
+      },
+      "symbol": "kain_native_input_event_count",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return session->frame_event_count;",
+      "variables": [
+        "frame_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-kind.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 592,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 592,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 592
+      },
+      "symbol": "kain_native_input_event_kind",
+      "text": "const char* kain_native_input_event_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-kind.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 592,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 592,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 592
+      },
+      "symbol": "kain_native_input_event_kind",
+      "text": "const char* kain_native_input_event_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-kind.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 592,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 592,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 592
+      },
+      "symbol": "kain_native_input_event_kind",
+      "text": "const char* kain_native_input_event_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(event ? event->event_kind : g_empty_string)",
+      "id": "kain-native-input-event-kind.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 594,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 594,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 594
+      },
+      "symbol": "kain_native_input_event_kind",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(event ? event->event_kind : g_empty_string);",
+      "variables": [
+        "event",
+        "event_kind",
+        "g_empty_string",
+        "kain_native_input_string"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-source-kind.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 597,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 91,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "kain_native_input_event_source_kind",
+      "text": "const char* kain_native_input_event_source_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-source-kind.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 597,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 91,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "kain_native_input_event_source_kind",
+      "text": "const char* kain_native_input_event_source_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-source-kind.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 597,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 91,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "kain_native_input_event_source_kind",
+      "text": "const char* kain_native_input_event_source_kind(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(event ? event->source_kind : g_empty_string)",
+      "id": "kain-native-input-event-source-kind.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 599,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 78,
+        "end_line": 599,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 599
+      },
+      "symbol": "kain_native_input_event_source_kind",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(event ? event->source_kind : g_empty_string);",
+      "variables": [
+        "event",
+        "g_empty_string",
+        "kain_native_input_string",
+        "source_kind"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-text.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 612,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 612,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 612
+      },
+      "symbol": "kain_native_input_event_text",
+      "text": "const char* kain_native_input_event_text(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-text.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 612,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 612,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 612
+      },
+      "symbol": "kain_native_input_event_text",
+      "text": "const char* kain_native_input_event_text(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-event-text.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 612,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 84,
+        "end_line": 612,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 612
+      },
+      "symbol": "kain_native_input_event_text",
+      "text": "const char* kain_native_input_event_text(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(event ? event->text : g_empty_string)",
+      "id": "kain-native-input-event-text.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 614,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 614,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 614
+      },
+      "symbol": "kain_native_input_event_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(event ? event->text : g_empty_string);",
+      "variables": [
+        "event",
+        "g_empty_string",
+        "kain_native_input_string",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "status",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-fail.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 108,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 95,
+        "end_line": 108,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 108
+      },
+      "symbol": "kain_native_input_fail",
+      "text": "static int64_t kain_native_input_fail(int64_t status, const char* kind, const char* message) {",
+      "variables": [
+        "status"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-frame-event.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 584,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 108,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "kain_native_input_frame_event",
+      "text": "static const KainNativeInputEvent* kain_native_input_frame_event(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "event_index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-frame-event.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 584,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 108,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "kain_native_input_frame_event",
+      "text": "static const KainNativeInputEvent* kain_native_input_frame_event(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "event_index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-frame-event.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 584,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 108,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "kain_native_input_frame_event",
+      "text": "static const KainNativeInputEvent* kain_native_input_frame_event(int64_t session_id, int64_t event_index) {",
+      "variables": [
+        "event_index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || event_index < 0 || event_index >= session->frame_event_count",
+      "id": "kain-native-input-frame-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 80,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "kain_native_input_frame_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || event_index < 0 || event_index >= session->frame_event_count) {",
+      "variables": [
+        "event_index",
+        "frame_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "&session->frame_events[event_index]",
+      "id": "kain-native-input-frame-event.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 589,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 589,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 589
+      },
+      "symbol": "kain_native_input_frame_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return &session->frame_events[event_index];",
+      "variables": [
+        "event_index",
+        "frame_events",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-frame-index.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 566,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 566,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 566
+      },
+      "symbol": "kain_native_input_frame_index",
+      "text": "int64_t kain_native_input_frame_index(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-frame-index.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 568,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 568,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 568
+      },
+      "symbol": "kain_native_input_frame_index",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->frame_index",
+      "id": "kain-native-input-frame-index.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 572,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 572,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 572
+      },
+      "symbol": "kain_native_input_frame_index",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return session->frame_index;",
+      "variables": [
+        "frame_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "int64_t*"
+      },
+      "id": "kain-native-input-name-add.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 149,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 133,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "kain_native_input_name_add",
+      "text": "static int kain_native_input_name_add(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "count",
+        "role": "signed-int",
+        "type": "int64_t*"
+      },
+      "id": "kain-native-input-name-add.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 149,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 133,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "kain_native_input_name_add",
+      "text": "static int kain_native_input_name_add(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "capacity",
+        "role": "capacity-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-name-add.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 149,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 133,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "kain_native_input_name_add",
+      "text": "static int kain_native_input_name_add(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "capacity",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-name-add.parameter-role.4",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 149,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 133,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "kain_native_input_name_add",
+      "text": "static int kain_native_input_name_add(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, int64_t capacity, const char* name) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_empty(name)",
+      "id": "kain-native-input-name-add.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 150,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 150,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 150
+      },
+      "symbol": "kain_native_input_name_add",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (kain_native_input_text_empty(name)) {",
+      "variables": [
+        "kain_native_input_text_empty",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_name_index(names, *count, name) >= 0",
+      "id": "kain-native-input-name-add.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 153,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 153,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 153
+      },
+      "symbol": "kain_native_input_name_add",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (kain_native_input_name_index(names, *count, name) >= 0) {",
+      "variables": [
+        "count",
+        "kain_native_input_name_index",
+        "name",
+        "names"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*count >= capacity",
+      "id": "kain-native-input-name-add.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 156,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 156,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 156
+      },
+      "symbol": "kain_native_input_name_add",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (*count >= capacity) {",
+      "variables": [
+        "capacity",
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-name-index.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 136,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 116,
+        "end_line": 136,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 136
+      },
+      "symbol": "kain_native_input_name_index",
+      "text": "static int kain_native_input_name_index(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t count, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "count",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-name-index.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 136,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 116,
+        "end_line": 136,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 136
+      },
+      "symbol": "kain_native_input_name_index",
+      "text": "static int kain_native_input_name_index(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t count, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_empty(name)",
+      "id": "kain-native-input-name-index.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 138,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 138,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 138
+      },
+      "symbol": "kain_native_input_name_index",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (kain_native_input_text_empty(name)) {",
+      "variables": [
+        "kain_native_input_text_empty",
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(names[i], name)",
+      "id": "kain-native-input-name-index.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 142,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 142,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 142
+      },
+      "symbol": "kain_native_input_name_index",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (kain_native_input_text_equal(names[i], name)) {",
+      "variables": [
+        "i",
+        "kain_native_input_text_equal",
+        "name",
+        "names"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "int64_t*"
+      },
+      "id": "kain-native-input-name-remove.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 164,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 118,
+        "end_line": 164,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 164
+      },
+      "symbol": "kain_native_input_name_remove",
+      "text": "static int kain_native_input_name_remove(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "count",
+        "role": "signed-int",
+        "type": "int64_t*"
+      },
+      "id": "kain-native-input-name-remove.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 164,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 118,
+        "end_line": 164,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 164
+      },
+      "symbol": "kain_native_input_name_remove",
+      "text": "static int kain_native_input_name_remove(char names[][KAIN_NATIVE_INPUT_MAX_KEY], int64_t* count, const char* name) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "index",
+          0
+        ],
+        "op": "lt"
+      },
+      "expression": "index < 0",
+      "id": "kain-native-input-name-remove.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 167,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 167,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 167
+      },
+      "symbol": "kain_native_input_name_remove",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (index < 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*count > 0",
+      "id": "kain-native-input-name-remove.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 173,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 173,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 173
+      },
+      "symbol": "kain_native_input_name_remove",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (*count > 0) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || !event || kain_native_input_text_empty(action)",
+      "id": "kain-native-input-reduce-action.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 261,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 261,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 261
+      },
+      "symbol": "kain_native_input_reduce_action",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || !event || kain_native_input_text_empty(action)) {",
+      "variables": [
+        "action",
+        "event",
+        "kain_native_input_text_empty",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"key_up\"",
+      "id": "kain-native-input-reduce-action.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 264,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 264,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 264
+      },
+      "symbol": "kain_native_input_reduce_action",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"key_up\")",
+      "variables": [
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal",
+        "key_up"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_name_remove(session->actions_down, &session->action_down_count, action)",
+      "id": "kain-native-input-reduce-action.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 267,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 97,
+        "end_line": 267,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 267
+      },
+      "symbol": "kain_native_input_reduce_action",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_name_remove(session->actions_down, &session->action_down_count, action)) {",
+      "variables": [
+        "action",
+        "action_down_count",
+        "actions_down",
+        "kain_native_input_name_remove",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"action\")",
+      "id": "kain-native-input-reduce-action.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 278,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 278,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 278
+      },
+      "symbol": "kain_native_input_reduce_action",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"action\")) {",
+      "variables": [
+        "action",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_name_index(session->actions_down, session->action_down_count, action) < 0",
+      "id": "kain-native-input-reduce-action.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 288,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 99,
+        "end_line": 288,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 288
+      },
+      "symbol": "kain_native_input_reduce_action",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_name_index(session->actions_down, session->action_down_count, action) < 0) {",
+      "variables": [
+        "action",
+        "action_down_count",
+        "actions_down",
+        "kain_native_input_name_index",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "session"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "event"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!session || !event",
+      "id": "kain-native-input-reduce-event.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 302,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 302,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 302
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || !event) {",
+      "variables": [
+        "event",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"text\") && !kain_native_input_text_empty(event->text)",
+      "id": "kain-native-input-reduce-event.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 306,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 109,
+        "end_line": 306,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 306
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"text\") && !kain_native_input_text_empty(event->text)) {",
+      "variables": [
+        "event",
+        "event_kind",
+        "kain_native_input_text_empty",
+        "kain_native_input_text_equal",
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->text_commit_count < KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS",
+      "id": "kain-native-input-reduce-event.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 307,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 71,
+        "end_line": 307,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 307
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->text_commit_count < KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_TEXT_COMMITS",
+        "session",
+        "text_commit_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"axis\")",
+      "id": "kain-native-input-reduce-event.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 317,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 317,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 317
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"axis\")) {",
+      "variables": [
+        "axis",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "axis_binding",
+      "expression": "axis_binding",
+      "id": "kain-native-input-reduce-event.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 319,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 319,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 319
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (axis_binding) {",
+      "variables": [
+        "axis_binding"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "action_binding",
+      "expression": "action_binding",
+      "id": "kain-native-input-reduce-event.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 327,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 327,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 327
+      },
+      "symbol": "kain_native_input_reduce_event",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (action_binding) {",
+      "variables": [
+        "action_binding"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-replay-trace.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 673,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 85,
+        "end_line": 673,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 673
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "text": "int64_t kain_native_input_replay_trace(int64_t session_id, const char* trace_text) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-replay-trace.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 677,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 677,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 677
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "trace_text"
+        ],
+        "op": "not"
+      },
+      "expression": "!trace_text",
+      "id": "kain-native-input-replay-trace.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 680,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 680,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 680
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!trace_text) {",
+      "variables": [
+        "trace_text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "buffer"
+        ],
+        "op": "not"
+      },
+      "expression": "!buffer",
+      "id": "kain-native-input-replay-trace.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 684,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 684,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 684
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!buffer) {",
+      "variables": [
+        "buffer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "line",
+      "expression": "line",
+      "id": "kain-native-input-replay-trace.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 689,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 689,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 689
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while (line) {",
+      "variables": [
+        "line"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_split_fields(line, fields, 8) >= 8",
+      "id": "kain-native-input-replay-trace.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 691,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 691,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 691
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_split_fields(line, fields, 8) >= 8) {",
+      "variables": [
+        "fields",
+        "kain_native_input_split_fields",
+        "line"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS",
+      "id": "kain-native-input-replay-trace.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 694,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_EVENTS",
+        "pending_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->sequence >= session->next_sequence",
+      "id": "kain-native-input-replay-trace.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 701,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 701,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 701
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->sequence >= session->next_sequence) {",
+      "variables": [
+        "event",
+        "next_sequence",
+        "sequence",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"action\")",
+      "id": "kain-native-input-replay-trace.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 711,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 711,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 711
+      },
+      "symbol": "kain_native_input_replay_trace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"action\")) {",
+      "variables": [
+        "action",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-session.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 126,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 126,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 126
+      },
+      "symbol": "kain_native_input_session",
+      "text": "static KainNativeInputSession* kain_native_input_session(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_sessions[i].in_use && g_sessions[i].id == session_id",
+      "id": "kain-native-input-session.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 129,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 62,
+        "end_line": 129,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 129
+      },
+      "symbol": "kain_native_input_session",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_sessions[i].in_use && g_sessions[i].id == session_id) {",
+      "variables": [
+        "g_sessions",
+        "i",
+        "id",
+        "in_use",
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_sessions[i].in_use",
+      "id": "kain-native-input-session-count.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 397,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 397,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 397
+      },
+      "symbol": "kain_native_input_session_count",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_sessions[i].in_use) {",
+      "variables": [
+        "g_sessions",
+        "i",
+        "in_use"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!g_sessions[i].in_use",
+      "id": "kain-native-input-session-create.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 371,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 371,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 371
+      },
+      "symbol": "kain_native_input_session_create",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!g_sessions[i].in_use) {",
+      "variables": [
+        "g_sessions",
+        "i",
+        "in_use"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-session-destroy.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 384,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 384,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 384
+      },
+      "symbol": "kain_native_input_session_destroy",
+      "text": "int64_t kain_native_input_session_destroy(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-session-destroy.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 386,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 386,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 386
+      },
+      "symbol": "kain_native_input_session_destroy",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "line"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "max_fields",
+              0
+            ],
+            "op": "le"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!line || max_fields <= 0",
+      "id": "kain-native-input-split-fields.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 338,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 338,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 338
+      },
+      "symbol": "kain_native_input_split_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!line || max_fields <= 0) {",
+      "variables": [
+        "line",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*cursor && field < max_fields",
+      "id": "kain-native-input-split-fields.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 342,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 342,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 342
+      },
+      "symbol": "kain_native_input_split_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while (*cursor && field < max_fields) {",
+      "variables": [
+        "cursor",
+        "field",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*cursor == '|'",
+      "id": "kain-native-input-split-fields.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 343,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 343,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 343
+      },
+      "symbol": "kain_native_input_split_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (*cursor == '|') {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "field",
+          "max_fields"
+        ],
+        "op": "lt"
+      },
+      "expression": "field < max_fields",
+      "id": "kain-native-input-split-fields.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 347,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 347,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 347
+      },
+      "symbol": "kain_native_input_split_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (field < max_fields) {",
+      "variables": [
+        "field",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "field",
+          "max_fields"
+        ],
+        "op": "lt"
+      },
+      "expression": "field < max_fields",
+      "id": "kain-native-input-split-fields.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 355,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 355,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 355
+      },
+      "symbol": "kain_native_input_split_fields",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (field < max_fields) {",
+      "variables": [
+        "field",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-text-commit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 657,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 657,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 657
+      },
+      "symbol": "kain_native_input_text_commit",
+      "text": "const char* kain_native_input_text_commit(int64_t session_id, int64_t index) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-text-commit.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 657,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 657,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 657
+      },
+      "symbol": "kain_native_input_text_commit",
+      "text": "const char* kain_native_input_text_commit(int64_t session_id, int64_t index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "index",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-text-commit.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 657,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 79,
+        "end_line": 657,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 657
+      },
+      "symbol": "kain_native_input_text_commit",
+      "text": "const char* kain_native_input_text_commit(int64_t session_id, int64_t index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || index < 0 || index >= session->text_commit_count",
+      "id": "kain-native-input-text-commit.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 659,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 659,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 659
+      },
+      "symbol": "kain_native_input_text_commit",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || index < 0 || index >= session->text_commit_count) {",
+      "variables": [
+        "index",
+        "session",
+        "text_commit_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(session->text_commits[index])",
+      "id": "kain-native-input-text-commit.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 662,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 662,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 662
+      },
+      "symbol": "kain_native_input_text_commit",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(session->text_commits[index]);",
+      "variables": [
+        "index",
+        "kain_native_input_string",
+        "session",
+        "text_commits"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-text-commit-count.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 649,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 649,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 649
+      },
+      "symbol": "kain_native_input_text_commit_count",
+      "text": "int64_t kain_native_input_text_commit_count(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-text-commit-count.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 651,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 651,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 651
+      },
+      "symbol": "kain_native_input_text_commit_count",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "session->text_commit_count",
+      "id": "kain-native-input-text-commit-count.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 654,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 654,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 654
+      },
+      "symbol": "kain_native_input_text_commit_count",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return session->text_commit_count;",
+      "variables": [
+        "session",
+        "text_commit_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "!text || text[0] == '\\0'",
+      "id": "kain-native-input-text-empty.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 123,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 123,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 123
+      },
+      "symbol": "kain_native_input_text_empty",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return !text || text[0] == '\\0';",
+      "variables": [
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "left"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "right"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!left || !right",
+      "id": "kain-native-input-text-equal.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 116,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 116,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 116
+      },
+      "symbol": "kain_native_input_text_equal",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!left || !right) {",
+      "variables": [
+        "left",
+        "right"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "KAIN_NATIVE_INPUT_TEXT_EQUALS_CI(left, right) == 0",
+      "id": "kain-native-input-text-equal.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 119,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 119,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 119
+      },
+      "symbol": "kain_native_input_text_equal",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return KAIN_NATIVE_INPUT_TEXT_EQUALS_CI(left, right) == 0;",
+      "variables": [
+        "KAIN_NATIVE_INPUT_TEXT_EQUALS_CI",
+        "left",
+        "right"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!session || !event || session->trace_text_length >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - 1u",
+      "id": "kain-native-input-trace-append.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 213,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 97,
+        "end_line": 213,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 213
+      },
+      "symbol": "kain_native_input_trace_append",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session || !event || session->trace_text_length >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - 1u) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_TRACE_TEXT",
+        "event",
+        "session",
+        "trace_text_length",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "written",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "written > 0",
+      "id": "kain-native-input-trace-append.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 229,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 229,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 229
+      },
+      "symbol": "kain_native_input_trace_append",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (written > 0) {",
+      "variables": [
+        "written"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "used >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - session->trace_text_length",
+      "id": "kain-native-input-trace-append.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 231,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 231,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 231
+      },
+      "symbol": "kain_native_input_trace_append",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (used >= KAIN_NATIVE_INPUT_MAX_TRACE_TEXT - session->trace_text_length) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_TRACE_TEXT",
+        "session",
+        "trace_text_length",
+        "used"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "session_id",
+        "role": "signed-int",
+        "type": "int64_t"
+      },
+      "id": "kain-native-input-trace-text.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 665,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 665,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 665
+      },
+      "symbol": "kain_native_input_trace_text",
+      "text": "const char* kain_native_input_trace_text(int64_t session_id) {",
+      "variables": [
+        "session_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "session"
+        ],
+        "op": "not"
+      },
+      "expression": "!session",
+      "id": "kain-native-input-trace-text.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 667,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 667,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 667
+      },
+      "symbol": "kain_native_input_trace_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!session) {",
+      "variables": [
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "kain_native_input_string(session->trace_text)",
+      "id": "kain-native-input-trace-text.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 670,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 670,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 670
+      },
+      "symbol": "kain_native_input_trace_text",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return kain_native_input_string(session->trace_text);",
+      "variables": [
+        "kain_native_input_string",
+        "session",
+        "trace_text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*cursor == '|'",
+      "id": "while.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 343,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 343,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 343
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (*cursor == '|') {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "field",
+          "max_fields"
+        ],
+        "op": "lt"
+      },
+      "expression": "field < max_fields",
+      "id": "while.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 347,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 347,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 347
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (field < max_fields) {",
+      "variables": [
+        "field",
+        "max_fields"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_split_fields(line, fields, 8) >= 8",
+      "id": "while.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 691,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 691,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 691
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_split_fields(line, fields, 8) >= 8) {",
+      "variables": [
+        "fields",
+        "kain_native_input_split_fields",
+        "line"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS",
+      "id": "while.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 694,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 68,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (session->pending_event_count >= KAIN_NATIVE_INPUT_MAX_EVENTS) {",
+      "variables": [
+        "KAIN_NATIVE_INPUT_MAX_EVENTS",
+        "pending_event_count",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "event->sequence >= session->next_sequence",
+      "id": "while.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 701,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 701,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 701
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (event->sequence >= session->next_sequence) {",
+      "variables": [
+        "event",
+        "next_sequence",
+        "sequence",
+        "session"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_native_input_text_equal(event->event_kind, \"action\")",
+      "id": "while.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 711,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 711,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+        "start_col": 1,
+        "start_line": 711
+      },
+      "symbol": "while",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_native_input_text_equal(event->event_kind, \"action\")) {",
+      "variables": [
+        "action",
+        "event",
+        "event_kind",
+        "kain_native_input_text_equal"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "e76cb21de0db001ed774be427ef4f2a5dd2a30250c005a1ee9b5df585b07d3a2",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_native_input_system.c",
+  "version": 1
+}

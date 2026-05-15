@@ -789,7 +789,9 @@ fn with_temporary_process_context<T>(
     action: impl FnOnce() -> RunResult<T>,
 ) -> RunResult<T> {
     let previous_cwd = std::env::current_dir().map_err(|err| {
-        RunError::Process(format!("failed to read current directory before Kain run: {err}"))
+        RunError::Process(format!(
+            "failed to read current directory before Kain run: {err}"
+        ))
     })?;
     std::env::set_current_dir(cwd).map_err(|err| {
         RunError::Process(format!(

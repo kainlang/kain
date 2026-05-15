@@ -1126,8 +1126,11 @@ sources = ["native/ops.c"]
             "[package]\nname = \"shared\"\n\n[blade]\nkind = \"kain_library\"\nmodule_roots = [\"src\"]\n",
         )
         .unwrap();
-        kfs::write_text(shared_root.join("src").join("shared.kn"), "pub fn ready() -> Int:\n    return 1\n")
-            .unwrap();
+        kfs::write_text(
+            shared_root.join("src").join("shared.kn"),
+            "pub fn ready() -> Int:\n    return 1\n",
+        )
+        .unwrap();
 
         let app_root = tmp.path().join("blades").join("app");
         kfs::create_dir_all(app_root.join("src")).unwrap();
@@ -1136,11 +1139,16 @@ sources = ["native/ops.c"]
             "[package]\nname = \"app\"\n\n[blade]\nentry = \"src/main.kn\"\nsource_roots = [\"src\"]\nmodule_roots = [\"src\"]\n",
         )
         .unwrap();
-        kfs::write_text(app_root.join("src").join("main.kn"), "fn main() -> Int:\n    return 0\n")
-            .unwrap();
+        kfs::write_text(
+            app_root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .unwrap();
 
         let roots = discover_blade_module_roots_from(app_root.join("src")).unwrap();
-        assert!(roots.iter().any(|root| root.ends_with(Path::new("blades").join("app").join("src"))));
+        assert!(roots
+            .iter()
+            .any(|root| root.ends_with(Path::new("blades").join("app").join("src"))));
         assert!(roots
             .iter()
             .any(|root| root.ends_with(Path::new("blades").join("shared").join("src"))));

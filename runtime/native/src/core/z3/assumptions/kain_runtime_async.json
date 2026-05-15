@@ -1,0 +1,2311 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!kain_async_index_insert(",
+      "id": "if.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 434,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 434,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 434
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!kain_async_index_insert(",
+      "variables": [
+        "kain_async_index_insert"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "sleep_state->timer_id == KAIN_TIMER_ID_INVALID",
+      "id": "if.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 520,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 54,
+        "end_line": 520,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 520
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (sleep_state->timer_id == KAIN_TIMER_ID_INVALID) {",
+      "variables": [
+        "KAIN_TIMER_ID_INVALID",
+        "sleep_state",
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 563,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 563,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 563
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 577,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 577,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 577
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "produced_result",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "produced_result != NULL",
+      "id": "if.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 614,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 614,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 614
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (produced_result != NULL) {",
+      "variables": [
+        "NULL",
+        "produced_result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 618,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 618,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 618
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 637,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 637,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 637
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 650,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 650,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 650
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "wake_requested",
+      "expression": "wake_requested",
+      "id": "if.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 653,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 653,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 653
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (wake_requested) {",
+      "variables": [
+        "wake_requested"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "task",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "task != NULL",
+      "id": "if.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 752,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 752,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 752
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (task != NULL) {",
+      "variables": [
+        "NULL",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 822,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 822,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 822
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 846,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 846,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 846
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 869,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 869,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 869
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 876,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 876,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 876
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 891,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 891,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 891
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "if.guard-condition.17",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 898,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 898,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 898
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_async_find_free_task_slot(&slot)",
+      "id": "kain-async-allocate-task-record.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 410,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 410,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 410
+      },
+      "symbol": "kain_async_allocate_task_record",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_async_find_free_task_slot(&slot)) {",
+      "variables": [
+        "kain_async_find_free_task_slot",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!kain_async_index_insert(",
+      "id": "kain-async-allocate-task-record.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 434,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 434,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 434
+      },
+      "symbol": "kain_async_allocate_task_record",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_async_index_insert(",
+      "variables": [
+        "kain_async_index_insert"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_async_find_free_timer_slot(&slot)",
+      "id": "kain-async-allocate-timer-record.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 456,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 456,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 456
+      },
+      "symbol": "kain_async_allocate_timer_record",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_async_find_free_timer_slot(&slot)) {",
+      "variables": [
+        "kain_async_find_free_timer_slot",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!task || !task->config.task_fn",
+      "id": "kain-async-execute-task.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 549,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 549,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 549
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!task || !task->config.task_fn) {",
+      "variables": [
+        "config",
+        "task",
+        "task_fn"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->state == KAIN_TASK_STATE_CANCELLED",
+      "id": "kain-async-execute-task.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 561,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 561,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 561
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->state == KAIN_TASK_STATE_CANCELLED) {",
+      "variables": [
+        "KAIN_TASK_STATE_CANCELLED",
+        "state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 563,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 563,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 563
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->state == KAIN_TASK_STATE_COMPLETED",
+      "id": "kain-async-execute-task.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 576,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 576,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 576
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->state == KAIN_TASK_STATE_COMPLETED) {",
+      "variables": [
+        "KAIN_TASK_STATE_COMPLETED",
+        "state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 577,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 577,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 577
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->state == KAIN_TASK_STATE_FAILED",
+      "id": "kain-async-execute-task.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 584,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 584,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 584
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->state == KAIN_TASK_STATE_FAILED) {",
+      "variables": [
+        "KAIN_TASK_STATE_FAILED",
+        "state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->cancel_requested || atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0",
+      "id": "kain-async-execute-task.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 610,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 113,
+        "end_line": 610,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 610
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->cancel_requested || atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) {",
+      "variables": [
+        "atomic_load_explicit",
+        "cancel_requested",
+        "cancelled",
+        "memory_order_acquire",
+        "runtime_state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "produced_result",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "produced_result != NULL",
+      "id": "kain-async-execute-task.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 614,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 614,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 614
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (produced_result != NULL) {",
+      "variables": [
+        "NULL",
+        "produced_result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 618,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 618,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 618
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "poll_result",
+          "KAIN_POLL_READY"
+        ],
+        "op": "eq"
+      },
+      "expression": "poll_result == KAIN_POLL_READY",
+      "id": "kain-async-execute-task.guard-condition.11",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 633,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 633,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 633
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (poll_result == KAIN_POLL_READY) {",
+      "variables": [
+        "KAIN_POLL_READY",
+        "poll_result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.12",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 637,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 637,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 637
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "poll_result",
+          "KAIN_POLL_PENDING"
+        ],
+        "op": "eq"
+      },
+      "expression": "poll_result == KAIN_POLL_PENDING",
+      "id": "kain-async-execute-task.guard-condition.13",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 645,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 645,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 645
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (poll_result == KAIN_POLL_PENDING) {",
+      "variables": [
+        "KAIN_POLL_PENDING",
+        "poll_result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.14",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 650,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 650,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 650
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "wake_requested",
+      "expression": "wake_requested",
+      "id": "kain-async-execute-task.guard-condition.15",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 653,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 653,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 653
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (wake_requested) {",
+      "variables": [
+        "wake_requested"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "result",
+      "expression": "result",
+      "id": "kain-async-execute-task.guard-condition.16",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 662,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 662,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 662
+      },
+      "symbol": "kain_async_execute_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_slot",
+        "role": "unsigned-int",
+        "type": "uint32_t*"
+      },
+      "id": "kain-async-find-free-task-slot.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 306,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 64,
+        "end_line": 306,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 306
+      },
+      "symbol": "kain_async_find_free_task_slot",
+      "text": "static int kain_async_find_free_task_slot(uint32_t* out_slot) {",
+      "variables": [
+        "out_slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "out_slot",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "out_slot == 0",
+      "id": "kain-async-find-free-task-slot.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 308,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 308,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 308
+      },
+      "symbol": "kain_async_find_free_task_slot",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (out_slot == 0) {",
+      "variables": [
+        "out_slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "free_mask",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "free_mask != 0u",
+      "id": "kain-async-find-free-task-slot.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 313,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 313,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 313
+      },
+      "symbol": "kain_async_find_free_task_slot",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (free_mask != 0u) {",
+      "variables": [
+        "free_mask",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "out_slot",
+        "role": "unsigned-int",
+        "type": "uint32_t*"
+      },
+      "id": "kain-async-find-free-timer-slot.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 323,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 323,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 323
+      },
+      "symbol": "kain_async_find_free_timer_slot",
+      "text": "static int kain_async_find_free_timer_slot(uint32_t* out_slot) {",
+      "variables": [
+        "out_slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "out_slot",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "out_slot == 0",
+      "id": "kain-async-find-free-timer-slot.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 325,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 325,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 325
+      },
+      "symbol": "kain_async_find_free_timer_slot",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (out_slot == 0) {",
+      "variables": [
+        "out_slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "free_mask",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "free_mask != 0u",
+      "id": "kain-async-find-free-timer-slot.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 330,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 330,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 330
+      },
+      "symbol": "kain_async_find_free_timer_slot",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (free_mask != 0u) {",
+      "variables": [
+        "free_mask",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "task_id",
+          "KAIN_TASK_ID_INVALID"
+        ],
+        "op": "eq"
+      },
+      "expression": "task_id == KAIN_TASK_ID_INVALID",
+      "id": "kain-async-find-task.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 377,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 39,
+        "end_line": 377,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 377
+      },
+      "symbol": "kain_async_find_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (task_id == KAIN_TASK_ID_INVALID) {",
+      "variables": [
+        "KAIN_TASK_ID_INVALID",
+        "task_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "encoded_slot",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "encoded_slot == 0u",
+      "id": "kain-async-find-task.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 388,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 388,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 388
+      },
+      "symbol": "kain_async_find_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (encoded_slot == 0u) {",
+      "variables": [
+        "encoded_slot",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(slot < KAIN_ASYNC_MAX_TASKS &&",
+      "id": "kain-async-find-task.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 392,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 392,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 392
+      },
+      "symbol": "kain_async_find_task",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (slot < KAIN_ASYNC_MAX_TASKS &&",
+      "variables": [
+        "KAIN_ASYNC_MAX_TASKS",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "timer_id",
+          "KAIN_TIMER_ID_INVALID"
+        ],
+        "op": "eq"
+      },
+      "expression": "timer_id == KAIN_TIMER_ID_INVALID",
+      "id": "kain-async-find-timer.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 476,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 476,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 476
+      },
+      "symbol": "kain_async_find_timer",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (timer_id == KAIN_TIMER_ID_INVALID) {",
+      "variables": [
+        "KAIN_TIMER_ID_INVALID",
+        "timer_id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "encoded_slot",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "encoded_slot == 0u",
+      "id": "kain-async-find-timer.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 487,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 487,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 487
+      },
+      "symbol": "kain_async_find_timer",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (encoded_slot == 0u) {",
+      "variables": [
+        "encoded_slot",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(slot < KAIN_ASYNC_MAX_TIMERS &&",
+      "id": "kain-async-find-timer.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 491,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 36,
+        "end_line": 491,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 491
+      },
+      "symbol": "kain_async_find_timer",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (slot < KAIN_ASYNC_MAX_TIMERS &&",
+      "variables": [
+        "KAIN_ASYNC_MAX_TIMERS",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-async-index-start-slot.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 281,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 281,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 281
+      },
+      "symbol": "kain_async_index_start_slot",
+      "text": "static uint32_t kain_async_index_start_slot(uint64_t id, uint32_t mask) {",
+      "variables": [
+        "id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "mask",
+        "role": "unsigned-int",
+        "type": "uint32_t"
+      },
+      "id": "kain-async-index-start-slot.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 281,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 281,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 281
+      },
+      "symbol": "kain_async_index_start_slot",
+      "text": "static uint32_t kain_async_index_start_slot(uint64_t id, uint32_t mask) {",
+      "variables": [
+        "mask"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-async-isolate-low-bit-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 263,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 263,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 263
+      },
+      "symbol": "kain_async_isolate_low_bit_u64",
+      "text": "static uint64_t kain_async_isolate_low_bit_u64(uint64_t value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "one_hot",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-async-low-bit-index-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 267,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 69,
+        "end_line": 267,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 267
+      },
+      "symbol": "kain_async_low_bit_index_u64",
+      "text": "static unsigned int kain_async_low_bit_index_u64(uint64_t one_hot) {",
+      "variables": [
+        "one_hot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u]",
+      "id": "kain-async-low-bit-index-u64.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 278,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 72,
+        "end_line": 278,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 278
+      },
+      "symbol": "kain_async_low_bit_index_u64",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return debruijn_index[(one_hot * UINT64_C(0x03f79d71b4cb0a89)) >> 58u];",
+      "variables": [
+        "UINT64_C",
+        "debruijn_index",
+        "one_hot",
+        "u",
+        "x03f79d71b4cb0a89"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "id",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-async-mix-id.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 253,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 253,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 253
+      },
+      "symbol": "kain_async_mix_id",
+      "text": "static uint64_t kain_async_mix_id(uint64_t id) {",
+      "variables": [
+        "id"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_async_tasks[slot].in_use",
+      "id": "kain-async-rebuild-task-index.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 344,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 344,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 344
+      },
+      "symbol": "kain_async_rebuild_task_index",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_async_tasks[slot].in_use) {",
+      "variables": [
+        "g_async_tasks",
+        "in_use",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "g_async_timers[slot].in_use",
+      "id": "kain-async-rebuild-timer-index.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 360,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 360,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 360
+      },
+      "symbol": "kain_async_rebuild_timer_index",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (g_async_timers[slot].in_use) {",
+      "variables": [
+        "g_async_timers",
+        "in_use",
+        "slot"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "delay_ms",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "delay_ms > 0",
+      "id": "kain-async-sleep-for-ms.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 170,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 170,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 170
+      },
+      "symbol": "kain_async_sleep_for_ms",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (delay_ms > 0) {",
+      "variables": [
+        "delay_ms"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "delay_ms",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "delay_ms > 0",
+      "id": "kain-async-sleep-for-ms.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 176,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 176,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 176
+      },
+      "symbol": "kain_async_sleep_for_ms",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (delay_ms > 0) {",
+      "variables": [
+        "delay_ms"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "nanosleep(&req, &req) != 0 && errno == EINTR",
+      "id": "kain-async-sleep-for-ms.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 180,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 180,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 180
+      },
+      "symbol": "kain_async_sleep_for_ms",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (nanosleep(&req, &req) != 0 && errno == EINTR) {",
+      "variables": [
+        "EINTR",
+        "errno",
+        "nanosleep",
+        "req"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "state == KAIN_TASK_STATE_COMPLETED ||",
+      "id": "kain-async-task-is-terminal.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 538,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 538,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 538
+      },
+      "symbol": "kain_async_task_is_terminal",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return state == KAIN_TASK_STATE_COMPLETED ||",
+      "variables": [
+        "KAIN_TASK_STATE_COMPLETED",
+        "state"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!handle || !handle->owner",
+      "id": "kain-async-task-signal-handle.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 681,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 681,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 681
+      },
+      "symbol": "kain_async_task_signal_handle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!handle || !handle->owner) {",
+      "variables": [
+        "handle",
+        "owner"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->id != handle->id || !task->in_use",
+      "id": "kain-async-task-signal-handle.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 694,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 47,
+        "end_line": 694,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 694
+      },
+      "symbol": "kain_async_task_signal_handle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->id != handle->id || !task->in_use) {",
+      "variables": [
+        "handle",
+        "id",
+        "in_use",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "kain_async_task_is_terminal(task->state)",
+      "id": "kain-async-task-signal-handle.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 706,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 706,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 706
+      },
+      "symbol": "kain_async_task_signal_handle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (kain_async_task_is_terminal(task->state)) {",
+      "variables": [
+        "kain_async_task_is_terminal",
+        "state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "task->state != KAIN_TASK_STATE_RUNNING",
+      "id": "kain-async-task-signal-handle.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 713,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 46,
+        "end_line": 713,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 713
+      },
+      "symbol": "kain_async_task_signal_handle",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task->state != KAIN_TASK_STATE_RUNNING) {",
+      "variables": [
+        "KAIN_TASK_STATE_RUNNING",
+        "state",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "timer"
+        ],
+        "op": "not"
+      },
+      "expression": "!timer",
+      "id": "kain-async-timer-thread-proc.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 729,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 729,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 729
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!timer) {",
+      "variables": [
+        "timer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "timer"
+        ],
+        "op": "not"
+      },
+      "expression": "!timer",
+      "id": "kain-async-timer-thread-proc.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 729,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 14,
+        "end_line": 729,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 729
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!timer) {",
+      "variables": [
+        "timer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_load_explicit(&timer->cancelled, memory_order_acquire) != 0",
+      "id": "kain-async-timer-thread-proc.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 740,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 740,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 740
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (atomic_load_explicit(&timer->cancelled, memory_order_acquire) != 0) {",
+      "variables": [
+        "atomic_load_explicit",
+        "cancelled",
+        "memory_order_acquire",
+        "timer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "atomic_load_explicit(&timer->cancelled, memory_order_acquire) != 0",
+      "id": "kain-async-timer-thread-proc.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 740,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 740,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 740
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (atomic_load_explicit(&timer->cancelled, memory_order_acquire) != 0) {",
+      "variables": [
+        "atomic_load_explicit",
+        "cancelled",
+        "memory_order_acquire",
+        "timer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "timer->wake_handle != NULL",
+      "id": "kain-async-timer-thread-proc.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 749,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 749,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 749
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (timer->wake_handle != NULL) {",
+      "variables": [
+        "NULL",
+        "timer",
+        "wake_handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "task",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "task != NULL",
+      "id": "kain-async-timer-thread-proc.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 752,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 752,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 752
+      },
+      "symbol": "kain_async_timer_thread_proc",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (task != NULL) {",
+      "variables": [
+        "NULL",
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "task"
+        ],
+        "op": "not"
+      },
+      "expression": "!task",
+      "id": "kain-task-get-state.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 955,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 955,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 955
+      },
+      "symbol": "kain_task_get_state",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!task) {",
+      "variables": [
+        "task"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "result",
+          "NULL"
+        ],
+        "op": "neq"
+      },
+      "expression": "result != NULL",
+      "id": "kain-task-result-cleanup.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1143,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 1143,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 1143
+      },
+      "symbol": "kain_task_result_cleanup",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (result != NULL) {",
+      "variables": [
+        "NULL",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "config"
+        ],
+        "op": "not"
+      },
+      "expression": "!config",
+      "id": "kain-task-spawn-config-init.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 769,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 769,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 769
+      },
+      "symbol": "kain_task_spawn_config_init",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!config) {",
+      "variables": [
+        "config"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "nanosleep(&req, &req) != 0 && errno == EINTR",
+      "id": "while.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 180,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 180,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+        "start_col": 1,
+        "start_line": 180
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "while (nanosleep(&req, &req) != 0 && errno == EINTR) {",
+      "variables": [
+        "EINTR",
+        "errno",
+        "nanosleep",
+        "req"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "e889cf765856cff472dacdad5e93b8a1ce58e015de27297b8cf15fd746e5ba8a",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_async.c",
+  "version": 1
+}

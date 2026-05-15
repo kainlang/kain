@@ -739,14 +739,22 @@ fn main() -> Int:
     assert!(llvm.contains("define i8* @maybe(i1 %arg0)"));
     assert!(llvm.contains("define i8* @parse(i1 %arg0)"));
     assert!(llvm.contains("define i8* @ready()"));
-    assert!(llvm.contains("call i8* @kain_native_option_none()"));
-    assert!(llvm.contains("call i8* @kain_native_option_some"));
-    assert!(llvm.contains("call i8* @kain_native_result_ok"));
-    assert!(llvm.contains("call i8* @kain_native_result_err"));
-    assert!(llvm.contains("call i64 @kain_native_tagged_is_success"));
-    assert!(llvm.contains("call i64 @kain_native_tagged_payload_copy"));
-    assert!(llvm.contains("call i64 @kain_native_option_is_some"));
-    assert!(llvm.contains("call i64 @kain_native_result_is_err"));
+    assert!(llvm.contains("define i8* @maybe(i1 %arg0) #0"));
+    assert!(llvm.contains("call i8* @KAIN_alloc(i64 16)"));
+    assert!(llvm.contains("call i8* @KAIN_alloc(i64 24)"));
+    assert!(llvm.contains("store i64 0, i64*"));
+    assert!(llvm.contains("store i64 1, i64*"));
+    assert!(llvm.contains("store i64 2, i64*"));
+    assert!(llvm.contains("store i64 3, i64*"));
+    assert!(llvm.contains("getelementptr inbounds i8, i8*"));
+    assert!(!llvm.contains("call i8* @kain_native_option_none()"));
+    assert!(!llvm.contains("call i8* @kain_native_option_some"));
+    assert!(!llvm.contains("call i8* @kain_native_result_ok"));
+    assert!(!llvm.contains("call i8* @kain_native_result_err"));
+    assert!(!llvm.contains("call i64 @kain_native_tagged_is_success"));
+    assert!(!llvm.contains("call i64 @kain_native_tagged_payload_copy"));
+    assert!(!llvm.contains("call i64 @kain_native_option_is_some"));
+    assert!(!llvm.contains("call i64 @kain_native_result_is_err"));
     assert!(llvm.contains("call i8* @kain_native_future_ready_from_value"));
     assert!(llvm.contains("call i64 @kain_native_future_await_payload_copy"));
 }
@@ -1104,10 +1112,11 @@ fn llvm_consumes_lowered_memory_helpers_into_pointer_ir() {
         .expect("llvm output should be utf8");
 
     assert!(llvm.contains("%x.addr_"));
-    assert!(llvm.contains("call void @__kain_mem_store(i8* "));
-    assert!(llvm.contains("call void @__kain_mem_load(i8* "));
-    assert!(llvm.contains("alloca i64"));
-    assert!(llvm.contains("load i64, i64* %"));
+    assert!(!llvm.contains("call void @__kain_mem_store(i8* "));
+    assert!(!llvm.contains("call void @__kain_mem_load(i8* "));
+    assert!(llvm.contains("inttoptr i64"));
+    assert!(llvm.contains("store i64 7, i64*"));
+    assert!(llvm.contains("align 1"));
 }
 
 #[test]
@@ -1119,10 +1128,11 @@ fn llvm_sizes_runtime_memory_helpers_for_bool_values() {
     let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("call void @__kain_mem_store(i8* "));
-    assert!(llvm.contains("call void @__kain_mem_load(i8* "));
-    assert!(llvm.contains("alloca i1"));
-    assert!(llvm.contains("load i1, i1* %"));
+    assert!(!llvm.contains("call void @__kain_mem_store(i8* "));
+    assert!(!llvm.contains("call void @__kain_mem_load(i8* "));
+    assert!(llvm.contains("store i1 1, i1*"));
+    assert!(llvm.contains("load i1, i1*"));
+    assert!(llvm.contains("align 1"));
 }
 
 #[test]

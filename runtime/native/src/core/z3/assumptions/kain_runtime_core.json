@@ -1,0 +1,6180 @@
+{
+  "assumptions": [
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "size",
+        "role": "size-like",
+        "type": "long long"
+      },
+      "id": "kain-alloc.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 89,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 35,
+        "end_line": 89,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 89
+      },
+      "symbol": "KAIN_alloc",
+      "text": "void* KAIN_alloc(long long size) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "long long"
+      },
+      "id": "array-get.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 368,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 368,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 368
+      },
+      "symbol": "array_get",
+      "text": "long long array_get(KainArray* arr, long long index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < 0 || index >= arr->len",
+      "id": "array-get.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 369,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 369,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 369
+      },
+      "symbol": "array_get",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (index < 0 || index >= arr->len) {",
+      "variables": [
+        "arr",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "arr->data[index]",
+      "id": "array-get.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 381,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 381,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 381
+      },
+      "symbol": "array_get",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return arr->data[index];",
+      "variables": [
+        "arr",
+        "data",
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "arr->len",
+      "id": "array-len.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 401,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 401,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 401
+      },
+      "symbol": "array_len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return arr->len;",
+      "variables": [
+        "arr",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!arr) return NULL",
+      "id": "array-new.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 338,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 338,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 338
+      },
+      "symbol": "array_new",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!arr) return NULL;",
+      "variables": [
+        "NULL",
+        "arr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!arr->data",
+      "id": "array-new.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 342,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 342,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 342
+      },
+      "symbol": "array_new",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!arr->data) {",
+      "variables": [
+        "arr",
+        "data"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "arr->len >= arr->cap",
+      "id": "array-push.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 357,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 357,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 357
+      },
+      "symbol": "array_push",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (arr->len >= arr->cap) {",
+      "variables": [
+        "arr",
+        "cap",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "long long"
+      },
+      "id": "array-set.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 384,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 65,
+        "end_line": 384,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 384
+      },
+      "symbol": "array_set",
+      "text": "void array_set(KainArray* arr, long long index, long long val) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "index < 0 || index >= arr->len",
+      "id": "array-set.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 385,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 385,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 385
+      },
+      "symbol": "array_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (index < 0 || index >= arr->len) {",
+      "variables": [
+        "arr",
+        "index",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "long long"
+      },
+      "id": "char-at.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 667,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 42,
+        "end_line": 667,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 667
+      },
+      "symbol": "char_at",
+      "text": "char* char_at(char* s, long long index) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "s"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "index",
+              0
+            ],
+            "op": "lt"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!s || index < 0",
+      "id": "char-at.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 670,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 670,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 670
+      },
+      "symbol": "char_at",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!s || index < 0) {",
+      "variables": [
+        "index",
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(size_t)index >= s_len",
+      "id": "char-at.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 674,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 674,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 674
+      },
+      "symbol": "char_at",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if ((size_t)index >= s_len) {",
+      "variables": [
+        "index",
+        "s_len",
+        "size_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!s || !sub) return 0",
+      "id": "contains.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 646,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 646,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 646
+      },
+      "symbol": "contains",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!s || !sub) return 0;",
+      "variables": [
+        "s",
+        "sub"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strstr(s, sub) != NULL",
+      "id": "contains.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 647,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 647,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 647
+      },
+      "symbol": "contains",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return strstr(s, sub) != NULL;",
+      "variables": [
+        "NULL",
+        "s",
+        "strstr",
+        "sub"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(a == b) return 1",
+      "id": "deep-eq.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1448,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 1448,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1448
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (a == b) return 1;",
+      "variables": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!a || !b) return 0",
+      "id": "deep-eq.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1449,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 1449,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1449
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!a || !b) return 0;",
+      "variables": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(ha->type_tag != hb->type_tag) return 0",
+      "id": "deep-eq.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1453,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 1453,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1453
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ha->type_tag != hb->type_tag) return 0;",
+      "variables": [
+        "ha",
+        "hb",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ha->type_tag == 1",
+      "id": "deep-eq.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1455,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 1455,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1455
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ha->type_tag == 1) {",
+      "variables": [
+        "ha",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strcmp((char*)a, (char*)b) == 0",
+      "id": "deep-eq.return-condition.5",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 1456,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 1456,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1456
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return strcmp((char*)a, (char*)b) == 0;",
+      "variables": [
+        "a",
+        "b",
+        "char",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "ha->type_tag == 2",
+      "id": "deep-eq.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1459,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 1459,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1459
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (ha->type_tag == 2) {",
+      "variables": [
+        "ha",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(arr_a->len != arr_b->len) return 0",
+      "id": "deep-eq.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1463,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 1463,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1463
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (arr_a->len != arr_b->len) return 0;",
+      "variables": [
+        "arr_a",
+        "arr_b",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(arr_a->data[i] != arr_b->data[i]) return 0",
+      "id": "deep-eq.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1465,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 1465,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1465
+      },
+      "symbol": "deep_eq",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (arr_a->data[i] != arr_b->data[i]) return 0;",
+      "variables": [
+        "arr_a",
+        "arr_b",
+        "data",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!s || !suffix) return 0",
+      "id": "ends-with.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 660,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 660,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 660
+      },
+      "symbol": "ends_with",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s || !suffix) return 0;",
+      "variables": [
+        "s",
+        "suffix"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(suffix_len > s_len) return 0",
+      "id": "ends-with.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 663,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 34,
+        "end_line": 663,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 663
+      },
+      "symbol": "ends_with",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (suffix_len > s_len) return 0;",
+      "variables": [
+        "s_len",
+        "suffix_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strncmp(s + (s_len - suffix_len), suffix, suffix_len) == 0",
+      "id": "ends-with.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 664,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 67,
+        "end_line": 664,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 664
+      },
+      "symbol": "ends_with",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return strncmp(s + (s_len - suffix_len), suffix, suffix_len) == 0;",
+      "variables": [
+        "s",
+        "s_len",
+        "strncmp",
+        "suffix",
+        "suffix_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!name || !name[0]",
+      "id": "env.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 562,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 562,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 562
+      },
+      "symbol": "env",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!name || !name[0]) {",
+      "variables": [
+        "name"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "_dupenv_s(&value, &length, name) != 0 || !value",
+      "id": "env.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 569,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 569,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 569
+      },
+      "symbol": "env",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (_dupenv_s(&value, &length, name) != 0 || !value) {",
+      "variables": [
+        "_dupenv_s",
+        "length",
+        "name",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!value[0]",
+      "id": "env.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 573,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 573,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 573
+      },
+      "symbol": "env",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!value[0]) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!value || !value[0]",
+      "id": "env.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 586,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 586,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 586
+      },
+      "symbol": "env",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!value || !value[0]) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!path || !path[0]) return 0",
+      "id": "file-exists.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 550,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 550,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 550
+      },
+      "symbol": "file_exists",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!path || !path[0]) return 0;",
+      "variables": [
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "dsl_expression": {
+        "args": [
+          "attrs",
+          "INVALID_FILE_ATTRIBUTES"
+        ],
+        "op": "neq"
+      },
+      "expression": "attrs != INVALID_FILE_ATTRIBUTES",
+      "id": "file-exists.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 554,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 554,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 554
+      },
+      "symbol": "file_exists",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return attrs != INVALID_FILE_ATTRIBUTES;",
+      "variables": [
+        "INVALID_FILE_ATTRIBUTES",
+        "attrs"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "access(path, F_OK) == 0",
+      "id": "file-exists.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 557,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 557,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 557
+      },
+      "symbol": "file_exists",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return access(path, F_OK) == 0;",
+      "variables": [
+        "F_OK",
+        "access",
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "path"
+        ],
+        "op": "not"
+      },
+      "expression": "!path",
+      "id": "file-read.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 416,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 416,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 416
+      },
+      "symbol": "file_read",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!path) {",
+      "variables": [
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(fopen_s(&f, path, \"rb\") != 0) f = NULL",
+      "id": "file-read.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 428,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 428,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 428
+      },
+      "symbol": "file_read",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (fopen_s(&f, path, \"rb\") != 0) f = NULL;",
+      "variables": [
+        "NULL",
+        "f",
+        "fopen_s",
+        "path",
+        "rb"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "f"
+        ],
+        "op": "not"
+      },
+      "expression": "!f",
+      "id": "file-read.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 432,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 432,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 432
+      },
+      "symbol": "file_read",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!f) {",
+      "variables": [
+        "f"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "buf"
+        ],
+        "op": "not"
+      },
+      "expression": "!buf",
+      "id": "file-read.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 450,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 12,
+        "end_line": 450,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 450
+      },
+      "symbol": "file_read",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!buf) {",
+      "variables": [
+        "buf"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "path"
+        ],
+        "op": "not"
+      },
+      "expression": "!path",
+      "id": "file-write.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 468,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 468,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 468
+      },
+      "symbol": "file_write",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!path) {",
+      "variables": [
+        "path"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(fopen_s(&f, path, \"wb\") != 0) f = NULL",
+      "id": "file-write.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 480,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 480,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 480
+      },
+      "symbol": "file_write",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (fopen_s(&f, path, \"wb\") != 0) f = NULL;",
+      "variables": [
+        "NULL",
+        "f",
+        "fopen_s",
+        "path",
+        "wb"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "f"
+        ],
+        "op": "not"
+      },
+      "expression": "!f",
+      "id": "file-write.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 484,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 484,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 484
+      },
+      "symbol": "file_write",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!f) {",
+      "variables": [
+        "f"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "content",
+      "expression": "content",
+      "id": "file-write.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 496,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 496,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 496
+      },
+      "symbol": "file_write",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (content) {",
+      "variables": [
+        "content"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": "src &&"
+      },
+      "id": "if.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 34,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 34,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 34
+      },
+      "symbol": "if",
+      "text": "if (src && len > 0) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "ref_count",
+        "role": "count-like",
+        "type": "header->"
+      },
+      "id": "if.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 109,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 109,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 109
+      },
+      "symbol": "if",
+      "text": "if (header->ref_count == 0) {",
+      "variables": [
+        "ref_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->type_tag == 2",
+      "id": "if.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 110,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (header->type_tag == 2) {",
+      "variables": [
+        "header",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->destructor",
+      "id": "if.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 116,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 116,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 116
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (header->destructor) {",
+      "variables": [
+        "destructor",
+        "header"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->weak_count == 0",
+      "id": "if.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 120,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (header->weak_count == 0) {",
+      "variables": [
+        "header",
+        "weak_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "weak_count",
+        "role": "count-like",
+        "type": "header->"
+      },
+      "id": "if.parameter-role.6",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 120,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "if",
+      "text": "if (header->weak_count == 0) {",
+      "variables": [
+        "weak_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "weak_count",
+        "role": "count-like",
+        "type": "header->"
+      },
+      "id": "if.parameter-role.7",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 132,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 57,
+        "end_line": 132,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 132
+      },
+      "symbol": "if",
+      "text": "if (header->weak_count == 0 && header->ref_count == 0) {",
+      "variables": [
+        "weak_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "ref_count",
+        "role": "count-like",
+        "type": "header->"
+      },
+      "id": "if.parameter-role.8",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 141,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 141,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 141
+      },
+      "symbol": "if",
+      "text": "if (header->ref_count > 0) {",
+      "variables": [
+        "ref_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": "arr->"
+      },
+      "id": "if.parameter-role.9",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 357,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 357,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 357
+      },
+      "symbol": "if",
+      "text": "if (arr->len >= arr->cap) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "index < 0 ||"
+      },
+      "id": "if.parameter-role.10",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 369,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 369,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 369
+      },
+      "symbol": "if",
+      "text": "if (index < 0 || index >= arr->len) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "index < 0 ||"
+      },
+      "id": "if.parameter-role.11",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 385,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 385,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 385
+      },
+      "symbol": "if",
+      "text": "if (index < 0 || index >= arr->len) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "length",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.12",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 529,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 529,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 529
+      },
+      "symbol": "if",
+      "text": "if (length <= 0) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "read_count",
+        "role": "count-like",
+        "type": null
+      },
+      "id": "if.parameter-role.13",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 539,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 539,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 539
+      },
+      "symbol": "if",
+      "text": "if (read_count == 0) {",
+      "variables": [
+        "read_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "!s ||"
+      },
+      "id": "if.parameter-role.14",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 670,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 670,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 670
+      },
+      "symbol": "if",
+      "text": "if (!s || index < 0) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "index",
+        "role": "index-like",
+        "type": "(size_t)"
+      },
+      "id": "if.parameter-role.15",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 674,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 674,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 674
+      },
+      "symbol": "if",
+      "text": "if ((size_t)index >= s_len) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "index",
+        "role": "unsigned-size",
+        "type": "(size_t)"
+      },
+      "id": "if.parameter-role.16",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 674,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 674,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 674
+      },
+      "symbol": "if",
+      "text": "if ((size_t)index >= s_len) {",
+      "variables": [
+        "index"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "prefix_len",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.17",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 732,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 732,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 732
+      },
+      "symbol": "if",
+      "text": "if (prefix_len > 0) {",
+      "variables": [
+        "prefix_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "to_len",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.18",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 736,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 736,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 736
+      },
+      "symbol": "if",
+      "text": "if (to_len > 0) {",
+      "variables": [
+        "to_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "cursor",
+        "role": "cursor-like",
+        "type": "*"
+      },
+      "id": "if.parameter-role.19",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 742,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 742,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 742
+      },
+      "symbol": "if",
+      "text": "if (*cursor) {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((KainArray*)value)->len",
+      "id": "if.return-condition.20",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 760,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 760,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 760
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return ((KainArray*)value)->len;",
+      "variables": [
+        "KainArray",
+        "len",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((KainMap*)value)->count",
+      "id": "if.return-condition.21",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 763,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 763,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 763
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return ((KainMap*)value)->count;",
+      "variables": [
+        "KainMap",
+        "count",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "out_length",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.22",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 874,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 874,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 874
+      },
+      "symbol": "if",
+      "text": "if (out_length) {",
+      "variables": [
+        "out_length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!kain_map_insert_prehashed(",
+      "id": "if.guard-condition.23",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1111,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 1111,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1111
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!kain_map_insert_prehashed(",
+      "variables": [
+        "kain_map_insert_prehashed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "count",
+        "role": "count-like",
+        "type": "(uint64_t)map->"
+      },
+      "id": "if.parameter-role.24",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1178,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 1178,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1178
+      },
+      "symbol": "if",
+      "text": "if ((uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "count",
+        "role": "unsigned-int",
+        "type": "(uint64_t)map->"
+      },
+      "id": "if.parameter-role.25",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1178,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 1178,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1178
+      },
+      "symbol": "if",
+      "text": "if ((uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)) {",
+      "variables": [
+        "count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))",
+      "id": "if.guard-condition.26",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1182,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1182,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1182
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "MapEntry",
+        "SIZE_MAX",
+        "current_capacity",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "capacity-like",
+        "type": null
+      },
+      "id": "if.parameter-role.28",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1182,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1182,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1182
+      },
+      "symbol": "if",
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_map_resize(map, new_capacity)",
+      "id": "if.guard-condition.27",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1192,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1192,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1192
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "kain_map_resize",
+        "map",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "capacity-like",
+        "type": "!kain_map_resize(map,"
+      },
+      "id": "if.parameter-role.29",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1192,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1192,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1192
+      },
+      "symbol": "if",
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))",
+      "id": "if.guard-condition.30",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1200,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1200,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1200
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "MapEntry",
+        "SIZE_MAX",
+        "current_capacity",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "capacity-like",
+        "type": null
+      },
+      "id": "if.parameter-role.32",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1200,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1200,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1200
+      },
+      "symbol": "if",
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_map_resize(map, new_capacity)",
+      "id": "if.guard-condition.31",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1210,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1210,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1210
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "kain_map_resize",
+        "map",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "capacity-like",
+        "type": "!kain_map_resize(map,"
+      },
+      "id": "if.parameter-role.33",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1210,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1210,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1210
+      },
+      "symbol": "if",
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "ai_addrlen",
+        "role": "length-like",
+        "type": "connect(sock, current->ai_addr, (int)current->"
+      },
+      "id": "if.parameter-role.34",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1403,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 70,
+        "end_line": 1403,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1403
+      },
+      "symbol": "if",
+      "text": "if (connect(sock, current->ai_addr, (int)current->ai_addrlen) == 0) {",
+      "variables": [
+        "ai_addrlen"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": null
+      },
+      "id": "if.parameter-role.35",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1438,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 1438,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1438
+      },
+      "symbol": "if",
+      "text": "if (len > 0) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strcmp((char*)a, (char*)b) == 0",
+      "id": "if.return-condition.36",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 1456,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 1456,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1456
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "return strcmp((char*)a, (char*)b) == 0;",
+      "variables": [
+        "a",
+        "b",
+        "char",
+        "strcmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(arr_a->len != arr_b->len) return 0",
+      "id": "if.guard-condition.37",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1463,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 1463,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1463
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (arr_a->len != arr_b->len) return 0;",
+      "variables": [
+        "arr_a",
+        "arr_b",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(arr_a->data[i] != arr_b->data[i]) return 0",
+      "id": "if.guard-condition.38",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1465,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 48,
+        "end_line": 1465,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1465
+      },
+      "symbol": "if",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (arr_a->data[i] != arr_b->data[i]) return 0;",
+      "variables": [
+        "arr_a",
+        "arr_b",
+        "data",
+        "i"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "initialized"
+        ],
+        "op": "not"
+      },
+      "expression": "!initialized",
+      "id": "init-winsock.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1341,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 1341,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1341
+      },
+      "symbol": "init_winsock",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!initialized) {",
+      "variables": [
+        "initialized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "size",
+        "role": "size-like",
+        "type": "size_t"
+      },
+      "id": "kain-alloc.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 85,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 85,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 85
+      },
+      "symbol": "kain_alloc",
+      "text": "void* kain_alloc(size_t size) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "size",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-alloc.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 85,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 85,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 85
+      },
+      "symbol": "kain_alloc",
+      "text": "void* kain_alloc(size_t size) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "size",
+        "role": "size-like",
+        "type": "size_t"
+      },
+      "id": "kain-alloc-rc.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 66,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 66,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 66
+      },
+      "symbol": "kain_alloc_rc",
+      "text": "void* kain_alloc_rc(size_t size, long long type_tag) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "size",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-alloc-rc.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 66,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 66,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 66
+      },
+      "symbol": "kain_alloc_rc",
+      "text": "void* kain_alloc_rc(size_t size, long long type_tag) {",
+      "variables": [
+        "size"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "header"
+        ],
+        "op": "not"
+      },
+      "expression": "!header",
+      "id": "kain-alloc-rc.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 68,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 68,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 68
+      },
+      "symbol": "kain_alloc_rc",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!header) {",
+      "variables": [
+        "header"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "c == ' ' || c == '\\t' || c == '\\r' || c == '\\n' || c == '\\f' || c == '\\v'",
+      "id": "kain-char-is-space.return-condition.1",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 42,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 42,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 42
+      },
+      "symbol": "kain_char_is_space",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return c == ' ' || c == '\\t' || c == '\\r' || c == '\\n' || c == '\\f' || c == '\\v';",
+      "variables": [
+        "c",
+        "f",
+        "n",
+        "r",
+        "t",
+        "v"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(value < min_value) return min_value",
+      "id": "kain-clampd.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 49,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 49,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 49
+      },
+      "symbol": "kain_clampd",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (value < min_value) return min_value;",
+      "variables": [
+        "min_value",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(value > max_value) return max_value",
+      "id": "kain-clampd.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 50,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 41,
+        "end_line": 50,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 50
+      },
+      "symbol": "kain_clampd",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (value > max_value) return max_value;",
+      "variables": [
+        "max_value",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "length",
+        "role": "length-like",
+        "type": "size_t"
+      },
+      "id": "kain-hash-bytes.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 809,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 809,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 809
+      },
+      "symbol": "kain_hash_bytes",
+      "text": "static uint64_t kain_hash_bytes(const unsigned char* bytes, size_t length) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "length",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-hash-bytes.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 809,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 77,
+        "end_line": 809,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 809
+      },
+      "symbol": "kain_hash_bytes",
+      "text": "static uint64_t kain_hash_bytes(const unsigned char* bytes, size_t length) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "length",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "length > 0u",
+      "id": "kain-hash-bytes.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 822,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 822,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 822
+      },
+      "symbol": "kain_hash_bytes",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (length > 0u) {",
+      "variables": [
+        "length",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "capacity",
+        "role": "capacity-like",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-growth-threshold.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 885,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 885,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 885
+      },
+      "symbol": "kain_map_growth_threshold",
+      "text": "static uint64_t kain_map_growth_threshold(uint64_t capacity) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "capacity",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-growth-threshold.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 885,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 63,
+        "end_line": 885,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 885
+      },
+      "symbol": "kain_map_growth_threshold",
+      "text": "static uint64_t kain_map_growth_threshold(uint64_t capacity) {",
+      "variables": [
+        "capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "capacity - (capacity >> 2u)",
+      "id": "kain-map-growth-threshold.return-condition.3",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 886,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 36,
+        "end_line": 886,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 886
+      },
+      "symbol": "kain_map_growth_threshold",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return capacity - (capacity >> 2u);",
+      "variables": [
+        "capacity",
+        "u"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-nonzero-bit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 787,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 55,
+        "end_line": 787,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 787
+      },
+      "symbol": "kain_map_nonzero_bit",
+      "text": "static uint64_t kain_map_nonzero_bit(uint64_t value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(value | (0u - value)) >> 63u",
+      "id": "kain-map-nonzero-bit.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 788,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 38,
+        "end_line": 788,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 788
+      },
+      "symbol": "kain_map_nonzero_bit",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return (value | (0u - value)) >> 63u;",
+      "variables": [
+        "u",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "capacity-like",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-resize.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1085,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 1085,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1085
+      },
+      "symbol": "kain_map_resize",
+      "text": "static int kain_map_resize(KainMap* map, uint64_t new_capacity) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "new_capacity",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-resize.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 1085,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 66,
+        "end_line": 1085,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1085
+      },
+      "symbol": "kain_map_resize",
+      "text": "static int kain_map_resize(KainMap* map, uint64_t new_capacity) {",
+      "variables": [
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "new_entries"
+        ],
+        "op": "not"
+      },
+      "expression": "!new_entries",
+      "id": "kain-map-resize.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1092,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 20,
+        "end_line": 1092,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1092
+      },
+      "symbol": "kain_map_resize",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!new_entries) {",
+      "variables": [
+        "new_entries"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "old_entry->occupied",
+      "id": "kain-map-resize.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1110,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 1110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1110
+      },
+      "symbol": "kain_map_resize",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (old_entry->occupied) {",
+      "variables": [
+        "occupied",
+        "old_entry"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!kain_map_insert_prehashed(",
+      "id": "kain-map-resize.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1111,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 1111,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1111
+      },
+      "symbol": "kain_map_resize",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_map_insert_prehashed(",
+      "variables": [
+        "kain_map_insert_prehashed"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "left",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-select-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 795,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 795,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 795
+      },
+      "symbol": "kain_map_select_u64",
+      "text": "static uint64_t kain_map_select_u64(uint64_t left, uint64_t right, uint64_t bit) {",
+      "variables": [
+        "left"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "right",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-select-u64.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 795,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 795,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 795
+      },
+      "symbol": "kain_map_select_u64",
+      "text": "static uint64_t kain_map_select_u64(uint64_t left, uint64_t right, uint64_t bit) {",
+      "variables": [
+        "right"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "bit",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-select-u64.parameter-role.3",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 795,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 83,
+        "end_line": 795,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 795
+      },
+      "symbol": "kain_map_select_u64",
+      "text": "static uint64_t kain_map_select_u64(uint64_t left, uint64_t right, uint64_t bit) {",
+      "variables": [
+        "bit"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-map-zero-bit.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 791,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 791,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 791
+      },
+      "symbol": "kain_map_zero_bit",
+      "text": "static uint64_t kain_map_zero_bit(uint64_t value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-mix-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 800,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 47,
+        "end_line": 800,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 800
+      },
+      "symbol": "kain_mix_u64",
+      "text": "static uint64_t kain_mix_u64(uint64_t value) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "value",
+        "role": "unsigned-int",
+        "type": "uint64_t"
+      },
+      "id": "kain-rotate-left-u64.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 783,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 75,
+        "end_line": 783,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 783
+      },
+      "symbol": "kain_rotate_left_u64",
+      "text": "static uint64_t kain_rotate_left_u64(uint64_t value, unsigned int shift) {",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "(value << shift) | (value >> (64u - shift))",
+      "id": "kain-rotate-left-u64.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 784,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 52,
+        "end_line": 784,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 784
+      },
+      "symbol": "kain_rotate_left_u64",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "return (value << shift) | (value >> (64u - shift));",
+      "variables": [
+        "shift",
+        "u",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          {
+            "args": [
+              "out"
+            ],
+            "op": "not"
+          },
+          {
+            "args": [
+              "g_last_diagnostic_valid"
+            ],
+            "op": "not"
+          }
+        ],
+        "op": "or"
+      },
+      "expression": "!out || !g_last_diagnostic_valid",
+      "id": "kain-runtime-get-last-diagnostic.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1475,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 40,
+        "end_line": 1475,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1475
+      },
+      "symbol": "kain_runtime_get_last_diagnostic",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!out || !g_last_diagnostic_valid) {",
+      "variables": [
+        "g_last_diagnostic_valid",
+        "out"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return",
+      "id": "kain-set-destructor.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 149,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 149,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 149
+      },
+      "symbol": "kain_set_destructor",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return;",
+      "variables": [
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "seconds <= 0.0",
+      "id": "kain-sleep.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 247,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 247,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 247
+      },
+      "symbol": "kain_sleep",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (seconds <= 0.0) {",
+      "variables": [
+        "seconds"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "delay.tv_nsec < 0",
+      "id": "kain-sleep.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 253,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 253,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 253
+      },
+      "symbol": "kain_sleep",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (delay.tv_nsec < 0) {",
+      "variables": [
+        "delay",
+        "tv_nsec"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "nanosleep(&delay, &delay) != 0 && errno == EINTR",
+      "id": "kain-sleep.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 260,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 59,
+        "end_line": 260,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 260
+      },
+      "symbol": "kain_sleep",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (nanosleep(&delay, &delay) != 0 && errno == EINTR) {",
+      "variables": [
+        "EINTR",
+        "delay",
+        "errno",
+        "nanosleep"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "args"
+        ],
+        "op": "not"
+      },
+      "expression": "!args",
+      "id": "kain-spawn.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 177,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 13,
+        "end_line": 177,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 177
+      },
+      "symbol": "kain_spawn",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!args) {",
+      "variables": [
+        "args"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "thread_handle"
+        ],
+        "op": "not"
+      },
+      "expression": "!thread_handle",
+      "id": "kain-spawn.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 194,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 194,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 194
+      },
+      "symbol": "kain_spawn",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!thread_handle) {",
+      "variables": [
+        "thread_handle"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "result",
+          0
+        ],
+        "op": "neq"
+      },
+      "expression": "result != 0",
+      "id": "kain-spawn.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 210,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 210,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 210
+      },
+      "symbol": "kain_spawn",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (result != 0) {",
+      "variables": [
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": "size_t"
+      },
+      "id": "kain-string-new-with-len.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 31,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 69,
+        "end_line": 31,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 31
+      },
+      "symbol": "kain_string_new_with_len",
+      "text": "static char* kain_string_new_with_len(const char* src, size_t len) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "fact": {
+        "parameter": "len",
+        "role": "unsigned-size",
+        "type": "size_t"
+      },
+      "id": "kain-string-new-with-len.parameter-role.2",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 31,
+      "origin_class": "type-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 69,
+        "end_line": 31,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 31
+      },
+      "symbol": "kain_string_new_with_len",
+      "text": "static char* kain_string_new_with_len(const char* src, size_t len) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!buf) return NULL",
+      "id": "kain-string-new-with-len.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 33,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 33,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 33
+      },
+      "symbol": "kain_string_new_with_len",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!buf) return NULL;",
+      "variables": [
+        "NULL",
+        "buf"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "src",
+          {
+            "args": [
+              "len",
+              0
+            ],
+            "op": "gt"
+          }
+        ],
+        "op": "and"
+      },
+      "expression": "src && len > 0",
+      "id": "kain-string-new-with-len.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 34,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 34,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 34
+      },
+      "symbol": "kain_string_new_with_len",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (src && len > 0) {",
+      "variables": [
+        "len",
+        "src"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!value) return 0",
+      "id": "len.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 754,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 754,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 754
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!value) return 0;",
+      "variables": [
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->type_tag == 1",
+      "id": "len.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 756,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 756,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 756
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->type_tag == 1) {",
+      "variables": [
+        "header",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->type_tag == 2",
+      "id": "len.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 759,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 759,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 759
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->type_tag == 2) {",
+      "variables": [
+        "header",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((KainArray*)value)->len",
+      "id": "len.return-condition.4",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 760,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 760,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 760
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return ((KainArray*)value)->len;",
+      "variables": [
+        "KainArray",
+        "len",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->type_tag == 3",
+      "id": "len.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 762,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 762,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 762
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->type_tag == 3) {",
+      "variables": [
+        "header",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "((KainMap*)value)->count",
+      "id": "len.return-condition.6",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 763,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 33,
+        "end_line": 763,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 763
+      },
+      "symbol": "len",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return ((KainMap*)value)->count;",
+      "variables": [
+        "KainMap",
+        "count",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "map->entries[i].occupied",
+      "id": "map-free-elems.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1141,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 32,
+        "end_line": 1141,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1141
+      },
+      "symbol": "map_free_elems",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (map->entries[i].occupied) {",
+      "variables": [
+        "entries",
+        "i",
+        "map",
+        "occupied"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!map || !key) return 0",
+      "id": "map-get.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1226,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 1226,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1226
+      },
+      "symbol": "map_get",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!map || !key) return 0;",
+      "variables": [
+        "key",
+        "map"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!map) return NULL",
+      "id": "map-new.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1150,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 1150,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1150
+      },
+      "symbol": "map_new",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!map) return NULL;",
+      "variables": [
+        "NULL",
+        "map"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!map->entries",
+      "id": "map-new.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1155,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 21,
+        "end_line": 1155,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1155
+      },
+      "symbol": "map_new",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!map->entries) {",
+      "variables": [
+        "entries",
+        "map"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!map || !key) return",
+      "id": "map-set.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1174,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 1174,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1174
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!map || !key) return;",
+      "variables": [
+        "key",
+        "map"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)",
+      "id": "map-set.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1178,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 82,
+        "end_line": 1178,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1178
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if ((uint64_t)map->count >= kain_map_growth_threshold((uint64_t)map->capacity)) {",
+      "variables": [
+        "capacity",
+        "count",
+        "kain_map_growth_threshold",
+        "map",
+        "uint64_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))",
+      "id": "map-set.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1182,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1182,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1182
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "MapEntry",
+        "SIZE_MAX",
+        "current_capacity",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_map_resize(map, new_capacity)",
+      "id": "map-set.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1192,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1192,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1192
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "kain_map_resize",
+        "map",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_map_insert_prehashed(map, key, key_length, key_hash, key_prefix, value, 1)",
+      "id": "map-set.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1197,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1197,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1197
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_map_insert_prehashed(map, key, key_length, key_hash, key_prefix, value, 1)) {",
+      "variables": [
+        "kain_map_insert_prehashed",
+        "key",
+        "key_hash",
+        "key_length",
+        "key_prefix",
+        "map",
+        "value"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))",
+      "id": "map-set.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1200,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 88,
+        "end_line": 1200,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1200
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (new_capacity <= current_capacity || new_capacity > (SIZE_MAX / sizeof(MapEntry))) {",
+      "variables": [
+        "MapEntry",
+        "SIZE_MAX",
+        "current_capacity",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!kain_map_resize(map, new_capacity)",
+      "id": "map-set.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1210,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 1210,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1210
+      },
+      "symbol": "map_set",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!kain_map_resize(map, new_capacity)) {",
+      "variables": [
+        "kain_map_resize",
+        "map",
+        "new_capacity"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "mq"
+        ],
+        "op": "not"
+      },
+      "expression": "!mq",
+      "id": "mq-new.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1250,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 11,
+        "end_line": 1250,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1250
+      },
+      "symbol": "mq_new",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!mq) {",
+      "variables": [
+        "mq"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!mq->head",
+      "id": "mq-pop.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1311,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 1311,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1311
+      },
+      "symbol": "mq_pop",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!mq->head) {",
+      "variables": [
+        "head",
+        "mq"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!mq->head",
+      "id": "mq-pop.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1322,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 17,
+        "end_line": 1322,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1322
+      },
+      "symbol": "mq_pop",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!mq->head) {",
+      "variables": [
+        "head",
+        "mq"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!node) return",
+      "id": "mq-push.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1273,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 1273,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1273
+      },
+      "symbol": "mq_push",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!node) return;",
+      "variables": [
+        "node"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "mq->tail",
+      "id": "mq-push.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1286,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 16,
+        "end_line": 1286,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1286
+      },
+      "symbol": "mq_push",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "concurrency",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (mq->tail) {",
+      "variables": [
+        "mq",
+        "tail"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!arr || arr->len <= 0) return 0",
+      "id": "pop.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 406,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 37,
+        "end_line": 406,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 406
+      },
+      "symbol": "pop",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!arr || arr->len <= 0) return 0;",
+      "variables": [
+        "arr",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "arr->data[arr->len]",
+      "id": "pop.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 408,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 28,
+        "end_line": 408,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 408
+      },
+      "symbol": "pop",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "return arr->data[arr->len];",
+      "variables": [
+        "arr",
+        "data",
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": "long long"
+      },
+      "id": "print-str.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 280,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 280,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 280
+      },
+      "symbol": "print_str",
+      "text": "void print_str(char* str, long long len) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "str",
+      "expression": "str",
+      "id": "print-str.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 282,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 11,
+        "end_line": 282,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 282
+      },
+      "symbol": "print_str",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (str) {",
+      "variables": [
+        "str"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return",
+      "id": "rc-release.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 105,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 105,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 105
+      },
+      "symbol": "rc_release",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return;",
+      "variables": [
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->ref_count == 0",
+      "id": "rc-release.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 109,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 109,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 109
+      },
+      "symbol": "rc_release",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->ref_count == 0) {",
+      "variables": [
+        "header",
+        "ref_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->type_tag == 2",
+      "id": "rc-release.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 110,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 110,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 110
+      },
+      "symbol": "rc_release",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->type_tag == 2) {",
+      "variables": [
+        "header",
+        "type_tag"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->destructor",
+      "id": "rc-release.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 116,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 116,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 116
+      },
+      "symbol": "rc_release",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->destructor) {",
+      "variables": [
+        "destructor",
+        "header"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->weak_count == 0",
+      "id": "rc-release.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 120,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 120,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 120
+      },
+      "symbol": "rc_release",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->weak_count == 0) {",
+      "variables": [
+        "header",
+        "weak_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return",
+      "id": "rc-retain.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 94,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 94,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 94
+      },
+      "symbol": "rc_retain",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return;",
+      "variables": [
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return",
+      "id": "rc-weak-release.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 128,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 128,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 128
+      },
+      "symbol": "rc_weak_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return;",
+      "variables": [
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->weak_count == 0 && header->ref_count == 0",
+      "id": "rc-weak-release.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 132,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 57,
+        "end_line": 132,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 132
+      },
+      "symbol": "rc_weak_release",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->weak_count == 0 && header->ref_count == 0) {",
+      "variables": [
+        "header",
+        "ref_count",
+        "weak_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return",
+      "id": "rc-weak-retain.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 99,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 99,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 99
+      },
+      "symbol": "rc_weak_retain",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return;",
+      "variables": [
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!fgets(buffer, (int)sizeof(buffer), stdin)",
+      "id": "read-line.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 509,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 50,
+        "end_line": 509,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 509
+      },
+      "symbol": "read_line",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!fgets(buffer, (int)sizeof(buffer), stdin)) {",
+      "variables": [
+        "buffer",
+        "fgets",
+        "int",
+        "stdin"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "len > 0 && (buffer[len - 1] == '\\n' || buffer[len - 1] == '\\r')",
+      "id": "read-line.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 513,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 513,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 513
+      },
+      "symbol": "read_line",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (len > 0 && (buffer[len - 1] == '\\n' || buffer[len - 1] == '\\r')) {",
+      "variables": [
+        "buffer",
+        "len",
+        "n",
+        "r"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!s) return string_new(\"\")",
+      "id": "replace.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 708,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 708,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 708
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s) return string_new(\"\");",
+      "variables": [
+        "s",
+        "string_new"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!from || !from[0]) return string_new(s)",
+      "id": "replace.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 709,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 45,
+        "end_line": 709,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 709
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!from || !from[0]) return string_new(s);",
+      "variables": [
+        "from",
+        "s",
+        "string_new"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!to) to = \"\"",
+      "id": "replace.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 710,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 710,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 710
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!to) to = \"\";",
+      "variables": [
+        "to"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(match = strstr(cursor, from)) != NULL",
+      "id": "replace.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 716,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 716,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 716
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while ((match = strstr(cursor, from)) != NULL) {",
+      "variables": [
+        "NULL",
+        "cursor",
+        "from",
+        "match",
+        "strstr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "replacements",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "replacements == 0",
+      "id": "replace.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 723,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 723,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 723
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (replacements == 0) {",
+      "variables": [
+        "replacements"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!out) return NULL",
+      "id": "replace.guard-condition.6",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 727,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 727,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 727
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out) return NULL;",
+      "variables": [
+        "NULL",
+        "out"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(match = strstr(cursor, from)) != NULL",
+      "id": "replace.guard-condition.7",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 730,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 49,
+        "end_line": 730,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 730
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while ((match = strstr(cursor, from)) != NULL) {",
+      "variables": [
+        "NULL",
+        "cursor",
+        "from",
+        "match",
+        "strstr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "prefix_len",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "prefix_len > 0",
+      "id": "replace.guard-condition.8",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 732,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 732,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 732
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (prefix_len > 0) {",
+      "variables": [
+        "prefix_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "to_len",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "to_len > 0",
+      "id": "replace.guard-condition.9",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 736,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 736,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 736
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (to_len > 0) {",
+      "variables": [
+        "to_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*cursor",
+      "id": "replace.guard-condition.10",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 742,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 742,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 742
+      },
+      "symbol": "replace",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (*cursor) {",
+      "variables": [
+        "cursor"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "!host || !host[0]",
+      "id": "socket-connect.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1368,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 25,
+        "end_line": 1368,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1368
+      },
+      "symbol": "socket_connect",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!host || !host[0]) {",
+      "variables": [
+        "host"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "getaddrinfo(host, port_text, &hints, &result) != 0",
+      "id": "socket-connect.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1385,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 58,
+        "end_line": 1385,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1385
+      },
+      "symbol": "socket_connect",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (getaddrinfo(host, port_text, &hints, &result) != 0) {",
+      "variables": [
+        "getaddrinfo",
+        "hints",
+        "host",
+        "port_text",
+        "result"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "sock",
+          "INVALID_SOCKET"
+        ],
+        "op": "eq"
+      },
+      "expression": "sock == INVALID_SOCKET",
+      "id": "socket-connect.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1400,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 1400,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1400
+      },
+      "symbol": "socket_connect",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (sock == INVALID_SOCKET) {",
+      "variables": [
+        "INVALID_SOCKET",
+        "sock"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "connect(sock, current->ai_addr, (int)current->ai_addrlen) == 0",
+      "id": "socket-connect.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1403,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 70,
+        "end_line": 1403,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1403
+      },
+      "symbol": "socket_connect",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (connect(sock, current->ai_addr, (int)current->ai_addrlen) == 0) {",
+      "variables": [
+        "ai_addr",
+        "ai_addrlen",
+        "connect",
+        "current",
+        "int",
+        "sock"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(sock < 0) return NULL",
+      "id": "socket-recv.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1436,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 27,
+        "end_line": 1436,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1436
+      },
+      "symbol": "socket_recv",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (sock < 0) return NULL;",
+      "variables": [
+        "NULL",
+        "sock"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "len",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "len > 0",
+      "id": "socket-recv.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1438,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 1438,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1438
+      },
+      "symbol": "socket_recv",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (len > 0) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(sock < 0 || !data) return",
+      "id": "socket-send.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 1429,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 31,
+        "end_line": 1429,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 1429
+      },
+      "symbol": "socket_send",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (sock < 0 || !data) return;",
+      "variables": [
+        "data",
+        "sock"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!s || !prefix) return 0",
+      "id": "starts-with.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 652,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 652,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 652
+      },
+      "symbol": "starts_with",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "if (!s || !prefix) return 0;",
+      "variables": [
+        "prefix",
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "medium",
+      "expression": "strncmp(s, prefix, prefix_len) == 0",
+      "id": "starts-with.return-condition.2",
+      "kind": "return-condition",
+      "language": "c",
+      "line": 654,
+      "origin_class": "return-contract",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 44,
+        "end_line": 654,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 654
+      },
+      "symbol": "starts_with",
+      "tags": [
+        "bitwise",
+        "bounds"
+      ],
+      "text": "return strncmp(s, prefix, prefix_len) == 0;",
+      "variables": [
+        "prefix",
+        "prefix_len",
+        "s",
+        "strncmp"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "length",
+        "role": "length-like",
+        "type": "long long"
+      },
+      "id": "stdin-read-exact.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 525,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 43,
+        "end_line": 525,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 525
+      },
+      "symbol": "stdin_read_exact",
+      "text": "char* stdin_read_exact(long long length) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "length",
+          0
+        ],
+        "op": "le"
+      },
+      "expression": "length <= 0",
+      "id": "stdin-read-exact.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 529,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 529,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 529
+      },
+      "symbol": "stdin_read_exact",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (length <= 0) {",
+      "variables": [
+        "length"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "buffer"
+        ],
+        "op": "not"
+      },
+      "expression": "!buffer",
+      "id": "stdin-read-exact.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 534,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 15,
+        "end_line": 534,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 534
+      },
+      "symbol": "stdin_read_exact",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!buffer) {",
+      "variables": [
+        "buffer"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "remaining",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "remaining > 0",
+      "id": "stdin-read-exact.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 537,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 24,
+        "end_line": 537,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 537
+      },
+      "symbol": "stdin_read_exact",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "while (remaining > 0) {",
+      "variables": [
+        "remaining"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "read_count",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "read_count == 0",
+      "id": "stdin-read-exact.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 539,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 539,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 539
+      },
+      "symbol": "stdin_read_exact",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (read_count == 0) {",
+      "variables": [
+        "read_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!text) return",
+      "id": "stdout-write.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 520,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 19,
+        "end_line": 520,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 520
+      },
+      "symbol": "stdout_write",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!text) return;",
+      "variables": [
+        "text"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!s1 && !s2) return NULL",
+      "id": "str-concat.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 312,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 312,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 312
+      },
+      "symbol": "str_concat",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s1 && !s2) return NULL;",
+      "variables": [
+        "NULL",
+        "s1",
+        "s2"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!res) return NULL",
+      "id": "str-concat.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 314,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 314,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 314
+      },
+      "symbol": "str_concat",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!res) return NULL;",
+      "variables": [
+        "NULL",
+        "res"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "s1",
+      "expression": "s1",
+      "id": "str-concat.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 315,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 315,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 315
+      },
+      "symbol": "str_concat",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (s1) {",
+      "variables": [
+        "s1"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": "s2",
+      "expression": "s2",
+      "id": "str-concat.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 320,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 320,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 320
+      },
+      "symbol": "str_concat",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (s2) {",
+      "variables": [
+        "s2"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!src) return NULL",
+      "id": "string-new.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 272,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 272,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 272
+      },
+      "symbol": "string_new",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!src) return NULL;",
+      "variables": [
+        "NULL",
+        "src"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!buf) return NULL",
+      "id": "string-new.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 275,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 275,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 275
+      },
+      "symbol": "string_new",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!buf) return NULL;",
+      "variables": [
+        "NULL",
+        "buf"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "s"
+        ],
+        "op": "not"
+      },
+      "expression": "!s",
+      "id": "substring.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 685,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 685,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 685
+      },
+      "symbol": "substring",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s) {",
+      "variables": [
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(start < 0) start = 0",
+      "id": "substring.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 689,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 26,
+        "end_line": 689,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 689
+      },
+      "symbol": "substring",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (start < 0) start = 0;",
+      "variables": [
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(end < 0 || (size_t)end > s_len) end = (long long)s_len",
+      "id": "substring.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 690,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 60,
+        "end_line": 690,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 690
+      },
+      "symbol": "substring",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (end < 0 || (size_t)end > s_len) end = (long long)s_len;",
+      "variables": [
+        "end",
+        "long",
+        "s_len",
+        "size_t"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "((size_t)start > s_len) start = (long long)s_len",
+      "id": "substring.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 691,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 53,
+        "end_line": 691,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 691
+      },
+      "symbol": "substring",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if ((size_t)start > s_len) start = (long long)s_len;",
+      "variables": [
+        "long",
+        "s_len",
+        "size_t",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(end < start) end = start",
+      "id": "substring.guard-condition.5",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 692,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 30,
+        "end_line": 692,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 692
+      },
+      "symbol": "substring",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (end < start) end = start;",
+      "variables": [
+        "end",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "s"
+        ],
+        "op": "not"
+      },
+      "expression": "!s",
+      "id": "to-lower.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 632,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 632,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 632
+      },
+      "symbol": "to_lower",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s) {",
+      "variables": [
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!out) return NULL",
+      "id": "to-lower.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 637,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 637,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 637
+      },
+      "symbol": "to_lower",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out) return NULL;",
+      "variables": [
+        "NULL",
+        "out"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!buf) return NULL",
+      "id": "to-string.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 303,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 303,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 303
+      },
+      "symbol": "to_string",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!buf) return NULL;",
+      "variables": [
+        "NULL",
+        "buf"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "s"
+        ],
+        "op": "not"
+      },
+      "expression": "!s",
+      "id": "to-upper.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 615,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 615,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 615
+      },
+      "symbol": "to_upper",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s) {",
+      "variables": [
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!out) return NULL",
+      "id": "to-upper.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 620,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 620,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 620
+      },
+      "symbol": "to_upper",
+      "tags": [
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!out) return NULL;",
+      "variables": [
+        "NULL",
+        "out"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "s"
+        ],
+        "op": "not"
+      },
+      "expression": "!s",
+      "id": "trim.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 597,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 10,
+        "end_line": 597,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 597
+      },
+      "symbol": "trim",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "if (!s) {",
+      "variables": [
+        "s"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "*start && kain_char_is_space(*start)",
+      "id": "trim.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 601,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 47,
+        "end_line": 601,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 601
+      },
+      "symbol": "trim",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (*start && kain_char_is_space(*start)) {",
+      "variables": [
+        "kain_char_is_space",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "end > start && kain_char_is_space(*(end - 1))",
+      "id": "trim.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 605,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 56,
+        "end_line": 605,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 605
+      },
+      "symbol": "trim",
+      "tags": [
+        "bitwise",
+        "bounds",
+        "overflow"
+      ],
+      "text": "while (end > start && kain_char_is_space(*(end - 1))) {",
+      "variables": [
+        "end",
+        "kain_char_is_space",
+        "start"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "(!ptr) return NULL",
+      "id": "weak-upgrade.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 139,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 139,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 139
+      },
+      "symbol": "weak_upgrade",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (!ptr) return NULL;",
+      "variables": [
+        "NULL",
+        "ptr"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "expression": "header->ref_count > 0",
+      "id": "weak-upgrade.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 141,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 29,
+        "end_line": 141,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 141
+      },
+      "symbol": "weak_upgrade",
+      "tags": [
+        "bounds",
+        "overflow",
+        "pointer"
+      ],
+      "text": "if (header->ref_count > 0) {",
+      "variables": [
+        "header",
+        "ref_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "low",
+      "fact": {
+        "parameter": "len",
+        "role": "length-like",
+        "type": "len > 0 && (buffer["
+      },
+      "id": "while.parameter-role.1",
+      "kind": "parameter-role",
+      "language": "c",
+      "line": 513,
+      "origin_class": "naming-role-hint",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 74,
+        "end_line": 513,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 513
+      },
+      "symbol": "while",
+      "text": "while (len > 0 && (buffer[len - 1] == '\\n' || buffer[len - 1] == '\\r')) {",
+      "variables": [
+        "len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "read_count",
+          0
+        ],
+        "op": "eq"
+      },
+      "expression": "read_count == 0",
+      "id": "while.guard-condition.2",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 539,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 23,
+        "end_line": 539,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 539
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (read_count == 0) {",
+      "variables": [
+        "read_count"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "prefix_len",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "prefix_len > 0",
+      "id": "while.guard-condition.3",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 732,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 22,
+        "end_line": 732,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 732
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (prefix_len > 0) {",
+      "variables": [
+        "prefix_len"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "to_len",
+          0
+        ],
+        "op": "gt"
+      },
+      "expression": "to_len > 0",
+      "id": "while.guard-condition.4",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 736,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+      "span": {
+        "end_col": 18,
+        "end_line": 736,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+        "start_col": 1,
+        "start_line": 736
+      },
+      "symbol": "while",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (to_len > 0) {",
+      "variables": [
+        "to_len"
+      ]
+    }
+  ],
+  "language": "c",
+  "source_hash": "776225524eb1a4e8b881bb64f8115de26028d6f40ecdf39e41f55cb96e9b473f",
+  "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_core.c",
+  "version": 1
+}
