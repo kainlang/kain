@@ -1,0 +1,153 @@
+diff --git a/runtime/native/src/core/kain_runtime_services.c b/runtime/native/src/core/kain_runtime_services.c
+index b0b40ad3..d469c16d 100644
+--- a/runtime/native/src/core/kain_runtime_services.c
++++ b/runtime/native/src/core/kain_runtime_services.c
+@@ -1054 +763,48 @@ static int kain_service_registry_register_or_refresh_descriptor(
+-static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* registry) {
++static int kain_service_registry_probe_native_net_service(
++    const KainServiceDescriptor* service,
++    int* out_probe_passed
++) {
++    const KainNativeNetFunctionTable* function_table;
++
++    if (!service || !out_probe_passed) {
++        return 0;
++    }
++    if (service->function_table != (void*)&g_kain_native_net_function_table) {
++        return 0;
++    }
++
++    function_table = (const KainNativeNetFunctionTable*)service->function_table;
++    if (!function_table || !function_table->platform_available) {
++        return 0;
++    }
++
++    *out_probe_passed = function_table->platform_available() ? 1 : 0;
++    return 1;
++}
++
++static int kain_service_registry_probe_native_process_service(
++    const KainServiceDescriptor* service,
++    int* out_probe_passed
++) {
++    const KainNativeProcessFunctionTable* function_table;
++
++    if (!service || !out_probe_passed) {
++        return 0;
++    }
++    if (service->function_table != (void*)&g_kain_native_process_function_table) {
++        return 0;
++    }
++
++    function_table =
++        (const KainNativeProcessFunctionTable*)service->function_table;
++    if (!function_table || !function_table->platform_available) {
++        return 0;
++    }
++
++    *out_probe_passed = function_table->platform_available() ? 1 : 0;
++    return 1;
++}
++
++static void kain_service_registry_refresh_runtime_probe_statuses(
++    KainServiceRegistry* registry
++) {
+@@ -1063 +818,0 @@ static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* r
+-        const KainVendorServiceFunctionTable* function_table;
+@@ -1064,0 +820 @@ static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* r
++        int probed = 0;
+@@ -1070,2 +826,10 @@ static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* r
+-        function_table = (const KainVendorServiceFunctionTable*)service->function_table;
+-        if (!function_table || !function_table->probe) {
++        if (kain_service_registry_probe_native_net_service(service, &probe_passed)) {
++            probed = 1;
++        } else if (kain_service_registry_probe_native_process_service(
++                       service,
++                       &probe_passed
++                   )) {
++            probed = 1;
++        }
++
++        if (!probed) {
+@@ -1075 +838,0 @@ static void kain_service_registry_refresh_vendor_statuses(KainServiceRegistry* r
+-        probe_passed = function_table->probe() ? 1 : 0;
+@@ -1106 +869 @@ int kain_service_registry_register_native_runtime_services(
+-    kain_service_registry_refresh_vendor_statuses(registry);
++    kain_service_registry_refresh_runtime_probe_statuses(registry);
+diff --git a/runtime/native/src/platform/win32/kain_runtime_win32_shared.c b/runtime/native/src/platform/win32/kain_runtime_win32_shared.c
+index 0ae99572..e19ea113 100644
+--- a/runtime/native/src/platform/win32/kain_runtime_win32_shared.c
++++ b/runtime/native/src/platform/win32/kain_runtime_win32_shared.c
+@@ -213,0 +148,73 @@ double kain_env_double(const char* name, double fallback) {
++void kain_win32_frame_timer_begin(
++    LARGE_INTEGER* perf_freq,
++    LARGE_INTEGER* prev_counter,
++    double* fps_accumulator,
++    int* fps_frames,
++    double* frame_fps
++) {
++    if (fps_accumulator) {
++        *fps_accumulator = 0.0;
++    }
++    if (fps_frames) {
++        *fps_frames = 0;
++    }
++    if (frame_fps) {
++        *frame_fps = 0.0;
++    }
++    if (perf_freq) {
++        QueryPerformanceFrequency(perf_freq);
++    }
++    if (prev_counter) {
++        QueryPerformanceCounter(prev_counter);
++    }
++}
++
++double kain_win32_frame_timer_step(
++    LARGE_INTEGER* perf_freq,
++    LARGE_INTEGER* prev_counter,
++    double* fps_accumulator,
++    int* fps_frames,
++    double* frame_fps,
++    double min_dt,
++    double max_dt
++) {
++    LARGE_INTEGER current_counter;
++    double delta = min_dt;
++
++    if (!perf_freq || !prev_counter) {
++        return min_dt;
++    }
++    if (min_dt <= 0.0) {
++        min_dt = 0.001;
++    }
++    if (max_dt < min_dt) {
++        max_dt = min_dt;
++    }
++    if (perf_freq->QuadPart <= 0) {
++        QueryPerformanceFrequency(perf_freq);
++    }
++    QueryPerformanceCounter(&current_counter);
++    if (perf_freq->QuadPart > 0 && prev_counter->QuadPart > 0) {
++        delta = (double)(current_counter.QuadPart - prev_counter->QuadPart) /
++            (double)perf_freq->QuadPart;
++    }
++    prev_counter->QuadPart = current_counter.QuadPart;
++    if (delta < min_dt) {
++        delta = min_dt;
++    } else if (delta > max_dt) {
++        delta = max_dt;
++    }
++    if (fps_accumulator) {
++        *fps_accumulator += delta;
++    }
++    if (fps_frames) {
++        *fps_frames += 1;
++    }
++    if (frame_fps && fps_accumulator && fps_frames && *fps_accumulator >= 1.0) {
++        *frame_fps = (double)(*fps_frames) / *fps_accumulator;
++        *fps_accumulator = 0.0;
++        *fps_frames = 0;
++    }
++    return delta;
++}

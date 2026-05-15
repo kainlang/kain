@@ -94,7 +94,7 @@ COMMON_SOURCES=(
 
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32* ]]; then
     PLATFORM_CFLAGS=(-D_CRT_SECURE_NO_WARNINGS)
-    PLATFORM_LDFLAGS=(-lws2_32 -luser32 -lgdi32 -lopengl32)
+    PLATFORM_LDFLAGS=(-lws2_32 -luser32 -lgdi32)
 else
     PLATFORM_CFLAGS=(-D_POSIX_C_SOURCE=200809L)
     PLATFORM_LDFLAGS=(-pthread -lm)

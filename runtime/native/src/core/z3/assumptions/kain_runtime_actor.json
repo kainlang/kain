@@ -26,15 +26,15 @@
       "id": "receive.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 895,
+      "line": 900,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 42,
-        "end_line": 895,
+        "end_line": 900,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 895
+        "start_line": 900
       },
       "symbol": "Receive",
       "tags": [
@@ -58,15 +58,15 @@
       "id": "receive.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 906,
+      "line": 911,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 29,
-        "end_line": 906,
+        "end_line": 911,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 906
+        "start_line": 911
       },
       "symbol": "Receive",
       "tags": [
@@ -90,15 +90,15 @@
       "id": "receive.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 918,
+      "line": 923,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 29,
-        "end_line": 918,
+        "end_line": 923,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 918
+        "start_line": 923
       },
       "symbol": "Receive",
       "tags": [
@@ -122,15 +122,15 @@
       "id": "if.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 237,
+      "line": 244,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 71,
-        "end_line": 237,
+        "end_line": 244,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 237
+        "start_line": 244
       },
       "symbol": "if",
       "tags": [
@@ -156,15 +156,15 @@
       "id": "if.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 380,
+      "line": 387,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 380,
+        "end_line": 387,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 380
+        "start_line": 387
       },
       "symbol": "if",
       "text": "if (word_index == 0u) {",
@@ -198,15 +198,15 @@
       "id": "if.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 387,
+      "line": 394,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 387,
+        "end_line": 394,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 387
+        "start_line": 394
       },
       "symbol": "if",
       "tags": [
@@ -226,15 +226,15 @@
       "id": "if.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 486,
+      "line": 493,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 52,
-        "end_line": 486,
+        "end_line": 493,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 486
+        "start_line": 493
       },
       "symbol": "if",
       "tags": [
@@ -261,15 +261,15 @@
       "id": "if.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 544,
+      "line": 549,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 544,
+        "end_line": 549,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 544
+        "start_line": 549
       },
       "symbol": "if",
       "tags": [
@@ -295,15 +295,15 @@
       "id": "if.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 558,
+      "line": 563,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 558,
+        "end_line": 563,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 558
+        "start_line": 563
       },
       "symbol": "if",
       "tags": [
@@ -326,15 +326,15 @@
       "id": "if.parameter-role.7",
       "kind": "parameter-role",
       "language": "c",
-      "line": 581,
+      "line": 586,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 79,
-        "end_line": 581,
+        "end_line": 586,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 581
+        "start_line": 586
       },
       "symbol": "if",
       "text": "if (kain_actor_mailbox_init(&actor->mailbox, config->mailbox_capacity) != 0) {",
@@ -356,15 +356,15 @@
       "id": "if.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 582,
+      "line": 587,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 582,
+        "end_line": 587,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 582
+        "start_line": 587
       },
       "symbol": "if",
       "tags": [
@@ -390,15 +390,15 @@
       "id": "if.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 632,
+      "line": 637,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 632,
+        "end_line": 637,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 632
+        "start_line": 637
       },
       "symbol": "if",
       "tags": [
@@ -417,15 +417,15 @@
       "id": "if.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 639,
+      "line": 644,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 639,
+        "end_line": 644,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 639
+        "start_line": 644
       },
       "symbol": "if",
       "tags": [
@@ -447,15 +447,15 @@
       "id": "if.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 649,
+      "line": 654,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 40,
-        "end_line": 649,
+        "end_line": 654,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 649
+        "start_line": 654
       },
       "symbol": "if",
       "tags": [
@@ -473,15 +473,15 @@
       "id": "if.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 662,
+      "line": 667,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 56,
-        "end_line": 662,
+        "end_line": 667,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 662
+        "start_line": 667
       },
       "symbol": "if",
       "tags": [
@@ -501,15 +501,15 @@
       "id": "if.guard-condition.16",
       "kind": "guard-condition",
       "language": "c",
-      "line": 662,
+      "line": 667,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 56,
-        "end_line": 662,
+        "end_line": 667,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 662
+        "start_line": 667
       },
       "symbol": "if",
       "tags": [
@@ -529,15 +529,15 @@
       "id": "if.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 664,
+      "line": 669,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 664,
+        "end_line": 669,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 664
+        "start_line": 669
       },
       "symbol": "if",
       "tags": [
@@ -559,15 +559,15 @@
       "id": "if.guard-condition.17",
       "kind": "guard-condition",
       "language": "c",
-      "line": 664,
+      "line": 669,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 664,
+        "end_line": 669,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 664
+        "start_line": 669
       },
       "symbol": "if",
       "tags": [
@@ -589,15 +589,15 @@
       "id": "if.guard-condition.18",
       "kind": "guard-condition",
       "language": "c",
-      "line": 664,
+      "line": 669,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 664,
+        "end_line": 669,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 664
+        "start_line": 669
       },
       "symbol": "if",
       "tags": [
@@ -619,15 +619,15 @@
       "id": "if.guard-condition.14",
       "kind": "guard-condition",
       "language": "c",
-      "line": 677,
+      "line": 682,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 56,
-        "end_line": 677,
+        "end_line": 682,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 677
+        "start_line": 682
       },
       "symbol": "if",
       "tags": [
@@ -647,15 +647,15 @@
       "id": "if.guard-condition.15",
       "kind": "guard-condition",
       "language": "c",
-      "line": 679,
+      "line": 684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 679,
+        "end_line": 684,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 679
+        "start_line": 684
       },
       "symbol": "if",
       "tags": [
@@ -677,15 +677,15 @@
       "id": "if.guard-condition.19",
       "kind": "guard-condition",
       "language": "c",
-      "line": 679,
+      "line": 684,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 60,
-        "end_line": 679,
+        "end_line": 684,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 679
+        "start_line": 684
       },
       "symbol": "if",
       "tags": [
@@ -714,15 +714,15 @@
       "id": "if.guard-condition.20",
       "kind": "guard-condition",
       "language": "c",
-      "line": 702,
+      "line": 707,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 702,
+        "end_line": 707,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 702
+        "start_line": 707
       },
       "symbol": "if",
       "tags": [
@@ -748,15 +748,15 @@
       "id": "if.guard-condition.21",
       "kind": "guard-condition",
       "language": "c",
-      "line": 722,
+      "line": 727,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 722,
+        "end_line": 727,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 722
+        "start_line": 727
       },
       "symbol": "if",
       "tags": [
@@ -779,15 +779,15 @@
       "id": "if.parameter-role.22",
       "kind": "parameter-role",
       "language": "c",
-      "line": 738,
+      "line": 743,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 68,
-        "end_line": 738,
+        "end_line": 743,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 738
+        "start_line": 743
       },
       "symbol": "if",
       "text": "if (mailbox->capacity > 0 && mailbox->count >= mailbox->capacity) {",
@@ -809,15 +809,15 @@
       "id": "if.guard-condition.23",
       "kind": "guard-condition",
       "language": "c",
-      "line": 739,
+      "line": 744,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 739,
+        "end_line": 744,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 739
+        "start_line": 744
       },
       "symbol": "if",
       "tags": [
@@ -836,15 +836,15 @@
       "id": "if.guard-condition.24",
       "kind": "guard-condition",
       "language": "c",
-      "line": 773,
+      "line": 778,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 773,
+        "end_line": 778,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 773
+        "start_line": 778
       },
       "symbol": "if",
       "tags": [
@@ -871,15 +871,15 @@
       "id": "if.guard-condition.25",
       "kind": "guard-condition",
       "language": "c",
-      "line": 841,
+      "line": 846,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 841,
+        "end_line": 846,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 841
+        "start_line": 846
       },
       "symbol": "if",
       "tags": [
@@ -905,15 +905,15 @@
       "id": "if.guard-condition.26",
       "kind": "guard-condition",
       "language": "c",
-      "line": 952,
+      "line": 957,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 952,
+        "end_line": 957,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 952
+        "start_line": 957
       },
       "symbol": "if",
       "tags": [
@@ -939,15 +939,15 @@
       "id": "if.guard-condition.27",
       "kind": "guard-condition",
       "language": "c",
-      "line": 980,
+      "line": 985,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 980,
+        "end_line": 985,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 980
+        "start_line": 985
       },
       "symbol": "if",
       "tags": [
@@ -973,15 +973,15 @@
       "id": "if.guard-condition.28",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1016,
+      "line": 1021,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1016,
+        "end_line": 1021,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1016
+        "start_line": 1021
       },
       "symbol": "if",
       "tags": [
@@ -1007,15 +1007,15 @@
       "id": "if.guard-condition.29",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1093,
+      "line": 1098,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1093,
+        "end_line": 1098,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1093
+        "start_line": 1098
       },
       "symbol": "if",
       "tags": [
@@ -1041,15 +1041,15 @@
       "id": "if.guard-condition.30",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1116,
+      "line": 1121,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1116,
+        "end_line": 1121,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1116
+        "start_line": 1121
       },
       "symbol": "if",
       "tags": [
@@ -1075,15 +1075,15 @@
       "id": "if.guard-condition.31",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1141,
+      "line": 1146,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1141,
+        "end_line": 1146,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1141
+        "start_line": 1146
       },
       "symbol": "if",
       "tags": [
@@ -1109,15 +1109,15 @@
       "id": "if.guard-condition.32",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1209,
+      "line": 1214,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1209,
+        "end_line": 1214,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1209
+        "start_line": 1214
       },
       "symbol": "if",
       "tags": [
@@ -1143,15 +1143,15 @@
       "id": "if.guard-condition.33",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1233,
+      "line": 1238,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1233,
+        "end_line": 1238,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1233
+        "start_line": 1238
       },
       "symbol": "if",
       "tags": [
@@ -1177,15 +1177,15 @@
       "id": "if.guard-condition.34",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1247,
+      "line": 1252,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1247,
+        "end_line": 1252,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1247
+        "start_line": 1252
       },
       "symbol": "if",
       "tags": [
@@ -1204,15 +1204,15 @@
       "id": "if.guard-condition.35",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1284,
+      "line": 1289,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 28,
-        "end_line": 1284,
+        "end_line": 1289,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1284
+        "start_line": 1289
       },
       "symbol": "if",
       "tags": [
@@ -1231,15 +1231,15 @@
       "id": "if.guard-condition.36",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1286,
+      "line": 1291,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 62,
-        "end_line": 1286,
+        "end_line": 1291,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1286
+        "start_line": 1291
       },
       "symbol": "if",
       "tags": [
@@ -1259,15 +1259,15 @@
       "id": "if.guard-condition.37",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1300,
+      "line": 1305,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 28,
-        "end_line": 1300,
+        "end_line": 1305,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1300
+        "start_line": 1305
       },
       "symbol": "if",
       "tags": [
@@ -1286,15 +1286,15 @@
       "id": "if.guard-condition.38",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1302,
+      "line": 1307,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 62,
-        "end_line": 1302,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1302
+        "start_line": 1307
       },
       "symbol": "if",
       "tags": [
@@ -1321,15 +1321,15 @@
       "id": "if.guard-condition.39",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1314,
+      "line": 1319,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1314,
+        "end_line": 1319,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1314
+        "start_line": 1319
       },
       "symbol": "if",
       "tags": [
@@ -1355,15 +1355,15 @@
       "id": "if.guard-condition.40",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1418,
+      "line": 1425,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1418,
+        "end_line": 1425,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1418
+        "start_line": 1425
       },
       "symbol": "if",
       "tags": [
@@ -1386,15 +1386,15 @@
       "id": "if.parameter-role.41",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1561,
+      "line": 1572,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 30,
-        "end_line": 1561,
+        "end_line": 1572,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1561
+        "start_line": 1572
       },
       "symbol": "if",
       "text": "if (mailbox->capacity == 0) {",
@@ -1409,15 +1409,15 @@
       "id": "if.guard-condition.42",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1668,
+      "line": 1679,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 63,
-        "end_line": 1668,
+        "end_line": 1679,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1668
+        "start_line": 1679
       },
       "symbol": "if",
       "tags": [
@@ -1437,15 +1437,15 @@
       "id": "if.guard-condition.43",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1693,
+      "line": 1704,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 1693,
+        "end_line": 1704,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1693
+        "start_line": 1704
       },
       "symbol": "if",
       "tags": [
@@ -1471,15 +1471,15 @@
       "id": "if.guard-condition.44",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1887,
+      "line": 1898,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1887,
+        "end_line": 1898,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1887
+        "start_line": 1898
       },
       "symbol": "if",
       "tags": [
@@ -1505,15 +1505,15 @@
       "id": "if.guard-condition.45",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1900,
+      "line": 1911,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1900,
+        "end_line": 1911,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1900
+        "start_line": 1911
       },
       "symbol": "if",
       "tags": [
@@ -1536,15 +1536,15 @@
       "id": "if.parameter-role.46",
       "kind": "parameter-role",
       "language": "c",
-      "line": 2004,
+      "line": 2015,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 72,
-        "end_line": 2004,
+        "end_line": 2015,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2004
+        "start_line": 2015
       },
       "symbol": "if",
       "text": "if (child->supervisor.restart_count >= KAIN_SUPERVISION_MAX_RESTARTS) {",
@@ -1566,15 +1566,15 @@
       "id": "if.guard-condition.47",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2043,
+      "line": 2054,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 25,
-        "end_line": 2043,
+        "end_line": 2054,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2043
+        "start_line": 2054
       },
       "symbol": "if",
       "tags": [
@@ -1600,15 +1600,15 @@
       "id": "kain-actor-abi-descriptor-is-compatible.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 197,
+      "line": 204,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 197,
+        "end_line": 204,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 197
+        "start_line": 204
       },
       "symbol": "kain_actor_abi_descriptor_is_compatible",
       "tags": [
@@ -1630,15 +1630,15 @@
       "id": "kain-actor-abi-descriptor-is-compatible.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 202,
+      "line": 209,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 55,
-        "end_line": 202,
+        "end_line": 209,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 202
+        "start_line": 209
       },
       "symbol": "kain_actor_abi_descriptor_is_compatible",
       "tags": [
@@ -1668,15 +1668,15 @@
       "id": "kain-actor-cleanup.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1049,
+      "line": 1054,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1049,
+        "end_line": 1054,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1049
+        "start_line": 1054
       },
       "symbol": "kain_actor_cleanup",
       "tags": [
@@ -1698,15 +1698,15 @@
       "id": "kain-actor-cleanup.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1058,
+      "line": 1063,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 72,
-        "end_line": 1058,
+        "end_line": 1063,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1058
+        "start_line": 1063
       },
       "symbol": "kain_actor_cleanup",
       "tags": [
@@ -1738,15 +1738,15 @@
       "id": "kain-actor-cleanup.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1065,
+      "line": 1070,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 1065,
+        "end_line": 1070,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1065
+        "start_line": 1070
       },
       "symbol": "kain_actor_cleanup",
       "tags": [
@@ -1775,15 +1775,15 @@
       "id": "kain-actor-cleanup.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1073,
+      "line": 1078,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1073,
+        "end_line": 1078,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1073
+        "start_line": 1078
       },
       "symbol": "kain_actor_cleanup",
       "tags": [
@@ -1812,15 +1812,15 @@
       "id": "kain-actor-close-mailbox.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 335,
+      "line": 342,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 335,
+        "end_line": 342,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 335
+        "start_line": 342
       },
       "symbol": "kain_actor_close_mailbox",
       "tags": [
@@ -1850,15 +1850,15 @@
       "id": "kain-actor-complete-exit-side-effects.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 503,
+      "line": 510,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 503,
+        "end_line": 510,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 503
+        "start_line": 510
       },
       "symbol": "kain_actor_complete_exit_side_effects",
       "tags": [
@@ -1880,15 +1880,15 @@
       "id": "kain-actor-complete-exit-side-effects.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 507,
+      "line": 514,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 64,
-        "end_line": 507,
+        "end_line": 514,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 507
+        "start_line": 514
       },
       "symbol": "kain_actor_complete_exit_side_effects",
       "tags": [
@@ -1912,15 +1912,15 @@
       "id": "kain-actor-complete-exit-side-effects.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 512,
+      "line": 519,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 52,
-        "end_line": 512,
+        "end_line": 519,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 512
+        "start_line": 519
       },
       "symbol": "kain_actor_complete_exit_side_effects",
       "tags": [
@@ -1947,15 +1947,15 @@
       "id": "kain-actor-copy-name.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1384,
+      "line": 1389,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 82,
-        "end_line": 1384,
+        "end_line": 1389,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1384
+        "start_line": 1389
       },
       "symbol": "kain_actor_copy_name",
       "text": "static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {",
@@ -1974,15 +1974,15 @@
       "id": "kain-actor-copy-name.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 1384,
+      "line": 1389,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 82,
-        "end_line": 1384,
+        "end_line": 1389,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1384
+        "start_line": 1389
       },
       "symbol": "kain_actor_copy_name",
       "text": "static void kain_actor_copy_name(char* dest, size_t dest_size, const char* src) {",
@@ -2016,15 +2016,15 @@
       "id": "kain-actor-copy-name.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1385,
+      "line": 1390,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1385,
+        "end_line": 1390,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1385
+        "start_line": 1390
       },
       "symbol": "kain_actor_copy_name",
       "tags": [
@@ -2046,15 +2046,15 @@
       "id": "kain-actor-copy-name.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1389,
+      "line": 1394,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 37,
-        "end_line": 1389,
+        "end_line": 1394,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1389
+        "start_line": 1394
       },
       "symbol": "kain_actor_copy_name",
       "tags": [
@@ -2075,15 +2075,15 @@
       "id": "kain-actor-escalate-to-supervisor.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2060,
+      "line": 2071,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 81,
-        "end_line": 2060,
+        "end_line": 2071,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2060
+        "start_line": 2071
       },
       "symbol": "kain_actor_escalate_to_supervisor",
       "tags": [
@@ -2115,15 +2115,15 @@
       "id": "kain-actor-escalate-to-supervisor.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2065,
+      "line": 2076,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 2065,
+        "end_line": 2076,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2065
+        "start_line": 2076
       },
       "symbol": "kain_actor_escalate_to_supervisor",
       "tags": [
@@ -2145,15 +2145,15 @@
       "id": "kain-actor-escalate-to-supervisor.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2081,
+      "line": 2092,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 69,
-        "end_line": 2081,
+        "end_line": 2092,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2081
+        "start_line": 2092
       },
       "symbol": "kain_actor_escalate_to_supervisor",
       "tags": [
@@ -2183,15 +2183,15 @@
       "id": "kain-actor-get-state.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1003,
+      "line": 1008,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1003,
+        "end_line": 1008,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1003
+        "start_line": 1008
       },
       "symbol": "kain_actor_get_state",
       "tags": [
@@ -2212,15 +2212,15 @@
       "id": "kain-actor-get-state.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1006,
+      "line": 1011,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1006,
+        "end_line": 1011,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1006
+        "start_line": 1011
       },
       "symbol": "kain_actor_get_state",
       "tags": [
@@ -2241,15 +2241,15 @@
       "id": "kain-actor-handle-child-exit.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2142,
+      "line": 2153,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 81,
-        "end_line": 2142,
+        "end_line": 2153,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2142
+        "start_line": 2153
       },
       "symbol": "kain_actor_handle_child_exit",
       "tags": [
@@ -2281,15 +2281,15 @@
       "id": "kain-actor-handle-child-exit.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2147,
+      "line": 2158,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 2147,
+        "end_line": 2158,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2147
+        "start_line": 2158
       },
       "symbol": "kain_actor_handle_child_exit",
       "tags": [
@@ -2311,15 +2311,15 @@
       "id": "kain-actor-handle-child-exit.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2166,
+      "line": 2177,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 41,
-        "end_line": 2166,
+        "end_line": 2177,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2166
+        "start_line": 2177
       },
       "symbol": "kain_actor_handle_child_exit",
       "tags": [
@@ -2341,15 +2341,15 @@
       "id": "kain-actor-handle-child-exit.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2172,
+      "line": 2183,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 48,
-        "end_line": 2172,
+        "end_line": 2183,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2172
+        "start_line": 2183
       },
       "symbol": "kain_actor_handle_child_exit",
       "tags": [
@@ -2378,15 +2378,15 @@
       "id": "kain-actor-handle-child-exit.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2186,
+      "line": 2197,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 39,
-        "end_line": 2186,
+        "end_line": 2197,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2186
+        "start_line": 2197
       },
       "symbol": "kain_actor_handle_child_exit",
       "tags": [
@@ -2412,15 +2412,15 @@
       "id": "kain-actor-isolate-low-bit-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 122,
+      "line": 123,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 122,
+        "end_line": 123,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 122
+        "start_line": 123
       },
       "symbol": "kain_actor_isolate_low_bit_u64",
       "text": "static uint64_t kain_actor_isolate_low_bit_u64(uint64_t value) {",
@@ -2439,15 +2439,15 @@
       "id": "kain-actor-low-bit-index-u64.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 126,
+      "line": 127,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 69,
-        "end_line": 126,
+        "end_line": 127,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 126
+        "start_line": 127
       },
       "symbol": "kain_actor_low_bit_index_u64",
       "text": "static unsigned int kain_actor_low_bit_index_u64(uint64_t one_hot) {",
@@ -2462,15 +2462,15 @@
       "id": "kain-actor-low-bit-index-u64.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 137,
+      "line": 138,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 137,
+        "end_line": 138,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 137
+        "start_line": 138
       },
       "symbol": "kain_actor_low_bit_index_u64",
       "tags": [
@@ -2500,15 +2500,15 @@
       "id": "kain-actor-mailbox-capacity.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1551,
+      "line": 1562,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1551,
+        "end_line": 1562,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1551
+        "start_line": 1562
       },
       "symbol": "kain_actor_mailbox_capacity",
       "tags": [
@@ -2529,15 +2529,15 @@
       "id": "kain-actor-mailbox-capacity.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1554,
+      "line": 1565,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 1554,
+        "end_line": 1565,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1554
+        "start_line": 1565
       },
       "symbol": "kain_actor_mailbox_capacity",
       "tags": [
@@ -2565,15 +2565,15 @@
       "id": "kain-actor-mailbox-count.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1544,
+      "line": 1555,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1544,
+        "end_line": 1555,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1544
+        "start_line": 1555
       },
       "symbol": "kain_actor_mailbox_count",
       "tags": [
@@ -2594,15 +2594,15 @@
       "id": "kain-actor-mailbox-count.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1547,
+      "line": 1558,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1547,
+        "end_line": 1558,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1547
+        "start_line": 1558
       },
       "symbol": "kain_actor_mailbox_count",
       "tags": [
@@ -2630,15 +2630,15 @@
       "id": "kain-actor-mailbox-destroy.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 314,
+      "line": 321,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 314,
+        "end_line": 321,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 314
+        "start_line": 321
       },
       "symbol": "kain_actor_mailbox_destroy",
       "tags": [
@@ -2661,15 +2661,15 @@
       "id": "kain-actor-mailbox-destroy.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 316,
+      "line": 323,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 316,
+        "end_line": 323,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 316
+        "start_line": 323
       },
       "symbol": "kain_actor_mailbox_destroy",
       "tags": [
@@ -2697,15 +2697,15 @@
       "id": "kain-actor-mailbox-init.parameter-role.1",
       "kind": "parameter-role",
       "language": "c",
-      "line": 288,
+      "line": 295,
       "origin_class": "naming-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 81,
-        "end_line": 288,
+        "end_line": 295,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 288
+        "start_line": 295
       },
       "symbol": "kain_actor_mailbox_init",
       "text": "static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {",
@@ -2724,15 +2724,15 @@
       "id": "kain-actor-mailbox-init.parameter-role.2",
       "kind": "parameter-role",
       "language": "c",
-      "line": 288,
+      "line": 295,
       "origin_class": "type-role-hint",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 81,
-        "end_line": 288,
+        "end_line": 295,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 288
+        "start_line": 295
       },
       "symbol": "kain_actor_mailbox_init",
       "text": "static int kain_actor_mailbox_init(KainActorMailbox* mailbox, size_t capacity) {",
@@ -2747,15 +2747,15 @@
       "id": "kain-actor-mailbox-init.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 299,
+      "line": 306,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 63,
-        "end_line": 299,
+        "end_line": 306,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 299
+        "start_line": 306
       },
       "symbol": "kain_actor_mailbox_init",
       "tags": [
@@ -2787,15 +2787,15 @@
       "id": "kain-actor-mailbox-is-full.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1558,
+      "line": 1569,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1558,
+        "end_line": 1569,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1558
+        "start_line": 1569
       },
       "symbol": "kain_actor_mailbox_is_full",
       "tags": [
@@ -2816,15 +2816,15 @@
       "id": "kain-actor-mailbox-is-full.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1561,
+      "line": 1572,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 30,
-        "end_line": 1561,
+        "end_line": 1572,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1561
+        "start_line": 1572
       },
       "symbol": "kain_actor_mailbox_is_full",
       "tags": [
@@ -2845,15 +2845,15 @@
       "id": "kain-actor-mailbox-is-full.return-condition.3",
       "kind": "return-condition",
       "language": "c",
-      "line": 1564,
+      "line": 1575,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 44,
-        "end_line": 1564,
+        "end_line": 1575,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1564
+        "start_line": 1575
       },
       "symbol": "kain_actor_mailbox_is_full",
       "tags": [
@@ -2875,15 +2875,15 @@
       "id": "kain-actor-notify-monitors.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1178,
+      "line": 1183,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 29,
-        "end_line": 1178,
+        "end_line": 1183,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1178
+        "start_line": 1183
       },
       "symbol": "kain_actor_notify_monitors",
       "tags": [
@@ -2913,15 +2913,15 @@
       "id": "kain-actor-notify-monitors.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1181,
+      "line": 1186,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 1181,
+        "end_line": 1186,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1181
+        "start_line": 1186
       },
       "symbol": "kain_actor_notify_monitors",
       "tags": [
@@ -2943,15 +2943,15 @@
       "id": "kain-actor-notify-monitors.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1182,
+      "line": 1187,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 48,
-        "end_line": 1182,
+        "end_line": 1187,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1182
+        "start_line": 1187
       },
       "symbol": "kain_actor_notify_monitors",
       "tags": [
@@ -2982,15 +2982,15 @@
       "id": "kain-actor-propagate-links.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1330,
+      "line": 1335,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 1330,
+        "end_line": 1335,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1330
+        "start_line": 1335
       },
       "symbol": "kain_actor_propagate_links",
       "tags": [
@@ -3012,15 +3012,15 @@
       "id": "kain-actor-propagate-links.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1335,
+      "line": 1340,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 27,
-        "end_line": 1335,
+        "end_line": 1340,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1335
+        "start_line": 1340
       },
       "symbol": "kain_actor_propagate_links",
       "tags": [
@@ -3049,15 +3049,15 @@
       "id": "kain-actor-registry-clear.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1369,
+      "line": 1374,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 1369,
+        "end_line": 1374,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1369
+        "start_line": 1374
       },
       "symbol": "kain_actor_registry_clear",
       "tags": [
@@ -3080,15 +3080,15 @@
       "id": "kain-actor-registry-hash.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1354,
+      "line": 1359,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 1354,
+        "end_line": 1359,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1354
+        "start_line": 1359
       },
       "symbol": "kain_actor_registry_hash",
       "tags": [
@@ -3116,15 +3116,15 @@
       "id": "kain-actor-registry-lookup.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1461,
+      "line": 1470,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1461,
+        "end_line": 1470,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1461
+        "start_line": 1470
       },
       "symbol": "kain_actor_registry_lookup",
       "tags": [
@@ -3154,15 +3154,15 @@
       "id": "kain-actor-registry-lookup.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1474,
+      "line": 1483,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 1474,
+        "end_line": 1483,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1474
+        "start_line": 1483
       },
       "symbol": "kain_actor_registry_lookup",
       "tags": [
@@ -3185,15 +3185,15 @@
       "id": "kain-actor-registry-lookup.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1475,
+      "line": 1484,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1475,
+        "end_line": 1484,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1475
+        "start_line": 1484
       },
       "symbol": "kain_actor_registry_lookup",
       "tags": [
@@ -3224,15 +3224,15 @@
       "id": "kain-actor-restart-child.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2016,
+      "line": 2027,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 2016,
+        "end_line": 2027,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2016
+        "start_line": 2027
       },
       "symbol": "kain_actor_restart_child",
       "tags": [
@@ -3261,15 +3261,15 @@
       "id": "kain-actor-restart-child.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2036,
+      "line": 2047,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 39,
-        "end_line": 2036,
+        "end_line": 2047,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2036
+        "start_line": 2047
       },
       "symbol": "kain_actor_restart_child",
       "tags": [
@@ -3298,15 +3298,15 @@
       "id": "kain-actor-restart-child.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2043,
+      "line": 2054,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 25,
-        "end_line": 2043,
+        "end_line": 2054,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2043
+        "start_line": 2054
       },
       "symbol": "kain_actor_restart_child",
       "tags": [
@@ -3328,15 +3328,15 @@
       "id": "kain-actor-restart-limit-exceeded.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1985,
+      "line": 1996,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 51,
-        "end_line": 1985,
+        "end_line": 1996,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1985
+        "start_line": 1996
       },
       "symbol": "kain_actor_restart_limit_exceeded",
       "tags": [
@@ -3365,15 +3365,15 @@
       "id": "kain-actor-restart-limit-exceeded.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1995,
+      "line": 2006,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 64,
-        "end_line": 1995,
+        "end_line": 2006,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1995
+        "start_line": 2006
       },
       "symbol": "kain_actor_restart_limit_exceeded",
       "tags": [
@@ -3394,15 +3394,15 @@
       "id": "kain-actor-restart-limit-exceeded.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2004,
+      "line": 2015,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 72,
-        "end_line": 2004,
+        "end_line": 2015,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2004
+        "start_line": 2015
       },
       "symbol": "kain_actor_restart_limit_exceeded",
       "tags": [
@@ -3421,20 +3421,52 @@
     {
       "active": true,
       "confidence": "high",
+      "dsl_expression": {
+        "args": [
+          "g_actor_runtime_initialized"
+        ],
+        "op": "not"
+      },
+      "expression": "!g_actor_runtime_initialized",
+      "id": "kain-actor-runtime-ensure-initialized.guard-condition.1",
+      "kind": "guard-condition",
+      "language": "c",
+      "line": 175,
+      "origin_class": "direct-guard",
+      "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+      "span": {
+        "end_col": 36,
+        "end_line": 175,
+        "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
+        "start_col": 1,
+        "start_line": 175
+      },
+      "symbol": "kain_actor_runtime_ensure_initialized",
+      "tags": [
+        "bounds"
+      ],
+      "text": "if (!g_actor_runtime_initialized) {",
+      "variables": [
+        "g_actor_runtime_initialized"
+      ]
+    },
+    {
+      "active": true,
+      "confidence": "high",
       "dsl_expression": "g_actor_runtime_initialized",
       "expression": "g_actor_runtime_initialized",
       "id": "kain-actor-runtime-init.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 146,
+      "line": 147,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 35,
-        "end_line": 146,
+        "end_line": 147,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 146
+        "start_line": 147
       },
       "symbol": "kain_actor_runtime_init",
       "tags": [
@@ -3455,15 +3487,15 @@
       "id": "kain-actor-runtime-init.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 166,
+      "line": 167,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 33,
-        "end_line": 166,
+        "end_line": 167,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 166
+        "start_line": 167
       },
       "symbol": "kain_actor_runtime_init",
       "tags": [
@@ -3489,15 +3521,15 @@
       "id": "kain-actor-runtime-shutdown.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 224,
+      "line": 231,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 224,
+        "end_line": 231,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 224
+        "start_line": 231
       },
       "symbol": "kain_actor_runtime_shutdown",
       "tags": [
@@ -3519,15 +3551,15 @@
       "id": "kain-actor-runtime-shutdown.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 235,
+      "line": 242,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 39,
-        "end_line": 235,
+        "end_line": 242,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 235
+        "start_line": 242
       },
       "symbol": "kain_actor_runtime_shutdown",
       "tags": [
@@ -3552,15 +3584,15 @@
       "id": "kain-actor-runtime-shutdown.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 237,
+      "line": 244,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 71,
-        "end_line": 237,
+        "end_line": 244,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 237
+        "start_line": 244
       },
       "symbol": "kain_actor_runtime_shutdown",
       "tags": [
@@ -3587,15 +3619,15 @@
       "id": "kain-actor-runtime-shutdown.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 250,
+      "line": 257,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 33,
-        "end_line": 250,
+        "end_line": 257,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 250
+        "start_line": 257
       },
       "symbol": "kain_actor_runtime_shutdown",
       "tags": [
@@ -3617,15 +3649,15 @@
       "id": "kain-actor-runtime-shutdown.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 264,
+      "line": 271,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 39,
-        "end_line": 264,
+        "end_line": 271,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 264
+        "start_line": 271
       },
       "symbol": "kain_actor_runtime_shutdown",
       "tags": [
@@ -3657,15 +3689,15 @@
       "id": "kain-actor-scheduler-snapshot.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1568,
+      "line": 1579,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 1568,
+        "end_line": 1579,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1568
+        "start_line": 1579
       },
       "symbol": "kain_actor_scheduler_snapshot",
       "tags": [
@@ -3694,15 +3726,15 @@
       "id": "kain-actor-scheduler-snapshot.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1574,
+      "line": 1585,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 1574,
+        "end_line": 1585,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1574
+        "start_line": 1585
       },
       "symbol": "kain_actor_scheduler_snapshot",
       "tags": [
@@ -3724,15 +3756,15 @@
       "id": "kain-actor-should-restart.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1952,
+      "line": 1963,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 81,
-        "end_line": 1952,
+        "end_line": 1963,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1952
+        "start_line": 1963
       },
       "symbol": "kain_actor_should_restart",
       "tags": [
@@ -3757,15 +3789,15 @@
       "id": "kain-actor-should-restart.return-condition.2",
       "kind": "return-condition",
       "language": "c",
-      "line": 1970,
+      "line": 1981,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 49,
-        "end_line": 1970,
+        "end_line": 1981,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1970
+        "start_line": 1981
       },
       "symbol": "kain_actor_should_restart",
       "tags": [
@@ -3794,15 +3826,15 @@
       "id": "kain-actor-spawn-direct-thread.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1880,
+      "line": 1891,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1880,
+        "end_line": 1891,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1880
+        "start_line": 1891
       },
       "symbol": "kain_actor_spawn_direct_thread",
       "tags": [
@@ -3824,15 +3856,15 @@
       "id": "kain-actor-spawn-direct-thread.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1886,
+      "line": 1897,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 1886,
+        "end_line": 1897,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1886
+        "start_line": 1897
       },
       "symbol": "kain_actor_spawn_direct_thread",
       "tags": [
@@ -3862,15 +3894,15 @@
       "id": "kain-actor-spawn-direct-thread.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1887,
+      "line": 1898,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1887,
+        "end_line": 1898,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1887
+        "start_line": 1898
       },
       "symbol": "kain_actor_spawn_direct_thread",
       "tags": [
@@ -3899,15 +3931,15 @@
       "id": "kain-actor-spawn-direct-thread.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1899,
+      "line": 1910,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 19,
-        "end_line": 1899,
+        "end_line": 1910,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1899
+        "start_line": 1910
       },
       "symbol": "kain_actor_spawn_direct_thread",
       "tags": [
@@ -3935,15 +3967,15 @@
       "id": "kain-actor-spawn-direct-thread.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1900,
+      "line": 1911,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1900,
+        "end_line": 1911,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1900
+        "start_line": 1911
       },
       "symbol": "kain_actor_spawn_direct_thread",
       "tags": [
@@ -3984,15 +4016,15 @@
       "id": "kain-actor-table-get.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 361,
+      "line": 368,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 78,
-        "end_line": 361,
+        "end_line": 368,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 361
+        "start_line": 368
       },
       "symbol": "kain_actor_table_get",
       "tags": [
@@ -4020,15 +4052,15 @@
       "id": "kain-actor-table-insert.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 380,
+      "line": 387,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 24,
-        "end_line": 380,
+        "end_line": 387,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 380
+        "start_line": 387
       },
       "symbol": "kain_actor_table_insert",
       "tags": [
@@ -4058,15 +4090,15 @@
       "id": "kain-actor-table-insert.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 383,
+      "line": 390,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 23,
-        "end_line": 383,
+        "end_line": 390,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 383
+        "start_line": 390
       },
       "symbol": "kain_actor_table_insert",
       "tags": [
@@ -4108,15 +4140,15 @@
       "id": "kain-actor-table-insert.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 387,
+      "line": 394,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 387,
+        "end_line": 394,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 387
+        "start_line": 394
       },
       "symbol": "kain_actor_table_insert",
       "tags": [
@@ -4159,15 +4191,15 @@
       "id": "kain-actor-table-remove.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 411,
+      "line": 418,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 78,
-        "end_line": 411,
+        "end_line": 418,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 411
+        "start_line": 418
       },
       "symbol": "kain_actor_table_remove",
       "tags": [
@@ -4190,15 +4222,15 @@
       "id": "kain-actor-thread-proc.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 444,
+      "line": 451,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 54,
-        "end_line": 444,
+        "end_line": 451,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 444
+        "start_line": 451
       },
       "symbol": "kain_actor_thread_proc",
       "tags": [
@@ -4221,15 +4253,15 @@
       "id": "kain-actor-thread-proc.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 444,
+      "line": 451,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 54,
-        "end_line": 444,
+        "end_line": 451,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 444
+        "start_line": 451
       },
       "symbol": "kain_actor_thread_proc",
       "tags": [
@@ -4252,15 +4284,15 @@
       "id": "kain-scheduler-dequeue.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1920,
+      "line": 1931,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 37,
-        "end_line": 1920,
+        "end_line": 1931,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1920
+        "start_line": 1931
       },
       "symbol": "kain_scheduler_dequeue",
       "tags": [
@@ -4290,15 +4322,15 @@
       "id": "kain-scheduler-dequeue.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1932,
+      "line": 1943,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1932,
+        "end_line": 1943,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1932
+        "start_line": 1943
       },
       "symbol": "kain_scheduler_dequeue",
       "tags": [
@@ -4327,15 +4359,15 @@
       "id": "kain-scheduler-enqueue.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1815,
+      "line": 1826,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 1815,
+        "end_line": 1826,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1815
+        "start_line": 1826
       },
       "symbol": "kain_scheduler_enqueue",
       "tags": [
@@ -4358,15 +4390,15 @@
       "id": "kain-scheduler-enqueue.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1827,
+      "line": 1838,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 28,
-        "end_line": 1827,
+        "end_line": 1838,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1827
+        "start_line": 1838
       },
       "symbol": "kain_scheduler_enqueue",
       "tags": [
@@ -4389,15 +4421,15 @@
       "id": "kain-scheduler-enqueue.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1843,
+      "line": 1854,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 61,
-        "end_line": 1843,
+        "end_line": 1854,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1843
+        "start_line": 1854
       },
       "symbol": "kain_scheduler_enqueue",
       "tags": [
@@ -4427,15 +4459,15 @@
       "id": "kain-scheduler-should-overflow.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1859,
+      "line": 1870,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 34,
-        "end_line": 1859,
+        "end_line": 1870,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1859
+        "start_line": 1870
       },
       "symbol": "kain_scheduler_should_overflow",
       "tags": [
@@ -4456,15 +4488,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1618,
+      "line": 1629,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 12,
-        "end_line": 1618,
+        "end_line": 1629,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1618
+        "start_line": 1629
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4484,15 +4516,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1618,
+      "line": 1629,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 12,
-        "end_line": 1618,
+        "end_line": 1629,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1618
+        "start_line": 1629
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4511,15 +4543,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1626,
+      "line": 1637,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 1626,
+        "end_line": 1637,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1626
+        "start_line": 1637
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4543,15 +4575,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1626,
+      "line": 1637,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 1626,
+        "end_line": 1637,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1626
+        "start_line": 1637
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4575,15 +4607,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1637,
+      "line": 1648,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 61,
-        "end_line": 1637,
+        "end_line": 1648,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1637
+        "start_line": 1648
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4614,15 +4646,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1655,
+      "line": 1666,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 41,
-        "end_line": 1655,
+        "end_line": 1666,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1655
+        "start_line": 1666
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4644,15 +4676,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1661,
+      "line": 1672,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 70,
-        "end_line": 1661,
+        "end_line": 1672,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1661
+        "start_line": 1672
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4676,15 +4708,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1668,
+      "line": 1679,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 63,
-        "end_line": 1668,
+        "end_line": 1679,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1668
+        "start_line": 1679
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4707,15 +4739,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1693,
+      "line": 1704,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 1693,
+        "end_line": 1704,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1693
+        "start_line": 1704
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4737,15 +4769,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1711,
+      "line": 1722,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1711,
+        "end_line": 1722,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1711
+        "start_line": 1722
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4767,15 +4799,15 @@
       "id": "kain-scheduler-worker-thread.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1717,
+      "line": 1728,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1717,
+        "end_line": 1728,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1717
+        "start_line": 1728
       },
       "symbol": "kain_scheduler_worker_thread",
       "tags": [
@@ -4797,15 +4829,15 @@
       "id": "switch.return-condition.1",
       "kind": "return-condition",
       "language": "c",
-      "line": 1970,
+      "line": 1981,
       "origin_class": "return-contract",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 49,
-        "end_line": 1970,
+        "end_line": 1981,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1970
+        "start_line": 1981
       },
       "symbol": "switch",
       "tags": [
@@ -4825,15 +4857,15 @@
       "id": "switch.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2109,
+      "line": 2120,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 2109,
+        "end_line": 2120,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2109
+        "start_line": 2120
       },
       "symbol": "switch",
       "tags": [
@@ -4853,15 +4885,15 @@
       "id": "switch.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 2123,
+      "line": 2134,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 21,
-        "end_line": 2123,
+        "end_line": 2134,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 2123
+        "start_line": 2134
       },
       "symbol": "switch",
       "tags": [
@@ -4881,15 +4913,15 @@
       "id": "while.guard-condition.1",
       "kind": "guard-condition",
       "language": "c",
-      "line": 316,
+      "line": 323,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 26,
-        "end_line": 316,
+        "end_line": 323,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 316
+        "start_line": 323
       },
       "symbol": "while",
       "tags": [
@@ -4911,15 +4943,15 @@
       "id": "while.guard-condition.2",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1106,
+      "line": 1111,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 46,
-        "end_line": 1106,
+        "end_line": 1111,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1106
+        "start_line": 1111
       },
       "symbol": "while",
       "tags": [
@@ -4940,15 +4972,15 @@
       "id": "while.guard-condition.3",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1155,
+      "line": 1160,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 45,
-        "end_line": 1155,
+        "end_line": 1160,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1155
+        "start_line": 1160
       },
       "symbol": "while",
       "tags": [
@@ -4969,15 +5001,15 @@
       "id": "while.guard-condition.4",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1182,
+      "line": 1187,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 48,
-        "end_line": 1182,
+        "end_line": 1187,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1182
+        "start_line": 1187
       },
       "symbol": "while",
       "tags": [
@@ -5000,15 +5032,15 @@
       "id": "while.guard-condition.5",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1222,
+      "line": 1227,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 70,
-        "end_line": 1222,
+        "end_line": 1227,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1222
+        "start_line": 1227
       },
       "symbol": "while",
       "tags": [
@@ -5030,15 +5062,15 @@
       "id": "while.guard-condition.6",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1286,
+      "line": 1291,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 62,
-        "end_line": 1286,
+        "end_line": 1291,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1286
+        "start_line": 1291
       },
       "symbol": "while",
       "tags": [
@@ -5060,15 +5092,15 @@
       "id": "while.guard-condition.7",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1302,
+      "line": 1307,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 62,
-        "end_line": 1302,
+        "end_line": 1307,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1302
+        "start_line": 1307
       },
       "symbol": "while",
       "tags": [
@@ -5090,15 +5122,15 @@
       "id": "while.guard-condition.8",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1335,
+      "line": 1340,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 27,
-        "end_line": 1335,
+        "end_line": 1340,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1335
+        "start_line": 1340
       },
       "symbol": "while",
       "tags": [
@@ -5119,15 +5151,15 @@
       "id": "while.guard-condition.9",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1417,
+      "line": 1424,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1417,
+        "end_line": 1424,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1417
+        "start_line": 1424
       },
       "symbol": "while",
       "tags": [
@@ -5156,15 +5188,15 @@
       "id": "while.guard-condition.10",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1418,
+      "line": 1425,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 20,
-        "end_line": 1418,
+        "end_line": 1425,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1418
+        "start_line": 1425
       },
       "symbol": "while",
       "tags": [
@@ -5185,15 +5217,15 @@
       "id": "while.guard-condition.11",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1475,
+      "line": 1484,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1475,
+        "end_line": 1484,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1475
+        "start_line": 1484
       },
       "symbol": "while",
       "tags": [
@@ -5215,15 +5247,15 @@
       "id": "while.guard-condition.12",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1517,
+      "line": 1528,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 38,
-        "end_line": 1517,
+        "end_line": 1528,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1517
+        "start_line": 1528
       },
       "symbol": "while",
       "tags": [
@@ -5245,15 +5277,15 @@
       "id": "while.guard-condition.13",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1626,
+      "line": 1637,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 65,
-        "end_line": 1626,
+        "end_line": 1637,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1626
+        "start_line": 1637
       },
       "symbol": "while",
       "tags": [
@@ -5276,15 +5308,15 @@
       "id": "while.guard-condition.14",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1637,
+      "line": 1648,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 61,
-        "end_line": 1637,
+        "end_line": 1648,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1637
+        "start_line": 1648
       },
       "symbol": "while",
       "tags": [
@@ -5314,15 +5346,15 @@
       "id": "while.guard-condition.15",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1655,
+      "line": 1666,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 41,
-        "end_line": 1655,
+        "end_line": 1666,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1655
+        "start_line": 1666
       },
       "symbol": "while",
       "tags": [
@@ -5343,15 +5375,15 @@
       "id": "while.guard-condition.16",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1661,
+      "line": 1672,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 70,
-        "end_line": 1661,
+        "end_line": 1672,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1661
+        "start_line": 1672
       },
       "symbol": "while",
       "tags": [
@@ -5374,15 +5406,15 @@
       "id": "while.guard-condition.17",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1668,
+      "line": 1679,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 63,
-        "end_line": 1668,
+        "end_line": 1679,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1668
+        "start_line": 1679
       },
       "symbol": "while",
       "tags": [
@@ -5404,15 +5436,15 @@
       "id": "while.guard-condition.18",
       "kind": "guard-condition",
       "language": "c",
-      "line": 1693,
+      "line": 1704,
       "origin_class": "direct-guard",
       "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
       "span": {
         "end_col": 36,
-        "end_line": 1693,
+        "end_line": 1704,
         "path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
         "start_col": 1,
-        "start_line": 1693
+        "start_line": 1704
       },
       "symbol": "while",
       "tags": [
@@ -5428,7 +5460,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "45d1d4047137d6e4f198b3b4255a4007c22d604f2b86752c1aa4cc9431cee8ba",
+  "source_hash": "593126e8c694e606aad0123cd14898d404c5b1f92abbf9ac6e94bae258473a67",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_actor.c",
   "version": 1
 }

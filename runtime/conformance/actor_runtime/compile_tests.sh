@@ -35,7 +35,7 @@ fi
 
 # Platform-specific flags
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    LDFLAGS="-lws2_32 -luser32 -lgdi32 -lopengl32"
+    LDFLAGS="-lws2_32 -luser32 -lgdi32"
     CFLAGS="$CFLAGS -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_WARNINGS -Wno-deprecated-declarations -Wno-unused-parameter"
 else
     LDFLAGS="-lpthread -lm"

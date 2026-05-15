@@ -1,5 +1,70 @@
 # Kain Memory
 
+# 2026-05-15 - Native runtime is now lean by default and the old vendor/app lane is archived
+
+The active C runtime has been cut back to the raw ABI floor. Vendored code, runtime-owned OpenGL, runtime-owned asset loaders, and hardcoded app/demo lanes are no longer part of ordinary native builds.
+
+What changed:
+
+- Archived the old runtime-owned vendor/app trees under `.zarchive/runtime_devendor_2026-05-15/`, including `runtime/native/src/vendor/`, `runtime/native/src/asset/`, `runtime/native/src/gfx/opengl/`, `runtime/native/third_party/`, `runtime/3rdparty/`, and the old vendor bridge headers.
+- `runtime/native_core_runtime.toml` is now the only canonical production runtime manifest. `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json` are lean compatibility mirrors so older lookup paths cannot silently revive the archived lane.
+- `crates/kain-core/src/runtime_contract.rs` now emits a lean raw-native default service set and only binds host/UI/graphics/actor services when the authored program shape actually requires them.
+- The active runtime service registry is now the 31-service raw-native catalog. Vendor-era keys such as `ui.layout.yoga`, `ui.backend.imgui`, `gfx.backend.bgfx`, `script.quickjs`, audio vendor services, wasm vendor services, and allocator vendor services are gone from the supported production registry.
+- CLI/bootstrap lookup, runtime pairing policy, Bazel sync, and the core conformance harnesses now all resolve to the lean runtime surface.
+
+Validation:
+
+- `cargo test -p kain-core runtime_contract --target-dir target/codex-runtime-contract -- --nocapture`
+- `cargo test -p cli runtime_tools --target-dir target/codex-runtime-cli -- --nocapture`
+- `cargo test -p cli selfhost_bootstrap --target-dir target/codex-selfhost-bootstrap -- --nocapture`
+- `bash runtime/conformance/02_service_registry/compile_test.sh`
+- `bash runtime/conformance/03_abi_startup_validation/compile_test.sh`
+- `bash runtime/conformance/diagnostics/run_tests.sh`
+- `bash runtime/conformance/graphics_runtime/run_tests.sh`
+- Z3 MCP reports:
+  - `z3/reports/20260515T115453Z-lean-runtime-service-mask-layout-clean.json` -> `unsat`
+  - `z3/reports/20260515T115911Z-lean-service-registry-magic-collision-free.json` -> `unsat`
+
+Current notes:
+
+- Treat `.zarchive/runtime_devendor_2026-05-15/` as salvage/reference only. Do not let active manifests, build scripts, or service docs depend on it again.
+- `//runtime:native_full_runtime` is now only a legacy-named compatibility mirror target. It should resolve to the same lean source set as the default Bazel runtime lane.
+
+# 2026-05-15 - Full multi-language benchmark suite is green again, and the current Kain-vs-JS losses are mostly frontend boxing/string taxes
+
+The full benchmark lane under `benchmark/` now completes cleanly on this Windows checkout with `python benchmark/run.py --timeout 300`, and the canonical reports at `benchmark/out/reports/latest.llm.md` plus `latest.json` reflect all four languages correctly: `kain`, `rust`, `javascript`, and `python`.
+
+What changed:
+
+- Fixed a dead native-runtime service probe path in `runtime/native/src/core/kain_runtime_services.c`. The service registry now probes only the live native net/process tables instead of referencing the deleted vendor-era function table.
+- Fixed Windows-native filesystem metadata emission in `runtime/native/src/core/kain_runtime_native_stdlib.c` by using `GetFileAttributesExA` instead of POSIX `stat` in the Win32 path, plus a small helper for FILETIME-to-Unix conversion.
+- Implemented the missing Win32 frame timer helpers in `runtime/native/src/platform/win32/kain_runtime_win32_shared.c`, which unblocked native host linking during the benchmark lane.
+- Hardened the native runtime object-cache path in `crates/cli/src/main.rs` for Windows warm builds. When a cached object slot is stale, the CLI now clears old `.obj`, depfile, fingerprint, and lingering `.tmp` artifacts before recompiling, and it retries transient clang `permission denied` rename failures.
+- Wrote the durable benchmark analysis to `benchmark/assesments/2026-05-15-full-suite-benchmark-assessment.md`.
+
+Validation:
+
+- `python benchmark/run.py --case evolutionary_loop --languages kain --runs 1 --warmups 0 --timeout 300`
+- `python benchmark/run.py --timeout 300`
+- `benchmark/out/reports/latest.json` now reports `ok: true`
+- Solver-backed checks:
+  - `z3/reports/20260515T114406Z-benchmark_struct_method_scalarization_equivalence_clean.json` -> `unsat`
+  - `z3/reports/20260515T114406Z-benchmark_option_result_scalarization_equivalence_clean.json` -> `unsat`
+
+Current benchmark reality:
+
+- Kain wins `contention_wall` and `ghost_mirror` decisively, which means the language already has real semantic/runtime advantages in some shapes instead of merely keeping up through codegen tricks.
+- Rust still owns the geomean because the LLVM lane boxes too many small values and routes too much work through runtime helpers.
+- In the clean suite, JavaScript only beats Kain in `string_ops` and `struct_method`; `option_result` is already nearly tied and Kain-favored.
+- The repo-backed reason for those losses is not "JS magic." The current LLVM/native lowering still heap-allocates tiny structs and tagged values too eagerly, and string hot paths still go through `string_new`, `char_at` -> heap `String`, `strlen`, `strcmp`, retain/release traffic, and runtime const-init guards.
+
+Recommended next step:
+
+- Attack the three obvious LLVM-lane bottlenecks in order:
+  1. scalarize non-escaping POD structs/tuples instead of unconditional `KAIN_alloc`
+  2. de-box small `Option` / `Result` values into scalar tag+payload forms when they do not escape
+  3. rebuild string lowering around direct `(ptr,len)`-style value semantics and char/byte fast paths instead of heap-string helpers
+
 # 2026-05-15 - Bazel Rust lane no longer carries the dead test app or Windows Swift `arch` noise
 
 The root Rust/Bazel lane is now tighter and cleaner: the dead `apps/kade-desktop/controller` workspace member is gone, and the Windows `rules_swift` local-config override now fixes both the missing-`SDKROOT` path and the bogus `APPLE_PLATFORMS_CONSTRAINTS[arch]` emission for the generated Windows Swift toolchain stanza.
@@ -143,7 +208,7 @@ Validation:
 Current notes:
 
 - `contention_wall` JavaScript/Python are explicit scalar proxies. Do not present those as equivalent worker/thread contention results.
-- If Kain benchmark links try to use the broad `runtime/native_runtime.toml`, they may trip optional vendor source drift such as missing Yoga debug sources. Keep ordinary benchmark file builds on `runtime/native_core_runtime.toml`.
+- If an older benchmark script still resolves `runtime/native_runtime.toml`, that path is now lean too. The earlier Yoga/vendor drift warning is historical, but `runtime/native_core_runtime.toml` remains the canonical runtime path for ordinary file builds.
 - The Win32/GL screenshot readback still appears flipped/mirrored in viewers; use it as nonblank render proof unless working directly on screenshot orientation.
 - `samply --help` works on this Windows host, but recording is not supported here; it can only load existing profiles.
 
@@ -1077,7 +1142,7 @@ What changed:
 - Added `runtime/BUILD.bazel` with:
   - `//runtime:native_core_runtime`
   - `//runtime:native_runtime` as the default alias to the lean core lane
-  - `//runtime:native_full_runtime` for the broad manifest
+  - `//runtime:native_full_runtime` as the legacy-named second manifest target
   - `//runtime:native_runtime_tests` for the two actor C tests already living under `runtime/native/tests`
 - Added root aliases/test-suite exposure so the runtime Bazel lane is visible from the workspace root the same way the crate Bazel work is.
 - Added direct `rules_cc` and `platforms` deps in `MODULE.bazel` so the runtime package can use `cc_library`, `cc_test`, and platform constraints without relying on accidental transitive visibility.
@@ -1086,7 +1151,7 @@ Why it changed:
 
 - The repo already had real Bazel synchronization work in `crates/`, but the native C runtime was still outside that shared contract.
 - Without a runtime Bazel lane, parallel repo work would keep drifting between crate-only Bazel assumptions and ad hoc native compile scripts.
-- The runtime already had a durable manifest split: `native_core_runtime.toml` is the lean proof/runtime lane and `native_runtime.toml` is the broader app/vendor lane. Bazel now reflects that split instead of flattening them into one ambiguous default target.
+- At the time, the runtime had a lean-vs-broad manifest split. As of the 2026-05-15 runtime cleanup, `runtime/native_runtime.toml` has been collapsed into a lean compatibility mirror of `runtime/native_core_runtime.toml`, but the Bazel sync/generator structure from this entry still stands.
 
 Validation:
 
@@ -1099,18 +1164,17 @@ Validation:
 Design decisions:
 
 - The default Bazel runtime target is intentionally the lean lane: `//runtime:native_runtime -> //runtime:native_core_runtime`. That matches the repo's existing native-build default better than pointing Bazel at the broad manifest.
-- The broad Bazel target is preserved as `//runtime:native_full_runtime`, but on Windows/MSVC it is intentionally marked incompatible today rather than pretending it is a validated default.
+- The second Bazel runtime target originally preserved the broader manifest as `//runtime:native_full_runtime`. As of the 2026-05-15 runtime cleanup it is only a legacy-named compatibility mirror target over the same lean source set.
 - The generator avoids `tomllib` so it still runs in the local Python 3.10 lane while producing deterministic `.bzl` data for Bazel.
 - Windows Bazel C builds now pass `/experimental:c11atomics` in the runtime macro layer because `<stdatomic.h>` required it under Bazel's MSVC toolchain.
 
 Current risks:
 
-- `runtime/native_runtime.toml` still pulls in QuickJS/vendor and related runtime sources that are not Bazel-clean under the current Windows/MSVC lane.
-- Some broad-manifest vendor sources still rely on textual include patterns or GCC/Clang assumptions that Bazel/MSVC does not accept without further source or toolchain work.
+- Superseded on 2026-05-15: `runtime/native_runtime.toml` no longer pulls QuickJS/vendor sources. Any remaining docs or scripts that describe a broad Bazel vendor lane are stale and should be updated toward the lean compatibility-mirror contract instead of reviving the old sources.
 
 Recommended next step:
 
-- Either add a Windows `clang-cl` Bazel lane for the broad manifest or split platform-specific source overrides so `//runtime:native_full_runtime` can become a real validated target on Windows instead of an intentionally incompatible one.
+- Keep `//runtime:native_full_runtime` as a compatibility name only, or remove it entirely once no callers still depend on the old Bazel entrypoint.
 
 # 2026-05-13 - live Codex startup was fixed by pinning `kain_mcp` to direct `kain.exe`, not the Python launcher
 
@@ -2790,7 +2854,7 @@ What changed:
 
 - Added `stdlib/native` as the shared native target stdlib profile for LLVM and direct C, plus `stdlib/c` as the direct C bridge layer. `crates/kain-core/src/stdlib.rs` loads all matching profiles for a target, so C gets `native` then `c`, while LLVM gets `native` only.
 - Added `runtime/native/include/kain_runtime_native_stdlib.h` and `runtime/native/src/core/kain_runtime_native_stdlib.c` as the narrow C ABI facade for native Kain stdlib calls. It wraps runtime init/shutdown, actor registry/spawn/send/scheduler helpers, entangle registry helpers, status/diagnostics, and timing.
-- Added `runtime/native_core_runtime.toml` as the default lean native runtime manifest for normal LLVM/direct-C file builds. The broader `runtime/native_runtime.toml` remains the app/vendor manifest and now also includes the native stdlib facade source.
+- Added `runtime/native_core_runtime.toml` as the default lean native runtime manifest for normal LLVM/direct-C file builds. `runtime/native_runtime.toml` now survives only as the lean compatibility mirror and also includes the native stdlib facade source.
 - Updated `crates/cli/src/main.rs` so native builds prefer `runtime/native_core_runtime.toml` before the broad manifest, and only stage the GPU runtime DLL when the LLVM artifact stage actually produced compute residency payloads.
 - Updated `crates/cli/src/llvm_native_stage.rs` so shader artifact staging only runs for source that declares shader items, avoiding shader/GPU sidecar work for native stdlib-only actor/intent programs.
 - Updated `crates/kain-sys-codegen/src/codegen_c.rs` so `@extern` functions become declarations only, `spawn`/`send` lower to the native actor facade, `main` emits a valid C `int`, unsigned integer casts map to C integer types, and direct C entangle metadata registers with the native runtime through a generated `__kain_register_entanglements()` thunk.
@@ -2800,7 +2864,7 @@ What changed:
 Design decisions:
 
 - The native stdlib is target-scoped on purpose. Do not let LLVM/C native builds fall back to the root stdlib unless the target profile is absent; the generic root includes richer constructs that direct C does not yet own.
-- `runtime/native_core_runtime.toml` is the safe default for ordinary language/native proof builds. Use the full `runtime/native_runtime.toml` when the task needs the broader app/UI/vendor runtime surface.
+- `runtime/native_core_runtime.toml` is the safe default for ordinary language/native proof builds. `runtime/native_runtime.toml` now mirrors that same lean surface for compatibility and should not be treated as a separate broader runtime lane.
 - Direct C now links against the same native runtime facade as LLVM for first-class actor and entangle behavior. It remains an experimental subset, but unsupported forms should fail explicitly rather than silently erasing core language declarations.
 - The current actor facade spawn path uses a generic blocking actor bootstrap for named-payload mailbox traffic. It proves runtime wiring and send/spawn ABI, not compiler-generated per-actor handler specialization for direct C yet.
 
@@ -2822,7 +2886,7 @@ Validation:
 
 Current risks:
 
-- The broad `runtime/native_runtime.toml` still carries the larger app/vendor surface. Prefer `runtime/native_core_runtime.toml` for core language proofing until the full app/vendor lane is refreshed end to end.
+- Historical notes in older docs may still describe `runtime/native_runtime.toml` as a broader app/vendor lane. As of 2026-05-15 it is only the lean compatibility mirror; archived app/vendor/runtime code now lives under `.zarchive/runtime_devendor_2026-05-15/`.
 - Direct C actor lowering currently routes through the generic facade instead of emitting specialized actor handler loops. That is enough for spawn/send/link proofing and runtime smoke coverage, but generated direct-C actor semantics still need a deeper pass.
 - The C backend still emits noisy but harmless comparison-parentheses warnings in some stdlib helper expressions.
 
@@ -3329,7 +3393,7 @@ What changed:
   - Added owned-lane gates for manifest/runtime resolution, owned compiler emission, native self-build, and ouroboros parity.
 - Updated `ARCHITECTURE.md`
   - Replaced the old mirror-only selfhost description with an explicit two-lane model.
-  - Made `src/KAIN.toml` the canonical hand-written compiler contract and `runtime/native_runtime.toml` the canonical native runtime contract.
+  - Made `src/KAIN.toml` the canonical hand-written compiler contract and `runtime/native_core_runtime.toml` the canonical native runtime contract, with `runtime/native_runtime.toml` only the compatibility mirror.
   - Recorded the bootstrap boundary: Rust may remain the thin host for manifest/filesystem/process/reporting work during bootstrap, but it should not stay the permanent owner of parser/typechecker/lowering/codegen once the hand-written lane is alive.
   - Added new operator notes for `kain selfhost bootstrap` and for false-green prevention under `src/.selfhost/`.
 

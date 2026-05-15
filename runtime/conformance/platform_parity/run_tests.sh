@@ -86,7 +86,7 @@ else
 fi
 
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
-    LDFLAGS="-lws2_32 -luser32 -lgdi32 -lopengl32"
+    LDFLAGS="-lws2_32 -luser32 -lgdi32"
     SECURE_CRT_DEFINE="-D_CRT_SECURE_NO_WARNINGS"
 else
     LDFLAGS="-lpthread -lm"

@@ -25,7 +25,7 @@ else
 fi
 
 if [[ "${OSTYPE:-}" == msys || "${OSTYPE:-}" == win32 || "${OSTYPE:-}" == cygwin ]]; then
-    LDFLAGS=(-lws2_32 -luser32 -lgdi32 -lopengl32)
+    LDFLAGS=(-lws2_32 -luser32 -lgdi32)
 else
     LDFLAGS=(-lpthread -lm)
 fi

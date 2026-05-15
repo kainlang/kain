@@ -975,6 +975,20 @@ static void kain_native_fs_builder_free(KainNativeFsTextBuilder* builder) {
     builder->capacity = 0;
 }
 
+#ifdef _WIN32
+static long long kain_native_fs_filetime_to_unix_seconds(FILETIME value) {
+    ULARGE_INTEGER ticks;
+    const unsigned long long windows_epoch_delta_seconds = 11644473600ULL;
+
+    ticks.LowPart = value.dwLowDateTime;
+    ticks.HighPart = value.dwHighDateTime;
+    if (ticks.QuadPart == 0ULL) {
+        return 0;
+    }
+    return (long long)((ticks.QuadPart / 10000000ULL) - windows_epoch_delta_seconds);
+}
+#endif
+
 static int kain_native_fs_builder_reserve(KainNativeFsTextBuilder* builder, size_t additional) {
     size_t required_length;
     size_t needed;
@@ -1419,15 +1433,16 @@ int kain_native_fs_is_dir(const char* path) {
 #endif
 }
 
-static const char* kain_native_fs_file_type_text(const char* path, const struct stat* info) {
 #ifdef _WIN32
+static const char* kain_native_fs_file_type_text(const char* path) {
     DWORD attrs = GetFileAttributesA(path);
-    (void)info;
     if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         return "directory";
     }
     return "file";
+}
 #else
+static const char* kain_native_fs_file_type_text(const char* path, const struct stat* info) {
     (void)path;
     if (S_ISDIR(info->st_mode)) return "directory";
     if (S_ISREG(info->st_mode)) return "file";
@@ -1435,33 +1450,53 @@ static const char* kain_native_fs_file_type_text(const char* path, const struct 
     if (S_ISLNK(info->st_mode)) return "symlink";
 #endif
     return "other";
-#endif
 }
+#endif
 
 const char* kain_native_fs_metadata_text(const char* path) {
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA file_info;
+    ULARGE_INTEGER file_size;
+    long long modified_seconds;
+#else
     struct stat info;
+#endif
     KainNativeFsTextBuilder builder;
     if (path == 0 || path[0] == '\0') {
         errno = EINVAL;
         kain_native_fs_fail("metadata_text", path);
         return string_new("");
     }
+#ifdef _WIN32
+    if (GetFileAttributesExA(path, GetFileExInfoStandard, &file_info) == 0) {
+        kain_native_fs_fail("metadata_text", path);
+        return string_new("");
+    }
+    file_size.LowPart = file_info.nFileSizeLow;
+    file_size.HighPart = file_info.nFileSizeHigh;
+    modified_seconds =
+        kain_native_fs_filetime_to_unix_seconds(file_info.ftLastWriteTime);
+#else
     if (stat(path, &info) != 0) {
         kain_native_fs_fail("metadata_text", path);
         return string_new("");
     }
+#endif
     if (kain_native_fs_builder_init(&builder) != 0) {
         kain_native_fs_fail("metadata_text", path);
         return string_new("");
     }
+#ifdef _WIN32
+    if (kain_native_fs_builder_appendf(&builder, "file_type=%s\n", kain_native_fs_file_type_text(path)) != 0
+        || kain_native_fs_builder_appendf(&builder, "len=%lld\n", (long long)file_size.QuadPart) != 0
+        || kain_native_fs_builder_appendf(&builder, "readonly=%d\n", (file_info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) ? 1 : 0) != 0
+        || kain_native_fs_builder_appendf(&builder, "modified_seconds=%lld\n", modified_seconds) != 0) {
+#else
     if (kain_native_fs_builder_appendf(&builder, "file_type=%s\n", kain_native_fs_file_type_text(path, &info)) != 0
         || kain_native_fs_builder_appendf(&builder, "len=%lld\n", (long long)info.st_size) != 0
-#ifdef _WIN32
-        || kain_native_fs_builder_appendf(&builder, "readonly=%d\n", (GetFileAttributesA(path) & FILE_ATTRIBUTE_READONLY) ? 1 : 0) != 0
-#else
         || kain_native_fs_builder_appendf(&builder, "readonly=%d\n", (info.st_mode & S_IWUSR) ? 0 : 1) != 0
-#endif
         || kain_native_fs_builder_appendf(&builder, "modified_seconds=%lld\n", (long long)info.st_mtime) != 0) {
+#endif
         kain_native_fs_builder_free(&builder);
         kain_native_fs_fail("metadata_text", path);
         return string_new("");

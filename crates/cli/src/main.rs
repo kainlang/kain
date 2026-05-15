@@ -3218,7 +3218,9 @@ fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>
     Ok(None)
 }
 
-fn resolve_c_ffi_shared_libraries_for_linking(source: &str) -> Result<CffiNativeLinkInputs, String> {
+fn resolve_c_ffi_shared_libraries_for_linking(
+    source: &str,
+) -> Result<CffiNativeLinkInputs, String> {
     let prepare = CPrepareContext {
         current_dir: std::env::current_dir().ok(),
         manifest_path: None,
@@ -3515,40 +3517,7 @@ fn compile_native_runtime_bundle(
             continue;
         }
 
-        let mut compile_cmd = std::process::Command::new(clang_cmd);
-        compile_cmd
-            .arg("-c")
-            .arg(source)
-            .arg("-o")
-            .arg(&cache_paths.object_path)
-            .arg("-MMD")
-            .arg("-MF")
-            .arg(&cache_paths.depfile_path)
-            .arg("-MT")
-            .arg("kain_runtime_target");
-        toolchain_tuning.apply_to_clang_command(&mut compile_cmd);
-
-        if runtime_source_uses_cpp(source) {
-            compile_cmd.arg("-std=c++20");
-        }
-
-        for include_dir in &bundle.include_dirs {
-            compile_cmd.arg("-I").arg(include_dir);
-        }
-        for define in &bundle.defines {
-            compile_cmd.arg(format!("-D{}", define));
-        }
-
-        let status = compile_cmd
-            .status()
-            .map_err(|err| format!("unable to invoke clang for {}: {}", source.display(), err))?;
-        if !status.success() {
-            let _ = fs::remove_file(&cache_paths.object_path);
-            return Err(format!(
-                "clang returned a non-zero status while compiling {}",
-                source.display()
-            ));
-        }
+        compile_native_runtime_object(bundle, clang_cmd, toolchain_tuning, source, &cache_paths)?;
         fs::write(&cache_paths.fingerprint_path, &compile_fingerprint).map_err(|err| {
             format!(
                 "unable to write runtime build fingerprint {}: {}",
@@ -3692,6 +3661,166 @@ fn build_native_runtime_archive_cache_paths(
         archive_path: runtime_archive_dir.join(&archive_file_name),
         fingerprint_path: runtime_archive_dir.join(format!("{}.fingerprint", archive_file_name)),
     }
+}
+
+fn compile_native_runtime_object(
+    bundle: &ResolvedNativeRuntimeBundle,
+    clang_cmd: &str,
+    toolchain_tuning: &NativeToolchainTuning,
+    source: &Path,
+    cache_paths: &NativeRuntimeObjectCachePaths,
+) -> Result<(), String> {
+    let max_attempts = if cfg!(windows) { 3usize } else { 1usize };
+
+    for attempt in 0..max_attempts {
+        clear_native_runtime_object_cache_slot(cache_paths)?;
+
+        let mut compile_cmd = std::process::Command::new(clang_cmd);
+        compile_cmd
+            .arg("-c")
+            .arg(source)
+            .arg("-o")
+            .arg(&cache_paths.object_path)
+            .arg("-MMD")
+            .arg("-MF")
+            .arg(&cache_paths.depfile_path)
+            .arg("-MT")
+            .arg("kain_runtime_target");
+        toolchain_tuning.apply_to_clang_command(&mut compile_cmd);
+
+        if runtime_source_uses_cpp(source) {
+            compile_cmd.arg("-std=c++20");
+        }
+
+        for include_dir in &bundle.include_dirs {
+            compile_cmd.arg("-I").arg(include_dir);
+        }
+        for define in &bundle.defines {
+            compile_cmd.arg(format!("-D{}", define));
+        }
+
+        let output = compile_cmd
+            .output()
+            .map_err(|err| format!("unable to invoke clang for {}: {}", source.display(), err))?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stdout.is_empty() {
+            print!("{stdout}");
+        }
+        if !stderr.is_empty() {
+            eprint!("{stderr}");
+        }
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let combined_lowercase = format!("{stdout}{stderr}").to_ascii_lowercase();
+        let can_retry_transient_lock = cfg!(windows)
+            && attempt + 1 < max_attempts
+            && combined_lowercase.contains("permission denied");
+        clear_native_runtime_object_cache_slot_best_effort(cache_paths);
+        if can_retry_transient_lock {
+            std::thread::sleep(Duration::from_millis(25 * (attempt as u64 + 1)));
+            continue;
+        }
+
+        return Err(format!(
+            "clang returned a non-zero status while compiling {}",
+            source.display()
+        ));
+    }
+
+    Err(format!(
+        "clang returned a non-zero status while compiling {}",
+        source.display()
+    ))
+}
+
+fn clear_native_runtime_object_cache_slot(
+    cache_paths: &NativeRuntimeObjectCachePaths,
+) -> Result<(), String> {
+    remove_native_runtime_file_with_retry(&cache_paths.object_path)?;
+    remove_native_runtime_file_with_retry(&cache_paths.depfile_path)?;
+    remove_native_runtime_file_with_retry(&cache_paths.fingerprint_path)?;
+    remove_native_runtime_object_tmp_files(cache_paths)?;
+    Ok(())
+}
+
+fn clear_native_runtime_object_cache_slot_best_effort(cache_paths: &NativeRuntimeObjectCachePaths) {
+    let _ = clear_native_runtime_object_cache_slot(cache_paths);
+}
+
+fn remove_native_runtime_file_with_retry(path: &Path) -> Result<(), String> {
+    let max_attempts = if cfg!(windows) { 3usize } else { 1usize };
+
+    for attempt in 0..max_attempts {
+        match fs::remove_file(path) {
+            Ok(()) => return Ok(()),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => {
+                if attempt + 1 < max_attempts {
+                    std::thread::sleep(Duration::from_millis(25 * (attempt as u64 + 1)));
+                    continue;
+                }
+                return Err(format!(
+                    "unable to remove stale runtime cache artifact {}: {}",
+                    path.display(),
+                    err
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_native_runtime_object_tmp_files(
+    cache_paths: &NativeRuntimeObjectCachePaths,
+) -> Result<(), String> {
+    let Some(parent_dir) = cache_paths.object_path.parent() else {
+        return Ok(());
+    };
+    let Some(stem) = cache_paths
+        .object_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+    else {
+        return Ok(());
+    };
+    let Some(extension) = cache_paths
+        .object_path
+        .extension()
+        .and_then(|value| value.to_str())
+    else {
+        return Ok(());
+    };
+    let tmp_suffix = format!(".{extension}.tmp");
+
+    let entries = fs::read_dir(parent_dir).map_err(|err| {
+        format!(
+            "unable to inspect runtime object cache directory {}: {}",
+            parent_dir.display(),
+            err
+        )
+    })?;
+    for entry_result in entries {
+        let entry = entry_result.map_err(|err| {
+            format!(
+                "unable to read runtime object cache entry under {}: {}",
+                parent_dir.display(),
+                err
+            )
+        })?;
+        let entry_name = entry.file_name();
+        let Some(entry_name) = entry_name.to_str() else {
+            continue;
+        };
+        if !entry_name.starts_with(stem) || !entry_name.ends_with(&tmp_suffix) {
+            continue;
+        }
+        remove_native_runtime_file_with_retry(&entry.path())?;
+    }
+    Ok(())
 }
 
 fn build_native_runtime_compile_fingerprint(

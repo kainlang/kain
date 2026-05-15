@@ -315,7 +315,7 @@
     }
   ],
   "language": "c",
-  "source_hash": "81d7e7a9258da1505e13cbf760a436b19906649b7d53eef539afa01865eb4df3",
+  "source_hash": "cc8777e3c28419d4fbc8fa2733c06f9547d60dd9409a89b848b8e4ff68d6d1b6",
   "source_path": "D:\\Kain-Lang\\runtime\\native\\src\\core\\kain_runtime_renderer_session.c",
   "version": 1
 }

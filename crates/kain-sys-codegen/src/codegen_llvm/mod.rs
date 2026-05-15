@@ -2915,7 +2915,11 @@ impl LlvmGenerator {
                     )?;
                 }
                 TypedItem::Law(law) => {
-                    self.register_callable_signature(&law.ast.name, &law.resolved_type, law.ast.span)?;
+                    self.register_callable_signature(
+                        &law.ast.name,
+                        &law.resolved_type,
+                        law.ast.span,
+                    )?;
                 }
                 TypedItem::Converge(converge) => {
                     self.register_callable_signature(
