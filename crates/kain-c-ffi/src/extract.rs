@@ -3,6 +3,10 @@ use crate::model::{
     ItemKind, ItemStatus, ResolvedCLibrary,
 };
 use kain_core::error::KainError;
+use kain_foreign_abi::{
+    classify_c_bridge_type, CBridgeTypeShape, ForeignAbiLoweringPolicy, ForeignBaseKind,
+    ScalarTypeTable,
+};
 use kain_fs as kfs;
 use kain_import::c::{parse_c_file_ast_with_options, CImportOptions};
 use lang_c::ast as c_ast;
@@ -10,6 +14,11 @@ use lang_c::span::Node;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
+
+static ABI_SCALAR_TABLE: Lazy<ScalarTypeTable> = Lazy::new(ScalarTypeTable::default);
+static ABI_LOWERING_POLICY: Lazy<ForeignAbiLoweringPolicy> =
+    Lazy::new(ForeignAbiLoweringPolicy::default);
 
 pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBundle, KainError> {
     let options = build_import_options(resolved);
@@ -76,6 +85,7 @@ fn extract_binding_bundle_from_ast(
 
     let mut functions = Vec::new();
     let mut report_entries = Vec::new();
+    let type_registry = collect_type_registry(&translation_unit.0);
 
     for external in translation_unit.0 {
         match external.node {
@@ -84,6 +94,7 @@ fn extract_binding_bundle_from_ast(
                     &resolved.import_name,
                     &func.node,
                     &resolved.config.symbols,
+                    &type_registry,
                     &mut functions,
                     &mut report_entries,
                 );
@@ -93,6 +104,7 @@ fn extract_binding_bundle_from_ast(
                     &resolved.import_name,
                     &decl.node,
                     &resolved.config.symbols,
+                    &type_registry,
                     &mut functions,
                     &mut report_entries,
                 );
@@ -133,6 +145,7 @@ fn collect_function_definition(
     import_name: &str,
     func: &c_ast::FunctionDefinition,
     symbol_overrides: &std::collections::BTreeMap<String, String>,
+    type_registry: &CTypeRegistry,
     functions: &mut Vec<CFunctionBinding>,
     report_entries: &mut Vec<BindingReportEntry>,
 ) {
@@ -147,6 +160,7 @@ fn collect_function_definition(
         &func.specifiers,
         &func.declarator.node,
         symbol_overrides,
+        type_registry,
     ) {
         Ok(binding) => {
             report_entries.push(BindingReportEntry {
@@ -174,6 +188,7 @@ fn collect_declaration_items(
     import_name: &str,
     decl: &c_ast::Declaration,
     symbol_overrides: &std::collections::BTreeMap<String, String>,
+    type_registry: &CTypeRegistry,
     functions: &mut Vec<CFunctionBinding>,
     report_entries: &mut Vec<BindingReportEntry>,
 ) {
@@ -192,9 +207,9 @@ fn collect_declaration_items(
             report_entries.push(BindingReportEntry {
                 symbol_path: format!("c::{}::{}", import_name, raw_name),
                 kind: ItemKind::Callback,
-                status: ItemStatus::Unsupported,
+                status: ItemStatus::TypeOnly,
                 reason: Some(
-                    "function-pointer callbacks are not emitted yet; generate a stable wrapper C API first"
+                    "callback signature captured by kain-foreign-abi; callable APIs may pass null or raw callback handles"
                         .to_string(),
                 ),
                 emitted_symbol: None,
@@ -209,6 +224,7 @@ fn collect_declaration_items(
                 &decl.specifiers,
                 declarator,
                 symbol_overrides,
+                type_registry,
             ) {
                 Ok(binding) => {
                     report_entries.push(BindingReportEntry {
@@ -322,24 +338,81 @@ fn declaration_is_typedef(specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> b
     })
 }
 
+#[derive(Debug, Clone, Default)]
+struct CTypeRegistry {
+    callback_typedefs: BTreeMap<String, String>,
+    pointer_typedefs: BTreeMap<String, CTypePointerAlias>,
+}
+
+#[derive(Debug, Clone)]
+struct CTypePointerAlias {
+    base_kind: ForeignBaseKind,
+    base_name: String,
+    pointer_depth: u8,
+    is_const: bool,
+}
+
+fn collect_type_registry(externals: &[Node<c_ast::ExternalDeclaration>]) -> CTypeRegistry {
+    let mut registry = CTypeRegistry::default();
+    for external in externals {
+        let c_ast::ExternalDeclaration::Declaration(declaration) = &external.node else {
+            continue;
+        };
+        let declaration = &declaration.node;
+        if !declaration_is_typedef(&declaration.specifiers) {
+            continue;
+        }
+        let Ok(facts) = collect_type_facts(&declaration.specifiers) else {
+            continue;
+        };
+        let (base_kind, base_name) = foreign_base_from_facts(&facts);
+        for init_decl in &declaration.declarators {
+            let declarator = &init_decl.node.declarator.node;
+            let Ok(raw_name) = extract_declarator_name(declarator) else {
+                continue;
+            };
+            if raw_name.is_empty() {
+                continue;
+            }
+            let analysis = analyze_declarator(declarator);
+            if analysis.callback_like {
+                registry
+                    .callback_typedefs
+                    .insert(raw_name.clone(), raw_name.clone());
+                continue;
+            }
+            if analysis.pointer_depth > 0 {
+                let Ok(pointer_depth) = u8::try_from(analysis.pointer_depth) else {
+                    continue;
+                };
+                registry.pointer_typedefs.insert(
+                    raw_name,
+                    CTypePointerAlias {
+                        base_kind,
+                        base_name: base_name.clone(),
+                        pointer_depth,
+                        is_const: facts.is_const || analysis.is_const,
+                    },
+                );
+            }
+        }
+    }
+    registry
+}
+
 fn build_function_binding(
     import_name: &str,
     raw_name: &str,
     specifiers: &[Node<c_ast::DeclarationSpecifier>],
     declarator: &c_ast::Declarator,
     symbol_overrides: &std::collections::BTreeMap<String, String>,
+    type_registry: &CTypeRegistry,
 ) -> Result<CFunctionBinding, (ItemStatus, String)> {
-    let params =
-        extract_function_params(declarator).map_err(|reason| (ItemStatus::Unsupported, reason))?;
-    let return_type = resolve_bridge_type_from_declaration(specifiers, Some(declarator))
+    let params = extract_function_params(declarator, type_registry)
         .map_err(|reason| (ItemStatus::Unsupported, reason))?;
-    if matches!(return_type, BridgeType::ByteBuffer { .. }) {
-        return Err((
-            ItemStatus::Stubbed,
-            "byte-buffer returns require explicit output metadata and are not emitted yet"
-                .to_string(),
-        ));
-    }
+    let return_type =
+        resolve_bridge_type_from_declaration(specifiers, Some(declarator), type_registry)
+            .map_err(|reason| (ItemStatus::Unsupported, reason))?;
 
     let emitted_name = raw_name.to_string();
     let prefixed = format!("c_{}_{}", import_name, emitted_name);
@@ -357,7 +430,10 @@ fn build_function_binding(
     })
 }
 
-fn extract_function_params(declarator: &c_ast::Declarator) -> Result<Vec<BridgeParam>, String> {
+fn extract_function_params(
+    declarator: &c_ast::Declarator,
+    type_registry: &CTypeRegistry,
+) -> Result<Vec<BridgeParam>, String> {
     for derived in &declarator.derived {
         match &derived.node {
             c_ast::DerivedDeclarator::Function(func_decl) => {
@@ -373,6 +449,7 @@ fn extract_function_params(declarator: &c_ast::Declarator) -> Result<Vec<BridgeP
                     let param_type = resolve_bridge_type_from_declaration(
                         &param_decl.specifiers,
                         param_decl.declarator.as_ref().map(|decl| &decl.node),
+                        type_registry,
                     )?;
                     params.push(BridgeParam {
                         name: param_name,
@@ -397,85 +474,59 @@ fn extract_function_params(declarator: &c_ast::Declarator) -> Result<Vec<BridgeP
 fn resolve_bridge_type_from_declaration(
     specifiers: &[Node<c_ast::DeclarationSpecifier>],
     declarator: Option<&c_ast::Declarator>,
+    type_registry: &CTypeRegistry,
 ) -> Result<BridgeType, String> {
     let facts = collect_type_facts(specifiers)?;
     let analysis = declarator.map(analyze_declarator).unwrap_or_default();
-
-    if analysis.callback_like {
-        return Err(
-            "function-pointer callbacks are not supported yet; expose a stable wrapper function"
-                .to_string(),
-        );
-    }
-    if analysis.has_array {
-        return Err("array declarators are not supported yet in the C ABI bridge".to_string());
-    }
-    if analysis.pointer_depth > 1 {
-        return Err("multi-level pointers are not supported yet in the C ABI bridge".to_string());
-    }
-
-    if analysis.pointer_depth == 1 {
-        return match facts.named {
-            Some(NamedType::Enum(name)) | Some(NamedType::Struct(name)) => {
-                Ok(BridgeType::OpaqueHandle {
-                    mutable: !facts.is_const,
-                    pointee: name,
-                })
-            }
-            Some(NamedType::Typedef(name)) => {
-                if is_byte_buffer_scalar(name.as_str()) {
-                    Ok(BridgeType::ByteBuffer {
-                        mutable: !facts.is_const,
-                        element_type: name,
-                    })
-                } else if map_common_typedef_name(name.as_str()).is_some() {
-                    Err(format!(
-                        "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
-                        name
-                    ))
-                } else {
-                    Ok(BridgeType::OpaqueHandle {
-                        mutable: !facts.is_const,
-                        pointee: name,
-                    })
-                }
-            }
-            None => {
-                if facts.scalar_key == "char" {
-                    Ok(BridgeType::CString)
-                } else if is_byte_buffer_scalar(facts.scalar_key.as_str()) {
-                    Ok(BridgeType::ByteBuffer {
-                        mutable: !facts.is_const,
-                        element_type: facts.scalar_key,
-                    })
-                } else if facts.scalar_key == "void" {
-                    Ok(BridgeType::OpaqueHandle {
-                        mutable: !facts.is_const,
-                        pointee: "void".to_string(),
-                    })
-                } else {
-                    Err(format!(
-                        "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
-                        facts.scalar_key
-                    ))
-                }
-            }
-        };
-    }
-
-    match facts.named {
-        Some(NamedType::Enum(_)) => Ok(BridgeType::SignedInt("std::os::raw::c_int".to_string())),
-        Some(NamedType::Struct(name)) | Some(NamedType::Typedef(name)) => {
-            if let Some(mapped) = map_common_typedef_name(name.as_str()) {
-                Ok(mapped)
-            } else {
-                Err(format!(
-                    "unsupported by-value C type '{}'; pointer-based opaque handles are supported first",
-                    name
-                ))
-            }
+    let mut pointer_depth = u8::try_from(analysis.pointer_depth).map_err(|_| {
+        format!(
+            "pointer depth {} exceeds kain-foreign-abi's u8 depth budget",
+            analysis.pointer_depth
+        )
+    })?;
+    let (mut base_kind, mut base_name) = foreign_base_from_facts(&facts);
+    let mut is_const = facts.is_const || analysis.is_const;
+    let mut callback_like = analysis.callback_like;
+    let mut signature = analysis.name.clone();
+    if let Some(NamedType::Typedef(name)) = &facts.named {
+        if let Some(callback_signature) = type_registry.callback_typedefs.get(name) {
+            callback_like = true;
+            signature = Some(callback_signature.clone());
         }
-        None => map_scalar_key_to_bridge_type(facts.scalar_key.as_str()),
+        if let Some(alias) = type_registry.pointer_typedefs.get(name) {
+            pointer_depth = pointer_depth
+                .checked_add(alias.pointer_depth)
+                .ok_or_else(|| {
+                    format!(
+                        "pointer typedef '{}' overflows kain-foreign-abi's u8 depth budget",
+                        name
+                    )
+                })?;
+            base_kind = alias.base_kind;
+            base_name = alias.base_name.clone();
+            is_const = is_const || alias.is_const;
+        }
+    }
+    let shape = CBridgeTypeShape {
+        base_kind,
+        base_name,
+        is_const,
+        pointer_depth,
+        has_array: analysis.has_array,
+        callback_like,
+        signature,
+    };
+    let class = classify_c_bridge_type(&shape, &ABI_SCALAR_TABLE, &ABI_LOWERING_POLICY)
+        .map_err(|error| error.message)?;
+    BridgeType::from_foreign_bridge_class(class)
+}
+
+fn foreign_base_from_facts(facts: &CTypeFacts) -> (ForeignBaseKind, String) {
+    match &facts.named {
+        Some(NamedType::Struct(name)) => (ForeignBaseKind::Struct, name.clone()),
+        Some(NamedType::Enum(name)) => (ForeignBaseKind::Enum, name.clone()),
+        Some(NamedType::Typedef(name)) => (ForeignBaseKind::Typedef, name.clone()),
+        None => (ForeignBaseKind::Scalar, facts.scalar_key.clone()),
     }
 }
 
@@ -650,53 +701,6 @@ fn canonical_scalar_key(tokens: &[&str]) -> Result<String, String> {
         "unsupported C scalar declaration in ABI bridge: {}",
         tokens.join(" ")
     ))
-}
-
-fn map_scalar_key_to_bridge_type(raw: &str) -> Result<BridgeType, String> {
-    match raw {
-        "void" => Ok(BridgeType::Unit),
-        "bool" | "_Bool" => Ok(BridgeType::Bool),
-        "float" => Ok(BridgeType::Float32),
-        "double" => Ok(BridgeType::Float64),
-        "char" | "signed char" => Ok(BridgeType::SignedInt("std::os::raw::c_char".to_string())),
-        "unsigned char" => Ok(BridgeType::UnsignedInt("u8".to_string())),
-        "short" => Ok(BridgeType::SignedInt("std::os::raw::c_short".to_string())),
-        "unsigned short" => Ok(BridgeType::UnsignedInt(
-            "std::os::raw::c_ushort".to_string(),
-        )),
-        "int" => Ok(BridgeType::SignedInt("std::os::raw::c_int".to_string())),
-        "unsigned int" => Ok(BridgeType::UnsignedInt("std::os::raw::c_uint".to_string())),
-        "long" => Ok(BridgeType::SignedInt("std::os::raw::c_long".to_string())),
-        "unsigned long" => Ok(BridgeType::UnsignedInt("std::os::raw::c_ulong".to_string())),
-        "long long" => Ok(BridgeType::SignedInt(
-            "std::os::raw::c_longlong".to_string(),
-        )),
-        "unsigned long long" => Ok(BridgeType::UnsignedInt(
-            "std::os::raw::c_ulonglong".to_string(),
-        )),
-        other => Err(format!("unsupported value type '{other}'")),
-    }
-}
-
-fn map_common_typedef_name(name: &str) -> Option<BridgeType> {
-    match name {
-        "size_t" => Some(BridgeType::UnsignedInt("usize".to_string())),
-        "ptrdiff_t" | "intptr_t" => Some(BridgeType::SignedInt("isize".to_string())),
-        "uintptr_t" => Some(BridgeType::UnsignedInt("usize".to_string())),
-        "int8_t" => Some(BridgeType::SignedInt("i8".to_string())),
-        "uint8_t" => Some(BridgeType::UnsignedInt("u8".to_string())),
-        "int16_t" => Some(BridgeType::SignedInt("i16".to_string())),
-        "uint16_t" => Some(BridgeType::UnsignedInt("u16".to_string())),
-        "int32_t" => Some(BridgeType::SignedInt("i32".to_string())),
-        "uint32_t" => Some(BridgeType::UnsignedInt("u32".to_string())),
-        "int64_t" => Some(BridgeType::SignedInt("i64".to_string())),
-        "uint64_t" => Some(BridgeType::UnsignedInt("u64".to_string())),
-        _ => None,
-    }
-}
-
-fn is_byte_buffer_scalar(raw: &str) -> bool {
-    matches!(raw, "uint8_t" | "unsigned char" | "int8_t")
 }
 
 #[derive(Debug, Clone, Default)]
@@ -922,18 +926,54 @@ fn parse_params(args: &str) -> Result<Vec<BridgeParam>, String> {
     }
 
     let mut params = Vec::new();
-    for (index, raw) in trimmed.split(',').enumerate() {
+    for (index, raw) in split_top_level_commas(trimmed).iter().enumerate() {
         let token = raw.trim();
         if token.contains('(') || token.contains(')') {
-            return Err(format!(
-                "function-pointer or callback parameters are not supported yet: '{token}'"
-            ));
+            let name = extract_callback_parameter_name(token)
+                .unwrap_or_else(|| format!("arg{}", index + 1));
+            params.push(BridgeParam {
+                name,
+                ty: BridgeType::Callback {
+                    mutable: !token.contains("const"),
+                    signature: token.to_string(),
+                },
+            });
+            continue;
         }
         let (ty_raw, name) = split_type_and_name(token, index);
         let ty = parse_c_type(ty_raw.as_str())?;
         params.push(BridgeParam { name, ty });
     }
     Ok(params)
+}
+
+fn split_top_level_commas(source: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, ch) in source.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(source[start..index].trim().to_string());
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(source[start..].trim().to_string());
+    parts.into_iter().filter(|part| !part.is_empty()).collect()
+}
+
+fn extract_callback_parameter_name(token: &str) -> Option<String> {
+    static CALLBACK_NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"\(\s*\*\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)").expect("callback name regex")
+    });
+    CALLBACK_NAME_REGEX
+        .captures(token)
+        .and_then(|captures| captures.get(1))
+        .map(|value| value.as_str().to_string())
 }
 
 fn split_type_and_name(token: &str, index: usize) -> (String, String) {
@@ -973,8 +1013,16 @@ fn parse_c_type(raw: &str) -> Result<BridgeType, String> {
     while normalized.contains("  ") {
         normalized = normalized.replace("  ", " ");
     }
+    if normalized.contains("(*") || normalized.contains(')') {
+        return Ok(BridgeType::Callback {
+            mutable: !normalized.contains("const"),
+            signature: normalized,
+        });
+    }
     let is_const = normalized.contains("const ");
+    let has_array = normalized.contains('[');
     let pointer_depth = normalized.chars().filter(|ch| *ch == '*').count();
+    normalized = strip_array_declarators(&normalized);
     normalized = normalized.replace('*', " ");
     while normalized.contains("  ") {
         normalized = normalized.replace("  ", " ");
@@ -987,31 +1035,41 @@ fn parse_c_type(raw: &str) -> Result<BridgeType, String> {
         .trim()
         .to_string();
 
-    if pointer_depth > 1 {
-        return Err(format!(
-            "multi-level pointers are not supported yet: '{raw}'"
-        ));
-    }
-    if pointer_depth == 1 {
-        if normalized_no_const == "char" {
-            return Ok(BridgeType::CString);
-        }
-        if is_byte_buffer_scalar(&normalized_no_const) {
-            return Ok(BridgeType::ByteBuffer {
-                mutable: !is_const,
-                element_type: normalized_no_const,
-            });
-        }
-        return Err(format!(
-            "raw scalar pointer '{}' is not emitted yet; expose a shared buffer/image contract or stable wrapper",
-            normalized_no_const
-        ));
-    }
+    let pointer_depth = u8::try_from(pointer_depth)
+        .map_err(|_| format!("pointer depth exceeds kain-foreign-abi budget: '{raw}'"))?;
+    let (base_kind, base_name) = infer_regex_foreign_base(&normalized_no_const);
+    let shape = CBridgeTypeShape {
+        base_kind,
+        base_name,
+        is_const,
+        pointer_depth,
+        has_array,
+        callback_like: false,
+        signature: None,
+    };
+    let class = classify_c_bridge_type(&shape, &ABI_SCALAR_TABLE, &ABI_LOWERING_POLICY)
+        .map_err(|error| error.message)?;
+    BridgeType::from_foreign_bridge_class(class)
+}
 
-    if let Some(mapped) = map_common_typedef_name(&normalized_no_const) {
-        return Ok(mapped);
+fn strip_array_declarators(raw: &str) -> String {
+    static ARRAY_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"\[[^\]]*\]").expect("array declarator regex"));
+    ARRAY_RE.replace_all(raw, " ").to_string()
+}
+
+fn infer_regex_foreign_base(raw: &str) -> (ForeignBaseKind, String) {
+    let normalized = raw.trim();
+    if let Some(name) = normalized.strip_prefix("struct ") {
+        return (ForeignBaseKind::Struct, name.trim().to_string());
     }
-    map_scalar_key_to_bridge_type(&normalized_no_const)
+    if let Some(name) = normalized.strip_prefix("enum ") {
+        return (ForeignBaseKind::Enum, name.trim().to_string());
+    }
+    if ABI_SCALAR_TABLE.contains(normalized) {
+        return (ForeignBaseKind::Scalar, normalized.to_string());
+    }
+    (ForeignBaseKind::Typedef, normalized.to_string())
 }
 
 fn strip_declspec_like(raw: &str) -> String {

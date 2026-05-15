@@ -1,0 +1,22 @@
+version: 1
+id: foreign-abi.array_decay_pointer_depth_range
+kind: range_check
+description: Array-to-pointer decay may add one pointer layer only when the original
+  u8 depth is <= 254, so the effective depth remains in 1..=255 and cannot overflow
+  the bridge depth budget.
+tags:
+- foreign-abi
+- pointer-depth
+- array-decay
+source: {}
+case:
+  declarations:
+  - name: depth
+    sort:
+      kind: int
+  constraints:
+  - (>= depth 0)
+  - (<= depth 254)
+  expression: (+ depth 1)
+  lower: '1'
+  upper: '255'

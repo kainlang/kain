@@ -2755,6 +2755,7 @@ dependencies = [
  "blade",
  "heck 0.5.0",
  "kain-core",
+ "kain-foreign-abi",
  "kain-fs",
  "kain-import",
  "kain-interop",
@@ -2897,6 +2898,13 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "kain-foreign-abi"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

@@ -1,5 +1,36 @@
 # Kain Memory
 
+# 2026-05-15 - Foreign ABI core and C FFI v2 raw API classification
+
+`kain-c-ffi` now has a shared ABI brain instead of owning scalar/pointer policy locally. The new `crates/kain-foreign-abi` crate models foreign ABI types, normalized C scalar tables, pointer/callback/aggregate bridge classes, external raw-pointer ownership tags, safety reports, and a local Z3 pack.
+
+What changed:
+
+- Added `crates/kain-foreign-abi` to the Cargo/Bazel workspace with `ForeignAbiType`, `ForeignBridgeClass`, `ScalarTypeTable`, `ForeignAbiLoweringPolicy`, `CBridgeTypeShape`, and `BridgeSafetyReport`.
+- `kain-c-ffi` now consumes `kain-foreign-abi` for C type classification instead of rejecting function pointers, arrays, multi-level pointers, and raw scalar pointers in ad hoc extractor branches.
+- The extractor now keeps a small typedef registry, so callback typedefs and pointer typedef aliases can affect later function signatures. This is important for Vulkan/D3D12-style `PFN_*` callbacks and handle typedefs.
+- Generated bridge code now supports raw pointer handles, callback-pointer null/handle passthrough, multi-level pointer handles, and byte-buffer pointer returns as host objects. The Kain surface remains `Any` for those unsafe raw shapes because ownership/lifetime must stay explicit at the boundary.
+- Added `tools/foreign_abi/mine_c_abi_shapes.py` to scan header corpora for callback typedefs, inline function pointers, raw scalar pointers, multi-level pointers, byte-buffer returns, arrays, and by-value named types.
+
+Current design boundary:
+
+- By-value aggregates are captured in the foreign ABI graph but are not callable from generated C bridges yet. That is intentional: calling a C function with a by-value struct/union without parsed layout and ABI-specific passing rules would be fake safety. The next real step is layout extraction and target ABI lowering, not `void*` pretending.
+- Raw pointers imported through `kain-c-ffi` are marked as external-ownership shapes. They do not become first-class `collapse`/`observe`/`decay` regions until an explicit foreign ownership contract exists.
+- `cargo test -p kain-c-ffi` can collide under default parallel test execution because bridge loading/env vars are process-global. Use serial execution for this crate until the test fixtures get unique bridge namespaces or registry reset hooks.
+
+Validation:
+
+- `cargo test -p kain-foreign-abi --target-dir target\codex-foreign-abi -- --nocapture`
+- `cargo test -p kain-c-ffi --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture`
+- `python tools/foreign_abi/mine_c_abi_shapes.py smoketest/fabric_FFI/c_ffi --out target/codex-foreign-abi/ffi_shape_report.json`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-foreign-abi/z3", report_name="foreign-abi-proof-pack-full")` proved `1/1`.
+- `python tools/bazel/sync_rust_builds.py --check`
+- `bazel test //crates/kain-foreign-abi:unit_test --config=dev` passed. Bazel still prints the known Windows `rules_swift` local-config `name 'arch' is not defined` analysis warning, but the Rust target completes.
+
+Recommended next step:
+
+- Add target ABI layout extraction for by-value structs/unions and callback trampolines for real Kain closures. The current v2 bridge supports null/passthrough callback pointers, which unblocks many raw APIs that allow null allocators/debug callbacks, but not yet closure-to-C trampoline generation.
+
 # 2026-05-15 - KQuantum native GPU lab blade
 
 `blades/kain-labs` is now a real Kain blade workspace for reference-driven native lab apps. The first lab recreates `blades/kain-labs/reference/KQuantum.tsx` as a Kain-authored native GPU particle/fluid simulator shell with a dense native UI, mode catalog, native graphics path, and SPIR-V compute kernels.

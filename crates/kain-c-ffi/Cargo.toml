@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 blade = { path = "../kain-blades" }
 kain-core = { path = "../kain-core" }
+kain-foreign-abi = { path = "../kain-foreign-abi" }
 kain-fs = { path = "../kain-fs" }
 kain-import = { path = "../kain-import", default-features = false, features = ["c"] }
 kain-interop = { path = "../kain-interop" }

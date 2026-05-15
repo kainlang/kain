@@ -9,10 +9,10 @@ use kain_core::error::KainError;
 use kain_fs as kfs;
 use std::path::{Path, PathBuf};
 
-pub const BRIDGE_FORMAT_VERSION: &str = "c-ffi-v1";
+pub const BRIDGE_FORMAT_VERSION: &str = "c-ffi-v2";
 pub const BRIDGE_SYMBOL_NAME: &[u8] = b"kain_register_bridge";
-pub const BINDING_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-manifest-v1";
-pub const PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-runtime-v1";
+pub const BINDING_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-manifest-v2";
+pub const PACKAGED_BRIDGE_MANIFEST_SCHEMA_VERSION: &str = "kain-c-ffi-runtime-v2";
 
 pub fn write_generated_artifacts(
     resolved: &ResolvedCLibrary,
@@ -245,6 +245,7 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
     );
 
     let mut output = String::new();
+    output.push_str("#![allow(dead_code, unused_imports, unused_variables)]\n");
     output.push_str("use kain_core::error::KainError;\n");
     output.push_str("use kain_core::runtime::{Env, Value};\n");
     output.push_str("use libloading::{Library, Symbol};\n");
@@ -260,6 +261,7 @@ fn render_bridge_source(resolved: &ResolvedCLibrary, bundle: &BindingBundle) -> 
 struct CAbiOpaqueHandle {
     pointee: String,
     mutable: bool,
+    pointer_depth: u8,
     address: usize,
 }
 
@@ -366,6 +368,7 @@ fn bytes_to_value(bytes: &[u8]) -> Value {
 fn extract_c_handle(
     value: Value,
     expected_pointee: &str,
+    expected_pointer_depth: u8,
     allow_null: bool,
 ) -> Result<*mut c_void, KainError> {
     match value {
@@ -378,6 +381,34 @@ fn extract_c_handle(
                 return Err(KainError::runtime(format!(
                     "expected C ABI handle for {}, got {}",
                     expected_pointee, handle.pointee
+                )));
+            }
+            if expected_pointer_depth != 0 && handle.pointer_depth != expected_pointer_depth {
+                return Err(KainError::runtime(format!(
+                    "expected C ABI pointer depth {}, got {}",
+                    expected_pointer_depth, handle.pointer_depth
+                )));
+            }
+            Ok(handle.address as *mut c_void)
+        }
+    }
+}
+
+fn extract_c_callback(
+    value: Value,
+    expected_signature: &str,
+    allow_null: bool,
+) -> Result<*mut c_void, KainError> {
+    match value {
+        Value::None if allow_null => Ok(std::ptr::null_mut()),
+        other => {
+            let handle = other
+                .downcast_host_object::<CAbiOpaqueHandle>()
+                .ok_or_else(|| KainError::runtime("expected a C ABI callback handle".to_string()))?;
+            if handle.pointee != "callback" && handle.pointee != expected_signature {
+                return Err(KainError::runtime(format!(
+                    "expected C ABI callback handle for {}, got {}",
+                    expected_signature, handle.pointee
                 )));
             }
             Ok(handle.address as *mut c_void)
@@ -596,8 +627,20 @@ fn render_param_conversion(
             }
         }
         BridgeType::OpaqueHandle { pointee, .. } => format!(
-            "    let {} = extract_c_handle(iter.next().expect(\"checked arg count\"), {:?}, true)?;\n",
+            "    let {} = extract_c_handle(iter.next().expect(\"checked arg count\"), {:?}, 1, true)?;\n",
             param.name, pointee
+        ),
+        BridgeType::RawPointer {
+            pointee,
+            pointer_depth,
+            ..
+        } => format!(
+            "    let {} = extract_c_handle(iter.next().expect(\"checked arg count\"), {:?}, {}, true)?;\n",
+            param.name, pointee, pointer_depth
+        ),
+        BridgeType::Callback { signature, .. } => format!(
+            "    let {} = extract_c_callback(iter.next().expect(\"checked arg count\"), {:?}, true)?;\n",
+            param.name, signature
         ),
     }
 }
@@ -612,11 +655,32 @@ fn render_return_conversion(ty: &BridgeType) -> String {
             "    Ok(value_from_float(result as f64))\n".to_string()
         }
         BridgeType::CString => "    if result.is_null() { return Err(KainError::runtime(\"C string return was null\".to_string())); }\n    let text = unsafe { CStr::from_ptr(result) }.to_string_lossy().into_owned();\n    Ok(value_from_string(text))\n".to_string(),
-        BridgeType::ByteBuffer { .. } => "    Err(KainError::runtime(\"byte-buffer returns require explicit output metadata and are not supported yet\".to_string()))\n".to_string(),
+        BridgeType::ByteBuffer {
+            mutable,
+            element_type,
+        } => format!(
+            "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.pointer\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: {}, pointer_depth: 1, address: result as usize }})))\n",
+            element_type,
+            if *mutable { "true" } else { "false" }
+        ),
         BridgeType::OpaqueHandle { mutable, pointee } => format!(
-            "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.handle\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: {}, address: result as usize }})))\n",
+            "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.handle\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: {}, pointer_depth: 1, address: result as usize }})))\n",
             pointee,
             if *mutable { "true" } else { "false" }
+        ),
+        BridgeType::RawPointer {
+            mutable,
+            pointee,
+            pointer_depth,
+        } => format!(
+            "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.pointer\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: {}, pointer_depth: {}, address: result as usize }})))\n",
+            pointee,
+            if *mutable { "true" } else { "false" },
+            pointer_depth
+        ),
+        BridgeType::Callback { signature, .. } => format!(
+            "    if result.is_null() {{ return Ok(Value::None); }}\n    Ok(Value::host_object(\"kain.c.callback\", Arc::new(CAbiOpaqueHandle {{ pointee: {:?}.to_string(), mutable: false, pointer_depth: 1, address: result as usize }})))\n",
+            signature
         ),
     }
 }
@@ -692,9 +756,30 @@ fn collect_capabilities(bundle: &BindingBundle) -> Vec<String> {
             .params
             .iter()
             .any(|param| matches!(param.ty, BridgeType::ByteBuffer { .. }))
+            || matches!(binding.return_type, BridgeType::ByteBuffer { .. })
     }) {
         capabilities.push("shared-buffer".to_string());
         capabilities.push("shared-image".to_string());
+    }
+    if bundle.functions.iter().any(|binding| {
+        binding
+            .params
+            .iter()
+            .any(|param| matches!(param.ty, BridgeType::RawPointer { .. }))
+            || matches!(binding.return_type, BridgeType::RawPointer { .. })
+    }) {
+        capabilities.push("raw-pointer".to_string());
+        capabilities.push("external-ownership-contract".to_string());
+    }
+    if bundle.functions.iter().any(|binding| {
+        binding
+            .params
+            .iter()
+            .any(|param| matches!(param.ty, BridgeType::Callback { .. }))
+            || matches!(binding.return_type, BridgeType::Callback { .. })
+    }) {
+        capabilities.push("callback-pointer".to_string());
+        capabilities.push("external-ownership-contract".to_string());
     }
     if bundle
         .report_entries

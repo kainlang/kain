@@ -645,6 +645,57 @@ mod tests {
     }
 
     #[test]
+    fn c_ffi_v2_classifies_raw_pointer_callback_and_pointer_return_shapes() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let header_path = native_dir.join("raw_api.h");
+        kfs::write_text(
+            &header_path,
+            "#include <stdint.h>\n#include <stddef.h>\ntypedef struct RawDevice RawDevice;\ntypedef void (*rawapi_callback_t)(void* user, int code);\nint rawapi_register(RawDevice** out_device, int* status, const void** chain, rawapi_callback_t callback, void* user);\nuint8_t* rawapi_bytes(void);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            root.join("KAIN.toml"),
+            &format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"raw_api\"\nheader = \"{}\"\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let output = import_library(
+            "raw_api",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("raw api import should classify v2 shapes");
+
+        let report_json = kfs::read_text(&output.report_json_path).expect("report");
+        assert!(report_json.contains("\"raw-pointer\""));
+        assert!(report_json.contains("\"callback-pointer\""));
+        assert!(
+            !report_json.contains("\"status\": \"unsupported\""),
+            "raw pointer/callback/byte pointer return shapes should no longer be unsupported:\n{report_json}"
+        );
+        assert!(output.canonical_module_source.contains("rawapi_register"));
+        assert!(output.canonical_module_source.contains("rawapi_bytes"));
+    }
+
+    #[test]
     fn packaged_bridge_manifest_loads_prebuilt_bridge_from_copied_sidecars() {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();

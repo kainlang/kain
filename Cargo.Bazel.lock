@@ -1,5 +1,5 @@
 {
-  "checksum": "ca6b48f99d8e0ae7c517fe5ef89c68b5d78f910b6d4b5c7eae0587333c8f3add",
+  "checksum": "5830143020b7449a79c6128a3a8c9bfa9caa46072d030128edb46705dd8d46bc",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -16825,6 +16825,48 @@
       },
       "license": null,
       "license_ids": [],
+      "license_file": null
+    },
+    "kain-foreign-abi 0.1.0": {
+      "name": "kain-foreign-abi",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_foreign_abi",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_foreign_abi",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.209",
+              "target": "serde"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
       "license_file": null
     },
     "kain-fs 0.1.0": {
@@ -48098,6 +48140,7 @@
     "kain-driver 0.1.0": "crates/kain-driver",
     "kain-entangle 0.1.0": "crates/kain-entangle",
     "kain-fast3d-runtime 0.1.0": "crates/kain-fast3d-runtime",
+    "kain-foreign-abi 0.1.0": "crates/kain-foreign-abi",
     "kain-fs 0.1.0": "crates/kain-fs",
     "kain-gpu-runtime 0.1.0": "crates/kain-gpu-runtime",
     "kain-host 0.1.0": "crates/kain-host",

@@ -14,6 +14,7 @@ members = [
     "crates/kain-check",
     "crates/kain-test",
     "crates/kain-interop",
+    "crates/kain-foreign-abi",
     "crates/kain-c-ffi",
     "crates/kain-node",
     "crates/kain-python",

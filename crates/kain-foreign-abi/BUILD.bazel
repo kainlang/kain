@@ -23,26 +23,19 @@ COMMON_COMPILE_DATA = glob(
 )
 
 rust_library(
-    name = "kain-c-ffi",
-    crate_name = "kain_c_ffi",
+    name = "kain-foreign-abi",
+    crate_name = "kain_foreign_abi",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
     edition = "2021",
     aliases = aliases(),
-    deps = [
-        "//crates/kain-blades:blade",
-        "//crates/kain-core:kain-core",
-        "//crates/kain-foreign-abi:kain-foreign-abi",
-        "//crates/kain-fs:kain-fs",
-        "//crates/kain-import:kain-import",
-        "//crates/kain-interop:kain-interop",
-    ] + all_crate_deps(normal = True),
+    deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
 )
 rust_test(
     name = "unit_test",
-    crate = ":kain-c-ffi",
+    crate = ":kain-foreign-abi",
     edition = "2021",
     aliases = aliases(normal_dev = True, proc_macro_dev = True),
     deps = all_crate_deps(normal_dev = True),

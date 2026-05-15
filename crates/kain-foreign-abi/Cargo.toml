@@ -1,0 +1,10 @@
+[package]
+name = "kain-foreign-abi"
+version = "0.1.0"
+edition = "2021"
+authors = ["KAIN Contributors"]
+description = "Shared foreign ABI type graph and bridge classification for Kain import lanes"
+license = "MIT"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }

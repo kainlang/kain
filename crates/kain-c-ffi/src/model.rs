@@ -1,4 +1,5 @@
 use crate::config::{CFfiConfig, CLibraryConfig};
+use kain_foreign_abi::{ForeignBaseKind, ForeignBridgeClass, ForeignOwnershipPolicy};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -183,11 +184,81 @@ pub enum BridgeType {
     Float32,
     Float64,
     CString,
-    ByteBuffer { mutable: bool, element_type: String },
-    OpaqueHandle { mutable: bool, pointee: String },
+    ByteBuffer {
+        mutable: bool,
+        element_type: String,
+    },
+    OpaqueHandle {
+        mutable: bool,
+        pointee: String,
+    },
+    RawPointer {
+        mutable: bool,
+        pointee: String,
+        pointer_depth: u8,
+    },
+    Callback {
+        mutable: bool,
+        signature: String,
+    },
 }
 
 impl BridgeType {
+    pub fn from_foreign_bridge_class(class: ForeignBridgeClass) -> Result<Self, String> {
+        match class {
+            ForeignBridgeClass::Unit => Ok(Self::Unit),
+            ForeignBridgeClass::Bool => Ok(Self::Bool),
+            ForeignBridgeClass::SignedInt { rust_ffi_type } => Ok(Self::SignedInt(rust_ffi_type)),
+            ForeignBridgeClass::UnsignedInt { rust_ffi_type } => {
+                Ok(Self::UnsignedInt(rust_ffi_type))
+            }
+            ForeignBridgeClass::Float32 => Ok(Self::Float32),
+            ForeignBridgeClass::Float64 => Ok(Self::Float64),
+            ForeignBridgeClass::CString => Ok(Self::CString),
+            ForeignBridgeClass::ByteBuffer {
+                mutable,
+                element_type,
+            } => Ok(Self::ByteBuffer {
+                mutable,
+                element_type,
+            }),
+            ForeignBridgeClass::OpaqueHandle {
+                mutable, pointee, ..
+            } => Ok(Self::OpaqueHandle { mutable, pointee }),
+            ForeignBridgeClass::RawPointer {
+                mutable,
+                pointee,
+                pointer_depth,
+                ownership,
+            } => {
+                if !matches!(ownership, ForeignOwnershipPolicy::External) {
+                    return Err(format!(
+                        "raw pointer '{}' uses non-external ownership policy {:?}; c-ffi v2 only imports external raw pointers today",
+                        pointee, ownership
+                    ));
+                }
+                Ok(Self::RawPointer {
+                    mutable,
+                    pointee,
+                    pointer_depth,
+                })
+            }
+            ForeignBridgeClass::Callback { mutable, signature } => {
+                Ok(Self::Callback { mutable, signature })
+            }
+            ForeignBridgeClass::ByValueAggregate { kind, name } => Err(format!(
+                "by-value C {} '{}' was captured in the foreign ABI graph but is not callable until layout metadata is available",
+                match kind {
+                    ForeignBaseKind::Scalar => "scalar",
+                    ForeignBaseKind::Typedef => "typedef",
+                    ForeignBaseKind::Struct => "struct",
+                    ForeignBaseKind::Enum => "enum",
+                },
+                name
+            )),
+        }
+    }
+
     pub fn render_kain(&self) -> String {
         match self {
             Self::Unit => "Void".to_string(),
@@ -195,10 +266,14 @@ impl BridgeType {
             Self::SignedInt(_) | Self::UnsignedInt(_) => "Int".to_string(),
             Self::Float32 | Self::Float64 => "Float".to_string(),
             Self::CString => "String".to_string(),
-            Self::ByteBuffer { .. } | Self::OpaqueHandle { .. } => "Any".to_string(),
+            Self::ByteBuffer { .. }
+            | Self::OpaqueHandle { .. }
+            | Self::RawPointer { .. }
+            | Self::Callback { .. } => "Any".to_string(),
         }
     }
 
+    #[allow(dead_code)]
     pub fn default_literal(&self) -> &'static str {
         match self {
             Self::Unit => "()",
@@ -206,7 +281,10 @@ impl BridgeType {
             Self::SignedInt(_) | Self::UnsignedInt(_) => "0",
             Self::Float32 | Self::Float64 => "0.0",
             Self::CString => "\"\"",
-            Self::ByteBuffer { .. } | Self::OpaqueHandle { .. } => "()",
+            Self::ByteBuffer { .. }
+            | Self::OpaqueHandle { .. }
+            | Self::RawPointer { .. }
+            | Self::Callback { .. } => "()",
         }
     }
 
@@ -226,6 +304,13 @@ impl BridgeType {
                 }
             }
             Self::OpaqueHandle { mutable, .. } => {
+                if *mutable {
+                    "*mut std::ffi::c_void".to_string()
+                } else {
+                    "*const std::ffi::c_void".to_string()
+                }
+            }
+            Self::RawPointer { mutable, .. } | Self::Callback { mutable, .. } => {
                 if *mutable {
                     "*mut std::ffi::c_void".to_string()
                 } else {
